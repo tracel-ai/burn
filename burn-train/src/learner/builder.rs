@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{
@@ -5,13 +7,14 @@ use crate::checkpoint::{
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
 use crate::components::LearnerComponentsMarker;
-use crate::info::MetricsInfo;
 use crate::learner::base::TrainingInterrupter;
+use crate::learner::EarlyStoppingStrategy;
 use crate::logger::{FileMetricLogger, MetricLogger};
+use crate::metric::processor::{FullEventProcessor, Metrics};
+use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::{collector::metrics::RenderedMetricsEventCollector, Aggregate, Direction, Split};
-use crate::{AsyncEventCollector, LearnerCheckpointer};
+use crate::LearnerCheckpointer;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
@@ -43,11 +46,13 @@ where
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    info: MetricsInfo<T, V>,
+    metrics: Metrics<T, V>,
+    event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     log_to_file: bool,
     num_loggers: usize,
-    checkpointer_strategy: Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
+    checkpointer_strategy: Box<dyn CheckpointingStrategy>,
+    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -72,7 +77,8 @@ where
             directory: directory.to_string(),
             grad_accumulation: None,
             devices: vec![B::Device::default()],
-            info: MetricsInfo::new(),
+            metrics: Metrics::default(),
+            event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
@@ -87,6 +93,7 @@ where
                     ))
                     .build(),
             ),
+            early_stopping: None,
         }
     }
 
@@ -101,8 +108,8 @@ where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
-        self.info.register_logger_train(logger_train);
-        self.info.register_logger_valid(logger_valid);
+        self.event_store.register_logger_train(logger_train);
+        self.event_store.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
     }
@@ -110,7 +117,7 @@ where
     /// Update the checkpointing_strategy.
     pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
     where
-        CS: CheckpointingStrategy<AsyncEventCollector<T, V>> + 'static,
+        CS: CheckpointingStrategy + 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
     }
@@ -133,7 +140,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.info.register_metric_train(metric);
+        self.metrics.register_metric_train(metric);
         self
     }
 
@@ -142,7 +149,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.info.register_valid_metric(metric);
+        self.metrics.register_valid_metric(metric);
         self
     }
 
@@ -167,7 +174,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
-        self.info.register_train_metric_numeric(metric);
+        self.metrics.register_train_metric_numeric(metric);
         self
     }
 
@@ -179,7 +186,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
-        self.info.register_valid_metric_numeric(metric);
+        self.metrics.register_valid_metric_numeric(metric);
         self
     }
 
@@ -204,6 +211,16 @@ where
     /// Provides a handle that can be used to interrupt training.
     pub fn interrupter(&self) -> TrainingInterrupter {
         self.interrupter.clone()
+    }
+
+    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
+    /// conditions are meet.
+    pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
+    where
+        Strategy: EarlyStoppingStrategy + 'static,
+    {
+        self.early_stopping = Some(Box::new(strategy));
+        self
     }
 
     /// By default, Rust logs are captured and written into
@@ -267,8 +284,8 @@ where
             AsyncCheckpointer<M::Record>,
             AsyncCheckpointer<O::Record>,
             AsyncCheckpointer<S::Record>,
-            AsyncEventCollector<T, V>,
-            Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
+            FullEventProcessor<T, V>,
+            Box<dyn CheckpointingStrategy>,
         >,
     >
     where
@@ -285,16 +302,18 @@ where
         let directory = &self.directory;
 
         if self.num_loggers == 0 {
-            self.info.register_logger_train(FileMetricLogger::new(
-                format!("{directory}/train").as_str(),
-            ));
-            self.info.register_logger_valid(FileMetricLogger::new(
-                format!("{directory}/valid").as_str(),
-            ));
+            self.event_store
+                .register_logger_train(FileMetricLogger::new(
+                    format!("{directory}/train").as_str(),
+                ));
+            self.event_store
+                .register_logger_valid(FileMetricLogger::new(
+                    format!("{directory}/valid").as_str(),
+                ));
         }
 
-        let collector =
-            AsyncEventCollector::new(RenderedMetricsEventCollector::new(renderer, self.info));
+        let event_store = Arc::new(EventStoreClient::new(self.event_store));
+        let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
@@ -306,11 +325,13 @@ where
             lr_scheduler,
             checkpointer,
             num_epochs: self.num_epochs,
-            collector,
+            event_processor,
+            event_store,
             checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
             interrupter: self.interrupter,
+            early_stopping: self.early_stopping,
         }
     }
 

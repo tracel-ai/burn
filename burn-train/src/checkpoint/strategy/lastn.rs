@@ -1,5 +1,5 @@
 use super::CheckpointingStrategy;
-use crate::{checkpoint::CheckpointingAction, EventCollector};
+use crate::{checkpoint::CheckpointingAction, metric::store::EventStoreClient};
 
 /// Keep the last N checkpoints.
 ///
@@ -10,8 +10,12 @@ pub struct KeepLastNCheckpoints {
     num_keep: usize,
 }
 
-impl<E: EventCollector> CheckpointingStrategy<E> for KeepLastNCheckpoints {
-    fn checkpointing(&mut self, epoch: usize, _collector: &mut E) -> Vec<CheckpointingAction> {
+impl CheckpointingStrategy for KeepLastNCheckpoints {
+    fn checkpointing(
+        &mut self,
+        epoch: usize,
+        _store: &EventStoreClient,
+    ) -> Vec<CheckpointingAction> {
         let mut actions = vec![CheckpointingAction::Save];
 
         if let Some(epoch) = usize::checked_sub(epoch, self.num_keep) {
@@ -26,28 +30,27 @@ impl<E: EventCollector> CheckpointingStrategy<E> for KeepLastNCheckpoints {
 
 #[cfg(test)]
 mod tests {
-    use crate::{info::MetricsInfo, test_utils::TestEventCollector};
-
     use super::*;
+    use crate::metric::store::LogEventStore;
 
     #[test]
     fn should_always_delete_lastn_epoch_if_higher_than_one() {
         let mut strategy = KeepLastNCheckpoints::new(2);
-        let mut collector = TestEventCollector::<f64, f64>::new(MetricsInfo::new());
+        let store = EventStoreClient::new(LogEventStore::default());
 
         assert_eq!(
             vec![CheckpointingAction::Save],
-            strategy.checkpointing(1, &mut collector)
+            strategy.checkpointing(1, &store)
         );
 
         assert_eq!(
             vec![CheckpointingAction::Save],
-            strategy.checkpointing(2, &mut collector)
+            strategy.checkpointing(2, &store)
         );
 
         assert_eq!(
             vec![CheckpointingAction::Save, CheckpointingAction::Delete(1)],
-            strategy.checkpointing(3, &mut collector)
+            strategy.checkpointing(3, &store)
         );
     }
 }

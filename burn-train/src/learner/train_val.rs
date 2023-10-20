@@ -1,5 +1,6 @@
 use crate::components::LearnerComponents;
-use crate::{EventCollector, Learner, TrainEpoch, ValidEpoch};
+use crate::metric::processor::EventProcessor;
+use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
@@ -115,7 +116,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         OutputValid: Send,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
         <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        LC::EventCollector: EventCollector<ItemTrain = OutputTrain, ItemValid = OutputValid>,
+        LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
@@ -151,7 +152,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                     self.model,
                     self.optim,
                     &mut self.lr_scheduler,
-                    &mut self.collector,
+                    &mut self.event_processor,
                     self.devices.clone(),
                     &self.interrupter,
                 )
@@ -160,7 +161,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                     self.model,
                     self.optim,
                     &mut self.lr_scheduler,
-                    &mut self.collector,
+                    &mut self.event_processor,
                     &self.interrupter,
                 );
             }
@@ -170,7 +171,11 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run::<LC, OutputValid>(&self.model, &mut self.collector, &self.interrupter);
+            epoch_valid.run::<LC, OutputValid>(
+                &self.model,
+                &mut self.event_processor,
+                &self.interrupter,
+            );
 
             if let Some(checkpointer) = &mut self.checkpointer {
                 checkpointer.checkpoint(
@@ -178,8 +183,14 @@ impl<LC: LearnerComponents> Learner<LC> {
                     &self.optim,
                     &self.lr_scheduler,
                     epoch,
-                    &mut self.collector,
+                    &self.event_store,
                 );
+            }
+
+            if let Some(early_stopping) = &mut self.early_stopping {
+                if early_stopping.should_stop(epoch, &self.event_store) {
+                    break;
+                }
             }
         }
 

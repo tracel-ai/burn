@@ -1,6 +1,6 @@
 use crate::{
     checkpoint::{Checkpointer, CheckpointingStrategy},
-    EventCollector,
+    metric::processor::EventProcessor,
 };
 use burn_core::{
     lr_scheduler::LrScheduler,
@@ -28,14 +28,13 @@ pub trait LearnerComponents {
     >;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record>;
-    /// Training event collector used for training tracking.
-    type EventCollector: EventCollector + 'static;
+    type EventProcessor: EventProcessor + 'static;
     /// The strategy to save and delete checkpoints.
-    type CheckpointerStrategy: CheckpointingStrategy<Self::EventCollector>;
+    type CheckpointerStrategy: CheckpointingStrategy;
 }
 
 /// Concrete type that implements [training components trait](TrainingComponents).
-pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S> {
+pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
     _backend: PhantomData<B>,
     _lr_scheduler: PhantomData<LR>,
     _model: PhantomData<M>,
@@ -43,12 +42,12 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S> {
     _checkpointer_model: PhantomData<CM>,
     _checkpointer_optim: PhantomData<CO>,
     _checkpointer_scheduler: PhantomData<CS>,
-    _collector: PhantomData<EC>,
+    _event_processor: PhantomData<EP>,
     _strategy: S,
 }
 
-impl<B, LR, M, O, CM, CO, CS, EC, S> LearnerComponents
-    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EC, S>
+impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
+    for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
     B: ADBackend,
     LR: LrScheduler,
@@ -57,8 +56,8 @@ where
     CM: Checkpointer<M::Record>,
     CO: Checkpointer<O::Record>,
     CS: Checkpointer<LR::Record>,
-    EC: EventCollector + 'static,
-    S: CheckpointingStrategy<EC>,
+    EP: EventProcessor + 'static,
+    S: CheckpointingStrategy,
 {
     type Backend = B;
     type LrScheduler = LR;
@@ -67,6 +66,6 @@ where
     type CheckpointerModel = CM;
     type CheckpointerOptimizer = CO;
     type CheckpointerLrScheduler = CS;
-    type EventCollector = EC;
+    type EventProcessor = EP;
     type CheckpointerStrategy = S;
 }

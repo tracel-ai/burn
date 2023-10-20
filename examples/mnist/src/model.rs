@@ -1,5 +1,4 @@
 use crate::data::MNISTBatch;
-
 use burn::{
     module::Module,
     nn::{self, loss::CrossEntropyLoss, BatchNorm, PaddingConfig2d},
