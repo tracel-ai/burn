@@ -6,9 +6,8 @@ use crate::metric::{
 /// The condition that [early stopping strategies](EarlyStoppingStrategy) should follow.
 pub enum StoppingCondition {
     /// When no improvement has happened since the given number of epochs.
-    /// In other words, when no best epoch has been found.
     NoImprovementSince {
-        /// The number of epochs allowed to get worsen before it get better.
+        /// The number of epochs allowed to worsen before it gets better.
         n_epochs: usize,
     },
 }
@@ -43,8 +42,8 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
             };
 
         let is_best = match self.direction {
-            Direction::Lowest => current_value <= self.best_value,
-            Direction::Highest => current_value >= self.best_value,
+            Direction::Lowest => current_value < self.best_value,
+            Direction::Highest => current_value > self.best_value,
         };
 
         if is_best {
@@ -123,63 +122,88 @@ mod tests {
     use super::*;
 
     #[test]
-    fn metric_early_should_stop_when_metric_gets_worse() {
+    fn never_early_stop_while_it_is_improving() {
+        test_early_stopping(
+            1,
+            &[
+                (&[0.5, 0.3], false, "Should not stop first epoch"),
+                (&[0.4, 0.3], false, "Should not stop when improving"),
+                (&[0.3, 0.3], false, "Should not stop when improving"),
+                (&[0.2, 0.3], false, "Should not stop when improving"),
+            ],
+        );
+    }
+
+    #[test]
+    fn early_stop_when_no_improvement_since_two_epochs() {
+        test_early_stopping(
+            2,
+            &[
+                (&[1.0, 0.5], false, "Should not stop first epoch"),
+                (&[0.5, 0.3], false, "Should not stop when improving"),
+                (
+                    &[1.0, 3.0],
+                    false,
+                    "Should not stop first time it gets worse",
+                ),
+                (
+                    &[1.0, 2.0],
+                    true,
+                    "Should stop since two following epochs didn't improve",
+                ),
+            ],
+        );
+    }
+
+    #[test]
+    fn early_stop_when_stays_equal() {
+        test_early_stopping(
+            2,
+            &[
+                (&[0.5, 0.3], false, "Should not stop first epoch"),
+                (
+                    &[0.5, 0.3],
+                    false,
+                    "Should not stop first time it stars the same",
+                ),
+                (
+                    &[0.5, 0.3],
+                    true,
+                    "Should stop since two following epochs didn't improve",
+                ),
+            ],
+        );
+    }
+
+    fn test_early_stopping(n_epochs: usize, data: &[(&[f64], bool, &str)]) {
         let mut early_stopping = MetricEarlyStoppingStrategy::new::<LossMetric<TestBackend>>(
             Aggregate::Mean,
             Direction::Lowest,
             Split::Train,
-            StoppingCondition::NoImprovementSince { n_epochs: 2 },
+            StoppingCondition::NoImprovementSince { n_epochs },
         );
         let mut store = LogEventStore::default();
         let mut metrics = Metrics::<f64, f64>::default();
+
         store.register_logger_train(InMemoryMetricLogger::default());
         metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
 
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
-        // Two points for the first epoch. Mean 0.75
         let mut epoch = 1;
-        process_train(&mut processor, 1.0, epoch);
-        process_train(&mut processor, 0.5, epoch);
-        end_epoch(&mut processor, epoch);
+        for (points, should_start, comment) in data {
+            for point in points.iter() {
+                process_train(&mut processor, *point, epoch);
+            }
+            end_epoch(&mut processor, epoch);
 
-        assert!(
-            !early_stopping.should_stop(epoch, &store),
-            "Should not stop first epoch."
-        );
-
-        // Two points for the second epoch. Mean 0.4
-        epoch += 1;
-        process_train(&mut processor, 0.5, epoch);
-        process_train(&mut processor, 0.3, epoch);
-        end_epoch(&mut processor, epoch);
-
-        assert!(
-            !early_stopping.should_stop(epoch, &store),
-            "Should not stop since it's better."
-        );
-
-        // Two points for the third epoch. Mean 2.0
-        epoch += 1;
-        process_train(&mut processor, 1.0, epoch);
-        process_train(&mut processor, 3.0, epoch);
-        end_epoch(&mut processor, epoch);
-
-        assert!(
-            !early_stopping.should_stop(epoch, &store),
-            "Should not stop even if worsen."
-        );
-
-        // Two points for the last epoch. Mean 1.5
-        epoch += 1;
-        process_train(&mut processor, 1.0, epoch);
-        process_train(&mut processor, 2.0, epoch);
-        end_epoch(&mut processor, epoch);
-
-        assert!(
-            early_stopping.should_stop(epoch, &store),
-            "Should stop since two following epochs are worse then the best."
-        );
+            assert_eq!(
+                *should_start,
+                early_stopping.should_stop(epoch, &store),
+                "{comment}"
+            );
+            epoch += 1;
+        }
     }
 }
