@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
-use burn_compute::tune::{AutotuneOperation, Operation};
+use burn_compute::{
+    server::{ComputeServer, Handle},
+    tune::{AutotuneOperation, Operation},
+};
 use derive_new::new;
 
 use crate::dummy::{
     CacheTestFastOn3, CacheTestSlowOn3, DummyElementwiseAddition, DummyElementwiseMultiplication,
-    DummyElementwiseMultiplicationSlowWrong, DummyKernel, DummyServer,
+    DummyElementwiseMultiplicationSlowWrong, DummyKernel, DummyServer, ParameteredKernel,
 };
 
 use super::DummyElementwiseAdditionSlowWrong;
@@ -86,6 +89,39 @@ impl AutotuneOperation<DummyServer> for CacheTestAutotuneKernel {
         let x: Arc<dyn DummyKernel> = Arc::new(CacheTestFastOn3);
         let y: Arc<dyn DummyKernel> = Arc::new(CacheTestSlowOn3);
         vec![Operation::new(x, None), Operation::new(y, None)]
+    }
+
+    fn inputs(&self) -> Vec<Vec<u8>> {
+        arbitrary_bytes(&self.shapes)
+    }
+
+    fn fastest(&self, fastest_index: usize) -> Operation<DummyServer> {
+        self.autotunables()[fastest_index].clone()
+    }
+}
+
+#[derive(new)]
+pub struct ParameterTestAutotuneKernel {
+    shapes: Vec<Vec<usize>>,
+    parameter_handle: Handle<DummyServer>,
+}
+
+impl AutotuneOperation<DummyServer> for ParameterTestAutotuneKernel {
+    fn operation_key(&self) -> String {
+        "parameter_test".to_string()
+    }
+
+    fn input_key(&self) -> String {
+        log_shape_input_key(&self.shapes)
+    }
+
+    fn autotunables(&self) -> Vec<Operation<DummyServer>> {
+        let x: Arc<dyn DummyKernel> = Arc::new(ParameteredKernel);
+        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
+        vec![
+            Operation::new(x, Some(vec![self.parameter_handle.clone()])),
+            Operation::new(y, None),
+        ]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {

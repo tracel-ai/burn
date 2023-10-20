@@ -11,6 +11,8 @@ pub struct DummyElementwiseMultiplication;
 pub struct DummyElementwiseMultiplicationSlowWrong;
 pub struct CacheTestFastOn3;
 pub struct CacheTestSlowOn3;
+pub struct ParameteredKernel;
+pub struct UnparameteredKernel;
 
 impl DummyKernel for DummyElementwiseAdditionSlowWrong {
     fn compute(&self, inputs: &mut [BytesResource]) {
@@ -89,3 +91,18 @@ impl DummyKernel for CacheTestSlowOn3 {
         }
     }
 }
+
+impl DummyKernel for ParameteredKernel {
+    fn compute(&self, inputs: &mut [BytesResource]) {
+        // This is an artificial kernel designed for info buffer
+        let lhs = &inputs[0].read();
+        let rhs = &inputs[1].read();
+        let out = &mut inputs[2].write();
+        let info = &inputs[3].read();
+
+        for i in 0..lhs.len() {
+            out[i] = lhs[i] + rhs[i] + info[0];
+        }
+    }
+}
+

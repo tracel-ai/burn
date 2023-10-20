@@ -140,3 +140,24 @@ fn autotune_cache_miss_test() {
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
     assert_eq!(obtained_resource.read(), Vec::from([5, 6, 7, 8, 9]));
 }
+
+#[test]
+#[serial]
+#[cfg(feature = "std")]
+fn autotune_operation_with_parameters() {
+    let client = client(&DummyDevice);
+
+    let shapes = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
+    let lhs = client.create(&[0, 1, 2]);
+    let rhs = client.create(&[4, 4, 4]);
+    let out = client.empty(3);
+    let info = client.create(&[9]);
+    let handles = &[&lhs, &rhs, &out, &info];
+
+    let addition_autotune_kernel = dummy::ParameterTestAutotuneKernel::new(shapes, info.clone());
+    client.execute_autotune(Box::new(addition_autotune_kernel), handles);
+
+    let obtained_resource = client.read(&out);
+
+    assert_eq!(obtained_resource.read(), Vec::from([13, 14, 15]));
+}
