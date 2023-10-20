@@ -15,8 +15,7 @@ pub mod channel;
 /// Compute client module.
 pub mod client;
 
-/// Autotune module, only available with std for now
-#[cfg(feature = "std")]
+/// Autotune module
 pub mod tune;
 
 /// Memory management module.

@@ -3,6 +3,7 @@ use crate::{
     server::{ComputeServer, Handle},
     tune::AutotuneOperation,
 };
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::marker::PhantomData;

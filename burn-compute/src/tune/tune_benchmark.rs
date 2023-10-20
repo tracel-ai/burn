@@ -3,6 +3,8 @@ use burn_common::benchmark::Benchmark;
 use crate::server::{ComputeServer, Handle};
 
 use super::Operation;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 /// A benchmark that runs on server handles
 #[derive(new)]

@@ -1,6 +1,8 @@
 use alloc::string::String;
 use alloc::vec::Vec;
-use std::time::{Duration, Instant};
+use core::time::Duration;
+#[cfg(feature = "std")]
+use std::time::Instant;
 
 /// Results of a benchmark run.
 #[derive(new, Debug)]
@@ -42,27 +44,33 @@ pub trait Benchmark {
     fn sync(&mut self);
     /// Run the benchmark a number of times.
     fn run(&mut self) -> BenchmarkResult {
-        // Warmup
-        self.execute(self.prepare());
-        self.sync();
+        #[cfg(not(feature = "std"))]
+        panic!("Attempting to run benchmark in a no-std environment");
 
-        let mut durations = Vec::with_capacity(self.num_samples());
-
-        for _ in 0..self.num_samples() {
-            // Prepare
-            let args = self.prepare();
+        #[cfg(feature = "std")]
+        {
+            // Warmup
+            self.execute(self.prepare());
             self.sync();
 
-            // Execute the benchmark
-            let start = Instant::now();
-            self.execute(args);
-            self.sync();
-            let end = Instant::now();
+            let mut durations = Vec::with_capacity(self.num_samples());
 
-            // Register the duration
-            durations.push(end - start);
+            for _ in 0..self.num_samples() {
+                // Prepare
+                let args = self.prepare();
+                self.sync();
+
+                // Execute the benchmark
+                let start = Instant::now();
+                self.execute(args);
+                self.sync();
+                let end = Instant::now();
+
+                // Register the duration
+                durations.push(end - start);
+            }
+
+            BenchmarkResult { durations }
         }
-
-        BenchmarkResult { durations }
     }
 }

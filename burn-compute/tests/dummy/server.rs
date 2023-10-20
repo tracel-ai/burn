@@ -54,7 +54,6 @@ where
             .map(|handle| self.memory_management.get(&handle.memory))
             .collect::<Vec<_>>();
 
-        println!("{}", resources.len());
         kernel.compute(&mut resources);
     }
 

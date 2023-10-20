@@ -18,7 +18,6 @@ pub mod rand;
 /// Stub module contains types for stubs for non-std environments and for std environments.
 pub mod stub;
 
-#[cfg(feature = "std")]
 /// Module for benchmarking any executable part
 pub mod benchmark;
 

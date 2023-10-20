@@ -5,6 +5,8 @@ use crate::server::ComputeServer;
 
 use super::AutotuneOperation;
 use super::Operation;
+use alloc::string::String;
+use alloc::boxed::Box;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]

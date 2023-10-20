@@ -3,6 +3,7 @@ use crate::server::{ComputeServer, Handle};
 use crate::tune::AutotuneServer;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use alloc::boxed::Box;
 use burn_common::reader::Reader;
 use spin::Mutex;
 

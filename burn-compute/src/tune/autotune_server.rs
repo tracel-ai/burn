@@ -1,5 +1,7 @@
 use core::time::Duration;
 
+use alloc::vec::Vec;
+use alloc::boxed::Box;
 use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
 use crate::{
