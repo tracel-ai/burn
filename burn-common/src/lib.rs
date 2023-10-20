@@ -1,4 +1,4 @@
-// #![cfg_attr(not(feature = "std"), no_std)] TODO
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
 //! # Burn Common Library
@@ -18,7 +18,8 @@ pub mod rand;
 /// Stub module contains types for stubs for non-std environments and for std environments.
 pub mod stub;
 
-// #[cfg(feature = "std")] TODO
+#[cfg(feature = "std")]
+/// Module for benchmarking any executable part
 pub mod benchmark;
 
 /// Useful when you need to read async data without having to decorate each function with async

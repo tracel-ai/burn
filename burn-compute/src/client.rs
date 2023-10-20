@@ -66,7 +66,7 @@ where
         self.channel.sync()
     }
 
-    /// Executes the fastest kernel in the autotune operation, using runtime benchmarks
+    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
     pub fn execute_autotune(
         &self,
         autotune_kernel: Box<dyn AutotuneOperation<Server>>,

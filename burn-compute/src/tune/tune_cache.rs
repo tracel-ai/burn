@@ -1,7 +1,4 @@
 use core::marker::PhantomData;
-use core::time::Duration;
-
-use burn_common::benchmark::BenchmarkResult;
 use hashbrown::HashMap;
 
 use crate::server::ComputeServer;
@@ -22,22 +19,6 @@ impl<S: ComputeServer> TuneCache<S> {
             cache: HashMap::new(),
             _server: PhantomData,
         }
-    }
-
-    pub(crate) fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
-        let mut smallest_duration = Duration::MAX;
-        let mut fastest_tunable = None;
-
-        for (i, result) in results.into_iter().enumerate() {
-            let duration = result.median_duration();
-
-            if duration < smallest_duration {
-                smallest_duration = duration;
-                fastest_tunable = Some(i);
-            }
-        }
-
-        fastest_tunable.expect("At least one kernel needed. ")
     }
 
     pub(crate) fn try_cache(

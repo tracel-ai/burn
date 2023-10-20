@@ -1,6 +1,6 @@
 use super::ComputeChannel;
-use crate::autotune_server::AutotuneServer;
 use crate::server::{ComputeServer, Handle};
+use crate::tune::AutotuneServer;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;

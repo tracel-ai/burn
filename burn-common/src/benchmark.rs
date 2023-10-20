@@ -9,6 +9,7 @@ pub struct BenchmarkResult {
 }
 
 impl BenchmarkResult {
+    /// Returns the median duration among all durations
     pub fn median_duration(&self) -> Duration {
         let mut sorted = self.durations.clone();
         sorted.sort();

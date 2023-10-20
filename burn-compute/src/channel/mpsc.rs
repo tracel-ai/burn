@@ -7,9 +7,8 @@ use burn_common::reader::Reader;
 
 use super::ComputeChannel;
 use crate::{
-    autotune_server::AutotuneServer,
     server::{ComputeServer, Handle},
-    tune::AutotuneOperation,
+    tune::{AutotuneOperation, AutotuneServer},
 };
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
@@ -50,7 +49,7 @@ where
     Server: ComputeServer + 'static,
 {
     /// Create a new mpsc compute channel.
-    pub fn new(mut server: Server, bound: usize) -> Self {
+    pub fn new(server: Server, bound: usize) -> Self {
         let (sender, receiver) = mpsc::sync_channel(bound);
         let mut autotune_server = AutotuneServer::new(server);
 
@@ -80,7 +79,7 @@ where
                         callback.send(()).unwrap();
                     }
                     Message::ExecuteAutotune(autotune_kernel, handles) => {
-                        let index = autotune_server
+                        autotune_server
                             .execute_autotune(autotune_kernel, &handles.iter().collect::<Vec<_>>());
                     }
                 };
