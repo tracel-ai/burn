@@ -21,6 +21,7 @@ impl<S: ComputeServer> TuneCache<S> {
         }
     }
 
+    #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &self,
         autotune_operation: &Box<dyn AutotuneOperation<S>>,
