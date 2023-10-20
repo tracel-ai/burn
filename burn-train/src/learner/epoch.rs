@@ -4,8 +4,9 @@ use burn_core::{
 };
 use std::sync::Arc;
 
-use crate::{components::LearnerComponents, learner::base::TrainingInterrupter, Event};
-use crate::{EventCollector, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::metric::processor::{Event, EventProcessor, LearnerItem};
+use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
+use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
 #[derive(new)]
@@ -30,14 +31,14 @@ impl<VI> ValidEpoch<VI> {
     /// # Arguments
     ///
     /// * `model` - The model to validate.
-    /// * `callback` - The callback to use.
+    /// * `processor` - The event processor to use.
     pub fn run<LC: LearnerComponents, VO>(
         &self,
         model: &LC::Model,
-        callback: &mut LC::EventCollector,
+        processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
     ) where
-        LC::EventCollector: EventCollector<ItemValid = VO>,
+        LC::EventProcessor: EventProcessor<ItemValid = VO>,
         <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
@@ -60,14 +61,14 @@ impl<VI> ValidEpoch<VI> {
                 None,
             );
 
-            callback.on_event_valid(Event::ProcessedItem(item));
+            processor.process_valid(Event::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_event_valid(Event::EndEpoch(self.epoch));
+        processor.process_valid(Event::EndEpoch(self.epoch));
     }
 }
 
@@ -79,7 +80,7 @@ impl<TI> TrainEpoch<TI> {
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `scheduler` - The learning rate scheduler to use.
-    /// * `callback` - The callback to use.
+    /// * `processor` - The event processor to use.
     ///
     /// # Returns
     ///
@@ -89,11 +90,11 @@ impl<TI> TrainEpoch<TI> {
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         scheduler: &mut LC::LrScheduler,
-        callback: &mut LC::EventCollector,
+        processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
     ) -> (LC::Model, LC::Optimizer)
     where
-        LC::EventCollector: EventCollector<ItemTrain = TO>,
+        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
         LC::Model: TrainStep<TI, TO>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
@@ -134,13 +135,14 @@ impl<TI> TrainEpoch<TI> {
                 Some(lr),
             );
 
-            callback.on_event_train(Event::ProcessedItem(item));
+            processor.process_train(Event::ProcessedItem(item));
+
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_event_train(Event::EndEpoch(self.epoch));
+        processor.process_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }
@@ -154,7 +156,7 @@ impl<TI> TrainEpoch<TI> {
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `lr_scheduler` - The learning rate scheduler to use.
-    /// * `callback` - The callback to use.
+    /// * `processor` - The event processor to use.
     /// * `devices` - The devices to use.
     ///
     /// # Returns
@@ -165,12 +167,12 @@ impl<TI> TrainEpoch<TI> {
         mut model: LC::Model,
         mut optim: LC::Optimizer,
         lr_scheduler: &mut LC::LrScheduler,
-        callback: &mut LC::EventCollector,
+        processor: &mut LC::EventProcessor,
         devices: Vec<<LC::Backend as Backend>::Device>,
         interrupter: &TrainingInterrupter,
     ) -> (LC::Model, LC::Optimizer)
     where
-        LC::EventCollector: EventCollector<ItemTrain = TO>,
+        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
         LC::Model: TrainStep<TI, TO>,
         TO: Send + 'static,
         TI: Send + 'static,
@@ -224,7 +226,7 @@ impl<TI> TrainEpoch<TI> {
                     Some(lr),
                 );
 
-                callback.on_event_train(Event::ProcessedItem(item));
+                processor.process_train(Event::ProcessedItem(item));
 
                 if interrupter.should_stop() {
                     log::info!("Training interrupted.");
@@ -238,7 +240,7 @@ impl<TI> TrainEpoch<TI> {
             }
         }
 
-        callback.on_event_train(Event::EndEpoch(self.epoch));
+        processor.process_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }

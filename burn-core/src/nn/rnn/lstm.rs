@@ -155,14 +155,19 @@ impl<B: Backend> Lstm<B> {
             cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
             hidden_state = output_values * cell_state.clone().tanh();
 
+            let unsqueezed_shape = [cell_state.shape().dims[0], 1, cell_state.shape().dims[1]];
+
+            let unsqueezed_cell_state = cell_state.clone().reshape(unsqueezed_shape);
+            let unsqueezed_hidden_state = hidden_state.clone().reshape(unsqueezed_shape);
+
             // store the state for this timestep
             batched_cell_state = batched_cell_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                cell_state.clone().unsqueeze(),
+                unsqueezed_cell_state.clone(),
             );
             batched_hidden_state = batched_hidden_state.slice_assign(
                 [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                hidden_state.clone().unsqueeze(),
+                unsqueezed_hidden_state.clone(),
             );
         }
 
@@ -213,7 +218,7 @@ impl<B: Backend> Lstm<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Distribution};
 
     #[test]
     fn test_with_uniform_initializer() {
@@ -316,5 +321,16 @@ mod tests {
         hidden_state
             .to_data()
             .assert_approx_eq(&Data::from([[0.024]]), 3)
+    }
+
+    #[test]
+    fn test_batched_forward_pass() {
+        let lstm = LstmConfig::new(64, 1024, true).init::<TestBackend>();
+        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+
+        let (cell_state, hidden_state) = lstm.forward(batched_input, None);
+
+        assert_eq!(cell_state.shape().dims, [8, 10, 1024]);
+        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
     }
 }

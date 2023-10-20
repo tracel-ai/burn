@@ -1,5 +1,7 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
+use crate::learner::EarlyStoppingStrategy;
+use crate::metric::store::EventStoreClient;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -19,8 +21,10 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
-    pub(crate) collector: LC::EventCollector,
     pub(crate) interrupter: TrainingInterrupter,
+    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) event_processor: LC::EventProcessor,
+    pub(crate) event_store: Arc<EventStoreClient>,
 }
 
 #[derive(new)]
@@ -38,9 +42,9 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         optim: &LC::Optimizer,
         scheduler: &LC::LrScheduler,
         epoch: usize,
-        collector: &mut LC::EventCollector,
+        store: &EventStoreClient,
     ) {
-        let actions = self.strategy.checkpointing(epoch, collector);
+        let actions = self.strategy.checkpointing(epoch, store);
 
         for action in actions {
             match action {

@@ -19,13 +19,8 @@ pub mod logger;
 /// The metric module.
 pub mod metric;
 
-/// All information collected during training.
-pub mod info;
-
-mod collector;
 mod learner;
 
-pub use collector::*;
 pub use learner::*;
 
 #[cfg(test)]
