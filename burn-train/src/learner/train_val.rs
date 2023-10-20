@@ -125,7 +125,7 @@ impl<LC: LearnerComponents> Learner<LC> {
 
         let starting_epoch = match self.checkpoint {
             Some(checkpoint) => {
-                if let Some(checkpointer) = &self.checkpointer {
+                if let Some(checkpointer) = &mut self.checkpointer {
                     (self.model, self.optim, self.lr_scheduler) = checkpointer.load_checkpoint(
                         self.model,
                         self.optim,
@@ -138,10 +138,6 @@ impl<LC: LearnerComponents> Learner<LC> {
             None => 1,
         };
 
-        let mut callback: Box<
-            dyn EventCollector<ItemTrain = OutputTrain, ItemValid = OutputValid>,
-        > = Box::new(self.collector);
-
         for epoch in starting_epoch..self.num_epochs + 1 {
             let epoch_train = TrainEpoch::new(
                 dataloader_train.clone(),
@@ -151,20 +147,20 @@ impl<LC: LearnerComponents> Learner<LC> {
             );
 
             if self.devices.len() > 1 {
-                (self.model, self.optim) = epoch_train.run_multi_device(
+                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
                     self.model,
                     self.optim,
                     &mut self.lr_scheduler,
-                    &mut callback,
+                    &mut self.collector,
                     self.devices.clone(),
                     &self.interrupter,
                 )
             } else {
-                (self.model, self.optim) = epoch_train.run(
+                (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
                     self.model,
                     self.optim,
                     &mut self.lr_scheduler,
-                    &mut callback,
+                    &mut self.collector,
                     &self.interrupter,
                 );
             }
@@ -174,10 +170,16 @@ impl<LC: LearnerComponents> Learner<LC> {
             }
 
             let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run(&self.model, &mut callback, &self.interrupter);
+            epoch_valid.run::<LC, OutputValid>(&self.model, &mut self.collector, &self.interrupter);
 
-            if let Some(checkpointer) = &self.checkpointer {
-                checkpointer.checkpoint(&self.model, &self.optim, &self.lr_scheduler, epoch);
+            if let Some(checkpointer) = &mut self.checkpointer {
+                checkpointer.checkpoint(
+                    &self.model,
+                    &self.optim,
+                    &self.lr_scheduler,
+                    epoch,
+                    &mut self.collector,
+                );
             }
         }
 

@@ -75,7 +75,7 @@ pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(2, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)

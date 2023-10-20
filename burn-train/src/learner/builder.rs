@@ -1,13 +1,16 @@
 use super::log::install_file_logger;
 use super::Learner;
-use crate::checkpoint::{AsyncCheckpointer, FileCheckpointer};
-use crate::collector::metrics::RenderedMetricsEventCollector;
+use crate::checkpoint::{
+    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
+    KeepLastNCheckpoints, MetricCheckpointingStrategy,
+};
 use crate::components::LearnerComponentsMarker;
 use crate::info::MetricsInfo;
 use crate::learner::base::TrainingInterrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::{Adaptor, Metric};
+use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
+use crate::{collector::metrics::RenderedMetricsEventCollector, Aggregate, Direction, Split};
 use crate::{AsyncEventCollector, LearnerCheckpointer};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
@@ -44,6 +47,7 @@ where
     interrupter: TrainingInterrupter,
     log_to_file: bool,
     num_loggers: usize,
+    checkpointer_strategy: Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -73,6 +77,16 @@ where
             interrupter: TrainingInterrupter::new(),
             log_to_file: true,
             num_loggers: 0,
+            checkpointer_strategy: Box::new(
+                ComposedCheckpointingStrategy::builder()
+                    .add(KeepLastNCheckpoints::new(2))
+                    .add(MetricCheckpointingStrategy::new::<LossMetric<B>>(
+                        Aggregate::Mean,
+                        Direction::Lowest,
+                        Split::Valid,
+                    ))
+                    .build(),
+            ),
         }
     }
 
@@ -91,6 +105,14 @@ where
         self.info.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
+    }
+
+    /// Update the checkpointing_strategy.
+    pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
+    where
+        CS: CheckpointingStrategy<AsyncEventCollector<T, V>> + 'static,
+    {
+        self.checkpointer_strategy = Box::new(strategy);
     }
 
     /// Replace the default CLI renderer with a custom one.
@@ -192,13 +214,9 @@ where
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](Optimizer) and the
-    /// [model](ADModule).
-    ///
-    /// The number of checkpoints to be keep should be set to a minimum of two to be safe, since
-    /// they are saved and deleted asynchronously and a crash during training might make a
-    /// checkpoint non-usable.
-    pub fn with_file_checkpointer<FR>(mut self, num_keep: usize, recorder: FR) -> Self
+    /// Register a checkpointer that will save the [optimizer](Optimizer), the
+    /// [model](ADModule) and the [scheduler](LrScheduler) to different files.
+    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder + 'static,
         O::Record: 'static,
@@ -209,19 +227,16 @@ where
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "model",
-            num_keep,
         );
         let checkpointer_optimizer = FileCheckpointer::new(
             recorder.clone(),
             format!("{}/checkpoint", self.directory).as_str(),
             "optim",
-            num_keep,
         );
         let checkpointer_scheduler = FileCheckpointer::new(
             recorder,
             format!("{}/checkpoint", self.directory).as_str(),
             "scheduler",
-            num_keep,
         );
 
         self.checkpointers = Some((
@@ -253,6 +268,7 @@ where
             AsyncCheckpointer<O::Record>,
             AsyncCheckpointer<S::Record>,
             AsyncEventCollector<T, V>,
+            Box<dyn CheckpointingStrategy<AsyncEventCollector<T, V>>>,
         >,
     >
     where
@@ -280,9 +296,9 @@ where
         let collector =
             AsyncEventCollector::new(RenderedMetricsEventCollector::new(renderer, self.info));
 
-        let checkpointer = self
-            .checkpointers
-            .map(|(model, optim, scheduler)| LearnerCheckpointer::new(model, optim, scheduler));
+        let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
+            LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
+        });
 
         Learner {
             model,
