@@ -16,7 +16,7 @@ use super::{ConvOptions, UnfoldOptions};
 pub(crate) fn create_unfolding_weight<B: Backend>(
     in_channels: usize,
     kernel_size: [usize; 2],
-    devide: &B::Device,
+    device: &B::Device,
 ) -> B::TensorPrimitive<4> {
     let shape = Shape::new([
         in_channels * kernel_size[0] * kernel_size[1],
@@ -53,7 +53,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
         }
     }
 
-    B::from_data(Data::new(weight, shape), devide)
+    B::from_data(Data::new(weight, shape), device)
 }
 
 /// Compute the unfold4d operation using the conv2d operations.
