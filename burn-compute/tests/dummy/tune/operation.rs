@@ -144,7 +144,7 @@ pub fn arbitrary_bytes(shapes: &Vec<Vec<usize>>) -> Vec<Vec<u8>> {
     handles
 }
 
-pub fn log_shape_input_key(shapes: &Vec<Vec<usize>>) -> String {
+pub fn log_shape_input_key(shapes: &[Vec<usize>]) -> String {
     let mut hash = String::new();
     let lhs = &shapes[0];
     for size in lhs {

@@ -1,6 +1,6 @@
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
-use crate::tune::AutotuneServer;
+use crate::tune::{AutotuneOperation, AutotuneServer};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -67,7 +67,7 @@ where
 
     fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn crate::tune::AutotuneOperation<Server>>,
+        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
         handles: &[&Handle<Server>],
     ) {
         self.autotune_server
