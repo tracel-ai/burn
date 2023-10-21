@@ -4,11 +4,11 @@ var<storage, read_write> input: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> min_value: f32;
+var<storage, read> min_value: {{ elem }};
 
 @group(0)
 @binding(2)
-var<storage, read> max_value: f32;
+var<storage, read> max_value: {{ elem }};
 
 @compute
 @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
