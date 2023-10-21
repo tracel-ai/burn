@@ -6,7 +6,7 @@ var<storage, read> input: array<{{ elem }}>;
 @binding(1)
 var<storage, read_write> output: array<{{ elem }}>;
 
-group(0)
+@group(0)
 @binding(2)
 var<uniform> min_value: f32;
 
