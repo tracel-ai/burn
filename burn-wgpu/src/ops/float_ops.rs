@@ -467,4 +467,12 @@ where
     ) -> FloatTensor<Self, D> {
         kernel::clamp_max(tensor, max)
     }
+
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
 }

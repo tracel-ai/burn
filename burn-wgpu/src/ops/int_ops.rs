@@ -289,6 +289,14 @@ where
         kernel::clamp_max(tensor, max)
     }
 
+    fn int_clamp<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
+
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(IntAbs, func "abs");
         unary_inplace!(IntAbsInplace, func "abs");
