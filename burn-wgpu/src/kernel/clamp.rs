@@ -1,40 +1,37 @@
 use crate::{
-    compute::StaticKernel,
     element::WgpuElement,
-    kernel::{elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
-    kernel_wgsl,
+    kernel::{unary_scalar, unary_scalar_inplace_default, WORKGROUP_DEFAULT},
     tensor::WgpuTensor,
+    unary_scalar, unary_scalar_inplace,
 };
 
-macro_rules! clamp_op {
-    ($kernel_name:ident, $func_name:ident, $shader_path:expr) => {
-        kernel_wgsl!($kernel_name, $shader_path);
+pub(crate) fn clamp_min<E: WgpuElement, const D: usize>(
+    input: WgpuTensor<E, D>,
+    value: E,
+) -> WgpuTensor<E, D> {
+    unary_scalar!(ClampMin, func "max");
+    unary_scalar_inplace!(ClampMinInplace, func "max");
 
-        pub(crate) fn $func_name<E: WgpuElement, const D: usize>(
-            input: WgpuTensor<E, D>,
-            value: E,
-        ) -> WgpuTensor<E, D> {
-            let num_elems = input.shape.num_elements();
-            let num_elems_buffer = input
-                .client
-                .create(bytemuck::cast_slice(&[num_elems as u32]));
-            let value_handle = input.client.create(E::as_bytes(&[value]));
+    if input.can_mut() {
+        return unary_scalar_inplace_default::<ClampMinInplace, E, D>(input, value);
+    }
 
-            let kernel = StaticKernel::<
-                KernelSettings<$kernel_name, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-            >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-
-            input.client.execute(
-                Box::new(kernel),
-                &[&input.handle, &value_handle, &num_elems_buffer],
-            );
-            input
-        }
-    };
+    unary_scalar::<ClampMin, E, D, WORKGROUP_DEFAULT>(input, value)
 }
 
-clamp_op!(ClampMin, clamp_min, "../template/clamp/clamp_min.wgsl");
-clamp_op!(ClampMax, clamp_max, "../template/clamp/clamp_max.wgsl");
+pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
+    input: WgpuTensor<E, D>,
+    value: E,
+) -> WgpuTensor<E, D> {
+    unary_scalar!(ClampMax, func "min");
+    unary_scalar_inplace!(ClampMaxInPlace, func "min");
+
+    if input.can_mut() {
+        return unary_scalar_inplace_default::<ClampMaxInPlace, E, D>(input, value);
+    }
+
+    unary_scalar::<ClampMax, E, D, WORKGROUP_DEFAULT>(input, value)
+}
 
 #[cfg(test)]
 mod tests {
