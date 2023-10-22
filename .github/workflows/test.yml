@@ -17,12 +17,16 @@ jobs:
     strategy:
       matrix:
         rust: [stable, 1.71.0]
-        test: ['std', 'no-std']
+        test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
+        exclude:
+          # only need to check this once
+          - rust: 1.71.0
+            test: 'examples'
 
     steps:
 
