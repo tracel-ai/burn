@@ -1,4 +1,4 @@
-use super::{AsyncLogger, FileLogger, Logger};
+use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
 use crate::metric::MetricEntry;
 use std::collections::HashMap;
 
@@ -16,7 +16,7 @@ pub trait MetricLogger: Send {
     /// # Arguments
     ///
     /// * `epoch` - The epoch.
-    fn epoch(&mut self, epoch: usize);
+    fn end_epoch(&mut self, epoch: usize);
 
     /// Read the logs for an epoch.
     fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String>;
@@ -81,9 +81,9 @@ impl MetricLogger for FileMetricLogger {
         logger.log(value.clone());
     }
 
-    fn epoch(&mut self, epoch: usize) {
+    fn end_epoch(&mut self, epoch: usize) {
         self.loggers.clear();
-        self.epoch = epoch;
+        self.epoch = epoch + 1;
     }
 
     fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
@@ -118,6 +118,47 @@ impl MetricLogger for FileMetricLogger {
             Err("Parsing float errors".to_string())
         } else {
             Ok(data)
+        }
+    }
+}
+
+/// In memory metric logger, useful when testing and debugging.
+#[derive(Default)]
+pub struct InMemoryMetricLogger {
+    values: HashMap<String, Vec<InMemoryLogger>>,
+}
+
+impl MetricLogger for InMemoryMetricLogger {
+    fn log(&mut self, item: &MetricEntry) {
+        if !self.values.contains_key(&item.name) {
+            self.values
+                .insert(item.name.clone(), vec![InMemoryLogger::default()]);
+        }
+
+        let values = self.values.get_mut(&item.name).unwrap();
+
+        values.last_mut().unwrap().log(item.serialize.clone());
+    }
+
+    fn end_epoch(&mut self, _epoch: usize) {
+        for (_, values) in self.values.iter_mut() {
+            values.push(InMemoryLogger::default());
+        }
+    }
+
+    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
+        let values = match self.values.get(name) {
+            Some(values) => values,
+            None => return Ok(Vec::new()),
+        };
+
+        match values.get(epoch - 1) {
+            Some(logger) => Ok(logger
+                .values
+                .iter()
+                .filter_map(|value| value.parse::<f64>().ok())
+                .collect()),
+            None => Ok(Vec::new()),
         }
     }
 }

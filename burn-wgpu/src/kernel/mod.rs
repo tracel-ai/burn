@@ -26,6 +26,8 @@ pub mod matmul;
 pub mod pool;
 /// Pseudo-random number generator kernels
 pub mod prng;
+/// Unfold kernel
+pub mod unfold;
 
 pub(crate) use cat::*;
 pub(crate) use clamp::*;

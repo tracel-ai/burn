@@ -1,5 +1,8 @@
 use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    ops::{
+        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        UnfoldOptions,
+    },
     Shape,
 };
 use candle_core::ToUsize2;
@@ -129,6 +132,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
                 .unwrap(),
             None => conv_transpose,
         })
+    }
+
+    fn unfold4d(
+        x: FloatTensor<Self, 4>,
+        kernel_size: [usize; 2],
+        option: UnfoldOptions,
+    ) -> FloatTensor<Self, 3> {
+        panic!("Candle does not support unfold")
     }
 
     fn avg_pool2d(
