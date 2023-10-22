@@ -21,6 +21,7 @@ use crate::{
             constant::{ConstantNode, ConstantValue, TensorValue},
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
+            conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
             global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
@@ -37,8 +38,8 @@ use crate::{
         from_onnx::convert_constant_value,
         ir::{Node, NodeType},
         op_configuration::{
-            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
-            log_softmax_config, max_pool2d_config,
+            batch_norm_config, conv1d_config, conv2d_config, conv_transpose2d_config,
+            flatten_config, linear_config, log_softmax_config, max_pool2d_config,
         },
     },
 };
@@ -255,6 +256,9 @@ impl ONNXGraph {
                 NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
                 NodeType::GlobalAveragePool => {
                     graph.register(Self::global_avg_pool_conversion(node))
+                }
+                NodeType::ConvTranspose2d => {
+                    graph.register(Self::conv_transpose2d_conversion(node))
                 }
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
@@ -561,6 +565,21 @@ impl ONNXGraph {
 
         let name = &node.name;
         MaxPool2dNode::new(name, input, output, config)
+    }
+
+    fn conv_transpose2d_conversion(node: Node) -> ConvTranspose2dNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let weight = node
+            .inputs
+            .get(1)
+            .unwrap()
+            .to_owned()
+            .into_tensor()
+            .unwrap();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = conv_transpose2d_config(&node);
+        let name = &node.name;
+        ConvTranspose2dNode::new(name.to_owned(), input, weight, output, config)
     }
 
     fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {

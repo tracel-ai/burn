@@ -40,7 +40,8 @@ include_models!(
     sub_int,
     sub,
     tanh,
-    transpose
+    transpose,
+    conv_transpose2d
 );
 
 #[cfg(test)]

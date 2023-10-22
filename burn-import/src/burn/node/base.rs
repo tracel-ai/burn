@@ -1,8 +1,9 @@
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    dropout::DropoutNode, global_avg_pool::GlobalAvgPoolNode, linear::LinearNode,
-    matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
+    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode,
+    global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
+    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -80,6 +81,7 @@ pub enum Node<PS: PrecisionSettings> {
     Constant(ConstantNode<PS>),
     Conv1d(Conv1dNode<PS>),
     Conv2d(Conv2dNode<PS>),
+    ConvTranspose2d(ConvTranspose2dNode),
     Dropout(DropoutNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     Linear(LinearNode<PS>),
@@ -101,6 +103,7 @@ macro_rules! match_all {
             Node::Constant(node) => $func(node),
             Node::Conv1d(node) => $func(node),
             Node::Conv2d(node) => $func(node),
+            Node::ConvTranspose2d(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::Linear(node) => $func(node),
@@ -132,6 +135,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Constant(_) => "constant",
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",
+            Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::Dropout(_) => "dropout",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::Linear(_) => "linear",
