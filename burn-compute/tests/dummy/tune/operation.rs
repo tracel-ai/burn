@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use burn_compute::{
     server::Handle,
-    tune::{AutotuneOperation, Operation},
+    tune::{AutotuneKey, AutotuneOperation, Operation},
 };
-use derive_new::new;
 
 use crate::dummy::{
     CacheTestFastOn3, CacheTestSlowOn3, DummyElementwiseAddition, DummyElementwiseMultiplication,
@@ -13,18 +12,23 @@ use crate::dummy::{
 
 use super::DummyElementwiseAdditionSlowWrong;
 
-#[derive(new)]
 pub struct AdditionAutotuneKernel {
+    key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
-    fn operation_key(&self) -> String {
-        "add".to_string()
+impl AdditionAutotuneKernel {
+    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+        Self {
+            key: AutotuneKey::new("add".to_string(), log_shape_input_key(&shapes)),
+            shapes,
+        }
     }
+}
 
-    fn input_key(&self) -> String {
-        log_shape_input_key(&self.shapes)
+impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
+    fn key(&self) -> AutotuneKey {
+        self.key.clone()
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
@@ -42,18 +46,22 @@ impl AutotuneOperation<DummyServer> for AdditionAutotuneKernel {
     }
 }
 
-#[derive(new)]
 pub struct MultiplicationAutotuneKernel {
+    key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl AutotuneOperation<DummyServer> for MultiplicationAutotuneKernel {
-    fn operation_key(&self) -> String {
-        "mul".to_string()
+impl MultiplicationAutotuneKernel {
+    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+        Self {
+            key: AutotuneKey::new("mul".to_string(), log_shape_input_key(&shapes)),
+            shapes,
+        }
     }
-
-    fn input_key(&self) -> String {
-        log_shape_input_key(&self.shapes)
+}
+impl AutotuneOperation<DummyServer> for MultiplicationAutotuneKernel {
+    fn key(&self) -> AutotuneKey {
+        self.key.clone()
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
@@ -71,18 +79,22 @@ impl AutotuneOperation<DummyServer> for MultiplicationAutotuneKernel {
     }
 }
 
-#[derive(new)]
 pub struct CacheTestAutotuneKernel {
+    key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl AutotuneOperation<DummyServer> for CacheTestAutotuneKernel {
-    fn operation_key(&self) -> String {
-        "cache_test".to_string()
+impl CacheTestAutotuneKernel {
+    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+        Self {
+            key: AutotuneKey::new("cache_test".to_string(), log_shape_input_key(&shapes)),
+            shapes,
+        }
     }
-
-    fn input_key(&self) -> String {
-        log_shape_input_key(&self.shapes)
+}
+impl AutotuneOperation<DummyServer> for CacheTestAutotuneKernel {
+    fn key(&self) -> AutotuneKey {
+        self.key.clone()
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {
@@ -100,19 +112,24 @@ impl AutotuneOperation<DummyServer> for CacheTestAutotuneKernel {
     }
 }
 
-#[derive(new)]
 pub struct ParameterTestAutotuneKernel {
+    key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
     parameter_handle: Handle<DummyServer>,
 }
 
-impl AutotuneOperation<DummyServer> for ParameterTestAutotuneKernel {
-    fn operation_key(&self) -> String {
-        "parameter_test".to_string()
+impl ParameterTestAutotuneKernel {
+    pub fn new(shapes: Vec<Vec<usize>>, parameter_handle: Handle<DummyServer>) -> Self {
+        Self {
+            key: AutotuneKey::new("parameter_test".to_string(), log_shape_input_key(&shapes)),
+            shapes,
+            parameter_handle,
+        }
     }
-
-    fn input_key(&self) -> String {
-        log_shape_input_key(&self.shapes)
+}
+impl AutotuneOperation<DummyServer> for ParameterTestAutotuneKernel {
+    fn key(&self) -> AutotuneKey {
+        self.key.clone()
     }
 
     fn autotunables(&self) -> Vec<Operation<DummyServer>> {

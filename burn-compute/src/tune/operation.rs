@@ -1,7 +1,6 @@
 use crate::server::{ComputeServer, Handle};
-use alloc::format;
-use alloc::string::String;
 use alloc::vec::Vec;
+use alloc::string::String;
 
 /// Type of operation for the kernel
 pub trait AutotuneOperation<S>: Send
@@ -9,20 +8,7 @@ where
     S: ComputeServer,
 {
     /// The key used in the tune cache
-    fn key(&self) -> String {
-        format!(
-            "(AutoTuneKey) Operation: {} - Inputs: {}",
-            self.operation_key(),
-            self.input_key()
-        )
-    }
-
-    /// Partial key referring to the operation type,
-    /// generally hardcoded for an autotune operation
-    fn operation_key(&self) -> String;
-
-    /// Partial key referring to the input shape
-    fn input_key(&self) -> String;
+    fn key(&self) -> AutotuneKey;
 
     /// All candidate operations for autotuning this operation type
     fn autotunables(&self) -> Vec<Operation<S>>;
@@ -31,7 +17,7 @@ where
     fn inputs(&self) -> Vec<Vec<u8>>;
 
     /// Returns the operation for the given index, matching the order
-    /// returned by [autotunables](AutotuneOperation::autotunable)
+    /// returned by autotunables
     fn fastest(&self, fastest_index: usize) -> Operation<S>;
 }
 
@@ -48,11 +34,12 @@ impl<S: ComputeServer> Operation<S> {
     pub fn execute(&self, inputs: &[&Handle<S>], server: &mut S) {
         let mut handles = inputs.to_vec();
 
-        let p = match self.parameters.clone() {
+        let parameters = match self.parameters.clone() {
             Some(parameter_handles) => parameter_handles.into_iter().collect::<Vec<Handle<S>>>(),
             None => Vec::new(),
         };
-        handles.extend(p.iter().collect::<Vec<&Handle<S>>>());
+        handles.extend(parameters.iter().collect::<Vec<&Handle<S>>>());
+
         server.execute(self.kernel.clone(), &handles);
     }
 }
@@ -64,4 +51,12 @@ impl<S: ComputeServer> Clone for Operation<S> {
             parameters: self.parameters.clone(),
         }
     }
+}
+
+#[derive(new, Clone, Debug, PartialEq, Eq, Hash)]
+/// The key used in the tune cache, referring to the operation type,
+/// generally hardcoded for an autotune operation, and to the input shape
+pub struct AutotuneKey {
+    operation: String,
+    input_description: String,
 }

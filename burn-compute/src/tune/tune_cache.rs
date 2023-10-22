@@ -3,15 +3,15 @@ use hashbrown::HashMap;
 
 use crate::server::ComputeServer;
 
+use super::AutotuneKey;
 use super::AutotuneOperation;
 use super::Operation;
 use alloc::boxed::Box;
-use alloc::string::String;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
 pub struct TuneCache<S> {
-    cache: HashMap<String, usize>,
+    cache: HashMap<AutotuneKey, usize>,
     _server: PhantomData<S>,
 }
 
@@ -35,7 +35,7 @@ impl<S: ComputeServer> TuneCache<S> {
         None
     }
 
-    pub(crate) fn cache_insert(&mut self, key: String, fastest_index: usize) {
+    pub(crate) fn cache_insert(&mut self, key: AutotuneKey, fastest_index: usize) {
         self.cache.insert(key, fastest_index);
     }
 }
