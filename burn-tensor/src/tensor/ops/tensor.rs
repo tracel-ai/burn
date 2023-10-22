@@ -295,6 +295,7 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         min: B::FloatElem,
     ) -> B::TensorPrimitive<D> {
+        // Default implementation
         let mask = Self::lower_elem(tensor.clone(), min);
         B::mask_fill(tensor, mask, min)
     }
@@ -313,6 +314,7 @@ pub trait TensorOps<B: Backend> {
         tensor: B::TensorPrimitive<D>,
         max: B::FloatElem,
     ) -> B::TensorPrimitive<D> {
+        // Default implementation
         let mask = Self::greater_elem(tensor.clone(), max);
         B::mask_fill(tensor, mask, max)
     }
