@@ -1,12 +1,8 @@
-use crate::{backend, element::TchElement, ops::TchOps, TchBackend, TchTensor};
-use burn_tensor::{
-    ops::{
-        ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
-    },
-    Shape,
+use crate::{element::TchElement, TchBackend, TchTensor};
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
+    MaxPool2dWithIndices, ModuleOps,
 };
-use tch::{Device, IndexOp, Kind};
 
 impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
     fn embedding(weights: TchTensor<E, 2>, indices: TchTensor<i64, 2>) -> TchTensor<E, 3> {
@@ -109,67 +105,6 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         );
 
         TchTensor::new(tensor)
-    }
-
-    fn unfold4d(
-        x: TchTensor<E, 4>,
-        kernel_size: [usize; 2],
-        options: UnfoldOptions,
-    ) -> TchTensor<E, 3> {
-        // Need to nest this function for creating the specialized weight
-        // matrix to have conv2d perform the sliding window mechanism for us.
-        fn create_unfolding_weight(in_channels: i64, kernel_size: [i64; 2]) -> tch::Tensor {
-            let weight = tch::Tensor::zeros(
-                [
-                    in_channels * kernel_size[0] * kernel_size[1],
-                    in_channels,
-                    kernel_size[0],
-                    kernel_size[1],
-                ],
-                (Kind::Float, Device::Cpu),
-            );
-
-            for k in 0..in_channels {
-                for i in 0..kernel_size[0] {
-                    for j in 0..kernel_size[1] {
-                        let output_channel =
-                            k * kernel_size[0] * kernel_size[1] + i * kernel_size[1] + j;
-                        let _ = weight.i((output_channel, k, i, j)).fill_(1.0);
-                    }
-                }
-            }
-
-            weight
-        }
-
-        let channels_in = x.shape().dims[1];
-        let stride = options.stride.unwrap_or([1, 1]);
-        let padding = options.padding.unwrap_or([0, 0]);
-        let dilation = options.dilation.unwrap_or([1, 1]);
-
-        let weight = TchTensor::new(create_unfolding_weight(
-            channels_in as i64,
-            [kernel_size[0] as i64, kernel_size[1] as i64],
-        ));
-        let unfolded: TchTensor<E, 4> =
-            <backend::TchBackend<E> as ModuleOps<TchBackend<E>>>::conv2d(
-                x,
-                weight,
-                None,
-                ConvOptions {
-                    stride,
-                    padding,
-                    dilation,
-                    groups: 1,
-                },
-            );
-
-        let [batch_size, channels_out, out_height, out_width] = unfolded.shape().dims;
-
-        TchOps::reshape(
-            unfolded,
-            Shape::new([batch_size, channels_out, out_height * out_width]),
-        )
     }
 
     fn avg_pool1d(

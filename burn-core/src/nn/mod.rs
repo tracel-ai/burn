@@ -26,6 +26,7 @@ mod padding;
 mod pos_encoding;
 mod relu;
 mod rnn;
+mod unfold;
 
 pub use dropout::*;
 pub use embedding::*;
@@ -37,3 +38,4 @@ pub use padding::*;
 pub use pos_encoding::*;
 pub use relu::*;
 pub use rnn::*;
+pub use unfold::*;

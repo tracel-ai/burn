@@ -1,4 +1,4 @@
-use super::{conv, pool};
+use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{backend::Backend, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -100,16 +100,14 @@ pub struct ConvTransposeOptions<const N: usize> {
 #[derive(new, Debug, Clone)]
 pub struct UnfoldOptions {
     /// The number of positions to slide over the input tensor in each dimension.
-    /// A stride of `[1, 1]` will slide the kernel one pixel at a time. If not provided, defaults to `[1, 1]`.
-    pub stride: Option<[usize; 2]>,
+    /// A stride of `[1, 1]` will slide the kernel one pixel at a time.
+    pub stride: [usize; 2],
 
     /// The number of zero-padding pixels added to each side of the input tensor in each dimension.
-    /// If not provided, defaults to no padding (`[0, 0]`).
-    pub padding: Option<[usize; 2]>,
+    pub padding: [usize; 2],
 
     /// The spacing between the blocks (patches) in the original input tensor.
-    /// If not provided, defaults to `[1, 1]`.
-    pub dilation: Option<[usize; 2]>,
+    pub dilation: [usize; 2],
 }
 
 /// Module operations trait.
@@ -271,7 +269,9 @@ pub trait ModuleOps<B: Backend> {
         x: B::TensorPrimitive<4>,
         kernel_size: [usize; 2],
         options: UnfoldOptions,
-    ) -> B::TensorPrimitive<3>;
+    ) -> B::TensorPrimitive<3> {
+        unfold4d_using_conv2d::<B>(x, kernel_size, options)
+    }
 
     /// One dimensional avg pooling.
     ///
