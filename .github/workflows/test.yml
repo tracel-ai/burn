@@ -23,14 +23,9 @@ jobs:
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
-          - rustflags: RUSTFLAGS="-Cinstrument-coverage"
+          - coverage-flags: RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="burn-%p-%m.profraw"
             rust: stable
-          - llvmprofile: LLVM_PROFILE_FILE="burn-%p-%m.profraw"
-            rust: stable
-          - rustflags: ""
-            rust: 1.71.0
-          - llvmprofile: ""
-            rust: 1.71.0
+            test: std
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -94,7 +89,7 @@ jobs:
           rustup component add llvm-tools-preview
 
       - name: run checks & tests
-        run: ${{ matrix.rustflags }} ${{ matrix.llvmprofile }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
       - name: Get coverage data for codecov
         if: matrix.rust == 'stable' && matrix.test == 'std'
