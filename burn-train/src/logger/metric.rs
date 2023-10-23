@@ -74,7 +74,9 @@ impl MetricLogger for FileMetricLogger {
                 let logger = AsyncLogger::new(logger);
 
                 self.loggers.insert(key.clone(), logger);
-                self.loggers.get_mut(key).unwrap()
+                self.loggers
+                    .get_mut(key)
+                    .expect("Can get the previously saved logger.")
             }
         };
 

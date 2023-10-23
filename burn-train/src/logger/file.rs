@@ -23,7 +23,7 @@ impl FileLogger {
             .truncate(true)
             .create(true)
             .open(path)
-            .unwrap();
+            .unwrap_or_else(|err| panic!("Should be able to create the new file '{path}': {err}"));
 
         Self { file }
     }
@@ -34,6 +34,6 @@ where
     T: std::fmt::Display,
 {
     fn log(&mut self, item: T) {
-        writeln!(&mut self.file, "{item}").unwrap();
+        writeln!(&mut self.file, "{item}").expect("Can log an item.");
     }
 }
