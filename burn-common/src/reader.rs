@@ -78,7 +78,7 @@ impl<T> Reader<T> {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "sync", not(target_family = "wasm")))]
     /// Read the data.
     pub fn read(self) -> T {
         match self {
@@ -109,7 +109,7 @@ impl<T> Reader<T> {
         #[cfg(target_family = "wasm")]
         return Reader::Async(Box::new(MappedReader::new(self, mapper)));
 
-        #[cfg(not(target_family = "wasm"))]
+        #[cfg(any(feature = "sync", not(target_family = "wasm")))]
         Reader::Sync(Box::new(MappedReader::new(self, mapper)))
     }
 }

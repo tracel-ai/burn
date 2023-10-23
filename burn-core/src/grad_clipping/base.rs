@@ -77,7 +77,7 @@ impl GradientClipping {
         todo!("Not yet supported on wasm");
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "sync", not(target_family = "wasm")))]
     fn clip_by_norm<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
@@ -96,7 +96,7 @@ impl GradientClipping {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "sync", not(target_family = "wasm")))]
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
         let squared = tensor.powf(2.0);
         let sum = squared.sum();
