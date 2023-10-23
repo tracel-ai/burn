@@ -325,7 +325,7 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
     pub async fn into_data(self) -> Data<K::Elem, D> {
         K::into_data(self.primitive).read().await
@@ -337,7 +337,7 @@ where
         K::into_data(self.primitive).read()
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
     pub async fn to_data(&self) -> Data<K::Elem, D> {
         K::into_data(self.primitive.clone()).read().await

@@ -68,7 +68,7 @@ impl GradientClipping {
         clipped_grad.mask_fill(lower_mask, -threshold)
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
     fn clip_by_norm<B: Backend, const D: usize>(
         &self,
         _grad: Tensor<B, D>,

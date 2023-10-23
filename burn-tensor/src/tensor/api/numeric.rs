@@ -21,7 +21,7 @@ where
         data.value[0]
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
