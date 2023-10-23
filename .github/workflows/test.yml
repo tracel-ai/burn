@@ -23,6 +23,9 @@ jobs:
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
+          - coverage-flags: RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="burn-%p-%m.profraw"
+            rust: stable
+            test: std
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -71,8 +74,34 @@ jobs:
           clippy_flags: --workspace --all-targets --all-features -- -D warnings
           reporter: github-pr-check
 
+      - name: Install grcov
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        env:
+          GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+          GRCOV_VERSION: v0.8.18
+        run: |
+          curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          tar xj -C $HOME/.cargo/bin
+
+      - name: Install llvm-tools-preview
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        run: |
+          rustup component add llvm-tools-preview
+
       - name: run checks & tests
-        run: CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+
+      - name: Get coverage data for codecov
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        run: |
+          grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
+          --ignore-not-existing --ignore "/*" --ignore "../*" -o lcov.info
+
+      - name: Codecov upload
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov.info
 
   check-typos:
     runs-on: ubuntu-latest
