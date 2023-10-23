@@ -18,14 +18,14 @@ default = [
     "channel-cell",
     "storage-bytes",
 ]
-std = []
+std = ["burn-common/std"]
 channel-mutex = []
 channel-cell = []
 channel-mpsc = [] # Assume std
 storage-bytes = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.10.0", default-features = true }
+burn-common = { path = "../burn-common", version = "0.10.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 hashbrown = { workspace = true }
