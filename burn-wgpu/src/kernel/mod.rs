@@ -2,6 +2,7 @@ mod base;
 mod binary_elemwise;
 mod cast;
 mod cat;
+mod clamp;
 mod comparison;
 mod index;
 mod mask;
@@ -27,6 +28,7 @@ pub mod pool;
 pub mod prng;
 
 pub(crate) use cat::*;
+pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
 pub(crate) use mask::*;
