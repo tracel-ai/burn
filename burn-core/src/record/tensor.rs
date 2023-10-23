@@ -44,7 +44,6 @@ impl<'de, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<S> {
     }
 }
 
-// #[cfg(not(target_family = "wasm"))]
 impl<S: PrecisionSettings> Serialize for IntTensorSerde<S> {
     fn serialize<Se>(&self, serializer: Se) -> Result<Se::Ok, Se::Error>
     where
