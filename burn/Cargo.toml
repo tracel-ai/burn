@@ -46,6 +46,7 @@ ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
 wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
+candle-cuda = ["burn-core/candle-cuda"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
