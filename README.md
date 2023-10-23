@@ -26,7 +26,7 @@ simplifying the process of experimenting, training, and deploying models.
     [`no_std`](#support-for-no_std) compatibility, ensuring universal platform adaptability 👌
   - [WebGPU](https://github.com/burn-rs/burn/tree/main/burn-wgpu) backend, offering cross-platform,
     browser-inclusive, GPU-based computations 🌐
-  - [Candle](https://github.com/burn-rs/burn/tree/main/burn-candle) backend (alpha) 🕯️
+  - [Candle](https://github.com/burn-rs/burn/tree/main/burn-candle) backend 🕯️
   - [Autodiff](https://github.com/burn-rs/burn/tree/main/burn-autodiff) backend that enables
     differentiability across all backends 🌟
 - [Dataset](https://github.com/burn-rs/burn/tree/main/burn-dataset) crate containing a diverse range
