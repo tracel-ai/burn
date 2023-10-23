@@ -7,7 +7,10 @@ use crate::{
     tensor::WgpuTensor,
 };
 use burn_tensor::{Element, Shape};
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    sync::Arc,
+};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
@@ -51,7 +54,7 @@ macro_rules! matmul_tile_2d {
         }
 
         impl<E: WgpuElement> DynamicKernelSource for $struct<E> {
-            fn source(self) -> SourceTemplate {
+            fn source(&self) -> SourceTemplate {
                 kernel_wgsl!(Raw, $file);
 
                 Raw::source()
@@ -470,7 +473,7 @@ pub(super) fn matmul_tiling_2d_launch<
     let info_handle = make_info_handle(&lhs, &rhs, &output);
 
     output.client.execute(
-        Box::new(DynamicKernel::new(kernel, workgroup)),
+        Arc::new(DynamicKernel::new(kernel, workgroup)),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 

@@ -1,7 +1,7 @@
 use burn_compute::storage::BytesResource;
 
 /// The DummyKernel trait should be implemented for every supported operation
-pub trait DummyKernel: Send {
+pub trait DummyKernel: Sync + Send {
     fn compute(&self, resources: &mut [BytesResource]);
 }
 

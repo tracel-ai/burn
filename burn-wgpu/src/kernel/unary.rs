@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
@@ -122,7 +124,7 @@ pub fn unary_inplace<
         elemwise_workgroup(num_elems, WORKGROUP),
     );
 
-    input.client.execute(Box::new(kernel), &[&input.handle]);
+    input.client.execute(Arc::new(kernel), &[&input.handle]);
 
     input
 }
@@ -143,7 +145,7 @@ pub fn unary<K: StaticKernelSource, E: WgpuElement, const D: usize, const WORKGR
     );
     input
         .client
-        .execute(Box::new(kernel), &[&input.handle, &output.handle]);
+        .execute(Arc::new(kernel), &[&input.handle, &output.handle]);
 
     output
 }
