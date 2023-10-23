@@ -34,14 +34,12 @@ pub struct MnistTrainingConfig {
     #[config(default = 42)]
     pub seed: u64,
 
-    // pub optimizer: AdamConfig,
-    pub optimizer: AdamWConfig,
+    pub optimizer: AdamConfig,
 }
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    // let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
-    let config_optimizer = AdamWConfig::new().with_weight_decay(5e-5);
+    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
