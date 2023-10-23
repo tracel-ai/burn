@@ -4,16 +4,26 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE-APACHE'
-      - 'LICENSE-MIT'
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      -  '**.yml'
+      - 'Cargo.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
   pull_request:
     types: [opened, synchronize]
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE-APACHE'
-      - 'LICENSE-MIT'
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      -  '**.yml'
+      - 'Cargo.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
