@@ -18,6 +18,9 @@ std = ["burn-core/std"]
 # Training with full features
 train = ["burn-train/default", "autodiff", "dataset"]
 
+# Use synchronous APIs. Useful when targeting WASM and not using WGPU.
+sync = ["burn-tensor/sync", "burn-core/sync", "burn-common/sync"]
+
 ## Include nothing
 train-minimal = ["burn-train"]
 
@@ -57,6 +60,8 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 burn-core = { path = "../burn-core", version = "0.10.0", default-features = false }
 burn-train = { path = "../burn-train", version = "0.10.0", optional = true, default-features = false }
+burn-common = { path = "../burn-common", version = "0.10.0", optional = true, default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.10.0", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true

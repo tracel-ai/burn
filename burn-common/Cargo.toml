@@ -15,6 +15,7 @@ default = ["std"]
 
 std = ["rand/std"]
 
+sync = []
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 async-trait = { workspace = true }
