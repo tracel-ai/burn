@@ -49,16 +49,26 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         for action in actions {
             match action {
                 CheckpointingAction::Delete(epoch) => {
-                    self.model.delete(epoch).unwrap();
-                    self.optim.delete(epoch).unwrap();
-                    self.lr_scheduler.delete(epoch).unwrap();
+                    self.model
+                        .delete(epoch)
+                        .expect("Can delete model checkpoint.");
+                    self.optim
+                        .delete(epoch)
+                        .expect("Can delete optimizer checkpoint.");
+                    self.lr_scheduler
+                        .delete(epoch)
+                        .expect("Can delete learning rate scheduler checkpoint.");
                 }
                 CheckpointingAction::Save => {
-                    self.model.save(epoch, model.clone().into_record()).unwrap();
-                    self.optim.save(epoch, optim.to_record()).unwrap();
+                    self.model
+                        .save(epoch, model.clone().into_record())
+                        .expect("Can save model checkpoint.");
+                    self.optim
+                        .save(epoch, optim.to_record())
+                        .expect("Can save optimizer checkpoint.");
                     self.lr_scheduler
                         .save(epoch, scheduler.to_record())
-                        .unwrap();
+                        .expect("Can save learning rate scheduler checkpoint.");
                 }
             }
         }
@@ -71,13 +81,22 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         scheduler: LC::LrScheduler,
         epoch: usize,
     ) -> (LC::Model, LC::Optimizer, LC::LrScheduler) {
-        let record = self.model.restore(epoch).unwrap();
+        let record = self
+            .model
+            .restore(epoch)
+            .expect("Can load model checkpoint.");
         let model = model.load_record(record);
 
-        let record = self.optim.restore(epoch).unwrap();
+        let record = self
+            .optim
+            .restore(epoch)
+            .expect("Can load optimizer checkpoint.");
         let optim = optim.load_record(record);
 
-        let record = self.lr_scheduler.restore(epoch).unwrap();
+        let record = self
+            .lr_scheduler
+            .restore(epoch)
+            .expect("Can load learning rate scheduler checkpoint.");
         let scheduler = scheduler.load_record(record);
 
         (model, optim, scheduler)

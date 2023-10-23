@@ -32,7 +32,9 @@ where
                     return;
                 }
                 Message::Sync(callback) => {
-                    callback.send(()).unwrap();
+                    callback
+                        .send(())
+                        .expect("Can return result with the callback channel.");
                 }
             }
         }
@@ -57,7 +59,9 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
     pub(crate) fn sync(&self) {
         let (sender, receiver) = mpsc::channel();
 
-        self.sender.send(Message::Sync(sender)).unwrap();
+        self.sender
+            .send(Message::Sync(sender))
+            .expect("Can send message to logger thread.");
 
         receiver
             .recv()
@@ -67,17 +71,21 @@ impl<T: Send + Sync + 'static> AsyncLogger<T> {
 
 impl<T: Send> Logger<T> for AsyncLogger<T> {
     fn log(&mut self, item: T) {
-        self.sender.send(Message::Log(item)).unwrap();
+        self.sender
+            .send(Message::Log(item))
+            .expect("Can log using the logger thread.");
     }
 }
 
 impl<T> Drop for AsyncLogger<T> {
     fn drop(&mut self) {
-        self.sender.send(Message::End).unwrap();
+        self.sender
+            .send(Message::End)
+            .expect("Can send the end message to the logger thread.");
         let handler = self.handler.take();
 
         if let Some(handler) = handler {
-            handler.join().unwrap();
+            handler.join().expect("The logger thread should stop.");
         }
     }
 }
