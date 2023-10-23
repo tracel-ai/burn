@@ -8,6 +8,7 @@ on:
       - '**.rs'
       - '**.sh'
       - '**.ps1'
+        '**.yml'
       - 'Cargo.toml'
     paths-ignore:
       - '**.md'
@@ -19,6 +20,7 @@ on:
       - '**.rs'
       - '**.sh'
       - '**.ps1'
+      - '**.yml'
       - 'Cargo.toml'
     paths-ignore:
       - '**.md'
