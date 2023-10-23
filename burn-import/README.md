@@ -29,7 +29,7 @@ Follow these steps to import an ONNX model into your Burn project:
    fn main() {
        // Generate Rust code from the ONNX model file
        ModelGen::new()
-           .input("src/model/mnist.onnx")
+           .input("src/model/model_name.onnx")
            .out_dir("model/")
            .run_from_script();
    }
@@ -39,7 +39,7 @@ Follow these steps to import an ONNX model into your Burn project:
 
    ```rust
    pub mod mnist {
-       include!(concat!(env!("OUT_DIR"), "/model/mnist.rs"));
+       include!(concat!(env!("OUT_DIR"), "/model/model_name.rs"));
    }
    ```
 
@@ -51,7 +51,7 @@ Follow these steps to import an ONNX model into your Burn project:
 
    use burn::tensor;
    use burn_ndarray::NdArrayBackend;
-   use model::mnist::Model;
+   use model::model_name::Model;
 
    fn main() {
        // Initialize a new model instance
