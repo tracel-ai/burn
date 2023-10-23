@@ -2,6 +2,7 @@ mod base;
 mod binary_elemwise;
 mod cast;
 mod cat;
+mod clamp;
 mod comparison;
 mod index;
 mod mask;
@@ -25,10 +26,9 @@ pub mod matmul;
 pub mod pool;
 /// Pseudo-random number generator kernels
 pub mod prng;
-/// Unfold kernel
-pub mod unfold;
 
 pub(crate) use cat::*;
+pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
 pub(crate) use mask::*;

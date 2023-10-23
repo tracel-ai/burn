@@ -1,6 +1,6 @@
 use crate::server::{ComputeServer, Handle};
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 
 /// Type of operation for the kernel
 pub trait AutotuneOperation<S>: Send

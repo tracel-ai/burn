@@ -3,7 +3,6 @@ use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
-    unfold::unfold4d,
 };
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ops::*;
@@ -25,14 +24,6 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         options: ConvTransposeOptions<2>,
     ) -> NdArrayTensor<E, 4> {
         conv_transpose2d(x, weight, bias, options)
-    }
-
-    fn unfold4d(
-        x: NdArrayTensor<E, 4>,
-        kernel_size: [usize; 2],
-        options: UnfoldOptions,
-    ) -> NdArrayTensor<E, 3> {
-        unfold4d(x, kernel_size, options)
     }
 
     fn avg_pool2d(
