@@ -40,5 +40,14 @@ macro_rules! bench_on_backend {
             let device = NdArrayDevice::Cpu;
             bench::<NdArrayBackend>(&device);
         }
+
+        #[cfg(feature = "candle")]
+        {
+            use burn::backend::candle::CandleDevice;
+            use burn::backend::CandleBackend;
+
+            let device = CandleDevice::Cpu;
+            bench::<CandleBackend>(&device);
+        }
     };
 }

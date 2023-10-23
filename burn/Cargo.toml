@@ -45,6 +45,7 @@ ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
 
 wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
+candle = ["burn-core/candle"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
@@ -53,8 +54,8 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = {path = "../burn-core", version = "0.10.0", default-features = false}
-burn-train = {path = "../burn-train", version = "0.10.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.10.0", default-features = false }
+burn-train = { path = "../burn-train", version = "0.10.0", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -12,6 +12,7 @@ version = "0.10.0"
 [features]
 default = ["std"]
 std = []
+candle = ["burn/candle"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
 ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
