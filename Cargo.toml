@@ -4,26 +4,27 @@
 resolver = "2"
 
 members = [
-  "burn",
-  "burn-autodiff",
-  "burn-common",
-  "burn-compute",
-  "burn-core",
-  "burn-dataset",
-  "burn-derive",
-  "burn-import",
-  "burn-import/onnx-tests",
-  "burn-ndarray",
-  "burn-no-std-tests",
-  "burn-tch",
-  "burn-wgpu",
-  "burn-candle",
-  "burn-tensor-testgen",
-  "burn-tensor",
-  "burn-train",
-  "xtask",
-  "examples/*",
-  "backend-comparison",
+    "burn",
+    "burn-autodiff",
+    "burn-candle",
+    "burn-common",
+    "burn-compute",
+    "burn-core",
+    "burn-dataset",
+    "burn-derive",
+    "burn-import",
+    "burn-import/onnx-tests",
+    "burn-ndarray",
+    "burn-no-std-tests",
+    "burn-tch",
+    "burn-wgpu",
+    "burn-candle",
+    "burn-tensor-testgen",
+    "burn-tensor",
+    "burn-train",
+    "xtask",
+    "examples/*",
+    "backend-comparison",
 ]
 
 exclude = ["examples/notebook"]
@@ -79,27 +80,27 @@ wgpu = "0.17.1"
 # The following packages disable the "std" feature for no_std compatibility
 #
 bincode = { version = "2.0.0-rc.3", features = [
-  "alloc",
-  "serde",
+    "alloc",
+    "serde",
 ], default-features = false }
 derive-new = { version = "0.5.9", default-features = false }
 
 half = { version = "2.3.1", features = [
-  "alloc",
-  "num-traits",
-  "serde",
+    "alloc",
+    "num-traits",
+    "serde",
 ], default-features = false }
 ndarray = { version = "0.15.6", default-features = false }
 num-traits = { version = "0.2.16", default-features = false, features = [
-  "libm",
+    "libm",
 ] } # libm is for no_std
 rand = { version = "0.8.5", default-features = false, features = [
-  "std_rng",
+    "std_rng",
 ] } # std_rng is for no_std 
 rand_distr = { version = "0.4.3", default-features = false }
 serde = { version = "1.0.188", default-features = false, features = [
-  "derive",
-  "alloc",
+    "derive",
+    "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.107", default-features = false }
 uuid = { version = "1.4.1", default-features = false }
