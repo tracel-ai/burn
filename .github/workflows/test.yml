@@ -4,24 +4,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**.rs'
-      - '**.sh'
-      - '**.ps1'
-        '**.yml'
-      - 'Cargo.toml'
     paths-ignore:
       - '**.md'
       - 'LICENSE-APACHE'
       - 'LICENSE-MIT'
   pull_request:
     types: [opened, synchronize]
-    paths:
-      - '**.rs'
-      - '**.sh'
-      - '**.ps1'
-      - '**.yml'
-      - 'Cargo.toml'
     paths-ignore:
       - '**.md'
       - 'LICENSE-APACHE'
