@@ -27,6 +27,10 @@ jobs:
             rust: stable
           - llvmprofile: LLVM_PROFILE_FILE="burn-%p-%m.profraw"
             rust: stable
+          - rustflags:
+            rust: 1.71.0
+          - llvmprofile:
+            rust: 1.71.0
         exclude:
           # only need to check this once
           - rust: 1.71.0
