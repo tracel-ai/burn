@@ -3,7 +3,7 @@ use crate::model::Model;
 
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
-use burn::optim::AdamConfig;
+use burn::optim::{AdamConfig, AdamWConfig};
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
 use burn::train::metric::store::{Aggregate, Direction, Split};
 use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
@@ -34,12 +34,14 @@ pub struct MnistTrainingConfig {
     #[config(default = 42)]
     pub seed: u64,
 
-    pub optimizer: AdamConfig,
+    // pub optimizer: AdamConfig,
+    pub optimizer: AdamWConfig,
 }
 
 pub fn run<B: ADBackend>(device: B::Device) {
     // Config
-    let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+    // let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
+    let config_optimizer = AdamWConfig::new().with_weight_decay(5e-5);
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(config.seed);
 
