@@ -73,7 +73,8 @@ mod tests {
                             TestTensor::random([32, 32], Distribution::Default)
                                 .into_data()
                                 .convert(),
-                            TestTensor::random([32, 32], Distribution::Default)
+                            // Avoid div by zero.
+                            TestTensor::random([32, 32], Distribution::Uniform(1., 3.))
                                 .into_data()
                                 .convert(),
                         )
@@ -144,7 +145,8 @@ mod tests {
                             TestTensor::random([32, 32], Distribution::Uniform(0., 50.))
                                 .into_data()
                                 .convert(),
-                            TestTensor::random([32, 32], Distribution::Uniform(0., 50.))
+                            // Avoid div by zero.
+                            TestTensor::random([32, 32], Distribution::Uniform(1., 51.))
                                 .into_data()
                                 .convert(),
                         )
