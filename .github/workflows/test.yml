@@ -4,8 +4,26 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - 'Cargo.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
   pull_request:
     types: [opened, synchronize]
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - 'Cargo.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -95,7 +113,8 @@ jobs:
         if: matrix.rust == 'stable' && matrix.test == 'std'
         run: |
           grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
-          --ignore-not-existing --ignore "/*" --ignore "../*" -o lcov.info
+          --ignore-not-existing --ignore "/*" --ignore "../*" \
+          --ignore "xtask/*" --ignore "examples/*" -o lcov.info
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std'
