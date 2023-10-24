@@ -119,6 +119,13 @@ Run `scripts/publish` using this command
 
 where `crate_name` is the name of the crate to publish
 
+## Others
+
+To bump for the next version, use this command: 
+
+```
+cargo set-version --bump minor
+```
 
 ---
 
