@@ -1,4 +1,5 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
@@ -143,7 +144,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::contiguous::matmul_tiling_2d_default(lhs, rhs)
+        matmul_tiling_2d_vec4_primitive_default(lhs, rhs)
     }
 
     fn swap_dims<const D: usize>(
