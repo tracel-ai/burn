@@ -6,7 +6,7 @@ use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
 use crate::{
     server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, Operation, TuneBenchmark, TuneCache},
+    tune::{AutotuneOperationSet, AutotuneOperation, TuneBenchmark, TuneCache},
 };
 
 /// Server wrapper with extra capability of autotuning kernels
@@ -26,7 +26,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
 
     pub(crate) fn execute_autotune(
         &mut self,
-        autotune_operation: Box<dyn AutotuneOperation<S>>,
+        autotune_operation: Box<dyn AutotuneOperationSet<S>>,
         execution_handles: &[&Handle<S>],
     ) {
         let operation = self
@@ -37,7 +37,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
         operation.execute(execution_handles, &mut self.server);
     }
 
-    fn autotuning(&mut self, autotune_operation: Box<dyn AutotuneOperation<S>>) -> Operation<S> {
+    fn autotuning(&mut self, autotune_operation: Box<dyn AutotuneOperationSet<S>>) -> AutotuneOperation<S> {
         // Create input buffers for autotune
         let autotune_handles: Vec<Handle<S>> = autotune_operation
             .inputs()
@@ -61,7 +61,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
 
     fn run_benchmark(
         &mut self,
-        operation: Operation<S>,
+        operation: AutotuneOperation<S>,
         handles: Vec<Handle<S>>,
     ) -> BenchmarkResult {
         TuneBenchmark::new(operation, handles, &mut self.server).run()

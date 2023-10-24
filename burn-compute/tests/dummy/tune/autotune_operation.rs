@@ -1,26 +1,3 @@
-use crate::server::{ComputeServer, Handle};
-use alloc::string::String;
-use alloc::vec::Vec;
-
-/// Type of operation for the kernel
-pub trait AutotuneOperationSet<S>: Send
-where
-    S: ComputeServer,
-{
-    /// The key used in the tune cache
-    fn key(&self) -> AutotuneKey;
-
-    /// All candidate operations for autotuning this operation type
-    fn autotunables(&self) -> Vec<AutotuneOperation<S>>;
-
-    /// Inputs generated for benchmarked executions
-    fn inputs(&self) -> Vec<Vec<u8>>;
-
-    /// Returns the operation for the given index, matching the order
-    /// returned by autotunables
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<S>;
-}
-
 #[derive(new)]
 /// Extended kernel that accounts for additional parameters, i.e. needed
 /// information that does not count as an input/output.
@@ -30,6 +7,7 @@ pub struct AutotuneOperation<S: ComputeServer> {
 }
 
 impl<S: ComputeServer> AutotuneOperation<S> {
+    // TODO change to trait with execute. And rename to AutotuneOperation
     /// Executes the operation on given handles and server, with the additional parameters
     pub fn execute(&self, inputs: &[&Handle<S>], server: &mut S) {
         let mut handles = inputs.to_vec();
@@ -51,12 +29,4 @@ impl<S: ComputeServer> Clone for AutotuneOperation<S> {
             parameters: self.parameters.clone(),
         }
     }
-}
-
-#[derive(new, Clone, Debug, PartialEq, Eq, Hash)]
-/// The key used in the tune cache, referring to the operation type,
-/// generally hardcoded for an autotune operation, and to the input shape
-pub struct AutotuneKey {
-    operation: String,
-    input_description: String,
 }

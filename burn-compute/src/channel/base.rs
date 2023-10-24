@@ -1,6 +1,6 @@
 use crate::{
     server::{ComputeServer, Handle},
-    tune::AutotuneOperation,
+    tune::AutotuneOperationSet,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -27,7 +27,7 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
     fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
+        autotune_kernel: Box<dyn AutotuneOperationSet<Server>>,
         handles: &[&Handle<Server>],
     );
 }

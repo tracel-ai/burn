@@ -2,14 +2,14 @@ use burn_common::benchmark::Benchmark;
 
 use crate::server::{ComputeServer, Handle};
 
-use super::Operation;
+use super::AutotuneOperation;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 /// A benchmark that runs on server handles
 #[derive(new)]
 pub struct TuneBenchmark<'a, S: ComputeServer> {
-    operation: Operation<S>,
+    operation: AutotuneOperation<S>,
     handles: Vec<Handle<S>>,
     server: &'a mut S,
 }

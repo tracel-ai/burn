@@ -1,7 +1,7 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
-    tune::AutotuneOperation,
+    tune::AutotuneOperationSet,
 };
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -70,7 +70,7 @@ where
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
     pub fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
+        autotune_kernel: Box<dyn AutotuneOperationSet<Server>>,
         handles: &[&Handle<Server>],
     ) {
         self.channel.execute_autotune(autotune_kernel, handles);
