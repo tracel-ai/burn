@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
-    const ASSERT_PRECISION: usize = 1;
+    const ASSERT_PRECISION: usize = 2;
 
     #[test]
     fn test_adamw_optimizer_with_numbers() {
@@ -289,37 +289,6 @@ mod tests {
         let bias_expected = Data::from([
             -0.406555, 0.067568, -0.115982, 0.096477, 0.115287, -0.007080,
         ]);
-
-        let t_state_updated: Tensor<TestADBackend, 2> =
-            Tensor::from_data(state_updated.weight.to_data());
-        let t_state_expected: Tensor<TestADBackend, 2> =
-            Tensor::from_data(weights_expected.clone());
-
-        let t_actual_difference = t_state_updated.sub(t_state_expected);
-        let expected_difference: Tensor<TestADBackend, 2> = Tensor::from_floats([
-            [
-                -0.016695, -0.019573, -0.023942, -0.023132, -0.020668, -0.020566,
-            ],
-            [
-                -0.020668, -0.018018, -0.016251, -0.022484, -0.021762, -0.016982,
-            ],
-            [
-                -0.019703, -0.018548, -0.016955, -0.022418, -0.017039, -0.023019,
-            ],
-            [
-                -0.016920, -0.015994, -0.016204, -0.016967, -0.019053, -0.021519,
-            ],
-            [
-                -0.023185, -0.016026, -0.023617, -0.018215, -0.023598, -0.019593,
-            ],
-            [
-                -0.019734, -0.018083, -0.021164, -0.021856, -0.020104, -0.023720,
-            ],
-        ]);
-
-        t_actual_difference
-            .into_data()
-            .assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),
