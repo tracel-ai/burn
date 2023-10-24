@@ -10,6 +10,7 @@ use burn_compute::{
 use wgpu::DeviceDescriptor;
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
+/// Wgpu [compute server](WgpuServer)
 pub type Server = WgpuServer<MemoryManagement>;
 type Channel = MutexComputeChannel<Server>;
 

@@ -85,6 +85,7 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     output
 }
 
+/// Creates a memory coalescing kernel from input/output shapes
 pub fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
