@@ -9,7 +9,7 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    #[cfg(any(feature = "sync", not(target_family = "wasm")))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
@@ -21,7 +21,7 @@ where
         data.value[0]
     }
 
-    #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics

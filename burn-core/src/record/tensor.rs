@@ -89,10 +89,10 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D> {
     type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
+        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
         todo!("Recording float tensors isn't yet supported on wasm.");
 
-        #[cfg(any(feature = "sync", not(target_family = "wasm")))]
+        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         FloatTensorSerde::new(self.into_data().convert().serialize())
     }
 
@@ -105,10 +105,10 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
     type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
+        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
         todo!("Recording int tensors isn't yet supported on wasm.");
 
-        #[cfg(any(feature = "sync", not(target_family = "wasm")))]
+        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         IntTensorSerde::new(self.into_data().convert().serialize())
     }
 
@@ -121,10 +121,10 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
     type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "sync"), target_family = "wasm"))]
+        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
         todo!("Recording bool tensors isn't yet supported on wasm.");
 
-        #[cfg(any(feature = "sync", not(target_family = "wasm")))]
+        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         BoolTensorSerde::new(self.into_data().serialize())
     }
 

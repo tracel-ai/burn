@@ -18,8 +18,8 @@ std = ["burn-core/std"]
 # Training with full features
 train = ["burn-train/default", "autodiff", "dataset"]
 
-# Use synchronous APIs. Useful when targeting WASM and not using WGPU.
-sync = ["burn-tensor/sync", "burn-core/sync", "burn-common/sync"]
+# Useful when targeting WASM and not using WGPU.
+wasm-sync = ["burn-tensor/wasm-sync", "burn-core/wasm-sync", "burn-common/wasm-sync"]
 
 ## Include nothing
 train-minimal = ["burn-train"]
