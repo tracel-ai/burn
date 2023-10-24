@@ -114,7 +114,7 @@ jobs:
         run: |
           grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
           --ignore-not-existing --ignore "/*" --ignore "../*" \
-          --ignore "xtask/*" --ignore "examples/*" -o lcov.info
+          --ignore "xtask/*" --ignore "examples/**" -o lcov.info
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std'
