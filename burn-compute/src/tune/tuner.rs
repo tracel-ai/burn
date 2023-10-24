@@ -2,33 +2,27 @@ use core::time::Duration;
 
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
-use burn_common::benchmark::{Benchmark, BenchmarkResult};
+use burn_common::benchmark::BenchmarkResult;
 
 use crate::{
-    server::{ComputeServer, Handle},
+    server::Handle,
     tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache},
 };
 
 /// Server wrapper with extra capability of autotuning kernels
 #[derive(Debug)]
-pub(crate) struct AutotuneServer<S> {
-    pub server: S,
-    pub tune_cache: TuneCache<S>,
+pub(crate) struct Tuner {
+    pub tune_cache: TuneCache,
 }
 
-impl<S: ComputeServer> AutotuneServer<S> {
-    pub fn new(server: S) -> Self {
-        AutotuneServer {
-            server,
+impl Tuner {
+    pub fn new() -> Self {
+        Self {
             tune_cache: TuneCache::new(),
         }
     }
 
-    pub(crate) fn execute_autotune(
-        &mut self,
-        autotune_operation: Box<dyn AutotuneOperationSet<S>>,
-        execution_handles: &[&Handle<S>],
-    ) {
+    pub(crate) fn execute_autotune(&mut self, autotune_operation: Box<dyn AutotuneOperationSet>) {
         let operation = self
             .tune_cache
             .try_cache(&autotune_operation)
@@ -39,8 +33,8 @@ impl<S: ComputeServer> AutotuneServer<S> {
 
     fn autotuning(
         &mut self,
-        autotune_operation: Box<dyn AutotuneOperationSet<S>>,
-    ) -> Arc<dyn AutotuneOperation<S>> {
+        autotune_operation: Box<dyn AutotuneOperationSet>,
+    ) -> Arc<dyn AutotuneOperation> {
         // Create input buffers for autotune
         let autotune_handles: Vec<Handle<S>> = autotune_operation
             .inputs()
@@ -64,7 +58,7 @@ impl<S: ComputeServer> AutotuneServer<S> {
 
     fn run_benchmark(
         &mut self,
-        operation: Arc<dyn AutotuneOperation<S>>,
+        operation: Arc<dyn AutotuneOperation>,
         handles: Vec<Handle<S>>,
     ) -> BenchmarkResult {
         TuneBenchmark::new(operation, handles, &mut self.server).run()

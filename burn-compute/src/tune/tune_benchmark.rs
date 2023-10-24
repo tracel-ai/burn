@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 /// A benchmark that runs on server handles
 #[derive(new)]
 pub struct TuneBenchmark<'a, S: ComputeServer> {
-    operation: Arc<dyn AutotuneOperation<S>>,
+    operation: Arc<dyn AutotuneOperation>,
     handles: Vec<Handle<S>>,
     server: &'a mut S,
 }

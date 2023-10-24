@@ -1,8 +1,5 @@
 use alloc::sync::Arc;
-use core::marker::PhantomData;
 use hashbrown::HashMap;
-
-use crate::server::ComputeServer;
 
 use super::AutotuneKey;
 use super::AutotuneOperation;
@@ -11,24 +8,22 @@ use alloc::boxed::Box;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
-pub struct TuneCache<S> {
+pub struct TuneCache {
     cache: HashMap<AutotuneKey, usize>,
-    _server: PhantomData<S>,
 }
 
-impl<S: ComputeServer> TuneCache<S> {
+impl TuneCache {
     pub(crate) fn new() -> Self {
         TuneCache {
             cache: HashMap::new(),
-            _server: PhantomData,
         }
     }
 
     #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &self,
-        autotune_operation: &Box<dyn AutotuneOperationSet<S>>,
-    ) -> Option<Arc<dyn AutotuneOperation<S>>> {
+        autotune_operation: &Box<dyn AutotuneOperationSet>,
+    ) -> Option<Arc<dyn AutotuneOperation>> {
         let index = self.cache.get(&autotune_operation.key());
         if let Some(&i) = index {
             return Some(autotune_operation.fastest(i));

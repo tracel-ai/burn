@@ -24,10 +24,4 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
     /// Wait for the completion of every task in the server.
     fn sync(&self);
 
-    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
-    fn execute_autotune(
-        &self,
-        autotune_kernel: Box<dyn AutotuneOperationSet<Server>>,
-        handles: &[&Handle<Server>],
-    );
 }
