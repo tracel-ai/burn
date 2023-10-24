@@ -1,7 +1,7 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use burn_compute::{
-    server::Handle,
+    server::{ComputeServer, Handle},
     tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
 };
 use burn_tensor::Shape;
@@ -10,13 +10,42 @@ use crate::{
     compute::{Kernel, Server},
     element::WgpuElement,
     kernel::{
-        build_info,
+        build_info, into_contiguous_kernel,
         matmul::{matmul_mem_coalescing_kernel, utils::shape_out},
         WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
+
+#[derive(new)]
+pub struct MemoryCoalescingMatmulAutotuneOperation {
+    into_contiguous_kernel_lhs: Arc<dyn Kernel>,
+    into_contiguous_kernel_rhs: Arc<dyn Kernel>,
+    memory_coalescing_kernel: Arc<dyn Kernel>,
+    matmul_info: Handle<Server>,
+    contiguous_lhs_info: Handle<Server>,
+    contiguous_rhs_info: Handle<Server>,
+}
+
+impl AutotuneOperation<Server> for MemoryCoalescingMatmulAutotuneOperation {
+    fn execute(&self, inputs: &[&Handle<Server>], server: &mut Server) {
+        let lhs_contiguous_handles = &[inputs[0], inputs[2], &self.contiguous_lhs_info];
+        server.execute(
+            self.into_contiguous_kernel_lhs.clone(),
+            lhs_contiguous_handles,
+        );
+
+        let rhs_contiguous_handles = &[inputs[1], inputs[3], &self.contiguous_rhs_info];
+        server.execute(
+            self.into_contiguous_kernel_rhs.clone(),
+            rhs_contiguous_handles,
+        );
+
+        let matmul_handles = &[inputs[2], inputs[3], inputs[4], &self.matmul_info];
+        server.execute(self.memory_coalescing_kernel.clone(), matmul_handles);
+    }
+}
 
 /// Set of autotune operations for matmul
 pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
@@ -27,7 +56,9 @@ pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
     lhs_shape: Shape<D>,
     rhs_shape: Shape<D>,
     output_shape: Shape<D>,
-    info_handle: Handle<Server>,
+    matmul_info: Handle<Server>,
+    contiguous_lhs_info: Handle<Server>,
+    contiguous_rhs_info: Handle<Server>,
     _elem: PhantomData<E>,
 }
 
@@ -37,7 +68,9 @@ impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
         lhs_shape: Shape<D>,
         rhs_shape: Shape<D>,
         output_shape: Shape<D>,
-        info_handle: Handle<Server>,
+        matmul_info: Handle<Server>,
+        contiguous_lhs_info: Handle<Server>,
+        contiguous_rhs_info: Handle<Server>,
     ) -> Self {
         let m = lhs_shape.dims[D - 2];
         let k = lhs_shape.dims[D - 1];
@@ -56,9 +89,41 @@ impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
             lhs_shape,
             rhs_shape,
             output_shape,
-            info_handle,
+            matmul_info,
+            contiguous_lhs_info,
+            contiguous_rhs_info,
             _elem: PhantomData,
         }
+    }
+
+    pub fn memory_coalescing<const D2: usize>(
+        &self,
+        lhs_shape: &Shape<D2>,
+        rhs_shape: &Shape<D2>,
+        out_shape: &Shape<D2>,
+    ) -> Arc<MemoryCoalescingMatmulAutotuneOperation> {
+        let into_contiguous_kernel_lhs: Arc<dyn Kernel> =
+            into_contiguous_kernel::<E>(lhs_shape.num_elements());
+
+        let into_contiguous_kernel_rhs: Arc<dyn Kernel> =
+            into_contiguous_kernel::<E>(rhs_shape.num_elements());
+
+        let memory_coalescing_kernel: Arc<dyn Kernel> = matmul_mem_coalescing_kernel::<E, D2>(
+            &lhs_shape,
+            &rhs_shape,
+            &out_shape,
+            WORKGROUP_DEFAULT,
+            WORKGROUP_DEFAULT,
+        );
+
+        Arc::new(MemoryCoalescingMatmulAutotuneOperation::new(
+            into_contiguous_kernel_lhs,
+            into_contiguous_kernel_rhs,
+            memory_coalescing_kernel,
+            self.matmul_info.clone(),
+            self.contiguous_lhs_info.clone(),
+            self.contiguous_rhs_info.clone(),
+        ))
     }
 }
 
@@ -69,51 +134,35 @@ impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<Server>> {
-        let memory_coalescing: Arc<dyn Kernel> = matmul_mem_coalescing_kernel::<E, D>(
-            &self.lhs_shape,
-            &self.rhs_shape,
-            &self.output_shape,
-            WORKGROUP_DEFAULT,
-            WORKGROUP_DEFAULT,
-        );
-
-        vec![AutotuneOperation::new(
-            memory_coalescing,
-            Some(vec![self.info_handle.clone()]),
+    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<Server>>> {
+        vec![self.memory_coalescing(
+            &self.lhs_tune_shape,
+            &self.rhs_tune_shape,
+            &self.out_tune_shape,
         )]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         // 12 and 13 are arbitrary numbers between 0 and 255
         vec![
-            fill_bytes::<E>(12, &self.lhs_tune_shape),
-            fill_bytes::<E>(13, &self.rhs_tune_shape),
-            fill_bytes::<E>(0, &self.out_tune_shape),
+            fill_bytes::<E, 3>(12, &self.lhs_tune_shape),
+            fill_bytes::<E, 3>(13, &self.rhs_tune_shape),
+            fill_bytes::<E, 3>(0, &self.lhs_tune_shape),
+            fill_bytes::<E, 3>(0, &self.rhs_tune_shape),
+            fill_bytes::<E, 3>(0, &self.out_tune_shape),
         ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<Server> {
+    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<Server>> {
         if fastest_index == 0 {
-            // mem_coalescing needs into_contiguous
-            // TODO: into_contiguous is not benched, must be included in operation, which
-            // should be able to be made of several kernels
-
-            let kernel = matmul_mem_coalescing_kernel::<E, D>(
-                &self.lhs_shape,
-                &self.rhs_shape,
-                &self.output_shape,
-                WORKGROUP_DEFAULT,
-                WORKGROUP_DEFAULT,
-            );
-            AutotuneOperation::new(kernel, Some(vec![self.info_handle.clone()]))
+            self.memory_coalescing(&self.lhs_shape, &self.rhs_shape, &self.output_shape)
         } else {
             panic!("Only one operation for now")
         }
     }
 }
 
-fn fill_bytes<E: WgpuElement>(value: u8, shape: &Shape<3>) -> Vec<u8> {
+fn fill_bytes<E: WgpuElement, const D2: usize>(value: u8, shape: &Shape<D2>) -> Vec<u8> {
     let n_bytes = core::mem::size_of::<E>() * shape.num_elements();
     vec![value; n_bytes]
 }
@@ -142,16 +191,35 @@ pub fn matmul_autotune<E: WgpuElement, const D: usize>(
     );
 
     let client = lhs.client.clone();
-    let info = build_info(&[&lhs, &rhs, &output]);
-    let info_handle = client.create(bytemuck::cast_slice(&info));
+    let matmul_info = client.create(bytemuck::cast_slice(&build_info(&[&lhs, &rhs, &output])));
+    let contiguous_lhs_info = client.create(bytemuck::cast_slice(&build_info(&[&lhs, &output])));
+    let contiguous_rhs_info = client.create(bytemuck::cast_slice(&build_info(&[&rhs, &output])));
 
     let matmul_autotune = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
-        lhs.shape,
-        rhs.shape,
+        lhs.shape.clone(),
+        rhs.shape.clone(),
         output.shape.clone(),
-        info_handle.clone(),
+        matmul_info.clone(),
+        contiguous_lhs_info.clone(),
+        contiguous_rhs_info.clone(),
     ));
-    client.execute_autotune(matmul_autotune, &[&lhs.handle, &rhs.handle, &output.handle]);
+    let lhs_2nd_handle = client.create(&fill_bytes::<E, D>(0, &lhs.shape.clone()));
+    let rhs_2nd_handle = client.create(&fill_bytes::<E, D>(0, &rhs.shape.clone()));
+    client.execute_autotune(
+        matmul_autotune,
+        &[
+            &lhs.handle,
+            &rhs.handle,
+            &lhs_2nd_handle,
+            &rhs_2nd_handle,
+            &output.handle,
+        ],
+    );
 
+    println!("{:?}", client.read(&lhs.handle).read());
+    println!("{:?}", client.read(&rhs.handle).read());
+    println!("{:?}", client.read(&lhs_2nd_handle).read());
+    println!("{:?}", client.read(&rhs_2nd_handle).read());
+    println!("{:?}", client.read(&output.handle).read());
     output
 }

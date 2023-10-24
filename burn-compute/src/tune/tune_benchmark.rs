@@ -1,3 +1,4 @@
+use alloc::sync::Arc;
 use burn_common::benchmark::Benchmark;
 
 use crate::server::{ComputeServer, Handle};
@@ -9,7 +10,7 @@ use alloc::vec::Vec;
 /// A benchmark that runs on server handles
 #[derive(new)]
 pub struct TuneBenchmark<'a, S: ComputeServer> {
-    operation: AutotuneOperation<S>,
+    operation: Arc<dyn AutotuneOperation<S>>,
     handles: Vec<Handle<S>>,
     server: &'a mut S,
 }
@@ -18,6 +19,10 @@ impl<'a, S: ComputeServer> Benchmark for TuneBenchmark<'a, S> {
     type Args = ();
 
     fn prepare(&self) -> Self::Args {}
+
+    fn num_samples(&self) -> usize {
+        1
+    }
 
     fn execute(&mut self, _: Self::Args) {
         self.operation.execute(

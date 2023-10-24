@@ -1,6 +1,6 @@
 use super::SourceTemplate;
 use crate::{
-    compute::{StaticKernel, WorkGroup},
+    compute::{Kernel, StaticKernel, WorkGroup},
     element::WgpuElement,
     tensor::WgpuTensor,
 };
@@ -66,16 +66,17 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
     tensor.client.execute(
-        Arc::new(StaticKernel::<
-            KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(elemwise_workgroup(
-            num_elems,
-            WORKGROUP_DEFAULT,
-        ))),
+        into_contiguous_kernel::<E>(num_elems),
         &[&tensor.handle, &output.handle, &info_handle],
     );
 
     output
+}
+
+pub fn into_contiguous_kernel<E: WgpuElement>(num_elems: usize) -> Arc<dyn Kernel> {
+    Arc::new(StaticKernel::<
+        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)))
 }
 
 /// Generates kernel source code by replacing some information using templating.

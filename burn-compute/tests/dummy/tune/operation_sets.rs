@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use burn_compute::{
     server::Handle,
-    tune::{AutotuneKey, AutotuneOperationSet, AutotuneOperation},
+    tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
 };
 
 use crate::dummy::{
-    CacheTestFastOn3, CacheTestSlowOn3, DummyElementwiseAddition, DummyElementwiseMultiplication,
-    DummyElementwiseMultiplicationSlowWrong, DummyKernel, DummyServer, ParameteredKernel,
+    CacheTestFastOn3, CacheTestSlowOn3, DummyAutotuneOperation, DummyElementwiseAddition,
+    DummyElementwiseMultiplication, DummyElementwiseMultiplicationSlowWrong, DummyKernel,
+    DummyServer, ParameteredKernel,
 };
 
 use super::DummyElementwiseAdditionSlowWrong;
@@ -31,17 +32,20 @@ impl AutotuneOperationSet<DummyServer> for AdditionAutotuneKernel {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<DummyServer>> {
+    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAddition);
         let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
-        vec![AutotuneOperation::new(x, None), AutotuneOperation::new(y, None)]
+        vec![
+            Arc::new(DummyAutotuneOperation::new(x, None)),
+            Arc::new(DummyAutotuneOperation::new(y, None)),
+        ]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<DummyServer> {
+    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -64,17 +68,20 @@ impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneKernel {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<DummyServer>> {
+    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplicationSlowWrong);
         let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplication);
-        vec![AutotuneOperation::new(x, None), AutotuneOperation::new(y, None)]
+        vec![
+            Arc::new(DummyAutotuneOperation::new(x, None)),
+            Arc::new(DummyAutotuneOperation::new(y, None)),
+        ]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<DummyServer> {
+    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -97,17 +104,20 @@ impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneKernel {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<DummyServer>> {
+    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(CacheTestFastOn3);
         let y: Arc<dyn DummyKernel> = Arc::new(CacheTestSlowOn3);
-        vec![AutotuneOperation::new(x, None), AutotuneOperation::new(y, None)]
+        vec![
+            Arc::new(DummyAutotuneOperation::new(x, None)),
+            Arc::new(DummyAutotuneOperation::new(y, None)),
+        ]
     }
 
     fn inputs(&self) -> Vec<Vec<u8>> {
         arbitrary_bytes(&self.shapes)
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<DummyServer> {
+    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -132,12 +142,15 @@ impl AutotuneOperationSet<DummyServer> for ParameterTestAutotuneKernel {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<DummyServer>> {
+    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(ParameteredKernel);
         let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
         vec![
-            AutotuneOperation::new(x, Some(vec![self.parameter_handle.clone()])),
-            AutotuneOperation::new(y, None),
+            Arc::new(DummyAutotuneOperation::new(
+                x,
+                Some(vec![self.parameter_handle.clone()]),
+            )),
+            Arc::new(DummyAutotuneOperation::new(y, None)),
         ]
     }
 
@@ -145,7 +158,7 @@ impl AutotuneOperationSet<DummyServer> for ParameterTestAutotuneKernel {
         arbitrary_bytes(&self.shapes)
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<DummyServer> {
+    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }

@@ -1,11 +1,12 @@
+use alloc::sync::Arc;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
 use crate::server::ComputeServer;
 
 use super::AutotuneKey;
-use super::AutotuneOperationSet;
 use super::AutotuneOperation;
+use super::AutotuneOperationSet;
 use alloc::boxed::Box;
 
 /// Use to find and reuse the best kernel for some input
@@ -27,7 +28,7 @@ impl<S: ComputeServer> TuneCache<S> {
     pub(crate) fn try_cache(
         &self,
         autotune_operation: &Box<dyn AutotuneOperationSet<S>>,
-    ) -> Option<AutotuneOperation<S>> {
+    ) -> Option<Arc<dyn AutotuneOperation<S>>> {
         let index = self.cache.get(&autotune_operation.key());
         if let Some(&i) = index {
             return Some(autotune_operation.fastest(i));
