@@ -24,6 +24,15 @@ jobs:
       crate: burn-common
     secrets: inherit
 
+  publish-burn-compute:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-common
+    with:
+    with:
+      crate: burn-compute
+    secrets: inherit
+
   publish-burn-tensor-testgen:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     with:
@@ -34,6 +43,7 @@ jobs:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor-testgen
+      - publish-burn-common
     with:
       crate: burn-tensor
     secrets: inherit
@@ -71,11 +81,22 @@ jobs:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
+      - publish-burn-compute
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
     with:
       crate: burn-wgpu
+    secrets: inherit
+
+  publish-burn-candle:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-tch
+    with:
+      crate: burn-candle
     secrets: inherit
 
   publish-burn-core:
