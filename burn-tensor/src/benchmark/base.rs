@@ -15,13 +15,6 @@ impl BenchmarkResult {
     pub(crate) fn mean_duration(&self) -> Duration {
         self.durations.iter().sum::<Duration>() / self.durations.len() as u32
     }
-
-    #[allow(dead_code)]
-    pub(crate) fn median_duration(&self) -> Duration {
-        let mut sorted = self.durations.clone();
-        sorted.sort();
-        *sorted.get(sorted.len() / 2).unwrap()
-    }
 }
 
 impl Display for BenchmarkResult {

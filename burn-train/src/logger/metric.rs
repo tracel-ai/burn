@@ -74,7 +74,9 @@ impl MetricLogger for FileMetricLogger {
                 let logger = AsyncLogger::new(logger);
 
                 self.loggers.insert(key.clone(), logger);
-                self.loggers.get_mut(key).unwrap()
+                self.loggers
+                    .get_mut(key)
+                    .expect("Can get the previously saved logger.")
             }
         };
 
@@ -128,6 +130,12 @@ pub struct InMemoryMetricLogger {
     values: HashMap<String, Vec<InMemoryLogger>>,
 }
 
+impl InMemoryMetricLogger {
+    /// Create a new in-memory metric logger.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 impl MetricLogger for InMemoryMetricLogger {
     fn log(&mut self, item: &MetricEntry) {
         if !self.values.contains_key(&item.name) {

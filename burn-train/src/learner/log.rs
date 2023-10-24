@@ -10,7 +10,8 @@ pub(crate) fn install_file_logger(file_path: &str) {
     let path = Path::new(file_path);
     let writer = tracing_appender::rolling::never(
         path.parent().unwrap_or_else(|| Path::new(".")),
-        path.file_name().unwrap(),
+        path.file_name()
+            .unwrap_or_else(|| panic!("The path '{file_path}' to point to a file.")),
     );
     let layer = tracing_subscriber::fmt::layer()
         .with_ansi(false)

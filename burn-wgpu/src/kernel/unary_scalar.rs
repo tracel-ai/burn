@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{compute::StaticKernel, element::WgpuElement, kernel_wgsl, tensor::WgpuTensor};
 
@@ -143,7 +145,7 @@ pub fn unary_scalar<
     let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
 
     lhs.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&lhs.handle, &rhs_handle, &output.handle],
     );
 
@@ -175,7 +177,7 @@ pub fn unary_scalar_inplace<
     let rhs_handle = lhs.client.create(E::as_bytes(&[scalar]));
 
     lhs.client
-        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);
+        .execute(Arc::new(kernel), &[&lhs.handle, &rhs_handle]);
 
     lhs
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -57,7 +59,7 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
     ));
 
     tensor.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&tensor.handle, &indices.handle, &value.handle, &info_handle],
     );
 

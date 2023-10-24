@@ -9,12 +9,12 @@ use burn_compute::Compute;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DummyDevice;
 
-static COMPUTE: Compute<DummyDevice, DummyServer, MutexComputeChannel<DummyServer>> =
-    Compute::new();
+pub type DummyChannel = MutexComputeChannel<DummyServer>;
+pub type DummyClient = ComputeClient<DummyServer, DummyChannel>;
 
-pub fn client(
-    device: &DummyDevice,
-) -> ComputeClient<DummyServer, MutexComputeChannel<DummyServer>> {
+static COMPUTE: Compute<DummyDevice, DummyServer, DummyChannel> = Compute::new();
+
+pub fn client(device: &DummyDevice) -> DummyClient {
     COMPUTE.client(device, || {
         let storage = BytesStorage::default();
         let memory_management =

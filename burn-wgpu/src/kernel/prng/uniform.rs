@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_tensor::Shape;
 
 use crate::{
@@ -44,7 +46,7 @@ pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
     >::new(workgroup);
 
     client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&output.handle, &info_handle, &args_handle],
     );
 

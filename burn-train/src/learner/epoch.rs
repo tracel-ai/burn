@@ -192,7 +192,7 @@ impl<TI> TrainEpoch<TI> {
         let step = MultiDevicesTrainStep::new(&devices);
 
         // The main device is always the first in the list.
-        let device_main = devices.get(0).unwrap().clone();
+        let device_main = devices.get(0).expect("A minimum of one device.").clone();
         let mut interrupted = false;
 
         loop {

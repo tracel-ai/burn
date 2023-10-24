@@ -12,7 +12,7 @@ use burn::backend::wgpu::{
 };
 use burn::tensor::Shape;
 use derive_new::new;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 // Source the kernel written in WGSL.
 kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
@@ -27,7 +27,7 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 
 // Implement the dynamic kernel trait for our kernel type.
 impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
-    fn source(self) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.
         FusedMatmulAddReluRaw::source()
@@ -98,7 +98,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Box::new(DynamicKernel::new(kernel, workgroup)),
+            Arc::new(DynamicKernel::new(kernel, workgroup)),
             &[
                 &lhs.handle,
                 &rhs.handle,

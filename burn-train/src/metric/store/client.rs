@@ -27,12 +27,16 @@ impl EventStoreClient {
 impl EventStoreClient {
     /// Add a training event to the [event store](EventStore).
     pub(crate) fn add_event_train(&self, event: Event) {
-        self.sender.send(Message::OnEventTrain(event)).unwrap();
+        self.sender
+            .send(Message::OnEventTrain(event))
+            .expect("Can send event to event store thread.");
     }
 
     /// Add a validation event to the [event store](EventStore).
     pub(crate) fn add_event_valid(&self, event: Event) {
-        self.sender.send(Message::OnEventValid(event)).unwrap();
+        self.sender
+            .send(Message::OnEventValid(event))
+            .expect("Can send event to event store thread.");
     }
 
     /// Find the epoch following the given criteria from the collected data.
@@ -52,7 +56,7 @@ impl EventStoreClient {
                 split,
                 sender,
             ))
-            .unwrap();
+            .expect("Can send event to event store thread.");
 
         match receiver.recv() {
             Ok(value) => value,
@@ -77,7 +81,7 @@ impl EventStoreClient {
                 split,
                 sender,
             ))
-            .unwrap();
+            .expect("Can send event to event store thread.");
 
         match receiver.recv() {
             Ok(value) => value,
@@ -102,13 +106,17 @@ where
                 Message::End => {
                     return;
                 }
-                Message::FindEpoch(name, aggregate, direction, split, sender) => {
+                Message::FindEpoch(name, aggregate, direction, split, callback) => {
                     let response = self.store.find_epoch(&name, aggregate, direction, split);
-                    sender.send(response).unwrap();
+                    callback
+                        .send(response)
+                        .expect("Can send response using callback channel.");
                 }
-                Message::FindMetric(name, epoch, aggregate, split, sender) => {
+                Message::FindMetric(name, epoch, aggregate, split, callback) => {
                     let response = self.store.find_metric(&name, epoch, aggregate, split);
-                    sender.send(response).unwrap();
+                    callback
+                        .send(response)
+                        .expect("Can send response using callback channel.");
                 }
                 Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
                 Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
@@ -139,11 +147,13 @@ enum Message {
 
 impl Drop for EventStoreClient {
     fn drop(&mut self) {
-        self.sender.send(Message::End).unwrap();
+        self.sender
+            .send(Message::End)
+            .expect("Can send the end message to the event store thread.");
         let handler = self.handler.take();
 
         if let Some(handler) = handler {
-            handler.join().unwrap();
+            handler.join().expect("The event store thread should stop.");
         }
     }
 }

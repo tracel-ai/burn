@@ -11,8 +11,14 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-compute"
 version = "0.10.0"
 
 [features]
-default = ["std", "channel-mutex", "channel-mpsc", "channel-cell", "storage-bytes"]
-std = []
+default = [
+    "std",
+    "channel-mutex",
+    "channel-mpsc",
+    "channel-cell",
+    "storage-bytes",
+]
+std = ["burn-common/std"]
 channel-mutex = []
 channel-cell = []
 channel-mpsc = [] # Assume std
@@ -25,3 +31,4 @@ spin = { workspace = true }
 hashbrown = { workspace = true }
 
 [dev-dependencies]
+serial_test = "2.0.0"

@@ -23,7 +23,6 @@ getrandom = { workspace = true, features = ["js"] }
 [dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-const-random = { workspace = true }
 rand = { workspace = true }
 spin = { workspace = true }         # using in place of use std::sync::Mutex;          
 uuid = { workspace = true }
