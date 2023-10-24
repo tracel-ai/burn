@@ -29,7 +29,6 @@ jobs:
     needs:
       - publish-burn-common
     with:
-    with:
       crate: burn-compute
     secrets: inherit
 
