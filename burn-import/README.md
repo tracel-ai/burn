@@ -38,7 +38,7 @@ Follow these steps to import an ONNX model into your Burn project:
 2. **Modify `mod.rs`**: Add this code to the `mod.rs` file located in `src/model`:
 
    ```rust
-   pub mod mnist {
+   pub mod model_name {
        include!(concat!(env!("OUT_DIR"), "/model/model_name.rs"));
    }
    ```
