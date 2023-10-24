@@ -1,7 +1,9 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
+    tune::AutotuneOperation,
 };
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::marker::PhantomData;
@@ -63,5 +65,14 @@ where
     /// Wait for the completion of every task in the server.
     pub fn sync(&self) {
         self.channel.sync()
+    }
+
+    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
+    pub fn execute_autotune(
+        &self,
+        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
+        handles: &[&Handle<Server>],
+    ) {
+        self.channel.execute_autotune(autotune_kernel, handles);
     }
 }

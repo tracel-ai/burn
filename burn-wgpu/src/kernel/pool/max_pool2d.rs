@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -38,7 +40,7 @@ pub(crate) fn max_pool2d<E: WgpuElement>(
     ));
 
     x.client
-        .execute(Box::new(kernel), &[&x.handle, &output.handle, &info_handle]);
+        .execute(Arc::new(kernel), &[&x.handle, &output.handle, &info_handle]);
 
     output
 }
@@ -62,7 +64,7 @@ pub(crate) fn max_pool2d_with_indices<E: WgpuElement, I: WgpuElement>(
     ));
 
     x.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&x.handle, &output.handle, &indices.handle, &info_handle],
     );
 
@@ -95,7 +97,7 @@ pub(crate) fn max_pool2d_with_indices_backward<E: WgpuElement, I: WgpuElement>(
     ));
 
     x.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&indices.handle, &grad.handle, &output.handle, &info_handle],
     );
     output

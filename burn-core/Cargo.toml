@@ -53,6 +53,7 @@ wgpu = ["burn-wgpu/default"]
 tch = ["burn-tch"]
 
 candle = ["burn-candle"]
+candle-cuda = ["candle", "burn-candle/cuda"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]

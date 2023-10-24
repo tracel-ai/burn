@@ -1,7 +1,5 @@
 pub use rand::{rngs::StdRng, Rng, SeedableRng};
 
-#[cfg(not(feature = "std"))]
-use const_random::const_random;
 use rand::distributions::Standard;
 use rand::prelude::Distribution;
 
@@ -16,8 +14,8 @@ pub fn get_seeded_rng() -> StdRng {
 #[cfg(not(feature = "std"))]
 #[inline(always)]
 pub fn get_seeded_rng() -> StdRng {
-    const GENERATED_SEED: u64 = const_random!(u64);
-    StdRng::seed_from_u64(GENERATED_SEED)
+    const CONST_SEED: u64 = 42;
+    StdRng::seed_from_u64(CONST_SEED)
 }
 
 /// Generates random data from a thread-local RNG.

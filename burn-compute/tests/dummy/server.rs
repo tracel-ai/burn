@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_common::reader::Reader;
 use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
@@ -19,7 +21,7 @@ impl<MM> ComputeServer for DummyServer<MM>
 where
     MM: MemoryManagement<BytesStorage>,
 {
-    type Kernel = Box<dyn DummyKernel>;
+    type Kernel = Arc<dyn DummyKernel>;
     type Storage = BytesStorage;
     type MemoryManagement = MM;
 

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     compute::{StaticKernel, WgpuHandle},
     element::WgpuElement,
@@ -35,7 +37,7 @@ pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
 
     let info_handle = build_info(&x, &output);
     x.client
-        .execute(Box::new(kernel), &[&x.handle, &output.handle, &info_handle]);
+        .execute(Arc::new(kernel), &[&x.handle, &output.handle, &info_handle]);
 
     output
 }
@@ -64,7 +66,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: WgpuElement>(
     let info_handle = build_info(&x, &out_grad);
 
     x.client.execute(
-        Box::new(kernel),
+        Arc::new(kernel),
         &[&out_grad.handle, &output.handle, &info_handle],
     );
 

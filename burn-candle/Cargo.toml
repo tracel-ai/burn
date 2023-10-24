@@ -11,6 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-candle"
 version = "0.10.0"
 
 [features]
+cuda = ["candle-core/cuda"]
 
 [dependencies]
 derive-new = { workspace = true }

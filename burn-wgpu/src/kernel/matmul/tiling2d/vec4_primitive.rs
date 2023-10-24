@@ -27,7 +27,7 @@ struct MatmulTiling2Dvec4Primitive<E: WgpuElement> {
 }
 
 impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4Primitive<E> {
-    fn source(self) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         MatmulTiling2Dvec4PrimitiveRaw::source()
             .register("b_m", self.b_m.to_string())
             .register("b_n", self.b_n.to_string())
