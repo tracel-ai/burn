@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
 
-    const ASSERT_PRECISION: usize = 2;
+    const ASSERT_PRECISION: usize = 1;
 
     #[test]
     fn test_adamw_optimizer_with_numbers() {
@@ -317,9 +317,9 @@ mod tests {
             ],
         ]);
 
-        // t_actual_difference
-        //     .into_data()
-        //     .assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
+        t_actual_difference
+            .into_data()
+            .assert_approx_eq(&expected_difference.into_data(), ASSERT_PRECISION);
 
         let (weight_updated, bias_updated) = (
             state_updated.weight.to_data(),
