@@ -112,7 +112,7 @@ jobs:
       - name: Get coverage data for codecov
         if: matrix.rust == 'stable' && matrix.test == 'std'
         run: |
-          grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
+          grcov . --binary-path ./target/debug/ -s . -t ${CODECOV_TOKEN} --branch \
           --ignore-not-existing --ignore "/*" --ignore "../*" \
           --ignore "xtask/*" --ignore "examples/*" -o lcov.info
 
@@ -120,6 +120,7 @@ jobs:
         if: matrix.rust == 'stable' && matrix.test == 'std'
         uses: codecov/codecov-action@v3
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
 
   check-typos:
