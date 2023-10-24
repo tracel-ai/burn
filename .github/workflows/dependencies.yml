@@ -53,6 +53,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly
+          components: rustfmt
 
       - name: Install cargo-udeps
         env:
