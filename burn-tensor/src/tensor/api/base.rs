@@ -2,11 +2,11 @@
 
 use alloc::vec::Vec;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::format;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::string::String;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
@@ -325,25 +325,25 @@ where
         Self::new(K::to_device(self.primitive, device))
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
     pub async fn into_data(self) -> Data<K::Elem, D> {
         K::into_data(self.primitive).read().await
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Returns the data of the current tensor.
     pub fn into_data(self) -> Data<K::Elem, D> {
         K::into_data(self.primitive).read()
     }
 
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Returns the data of the current tensor.
     pub async fn to_data(&self) -> Data<K::Elem, D> {
         K::into_data(self.primitive.clone()).read().await
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Returns the data of the current tensor without taking ownership.
     pub fn to_data(&self) -> Data<K::Elem, D> {
         Self::into_data(self.clone())
@@ -467,7 +467,7 @@ where
     K: BasicOps<B>,
     <K as BasicOps<B>>::Elem: Debug,
 {
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
         acc.push('\n');
@@ -476,7 +476,7 @@ where
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
@@ -498,7 +498,7 @@ where
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn fmt_outer_tensor(
         &self,
         acc: &mut String,
@@ -533,7 +533,7 @@ where
     /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
     /// * `depth` - The current depth of the tensor dimensions being processed.
     /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn display_recursive(
         &self,
         acc: &mut String,
@@ -644,7 +644,7 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
 
-        #[cfg(not(target_family = "wasm"))]
+        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         {
             let po = PRINT_OPTS.lock().unwrap();
             let mut acc = String::new();

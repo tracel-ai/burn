@@ -29,6 +29,8 @@ dataset-minimal = ["burn-dataset"]
 dataset-sqlite = ["burn-dataset/sqlite"]
 dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
 
+wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
+
 # Backend
 autodiff = ["burn-autodiff"]
 
