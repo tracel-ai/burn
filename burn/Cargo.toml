@@ -18,6 +18,9 @@ std = ["burn-core/std"]
 # Training with full features
 train = ["burn-train/default", "autodiff", "dataset"]
 
+# Useful when targeting WASM and not using WGPU.
+wasm-sync = ["burn-core/wasm-sync"]
+
 ## Include nothing
 train-minimal = ["burn-train"]
 

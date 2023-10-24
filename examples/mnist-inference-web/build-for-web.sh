@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 # Add wasm32 target for compiler.
 rustup target add wasm32-unknown-unknown

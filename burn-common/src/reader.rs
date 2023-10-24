@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::marker::PhantomData;
 
-#[cfg(target_family = "wasm")]
+#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
 #[async_trait::async_trait]
 /// Allows to create async reader.
 pub trait AsyncReader<T>: Send {
@@ -15,10 +15,10 @@ pub enum Reader<T> {
     Concrete(T),
     /// Sync data variant.
     Sync(Box<dyn SyncReader<T>>),
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Async data variant.
     Async(Box<dyn AsyncReader<T>>),
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Future data variant.
     Future(core::pin::Pin<Box<dyn core::future::Future<Output = T> + Send>>),
 }
@@ -52,7 +52,7 @@ where
     }
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
 #[async_trait::async_trait]
 impl<I, O, F> AsyncReader<O> for MappedReader<I, O, F>
 where
@@ -67,7 +67,7 @@ where
 }
 
 impl<T> Reader<T> {
-    #[cfg(target_family = "wasm")]
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Read the data.
     pub async fn read(self) -> T {
         match self {
@@ -78,7 +78,7 @@ impl<T> Reader<T> {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Read the data.
     pub fn read(self) -> T {
         match self {
@@ -92,9 +92,9 @@ impl<T> Reader<T> {
         match self {
             Self::Concrete(data) => Some(data),
             Self::Sync(reader) => Some(reader.read()),
-            #[cfg(target_family = "wasm")]
+            #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
             Self::Async(_func) => return None,
-            #[cfg(target_family = "wasm")]
+            #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
             Self::Future(_future) => return None,
         }
     }
@@ -106,10 +106,10 @@ impl<T> Reader<T> {
         O: 'static + Send,
         F: 'static + Send,
     {
-        #[cfg(target_family = "wasm")]
+        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
         return Reader::Async(Box::new(MappedReader::new(self, mapper)));
 
-        #[cfg(not(target_family = "wasm"))]
+        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
         Reader::Sync(Box::new(MappedReader::new(self, mapper)))
     }
 }
