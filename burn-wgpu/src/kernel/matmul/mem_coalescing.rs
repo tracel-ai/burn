@@ -1,8 +1,10 @@
 use std::{marker::PhantomData, sync::Arc};
 
+use burn_tensor::Shape;
+
 use super::utils::shape_out;
 use crate::{
-    compute::{DynamicKernel, WorkGroup},
+    compute::{DynamicKernel, Kernel, WorkGroup},
     element::WgpuElement,
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
@@ -60,36 +62,53 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     let rhs = into_contiguous(rhs);
 
     let shape_out = shape_out(&lhs, &rhs);
-    let num_rows = lhs.shape.dims[D - 2];
-    let num_cols = rhs.shape.dims[D - 1];
 
     let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
+
+    let info = build_info(&[&lhs, &rhs, &output]);
+
+    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+
+    let kernel = matmul_mem_coalescing_kernel::<E, D>(
+        &lhs.shape,
+        &rhs.shape,
+        &output.shape,
+        workgroup_size_x,
+        workgroup_size_y,
+    );
+
+    lhs.client.execute(
+        kernel,
+        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
+    );
+
+    output
+}
+
+pub fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
+    lhs_shape: &Shape<D>,
+    rhs_shape: &Shape<D>,
+    output_shape: &Shape<D>,
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
+) -> Arc<dyn Kernel> {
+    let num_rows = lhs_shape.dims[D - 2];
+    let num_cols = rhs_shape.dims[D - 1];
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
     let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
     let mut num_iter = 1;
     for i in 0..D - 2 {
-        num_iter *= output.shape.dims[i];
+        num_iter *= output_shape.dims[i];
     }
 
     let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
 
-    let kernel = DynamicKernel::new(
+    Arc::new(DynamicKernel::new(
         MatmulMemCoalescing::<E>::new(workgroup_size_x, workgroup_size_y),
         workgroup,
-    );
-
-    let info = build_info(&[&lhs, &rhs, &output]);
-
-    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
-
-    lhs.client.execute(
-        Arc::new(kernel),
-        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
-    );
-
-    output
+    ))
 }
 
 #[cfg(test)]

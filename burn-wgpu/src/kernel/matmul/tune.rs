@@ -3,12 +3,12 @@ use std::{marker::PhantomData, sync::Arc};
 use burn_compute::{
     memory_management::{MemoryManagement, SimpleMemoryManagement},
     server::Handle,
-    tune::{AutotuneKey, AutotuneOperationSet, AutotuneOperation},
+    tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
 };
 use burn_tensor::Shape;
 
 use crate::{
-    compute::{Kernel, WgpuServer, WgpuStorage},
+    compute::{Kernel, Server, WgpuStorage},
     element::WgpuElement,
     kernel::{
         build_info,
@@ -19,27 +19,21 @@ use crate::{
     tensor::WgpuTensor,
 };
 
-pub struct MatmulAutotuneOperation<
-    MM: MemoryManagement<WgpuStorage>,
-    E: WgpuElement,
-    const D: usize,
-> {
+pub struct MatmulAutotuneOperation<E: WgpuElement, const D: usize> {
     key: AutotuneKey,
     lhs_shape: Shape<D>,
     rhs_shape: Shape<D>,
     output_shape: Shape<D>,
-    info_handle: Handle<WgpuServer<MM>>,
+    info_handle: Handle<Server>,
     _elem: PhantomData<E>,
 }
 
-impl<MM: MemoryManagement<WgpuStorage>, E: WgpuElement, const D: usize>
-    MatmulAutotuneOperation<MM, E, D>
-{
+impl<E: WgpuElement, const D: usize> MatmulAutotuneOperation<E, D> {
     pub fn new(
         lhs_shape: Shape<D>,
         rhs_shape: Shape<D>,
         output_shape: Shape<D>,
-        info_handle: Handle<WgpuServer<MM>>,
+        info_handle: Handle<Server>,
     ) -> Self {
         Self {
             key: AutotuneKey::new(
@@ -55,14 +49,14 @@ impl<MM: MemoryManagement<WgpuStorage>, E: WgpuElement, const D: usize>
     }
 }
 
-impl<MM: MemoryManagement<WgpuStorage>, E: WgpuElement, const D: usize>
-    AutotuneOperationSet<WgpuServer<MM>> for MatmulAutotuneOperation<MM, E, D>
+impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
+    for MatmulAutotuneOperation<E, D>
 {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<AutotuneOperation<WgpuServer<MM>>> {
+    fn autotunables(&self) -> Vec<AutotuneOperation<Server>> {
         // let memory_coalescing: S::Kernel = matmul_mem_coalescing_kernel(
         let memory_coalescing: Arc<dyn Kernel> = matmul_mem_coalescing_kernel::<E, D>(
             &self.lhs_shape,
@@ -89,7 +83,7 @@ impl<MM: MemoryManagement<WgpuStorage>, E: WgpuElement, const D: usize>
         ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<WgpuServer<MM>> {
+    fn fastest(&self, fastest_index: usize) -> AutotuneOperation<Server> {
         // If mem_coaslescong chosen, call into contiguous, use right batch size
         self.autotunables()[fastest_index].clone()
     }
@@ -130,11 +124,7 @@ pub fn matmul_autotune<E: WgpuElement, const D: usize>(
     let info = build_info(&[&lhs, &rhs, &output]);
     let info_handle = client.create(bytemuck::cast_slice(&info));
 
-    let matmul_autotune = Box::new(MatmulAutotuneOperation::<
-        SimpleMemoryManagement<WgpuStorage>, // TODO remove
-        E,
-        D,
-    >::new(
+    let matmul_autotune = Box::new(MatmulAutotuneOperation::<E, D>::new(
         lhs.shape,
         rhs.shape,
         output.shape.clone(),
