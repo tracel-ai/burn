@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
+      - '**Cargo.toml'
+      - '**Cargo.lock'
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
+      - '**Cargo.toml'
+      - '**Cargo.lock'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
