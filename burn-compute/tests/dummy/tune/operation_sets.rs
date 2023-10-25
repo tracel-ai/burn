@@ -32,16 +32,14 @@ impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
-        let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAddition);
-        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
         vec![
             Box::new(OneKernelAutotuneOperation::new(
-                x,
+                Arc::new(DummyElementwiseAddition),
                 self.client.clone(),
                 self.shapes.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
-                y,
+                Arc::new(DummyElementwiseAdditionSlowWrong),
                 self.client.clone(),
                 self.shapes.clone(),
             )),
@@ -74,16 +72,14 @@ impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
-        let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplicationSlowWrong);
-        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplication);
         vec![
             Box::new(OneKernelAutotuneOperation::new(
-                x,
+                Arc::new(DummyElementwiseMultiplicationSlowWrong),
                 self.client.clone(),
                 self.shapes.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
-                y,
+                Arc::new(DummyElementwiseMultiplication),
                 self.client.clone(),
                 self.shapes.clone(),
             )),
@@ -116,16 +112,14 @@ impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
-        let x: Arc<dyn DummyKernel> = Arc::new(CacheTestFastOn3);
-        let y: Arc<dyn DummyKernel> = Arc::new(CacheTestSlowOn3);
         vec![
             Box::new(OneKernelAutotuneOperation::new(
-                x,
+                Arc::new(CacheTestFastOn3),
                 self.client.clone(),
                 self.shapes.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
-                y,
+                Arc::new(CacheTestSlowOn3),
                 self.client.clone(),
                 self.shapes.clone(),
             )),

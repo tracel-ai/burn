@@ -31,7 +31,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         &mut self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
         client: &ComputeClient<S, C>,
-        handles: &[&Handle<S>]
+        handles: &[&Handle<S>],
     ) {
         let operation = self
             .tune_cache
