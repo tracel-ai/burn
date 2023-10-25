@@ -211,20 +211,20 @@ fn std_checks() {
 
     println!("Running std checks");
 
-    // Build each workspace
-    cargo_build(["--workspace", "--exclude=xtask"].into());
-
-    // Test each workspace
-    cargo_test(["--workspace"].into());
-
     // Check format
     cargo_fmt();
 
     // Check clippy lints
     cargo_clippy();
 
+    // Build each workspace
+    cargo_build(["--workspace", "--exclude=xtask"].into());
+
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
+
+    // Test each workspace
+    cargo_test(["--workspace"].into());
 
     // Test burn-dataset features
     burn_dataset_features_std();
