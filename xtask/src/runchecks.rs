@@ -184,10 +184,9 @@ fn run_grcov() {
         "-t", "lcov",
         "--branch",
         "--ignore-not-existing",
-        "--ignore", "\"/*\"",
-        "--ignore", "\"../*\"",
-        "--ignore", "\"xtask/*\"",
-        "--ignore", "\"examples/*\"",
+        "--ignore", "/*", // It excludes std library code coverage from analysis
+        "--ignore", "xtask/*",
+        "--ignore", "examples/*",
         "-o", "lcov.info",
     ];
 
