@@ -6,6 +6,7 @@ resolver = "2"
 members = [
     "burn",
     "burn-autodiff",
+    "burn-fusion",
     "burn-candle",
     "burn-common",
     "burn-compute",
