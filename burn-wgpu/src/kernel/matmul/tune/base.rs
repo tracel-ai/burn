@@ -14,27 +14,27 @@ use crate::{
 pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
     client: WgpuComputeClient,
     key: AutotuneKey,
-    lhs_shape: Shape<D>,
-    rhs_shape: Shape<D>,
-    out_shape: Shape<D>,
+    lhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>,
+    out: WgpuTensor<E, D>,
     _element: PhantomData<E>,
 }
 impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
     fn new(
         client: WgpuComputeClient,
-        lhs_shape: Shape<D>,
-        rhs_shape: Shape<D>,
-        out_shape: Shape<D>,
+        lhs: WgpuTensor<E, D>,
+        rhs: WgpuTensor<E, D>,
+        out: WgpuTensor<E, D>,
     ) -> Self {
-        let m = lhs_shape.dims[D - 2];
-        let k = lhs_shape.dims[D - 1];
-        let n = rhs_shape.dims[D - 1];
+        let m = lhs.shape.dims[D - 2];
+        let k = lhs.shape.dims[D - 1];
+        let n = rhs.shape.dims[D - 1];
         Self {
             key: AutotuneKey::new("matmul".to_string(), log_mkn_input_key(m, k, n)),
             client,
-            lhs_shape,
-            rhs_shape,
-            out_shape,
+            lhs,
+            rhs,
+            out,
             _element: PhantomData,
         }
     }
@@ -51,9 +51,9 @@ impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
         vec![Box::new(
             MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
                 self.client.clone(),
-                self.lhs_shape.clone(),
-                self.rhs_shape.clone(),
-                self.out_shape.clone(),
+                self.lhs.clone(),
+                self.rhs.clone(),
+                self.out.clone(),
             ),
         )]
     }
@@ -75,12 +75,13 @@ pub fn matmul_autotune<E: WgpuElement, const D: usize>(
 
     let operation_set = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
         client.clone(),
-        lhs.shape,
-        rhs.shape,
-        output_shape,
+        lhs,
+        rhs,
+        output.clone(),
     ));
 
-    let handles = [&lhs.handle, &rhs.handle, &output.handle];
+    // let handles = [&lhs.handle, &rhs.handle, &output.handle];
+    let handles = [];
     client.execute_autotune(operation_set, &handles);
 
     output
