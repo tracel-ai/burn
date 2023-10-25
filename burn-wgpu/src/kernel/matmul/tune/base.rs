@@ -6,7 +6,7 @@ use burn_tensor::Shape;
 use crate::{
     compute::{Server, WgpuComputeClient},
     element::WgpuElement,
-    kernel::matmul::{utils::shape_out, MemoryCoalescingMatmulAutotuneOperation},
+    kernel::matmul::{utils::shape_out, MemoryCoalescingMatmulAutotuneOperation, Vec4TilingMatmulAutotuneOperation},
     ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
@@ -48,14 +48,20 @@ impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<Server>>> {
-        vec![Box::new(
-            MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
+        vec![
+            Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
                 self.client.clone(),
                 self.lhs.clone(),
                 self.rhs.clone(),
                 self.out.clone(),
-            ),
-        )]
+            )),
+            Box::new(Vec4TilingMatmulAutotuneOperation::<E, D>::new(
+                self.client.clone(),
+                self.lhs.clone(),
+                self.rhs.clone(),
+                self.out.clone(),
+            )),
+        ]
     }
 
     fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<Server>> {

@@ -1,11 +1,12 @@
 use burn_tensor::Element;
 
 use crate::{
+    compute::Kernel,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::kernel_wgsl;
 
@@ -66,6 +67,10 @@ pub fn matmul_tiling_2d_vec4_primitive<E: WgpuElement + Element, const D: usize>
     let wgy = 16;
     let kernel = MatmulTiling2Dvec4Primitive::<E>::new(b_m, b_n, b_k, wgx, wgy);
     matmul_tiling_2d_launch(lhs, rhs, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
+}
+
+pub fn vec4_tiling_matmul_kernel<E: WgpuElement, const D: usize>() -> Arc<dyn Kernel> {
+    todo!()
 }
 
 #[cfg(test)]

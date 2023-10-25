@@ -1,17 +1,20 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use burn_compute::{server::Handle, tune::AutotuneOperation};
-use burn_tensor::Shape;
 
 use crate::{
     compute::{Kernel, Server, WgpuComputeClient},
     element::WgpuElement,
     kernel::{
-        build_info, into_contiguous_kernel, matmul::matmul_mem_coalescing_kernel, WORKGROUP_DEFAULT,
+        build_info, into_contiguous_kernel,
+        matmul::{fill_bytes, matmul_mem_coalescing_kernel, n_bytes},
+        WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
+
+use super::reduce_shape;
 
 pub struct MemoryCoalescingMatmulAutotuneOperation<E: WgpuElement, const D: usize> {
     into_contiguous_kernel_lhs: Arc<dyn Kernel>,
@@ -80,9 +83,9 @@ impl<E: WgpuElement, const D: usize> MemoryCoalescingMatmulAutotuneOperation<E, 
         );
 
         // Matmul
-        let matmul_info = self
-            .client
-            .create(bytemuck::cast_slice(&build_info(&[&lhs, &rhs, &out])));
+        let matmul_info = self.client.create(bytemuck::cast_slice(&build_info(&[
+            &lhs_tmp, &rhs_tmp, &out,
+        ])));
         let matmul_handles = [&lhs_tmp.handle, &rhs_tmp.handle, &out.handle, &matmul_info];
         self.client
             .execute(self.memory_coalescing_kernel.clone(), &matmul_handles);
@@ -142,17 +145,4 @@ impl<E: WgpuElement, const D: usize> AutotuneOperation<Server>
             _element: self._element.clone(),
         })
     }
-}
-
-fn n_bytes<E, const D: usize>(shape: &Shape<D>) -> usize {
-    shape.num_elements() * core::mem::size_of::<E>()
-}
-
-fn reduce_shape<const D: usize>(shape: &Shape<D>) -> Shape<3> {
-    let n_batches = 2;
-    Shape::new([n_batches, shape.dims[D - 2], shape.dims[D - 1]])
-}
-
-fn fill_bytes<E: WgpuElement, const D: usize>(value: u8, shape: &Shape<D>) -> Vec<u8> {
-    vec![value; n_bytes::<E, D>(shape)]
 }
