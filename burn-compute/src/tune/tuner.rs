@@ -1,52 +1,56 @@
+use core::marker::PhantomData;
 use core::time::Duration;
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
-use alloc::{boxed::Box, sync::Arc};
-use burn_common::benchmark::BenchmarkResult;
+use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
-use crate::{
-    server::Handle,
-    tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache},
-};
+use crate::channel::ComputeChannel;
+use crate::client::ComputeClient;
+use crate::server::{ComputeServer, Handle};
+use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
 /// Server wrapper with extra capability of autotuning kernels
 #[derive(Debug)]
-pub(crate) struct Tuner {
-    pub tune_cache: TuneCache,
+pub struct Tuner<S, C> {
+    pub tune_cache: TuneCache<S>,
+    _server: PhantomData<S>,
+    _channel: PhantomData<C>,
 }
 
-impl Tuner {
+impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
     pub fn new() -> Self {
         Self {
             tune_cache: TuneCache::new(),
+            _server: PhantomData,
+            _channel: PhantomData,
         }
     }
 
-    pub(crate) fn execute_autotune(&mut self, autotune_operation: Box<dyn AutotuneOperationSet>) {
+    pub(crate) fn execute_autotune(
+        &mut self,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
+        client: &ComputeClient<S, C>,
+        handles: &[&Handle<S>]
+    ) {
         let operation = self
             .tune_cache
-            .try_cache(&autotune_operation)
-            .unwrap_or_else(|| self.autotuning(autotune_operation));
+            .try_cache(&autotune_operation_set)
+            .unwrap_or_else(|| self.autotuning(autotune_operation_set, client));
 
-        operation.execute(execution_handles, &mut self.server);
+        AutotuneOperation::execute(operation, handles);
     }
 
     fn autotuning(
         &mut self,
-        autotune_operation: Box<dyn AutotuneOperationSet>,
-    ) -> Arc<dyn AutotuneOperation> {
-        // Create input buffers for autotune
-        let autotune_handles: Vec<Handle<S>> = autotune_operation
-            .inputs()
-            .iter()
-            .map(|input| self.server.create(input))
-            .collect();
-
+        autotune_operation: Box<dyn AutotuneOperationSet<S>>,
+        client: &ComputeClient<S, C>,
+    ) -> Box<dyn AutotuneOperation<S>> {
         // Run all autotune benchmarks
         let results = autotune_operation
             .autotunables()
             .into_iter()
-            .map(|op| self.run_benchmark(op, autotune_handles.clone()))
+            .map(|op| self.run_benchmark(op, client))
             .collect();
 
         // Finds the fastest operation, stores it and returns it
@@ -58,10 +62,10 @@ impl Tuner {
 
     fn run_benchmark(
         &mut self,
-        operation: Arc<dyn AutotuneOperation>,
-        handles: Vec<Handle<S>>,
+        operation: Box<dyn AutotuneOperation<S>>,
+        client: &ComputeClient<S, C>,
     ) -> BenchmarkResult {
-        TuneBenchmark::new(operation, handles, &mut self.server).run()
+        TuneBenchmark::new(operation, client.clone()).run()
     }
 
     fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {

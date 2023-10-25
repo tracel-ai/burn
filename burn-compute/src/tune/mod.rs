@@ -7,4 +7,4 @@ pub use tune_benchmark::*;
 pub use tune_cache::*;
 
 mod tuner;
-pub(crate) use tuner::*;
+pub use tuner::*;

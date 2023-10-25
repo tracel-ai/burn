@@ -1,178 +1,152 @@
 use std::sync::Arc;
 
-use burn_compute::{
-    server::Handle,
-    tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
-};
+use burn_compute::tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet};
 
 use crate::dummy::{
-    CacheTestFastOn3, CacheTestSlowOn3, DummyAutotuneOperation, DummyElementwiseAddition,
+    CacheTestFastOn3, CacheTestSlowOn3, DummyClient, DummyElementwiseAddition,
     DummyElementwiseMultiplication, DummyElementwiseMultiplicationSlowWrong, DummyKernel,
-    DummyServer, ParameteredKernel,
+    DummyServer, OneKernelAutotuneOperation,
 };
 
 use super::DummyElementwiseAdditionSlowWrong;
 
-pub struct AdditionAutotuneKernel {
+pub struct AdditionAutotuneOperationSet {
+    client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl AdditionAutotuneKernel {
-    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+impl AdditionAutotuneOperationSet {
+    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
         Self {
+            client,
             key: AutotuneKey::new("add".to_string(), log_shape_input_key(&shapes)),
             shapes,
         }
     }
 }
 
-impl AutotuneOperationSet<DummyServer> for AdditionAutotuneKernel {
+impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAddition);
         let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
         vec![
-            Arc::new(DummyAutotuneOperation::new(x, None)),
-            Arc::new(DummyAutotuneOperation::new(y, None)),
+            Box::new(OneKernelAutotuneOperation::new(
+                x,
+                self.client.clone(),
+                self.shapes.clone(),
+            )),
+            Box::new(OneKernelAutotuneOperation::new(
+                y,
+                self.client.clone(),
+                self.shapes.clone(),
+            )),
         ]
     }
 
-    fn inputs(&self) -> Vec<Vec<u8>> {
-        arbitrary_bytes(&self.shapes)
-    }
-
-    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
 
-pub struct MultiplicationAutotuneKernel {
+pub struct MultiplicationAutotuneOperationSet {
+    client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl MultiplicationAutotuneKernel {
-    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+impl<'a> MultiplicationAutotuneOperationSet {
+    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
         Self {
+            client,
             key: AutotuneKey::new("mul".to_string(), log_shape_input_key(&shapes)),
             shapes,
         }
     }
 }
-impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneKernel {
+impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplicationSlowWrong);
         let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseMultiplication);
         vec![
-            Arc::new(DummyAutotuneOperation::new(x, None)),
-            Arc::new(DummyAutotuneOperation::new(y, None)),
+            Box::new(OneKernelAutotuneOperation::new(
+                x,
+                self.client.clone(),
+                self.shapes.clone(),
+            )),
+            Box::new(OneKernelAutotuneOperation::new(
+                y,
+                self.client.clone(),
+                self.shapes.clone(),
+            )),
         ]
     }
 
-    fn inputs(&self) -> Vec<Vec<u8>> {
-        arbitrary_bytes(&self.shapes)
-    }
-
-    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
 
-pub struct CacheTestAutotuneKernel {
+pub struct CacheTestAutotuneOperationSet {
+    client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
 }
 
-impl CacheTestAutotuneKernel {
-    pub fn new(shapes: Vec<Vec<usize>>) -> Self {
+impl CacheTestAutotuneOperationSet {
+    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
         Self {
+            client,
             key: AutotuneKey::new("cache_test".to_string(), log_shape_input_key(&shapes)),
             shapes,
         }
     }
 }
-impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneKernel {
+impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
         let x: Arc<dyn DummyKernel> = Arc::new(CacheTestFastOn3);
         let y: Arc<dyn DummyKernel> = Arc::new(CacheTestSlowOn3);
         vec![
-            Arc::new(DummyAutotuneOperation::new(x, None)),
-            Arc::new(DummyAutotuneOperation::new(y, None)),
-        ]
-    }
-
-    fn inputs(&self) -> Vec<Vec<u8>> {
-        arbitrary_bytes(&self.shapes)
-    }
-
-    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
-        self.autotunables()[fastest_index].clone()
-    }
-}
-
-pub struct ParameterTestAutotuneKernel {
-    key: AutotuneKey,
-    shapes: Vec<Vec<usize>>,
-    parameter_handle: Handle<DummyServer>,
-}
-
-impl ParameterTestAutotuneKernel {
-    pub fn new(shapes: Vec<Vec<usize>>, parameter_handle: Handle<DummyServer>) -> Self {
-        Self {
-            key: AutotuneKey::new("parameter_test".to_string(), log_shape_input_key(&shapes)),
-            shapes,
-            parameter_handle,
-        }
-    }
-}
-impl AutotuneOperationSet<DummyServer> for ParameterTestAutotuneKernel {
-    fn key(&self) -> AutotuneKey {
-        self.key.clone()
-    }
-
-    fn autotunables(&self) -> Vec<Arc<dyn AutotuneOperation<DummyServer>>> {
-        let x: Arc<dyn DummyKernel> = Arc::new(ParameteredKernel);
-        let y: Arc<dyn DummyKernel> = Arc::new(DummyElementwiseAdditionSlowWrong);
-        vec![
-            Arc::new(DummyAutotuneOperation::new(
+            Box::new(OneKernelAutotuneOperation::new(
                 x,
-                Some(vec![self.parameter_handle.clone()]),
+                self.client.clone(),
+                self.shapes.clone(),
             )),
-            Arc::new(DummyAutotuneOperation::new(y, None)),
+            Box::new(OneKernelAutotuneOperation::new(
+                y,
+                self.client.clone(),
+                self.shapes.clone(),
+            )),
         ]
     }
 
-    fn inputs(&self) -> Vec<Vec<u8>> {
-        arbitrary_bytes(&self.shapes)
-    }
-
-    fn fastest(&self, fastest_index: usize) -> Arc<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
 
-pub fn arbitrary_bytes(shapes: &Vec<Vec<usize>>) -> Vec<Vec<u8>> {
-    const ARBITRARY_BYTE: u8 = 12; // small so that squared < 256
-    let mut handles = Vec::with_capacity(shapes.len());
-    for shape in shapes {
-        let n_bytes: usize = shape.iter().product();
-        let handle = vec![ARBITRARY_BYTE; n_bytes];
-        handles.push(handle)
-    }
-    handles
-}
+// pub fn arbitrary_bytes(shapes: &Vec<Vec<usize>>) -> Vec<Vec<u8>> {
+//     const ARBITRARY_BYTE: u8 = 12; // small so that squared < 256
+//     let mut handles = Vec::with_capacity(shapes.len());
+//     for shape in shapes {
+//         let n_bytes: usize = shape.iter().product();
+//         let handle = vec![ARBITRARY_BYTE; n_bytes];
+//         handles.push(handle)
+//     }
+//     handles
+// }
 
 pub fn log_shape_input_key(shapes: &[Vec<usize>]) -> String {
     let mut hash = String::new();

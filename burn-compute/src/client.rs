@@ -14,7 +14,7 @@ use spin::Mutex;
 #[derive(Debug)]
 pub struct ComputeClient<Server, Channel> {
     channel: Channel,
-    tuner: Arc<Mutex<Tuner>>,
+    tuner: Arc<Mutex<Tuner<Server, Channel>>>,
     _server: PhantomData<Server>,
 }
 
@@ -38,7 +38,7 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel, tuner: Arc<Mutex<Tuner>>) -> Self {
+    pub fn new(channel: Channel, tuner: Arc<Mutex<Tuner<Server, Channel>>>) -> Self {
         Self {
             channel,
             tuner,
@@ -74,9 +74,11 @@ where
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
     pub fn execute_autotune(
         &self,
-        autotune_kernel: Box<dyn AutotuneOperationSet>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<Server>>,
         handles: &[&Handle<Server>],
     ) {
-        self.tuner.lock().execute_autotune(autotune_kernel, handles);
+        self.tuner
+            .lock()
+            .execute_autotune(autotune_operation_set, self, handles);
     }
 }

@@ -45,7 +45,7 @@ where
     Server: ComputeServer + 'static,
 {
     /// Create a new mpsc compute channel.
-    pub fn new(server: Server, bound: usize) -> Self {
+    pub fn new(mut server: Server, bound: usize) -> Self {
         let (sender, receiver) = mpsc::sync_channel(bound);
 
         let _handle = thread::spawn(move || {

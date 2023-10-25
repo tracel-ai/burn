@@ -1,34 +1,42 @@
-use alloc::sync::Arc;
 use burn_common::benchmark::Benchmark;
 
-use crate::server::{ComputeServer, Handle};
+use crate::client::ComputeClient;
+use crate::server::ComputeServer;
+use crate::{channel::ComputeChannel, server::Handle};
 
 use super::AutotuneOperation;
 use alloc::string::{String, ToString};
-use alloc::vec::Vec;
 
 /// A benchmark that runs on server handles
 #[derive(new)]
-pub struct TuneBenchmark<'a, S: ComputeServer> {
-    operation: Arc<dyn AutotuneOperation>,
-    handles: Vec<Handle<S>>,
-    server: &'a mut S,
+pub struct TuneBenchmark<S: ComputeServer, C> {
+    operation: Box<dyn AutotuneOperation<S>>,
+    client: ComputeClient<S, C>,
 }
 
-impl<'a, S: ComputeServer> Benchmark for TuneBenchmark<'a, S> {
-    type Args = ();
+impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
+    type Args = (Box<dyn AutotuneOperation<S>>, Vec<Handle<S>>);
 
-    fn prepare(&self) -> Self::Args {}
-
-    fn num_samples(&self) -> usize {
-        1
+    fn prepare(&self) -> Self::Args {
+        (
+            self.operation.clone(),
+            AutotuneOperation::autotune_handles(self.operation.clone()),
+        )
     }
 
-    fn execute(&mut self, _: Self::Args) {
-        self.operation.execute(
-            &self.handles.iter().collect::<Vec<&Handle<S>>>(),
-            self.server,
-        )
+    fn num_samples(&self) -> usize {
+        10
+    }
+
+    // TODO remove mut (and in burn-common too) ?
+    fn execute(&mut self, args: Self::Args) {
+        let (operation, handles) = args;
+
+        // Ideally this part is not in execute
+        let handle_refs: Vec<&Handle<S>> = handles.iter().collect();
+        let handle_array: &[&Handle<S>] = &handle_refs;
+
+        AutotuneOperation::execute_for_autotune(operation, handle_array);
     }
 
     fn name(&self) -> String {
@@ -36,6 +44,6 @@ impl<'a, S: ComputeServer> Benchmark for TuneBenchmark<'a, S> {
     }
 
     fn sync(&mut self) {
-        self.server.sync();
+        self.client.sync();
     }
 }

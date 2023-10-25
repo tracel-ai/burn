@@ -5,8 +5,10 @@ use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    tune::Tuner,
     Compute,
 };
+use spin::Mutex;
 use wgpu::DeviceDescriptor;
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
@@ -66,7 +68,7 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
     let channel = Channel::new(server);
 
-    ComputeClient::new(channel)
+    ComputeClient::new(channel, Arc::new(Mutex::new(Tuner::new())))
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
