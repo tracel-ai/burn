@@ -2,11 +2,11 @@
 <img src="https://raw.githubusercontent.com/burn-rs/burn/main/assets/logo-burn-full.png" width="200px"/>
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
-[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
-[![Documentation](https://docs.rs/burn/badge.svg)](https://docs.rs/burn)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
-[![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
+[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
+[![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 This library strives to serve as a comprehensive **deep learning framework**, offering exceptional

@@ -3,7 +3,7 @@ use crate::model::Model;
 
 use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
-use burn::optim::{AdamConfig, AdamWConfig};
+use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
 use burn::train::metric::store::{Aggregate, Direction, Split};
 use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
