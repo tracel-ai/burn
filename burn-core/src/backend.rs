@@ -41,7 +41,7 @@ pub use burn_tch as tch;
 
 #[cfg(feature = "tch")]
 /// A TchBackend with a default type of f32.
-pub type TchBackend<F = f32> = tch::TchBackend<F>;
+pub type TchBackend<F = f32> = tch::LibTorch<F>;
 
 #[cfg(all(feature = "tch", feature = "autodiff"))]
 /// A TchBackend with autodiffing enabled.

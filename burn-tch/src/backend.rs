@@ -61,16 +61,22 @@ impl Default for TchDevice {
     }
 }
 
-/// The Tch backend.
+/// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.
+///
+/// This backend is compatible with a wide range of hardwares ranging from CPUs to GPUs, but
+/// required `LibTorch` to be installed and compiled correctly. The CPU version can be downloaded
+/// automatically, but more complex configurations needs manual installation.
+///
+/// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct TchBackend<E> {
+pub struct LibTorch<E> {
     _e: E,
 }
 
-impl<E: TchElement> Backend for TchBackend<E> {
+impl<E: TchElement> Backend for LibTorch<E> {
     type Device = TchDevice;
     type FullPrecisionElem = f32;
-    type FullPrecisionBackend = TchBackend<f32>;
+    type FullPrecisionBackend = LibTorch<f32>;
 
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
     type FloatElem = E;

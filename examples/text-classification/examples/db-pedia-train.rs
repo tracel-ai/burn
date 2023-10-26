@@ -46,7 +46,7 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::autodiff::Autodiff;
-    use burn::backend::tch::{TchBackend, TchDevice};
+    use burn::backend::tch::{LibTorch, TchDevice};
 
     use crate::{launch, ElemType};
 
@@ -63,7 +63,7 @@ mod tch_gpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::autodiff::Autodiff;
-    use burn::backend::tch::{TchBackend, TchDevice};
+    use burn::backend::tch::{LibTorch, TchDevice};
 
     use crate::{launch, ElemType};
 

@@ -49,7 +49,7 @@ extern crate alloc;
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
-pub type TestBackend = burn_tch::TchBackend<f32>;
+pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu", not(target_os = "macos")))]
 pub type TestBackend = burn_wgpu::Wgpu<burn_wgpu::Vulkan, f32, i32>;

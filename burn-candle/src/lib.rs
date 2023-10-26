@@ -19,7 +19,7 @@ mod tests {
     use super::*;
 
     pub type TestBackend = Candle<f32, i64>;
-    pub type ReferenceBackend = burn_tch::TchBackend<f32>;
+    pub type ReferenceBackend = burn_tch::LibTorch<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
