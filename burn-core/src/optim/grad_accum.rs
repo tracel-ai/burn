@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::module::{ADModule, ModuleVisitor, ParamId};
+use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
 
 use burn_tensor::{backend::AutodiffBackend, Tensor};
 
@@ -32,7 +32,7 @@ impl<M> GradientsAccumulator<M> {
     /// Accumulate the given gradients for each parameter in the given module.
     pub fn accumulate<B: AutodiffBackend>(&mut self, module: &M, grads: GradientsParams)
     where
-        M: ADModule<B>,
+        M: AutodiffModule<B>,
     {
         let mut visitor = ModuleGradsAccumulator::<M>::new(&mut self.grads, grads);
         module.visit(&mut visitor);
@@ -54,7 +54,9 @@ struct ModuleGradsAccumulator<'a, M> {
     phantom: PhantomData<M>,
 }
 
-impl<'a, B: AutodiffBackend, M: ADModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'a, M> {
+impl<'a, B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B>
+    for ModuleGradsAccumulator<'a, M>
+{
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
             Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {

@@ -1,17 +1,17 @@
 use super::GradientsParams;
-use crate::module::{ADModule, ModuleVisitor, ParamId};
+use crate::module::{AutodiffModule, ModuleVisitor, ParamId};
 use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, M: ADModule<B>, B: AutodiffBackend> {
+pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     grads: B::Gradients,
     grads_params: &'a mut GradientsParams,
     phatom: PhantomData<M>,
 }
 
 #[derive(new)]
-pub struct GradientsParamsChangeDevice<'a, M: ADModule<B>, B: AutodiffBackend> {
+pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     device: &'a B::Device,
     grads: &'a mut GradientsParams,
     phatom: PhantomData<M>,
@@ -20,7 +20,7 @@ pub struct GradientsParamsChangeDevice<'a, M: ADModule<B>, B: AutodiffBackend> {
 impl<'a, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, M, B>
 where
     B: AutodiffBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
 {
     fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
         if let Some(grad) = tensor.grad_remove(&mut self.grads) {
@@ -33,7 +33,7 @@ where
 impl<'a, B, M> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, M, B>
 where
     B: AutodiffBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
 {
     fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {

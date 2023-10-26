@@ -153,7 +153,7 @@ beneficial to organize your program using intermediary types. There are various 
 it requires getting comfortable with generics.
 
 If you wish to group the optimizer and the model into the same structure, you have several options.
-It's important to note that the optimizer trait depends on both the `ADModule` trait and the
+It's important to note that the optimizer trait depends on both the `AutodiffModule` trait and the
 `ADBackend` trait, while the module only depends on the `ADBackend` trait.
 
 Here's a closer look at how you can create your types:
@@ -191,7 +191,7 @@ blocks to your struct.
 impl<B, M, O> Learner<M, O>
 where
     B: ADBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     O: Optimizer<M, B>,
 {
     pub fn step(&mut self, _batch: MNISTBatch<B>) {
@@ -216,7 +216,7 @@ impl<M, O> Learner2<M, O> {
     pub fn step<B: ADBackend>(&mut self, _batch: MNISTBatch<B>)
     where
         B: ADBackend,
-        M: ADModule<B>,
+        M: AutodiffModule<B>,
         O: Optimizer<M, B>,
     {
         //

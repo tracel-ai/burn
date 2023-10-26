@@ -1,5 +1,5 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
+    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
 };
 
@@ -39,7 +39,7 @@ impl RMSPropConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: ADModule<B>>(
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<RMSProp<B::InnerBackend>, M, B> {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);

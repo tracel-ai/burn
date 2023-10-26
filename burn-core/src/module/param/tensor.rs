@@ -1,5 +1,5 @@
 use super::{Param, ParamId};
-use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
+use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
@@ -43,7 +43,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: AutodiffBackend> ADModule<B> for Param<Tensor<B, D>> {
+impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {

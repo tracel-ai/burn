@@ -4,7 +4,7 @@ use burn_tensor::{
     Tensor,
 };
 
-use crate::module::{ADModule, ParamId};
+use crate::module::{AutodiffModule, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -63,8 +63,8 @@ impl GradientsParams {
         self.len() == 0
     }
 
-    /// Change the device of each tensor gradients registered for the given [module](ADModule).
-    pub fn to_device<B: AutodiffBackend, M: ADModule<B>>(
+    /// Change the device of each tensor gradients registered for the given [module](AutodiffModule).
+    pub fn to_device<B: AutodiffBackend, M: AutodiffModule<B>>(
         mut self,
         device: &B::Device,
         module: &M,
@@ -74,8 +74,11 @@ impl GradientsParams {
         self
     }
 
-    /// Extract each tensor gradients for the given [module](ADModule).
-    pub fn from_grads<B: AutodiffBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
+    /// Extract each tensor gradients for the given [module](AutodiffModule).
+    pub fn from_grads<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: B::Gradients,
+        module: &M,
+    ) -> Self {
         let mut grads_params = GradientsParams::new();
         let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
 

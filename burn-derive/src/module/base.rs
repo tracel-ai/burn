@@ -52,7 +52,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #map_mut
         }
 
-        impl #generics burn::module::ADModule<B> for #name #generics_ty
+        impl #generics burn::module::AutodiffModule<B> for #name #generics_ty
         where
             B: burn::tensor::backend::AutodiffBackend,
             <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait,
@@ -101,7 +101,7 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
             burn::constant!(module);
         }
 
-        impl #generics_module_ad burn::module::ADModule<B> for #name #generics_ty #generics_where {
+        impl #generics_module_ad burn::module::AutodiffModule<B> for #name #generics_ty #generics_where {
             burn::constant!(ad_module, #name #generics_ty);
         }
     };

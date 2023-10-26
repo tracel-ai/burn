@@ -174,7 +174,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
-    use crate::{module::ADModule, TestADBackend};
+    use crate::{module::AutodiffModule, TestADBackend};
     use burn_tensor::Data;
 
     #[test]
@@ -229,7 +229,7 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
-    use crate::{module::ADModule, TestADBackend};
+    use crate::{module::AutodiffModule, TestADBackend};
     use burn_tensor::Data;
 
     #[test]

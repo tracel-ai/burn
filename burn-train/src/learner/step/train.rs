@@ -1,6 +1,6 @@
 use crate::{TrainOutput, TrainStep};
 use burn_core::{
-    data::dataloader::DataLoaderIterator, module::ADModule, tensor::backend::AutodiffBackend,
+    data::dataloader::DataLoaderIterator, module::AutodiffModule, tensor::backend::AutodiffBackend,
 };
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
@@ -24,7 +24,7 @@ struct Worker<B: AutodiffBackend, M, TI> {
 impl<B, M, TI> Worker<B, M, TI>
 where
     B: AutodiffBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
 {
     fn register(&self, item: TI, model: &M) {
         let message = Message {
@@ -65,7 +65,7 @@ where
 impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
 where
     B: AutodiffBackend,
-    M: ADModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
+    M: AutodiffModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
     TI: Send + 'static,
     TO: Send + 'static,
 {

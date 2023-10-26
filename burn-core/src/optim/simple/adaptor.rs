@@ -1,7 +1,7 @@
 use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
     grad_clipping::GradientClipping,
-    module::{ADModule, ModuleMapper, ParamId},
+    module::{AutodiffModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
     LearningRate,
 };
@@ -14,7 +14,7 @@ use hashbrown::HashMap;
 pub struct OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     B: AutodiffBackend,
 {
     optim: O,
@@ -26,7 +26,7 @@ where
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
 where
     B: AutodiffBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn from(optim: O) -> Self {
@@ -42,7 +42,7 @@ where
 impl<O, M, B> OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     B: AutodiffBackend,
 {
     /// Sets the gradient clipping.
@@ -68,7 +68,7 @@ where
 impl<O, B, M> Optimizer<M, B> for OptimizerAdaptor<O, M, B>
 where
     B: AutodiffBackend,
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
@@ -97,7 +97,7 @@ where
 #[derive(new)]
 struct SimpleOptimizerMapper<'a, M, B, O>
 where
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
@@ -111,7 +111,7 @@ where
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
 where
-    M: ADModule<B>,
+    M: AutodiffModule<B>,
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {

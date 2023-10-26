@@ -2,7 +2,7 @@ use crate::components::LearnerComponents;
 use crate::metric::processor::EventProcessor;
 use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::module::{ADModule, Module};
+use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
@@ -28,7 +28,7 @@ impl<TO> TrainOutput<TO> {
     /// # Returns
     ///
     /// A new training output.
-    pub fn new<B: AutodiffBackend, M: ADModule<B>>(
+    pub fn new<B: AutodiffBackend, M: AutodiffModule<B>>(
         module: &M,
         grads: B::Gradients,
         item: TO,
@@ -49,7 +49,7 @@ impl<TO> TrainOutput<TO> {
 /// # Notes
 ///
 /// To be used with the [Learner](Learner) struct, the struct which implements this trait must
-/// also implement the [ADModule](ADModule) trait, which is done automatically with the
+/// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
 pub trait TrainStep<TI, TO> {
     /// Runs the training step, which executes the forward and backward passes.
@@ -77,7 +77,7 @@ pub trait TrainStep<TI, TO> {
     where
         B: AutodiffBackend,
         O: Optimizer<Self, B>,
-        Self: ADModule<B>,
+        Self: AutodiffModule<B>,
     {
         optim.step(lr, self, grads)
     }
@@ -119,7 +119,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         OutputTrain: Send + 'static,
         OutputValid: Send,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
-        <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
+        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
         log::info!("Fitting {}", self.model.to_string());

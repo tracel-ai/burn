@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 
 use super::ParamId;
-use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
+use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
@@ -179,7 +179,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: AutodiffBackend> ADModule<B> for RunningState<Tensor<B, D>> {
+impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for RunningState<Tensor<B, D>> {
     type InnerModule = RunningState<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {

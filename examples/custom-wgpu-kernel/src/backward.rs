@@ -1,6 +1,6 @@
 use crate::FloatTensor;
 
-use super::{ADBackend, Backend};
+use super::{AutodiffBackend, Backend};
 use burn::backend::autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
@@ -9,7 +9,7 @@ use burn::backend::autodiff::{
 use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn::tensor::Shape;
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend for Autodiff<Wgpu<G, F, I>> {}
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //

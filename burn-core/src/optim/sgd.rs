@@ -1,5 +1,5 @@
 use crate::grad_clipping::GradientClippingConfig;
-use crate::module::ADModule;
+use crate::module::AutodiffModule;
 use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig};
@@ -38,7 +38,7 @@ pub struct SgdState<B: Backend, const D: usize> {
 
 impl SgdConfig {
     /// Creates a new [SgdConfig](SgdConfig) with default values.
-    pub fn init<B: AutodiffBackend, M: ADModule<B>>(
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let momentum = self.momentum.as_ref().map(Momentum::new);

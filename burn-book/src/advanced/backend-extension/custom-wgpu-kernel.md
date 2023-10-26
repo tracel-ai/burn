@@ -27,11 +27,11 @@ pub trait Backend: burn::tensor::backend::Backend {
     ) -> FloatTensor<Self, D>;
 }
 
-/// We create our own ADBackend trait that extends the Burn autodiff backend trait.
-pub trait ADBackend: Backend + burn::tensor::backend::ADBackend {}
+/// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
+pub trait AutodiffBackend: Backend + burn::tensor::backend::AutodiffBackend {}
 ```
 
-In our project, we can use these traits instead of the `burn::tensor::backend::{Backend, ADBackend}`
+In our project, we can use these traits instead of the `burn::tensor::backend::{Backend, AutodiffBackend}`
 traits provided by Burn. Burn's user APIs typically make use of the `Tensor` struct rather than
 dealing directly with primitive tensor types. Therefore, we can encapsulate our newly defined
 backend traits with functions that expose new operations while maintaining a consistent API.
@@ -419,7 +419,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend for Autodiff<Wgpu<G, F, I>>
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>>
 {
 }
 ```

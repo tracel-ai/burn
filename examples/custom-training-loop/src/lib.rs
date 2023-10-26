@@ -4,7 +4,7 @@ use burn::data::dataset::source::huggingface::MNISTDataset;
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
-    module::ADModule,
+    module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
     optim::{AdamConfig, GradientsParams, Optimizer},
     tensor::{
@@ -164,7 +164,7 @@ impl<M, O> Learner2<M, O> {
     pub fn step3<B: AutodiffBackend>(&mut self, _batch: MNISTBatch<B>)
     where
         B: AutodiffBackend,
-        M: ADModule<B>,
+        M: AutodiffModule<B>,
         O: Optimizer<M, B>,
     {
         //

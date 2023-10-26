@@ -60,7 +60,7 @@ impl ModuleCodegen for StructModuleCodegen {
     fn gen_valid(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
-                let #name = burn::module::ADModule::<B>::valid(&self.#name);
+                let #name = burn::module::AutodiffModule::<B>::valid(&self.#name);
             }
         });
 
