@@ -5,13 +5,13 @@ on:
     branches:
       - main
     paths:
-      - '**Cargo.toml'
-      - '**Cargo.lock'
+      - '**/Cargo.lock'
+      - '**/Cargo.toml'
   pull_request:
     types: [opened, synchronize]
     paths:
-      - '**Cargo.toml'
-      - '**Cargo.lock'
+      - '**/Cargo.lock'
+      - '**/Cargo.toml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,7 +32,7 @@ jobs:
       - name: Detect multiple versions of the same crate
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
-          command: check bans sources
+          command: check bans licenses sources
 
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
