@@ -8,10 +8,10 @@ use candle_core::{backend::BackendStorage, shape, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for CandleBackend<F, I> {
+impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I> {
     fn from_data<const D: usize>(data: Data<F, D>, device: &Device<Self>) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
     }

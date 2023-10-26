@@ -5,10 +5,10 @@ use burn_tensor::{
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for CandleBackend<F, I> {
+impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::base::empty(shape, device)
     }
@@ -103,10 +103,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for CandleB
     }
 
     fn bool_swap_dims<const D: usize>(
-        tensor: <CandleBackend<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
+        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <CandleBackend<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
 }

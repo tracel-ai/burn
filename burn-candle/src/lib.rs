@@ -18,7 +18,7 @@ mod tests {
     extern crate alloc;
     use super::*;
 
-    pub type TestBackend = CandleBackend<f32, i64>;
+    pub type TestBackend = Candle<f32, i64>;
     pub type ReferenceBackend = burn_tch::TchBackend<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

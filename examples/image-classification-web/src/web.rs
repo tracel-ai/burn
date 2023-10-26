@@ -15,7 +15,7 @@ use burn::{
     },
     tensor::{activation::softmax, backend::Backend, Tensor},
 };
-use burn_candle::CandleBackend;
+use burn_candle::Candle;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -25,7 +25,7 @@ use wasm_timer::Instant;
 /// The model is loaded to a specific backend
 pub enum ModelType {
     /// The model is loaded to the Candle backend
-    WithCandleBackend(Model<CandleBackend<f32, i64>>),
+    WithCandleBackend(Model<Candle<f32, i64>>),
 
     /// The model is loaded to the NdArray backend
     WithNdarrayBackend(Model<NdArrayBackend<f32>>),

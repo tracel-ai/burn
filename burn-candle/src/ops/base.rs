@@ -4,7 +4,7 @@ use burn_tensor::{backend::Backend, Data, Reader, Shape};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend, CandleDevice, CandleTensor,
+    Candle, CandleDevice, CandleTensor,
 };
 
 use super::tensor;
