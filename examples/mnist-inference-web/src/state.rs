@@ -8,7 +8,7 @@ use burn::record::Recorder;
 use burn::backend::wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 
 #[cfg(feature = "wgpu")]
-pub type Backend = WgpuBackend<AutoGraphicsApi, f32, i32>;
+pub type Backend = Wgpu<AutoGraphicsApi, f32, i32>;
 
 #[cfg(feature = "ndarray")]
 pub type Backend = burn::backend::ndarray::NdArray<f32>;

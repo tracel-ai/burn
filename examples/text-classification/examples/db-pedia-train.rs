@@ -80,7 +80,7 @@ mod wgpu {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<Autodiff<WgpuBackend<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
+        launch::<Autodiff<Wgpu<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
     }
 }
 

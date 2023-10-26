@@ -16,12 +16,12 @@ pub use burn_wgpu as wgpu;
 
 #[cfg(feature = "wgpu")]
 /// A WGpuBackend with a default type of f32/i32, and auto graphics.
-pub type WgpuBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::Wgpu<G, F, I>;
+pub type Wgpu<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::Wgpu<G, F, I>;
 
 #[cfg(all(feature = "wgpu", feature = "autodiff"))]
-/// A WgpuBackend with autodiffing enabled.
+/// A Wgpu with autodiffing enabled.
 pub type WgpuAutodiffBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> =
-    crate::autodiff::Autodiff<WgpuBackend<G, F, I>>;
+    crate::autodiff::Autodiff<Wgpu<G, F, I>>;
 
 #[cfg(feature = "candle")]
 /// Candle module.

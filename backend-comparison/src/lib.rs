@@ -3,9 +3,9 @@ macro_rules! bench_on_backend {
     () => {
         #[cfg(feature = "wgpu")]
         {
-            use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+            use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
 
-            bench::<WgpuBackend<AutoGraphicsApi, f32, i32>>(&WgpuDevice::default());
+            bench::<Wgpu<AutoGraphicsApi, f32, i32>>(&WgpuDevice::default());
         }
 
         #[cfg(feature = "tch-gpu")]

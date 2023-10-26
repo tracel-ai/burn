@@ -122,7 +122,7 @@ pub fn bench(device: &WgpuDevice) {
 
     macro_rules! run_matmul_benchmark {
         ($benchmark:ident) => {
-            run_benchmark::<WgpuBackend<AutoGraphicsApi, f32, i32>, $benchmark<D>>(
+            run_benchmark::<Wgpu<AutoGraphicsApi, f32, i32>, $benchmark<D>>(
                 $benchmark::new(shape_lhs.clone(), shape_rhs.clone(), num_repeats),
                 device,
             );

@@ -196,8 +196,8 @@ impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
 Subsequently, we'll go into implementing our custom backend trait for the WGPU backend.
 
 ```rust, ignore
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
+/// Implement our custom backend trait for the existing backend `Wgpu`.
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
@@ -402,14 +402,13 @@ impl<B: Backend> Backend for Autodiff<B> {
 
 The previous code is self-documented to make it clearer, but here is what it does in summary.
 
-We define `fused_matmul_add_relu` within `Autodiff<B>`, allowing any autodiff-decorated
-backend to benefit from our implementation. In an autodiff-decorated backend, the forward pass must
-still be implemented. This is achieved using a comprehensive match statement block where computation
-is delegated to the inner backend, while keeping track of a state. The state comprises any
-information relevant to the backward pass, such as input and output tensors, along with the bias
-shape. When an operation isn't tracked (meaning there won't be a backward pass for this specific
-operation in the graph), storing a state becomes unnecessary, and we simply perform the forward
-computation.
+We define `fused_matmul_add_relu` within `Autodiff<B>`, allowing any autodiff-decorated backend to
+benefit from our implementation. In an autodiff-decorated backend, the forward pass must still be
+implemented. This is achieved using a comprehensive match statement block where computation is
+delegated to the inner backend, while keeping track of a state. The state comprises any information
+relevant to the backward pass, such as input and output tensors, along with the bias shape. When an
+operation isn't tracked (meaning there won't be a backward pass for this specific operation in the
+graph), storing a state becomes unnecessary, and we simply perform the forward computation.
 
 The backward pass uses the gradient obtained from the preceding node in the computation graph. It
 calculates the derivatives for `relu` (`relu_backward`), add (no operation is required here, as the
@@ -420,7 +419,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend for Autodiff<WgpuBackend<G, F, I>>
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend for Autodiff<Wgpu<G, F, I>>
 {
 }
 ```
