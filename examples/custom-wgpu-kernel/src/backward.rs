@@ -1,7 +1,7 @@
 use crate::FloatTensor;
 
 use super::{ADBackend, Backend};
-use burn::autodiff::{
+use burn::backend::autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
     Autodiff,

@@ -5,6 +5,9 @@ pub use burn_ndarray as ndarray;
 pub use ndarray::NdArray;
 
 #[cfg(feature = "autodiff")]
+pub use burn_autodiff as autodiff;
+
+#[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
 
 #[cfg(feature = "wgpu")]

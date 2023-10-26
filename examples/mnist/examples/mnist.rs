@@ -17,15 +17,15 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::tch::TchDevice;
+    use burn::backend::libtorch::LibTorchDevice;
     use burn::backend::TchAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = TchDevice::Cuda(0);
+        let device = LibTorchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
-        let device = TchDevice::Mps;
+        let device = LibTorchDevice::Mps;
 
         training::run::<TchAutodiffBackend>(device);
     }
@@ -45,12 +45,12 @@ mod wgpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::tch::TchDevice;
+    use burn::backend::libtorch::LibTorchDevice;
     use burn::backend::TchAutodiffBackend;
     use mnist::training;
 
     pub fn run() {
-        let device = TchDevice::Cpu;
+        let device = LibTorchDevice::Cpu;
         training::run::<TchAutodiffBackend>(device);
     }
 }

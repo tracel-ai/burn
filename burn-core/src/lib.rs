@@ -36,10 +36,6 @@ pub mod record;
 /// Module for the tensor.
 pub mod tensor;
 
-/// Autodiff module.
-#[cfg(feature = "autodiff")]
-pub use burn_autodiff as autodiff;
-
 /// Backend module.
 pub mod backend;
 

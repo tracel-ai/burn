@@ -5,8 +5,7 @@ explicitly designated the backend to be used at any point. Indeed, only the `mai
 
 ```rust , ignore
 use burn::optim::AdamConfig;
-use burn::backend::{Wgpu, wgpu::AutoGraphicsApi};
-use burn::autodiff::Autodiff;
+use burn::backend::{Autodiff, Wgpu, wgpu::AutoGraphicsApi};
 use guide::model::ModelConfig;
 
 fn main() {

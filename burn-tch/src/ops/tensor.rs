@@ -1,19 +1,19 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, TchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 use burn_tensor::{
     backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
 
 impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
-    fn from_data<const D: usize>(data: Data<E, D>, device: &TchDevice) -> TchTensor<E, D> {
+    fn from_data<const D: usize>(data: Data<E, D>, device: &LibTorchDevice) -> TchTensor<E, D> {
         TchTensor::from_data(data, (*device).into())
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution<E>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         match distribution {
             Distribution::Default => {
@@ -41,7 +41,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         }
     }
 
-    fn arange(range: Range<usize>, device: &TchDevice) -> TchTensor<i64, 1> {
+    fn arange(range: Range<usize>, device: &LibTorchDevice) -> TchTensor<i64, 1> {
         let device: tch::Device = (*device).into();
         let mut tensor = tch::Tensor::arange(
             range.end as i64 - range.start as i64,
@@ -63,14 +63,14 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         TchOps::repeat(tensor, dim, times)
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
+    fn zeros<const D: usize>(shape: Shape<D>, device: &LibTorchDevice) -> TchTensor<E, D> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
         TchTensor::new(tch::Tensor::zeros(shape.dims, (E::KIND, device)))
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: &TchDevice) -> TchTensor<E, D> {
+    fn ones<const D: usize>(shape: Shape<D>, device: &LibTorchDevice) -> TchTensor<E, D> {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
@@ -91,11 +91,14 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         Reader::Concrete(Data::new(values.unwrap(), shape))
     }
 
-    fn device<const D: usize>(tensor: &TchTensor<E, D>) -> TchDevice {
+    fn device<const D: usize>(tensor: &TchTensor<E, D>) -> LibTorchDevice {
         tensor.tensor.device().into()
     }
 
-    fn to_device<const D: usize>(tensor: TchTensor<E, D>, device: &TchDevice) -> TchTensor<E, D> {
+    fn to_device<const D: usize>(
+        tensor: TchTensor<E, D>,
+        device: &LibTorchDevice,
+    ) -> TchTensor<E, D> {
         TchTensor::new(tensor.tensor.to((*device).into()))
     }
 

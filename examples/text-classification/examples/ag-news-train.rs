@@ -46,15 +46,15 @@ mod ndarray {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::autodiff::Autodiff;
-    use burn::backend::tch::{LibTorch, TchDevice};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::{launch, ElemType};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = TchDevice::Cuda(0);
+        let device = LibTorchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
-        let device = TchDevice::Mps;
+        let device = LibTorchDevice::Mps;
 
         launch::<Autodiff<LibTorch<ElemType>>>(device);
     }
@@ -63,12 +63,12 @@ mod tch_gpu {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::autodiff::Autodiff;
-    use burn::backend::tch::{LibTorch, TchDevice};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<Autodiff<LibTorch<ElemType>>>(TchDevice::Cpu);
+        launch::<Autodiff<LibTorch<ElemType>>>(LibTorchDevice::Cpu);
     }
 }
 

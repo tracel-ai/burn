@@ -1,12 +1,12 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, TchDevice, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 use std::ops::Range;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::from_data(data, (*device).into())
     }
@@ -33,7 +33,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
 
     fn bool_to_device<const D: usize>(
         tensor: TchTensor<bool, D>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::new(tensor.tensor.to((*device).into()))
     }
@@ -45,7 +45,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::reshape(tensor, shape)
     }
 
-    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
+    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> LibTorchDevice {
         tensor.tensor.device().into()
     }
 

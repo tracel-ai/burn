@@ -2,12 +2,15 @@ use std::ops::Range;
 
 use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
 
-use crate::{element::TchElement, LibTorch, TchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 
 use super::TchOps;
 
 impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
-    fn int_from_data<const D: usize>(data: Data<i64, D>, device: &TchDevice) -> TchTensor<i64, D> {
+    fn int_from_data<const D: usize>(
+        data: Data<i64, D>,
+        device: &LibTorchDevice,
+    ) -> TchTensor<i64, D> {
         TchTensor::from_data(data, (*device).into())
     }
 
@@ -33,7 +36,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_to_device<const D: usize>(
         tensor: TchTensor<i64, D>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
         TchTensor::new(tensor.tensor.to((*device).into()))
     }
@@ -45,7 +48,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::reshape(tensor, shape)
     }
 
-    fn int_device<const D: usize>(tensor: &TchTensor<i64, D>) -> TchDevice {
+    fn int_device<const D: usize>(tensor: &TchTensor<i64, D>) -> LibTorchDevice {
         tensor.tensor.device().into()
     }
 

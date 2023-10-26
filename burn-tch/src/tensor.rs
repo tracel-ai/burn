@@ -1,4 +1,4 @@
-use crate::{element::TchElement, LibTorch, TchDevice};
+use crate::{element::TchElement, LibTorch, LibTorchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, rc::Rc};
@@ -216,7 +216,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
+    pub fn empty(shape: Shape<D>, device: LibTorchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
 
