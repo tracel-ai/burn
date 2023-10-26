@@ -7,7 +7,7 @@ use super::{
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
 use burn_tensor::ops::*;
 
-impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArrayBackend<E> {
     fn conv2d(
         x: NdArrayTensor<E, 4>,
         weight: NdArrayTensor<E, 4>,

@@ -20,7 +20,7 @@ use libm::{cos, erf, sin, tanh};
 #[allow(unused_imports)]
 use num_traits::Float;
 
-impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> TensorOps<Self> for NdArrayBackend<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }

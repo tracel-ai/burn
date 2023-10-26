@@ -18,7 +18,7 @@ use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArrayBackend<E> {
     fn int_from_data<const D: usize>(
         data: Data<i64, D>,
         _device: &NdArrayDevice,

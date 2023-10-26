@@ -15,7 +15,7 @@ use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArrayBackend<E> {
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
         _device: &NdArrayDevice,
