@@ -15,35 +15,28 @@ pub struct TuneBenchmark<S: ComputeServer, C> {
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
-    type Args = (Box<dyn AutotuneOperation<S>>, Vec<Handle<S>>);
+    // list of operations
+    type Args = Vec<Box<dyn AutotuneOperation<S>>>;
 
     fn prepare(&self) -> Self::Args {
-        (
-            self.operation.clone(),
-            AutotuneOperation::autotune_handles(self.operation.clone()),
-        )
+        vec![self.operation.clone()]
     }
 
     fn num_samples(&self) -> usize {
         10
     }
 
-    // TODO remove mut (and in burn-common too) ?
-    fn execute(&mut self, args: Self::Args) {
-        let (operation, handles) = args;
+    fn execute(&self, args: Self::Args) {
+        let operation = args[0].clone(); // TODO rm 0
 
-        // Ideally this part is not in execute
-        let handle_refs: Vec<&Handle<S>> = handles.iter().collect();
-        let handle_array: &[&Handle<S>] = &handle_refs;
-
-        AutotuneOperation::execute_for_autotune(operation, handle_array);
+        AutotuneOperation::execute_for_autotune(operation);
     }
 
     fn name(&self) -> String {
         "Autotune".to_string()
     }
 
-    fn sync(&mut self) {
+    fn sync(&self) {
         self.client.sync();
     }
 }

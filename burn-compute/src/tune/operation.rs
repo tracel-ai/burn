@@ -1,7 +1,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::server::{ComputeServer, Handle};
+use crate::server::ComputeServer;
 
 /// Type of operation for the kernel
 pub trait AutotuneOperationSet<S>: Send {
@@ -18,12 +18,11 @@ pub trait AutotuneOperationSet<S>: Send {
 
 pub trait AutotuneOperation<S: ComputeServer> {
     /// Executes the operation on actual inputs with the fastest kernel
-    fn execute(self: Box<Self>, handles: &[&Handle<S>]);
+    fn execute(self: Box<Self>);
+    // TODO validate that after execute, output should have one ref only
 
-    /// Executes the operation on artificial inputs on all kernels
-    fn execute_for_autotune(self: Box<Self>, handles: &[&Handle<S>]);
-
-    fn autotune_handles(self: Box<Self>) -> Vec<Handle<S>>;
+    /// Executes the operation on artificial inputs on all kernels (not sure we keep)
+    fn execute_for_autotune(self: Box<Self>);
 
     fn clone(&self) -> Box<dyn AutotuneOperation<S>>;
 }

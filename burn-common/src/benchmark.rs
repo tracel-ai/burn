@@ -33,7 +33,7 @@ pub trait Benchmark {
     /// measuring the execution time.
     fn prepare(&self) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
-    fn execute(&mut self, args: Self::Args);
+    fn execute(&self, args: Self::Args);
     /// Number of samples required to have a statistical significance.
     fn num_samples(&self) -> usize {
         10
@@ -41,9 +41,9 @@ pub trait Benchmark {
     /// Name of the benchmark.
     fn name(&self) -> String;
     /// Wait for computations to be over
-    fn sync(&mut self);
+    fn sync(&self);
     /// Run the benchmark a number of times.
-    fn run(&mut self) -> BenchmarkResult {
+    fn run(&self) -> BenchmarkResult {
         #[cfg(not(feature = "std"))]
         panic!("Attempting to run benchmark in a no-std environment");
 

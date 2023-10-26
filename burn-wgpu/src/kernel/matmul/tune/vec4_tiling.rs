@@ -7,7 +7,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         build_info,
-        matmul::{fill_bytes, n_bytes, vec4_primitive::vec4_tiling_matmul_kernel},
+        matmul::{fill_bytes, n_bytes},
     },
     tensor::WgpuTensor,
 };

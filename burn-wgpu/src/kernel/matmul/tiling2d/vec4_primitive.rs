@@ -1,7 +1,7 @@
 use burn_tensor::Element;
 
 use crate::{
-    compute::Kernel,
+    compute::{DynamicKernel, Kernel},
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
@@ -10,7 +10,7 @@ use std::{marker::PhantomData, sync::Arc};
 
 use crate::kernel_wgsl;
 
-use super::base::matmul_tiling_2d_launch;
+use super::base::{make_workgroup, matmul_tiling_2d_launch};
 
 kernel_wgsl!(
     MatmulTiling2Dvec4PrimitiveRaw,
@@ -69,9 +69,18 @@ pub fn matmul_tiling_2d_vec4_primitive<E: WgpuElement + Element, const D: usize>
     matmul_tiling_2d_launch(lhs, rhs, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
 }
 
-pub fn vec4_tiling_matmul_kernel<E: WgpuElement, const D: usize>() -> Arc<dyn Kernel> {
-    todo!()
-}
+// pub fn vec4_tiling_matmul_kernel<E: WgpuElement, const D: usize>() -> Arc<dyn Kernel> {
+//     let b_m = 64;
+//     let b_n = 64;
+//     let b_k = 32;
+//     let wgx = 16;
+//     let wgy = 16;
+//     let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);
+//     Arc::new(DynamicKernel::new(
+//         MatmulTiling2Dvec4Primitive::<E>::new(b_m, b_n, b_k, wgx, wgy),
+//         workgroup,
+//     ))
+// }
 
 #[cfg(test)]
 mod tests {

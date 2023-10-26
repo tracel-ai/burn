@@ -7,7 +7,7 @@ use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
 use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
-use crate::server::{ComputeServer, Handle};
+use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
 /// Server wrapper with extra capability of autotuning kernels
@@ -31,14 +31,13 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         &mut self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
         client: &ComputeClient<S, C>,
-        handles: &[&Handle<S>],
     ) {
         let operation = self
             .tune_cache
             .try_cache(&autotune_operation_set)
             .unwrap_or_else(|| self.autotuning(autotune_operation_set, client));
 
-        AutotuneOperation::execute(operation, handles);
+        AutotuneOperation::execute(operation);
     }
 
     fn autotuning(

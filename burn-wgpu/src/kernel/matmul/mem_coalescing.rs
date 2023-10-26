@@ -52,7 +52,7 @@ pub fn matmul_mem_coalescing_default<E: WgpuElement, const D: usize>(
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
 pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>, 
     workgroup_size_x: usize,
     workgroup_size_y: usize,
 ) -> WgpuTensor<E, D> {

@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
-use burn_compute::tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet};
+use burn_compute::{
+    server::Handle,
+    tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
+};
 
 use crate::dummy::{
     CacheTestFastOn3, CacheTestSlowOn3, DummyClient, DummyElementwiseAddition,
-    DummyElementwiseMultiplication, DummyElementwiseMultiplicationSlowWrong, DummyKernel,
-    DummyServer, OneKernelAutotuneOperation,
+    DummyElementwiseMultiplication, DummyElementwiseMultiplicationSlowWrong, DummyServer,
+    OneKernelAutotuneOperation,
 };
 
 use super::DummyElementwiseAdditionSlowWrong;
@@ -14,14 +17,20 @@ pub struct AdditionAutotuneOperationSet {
     client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
+    handles: Vec<Handle<DummyServer>>,
 }
 
 impl AdditionAutotuneOperationSet {
-    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
+    pub fn new(
+        client: DummyClient,
+        shapes: Vec<Vec<usize>>,
+        handles: Vec<Handle<DummyServer>>,
+    ) -> Self {
         Self {
             client,
             key: AutotuneKey::new("add".to_string(), log_shape_input_key(&shapes)),
             shapes,
+            handles,
         }
     }
 }
@@ -37,11 +46,13 @@ impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
                 Arc::new(DummyElementwiseAddition),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(DummyElementwiseAdditionSlowWrong),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
         ]
     }
@@ -55,14 +66,20 @@ pub struct MultiplicationAutotuneOperationSet {
     client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
+    handles: Vec<Handle<DummyServer>>,
 }
 
 impl<'a> MultiplicationAutotuneOperationSet {
-    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
+    pub fn new(
+        client: DummyClient,
+        shapes: Vec<Vec<usize>>,
+        handles: Vec<Handle<DummyServer>>,
+    ) -> Self {
         Self {
             client,
             key: AutotuneKey::new("mul".to_string(), log_shape_input_key(&shapes)),
             shapes,
+            handles,
         }
     }
 }
@@ -77,11 +94,13 @@ impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
                 Arc::new(DummyElementwiseMultiplicationSlowWrong),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(DummyElementwiseMultiplication),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
         ]
     }
@@ -95,14 +114,20 @@ pub struct CacheTestAutotuneOperationSet {
     client: DummyClient,
     key: AutotuneKey,
     shapes: Vec<Vec<usize>>,
+    handles: Vec<Handle<DummyServer>>,
 }
 
 impl CacheTestAutotuneOperationSet {
-    pub fn new(client: DummyClient, shapes: Vec<Vec<usize>>) -> Self {
+    pub fn new(
+        client: DummyClient,
+        shapes: Vec<Vec<usize>>,
+        handles: Vec<Handle<DummyServer>>,
+    ) -> Self {
         Self {
             client,
             key: AutotuneKey::new("cache_test".to_string(), log_shape_input_key(&shapes)),
             shapes,
+            handles,
         }
     }
 }
@@ -117,11 +142,13 @@ impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
                 Arc::new(CacheTestFastOn3),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(CacheTestSlowOn3),
                 self.client.clone(),
                 self.shapes.clone(),
+                self.handles.clone(),
             )),
         ]
     }
