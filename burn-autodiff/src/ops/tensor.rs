@@ -6,7 +6,7 @@ use crate::{
     ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
     tensor::ADTensor,
     utils::duplicate,
-    ADBackendDecorator,
+    Autodiff,
 };
 
 use burn_tensor::{
@@ -17,7 +17,7 @@ use burn_tensor::{
 
 use super::maxmin::MaxMinDim;
 
-impl<B: Backend> TensorOps<Self> for ADBackendDecorator<B> {
+impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
         device: &Device<Self>,
@@ -1487,7 +1487,7 @@ impl<B: Backend> TensorOps<Self> for ADBackendDecorator<B> {
 
     fn into_int<const D: usize>(
         tensor: FloatTensor<Self, D>,
-    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::into_int(tensor.primitive)
     }
 }

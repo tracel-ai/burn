@@ -1,17 +1,21 @@
 use crate::{grads::Gradients, graph::backward::backward, tensor::ADTensor};
 use burn_tensor::backend::{ADBackend, Backend};
+use core::marker::PhantomData;
 
-/// A decorator for a backend that enables automatic differentiation.
+/// Enable auto-differentiation on a backend.
+///
+/// This works as a backend decorator, extending the functionality of any backend with
+/// backpropagation.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ADBackendDecorator<B> {
-    _b: B,
+pub struct Autodiff<B> {
+    _b: PhantomData<B>,
 }
 
-impl<B: Backend> Backend for ADBackendDecorator<B> {
+impl<B: Backend> Backend for Autodiff<B> {
     type Device = B::Device;
 
     type FullPrecisionElem = B::FullPrecisionElem;
-    type FullPrecisionBackend = ADBackendDecorator<B::FullPrecisionBackend>;
+    type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
 
     type TensorPrimitive<const D: usize> = ADTensor<B, D>;
     type FloatElem = B::FloatElem;
@@ -38,7 +42,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
     }
 }
 
-impl<B: Backend> ADBackend for ADBackendDecorator<B> {
+impl<B: Backend> ADBackend for Autodiff<B> {
     type InnerBackend = B;
     type Gradients = Gradients;
 

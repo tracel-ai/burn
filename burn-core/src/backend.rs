@@ -8,7 +8,7 @@ pub type NdArrayBackend<F = f32> = ndarray::NdArrayBackend<F>;
 
 #[cfg(all(feature = "__ndarray", feature = "autodiff"))]
 /// An NdArrayBackend with autodiffing enabled.
-pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::ADBackendDecorator<NdArrayBackend<F>>;
+pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::Autodiff<NdArrayBackend<F>>;
 
 #[cfg(feature = "wgpu")]
 /// WGPU module.
@@ -21,7 +21,7 @@ pub type WgpuBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::WgpuBa
 #[cfg(all(feature = "wgpu", feature = "autodiff"))]
 /// A WgpuBackend with autodiffing enabled.
 pub type WgpuAutodiffBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> =
-    crate::autodiff::ADBackendDecorator<WgpuBackend<G, F, I>>;
+    crate::autodiff::Autodiff<WgpuBackend<G, F, I>>;
 
 #[cfg(feature = "candle")]
 /// Candle module.
@@ -33,7 +33,7 @@ pub type CandleBackend = candle::CandleBackend<f32, i64>;
 
 #[cfg(all(feature = "candle", feature = "autodiff"))]
 /// A CandleBackend with autodiffing enabled.
-pub type CandleAutodiffBackend = crate::autodiff::ADBackendDecorator<CandleBackend>;
+pub type CandleAutodiffBackend = crate::autodiff::Autodiff<CandleBackend>;
 
 #[cfg(feature = "tch")]
 /// Tch module.
@@ -45,4 +45,4 @@ pub type TchBackend<F = f32> = tch::TchBackend<F>;
 
 #[cfg(all(feature = "tch", feature = "autodiff"))]
 /// A TchBackend with autodiffing enabled.
-pub type TchAutodiffBackend<F = f32> = crate::autodiff::ADBackendDecorator<TchBackend<F>>;
+pub type TchAutodiffBackend<F = f32> = crate::autodiff::Autodiff<TchBackend<F>>;

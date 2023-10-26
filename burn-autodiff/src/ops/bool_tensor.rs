@@ -1,4 +1,4 @@
-use crate::{tensor::ADTensor, ADBackendDecorator};
+use crate::{tensor::ADTensor, Autodiff};
 
 use burn_tensor::{
     backend::Backend,
@@ -6,7 +6,7 @@ use burn_tensor::{
     Data, Device, Reader, Shape,
 };
 
-impl<B: Backend> BoolTensorOps<Self> for ADBackendDecorator<B> {
+impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
     fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
         B::bool_from_data(data, device)
     }
@@ -81,15 +81,15 @@ impl<B: Backend> BoolTensorOps<Self> for ADBackendDecorator<B> {
 
     fn bool_into_float<const D: usize>(
         tensor: BoolTensor<B, D>,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
         ADTensor::new(B::bool_into_float(tensor))
     }
 
     fn bool_swap_dims<const D: usize>(
-        tensor: <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>,
+        tensor: <Autodiff<B> as Backend>::BoolTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::BoolTensorPrimitive<D> {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
 }

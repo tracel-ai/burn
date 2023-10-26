@@ -5,7 +5,7 @@ use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
 #[cfg(feature = "std")]
-pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
+pub type TestADBackend = burn_autodiff::Autodiff<TestBackend>;
 
 #[derive(Module, Debug)]
 pub struct ModuleBasic<B: Backend> {

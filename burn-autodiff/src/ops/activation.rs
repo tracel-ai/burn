@@ -1,14 +1,14 @@
 use crate::{
     grads::Gradients,
     ops::{unary, Backward, Ops, OpsKind},
-    ADBackendDecorator,
+    Autodiff,
 };
 use burn_tensor::{
     backend::Backend,
     ops::{ActivationOps, FloatTensor},
 };
 
-impl<B: Backend> ActivationOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
     fn gelu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Gelu<const D: usize>;

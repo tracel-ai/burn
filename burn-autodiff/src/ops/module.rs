@@ -1,14 +1,14 @@
 use crate::grads::Gradients;
 use crate::ops::{unary, Backward, Ops};
 use crate::tensor::ADTensor;
-use crate::ADBackendDecorator;
+use crate::Autodiff;
 
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
 
 use super::OpsKind;
 
-impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     fn embedding(weights: ADTensor<B, 2>, indices: IntTensor<B, 2>) -> ADTensor<B, 3> {
         #[derive(Debug)]
         struct Embedding;
@@ -672,7 +672,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<ADBackendDecorator<B>> {
+    ) -> MaxPool1dWithIndices<Autodiff<B>> {
         match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool1d_with_indices(
@@ -715,7 +715,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         dilation: usize,
         output_grad: ADTensor<B, 3>,
         indices: IntTensor<B, 3>,
-    ) -> MaxPool1dBackward<ADBackendDecorator<B>> {
+    ) -> MaxPool1dBackward<Autodiff<B>> {
         let output = B::max_pool1d_with_indices_backward(
             x.primitive,
             kernel_size,
@@ -772,7 +772,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<ADBackendDecorator<B>> {
+    ) -> MaxPool2dWithIndices<Autodiff<B>> {
         match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool2d_with_indices(
@@ -815,7 +815,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         _dilation: [usize; 2],
         _output_grad: ADTensor<B, 4>,
         _indices: IntTensor<B, 4>,
-    ) -> MaxPool2dBackward<ADBackendDecorator<B>> {
+    ) -> MaxPool2dBackward<Autodiff<B>> {
         panic!("Can't differentiate max pool2d with indices backward.");
     }
     fn adaptive_avg_pool1d(x: ADTensor<B, 3>, output_size: usize) -> ADTensor<B, 3> {
@@ -879,7 +879,7 @@ impl<B: Backend> ModuleOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn adaptive_avg_pool2d_backward(
         _x: ADTensor<B, 4>,
         _grad: ADTensor<B, 4>,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<4> {
+    ) -> <Autodiff<B> as Backend>::TensorPrimitive<4> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 }
