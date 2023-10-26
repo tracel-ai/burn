@@ -69,7 +69,7 @@ fn autodiff<B: AutodiffBackend>() {
 
 fn main() {
     type MyBackend = burn::backend::Wgpu;
-    type MyAutodiffBackend = burn::backend::WgpuAutodiffBackend;
+    type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
 
     inference::<MyBackend>();
     autodiff::<MyAutodiffBackend>();

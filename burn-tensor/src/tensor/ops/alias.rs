@@ -1,7 +1,7 @@
 use crate::backend::Backend;
 
-///! We provide some type aliases to improve the readability of using associated types without
-///! having to use the disambiguation syntax.
+// We provide some type aliases to improve the readability of using associated types without
+// having to use the disambiguation syntax.
 
 /// Device type used by the backend.
 pub type Device<B> = <B as Backend>::Device;
