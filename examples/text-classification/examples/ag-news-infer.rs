@@ -51,7 +51,7 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
 
-        launch::<Autodiff<TchBackend<ElemType>>>(device);
+        launch::<Autodiff<LibTorch<ElemType>>>(device);
     }
 }
 
@@ -63,7 +63,7 @@ mod tch_cpu {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<Autodiff<TchBackend<ElemType>>>(TchDevice::Cpu);
+        launch::<Autodiff<LibTorch<ElemType>>>(TchDevice::Cpu);
     }
 }
 

@@ -18,7 +18,7 @@ The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn_autodiff::Autodiff;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn_tch::{LibTorch, TchDevice};
     use mnist::training;
 
     pub fn run() {
@@ -27,19 +27,19 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
 
-        training::run::<Autodiff<TchBackend<f32>>>(device);
+        training::run::<Autodiff<LibTorch<f32>>>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn_autodiff::Autodiff;
-    use burn_tch::{TchBackend, TchDevice};
+    use burn_tch::{LibTorch, TchDevice};
     use mnist::training;
 
     pub fn run() {
         let device = TchDevice::Cpu;
-        training::run::<Autodiff<TchBackend<f32>>>(device);
+        training::run::<Autodiff<LibTorch<f32>>>(device);
     }
 }
 ```

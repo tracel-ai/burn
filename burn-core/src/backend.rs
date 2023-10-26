@@ -40,9 +40,9 @@ pub type CandleAutodiffBackend = crate::autodiff::Autodiff<CandleBackend>;
 pub use burn_tch as tch;
 
 #[cfg(feature = "tch")]
-/// A TchBackend with a default type of f32.
-pub type TchBackend<F = f32> = tch::LibTorch<F>;
+/// A LibTorch with a default type of f32.
+pub type LibTorch<F = f32> = tch::LibTorch<F>;
 
 #[cfg(all(feature = "tch", feature = "autodiff"))]
-/// A TchBackend with autodiffing enabled.
-pub type TchAutodiffBackend<F = f32> = crate::autodiff::Autodiff<TchBackend<F>>;
+/// A LibTorch with autodiffing enabled.
+pub type TchAutodiffBackend<F = f32> = crate::autodiff::Autodiff<LibTorch<F>>;

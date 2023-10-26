@@ -10,21 +10,21 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "tch-gpu")]
         {
-            use burn::backend::{tch::TchDevice, TchBackend};
+            use burn::backend::{tch::TchDevice, LibTorch};
 
             #[cfg(not(target_os = "macos"))]
             let device = TchDevice::Cuda(0);
             #[cfg(target_os = "macos")]
             let device = TchDevice::Mps;
-            bench::<TchBackend>(&device);
+            bench::<LibTorch>(&device);
         }
 
         #[cfg(feature = "tch-cpu")]
         {
-            use burn::backend::{tch::TchDevice, TchBackend};
+            use burn::backend::{tch::TchDevice, LibTorch};
 
             let device = TchDevice::Cpu;
-            bench::<TchBackend>(&device);
+            bench::<LibTorch>(&device);
         }
 
         #[cfg(any(
