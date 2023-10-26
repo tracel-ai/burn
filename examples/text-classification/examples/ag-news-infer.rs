@@ -29,7 +29,7 @@ pub fn launch<B: ADBackend>(device: B::Device) {
 ))]
 mod ndarray {
     use burn::autodiff::Autodiff;
-    use burn::backend::ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
     use crate::{launch, ElemType};
 
@@ -70,7 +70,7 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::autodiff::Autodiff;
-    use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
 
     use crate::{launch, ElemType};
 

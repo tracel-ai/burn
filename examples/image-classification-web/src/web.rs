@@ -10,7 +10,7 @@ use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet1::Model as 
 
 use burn::{
     backend::{
-        wgpu::{compute::init_async, AutoGraphicsApi, WgpuBackend, WgpuDevice},
+        wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice},
         NdArrayBackend,
     },
     tensor::{activation::softmax, backend::Backend, Tensor},
@@ -31,7 +31,7 @@ pub enum ModelType {
     WithNdarrayBackend(Model<NdArrayBackend<f32>>),
 
     /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<WgpuBackend<AutoGraphicsApi, f32, i32>>),
+    WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)

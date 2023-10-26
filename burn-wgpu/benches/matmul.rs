@@ -13,10 +13,10 @@ use burn_wgpu::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
         tile, tile_vectorized,
     },
-    AutoGraphicsApi, GraphicsApi, WgpuBackend,
+    AutoGraphicsApi, GraphicsApi, Wgpu,
 };
 
-type WTensor<G, const D: usize> = Tensor<WgpuBackend<G, f32, i32>, D>;
+type WTensor<G, const D: usize> = Tensor<Wgpu<G, f32, i32>, D>;
 
 #[derive(new)]
 struct MatmulBenchmark<F, const D: usize> {
@@ -30,7 +30,7 @@ trait MatmulFunction<G: GraphicsApi, const D: usize> {
     fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark<WgpuBackend<G, f32, i32>> for MatmulBenchmark<F, D>
+impl<F, const D: usize, G> Benchmark<Wgpu<G, f32, i32>> for MatmulBenchmark<F, D>
 where
     F: MatmulFunction<G, D>,
     G: GraphicsApi,

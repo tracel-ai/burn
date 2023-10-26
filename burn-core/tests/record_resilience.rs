@@ -12,7 +12,7 @@ mod tests {
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
 
-    type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+    type TestBackend = burn_ndarray::NdArray<f32>;
 
     #[derive(Module, Debug)]
     pub struct Model<B: Backend> {

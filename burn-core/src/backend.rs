@@ -4,7 +4,7 @@ pub use burn_ndarray as ndarray;
 
 #[cfg(feature = "__ndarray")]
 /// An NdArrayBackend with a default type of f32.
-pub type NdArrayBackend<F = f32> = ndarray::NdArrayBackend<F>;
+pub type NdArrayBackend<F = f32> = ndarray::NdArray<F>;
 
 #[cfg(all(feature = "__ndarray", feature = "autodiff"))]
 /// An NdArrayBackend with autodiffing enabled.
@@ -16,7 +16,7 @@ pub use burn_wgpu as wgpu;
 
 #[cfg(feature = "wgpu")]
 /// A WGpuBackend with a default type of f32/i32, and auto graphics.
-pub type WgpuBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::WgpuBackend<G, F, I>;
+pub type WgpuBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::Wgpu<G, F, I>;
 
 #[cfg(all(feature = "wgpu", feature = "autodiff"))]
 /// A WgpuBackend with autodiffing enabled.
