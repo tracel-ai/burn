@@ -14,6 +14,11 @@ pub struct TuneCache<S> {
     _server: PhantomData<S>,
 }
 
+pub enum TuneCacheResult<S> {
+    Hit(Box<dyn AutotuneOperation<S>>),
+    Miss(Box<dyn AutotuneOperationSet<S>>),
+}
+
 impl<S> TuneCache<S> {
     pub(crate) fn new() -> Self {
         TuneCache {
@@ -25,13 +30,13 @@ impl<S> TuneCache<S> {
     #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &self,
-        autotune_operation: &Box<dyn AutotuneOperationSet<S>>,
-    ) -> Option<Box<dyn AutotuneOperation<S>>> {
-        let index = self.cache.get(&autotune_operation.key());
+        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
+    ) -> TuneCacheResult<S> {
+        let index = self.cache.get(&autotune_operation_set.key());
         if let Some(&i) = index {
-            return Some(autotune_operation.fastest(i));
+            return TuneCacheResult::Hit(autotune_operation_set.fastest(i));
         }
-        None
+        TuneCacheResult::Miss(autotune_operation_set)
     }
 
     pub(crate) fn cache_insert(&mut self, key: AutotuneKey, fastest_index: usize) {

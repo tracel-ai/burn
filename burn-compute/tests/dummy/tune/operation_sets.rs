@@ -57,7 +57,7 @@ impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
         ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -105,7 +105,7 @@ impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
         ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -153,21 +153,10 @@ impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
         ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
         self.autotunables()[fastest_index].clone()
     }
 }
-
-// pub fn arbitrary_bytes(shapes: &Vec<Vec<usize>>) -> Vec<Vec<u8>> {
-//     const ARBITRARY_BYTE: u8 = 12; // small so that squared < 256
-//     let mut handles = Vec::with_capacity(shapes.len());
-//     for shape in shapes {
-//         let n_bytes: usize = shape.iter().product();
-//         let handle = vec![ARBITRARY_BYTE; n_bytes];
-//         handles.push(handle)
-//     }
-//     handles
-// }
 
 pub fn log_shape_input_key(shapes: &[Vec<usize>]) -> String {
     let mut hash = String::new();

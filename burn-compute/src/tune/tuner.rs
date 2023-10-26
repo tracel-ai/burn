@@ -32,21 +32,21 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
         client: &ComputeClient<S, C>,
     ) {
-        let operation = self
-            .tune_cache
-            .try_cache(&autotune_operation_set)
-            .unwrap_or_else(|| self.autotuning(autotune_operation_set, client));
+        let operation = match self.tune_cache.try_cache(autotune_operation_set) {
+            super::TuneCacheResult::Hit(ops) => ops,
+            super::TuneCacheResult::Miss(set) => self.autotuning(set, client),
+        };
 
         AutotuneOperation::execute(operation);
     }
 
     fn autotuning(
         &mut self,
-        autotune_operation: Box<dyn AutotuneOperationSet<S>>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
         client: &ComputeClient<S, C>,
     ) -> Box<dyn AutotuneOperation<S>> {
         // Run all autotune benchmarks
-        let results = autotune_operation
+        let results = autotune_operation_set
             .autotunables()
             .into_iter()
             .map(|op| self.run_benchmark(op, client))
@@ -55,8 +55,11 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         // Finds the fastest operation, stores it and returns it
         let fastest_index = self.find_fastest(results);
         self.tune_cache
-            .cache_insert(autotune_operation.key(), fastest_index);
-        self.tune_cache.try_cache(&autotune_operation).unwrap()
+            .cache_insert(autotune_operation_set.key(), fastest_index);
+        match self.tune_cache.try_cache(autotune_operation_set) {
+            super::TuneCacheResult::Hit(ops) => ops,
+            super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),
+        }
     }
 
     fn run_benchmark(

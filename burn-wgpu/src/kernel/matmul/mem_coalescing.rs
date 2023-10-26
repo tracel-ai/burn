@@ -11,7 +11,6 @@ use crate::{
         WORKGROUP_DEFAULT,
     },
     kernel_wgsl,
-    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -45,14 +44,16 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
 pub fn matmul_mem_coalescing_default<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_mem_coalescing::<E, D>(lhs, rhs, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_mem_coalescing::<E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
 pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>, 
+    rhs: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
 ) -> WgpuTensor<E, D> {
@@ -60,10 +61,6 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
 
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
-
-    let shape_out = shape_out(&lhs, &rhs);
-
-    let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
 
     let info = build_info(&[&lhs, &rhs, &output]);
 
@@ -85,8 +82,7 @@ pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
     output
 }
 
-/// Creates a memory coalescing kernel from input/output shapes
-pub fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
+fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     output_shape: &Shape<D>,
@@ -169,8 +165,8 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = |lhs, rhs| {
-            matmul_mem_coalescing::<f32, 4>(lhs, rhs, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y)
+        let func = |lhs, rhs, out| {
+            matmul_mem_coalescing::<f32, 4>(lhs, rhs, out, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y)
         };
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
@@ -179,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
+        let matmul_func = |lhs, rhs, out| matmul_mem_coalescing::<f32, 4>(lhs, rhs, out, 2, 2);
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -188,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
+        let matmul_func = |lhs, rhs, out| matmul_mem_coalescing::<f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -198,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
-        let matmul_func = |lhs, rhs| matmul_mem_coalescing::<f32, 4>(lhs, rhs, 2, 2);
+        let matmul_func = |lhs, rhs, out| matmul_mem_coalescing::<f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

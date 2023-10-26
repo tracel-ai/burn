@@ -30,9 +30,4 @@ impl AutotuneOperation<DummyServer> for OneKernelAutotuneOperation {
             handles: self.handles.clone(),
         })
     }
-
-    fn execute_for_autotune(self: Box<Self>) {
-        let handle_refs: &Vec<&Handle<DummyServer>> = &self.handles.iter().collect();
-        self.client.execute(self.kernel.clone(), handle_refs);
-    }
 }

@@ -29,7 +29,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
     fn execute(&self, args: Self::Args) {
         let operation = args[0].clone(); // TODO rm 0
 
-        AutotuneOperation::execute_for_autotune(operation);
+        AutotuneOperation::execute(operation);
     }
 
     fn name(&self) -> String {

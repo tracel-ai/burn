@@ -1,38 +1,43 @@
 use std::marker::PhantomData;
 
 use burn_compute::tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet};
+use burn_tensor::Element;
 
 use crate::{
-    compute::{Server, WgpuComputeClient},
+    compute::Server,
     element::WgpuElement,
-    kernel::matmul::{utils::shape_out, MemoryCoalescingMatmulAutotuneOperation},
+    kernel::matmul::{
+        autotune_tensors,
+        utils::{init_matrix_output, shape_out},
+        MemoryCoalescingMatmulAutotuneOperation, Vec4TilingMatmulAutotuneOperation,
+    },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
 pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
-    client: WgpuComputeClient,
     key: AutotuneKey,
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    out: WgpuTensor<E, D>,
     _element: PhantomData<E>,
 }
 impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
-    fn new(client: WgpuComputeClient, lhs: WgpuTensor<E, D>, rhs: WgpuTensor<E, D>) -> Self {
+    fn new(lhs: WgpuTensor<E, D>, rhs: WgpuTensor<E, D>, out: WgpuTensor<E, D>) -> Self {
         let m = lhs.shape.dims[D - 2];
         let k = lhs.shape.dims[D - 1];
         let n = rhs.shape.dims[D - 1];
         Self {
             key: AutotuneKey::new("matmul".to_string(), log_mkn_input_key(m, k, n)),
-            client,
             lhs,
             rhs,
+            out,
             _element: PhantomData,
         }
     }
 }
 
-impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
+impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<Server>
     for MatmulAutotuneOperationSet<E, D>
 {
     fn key(&self) -> AutotuneKey {
@@ -40,42 +45,50 @@ impl<E: WgpuElement, const D: usize> AutotuneOperationSet<Server>
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<Server>>> {
-        // create the fakes here
-        vec![Box::new(
-            MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
-                self.client.clone(),
-                self.lhs.clone(),
-                self.rhs.clone(),
-            ),
-        )]
+        let lhs = autotune_tensors(&self.lhs);
+        let rhs = autotune_tensors(&self.rhs);
+        let out = autotune_tensors(&self.out);
+
+        vec![
+            Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, 3>::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
+            )),
+            Box::new(Vec4TilingMatmulAutotuneOperation::<E, 3>::new(
+                lhs, rhs, out,
+            )),
+        ]
     }
 
-    fn fastest(&self, fastest_index: usize) -> Box<dyn AutotuneOperation<Server>> {
-        // TODO don't recreate all autotunables
-        // here create the real MemoryCoalescingMatmulAutotuneOperation
-        self.autotunables()[fastest_index].clone()
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<Server>> {
+        match fastest_index {
+            0 => Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
+                self.lhs, self.rhs, self.out,
+            )),
+            1 => Box::new(Vec4TilingMatmulAutotuneOperation::<E, D>::new(
+                self.lhs, self.rhs, self.out,
+            )),
+            _ => panic!("Fastest index is out of bound"),
+        }
     }
 }
 
-pub fn matmul_autotune<E: WgpuElement, const D: usize>(
+pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let client = lhs.client.clone();
-    let output_shape = shape_out(&lhs, &rhs);
 
-    // let output = empty_device(client.clone(), lhs.device.clone(), output_shape.clone());
+    let output = init_matrix_output(&lhs, &rhs);
 
     let operation_set = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
-        client.clone(),
         lhs,
         rhs,
-        // output.clone(),
+        output.clone(),
     ));
 
-    // let handles = [&lhs.handle, &rhs.handle, &output.handle];
-    let handles = [];
-    client.execute_autotune(operation_set, &handles);
+    client.execute_autotune(operation_set);
 
     output
 }
