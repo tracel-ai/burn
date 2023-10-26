@@ -1,14 +1,15 @@
-use crate::{
-    tensor::{ADTensor, BoolTensor, IntTensor},
-    ADBackendDecorator,
-};
+use crate::{tensor::ADTensor, ADBackendDecorator};
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
+use burn_tensor::{
+    backend::Backend,
+    ops::{BoolTensor, IntTensor, IntTensorOps},
+    Data, Device, Reader, Shape,
+};
 
 impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     fn int_from_data<const D: usize>(
         data: Data<B::IntElem, D>,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_from_data(data, device)
     }
@@ -27,12 +28,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_to_device<const D: usize>(
         tensor: IntTensor<B, D>,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_to_device(tensor, device)
     }
 
-    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> B::Device {
+    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> Device<Self> {
         B::int_device(tensor)
     }
 
@@ -129,24 +130,18 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_neg(tensor)
     }
 
-    fn int_zeros<const D: usize>(
-        shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> IntTensor<B, D> {
+    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_zeros(shape, device)
     }
 
-    fn int_ones<const D: usize>(
-        shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> IntTensor<B, D> {
+    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_ones(shape, device)
     }
 
     fn int_full<const D: usize>(
         shape: Shape<D>,
         fill_value: B::IntElem,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_full(shape, fill_value, device)
     }

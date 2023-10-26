@@ -1,12 +1,13 @@
-use crate::{
-    tensor::{ADTensor, BoolTensor, IntTensor},
-    ADBackendDecorator,
+use crate::{tensor::ADTensor, ADBackendDecorator};
+
+use burn_tensor::{
+    backend::Backend,
+    ops::{BoolTensor, BoolTensorOps, IntTensor},
+    Data, Device, Reader, Shape,
 };
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
-
-impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
-    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &B::Device) -> BoolTensor<B, D> {
+impl<B: Backend> BoolTensorOps<Self> for ADBackendDecorator<B> {
+    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
         B::bool_from_data(data, device)
     }
 
@@ -28,12 +29,12 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
 
     fn bool_to_device<const D: usize>(
         tensor: BoolTensor<B, D>,
-        device: &B::Device,
+        device: &Device<B>,
     ) -> BoolTensor<B, D> {
         B::bool_to_device(tensor, device)
     }
 
-    fn bool_device<const D: usize>(tensor: &BoolTensor<B, D>) -> B::Device {
+    fn bool_device<const D: usize>(tensor: &BoolTensor<B, D>) -> Device<B> {
         B::bool_device(tensor)
     }
 
@@ -51,10 +52,7 @@ impl<B: Backend> BoolTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> 
         B::bool_slice(tensor, ranges)
     }
 
-    fn bool_empty<const D: usize>(
-        shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> BoolTensor<B, D> {
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> BoolTensor<B, D> {
         B::bool_empty(shape, device)
     }
 

@@ -5,7 +5,6 @@ use crate::{
     graph::{
         Node, NodeID, NodeRef, Requirement, {Graph, Step},
     },
-    ADBackendDecorator,
 };
 
 #[derive(Debug, Clone)]
@@ -14,10 +13,6 @@ pub struct ADTensor<B: Backend, const D: usize> {
     pub node: NodeRef,
     pub graph: Graph,
 }
-
-pub type FloatElem<B> = <ADBackendDecorator<B> as Backend>::FloatElem;
-pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
-pub type IntTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>;
 
 #[derive(new, Debug)]
 struct RootStep {

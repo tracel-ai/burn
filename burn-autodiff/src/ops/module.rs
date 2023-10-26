@@ -1,6 +1,6 @@
 use crate::grads::Gradients;
 use crate::ops::{unary, Backward, Ops};
-use crate::tensor::{ADTensor, IntTensor};
+use crate::tensor::ADTensor;
 use crate::ADBackendDecorator;
 
 use burn_tensor::backend::Backend;
