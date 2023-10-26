@@ -6,7 +6,7 @@ use burn_tensor::Element;
 use crate::{
     element::WgpuElement,
     kernel::matmul::{
-        autotune_tensors, utils::init_matrix_output, MemoryCoalescingMatmulAutotuneOperation,
+        autotune_tensors, utils::init_matmul_output, MemoryCoalescingMatmulAutotuneOperation,
         Vec4TilingMatmulAutotuneOperation,
     },
     tensor::WgpuTensor,
@@ -77,7 +77,7 @@ pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
 ) -> WgpuTensor<E, D> {
     let client = lhs.client.clone();
 
-    let output = init_matrix_output(&lhs, &rhs);
+    let output = init_matmul_output(&lhs, &rhs);
 
     let operation_set = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
         lhs,

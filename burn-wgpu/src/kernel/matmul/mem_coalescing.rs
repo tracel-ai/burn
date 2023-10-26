@@ -2,7 +2,6 @@ use std::{marker::PhantomData, sync::Arc};
 
 use burn_tensor::Shape;
 
-use super::utils::shape_out;
 use crate::{
     compute::{DynamicKernel, Kernel, WorkGroup},
     element::WgpuElement,

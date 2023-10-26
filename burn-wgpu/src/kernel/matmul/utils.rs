@@ -1,7 +1,7 @@
 use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
-pub(crate) fn init_matrix_output<E: WgpuElement, const D: usize>(
+pub fn init_matmul_output<E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<E, D>,
     rhs: &WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
@@ -36,7 +36,7 @@ pub(crate) mod tests {
     use crate::tests::{ReferenceTensor, TestTensor};
     use burn_tensor::Shape;
 
-    use super::init_matrix_output;
+    use super::init_matmul_output;
 
     pub(crate) fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
     where
@@ -51,7 +51,7 @@ pub(crate) mod tests {
 
         let z_reference = x.matmul(y);
 
-        let out = init_matrix_output(&x_wgpu, &y_wgpu);
+        let out = init_matmul_output(&x_wgpu, &y_wgpu);
         let z = func(x_wgpu, y_wgpu, out);
         let z = TestTensor::from_primitive(z);
 
@@ -78,7 +78,7 @@ pub(crate) mod tests {
             .swap_dims(swap_lhs[0], swap_lhs[1])
             .matmul(y.swap_dims(swap_rhs[0], swap_rhs[1]));
 
-        let out = init_matrix_output(
+        let out = init_matmul_output(
             &x_wgpu.clone().into_primitive(),
             &y_wgpu.clone().into_primitive(),
         );

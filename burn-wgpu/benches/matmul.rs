@@ -6,6 +6,7 @@ use burn_tensor::{
     benchmark::{run_benchmark, Benchmark},
     Distribution, Shape, Tensor,
 };
+use burn_wgpu::kernel::matmul::utils::init_matmul_output;
 use derive_new::new;
 
 use burn_wgpu::{
@@ -69,7 +70,10 @@ macro_rules! bench_matmul {
         struct $matmul_name {}
         impl<G: GraphicsApi, const D: usize> MatmulFunction<G, D> for $matmul_name {
             fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D> {
-                Tensor::from_primitive($func(lhs.into_primitive(), rhs.into_primitive()))
+                let lhs = lhs.into_primitive();
+                let rhs = rhs.into_primitive();
+                let output = init_matmul_output(&lhs, &rhs);
+                Tensor::from_primitive($func(lhs, rhs, output))
             }
         }
         type $benchmark<const D: usize> = MatmulBenchmark<$matmul_name, D>;

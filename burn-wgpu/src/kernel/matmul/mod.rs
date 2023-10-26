@@ -1,4 +1,4 @@
-pub(crate) mod utils;
+pub mod utils;
 
 mod mem_coalescing;
 mod naive;
