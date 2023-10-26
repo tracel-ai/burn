@@ -35,12 +35,12 @@ impl AdditionAutotuneOperationSet {
     }
 }
 
-impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
+impl AutotuneOperationSet for AdditionAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
         vec![
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(DummyElementwiseAddition),
@@ -57,7 +57,7 @@ impl AutotuneOperationSet<DummyServer> for AdditionAutotuneOperationSet {
         ]
     }
 
-    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -83,12 +83,12 @@ impl<'a> MultiplicationAutotuneOperationSet {
         }
     }
 }
-impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
+impl AutotuneOperationSet for MultiplicationAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
         vec![
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(DummyElementwiseMultiplicationSlowWrong),
@@ -105,7 +105,7 @@ impl AutotuneOperationSet<DummyServer> for MultiplicationAutotuneOperationSet {
         ]
     }
 
-    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         self.autotunables()[fastest_index].clone()
     }
 }
@@ -131,12 +131,12 @@ impl CacheTestAutotuneOperationSet {
         }
     }
 }
-impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
+impl AutotuneOperationSet for CacheTestAutotuneOperationSet {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<DummyServer>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
         vec![
             Box::new(OneKernelAutotuneOperation::new(
                 Arc::new(CacheTestFastOn3),
@@ -153,7 +153,7 @@ impl AutotuneOperationSet<DummyServer> for CacheTestAutotuneOperationSet {
         ]
     }
 
-    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<DummyServer>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         self.autotunables()[fastest_index].clone()
     }
 }

@@ -1,25 +1,23 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::server::ComputeServer;
-
 /// Type of operation for the kernel
-pub trait AutotuneOperationSet<S>: Send {
+pub trait AutotuneOperationSet: Send {
     /// The key used in the tune cache
     fn key(&self) -> AutotuneKey;
 
     /// All candidate operations for autotuning this operation type
-    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<S>>>;
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>>;
 
     /// Returns the operation for the given index, matching the order
     /// returned by autotunables
-    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<S>>;
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 }
 
-pub trait AutotuneOperation<S: ComputeServer> {
+pub trait AutotuneOperation {
     fn execute(self: Box<Self>);
 
-    fn clone(&self) -> Box<dyn AutotuneOperation<S>>;
+    fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Hash)]

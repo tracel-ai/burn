@@ -3,8 +3,7 @@ use std::marker::PhantomData;
 use burn_compute::tune::AutotuneOperation;
 
 use crate::{
-    compute::Server, element::WgpuElement, kernel::matmul::matmul_mem_coalescing_default,
-    tensor::WgpuTensor,
+    element::WgpuElement, kernel::matmul::matmul_mem_coalescing_default, tensor::WgpuTensor,
 };
 
 #[derive(new)]
@@ -15,14 +14,14 @@ pub struct MemoryCoalescingMatmulAutotuneOperation<E: WgpuElement, const D: usiz
     _element: PhantomData<E>,
 }
 
-impl<E: WgpuElement, const D: usize> AutotuneOperation<Server>
+impl<E: WgpuElement, const D: usize> AutotuneOperation
     for MemoryCoalescingMatmulAutotuneOperation<E, D>
 {
     fn execute(self: Box<Self>) {
         matmul_mem_coalescing_default(self.lhs, self.rhs, self.out);
     }
 
-    fn clone(&self) -> Box<dyn AutotuneOperation<Server>> {
+    fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             lhs: self.lhs.clone(),
             rhs: self.rhs.clone(),

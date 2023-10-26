@@ -29,7 +29,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
 
     pub(crate) fn execute_autotune(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet>,
         client: &ComputeClient<S, C>,
     ) {
         let operation = match self.tune_cache.try_cache(autotune_operation_set) {
@@ -42,9 +42,9 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
 
     fn autotuning(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet>,
         client: &ComputeClient<S, C>,
-    ) -> Box<dyn AutotuneOperation<S>> {
+    ) -> Box<dyn AutotuneOperation> {
         // Run all autotune benchmarks
         let results = autotune_operation_set
             .autotunables()
@@ -64,7 +64,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
 
     fn run_benchmark(
         &mut self,
-        operation: Box<dyn AutotuneOperation<S>>,
+        operation: Box<dyn AutotuneOperation>,
         client: &ComputeClient<S, C>,
     ) -> BenchmarkResult {
         TuneBenchmark::new(operation, client.clone()).run()

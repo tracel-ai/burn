@@ -72,7 +72,7 @@ where
     }
 
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
-    pub fn execute_autotune(&self, autotune_operation_set: Box<dyn AutotuneOperationSet<Server>>) {
+    pub fn execute_autotune(&self, autotune_operation_set: Box<dyn AutotuneOperationSet>) {
         self.tuner
             .lock()
             .execute_autotune(autotune_operation_set, self);

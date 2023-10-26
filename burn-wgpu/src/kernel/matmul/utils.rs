@@ -71,8 +71,8 @@ pub(crate) mod tests {
         let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
         let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
 
-        let x_wgpu = TestTensor::from_data(x.to_data());
-        let y_wgpu = TestTensor::from_data(y.to_data());
+        let x_wgpu = TestTensor::from_data(x.to_data()).swap_dims(swap_lhs[0], swap_lhs[1]);
+        let y_wgpu = TestTensor::from_data(y.to_data()).swap_dims(swap_rhs[0], swap_rhs[1]);
 
         let z_reference = x
             .swap_dims(swap_lhs[0], swap_lhs[1])
@@ -82,11 +82,7 @@ pub(crate) mod tests {
             &x_wgpu.clone().into_primitive(),
             &y_wgpu.clone().into_primitive(),
         );
-        let z = func(
-            x_wgpu.swap_dims(swap_lhs[0], swap_lhs[1]).into_primitive(),
-            y_wgpu.swap_dims(swap_rhs[0], swap_rhs[1]).into_primitive(),
-            out,
-        );
+        let z = func(x_wgpu.into_primitive(), y_wgpu.into_primitive(), out);
         let z = TestTensor::from_primitive(z);
 
         z_reference.into_data().assert_approx_eq(&z.into_data(), 3);

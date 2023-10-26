@@ -444,8 +444,6 @@ pub(super) fn matmul_tiling_2d_launch<
         &rhs,
     );
 
-    let final_output_shape = shape_out(&lhs, &rhs);
-
     // A tensor may need to be padded, in which case it will implicitly become contiguous
     // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
@@ -467,19 +465,24 @@ pub(super) fn matmul_tiling_2d_launch<
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
-    let output = empty_device(
+    let rounded_output = empty_device(
         rhs.client.clone(),
         rhs.device.clone(),
         rounded_output_shape.clone(),
     );
 
     let workgroup = make_workgroup(rounded_output_shape, b_m, b_n);
-    let info_handle = make_info_handle(&lhs, &rhs, &output);
+    let info_handle = make_info_handle(&lhs, &rhs, &rounded_output);
 
-    output.client.execute(
+    lhs.client.execute(
         Arc::new(DynamicKernel::new(kernel, workgroup)),
-        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
+        &[
+            &lhs.handle,
+            &rhs.handle,
+            &rounded_output.handle,
+            &info_handle,
+        ],
     );
 
-    crop(output, final_output_shape)
+    crop(rounded_output, output)
 }

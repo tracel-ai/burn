@@ -4,8 +4,8 @@ use burn_compute::tune::AutotuneOperation;
 use burn_tensor::Element;
 
 use crate::{
-    compute::Server, element::WgpuElement,
-    kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default, tensor::WgpuTensor,
+    element::WgpuElement, kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default,
+    tensor::WgpuTensor,
 };
 
 #[derive(new)]
@@ -16,14 +16,14 @@ pub struct Vec4TilingMatmulAutotuneOperation<E: WgpuElement, const D: usize> {
     _element: PhantomData<E>,
 }
 
-impl<E: WgpuElement + Element, const D: usize> AutotuneOperation<Server>
+impl<E: WgpuElement + Element, const D: usize> AutotuneOperation
     for Vec4TilingMatmulAutotuneOperation<E, D>
 {
     fn execute(self: Box<Self>) {
         matmul_tiling_2d_vec4_primitive_default(self.lhs, self.rhs, self.out);
     }
 
-    fn clone(&self) -> Box<dyn AutotuneOperation<Server>> {
+    fn clone(&self) -> Box<dyn AutotuneOperation> {
         Box::new(Self {
             lhs: self.lhs.clone(),
             rhs: self.rhs.clone(),

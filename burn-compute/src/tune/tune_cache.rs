@@ -14,9 +14,9 @@ pub struct TuneCache<S> {
     _server: PhantomData<S>,
 }
 
-pub enum TuneCacheResult<S> {
-    Hit(Box<dyn AutotuneOperation<S>>),
-    Miss(Box<dyn AutotuneOperationSet<S>>),
+pub enum TuneCacheResult {
+    Hit(Box<dyn AutotuneOperation>),
+    Miss(Box<dyn AutotuneOperationSet>),
 }
 
 impl<S> TuneCache<S> {
@@ -30,8 +30,8 @@ impl<S> TuneCache<S> {
     #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet<S>>,
-    ) -> TuneCacheResult<S> {
+        autotune_operation_set: Box<dyn AutotuneOperationSet>,
+    ) -> TuneCacheResult {
         let index = self.cache.get(&autotune_operation_set.key());
         if let Some(&i) = index {
             return TuneCacheResult::Hit(autotune_operation_set.fastest(i));

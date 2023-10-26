@@ -4,14 +4,11 @@ use burn_compute::tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::Element;
 
 use crate::{
-    compute::Server,
     element::WgpuElement,
     kernel::matmul::{
-        autotune_tensors,
-        utils::{init_matrix_output, shape_out},
-        MemoryCoalescingMatmulAutotuneOperation, Vec4TilingMatmulAutotuneOperation,
+        autotune_tensors, utils::init_matrix_output, MemoryCoalescingMatmulAutotuneOperation,
+        Vec4TilingMatmulAutotuneOperation,
     },
-    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -37,14 +34,14 @@ impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
     }
 }
 
-impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<Server>
+impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet
     for MatmulAutotuneOperationSet<E, D>
 {
     fn key(&self) -> AutotuneKey {
         self.key.clone()
     }
 
-    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation<Server>>> {
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
         let lhs = autotune_tensors(&self.lhs);
         let rhs = autotune_tensors(&self.rhs);
         let out = autotune_tensors(&self.out);
@@ -61,7 +58,7 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<Server>
         ]
     }
 
-    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation<Server>> {
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         match fastest_index {
             0 => Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
                 self.lhs, self.rhs, self.out,

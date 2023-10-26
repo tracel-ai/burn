@@ -10,13 +10,13 @@ use alloc::string::{String, ToString};
 /// A benchmark that runs on server handles
 #[derive(new)]
 pub struct TuneBenchmark<S: ComputeServer, C> {
-    operation: Box<dyn AutotuneOperation<S>>,
+    operation: Box<dyn AutotuneOperation>,
     client: ComputeClient<S, C>,
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
     // list of operations
-    type Args = Vec<Box<dyn AutotuneOperation<S>>>;
+    type Args = Vec<Box<dyn AutotuneOperation>>;
 
     fn prepare(&self) -> Self::Args {
         vec![self.operation.clone()]
