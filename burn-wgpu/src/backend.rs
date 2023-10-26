@@ -2,7 +2,7 @@ use crate::{
     compute::compute_client,
     element::{FloatElement, IntElement},
     tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    AutoGraphicsApi, GraphicsApi, WgpuDevice,
 };
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
@@ -20,7 +20,12 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 ///   - [Metal](crate::Metal) on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 #[derive(Debug, Default, Clone)]
-pub struct Wgpu<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct Wgpu<G = AutoGraphicsApi, F = f32, I = i32>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,

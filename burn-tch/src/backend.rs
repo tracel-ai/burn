@@ -69,7 +69,7 @@ impl Default for TchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E> {
+pub struct LibTorch<E = f32> {
     _e: E,
 }
 

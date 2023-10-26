@@ -1,48 +1,26 @@
 #[cfg(feature = "__ndarray")]
-/// Ndarray module.
 pub use burn_ndarray as ndarray;
 
 #[cfg(feature = "__ndarray")]
-/// An NdArray with a default type of f32.
-pub type NdArray<F = f32> = ndarray::NdArray<F>;
+pub use ndarray::NdArray;
 
-#[cfg(all(feature = "__ndarray", feature = "autodiff"))]
-/// An NdArray with autodiffing enabled.
-pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::Autodiff<NdArray<F>>;
+#[cfg(feature = "autodiff")]
+pub use burn_autodiff::Autodiff;
 
 #[cfg(feature = "wgpu")]
-/// WGPU module.
 pub use burn_wgpu as wgpu;
 
 #[cfg(feature = "wgpu")]
-/// A WGpuBackend with a default type of f32/i32, and auto graphics.
-pub type Wgpu<G = wgpu::AutoGraphicsApi, F = f32, I = i32> = wgpu::Wgpu<G, F, I>;
-
-#[cfg(all(feature = "wgpu", feature = "autodiff"))]
-/// A Wgpu with autodiffing enabled.
-pub type WgpuAutodiffBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> =
-    crate::autodiff::Autodiff<Wgpu<G, F, I>>;
+pub use burn_wgpu::Wgpu;
 
 #[cfg(feature = "candle")]
-/// Candle module.
 pub use burn_candle as candle;
 
 #[cfg(feature = "candle")]
-/// A Candle with a default type of f32/i64.
-pub type Candle = candle::Candle<f32, i64>;
-
-#[cfg(all(feature = "candle", feature = "autodiff"))]
-/// A Candle with autodiffing enabled.
-pub type CandleAutodiffBackend = crate::autodiff::Autodiff<Candle>;
+pub use burn_candle::Candle;
 
 #[cfg(feature = "tch")]
-/// Tch module.
-pub use burn_tch as tch;
+pub use burn_tch as libtorch;
 
 #[cfg(feature = "tch")]
-/// A LibTorch with a default type of f32.
-pub type LibTorch<F = f32> = tch::LibTorch<F>;
-
-#[cfg(all(feature = "tch", feature = "autodiff"))]
-/// A LibTorch with autodiffing enabled.
-pub type TchAutodiffBackend<F = f32> = crate::autodiff::Autodiff<LibTorch<F>>;
+pub use burn_tch::LibTorch;

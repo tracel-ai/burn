@@ -6,12 +6,12 @@
 ))]
 mod ndarray {
     use burn::backend::ndarray::NdArrayDevice;
-    use burn::backend::NdArrayAutodiffBackend;
+    use burn::backend::{Autodiff, NdArray};
     use mnist::training;
 
     pub fn run() {
         let device = NdArrayDevice::Cpu;
-        training::run::<NdArrayAutodiffBackend>(device);
+        training::run::<Autodiff<NdArray>>(device);
     }
 }
 

@@ -26,7 +26,7 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E> {
+pub struct NdArray<E = f32> {
     phantom: PhantomData<E>,
 }
 

@@ -13,7 +13,11 @@ use crate::{
 /// It is compatible with a wide range of hardware configurations, including CPUs and Nvidia GPUs
 /// that support CUDA. Additionally, the backend can be compiled to `wasm` when using the CPU.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct Candle<F: FloatCandleElement, I: IntCandleElement> {
+pub struct Candle<F = f32, I = i64>
+where
+    F: FloatCandleElement,
+    I: IntCandleElement,
+{
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
