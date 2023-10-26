@@ -6,11 +6,7 @@ pub fn init_matmul_output<E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<E, D>,
     rhs: &WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    empty_device(
-        lhs.client.clone(),
-        lhs.device.clone(),
-        shape_out(&lhs, &rhs),
-    )
+    empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
 pub(crate) fn shape_out<E: WgpuElement, const D: usize>(

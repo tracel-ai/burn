@@ -29,7 +29,7 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperation
             lhs: self.lhs.clone(),
             rhs: self.rhs.clone(),
             out: self.out.clone(),
-            _element: self._element.clone(),
+            _element: self._element,
         })
     }
 }

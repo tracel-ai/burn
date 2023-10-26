@@ -1,13 +1,12 @@
 use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
 
-use std::marker::PhantomData;
-
 use burn_tensor::{
     benchmark::{run_benchmark, Benchmark},
     Distribution, Shape, Tensor,
 };
-use burn_wgpu::kernel::matmul::utils::init_matmul_output;
+use burn_wgpu::kernel::matmul::init_matmul_output;
 use derive_new::new;
+use std::marker::PhantomData;
 
 use burn_wgpu::{
     kernel::matmul::{

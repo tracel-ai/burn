@@ -2,7 +2,8 @@ mod mem_coalescing;
 mod naive;
 mod tiling2d;
 mod tune;
-mod utils;
+/// Contains utilitary for matmul operation
+pub mod utils;
 
 pub use mem_coalescing::*;
 pub use naive::*;
