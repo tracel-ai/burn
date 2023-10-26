@@ -28,12 +28,12 @@ pub type WgpuAutodiffBackend<G = wgpu::AutoGraphicsApi, F = f32, I = i32> =
 pub use burn_candle as candle;
 
 #[cfg(feature = "candle")]
-/// A CandleBackend with a default type of f32/i64.
-pub type CandleBackend = candle::CandleBackend<f32, i64>;
+/// A Candle with a default type of f32/i64.
+pub type Candle = candle::Candle<f32, i64>;
 
 #[cfg(all(feature = "candle", feature = "autodiff"))]
-/// A CandleBackend with autodiffing enabled.
-pub type CandleAutodiffBackend = crate::autodiff::Autodiff<CandleBackend>;
+/// A Candle with autodiffing enabled.
+pub type CandleAutodiffBackend = crate::autodiff::Autodiff<Candle>;
 
 #[cfg(feature = "tch")]
 /// Tch module.

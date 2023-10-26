@@ -44,19 +44,19 @@ macro_rules! bench_on_backend {
         #[cfg(feature = "candle-cpu")]
         {
             use burn::backend::candle::CandleDevice;
-            use burn::backend::CandleBackend;
+            use burn::backend::Candle;
 
             let device = CandleDevice::Cpu;
-            bench::<CandleBackend>(&device);
+            bench::<Candle>(&device);
         }
 
         #[cfg(feature = "candle-cuda")]
         {
             use burn::backend::candle::CandleDevice;
-            use burn::backend::CandleBackend;
+            use burn::backend::Candle;
 
             let device = CandleDevice::Cuda(0);
-            bench::<CandleBackend>(&device);
+            bench::<Candle>(&device);
         }
     };
 }
