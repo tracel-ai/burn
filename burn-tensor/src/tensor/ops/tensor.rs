@@ -1,9 +1,8 @@
+use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
-
-use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 
 /// Operations on float tensors.
 pub trait TensorOps<B: Backend> {
@@ -808,7 +807,7 @@ pub trait TensorOps<B: Backend> {
     /// A tensor with the same values as `tensor` but with full precision.
     fn to_full_precision<const D: usize>(
         tensor: &FloatTensor<B, D>,
-    ) -> <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>;
+    ) -> FloatTensor<FullPrecisionBackend<B>, D>;
 
     /// Converts a tensor from full precision.
     ///
@@ -820,7 +819,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// A tensor with the same values as `tensor` but with the precision of the backend.
     fn from_full_precision<const D: usize>(
-        tensor: <B::FullPrecisionBackend as Backend>::TensorPrimitive<D>,
+        tensor: FloatTensor<FullPrecisionBackend<B>, D>,
     ) -> FloatTensor<B, D>;
 
     /// Returns a new tensor with exponential values.

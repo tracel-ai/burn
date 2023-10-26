@@ -1,15 +1,14 @@
-use burn_tensor::{ops::BoolTensorOps, Data, Reader, Shape};
+use burn_tensor::{
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+    Data, Device, Reader, Shape,
+};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
     CandleBackend, CandleTensor,
 };
 
-use super::base::{BoolTensor, Device, FloatTensor, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for CandleBackend<F, I> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::base::empty(shape, device)
     }

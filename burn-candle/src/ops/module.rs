@@ -1,7 +1,7 @@
 use burn_tensor::{
     ops::{
-        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-        UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
     },
     Shape,
 };
@@ -13,11 +13,7 @@ use crate::{
     CandleBackend, CandleTensor,
 };
 
-use super::base::{FloatTensor, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for CandleBackend<F, I> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
