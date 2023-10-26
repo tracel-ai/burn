@@ -34,7 +34,7 @@ mod ndarray {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<ADBackendDecorator<NdArrayBackend<ElemType>>>(NdArrayDevice::Cpu);
+        launch::<Autodiff<NdArrayBackend<ElemType>>>(NdArrayDevice::Cpu);
     }
 }
 
@@ -51,7 +51,7 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = TchDevice::Mps;
 
-        launch::<ADBackendDecorator<TchBackend<ElemType>>>(device);
+        launch::<Autodiff<TchBackend<ElemType>>>(device);
     }
 }
 
@@ -63,7 +63,7 @@ mod tch_cpu {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<ADBackendDecorator<TchBackend<ElemType>>>(TchDevice::Cpu);
+        launch::<Autodiff<TchBackend<ElemType>>>(TchDevice::Cpu);
     }
 }
 
@@ -75,9 +75,7 @@ mod wgpu {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, ElemType, i32>>>(
-            WgpuDevice::default(),
-        );
+        launch::<Autodiff<WgpuBackend<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
     }
 }
 

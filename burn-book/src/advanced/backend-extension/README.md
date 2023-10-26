@@ -48,13 +48,13 @@ impl<E: NdArrayElement> Backend for burn_ndarray::NdArrayBackend<E> {
 You can support the backward pass using the same pattern.
 
 ```rust, ignore
-impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
+impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
     // No specific implementation; autodiff will work with the default
     // implementation. Useful if you still want to train your model, but
     // observe performance gains mostly during inference.
 }
 
-impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
+impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
    fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
       // My own backward implementation, generic over my custom Backend trait.
       //
@@ -63,7 +63,7 @@ impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
    }
 }
 
-impl<E: TchElement> Backend for burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<E>> {
+impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::TchBackend<E>> {
    fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
       // My own backward implementation, generic over a backend implementation.
       //

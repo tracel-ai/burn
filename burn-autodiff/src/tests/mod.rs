@@ -48,7 +48,7 @@ mod transpose;
 #[macro_export]
 macro_rules! testgen_all {
     () => {
-        type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
+        type TestADBackend = burn_autodiff::Autodiff<TestBackend>;
         type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
 
         // Behavior

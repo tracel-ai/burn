@@ -6,7 +6,7 @@ has another trait for autodiff: `ADBackend`.
 
 However, not all tensors support auto-differentiation; you need a backend that implements both the
 `Backend` and `ADBackend` traits. Fortunately, you can add autodifferentiation capabilities to any
-backend using a backend decorator: `type MyAutodiffBackend = ADBackendDecorator<MyBackend>`. This
+backend using a backend decorator: `type MyAutodiffBackend = Autodiff<MyBackend>`. This
 decorator implements both the `ADBackend` and `Backend` traits by maintaining a dynamic
 computational graph and utilizing the inner backend to execute tensor operations.
 
@@ -64,7 +64,7 @@ torch.no_grad():
    ...
 ```
 
-With Burn, you don't need to wrap the backend with the `ADBackendDecorator` for inference, and you
+With Burn, you don't need to wrap the backend with the `Autodiff` for inference, and you
 can call `inner()` to obtain the inner tensor, which is useful for validation.ß
 
 ```rust, ignore

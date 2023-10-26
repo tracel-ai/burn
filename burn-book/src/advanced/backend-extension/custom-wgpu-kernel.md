@@ -294,7 +294,7 @@ operations.
 // Note that we could implement the backend trait only for the Wgpu backend instead of any backend that
 // also implements our own API. This would allow us to call any function only implemented for Wgpu
 // and potentially call a custom kernel crafted only for this task.
-impl<B: Backend> Backend for ADBackendDecorator<B> {
+impl<B: Backend> Backend for Autodiff<B> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
@@ -402,7 +402,7 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
 
 The previous code is self-documented to make it clearer, but here is what it does in summary.
 
-We define `fused_matmul_add_relu` within `ADBackendDecorator<B>`, allowing any autodiff-decorated
+We define `fused_matmul_add_relu` within `Autodiff<B>`, allowing any autodiff-decorated
 backend to benefit from our implementation. In an autodiff-decorated backend, the forward pass must
 still be implemented. This is achieved using a comprehensive match statement block where computation
 is delegated to the inner backend, while keeping track of a state. The state comprises any
@@ -420,8 +420,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
-    for ADBackendDecorator<WgpuBackend<G, F, I>>
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend for Autodiff<WgpuBackend<G, F, I>>
 {
 }
 ```
