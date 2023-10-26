@@ -15,7 +15,7 @@ impression that Burn operates at a high level over the backend layer. However, m
 explicit instead of being chosen via a compilation flag was a thoughtful design decision. This
 explicitness does not imply that all backends must be identical; rather, it offers a great deal of
 flexibility when composing backends. The autodifferentiation backend trait (see
-[autodiff section](../building-blocks/autodiff.md)) is an example of how the backend trait has been
+[autodiff section](../building-blocks/autodiff)) is an example of how the backend trait has been
 extended to enable gradient computation with backpropagation. Furthermore, this design allows you to
 create your own backend extension. To achieve this, you need to design your own backend trait
 specifying which functions should be supported.
@@ -40,7 +40,7 @@ impl<E: TchElement> Backend for burn_tch::LibTorch<E> {
    }
 }
 
-impl<E: NdArrayElement> Backend for burn_ndarray::NdArrayBackend<E> {
+impl<E: NdArrayElement> Backend for burn_ndarray::NdArray<E> {
     // No specific implementation, but the backend can still be used.
 }
 ```

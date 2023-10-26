@@ -11,7 +11,7 @@ use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet1::Model as 
 use burn::{
     backend::{
         wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice},
-        NdArrayBackend,
+        NdArray,
     },
     tensor::{activation::softmax, backend::Backend, Tensor},
 };
@@ -28,7 +28,7 @@ pub enum ModelType {
     WithCandleBackend(Model<Candle<f32, i64>>),
 
     /// The model is loaded to the NdArray backend
-    WithNdarrayBackend(Model<NdArrayBackend<f32>>),
+    WithNdArrayBackend(Model<NdArray<f32>>),
 
     /// The model is loaded to the Wgpu backend
     WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
@@ -56,7 +56,7 @@ impl ImageClassifier {
         log::info!("Initializing the image classifier");
 
         Self {
-            model: ModelType::WithNdarrayBackend(Model::new()),
+            model: ModelType::WithNdArrayBackend(Model::new()),
         }
     }
 
@@ -68,7 +68,7 @@ impl ImageClassifier {
 
         let result = match self.model {
             ModelType::WithCandleBackend(ref model) => model.forward(input).await,
-            ModelType::WithNdarrayBackend(ref model) => model.forward(input).await,
+            ModelType::WithNdArrayBackend(ref model) => model.forward(input).await,
             ModelType::WithWgpuBackend(ref model) => model.forward(input).await,
         };
 
@@ -93,7 +93,7 @@ impl ImageClassifier {
     pub async fn set_backend_ndarray(&mut self) -> Result<(), JsValue> {
         log::info!("Loading the model to the NdArray backend");
         let start = Instant::now();
-        self.model = ModelType::WithNdarrayBackend(Model::new());
+        self.model = ModelType::WithNdArrayBackend(Model::new());
         let duration = start.elapsed();
         log::debug!("Model is loaded to the NdArray backend in {:?}", duration);
         Ok(())

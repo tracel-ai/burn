@@ -3,12 +3,12 @@
 pub use burn_ndarray as ndarray;
 
 #[cfg(feature = "__ndarray")]
-/// An NdArrayBackend with a default type of f32.
-pub type NdArrayBackend<F = f32> = ndarray::NdArray<F>;
+/// An NdArray with a default type of f32.
+pub type NdArray<F = f32> = ndarray::NdArray<F>;
 
 #[cfg(all(feature = "__ndarray", feature = "autodiff"))]
-/// An NdArrayBackend with autodiffing enabled.
-pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::Autodiff<NdArrayBackend<F>>;
+/// An NdArray with autodiffing enabled.
+pub type NdArrayAutodiffBackend<F = f32> = crate::autodiff::Autodiff<NdArray<F>>;
 
 #[cfg(feature = "wgpu")]
 /// WGPU module.

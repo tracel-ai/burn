@@ -34,7 +34,7 @@ mod ndarray {
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<Autodiff<NdArrayBackend<ElemType>>>(NdArrayDevice::Cpu);
+        launch::<Autodiff<NdArray<ElemType>>>(NdArrayDevice::Cpu);
     }
 }
 

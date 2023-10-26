@@ -207,7 +207,7 @@ Since float and int can have multiple precisions, the float and int element type
 Note that the backend chooses the precision and not the user.
 Since not all backends will support the same element types, no assumptions must be made.
 Therefore, there are no methods on tensors to change the precision, except for the `to_full_precision` function, which ensures numerical stability on the current backend.
-Backend implementations can provide a way to choose the precision, which can be accomplished with a generic parameter (e.g. `NdArrayBackend<f32>`).
+Backend implementations can provide a way to choose the precision, which can be accomplished with a generic parameter (e.g. `NdArray<f32>`).
 
 To be as general as possible, tensor operations are implemented as plain functions.
 There is no object or self, just functions that take tensors as input and often return tensors as output as well.
