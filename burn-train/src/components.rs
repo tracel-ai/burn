@@ -6,14 +6,14 @@ use burn_core::{
     lr_scheduler::LrScheduler,
     module::{ADModule, Module},
     optim::Optimizer,
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
 };
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
 pub trait LearnerComponents {
     /// The backend in used for the training.
-    type Backend: ADBackend;
+    type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
     type LrScheduler: LrScheduler;
     /// The model to train.
@@ -49,7 +49,7 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
 impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
     for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     LR: LrScheduler,
     M: ADModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,

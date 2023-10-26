@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use super::ParamId;
 use crate::{
     record::Record,
-    tensor::backend::{ADBackend, Backend},
+    tensor::backend::{AutodiffBackend, Backend},
 };
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
@@ -244,7 +244,7 @@ pub trait ModuleMapper<B: Backend> {
 }
 
 /// Module with auto-differentiation backend.
-pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
+pub trait ADModule<B: AutodiffBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 

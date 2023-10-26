@@ -16,7 +16,7 @@ pub trait Backend: burn::tensor::backend::Backend {
 }
 
 /// We create our own ADBackend trait that extends the Burn autodiff backend trait.
-pub trait ADBackend: Backend + burn::tensor::backend::ADBackend {}
+pub trait ADBackend: Backend + burn::tensor::backend::AutodiffBackend {}
 
 /// We define our custom implementation using the added function on our custom backend.
 pub fn matmul_add_relu_custom<B: Backend>(

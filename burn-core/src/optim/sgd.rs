@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
-use burn_tensor::backend::{ADBackend, Backend};
+use burn_tensor::backend::{AutodiffBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
@@ -38,7 +38,7 @@ pub struct SgdState<B: Backend, const D: usize> {
 
 impl SgdConfig {
     /// Creates a new [SgdConfig](SgdConfig) with default values.
-    pub fn init<B: ADBackend, M: ADModule<B>>(
+    pub fn init<B: AutodiffBackend, M: ADModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let momentum = self.momentum.as_ref().map(Momentum::new);

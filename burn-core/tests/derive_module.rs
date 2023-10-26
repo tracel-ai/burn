@@ -98,7 +98,7 @@ mod num_params {
 
 #[cfg(feature = "std")]
 mod require_grad {
-    use burn_tensor::backend::ADBackend;
+    use burn_tensor::backend::AutodiffBackend;
 
     use super::*;
 
@@ -138,7 +138,7 @@ mod require_grad {
 
     fn calculate_grads(
         module: &ModuleBasic<TestADBackend>,
-    ) -> <TestADBackend as ADBackend>::Gradients {
+    ) -> <TestADBackend as AutodiffBackend>::Gradients {
         let x = Tensor::ones([20, 20]).require_grad();
         let y = module.weight_basic.val().matmul(x);
 

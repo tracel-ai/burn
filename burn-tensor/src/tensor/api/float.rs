@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use crate::backend::ADBackend;
+use crate::backend::AutodiffBackend;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
@@ -276,7 +276,7 @@ where
     }
 }
 
-impl<const D: usize, B: ADBackend> Tensor<B, D> {
+impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {
         B::backward::<D>(self.primitive.clone())

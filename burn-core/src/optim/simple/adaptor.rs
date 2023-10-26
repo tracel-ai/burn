@@ -5,7 +5,7 @@ use crate::{
     optim::{GradientsParams, Optimizer},
     LearningRate,
 };
-use burn_tensor::{backend::ADBackend, Tensor};
+use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
@@ -15,7 +15,7 @@ pub struct OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
     M: ADModule<B>,
-    B: ADBackend,
+    B: AutodiffBackend,
 {
     optim: O,
     records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
@@ -25,7 +25,7 @@ where
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     M: ADModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
@@ -43,7 +43,7 @@ impl<O, M, B> OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
     M: ADModule<B>,
-    B: ADBackend,
+    B: AutodiffBackend,
 {
     /// Sets the gradient clipping.
     ///
@@ -67,7 +67,7 @@ where
 
 impl<O, B, M> Optimizer<M, B> for OptimizerAdaptor<O, M, B>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     M: ADModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
@@ -98,7 +98,7 @@ where
 struct SimpleOptimizerMapper<'a, M, B, O>
 where
     M: ADModule<B>,
-    B: ADBackend,
+    B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     optimizer: &'a O,
@@ -112,7 +112,7 @@ where
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
 where
     M: ADModule<B>,
-    B: ADBackend,
+    B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {

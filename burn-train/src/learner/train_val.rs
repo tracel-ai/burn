@@ -4,7 +4,7 @@ use crate::{Learner, TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{ADModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};
-use burn_core::tensor::backend::ADBackend;
+use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
 
 /// A training output.
@@ -28,7 +28,11 @@ impl<TO> TrainOutput<TO> {
     /// # Returns
     ///
     /// A new training output.
-    pub fn new<B: ADBackend, M: ADModule<B>>(module: &M, grads: B::Gradients, item: TO) -> Self {
+    pub fn new<B: AutodiffBackend, M: ADModule<B>>(
+        module: &M,
+        grads: B::Gradients,
+        item: TO,
+    ) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
         Self { grads, item }
     }
@@ -71,7 +75,7 @@ pub trait TrainStep<TI, TO> {
     /// The updated model.
     fn optimize<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
     where
-        B: ADBackend,
+        B: AutodiffBackend,
         O: Optimizer<Self, B>,
         Self: ADModule<B>,
     {

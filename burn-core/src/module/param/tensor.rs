@@ -1,7 +1,7 @@
 use super::{Param, ParamId};
 use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     Tensor,
 };
 
@@ -43,7 +43,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
+impl<const D: usize, B: AutodiffBackend> ADModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {

@@ -1,12 +1,12 @@
 use crate::{TrainOutput, TrainStep};
 use burn_core::{
-    data::dataloader::DataLoaderIterator, module::ADModule, tensor::backend::ADBackend,
+    data::dataloader::DataLoaderIterator, module::ADModule, tensor::backend::AutodiffBackend,
 };
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStep<B: ADBackend, M, TI, TO> {
+pub struct MultiDevicesTrainStep<B: AutodiffBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
     receiver: Receiver<TrainOutput<TO>>,
 }
@@ -16,14 +16,14 @@ struct Message<M, TI> {
     model: M,
 }
 
-struct Worker<B: ADBackend, M, TI> {
+struct Worker<B: AutodiffBackend, M, TI> {
     sender_input: Sender<Message<M, TI>>,
     device: B::Device,
 }
 
 impl<B, M, TI> Worker<B, M, TI>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     M: ADModule<B>,
 {
     fn register(&self, item: TI, model: &M) {
@@ -64,7 +64,7 @@ where
 
 impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     M: ADModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,
     TI: Send + 'static,
     TO: Send + 'static,

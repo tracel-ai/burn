@@ -1,14 +1,14 @@
 use super::GradientsParams;
 use crate::module::ADModule;
 use crate::record::Record;
-use crate::tensor::backend::ADBackend;
+use crate::tensor::backend::AutodiffBackend;
 use crate::LearningRate;
 
 /// General trait to optimize [module](ADModule).
 pub trait Optimizer<M, B>: Send + Sync
 where
     M: ADModule<B>,
-    B: ADBackend,
+    B: AutodiffBackend,
 {
     /// Optimizer associative type to be used when saving and loading the state.
     type Record: Record;

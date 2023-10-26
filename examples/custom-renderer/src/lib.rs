@@ -3,7 +3,7 @@ use burn::train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
 use burn::train::LearnerBuilder;
 use burn::{
     config::Config, data::dataloader::DataLoaderBuilder, optim::AdamConfig,
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
 };
 use guide::{data::MNISTBatcher, model::ModelConfig};
 
@@ -39,7 +39,7 @@ impl MetricsRenderer for CustomRenderer {
     }
 }
 
-pub fn run<B: ADBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();

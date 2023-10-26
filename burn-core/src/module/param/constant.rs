@@ -7,7 +7,7 @@ use crate::{
 };
 use burn::record::PrecisionSettings;
 use burn_tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     Tensor,
 };
 
@@ -84,7 +84,7 @@ macro_rules! constant {
             constant!(module);
         }
 
-        impl<B: burn::tensor::backend::ADBackend> burn::module::ADModule<B> for $type {
+        impl<B: burn::tensor::backend::AutodiffBackend> burn::module::ADModule<B> for $type {
             constant!(ad_module, $type);
         }
     };
@@ -145,7 +145,7 @@ impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for Tensor<B, D> {
+impl<const D: usize, B: AutodiffBackend> ADModule<B> for Tensor<B, D> {
     type InnerModule = Tensor<B::InnerBackend, D>;
 
     fn valid(&self) -> Self::InnerModule {
@@ -173,7 +173,7 @@ impl<B: Backend> Module<B> for PhantomData<B> {
     }
 }
 
-impl<B: ADBackend> ADModule<B> for PhantomData<B> {
+impl<B: AutodiffBackend> ADModule<B> for PhantomData<B> {
     type InnerModule = PhantomData<B::InnerBackend>;
 
     fn valid(&self) -> Self::InnerModule {

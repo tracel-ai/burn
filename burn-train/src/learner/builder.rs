@@ -19,14 +19,14 @@ use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::ADModule;
 use burn_core::optim::Optimizer;
 use burn_core::record::FileRecorder;
-use burn_core::tensor::backend::ADBackend;
+use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
 where
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
-    B: ADBackend,
+    B: AutodiffBackend,
     M: ADModule<B>,
     O: Optimizer<M, B>,
     S: LrScheduler,
@@ -57,7 +57,7 @@ where
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     T: Send + Sync + 'static,
     V: Send + Sync + 'static,
     M: ADModule<B> + core::fmt::Display + 'static,

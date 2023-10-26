@@ -1,5 +1,5 @@
 use burn_tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     container::TensorContainer,
     Tensor,
 };
@@ -64,7 +64,7 @@ impl GradientsParams {
     }
 
     /// Change the device of each tensor gradients registered for the given [module](ADModule).
-    pub fn to_device<B: ADBackend, M: ADModule<B>>(
+    pub fn to_device<B: AutodiffBackend, M: ADModule<B>>(
         mut self,
         device: &B::Device,
         module: &M,
@@ -75,7 +75,7 @@ impl GradientsParams {
     }
 
     /// Extract each tensor gradients for the given [module](ADModule).
-    pub fn from_grads<B: ADBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
+    pub fn from_grads<B: AutodiffBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
         let mut grads_params = GradientsParams::new();
         let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
 

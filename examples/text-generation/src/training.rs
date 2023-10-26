@@ -11,7 +11,7 @@ use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
     record::{CompactRecorder, DefaultRecorder, Recorder},
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
@@ -31,7 +31,7 @@ pub struct ExperimentConfig {
     num_epochs: usize,
 }
 
-pub fn train<B: ADBackend, D: Dataset<TextGenerationItem> + 'static>(
+pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
     device: B::Device,
     dataset_train: D,
     dataset_test: D,

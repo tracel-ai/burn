@@ -1,4 +1,4 @@
-use burn::tensor::backend::ADBackend;
+use burn::tensor::backend::AutodiffBackend;
 
 use text_classification::AgNewsDataset;
 
@@ -8,7 +8,7 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: ADBackend>(device: B::Device) {
+pub fn launch<B: AutodiffBackend>(device: B::Device) {
     text_classification::inference::infer::<B, AgNewsDataset>(
         device,
         "/tmp/text-classification-ag-news",

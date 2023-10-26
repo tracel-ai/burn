@@ -1,5 +1,5 @@
 use crate::{grads::Gradients, graph::backward::backward, tensor::ADTensor};
-use burn_tensor::backend::{ADBackend, Backend};
+use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 
 /// Enable auto-differentiation on a backend.
@@ -42,7 +42,7 @@ impl<B: Backend> Backend for Autodiff<B> {
     }
 }
 
-impl<B: Backend> ADBackend for Autodiff<B> {
+impl<B: Backend> AutodiffBackend for Autodiff<B> {
     type InnerBackend = B;
     type Gradients = Gradients;
 

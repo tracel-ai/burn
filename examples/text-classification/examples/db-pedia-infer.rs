@@ -1,6 +1,6 @@
 use text_classification::DbPediaDataset;
 
-use burn::tensor::backend::ADBackend;
+use burn::tensor::backend::AutodiffBackend;
 
 #[cfg(not(feature = "f16"))]
 #[allow(dead_code)]
@@ -8,7 +8,7 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: ADBackend>(device: B::Device) {
+pub fn launch<B: AutodiffBackend>(device: B::Device) {
     text_classification::inference::infer::<B, DbPediaDataset>(
         device,
         "/tmp/text-classification-db-pedia",

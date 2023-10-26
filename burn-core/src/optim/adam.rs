@@ -9,7 +9,7 @@ use super::{
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::ADBackend, Tensor};
+use crate::tensor::{backend::AutodiffBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
 /// Adam configuration.
@@ -85,7 +85,7 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
