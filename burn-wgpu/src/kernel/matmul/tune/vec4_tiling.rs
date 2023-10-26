@@ -9,6 +9,7 @@ use crate::{
 };
 
 #[derive(new)]
+/// Tiling 2d with vec4 primitive matmul operation
 pub struct Vec4TilingMatmulAutotuneOperation<E: WgpuElement, const D: usize> {
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,

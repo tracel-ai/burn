@@ -4,7 +4,7 @@ use burn_tensor::{Element, Shape};
 
 use crate::{
     element::WgpuElement,
-    kernel::{slice, slice_assign, slice_on_output},
+    kernel::{slice_assign, slice_on_output},
     ops::numeric::zeros_device,
     tensor::WgpuTensor,
 };
@@ -273,7 +273,6 @@ mod tests {
         let col = 12;
         let keep_cols = 10;
         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
-        let shape = tensor.shape();
         let expected_shape = [keep_rows, keep_cols].into();
 
         let unpadded = crop(

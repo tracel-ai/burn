@@ -1,6 +1,7 @@
 use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor};
 use burn_tensor::Shape;
 
+/// Creates an empty output tensor with matmul output shape
 pub fn init_matmul_output<E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<E, D>,
     rhs: &WgpuTensor<E, D>,

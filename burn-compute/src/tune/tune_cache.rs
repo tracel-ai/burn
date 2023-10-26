@@ -9,13 +9,16 @@ use alloc::boxed::Box;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
-pub struct TuneCache<S> {
+pub(crate) struct TuneCache<S> {
     cache: HashMap<AutotuneKey, usize>,
     _server: PhantomData<S>,
 }
 
+/// Result of the cache try
 pub enum TuneCacheResult {
+    /// An operation is found and given
     Hit(Box<dyn AutotuneOperation>),
+    /// No operation is found and the set is given back for ownership
     Miss(Box<dyn AutotuneOperationSet>),
 }
 

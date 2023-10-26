@@ -1,22 +1,26 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-/// Type of operation for the kernel
+/// Groups operations of the same type for autotune
 pub trait AutotuneOperationSet: Send {
     /// The key used in the tune cache
     fn key(&self) -> AutotuneKey;
 
     /// All candidate operations for autotuning this operation type
+    /// Operations can run on toy tensors of relevant size
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>>;
 
     /// Returns the operation for the given index, matching the order
-    /// returned by autotunables
+    /// returned by autotunables. Operation obtained here runs on original tensors
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 }
 
+/// Contains operation to run and inputs on which to run it
 pub trait AutotuneOperation {
+    /// Runs the operation
     fn execute(self: Box<Self>);
 
+    /// Clones the operation and inputs
     fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
 

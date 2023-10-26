@@ -10,15 +10,16 @@ use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
-/// Server wrapper with extra capability of autotuning kernels
 #[derive(Debug)]
+/// Executes autotune benchmarking and caching
 pub struct Tuner<S, C> {
-    pub tune_cache: TuneCache<S>,
+    tune_cache: TuneCache<S>,
     _server: PhantomData<S>,
     _channel: PhantomData<C>,
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
+    /// Returns a tuner with empty cache
     pub fn new() -> Self {
         Self {
             tune_cache: TuneCache::new(),

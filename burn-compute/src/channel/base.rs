@@ -1,8 +1,4 @@
-use crate::{
-    server::{ComputeServer, Handle},
-    tune::AutotuneOperationSet,
-};
-use alloc::boxed::Box;
+use crate::server::{ComputeServer, Handle};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 
@@ -23,5 +19,4 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);
-
 }

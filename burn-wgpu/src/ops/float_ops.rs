@@ -1,6 +1,8 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use crate::kernel::matmul::init_matmul_output;
+#[cfg(feature = "autotune")]
 use crate::kernel::matmul::matmul_autotune;
-use crate::kernel::matmul::utils::init_matmul_output;
+#[cfg(not(feature = "autotune"))]
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,

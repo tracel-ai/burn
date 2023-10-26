@@ -1,6 +1,6 @@
 use super::SourceTemplate;
 use crate::{
-    compute::{Kernel, StaticKernel, WorkGroup},
+    compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
     tensor::WgpuTensor,
 };

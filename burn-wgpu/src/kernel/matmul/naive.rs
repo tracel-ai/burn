@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use super::utils::shape_out;
 use crate::{
     compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
-    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 

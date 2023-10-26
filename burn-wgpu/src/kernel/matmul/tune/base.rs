@@ -6,12 +6,14 @@ use burn_tensor::Element;
 use crate::{
     element::WgpuElement,
     kernel::matmul::{
-        autotune_tensors, utils::init_matmul_output, MemoryCoalescingMatmulAutotuneOperation,
-        Vec4TilingMatmulAutotuneOperation,
+        tune::utils::autotune_tensors, utils::init_matmul_output,
+        MemoryCoalescingMatmulAutotuneOperation, Vec4TilingMatmulAutotuneOperation,
     },
     tensor::WgpuTensor,
 };
 
+/// Set of matmul implementations available for autotune
+/// Autotune key is given by concatenating the closest upper power of 2 of m, k and n
 pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
     key: AutotuneKey,
     lhs: WgpuTensor<E, D>,
@@ -25,12 +27,24 @@ impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
         let k = lhs.shape.dims[D - 1];
         let n = rhs.shape.dims[D - 1];
         Self {
-            key: AutotuneKey::new("matmul".to_string(), log_mkn_input_key(m, k, n)),
+            key: AutotuneKey::new("matmul".to_string(), Self::log_mkn_input_key(m, k, n)),
             lhs,
             rhs,
             out,
             _element: PhantomData,
         }
+    }
+
+    fn log_mkn_input_key(m: usize, k: usize, n: usize) -> String {
+        let mut desc = String::new();
+
+        for size in [m, k, n] {
+            let exp = f32::ceil(f32::log2(size as f32)) as u32;
+            desc.push_str(2_u32.pow(exp).to_string().as_str());
+            desc.push(',');
+        }
+
+        desc
     }
 }
 
@@ -71,6 +85,7 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet
     }
 }
 
+/// Executes autotune on matmul operations
 pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
@@ -88,16 +103,4 @@ pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
     client.execute_autotune(operation_set);
 
     output
-}
-
-fn log_mkn_input_key(m: usize, k: usize, n: usize) -> String {
-    let mut desc = String::new();
-
-    for size in [m, k, n] {
-        let exp = f32::ceil(f32::log2(size as f32)) as u32;
-        desc.push_str(2_u32.pow(exp).to_string().as_str());
-        desc.push(',');
-    }
-
-    desc
 }

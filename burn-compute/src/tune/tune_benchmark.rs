@@ -1,8 +1,8 @@
 use burn_common::benchmark::Benchmark;
 
+use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
 use crate::server::ComputeServer;
-use crate::{channel::ComputeChannel, server::Handle};
 
 use super::AutotuneOperation;
 use alloc::string::{String, ToString};

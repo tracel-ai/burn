@@ -7,6 +7,7 @@ use crate::{
 };
 
 #[derive(new)]
+/// Memory coalescing matmul operation
 pub struct MemoryCoalescingMatmulAutotuneOperation<E: WgpuElement, const D: usize> {
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
