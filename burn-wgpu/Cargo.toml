@@ -8,14 +8,14 @@ license = "MIT OR Apache-2.0"
 name = "burn-wgpu"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
-version = "0.10.0"
+version = "0.11.0"
 
 [features]
 default = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.10.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0" }
+burn-common = { path = "../burn-common", version = "0.11.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.11.0" }
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
 log = { workspace = true }
@@ -33,21 +33,21 @@ serde = { workspace = true }
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 
 hashbrown = { workspace = true }
-burn-compute = { path = "../burn-compute", version = "0.10.0", default-features = false, features = [
+burn-compute = { path = "../burn-compute", version = "0.11.0", default-features = false, features = [
   "channel-mutex",
   "std",
 ] }
 
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.10.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", default-features = false, features = [
   "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = false, features = [
   "export_tests",
   "benchmark",
 ] }
-burn-ndarray = { path = "../burn-ndarray", version = "0.10.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.11.0" }
 serial_test = "2.0.0"
 
 [[bench]]

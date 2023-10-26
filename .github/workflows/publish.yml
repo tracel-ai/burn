@@ -109,6 +109,7 @@ jobs:
       - publish-burn-wgpu
       - publish-burn-tch
       - publish-burn-ndarray
+      - publish-burn-candle
     with:
       crate: burn-core
     secrets: inherit
