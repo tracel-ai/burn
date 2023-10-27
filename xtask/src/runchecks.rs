@@ -289,9 +289,6 @@ fn std_checks() {
 }
 
 fn check_typos() {
-    // Install typos-cli
-    cargo_install(["typos-cli", "--version", "1.16.5"].into());
-
     println!("Running typos check \n\n");
 
     // Run typos command as child process
