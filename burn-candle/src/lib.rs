@@ -25,8 +25,8 @@ mod tests {
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-    type TestADBackend = burn_autodiff::Autodiff<TestBackend>;
-    type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
+    type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+    type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
     // test activation
     burn_tensor::testgen_gelu!();

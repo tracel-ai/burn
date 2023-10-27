@@ -35,10 +35,10 @@ mod tests {
 
     fn test_ops_broadcast_backward<F>(func: F)
     where
-        F: Fn(Tensor<TestADBackend, 3>, Tensor<TestADBackend, 3>) -> Tensor<TestADBackend, 3>,
+        F: Fn(TestAutodiffTensor<3>, TestAutodiffTensor<3>) -> TestAutodiffTensor<3>,
     {
-        let w = TestADTensor::zeros([16, 5, 5]).require_grad();
-        let x = TestADTensor::zeros([4, 5, 5]).require_grad();
+        let w = TestAutodiffTensor::zeros([16, 5, 5]).require_grad();
+        let x = TestAutodiffTensor::zeros([4, 5, 5]).require_grad();
 
         // Slice isn't a broadcastable operation, so it will fail when the previous backward pass
         // of an operation that support broadcast doesn't support it during the backward pass.
