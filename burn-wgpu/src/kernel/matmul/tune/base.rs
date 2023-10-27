@@ -128,6 +128,7 @@ macro_rules! matmul_tune_ops {
 
         impl<E: WgpuElement, const D: usize> AutotuneOperation for $name<E, D> {
             fn execute(self: Box<Self>) {
+                #[allow(clippy::redundant_closure_call)]
                 $func(self.lhs, self.rhs, self.out);
             }
 
