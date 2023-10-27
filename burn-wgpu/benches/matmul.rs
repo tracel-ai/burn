@@ -1,4 +1,7 @@
-use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
+use burn_wgpu::{
+    kernel::matmul::{vec4_primitive, vec4_rhs},
+    WgpuDevice,
+};
 
 use std::marker::PhantomData;
 
@@ -107,6 +110,11 @@ bench_matmul!(
     Tiling2DMatmulVec4Primitive,
     vec4_primitive::matmul_tiling_2d_vec4_primitive_default
 );
+bench_matmul!(
+    Tiling2DMatmulVec4RHSBenchmark,
+    Tiling2DMatmulVec4RHS,
+    vec4_rhs::matmul_tiling_2d_vec4_rhs
+);
 
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
@@ -128,13 +136,14 @@ pub fn bench(device: &WgpuDevice) {
             );
         };
     }
-    run_matmul_benchmark!(NaiveMatmulBenchmark);
-    run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulContiguousBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulContiguousVectorizedBenchmark);
+    // run_matmul_benchmark!(NaiveMatmulBenchmark);
+    // run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulContiguousBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
+    // run_matmul_benchmark!(Tiling2DMatmulContiguousVectorizedBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4PrimitiveBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulVec4RHSBenchmark);
 }
 
 fn main() {

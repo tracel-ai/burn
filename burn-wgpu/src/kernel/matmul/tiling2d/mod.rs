@@ -11,5 +11,7 @@ pub mod tile;
 pub mod tile_vectorized;
 /// WGSL vec4 primitives are used on left hand tensor
 pub mod vec4_primitive;
+/// WGSL vec4 primitives are used on left and right hand tensor
+pub mod vec4_rhs;
 
 pub use contiguous_vectorized::*;
