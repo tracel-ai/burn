@@ -12,7 +12,7 @@ use burn::backend::wgpu::{
 };
 use burn::tensor::Shape;
 use derive_new::new;
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 // Source the kernel written in WGSL.
 kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
@@ -98,7 +98,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Arc::new(DynamicKernel::new(kernel, workgroup)),
+            Box::new(DynamicKernel::new(kernel, workgroup)),
             &[
                 &lhs.handle,
                 &rhs.handle,

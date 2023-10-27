@@ -46,17 +46,29 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         autotune_operation_set: Box<dyn AutotuneOperationSet>,
         client: &ComputeClient<S, C>,
     ) -> Box<dyn AutotuneOperation> {
+        let key = autotune_operation_set.key();
+        let autotunables = autotune_operation_set.autotunables();
+        let mut names = Vec::with_capacity(autotunables.len());
+
         // Run all autotune benchmarks
-        let results = autotune_operation_set
-            .autotunables()
+        let results: Vec<BenchmarkResult> = autotunables
             .into_iter()
-            .map(|op| self.run_benchmark(op, client))
+            .map(|op| {
+                names.push(op.name().to_string());
+                self.run_benchmark(op, client)
+            })
             .collect();
+
+        for (name, result) in names.iter().zip(results.iter()) {
+            log::info!("Benchmark result {name}-{key} => {result}");
+        }
 
         // Finds the fastest operation, stores it and returns it
         let fastest_index = self.find_fastest(results);
-        self.tune_cache
-            .cache_insert(autotune_operation_set.key(), fastest_index);
+        let fastest_name = names.get(fastest_index).unwrap();
+        log::info!("Fastest result {fastest_name}-{key}");
+
+        self.tune_cache.cache_insert(key, fastest_index);
         match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),

@@ -1,3 +1,5 @@
+use core::fmt::Display;
+
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -20,6 +22,9 @@ pub trait AutotuneOperation {
     /// Runs the operation
     fn execute(self: Box<Self>);
 
+    /// The name of the operation.
+    fn name(&self) -> &str;
+
     /// Clones the operation and inputs
     fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
@@ -30,4 +35,10 @@ pub trait AutotuneOperation {
 pub struct AutotuneKey {
     operation: String,
     input_description: String,
+}
+
+impl Display for AutotuneKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(format!("{}-{}", self.operation, self.input_description).as_str())
+    }
 }

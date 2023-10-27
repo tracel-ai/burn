@@ -19,12 +19,3 @@ pub use half::{bf16, f16};
 pub use tensor::*;
 
 pub use burn_common::reader::Reader; // Useful so that backends don't have to add `burn_common` as
-                                     // a dependency so that they can implement the traits.
-
-#[cfg(feature = "benchmark")]
-/// This module provides benchmark utilities for easily and reliably run
-/// benches on any function that is generic over a backend.
-///
-/// This can be useful to compare backends on  inference or training speed
-/// for your models.
-pub mod benchmark;
