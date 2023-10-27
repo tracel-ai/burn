@@ -69,7 +69,7 @@ pub struct MultiplicationAutotuneOperationSet {
     handles: Vec<Handle<DummyServer>>,
 }
 
-impl<'a> MultiplicationAutotuneOperationSet {
+impl MultiplicationAutotuneOperationSet {
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,

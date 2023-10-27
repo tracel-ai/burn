@@ -10,7 +10,7 @@ use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// Executes autotune benchmarking and caching
 pub struct Tuner<S, C> {
     tune_cache: TuneCache<S>,

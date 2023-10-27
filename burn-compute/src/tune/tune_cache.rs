@@ -8,7 +8,7 @@ use super::AutotuneOperationSet;
 use alloc::boxed::Box;
 
 /// Use to find and reuse the best kernel for some input
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct TuneCache<S> {
     cache: HashMap<AutotuneKey, usize>,
     _server: PhantomData<S>,

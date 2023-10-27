@@ -131,10 +131,6 @@ macro_rules! matmul_tune_ops {
                 $func(self.lhs, self.rhs, self.out);
             }
 
-            fn name(&self) -> &str {
-                stringify!($name)
-            }
-
             fn clone(&self) -> Box<dyn AutotuneOperation> {
                 Box::new(Self {
                     lhs: self.lhs.clone(),

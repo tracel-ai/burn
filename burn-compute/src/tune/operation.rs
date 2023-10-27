@@ -23,7 +23,9 @@ pub trait AutotuneOperation {
     fn execute(self: Box<Self>);
 
     /// The name of the operation.
-    fn name(&self) -> &str;
+    fn name(&self) -> &str {
+        core::any::type_name::<Self>()
+    }
 
     /// Clones the operation and inputs
     fn clone(&self) -> Box<dyn AutotuneOperation>;
