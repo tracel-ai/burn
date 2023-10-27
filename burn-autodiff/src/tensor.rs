@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ADTensor<B: Backend, const D: usize> {
+pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::TensorPrimitive<D>,
     pub node: NodeRef,
     pub graph: Graph,
@@ -29,7 +29,7 @@ impl Step for RootStep {
     }
 }
 
-impl<B: Backend, const D: usize> ADTensor<B, D> {
+impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = NodeID::new();

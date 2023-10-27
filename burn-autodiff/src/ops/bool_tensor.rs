@@ -1,4 +1,4 @@
-use crate::{tensor::ADTensor, Autodiff};
+use crate::{tensor::AutodiffTensor, Autodiff};
 
 use burn_tensor::{
     backend::Backend,
@@ -82,7 +82,7 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
     fn bool_into_float<const D: usize>(
         tensor: BoolTensor<B, D>,
     ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
-        ADTensor::new(B::bool_into_float(tensor))
+        AutodiffTensor::new(B::bool_into_float(tensor))
     }
 
     fn bool_swap_dims<const D: usize>(

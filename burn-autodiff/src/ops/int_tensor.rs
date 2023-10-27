@@ -1,4 +1,4 @@
-use crate::{tensor::ADTensor, Autodiff};
+use crate::{tensor::AutodiffTensor, Autodiff};
 
 use burn_tensor::{
     backend::Backend,
@@ -306,7 +306,7 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     fn int_into_float<const D: usize>(
         tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
     ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
-        ADTensor::new(B::int_into_float(tensor))
+        AutodiffTensor::new(B::int_into_float(tensor))
     }
 
     fn int_swap_dims<const D: usize>(

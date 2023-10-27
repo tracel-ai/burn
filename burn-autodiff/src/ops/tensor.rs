@@ -4,7 +4,7 @@ use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
     ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
-    tensor::ADTensor,
+    tensor::AutodiffTensor,
     utils::duplicate,
     Autodiff,
 };
@@ -22,7 +22,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         data: Data<FloatElem<B>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        ADTensor::new(B::from_data(data, device))
+        AutodiffTensor::new(B::from_data(data, device))
     }
 
     fn random<const D: usize>(
@@ -30,7 +30,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         distribution: burn_tensor::Distribution<FloatElem<B>>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        ADTensor::new(B::random(shape, distribution, device))
+        AutodiffTensor::new(B::random(shape, distribution, device))
     }
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -88,7 +88,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        ADTensor::new(B::empty(shape, device))
+        AutodiffTensor::new(B::empty(shape, device))
     }
 
     fn add<const D: usize>(
@@ -913,7 +913,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
         // `require_grad` setting.
         let is_require_grad = Self::is_require_grad(&tensor);
-        let tensor = ADTensor::new(tensor.primitive);
+        let tensor = AutodiffTensor::new(tensor.primitive);
 
         match is_require_grad {
             true => tensor.require_grad(),
@@ -929,7 +929,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             return tensor.require_grad();
         }
 
-        ADTensor::new(tensor.primitive)
+        AutodiffTensor::new(tensor.primitive)
     }
 
     fn is_require_grad<const D: usize>(tensor: &FloatTensor<Self, D>) -> bool {
@@ -1411,10 +1411,10 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
         let output = B::cat(primitives, dim);
         if requirement.is_none() {
-            return ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
+            return AutodiffTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         }
 
-        let output = ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
+        let output = AutodiffTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())

@@ -55,7 +55,7 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
 }
 
 impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
-   fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
+   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
       // My own backward implementation, generic over my custom Backend trait.
       //
       // You can add a new method `my_new_function_backward` to your custom backend
@@ -64,7 +64,7 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
 }
 
 impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E>> {
-   fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
+   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
       // My own backward implementation, generic over a backend implementation.
       //
       // This is another way to call a custom kernel for the backward pass that
