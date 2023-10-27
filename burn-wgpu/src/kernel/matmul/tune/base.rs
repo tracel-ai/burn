@@ -1,14 +1,9 @@
-use std::marker::PhantomData;
-
 use burn_compute::tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::Element;
 
 use crate::{
     element::WgpuElement,
-    kernel::matmul::{
-        tune::utils::autotune_tensors, utils::init_matmul_output,
-        MemoryCoalescingMatmulAutotuneOperation, Vec4TilingMatmulAutotuneOperation,
-    },
+    kernel::matmul::{tune::utils::autotune_tensors, utils::init_matmul_output},
     tensor::WgpuTensor,
 };
 
@@ -19,19 +14,18 @@ pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     out: WgpuTensor<E, D>,
-    _element: PhantomData<E>,
 }
 impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
     fn new(lhs: WgpuTensor<E, D>, rhs: WgpuTensor<E, D>, out: WgpuTensor<E, D>) -> Self {
         let m = lhs.shape.dims[D - 2];
         let k = lhs.shape.dims[D - 1];
         let n = rhs.shape.dims[D - 1];
+
         Self {
             key: AutotuneKey::new("matmul".to_string(), Self::log_mkn_input_key(m, k, n)),
             lhs,
             rhs,
             out,
-            _element: PhantomData,
         }
     }
 
@@ -61,23 +55,29 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet
         let out = autotune_tensors(&self.out);
 
         vec![
-            Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, 3>::new(
+            Box::new(MemoryCoalescingMatmulDefault::<E, 3>::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulAutotuneOperation::<E, 3>::new(
-                lhs, rhs, out,
+            Box::new(MemoryCoalescingMatmulW16x16::<E, 3>::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
             )),
+            Box::new(Vec4TilingMatmulDefault::<E, 3>::new(lhs, rhs, out)),
         ]
     }
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         match fastest_index {
-            0 => Box::new(MemoryCoalescingMatmulAutotuneOperation::<E, D>::new(
+            0 => Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
                 self.lhs, self.rhs, self.out,
             )),
-            1 => Box::new(Vec4TilingMatmulAutotuneOperation::<E, D>::new(
+            1 => Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
+                self.lhs, self.rhs, self.out,
+            )),
+            2 => Box::new(Vec4TilingMatmulDefault::<E, D>::new(
                 self.lhs, self.rhs, self.out,
             )),
             _ => panic!("Fastest index is out of bound"),
@@ -104,3 +104,42 @@ pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
 
     output
 }
+
+macro_rules! matmul_tune_ops {
+    ($name:ident, $func:expr) => {
+        #[derive(new)]
+        pub(crate) struct $name<E: WgpuElement, const D: usize> {
+            lhs: WgpuTensor<E, D>,
+            rhs: WgpuTensor<E, D>,
+            out: WgpuTensor<E, D>,
+        }
+
+        impl<E: WgpuElement, const D: usize> AutotuneOperation for $name<E, D> {
+            fn execute(self: Box<Self>) {
+                $func(self.lhs, self.rhs, self.out);
+            }
+
+            fn clone(&self) -> Box<dyn AutotuneOperation> {
+                Box::new(Self {
+                    lhs: self.lhs.clone(),
+                    rhs: self.rhs.clone(),
+                    out: self.out.clone(),
+                })
+            }
+        }
+    };
+}
+
+matmul_tune_ops!(
+    MemoryCoalescingMatmulDefault,
+    crate::kernel::matmul::matmul_mem_coalescing_default
+);
+
+matmul_tune_ops!(MemoryCoalescingMatmulW16x16, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_mem_coalescing(lhs, rhs, out, 16, 16)
+});
+
+matmul_tune_ops!(
+    Vec4TilingMatmulDefault,
+    crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default
+);

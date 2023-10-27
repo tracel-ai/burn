@@ -1,6 +1,5 @@
-use std::{marker::PhantomData, sync::Arc};
-
 use burn_tensor::Shape;
+use std::marker::PhantomData;
 
 use crate::{
     compute::{DynamicKernel, Kernel, WorkGroup},
@@ -87,7 +86,7 @@ fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
     output_shape: &Shape<D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> Arc<dyn Kernel> {
+) -> Box<dyn Kernel> {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
@@ -101,7 +100,7 @@ fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
 
     let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
 
-    Arc::new(DynamicKernel::new(
+    Box::new(DynamicKernel::new(
         MatmulMemCoalescing::<E>::new(workgroup_size_x, workgroup_size_y),
         workgroup,
     ))

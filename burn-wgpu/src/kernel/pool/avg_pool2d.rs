@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::{Kernel, StaticKernel},
     element::WgpuElement,
@@ -45,11 +43,11 @@ pub(crate) fn avg_pool2d<E: WgpuElement>(
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
 
     let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
-    let kernel: Arc<dyn Kernel> = match count_include_pad {
-        true => Arc::new(StaticKernel::<
+    let kernel: Box<dyn Kernel> = match count_include_pad {
+        true => Box::new(StaticKernel::<
             KernelSettings<AvgPool2d<true>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
         >::new(workgroup)),
-        false => Arc::new(StaticKernel::<
+        false => Box::new(StaticKernel::<
             KernelSettings<AvgPool2d<false>, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
         >::new(workgroup)),
     };
@@ -73,8 +71,8 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);
     let workgroup = elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT);
 
-    let kernel: Arc<dyn Kernel> = match count_include_pad {
-        true => Arc::new(StaticKernel::<
+    let kernel: Box<dyn Kernel> = match count_include_pad {
+        true => Box::new(StaticKernel::<
             KernelSettings<
                 AvgPool2dBackward<true>,
                 E,
@@ -84,7 +82,7 @@ pub(crate) fn avg_pool2d_backward<E: WgpuElement>(
                 1,
             >,
         >::new(workgroup)),
-        false => Arc::new(StaticKernel::<
+        false => Box::new(StaticKernel::<
             KernelSettings<
                 AvgPool2dBackward<false>,
                 E,

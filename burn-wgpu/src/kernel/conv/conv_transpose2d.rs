@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -62,7 +60,7 @@ pub(crate) fn conv_transpose2d<E: WgpuElement + Element>(
         KernelSettings<ConvTranspose2d, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &input.handle,
             &weight.handle,

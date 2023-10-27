@@ -4,7 +4,7 @@ use crate::{
     element::WgpuElement,
     tensor::WgpuTensor,
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 #[cfg(target_family = "wasm")]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
@@ -65,7 +65,7 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     let info = build_info(&[&tensor, &output]);
     let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
 
-    let kernel = Arc::new(StaticKernel::<
+    let kernel = Box::new(StaticKernel::<
         KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
 

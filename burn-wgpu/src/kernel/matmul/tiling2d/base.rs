@@ -7,10 +7,7 @@ use crate::{
     tensor::WgpuTensor,
 };
 use burn_tensor::{Element, Shape};
-use std::{
-    cmp::{max, min},
-    sync::Arc,
-};
+use std::cmp::{max, min};
 
 const MAX_SHARED_MEMORY_SIZE: usize = 8192;
 
@@ -475,7 +472,7 @@ pub(super) fn matmul_tiling_2d_launch<
     let info_handle = make_info_handle(&lhs, &rhs, &rounded_output);
 
     lhs.client.execute(
-        Arc::new(DynamicKernel::new(kernel, workgroup)),
+        Box::new(DynamicKernel::new(kernel, workgroup)),
         &[
             &lhs.handle,
             &rhs.handle,

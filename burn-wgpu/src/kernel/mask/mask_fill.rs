@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -33,7 +31,7 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &input.handle,
             &value_handle,
@@ -61,7 +59,7 @@ pub fn mask_fill_inplace<E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&input.handle, &value_handle, &mask.handle, &info_handle],
     );
 

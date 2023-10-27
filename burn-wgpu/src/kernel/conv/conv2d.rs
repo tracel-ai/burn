@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -72,7 +70,7 @@ pub(crate) fn conv2d<E: WgpuElement + Element>(
     ));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &input.handle,
             &weight.handle,

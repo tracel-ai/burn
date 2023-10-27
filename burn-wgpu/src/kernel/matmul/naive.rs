@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
@@ -75,7 +73,7 @@ pub fn matmul_naive<
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 

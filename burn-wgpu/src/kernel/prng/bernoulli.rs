@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use burn_tensor::Shape;
-
 use crate::{
     compute::{compute_client, StaticKernel},
     element::WgpuElement,
@@ -13,6 +9,7 @@ use crate::{
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
+use burn_tensor::Shape;
 
 use super::base::Prng;
 
@@ -48,7 +45,7 @@ pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
     >::new(workgroup);
 
     client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&output.handle, &info_handle, &args_handle],
     );
 
