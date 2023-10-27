@@ -93,7 +93,7 @@ mod tests {
     use crate::{
         module::{list_param_ids, Module},
         nn::{Linear, LinearConfig},
-        TestADBackend,
+        TestAutodiffBackend,
     };
     use burn_tensor::{backend::Backend, Distribution};
 
@@ -101,7 +101,7 @@ mod tests {
     fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
-        layer_2 = layer_2.fork(&<TestADBackend as Backend>::Device::default());
+        layer_2 = layer_2.fork(&<TestAutodiffBackend as Backend>::Device::default());
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
@@ -115,11 +115,11 @@ mod tests {
         assert_eq!(grads_2.len(), param_ids_2.len());
     }
 
-    fn layer() -> Linear<TestADBackend> {
+    fn layer() -> Linear<TestAutodiffBackend> {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random([2, 20], Distribution::Default)
+    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random([2, 20], Distribution::Default)
     }
 }

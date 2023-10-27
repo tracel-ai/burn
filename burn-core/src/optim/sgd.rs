@@ -101,7 +101,7 @@ mod tests {
         nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
-        TestADBackend, TestBackend,
+        TestAutodiffBackend, TestBackend,
     };
 
     const LEARNING_RATE: LearningRate = 0.02;
@@ -152,15 +152,16 @@ mod tests {
         assert_eq!(record.len(), state_restored.len());
     }
 
-    fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
+    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
     }
 
-    fn layer() -> Linear<TestADBackend> {
+    fn layer() -> Linear<TestAutodiffBackend> {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn sgd_with_all() -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
+    fn sgd_with_all(
+    ) -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         SgdConfig {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {

@@ -6,7 +6,7 @@ use burn_tensor::{backend::AutodiffBackend, Tensor};
 
 use super::GradientsParams;
 
-/// Accumulate gradients into a single [Gradients](ADBackend::Gradients) object.
+/// Accumulate gradients into a single [Gradients](AutodiffBackend::Gradients) object.
 pub struct GradientsAccumulator<M> {
     grads: GradientsParams,
     phantom: PhantomData<M>,
@@ -79,7 +79,7 @@ mod tests {
     use super::*;
     use crate::{
         nn::{Linear, LinearConfig},
-        TestADBackend,
+        TestAutodiffBackend,
     };
     use burn_tensor::Distribution;
 
@@ -112,11 +112,11 @@ mod tests {
         assert_eq!(grads.len(), 2)
     }
 
-    fn layer() -> Linear<TestADBackend> {
+    fn layer() -> Linear<TestAutodiffBackend> {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random([2, 20], Distribution::Default)
+    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random([2, 20], Distribution::Default)
     }
 }

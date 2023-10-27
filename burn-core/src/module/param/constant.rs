@@ -191,7 +191,7 @@ mod tests {
     use crate::TestBackend;
     use crate::{
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-        TestADBackend,
+        TestAutodiffBackend,
     };
     use burn::module::Module;
 
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn tensor_load_record_setting() {
-        let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3]);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder

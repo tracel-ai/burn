@@ -5,7 +5,7 @@ use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 #[cfg(feature = "std")]
-pub type TestADBackend = burn_autodiff::Autodiff<TestBackend>;
+pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
 #[derive(Module, Debug)]
 pub struct ModuleBasic<B: Backend> {
@@ -104,7 +104,7 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_by_default() {
-        let module = ModuleBasic::<TestADBackend>::new();
+        let module = ModuleBasic::<TestAutodiffBackend>::new();
         let mut grads = calculate_grads(&module);
 
         let grad_x = module.weight_basic.grad_remove(&mut grads);
@@ -114,7 +114,7 @@ mod require_grad {
 
     #[test]
     fn should_have_no_grad_after_no_grad() {
-        let module = ModuleBasic::<TestADBackend>::new().no_grad();
+        let module = ModuleBasic::<TestAutodiffBackend>::new().no_grad();
         let mut grads = calculate_grads(&module);
 
         let grad_x = module.weight_basic.grad_remove(&mut grads);
@@ -124,7 +124,7 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_when_from_record() {
-        let module = ModuleBasic::<TestADBackend>::new();
+        let module = ModuleBasic::<TestAutodiffBackend>::new();
         let record = ModuleBasicRecord {
             weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
         };
@@ -137,8 +137,8 @@ mod require_grad {
     }
 
     fn calculate_grads(
-        module: &ModuleBasic<TestADBackend>,
-    ) -> <TestADBackend as AutodiffBackend>::Gradients {
+        module: &ModuleBasic<TestAutodiffBackend>,
+    ) -> <TestAutodiffBackend as AutodiffBackend>::Gradients {
         let x = Tensor::ones([20, 20]).require_grad();
         let y = module.weight_basic.val().matmul(x);
 

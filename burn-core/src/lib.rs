@@ -55,7 +55,7 @@ pub type TestBackend = burn_wgpu::Wgpu<burn_wgpu::Metal, f32, i32>;
 
 #[cfg(feature = "std")]
 #[cfg(test)]
-pub type TestADBackend = burn_autodiff::Autodiff<TestBackend>;
+pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
 /// Type alias for the learning rate.
 ///
