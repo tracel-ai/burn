@@ -847,7 +847,10 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
     }
 
-    fn adaptive_avg_pool2d(x: AutodiffTensor<B, 4>, output_size: [usize; 2]) -> AutodiffTensor<B, 4> {
+    fn adaptive_avg_pool2d(
+        x: AutodiffTensor<B, 4>,
+        output_size: [usize; 2],
+    ) -> AutodiffTensor<B, 4> {
         #[derive(Debug)]
         struct AdaptiveAvgPool2D;
 

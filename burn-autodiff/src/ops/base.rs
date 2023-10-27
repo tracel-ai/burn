@@ -94,7 +94,11 @@ where
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
-    pub fn finish(self, state: S, output: <B as Backend>::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    pub fn finish(
+        self,
+        state: S,
+        output: <B as Backend>::TensorPrimitive<D>,
+    ) -> AutodiffTensor<B, D> {
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
