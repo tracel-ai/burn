@@ -1,10 +1,10 @@
 use burn_tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     container::TensorContainer,
     Tensor,
 };
 
-use crate::module::{ADModule, ParamId};
+use crate::module::{AutodiffModule, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
@@ -63,8 +63,8 @@ impl GradientsParams {
         self.len() == 0
     }
 
-    /// Change the device of each tensor gradients registered for the given [module](ADModule).
-    pub fn to_device<B: ADBackend, M: ADModule<B>>(
+    /// Change the device of each tensor gradients registered for the given [module](AutodiffModule).
+    pub fn to_device<B: AutodiffBackend, M: AutodiffModule<B>>(
         mut self,
         device: &B::Device,
         module: &M,
@@ -74,8 +74,11 @@ impl GradientsParams {
         self
     }
 
-    /// Extract each tensor gradients for the given [module](ADModule).
-    pub fn from_grads<B: ADBackend, M: ADModule<B>>(grads: B::Gradients, module: &M) -> Self {
+    /// Extract each tensor gradients for the given [module](AutodiffModule).
+    pub fn from_grads<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: B::Gradients,
+        module: &M,
+    ) -> Self {
         let mut grads_params = GradientsParams::new();
         let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
 
@@ -90,7 +93,7 @@ mod tests {
     use crate::{
         module::{list_param_ids, Module},
         nn::{Linear, LinearConfig},
-        TestADBackend,
+        TestAutodiffBackend,
     };
     use burn_tensor::{backend::Backend, Distribution};
 
@@ -98,7 +101,7 @@ mod tests {
     fn test_convert_grads() {
         let layer_1 = layer();
         let mut layer_2 = layer_1.clone();
-        layer_2 = layer_2.fork(&<TestADBackend as Backend>::Device::default());
+        layer_2 = layer_2.fork(&<TestAutodiffBackend as Backend>::Device::default());
         let loss_1 = layer_1.forward(random_tensor());
         let loss_2 = layer_2.forward(random_tensor());
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
@@ -112,11 +115,11 @@ mod tests {
         assert_eq!(grads_2.len(), param_ids_2.len());
     }
 
-    fn layer() -> Linear<TestADBackend> {
+    fn layer() -> Linear<TestAutodiffBackend> {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random([2, 20], Distribution::Default)
+    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random([2, 20], Distribution::Default)
     }
 }

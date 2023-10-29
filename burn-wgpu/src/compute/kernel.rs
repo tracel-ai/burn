@@ -72,8 +72,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::{
         binary_elemwise, compute::compute_client, kernel::KernelSettings, AutoGraphicsApi,
@@ -96,7 +94,7 @@ mod tests {
         let info = client.create(bytemuck::cast_slice(&info));
 
         type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
-        let kernel = Arc::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
+        let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);
 

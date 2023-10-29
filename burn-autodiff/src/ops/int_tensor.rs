@@ -1,14 +1,15 @@
-use crate::{
-    tensor::{ADTensor, BoolTensor, IntTensor},
-    ADBackendDecorator,
+use crate::{tensor::AutodiffTensor, Autodiff};
+
+use burn_tensor::{
+    backend::Backend,
+    ops::{BoolTensor, IntTensor, IntTensorOps},
+    Data, Device, Reader, Shape,
 };
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
-
-impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     fn int_from_data<const D: usize>(
         data: Data<B::IntElem, D>,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_from_data(data, device)
     }
@@ -27,12 +28,12 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_to_device<const D: usize>(
         tensor: IntTensor<B, D>,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_to_device(tensor, device)
     }
 
-    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> B::Device {
+    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> Device<Self> {
         B::int_device(tensor)
     }
 
@@ -52,7 +53,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn int_empty<const D: usize>(
         shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
+        device: &<Autodiff<B> as Backend>::Device,
     ) -> IntTensor<B, D> {
         B::int_empty(shape, device)
     }
@@ -129,24 +130,18 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_neg(tensor)
     }
 
-    fn int_zeros<const D: usize>(
-        shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> IntTensor<B, D> {
+    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_zeros(shape, device)
     }
 
-    fn int_ones<const D: usize>(
-        shape: Shape<D>,
-        device: &<ADBackendDecorator<B> as Backend>::Device,
-    ) -> IntTensor<B, D> {
+    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_ones(shape, device)
     }
 
     fn int_full<const D: usize>(
         shape: Shape<D>,
         fill_value: B::IntElem,
-        device: &B::Device,
+        device: &Device<Self>,
     ) -> IntTensor<B, D> {
         B::int_full(shape, fill_value, device)
     }
@@ -257,7 +252,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: IntTensor<B, D>,
         mask: BoolTensor<B, D>,
         value: IntTensor<B, D>,
-    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::int_mask_where(tensor, mask, value)
     }
 
@@ -265,7 +260,7 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         tensor: IntTensor<B, D>,
         mask: BoolTensor<B, D>,
         value: B::IntElem,
-    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::int_mask_fill(tensor, mask, value)
     }
 
@@ -309,16 +304,16 @@ impl<B: Backend> IntTensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         B::int_abs(tensor)
     }
     fn int_into_float<const D: usize>(
-        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
-    ) -> <ADBackendDecorator<B> as Backend>::TensorPrimitive<D> {
-        ADTensor::new(B::int_into_float(tensor))
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+    ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
+        AutodiffTensor::new(B::int_into_float(tensor))
     }
 
     fn int_swap_dims<const D: usize>(
-        tensor: <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>,
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::int_swap_dims(tensor, dim1, dim2)
     }
 }

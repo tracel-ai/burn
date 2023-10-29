@@ -10,15 +10,15 @@ use burn_tensor::backend::Backend;
 /// # Example
 ///
 /// ```no_run
-/// use burn_tch::TchDevice;
+/// use burn_tch::LibTorchDevice;
 ///
-/// let device_gpu_1 = TchDevice::Cuda(0); // First GPU
-/// let device_gpu_2 = TchDevice::Cuda(1); // Second GPU
-/// let device_cpu = TchDevice::Cpu; // CPU
-/// let device_mps = TchDevice::Mps; // Metal Performance Shaders
-/// let device_vulkan = TchDevice::Vulkan; // Vulkan
+/// let device_gpu_1 = LibTorchDevice::Cuda(0); // First GPU
+/// let device_gpu_2 = LibTorchDevice::Cuda(1); // Second GPU
+/// let device_cpu = LibTorchDevice::Cpu; // CPU
+/// let device_mps = LibTorchDevice::Mps; // Metal Performance Shaders
+/// let device_vulkan = LibTorchDevice::Vulkan; // Vulkan
 /// ```
-pub enum TchDevice {
+pub enum LibTorchDevice {
     /// CPU device.
     Cpu,
 
@@ -33,44 +33,50 @@ pub enum TchDevice {
     Vulkan,
 }
 
-impl From<TchDevice> for tch::Device {
-    fn from(device: TchDevice) -> Self {
+impl From<LibTorchDevice> for tch::Device {
+    fn from(device: LibTorchDevice) -> Self {
         match device {
-            TchDevice::Cpu => tch::Device::Cpu,
-            TchDevice::Cuda(num) => tch::Device::Cuda(num),
-            TchDevice::Mps => tch::Device::Mps,
-            TchDevice::Vulkan => tch::Device::Vulkan,
+            LibTorchDevice::Cpu => tch::Device::Cpu,
+            LibTorchDevice::Cuda(num) => tch::Device::Cuda(num),
+            LibTorchDevice::Mps => tch::Device::Mps,
+            LibTorchDevice::Vulkan => tch::Device::Vulkan,
         }
     }
 }
 
-impl From<tch::Device> for TchDevice {
+impl From<tch::Device> for LibTorchDevice {
     fn from(device: tch::Device) -> Self {
         match device {
-            tch::Device::Cpu => TchDevice::Cpu,
-            tch::Device::Cuda(num) => TchDevice::Cuda(num),
-            tch::Device::Mps => TchDevice::Mps,
-            tch::Device::Vulkan => TchDevice::Vulkan,
+            tch::Device::Cpu => LibTorchDevice::Cpu,
+            tch::Device::Cuda(num) => LibTorchDevice::Cuda(num),
+            tch::Device::Mps => LibTorchDevice::Mps,
+            tch::Device::Vulkan => LibTorchDevice::Vulkan,
         }
     }
 }
 
-impl Default for TchDevice {
+impl Default for LibTorchDevice {
     fn default() -> Self {
         Self::Cpu
     }
 }
 
-/// The Tch backend.
+/// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.
+///
+/// This backend is compatible with a wide range of hardwares ranging from CPUs to GPUs, but
+/// required `LibTorch` to be installed and compiled correctly. The CPU version can be downloaded
+/// automatically, but more complex configurations needs manual installation.
+///
+/// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct TchBackend<E> {
+pub struct LibTorch<E = f32> {
     _e: E,
 }
 
-impl<E: TchElement> Backend for TchBackend<E> {
-    type Device = TchDevice;
+impl<E: TchElement> Backend for LibTorch<E> {
+    type Device = LibTorchDevice;
     type FullPrecisionElem = f32;
-    type FullPrecisionBackend = TchBackend<f32>;
+    type FullPrecisionBackend = LibTorch<f32>;
 
     type TensorPrimitive<const D: usize> = TchTensor<E, D>;
     type FloatElem = E;
@@ -93,9 +99,9 @@ impl<E: TchElement> Backend for TchBackend<E> {
     }
 
     fn sync(device: &Self::Device) {
-        if let TchDevice::Cuda(index) = device {
+        if let LibTorchDevice::Cuda(index) = device {
             tch::Cuda::synchronize(*index as i64);
-        } else if let TchDevice::Mps = device {
+        } else if let LibTorchDevice::Mps = device {
             panic!("Can't sync MPS device")
         }
     }

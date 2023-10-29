@@ -8,11 +8,11 @@ use burn::backend::wgpu::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
-    FloatElement, GraphicsApi, IntElement, WgpuBackend,
+    FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn::tensor::Shape;
 use derive_new::new;
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
 // Source the kernel written in WGSL.
 kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
@@ -43,7 +43,7 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
@@ -98,7 +98,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, 
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
-            Arc::new(DynamicKernel::new(kernel, workgroup)),
+            Box::new(DynamicKernel::new(kernel, workgroup)),
             &[
                 &lhs.handle,
                 &rhs.handle,

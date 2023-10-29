@@ -1,12 +1,8 @@
-use std::sync::Arc;
-
-use super::utils::shape_out;
 use crate::{
     compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
-    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -28,8 +24,9 @@ impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernelS
 pub fn matmul_naive_default<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    matmul_naive::<E, D, 16, 16>(lhs, rhs)
+    matmul_naive::<E, D, 16, 16>(lhs, rhs, output)
 }
 
 /// Matrix multiplication using naive algorithm with custom workgroup sizes
@@ -41,18 +38,15 @@ pub fn matmul_naive<
 >(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let shape_out = shape_out(&lhs, &rhs);
-
     let num_rows = lhs.shape.dims[D - 2];
     let num_cols = rhs.shape.dims[D - 1];
-
-    let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
 
     // set number of workgroups
     let blocks_needed_in_x = f32::ceil(num_rows as f32 / WORKGROUP_SIZE_X as f32) as u32;
@@ -79,7 +73,7 @@ pub fn matmul_naive<
     let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
     lhs.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 

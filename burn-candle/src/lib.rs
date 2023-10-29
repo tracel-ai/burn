@@ -18,15 +18,15 @@ mod tests {
     extern crate alloc;
     use super::*;
 
-    pub type TestBackend = CandleBackend<f32, i64>;
-    pub type ReferenceBackend = burn_tch::TchBackend<f32>;
+    pub type TestBackend = Candle<f32, i64>;
+    pub type ReferenceBackend = burn_tch::LibTorch<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-    type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
-    type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
+    type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+    type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
     // test activation
     burn_tensor::testgen_gelu!();

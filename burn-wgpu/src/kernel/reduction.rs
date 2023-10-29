@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
@@ -67,7 +65,7 @@ pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTenso
 
         input
             .client
-            .execute(Arc::new(kernel), &[&input_handle, &handle]);
+            .execute(Box::new(kernel), &[&input_handle, &handle]);
 
         if num_invocations <= 1 {
             return WgpuTensor::new(input.client, input.device, Shape::new([1]), handle);
@@ -119,7 +117,7 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&input.handle, &output.handle, &info_handle],
     );
 
@@ -166,7 +164,7 @@ fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, con
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&input.handle, &output.handle, &info_handle],
     );
 

@@ -31,6 +31,7 @@ mod tests {
     macro_rules! clone_invariance_test {
         (unary: $name:ident, ops_float: $ops:expr) => {
             #[test]
+            #[allow(non_snake_case)]
             fn $name() {
                 struct $name;
 
@@ -62,6 +63,7 @@ mod tests {
 
         (binary: $name:ident, ops_float: $ops:expr) => {
             #[test]
+            #[allow(non_snake_case)]
             fn $name() {
                 struct $name;
 
@@ -103,6 +105,7 @@ mod tests {
 
         (unary: $name:ident, ops_int: $ops:expr) => {
             #[test]
+            #[allow(non_snake_case)]
             fn $name() {
                 struct $name;
 
@@ -134,6 +137,7 @@ mod tests {
 
         (binary: $name:ident, ops_int: $ops:expr) => {
             #[test]
+            #[allow(non_snake_case)]
             fn $name() {
                 struct $name;
 

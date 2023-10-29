@@ -1,15 +1,16 @@
-use super::{numeric, BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use super::numeric;
 use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, unary, unary_inplace, GraphicsApi, WgpuBackend,
+    kernel, unary, unary_inplace, GraphicsApi, Wgpu,
 };
+use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,

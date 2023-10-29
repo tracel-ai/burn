@@ -1,5 +1,5 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
+    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
 };
 use std::marker::PhantomData;
@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use super::{Optimizer, SimpleOptimizer};
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::ADBackend, Tensor};
+use crate::tensor::{backend::AutodiffBackend, Tensor};
 use burn_tensor::{backend::Backend, ElementConversion};
 
 /// AdamW configuration.
@@ -83,7 +83,7 @@ impl AdamWConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
@@ -201,7 +201,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestADBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend, TestBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_adamw_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
+        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default);
         let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -338,7 +338,10 @@ mod tests {
         assert!(!state_updated.weight.to_data().value[0].is_nan());
     }
 
-    fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
+    fn given_linear_layer(
+        weight: Data<f32, 2>,
+        bias: Data<f32, 1>,
+    ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
             weight: Param::from(Tensor::from_data(weight)),
             bias: Some(Param::from(Tensor::from_data(bias))),
@@ -348,7 +351,8 @@ mod tests {
     }
 
     fn create_adamw(
-    ) -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestADBackend>, TestADBackend> {
+    ) -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {

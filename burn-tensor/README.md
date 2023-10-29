@@ -37,8 +37,8 @@ To do so, each operation creates a new node which has a reference to its parent 
 Therefore, creating the tape only requires a simple and efficient graph traversal algorithm.
 
 ```rust
-    let x = ADTensor::from_tensor(x_ndarray);
-    let y = ADTensor::from_tensor(y_ndarray);
+    let x = AutodiffTensor::from_tensor(x_ndarray);
+    let y = ADtodiffTensor::from_tensor(y_ndarray);
 
     let z = x.matmul(&y);
 

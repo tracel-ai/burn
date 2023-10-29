@@ -9,7 +9,7 @@ on:
       - '**.sh'
       - '**.ps1'
       - '**.yml'
-      - 'Cargo.toml'
+      - '**.toml'
       - '!**.md'
       - '!LICENSE-APACHE'
       - '!LICENSE-MIT'
@@ -20,7 +20,7 @@ on:
       - '**.sh'
       - '**.ps1'
       - '**.yml'
-      - 'Cargo.toml'
+      - '**.toml'
       - '!**.md'
       - '!LICENSE-APACHE'
       - '!LICENSE-MIT'
@@ -41,7 +41,7 @@ jobs:
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
-          - coverage-flags: RUSTFLAGS="-Cinstrument-coverage" LLVM_PROFILE_FILE="burn-%p-%m.profraw"
+          - coverage-flags: COVERAGE=1
             rust: stable
             test: std
         exclude:
@@ -101,20 +101,8 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
-      - name: Install llvm-tools-preview
-        if: matrix.rust == 'stable' && matrix.test == 'std'
-        run: |
-          rustup component add llvm-tools-preview
-
       - name: run checks & tests
         run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
-
-      - name: Get coverage data for codecov
-        if: matrix.rust == 'stable' && matrix.test == 'std'
-        run: |
-          grcov . --binary-path ./target/debug/ -s . -t lcov --branch \
-          --ignore-not-existing --ignore "/*" --ignore "../*" \
-          --ignore "xtask/*" --ignore "examples/**" -o lcov.info
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std'

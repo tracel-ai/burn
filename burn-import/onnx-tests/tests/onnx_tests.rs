@@ -53,7 +53,7 @@ mod tests {
 
     use float_cmp::ApproxEq;
 
-    type Backend = burn_ndarray::NdArrayBackend<f32>;
+    type Backend = burn_ndarray::NdArray<f32>;
 
     #[test]
     fn add_scalar_to_tensor_and_tensor_to_tensor() {

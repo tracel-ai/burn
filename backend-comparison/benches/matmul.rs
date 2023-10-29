@@ -1,17 +1,16 @@
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_tensor::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
-use std::marker::PhantomData;
 
 #[derive(new)]
-struct MatmulBenchmark<B, const D: usize> {
+struct MatmulBenchmark<B: Backend, const D: usize> {
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
     num_repeats: usize,
-    backend: PhantomData<B>,
+    device: B::Device,
 }
 
-impl<B: Backend, const D: usize> Benchmark<B> for MatmulBenchmark<B, D> {
+impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     type Args = (Tensor<B, D>, Tensor<B, D>);
 
     fn name(&self) -> String {
@@ -31,11 +30,17 @@ impl<B: Backend, const D: usize> Benchmark<B> for MatmulBenchmark<B, D> {
         }
     }
 
-    fn prepare(&self, device: &B::Device) -> Self::Args {
-        let lhs = Tensor::random_device(self.shape_lhs.clone(), Distribution::Default, device);
-        let rhs = Tensor::random_device(self.shape_rhs.clone(), Distribution::Default, device);
+    fn prepare(&self) -> Self::Args {
+        let lhs =
+            Tensor::random_device(self.shape_lhs.clone(), Distribution::Default, &self.device);
+        let rhs =
+            Tensor::random_device(self.shape_rhs.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
+    }
+
+    fn sync(&self) {
+        B::sync(&self.device)
     }
 }
 
@@ -50,8 +55,9 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 
-    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats);
-    run_benchmark(benchmark, device);
+    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
+    println!("Backend {}", B::name());
+    run_benchmark(benchmark);
 }
 
 fn main() {

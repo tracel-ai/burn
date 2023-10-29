@@ -32,3 +32,5 @@ pub mod ops;
 mod named;
 #[cfg(feature = "experimental-named-tensor")]
 pub use named::*;
+
+pub use ops::Device; // Re-export device so that it's available from `burn_tensor::Device`.
