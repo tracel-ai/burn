@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::time::Duration;
 
 use alloc::boxed::Box;
-
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
