@@ -15,7 +15,6 @@ default = ["std"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std"]
-benchmark = []
 wasm-sync = []
 
 [dependencies]

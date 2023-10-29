@@ -1,4 +1,9 @@
 use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::matmul::init_matmul_output;
+#[cfg(feature = "autotune")]
+use crate::kernel::matmul::matmul_autotune;
+#[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
@@ -144,7 +149,16 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        matmul_tiling_2d_vec4_primitive_default(lhs, rhs)
+        #[cfg(feature = "autotune")]
+        {
+            matmul_autotune(lhs, rhs)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let out = init_matmul_output(&lhs, &rhs);
+            matmul_tiling_2d_vec4_primitive_default(lhs, rhs, out)
+        }
     }
 
     fn swap_dims<const D: usize>(

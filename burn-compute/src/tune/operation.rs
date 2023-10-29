@@ -1,56 +1,35 @@
-use crate::server::{ComputeServer, Handle};
+use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Display;
 
-/// Type of operation for the kernel
-pub trait AutotuneOperation<S>: Send
-where
-    S: ComputeServer,
-{
+/// Groups operations of the same type for autotune
+pub trait AutotuneOperationSet: Send {
     /// The key used in the tune cache
     fn key(&self) -> AutotuneKey;
 
     /// All candidate operations for autotuning this operation type
-    fn autotunables(&self) -> Vec<Operation<S>>;
-
-    /// Inputs generated for benchmarked executions
-    fn inputs(&self) -> Vec<Vec<u8>>;
+    /// Operations can run on toy tensors of relevant size
+    fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>>;
 
     /// Returns the operation for the given index, matching the order
-    /// returned by autotunables
-    fn fastest(&self, fastest_index: usize) -> Operation<S>;
+    /// returned by autotunables. Operation obtained here runs on original tensors
+    fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 }
 
-#[derive(new)]
-/// Extended kernel that accounts for additional parameters, i.e. needed
-/// information that does not count as an input/output.
-pub struct Operation<S: ComputeServer> {
-    kernel: S::Kernel,
-    parameters: Option<Vec<Handle<S>>>,
-}
+/// Contains operation to run and inputs on which to run it
+pub trait AutotuneOperation {
+    /// Runs the operation
+    fn execute(self: Box<Self>);
 
-impl<S: ComputeServer> Operation<S> {
-    /// Executes the operation on given handles and server, with the additional parameters
-    pub fn execute(&self, inputs: &[&Handle<S>], server: &mut S) {
-        let mut handles = inputs.to_vec();
-
-        let parameters = match self.parameters.clone() {
-            Some(parameter_handles) => parameter_handles.into_iter().collect::<Vec<Handle<S>>>(),
-            None => Vec::new(),
-        };
-        handles.extend(parameters.iter().collect::<Vec<&Handle<S>>>());
-
-        server.execute(self.kernel.clone(), &handles);
+    /// The name of the operation.
+    fn name(&self) -> &str {
+        core::any::type_name::<Self>()
     }
-}
 
-impl<S: ComputeServer> Clone for Operation<S> {
-    fn clone(&self) -> Self {
-        Self {
-            kernel: self.kernel.clone(),
-            parameters: self.parameters.clone(),
-        }
-    }
+    /// Clones the operation and inputs
+    fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Hash)]
@@ -59,4 +38,10 @@ impl<S: ComputeServer> Clone for Operation<S> {
 pub struct AutotuneKey {
     operation: String,
     input_description: String,
+}
+
+impl Display for AutotuneKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(format!("{}-{}", self.operation, self.input_description).as_str())
+    }
 }

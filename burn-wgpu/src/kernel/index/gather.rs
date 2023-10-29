@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -30,7 +28,7 @@ pub(crate) fn gather<E: WgpuElement, I: WgpuElement, const D: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &tensor.handle,
             &indices.handle,

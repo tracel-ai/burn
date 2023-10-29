@@ -4,7 +4,7 @@ use burn_tensor::{Element, Shape};
 
 use crate::{
     element::WgpuElement,
-    kernel::{slice, slice_assign},
+    kernel::{slice_assign, slice_on_output},
     ops::numeric::zeros_device,
     tensor::WgpuTensor,
 };
@@ -83,20 +83,22 @@ fn padding<E: WgpuElement + Element, const D: usize>(
 /// Crops tensor by deleting values when cropped dim is smaller than tensor dim
 pub(super) fn crop<E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
-    cropped_shape: Shape<D>,
+    output: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    let ranges = cropped_shape
+    let ranges = output
+        .shape
         .dims
         .iter()
         .map(|dim| 0..*dim)
         .collect::<Vec<Range<usize>>>()
         .try_into()
         .unwrap();
-    slice::<E, D, D>(tensor, ranges)
+    slice_on_output::<E, D, D>(tensor, output, ranges)
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::tests::TestTensor;
 
@@ -236,7 +238,10 @@ mod tests {
         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
         let expected_shape = [row, col].into();
 
-        let unpadded = crop(tensor.into_primitive(), [row, col].into());
+        let unpadded = crop(
+            tensor.clone().into_primitive(),
+            TestTensor::empty([row, col]).into_primitive(),
+        );
 
         assert!(unpadded.shape == expected_shape);
     }
@@ -247,7 +252,10 @@ mod tests {
         let col = 12;
         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
 
-        let unpadded = crop(tensor.clone().into_primitive(), [row, col].into());
+        let unpadded = crop(
+            tensor.clone().into_primitive(),
+            TestTensor::empty([row, col]).into_primitive(),
+        );
 
         let unpadded = TestTensor::from_primitive(unpadded).to_data();
         let tensor = tensor.into_data();
@@ -267,7 +275,10 @@ mod tests {
         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default);
         let expected_shape = [keep_rows, keep_cols].into();
 
-        let unpadded = crop(tensor.into_primitive(), [keep_rows, keep_cols].into());
+        let unpadded = crop(
+            tensor.clone().into_primitive(),
+            TestTensor::empty([keep_rows, keep_cols]).into_primitive(),
+        );
 
         assert!(unpadded.shape == expected_shape);
     }
@@ -282,7 +293,7 @@ mod tests {
 
         let unpadded = crop(
             tensor.clone().into_primitive(),
-            [keep_rows, keep_cols].into(),
+            TestTensor::empty([keep_rows, keep_cols]).into_primitive(),
         );
 
         let unpadded = TestTensor::from_primitive(unpadded).to_data();

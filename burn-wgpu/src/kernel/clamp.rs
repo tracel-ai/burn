@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -59,7 +57,7 @@ pub(crate) fn clamp<E: WgpuElement, const D: usize>(
 
         input
             .client
-            .execute(Arc::new(kernel), &[&input.handle, &min_handle, &max_handle]);
+            .execute(Box::new(kernel), &[&input.handle, &min_handle, &max_handle]);
 
         return input;
     }
@@ -70,7 +68,7 @@ pub(crate) fn clamp<E: WgpuElement, const D: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&input.handle, &output.handle, &min_handle, &max_handle],
     );
 

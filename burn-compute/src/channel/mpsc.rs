@@ -6,10 +6,7 @@ use std::{
 use burn_common::reader::Reader;
 
 use super::ComputeChannel;
-use crate::{
-    server::{ComputeServer, Handle},
-    tune::{AutotuneOperation, AutotuneServer},
-};
+use crate::server::{ComputeServer, Handle};
 
 /// Create a channel using the [multi-producer, single-consumer channel](mpsc) to communicate with
 /// the compute server spawn on its own thread.
@@ -41,7 +38,6 @@ where
     Empty(usize, Callback<Handle<Server>>),
     ExecuteKernel(Server::Kernel, Vec<Handle<Server>>),
     Sync(Callback<()>),
-    ExecuteAutotune(Box<dyn AutotuneOperation<Server>>, Vec<Handle<Server>>),
 }
 
 impl<Server> MpscComputeChannel<Server>
@@ -49,38 +45,31 @@ where
     Server: ComputeServer + 'static,
 {
     /// Create a new mpsc compute channel.
-    pub fn new(server: Server, bound: usize) -> Self {
+    pub fn new(mut server: Server, bound: usize) -> Self {
         let (sender, receiver) = mpsc::sync_channel(bound);
-        let mut autotune_server = AutotuneServer::new(server);
 
         let _handle = thread::spawn(move || {
             while let Ok(message) = receiver.recv() {
                 match message {
                     Message::Read(handle, callback) => {
-                        let data = autotune_server.server.read(&handle);
+                        let data = server.read(&handle);
                         core::mem::drop(handle);
                         callback.send(data).unwrap();
                     }
                     Message::Create(data, callback) => {
-                        let handle = autotune_server.server.create(&data);
+                        let handle = server.create(&data);
                         callback.send(handle).unwrap();
                     }
                     Message::Empty(size, callback) => {
-                        let handle = autotune_server.server.empty(size);
+                        let handle = server.empty(size);
                         callback.send(handle).unwrap();
                     }
                     Message::ExecuteKernel(kernel, handles) => {
-                        autotune_server
-                            .server
-                            .execute(kernel, &handles.iter().collect::<Vec<_>>());
+                        server.execute(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
-                        autotune_server.server.sync();
+                        server.sync();
                         callback.send(()).unwrap();
-                    }
-                    Message::ExecuteAutotune(autotune_kernel, handles) => {
-                        autotune_server
-                            .execute_autotune(autotune_kernel, &handles.iter().collect::<Vec<_>>());
                     }
                 };
             }
@@ -148,23 +137,6 @@ where
                     .collect::<Vec<Handle<Server>>>(),
             ))
             .unwrap()
-    }
-
-    fn execute_autotune(
-        &self,
-        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
-        handles: &[&Handle<Server>],
-    ) {
-        self.state
-            .sender
-            .send(Message::ExecuteAutotune(
-                autotune_kernel,
-                handles
-                    .iter()
-                    .map(|h| (*h).clone())
-                    .collect::<Vec<Handle<Server>>>(),
-            ))
-            .unwrap();
     }
 
     fn sync(&self) {

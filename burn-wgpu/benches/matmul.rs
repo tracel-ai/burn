@@ -1,28 +1,28 @@
+use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_tensor::backend::Backend;
+use burn_tensor::{Distribution, Shape, Tensor};
+use burn_wgpu::kernel::matmul::init_matmul_output;
+use burn_wgpu::AutoGraphicsApi;
 use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
-
-use std::marker::PhantomData;
-
-use burn_tensor::{
-    benchmark::{run_benchmark, Benchmark},
-    Distribution, Shape, Tensor,
-};
 use derive_new::new;
+use std::marker::PhantomData;
 
 use burn_wgpu::{
     kernel::matmul::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
         tile, tile_vectorized,
     },
-    AutoGraphicsApi, GraphicsApi, WgpuBackend,
+    GraphicsApi, WgpuBackend,
 };
 
 type WTensor<G, const D: usize> = Tensor<WgpuBackend<G, f32, i32>, D>;
 
 #[derive(new)]
-struct MatmulBenchmark<F, const D: usize> {
+struct MatmulBenchmark<B: Backend, F, const D: usize> {
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
     num_repeats: usize,
+    device: B::Device,
     matmul: PhantomData<F>,
 }
 
@@ -30,7 +30,7 @@ trait MatmulFunction<G: GraphicsApi, const D: usize> {
     fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark<WgpuBackend<G, f32, i32>> for MatmulBenchmark<F, D>
+impl<F, const D: usize, G> Benchmark for MatmulBenchmark<WgpuBackend<G, f32, i32>, F, D>
 where
     F: MatmulFunction<G, D>,
     G: GraphicsApi,
@@ -56,11 +56,17 @@ where
         }
     }
 
-    fn prepare(&self, device: &WgpuDevice) -> Self::Args {
-        let lhs = WTensor::random_device(self.shape_lhs.clone(), Distribution::Default, device);
-        let rhs = WTensor::random_device(self.shape_rhs.clone(), Distribution::Default, device);
+    fn prepare(&self) -> Self::Args {
+        let lhs =
+            WTensor::random_device(self.shape_lhs.clone(), Distribution::Default, &self.device);
+        let rhs =
+            WTensor::random_device(self.shape_rhs.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
+    }
+
+    fn sync(&self) {
+        WgpuBackend::<G, f32, i32>::sync(&self.device)
     }
 }
 
@@ -69,10 +75,14 @@ macro_rules! bench_matmul {
         struct $matmul_name {}
         impl<G: GraphicsApi, const D: usize> MatmulFunction<G, D> for $matmul_name {
             fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D> {
-                Tensor::from_primitive($func(lhs.into_primitive(), rhs.into_primitive()))
+                let lhs = lhs.into_primitive();
+                let rhs = rhs.into_primitive();
+                let output = init_matmul_output(&lhs, &rhs);
+                Tensor::from_primitive($func(lhs, rhs, output))
             }
         }
-        type $benchmark<const D: usize> = MatmulBenchmark<$matmul_name, D>;
+        type $benchmark<const D: usize> =
+            MatmulBenchmark<WgpuBackend<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
     };
 }
 
@@ -122,10 +132,12 @@ pub fn bench(device: &WgpuDevice) {
 
     macro_rules! run_matmul_benchmark {
         ($benchmark:ident) => {
-            run_benchmark::<WgpuBackend<AutoGraphicsApi, f32, i32>, $benchmark<D>>(
-                $benchmark::new(shape_lhs.clone(), shape_rhs.clone(), num_repeats),
-                device,
-            );
+            run_benchmark($benchmark::new(
+                shape_lhs.clone(),
+                shape_rhs.clone(),
+                num_repeats,
+                device.clone(),
+            ));
         };
     }
     run_matmul_benchmark!(NaiveMatmulBenchmark);

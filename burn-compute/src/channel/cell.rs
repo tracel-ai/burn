@@ -1,6 +1,5 @@
 use super::ComputeChannel;
 use crate::server::{ComputeServer, Handle};
-use crate::tune::{AutotuneOperation, AutotuneServer};
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -16,16 +15,17 @@ use burn_common::reader::Reader;
 /// the [mutex](super::MutexComputeChannel) or the [mpsc](super::MpscComputeChannel) channels.
 #[derive(Debug)]
 pub struct RefCellComputeChannel<Server> {
-    autotune_server: Arc<core::cell::RefCell<AutotuneServer<Server>>>,
+    server: Arc<core::cell::RefCell<Server>>,
 }
 
 impl<S> Clone for RefCellComputeChannel<S> {
     fn clone(&self) -> Self {
         Self {
-            autotune_server: self.autotune_server.clone(),
+            server: self.server.clone(),
         }
     }
 }
+
 impl<Server> RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
@@ -33,7 +33,7 @@ where
     /// Create a new cell compute channel.
     pub fn new(server: Server) -> Self {
         Self {
-            autotune_server: Arc::new(core::cell::RefCell::new(AutotuneServer::new(server))),
+            server: Arc::new(core::cell::RefCell::new(server)),
         }
     }
 }
@@ -43,35 +43,24 @@ where
     Server: ComputeServer,
 {
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        self.autotune_server.borrow_mut().server.read(handle)
+        self.server.borrow_mut().read(handle)
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {
-        self.autotune_server.borrow_mut().server.create(resource)
+        self.server.borrow_mut().create(resource)
     }
 
     fn empty(&self, size: usize) -> Handle<Server> {
-        self.autotune_server.borrow_mut().server.empty(size)
+        self.server.borrow_mut().empty(size)
     }
 
     fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-        self.autotune_server
+        self.server
             .borrow_mut()
-            .server
             .execute(kernel_description, handles)
     }
 
     fn sync(&self) {
-        self.autotune_server.borrow_mut().server.sync()
-    }
-
-    fn execute_autotune(
-        &self,
-        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
-        handles: &[&Handle<Server>],
-    ) {
-        self.autotune_server
-            .borrow_mut()
-            .execute_autotune(autotune_kernel, handles);
+        self.server.borrow_mut().sync()
     }
 }
