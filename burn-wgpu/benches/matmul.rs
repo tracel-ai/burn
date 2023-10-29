@@ -12,7 +12,7 @@ use burn_wgpu::{
         contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
         tile, tile_vectorized,
     },
-    GraphicsApi, WgpuBackend,
+    GraphicsApi,
 };
 
 type WTensor<G, const D: usize> = Tensor<Wgpu<G, f32, i32>, D>;
@@ -30,7 +30,7 @@ trait MatmulFunction<G: GraphicsApi, const D: usize> {
     fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark for MatmulBenchmark<WgpuBackend<G, f32, i32>, F, D>
+impl<F, const D: usize, G> Benchmark for MatmulBenchmark<Wgpu<G, f32, i32>, F, D>
 where
     F: MatmulFunction<G, D>,
     G: GraphicsApi,
@@ -66,7 +66,7 @@ where
     }
 
     fn sync(&self) {
-        WgpuBackend::<G, f32, i32>::sync(&self.device)
+        Wgpu::<G, f32, i32>::sync(&self.device)
     }
 }
 
@@ -82,7 +82,7 @@ macro_rules! bench_matmul {
             }
         }
         type $benchmark<const D: usize> =
-            MatmulBenchmark<WgpuBackend<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
+            MatmulBenchmark<Wgpu<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
     };
 }
 
