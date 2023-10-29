@@ -167,7 +167,7 @@ mod tests {
 
     use burn_tensor::Data;
 
-    pub type TB = burn_ndarray::NdArrayBackend<f32>;
+    pub type TB = burn_ndarray::NdArray<f32>;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);

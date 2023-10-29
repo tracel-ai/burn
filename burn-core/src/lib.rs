@@ -36,30 +36,26 @@ pub mod record;
 /// Module for the tensor.
 pub mod tensor;
 
-/// Autodiff module.
-#[cfg(feature = "autodiff")]
-pub use burn_autodiff as autodiff;
-
 /// Backend module.
 pub mod backend;
 
 extern crate alloc;
 
 #[cfg(all(test, not(feature = "test-tch"), not(feature = "test-wgpu"),))]
-pub type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+pub type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
-pub type TestBackend = burn_tch::TchBackend<f32>;
+pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu", not(target_os = "macos")))]
-pub type TestBackend = burn_wgpu::WgpuBackend<burn_wgpu::Vulkan, f32, i32>;
+pub type TestBackend = burn_wgpu::Wgpu<burn_wgpu::Vulkan, f32, i32>;
 
 #[cfg(all(test, feature = "test-wgpu", target_os = "macos"))]
-pub type TestBackend = burn_wgpu::WgpuBackend<burn_wgpu::Metal, f32, i32>;
+pub type TestBackend = burn_wgpu::Wgpu<burn_wgpu::Metal, f32, i32>;
 
 #[cfg(feature = "std")]
 #[cfg(test)]
-pub type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
+pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
 /// Type alias for the learning rate.
 ///

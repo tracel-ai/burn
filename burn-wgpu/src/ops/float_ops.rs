@@ -1,4 +1,4 @@
-use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use super::numeric;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
@@ -9,18 +9,17 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
-
-use crate::{
-    element::{FloatElement, IntElement},
-    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
-};
+use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
+use burn_tensor::ops::{
+    BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
+};
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
-impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> TensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,

@@ -1,5 +1,5 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
+    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
 };
 
@@ -9,7 +9,7 @@ use super::{
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::ADBackend, Tensor};
+use crate::tensor::{backend::AutodiffBackend, Tensor};
 use burn_tensor::backend::Backend;
 
 /// AdaGrad configuration.
@@ -79,7 +79,7 @@ impl AdaGradConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: ADBackend, M: ADModule<B>>(&self) -> impl Optimizer<M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = AdaGrad {
             lr_decay: LRDecay {
                 lr_decay: self.lr_decay,
@@ -156,14 +156,14 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestADBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend, TestBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adagrad_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
+        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default);
         let mut optimizer = create_adagrad();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -249,7 +249,10 @@ mod tests {
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
-    fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
+    fn given_linear_layer(
+        weight: Data<f32, 2>,
+        bias: Data<f32, 1>,
+    ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
             weight: Param::from(Tensor::from_data(weight)),
             bias: Some(Param::from(Tensor::from_data(bias))),
@@ -259,7 +262,8 @@ mod tests {
     }
 
     fn create_adagrad(
-    ) -> OptimizerAdaptor<AdaGrad<TestBackend>, nn::Linear<TestADBackend>, TestADBackend> {
+    ) -> OptimizerAdaptor<AdaGrad<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    {
         let config = AdaGradConfig::new();
         AdaGrad {
             lr_decay: LRDecay {

@@ -15,7 +15,7 @@ impression that Burn operates at a high level over the backend layer. However, m
 explicit instead of being chosen via a compilation flag was a thoughtful design decision. This
 explicitness does not imply that all backends must be identical; rather, it offers a great deal of
 flexibility when composing backends. The autodifferentiation backend trait (see
-[autodiff section](../building-blocks/autodiff.md)) is an example of how the backend trait has been
+[autodiff section](../building-blocks/autodiff)) is an example of how the backend trait has been
 extended to enable gradient computation with backpropagation. Furthermore, this design allows you to
 create your own backend extension. To achieve this, you need to design your own backend trait
 specifying which functions should be supported.
@@ -34,13 +34,13 @@ pub trait Backend: burn::tensor::backend::Backend {
 You can then implement your new custom backend trait for any backend that you want to support:
 
 ```rust, ignore
-impl<E: TchElement> Backend for burn_tch::TchBackend<E> {
+impl<E: TchElement> Backend for burn_tch::LibTorch<E> {
    fn my_new_function(tensor: TchTensor<E, 2>) -> TchTensor<E, 2> {
       // My Tch implementation
    }
 }
 
-impl<E: NdArrayElement> Backend for burn_ndarray::NdArrayBackend<E> {
+impl<E: NdArrayElement> Backend for burn_ndarray::NdArray<E> {
     // No specific implementation, but the backend can still be used.
 }
 ```
@@ -48,14 +48,14 @@ impl<E: NdArrayElement> Backend for burn_ndarray::NdArrayBackend<E> {
 You can support the backward pass using the same pattern.
 
 ```rust, ignore
-impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
+impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
     // No specific implementation; autodiff will work with the default
     // implementation. Useful if you still want to train your model, but
     // observe performance gains mostly during inference.
 }
 
-impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
-   fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
+impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
+   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
       // My own backward implementation, generic over my custom Backend trait.
       //
       // You can add a new method `my_new_function_backward` to your custom backend
@@ -63,8 +63,8 @@ impl<B: Backend> Backend for burn_autodiff::ADBackendDecorator<B> {
    }
 }
 
-impl<E: TchElement> Backend for burn_autodiff::ADBackendDecorator<burn_tch::TchBackend<E>> {
-   fn my_new_function(tensor: ADTensor<E, 2>) -> ADTensor<E, 2> {
+impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E>> {
+   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
       // My own backward implementation, generic over a backend implementation.
       //
       // This is another way to call a custom kernel for the backward pass that

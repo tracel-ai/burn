@@ -3,7 +3,7 @@ use burn::{
     module::Module,
     nn::{self, loss::CrossEntropyLoss, BatchNorm, PaddingConfig2d},
     tensor::{
-        backend::{ADBackend, Backend},
+        backend::{AutodiffBackend, Backend},
         Tensor,
     },
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
@@ -115,7 +115,7 @@ impl<B: Backend> ConvBlock<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
 

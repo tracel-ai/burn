@@ -1,13 +1,17 @@
 #[burn_tensor_testgen::testgen(ad_gather_scatter)]
 mod tests {
     use super::*;
-    use burn_tensor::Data;
+    use burn_tensor::{Data, Int, Tensor};
 
     #[test]
     fn test_gather_grad() {
         let tensor_1 =
-            TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
-        let indices = TestADTensor::from_data(Data::from([[2, 1, 0, 1, 2], [1, 0, 2, 1, 0]]));
+            TestAutodiffTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
+                .require_grad();
+        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(Data::from([
+            [2, 1, 0, 1, 2],
+            [1, 0, 2, 1, 0],
+        ]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
         let tensor_3 = tensor_1.clone().gather(1, indices);
@@ -26,10 +30,12 @@ mod tests {
     #[test]
     fn test_scatter_grad() {
         let tensor_1 =
-            TestADTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]])).require_grad();
-        let values =
-            TestADTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])).require_grad();
-        let indices = TestADTensor::from_data(Data::from([[2, 1, 0], [2, 0, 1]]));
+            TestAutodiffTensor::from_data(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
+                .require_grad();
+        let values = TestAutodiffTensor::from_data(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+            .require_grad();
+        let indices =
+            Tensor::<TestAutodiffBackend, 2, Int>::from_data(Data::from([[2, 1, 0], [2, 0, 1]]));
 
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
         let tensor_3 = tensor_1.clone().scatter(1, indices, values.clone());

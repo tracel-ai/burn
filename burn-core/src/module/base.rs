@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use super::ParamId;
 use crate::{
     record::Record,
-    tensor::backend::{ADBackend, Backend},
+    tensor::backend::{AutodiffBackend, Backend},
 };
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
@@ -151,7 +151,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// # Warnings
     ///
-    /// This should not be used for inference, use [valid](ADModule::valid) when using
+    /// This should not be used for inference, use [valid](AutodiffModule::valid) when using
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
     /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
@@ -244,7 +244,7 @@ pub trait ModuleMapper<B: Backend> {
 }
 
 /// Module with auto-differentiation backend.
-pub trait ADModule<B: ADBackend>: Module<B> + Send + Sync + core::fmt::Debug {
+pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + Sync + core::fmt::Debug {
     /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 

@@ -3,28 +3,28 @@ macro_rules! bench_on_backend {
     () => {
         #[cfg(feature = "wgpu")]
         {
-            use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+            use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
 
-            bench::<WgpuBackend<AutoGraphicsApi, f32, i32>>(&WgpuDevice::default());
+            bench::<Wgpu<AutoGraphicsApi, f32, i32>>(&WgpuDevice::default());
         }
 
         #[cfg(feature = "tch-gpu")]
         {
-            use burn::backend::{tch::TchDevice, TchBackend};
+            use burn::backend::{libtorch::LibTorchDevice, LibTorch};
 
             #[cfg(not(target_os = "macos"))]
-            let device = TchDevice::Cuda(0);
+            let device = LibTorchDevice::Cuda(0);
             #[cfg(target_os = "macos")]
-            let device = TchDevice::Mps;
-            bench::<TchBackend>(&device);
+            let device = LibTorchDevice::Mps;
+            bench::<LibTorch>(&device);
         }
 
         #[cfg(feature = "tch-cpu")]
         {
-            use burn::backend::{tch::TchDevice, TchBackend};
+            use burn::backend::{libtorch::LibTorchDevice, LibTorch};
 
-            let device = TchDevice::Cpu;
-            bench::<TchBackend>(&device);
+            let device = LibTorchDevice::Cpu;
+            bench::<LibTorch>(&device);
         }
 
         #[cfg(any(
@@ -35,28 +35,28 @@ macro_rules! bench_on_backend {
         ))]
         {
             use burn::backend::ndarray::NdArrayDevice;
-            use burn::backend::NdArrayBackend;
+            use burn::backend::NdArray;
 
             let device = NdArrayDevice::Cpu;
-            bench::<NdArrayBackend>(&device);
+            bench::<NdArray>(&device);
         }
 
         #[cfg(feature = "candle-cpu")]
         {
             use burn::backend::candle::CandleDevice;
-            use burn::backend::CandleBackend;
+            use burn::backend::Candle;
 
             let device = CandleDevice::Cpu;
-            bench::<CandleBackend>(&device);
+            bench::<Candle>(&device);
         }
 
         #[cfg(feature = "candle-cuda")]
         {
             use burn::backend::candle::CandleDevice;
-            use burn::backend::CandleBackend;
+            use burn::backend::Candle;
 
             let device = CandleDevice::Cuda(0);
-            bench::<CandleBackend>(&device);
+            bench::<Candle>(&device);
         }
     };
 }

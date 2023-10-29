@@ -16,7 +16,7 @@ use burn::{
     optim::AdamConfig,
     record::CompactRecorder,
     tensor::{
-        backend::{ADBackend, Backend},
+        backend::{AutodiffBackend, Backend},
         Int, Tensor,
     },
 };
@@ -34,7 +34,7 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -64,7 +64,7 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))

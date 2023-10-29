@@ -8,8 +8,8 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().exp());
         let grads = tensor_3.backward();

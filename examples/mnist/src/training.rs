@@ -11,7 +11,7 @@ use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, LossMetric},
         LearnerBuilder,
@@ -37,7 +37,7 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: ADBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);

@@ -1,6 +1,8 @@
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
+use super::FloatTensor;
+
 /// Activation function operations.
 ///
 /// This trait let backend implementations override activation functions for better performance.
@@ -14,7 +16,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn relu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+    fn relu<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
         let mask = B::lower_equal_elem(tensor.clone(), 0.elem());
 
         B::mask_fill(tensor, mask, 0.elem())
@@ -30,9 +32,9 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The gradient.
     fn relu_backward<const D: usize>(
-        output: B::TensorPrimitive<D>,
-        grad: B::TensorPrimitive<D>,
-    ) -> B::TensorPrimitive<D> {
+        output: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
         let mask = B::lower_equal_elem(output, 0.elem());
 
         B::mask_fill(grad, mask, 0.elem())
@@ -47,7 +49,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn gelu<const D: usize>(tensor: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+    fn gelu<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
         let x = B::div_scalar(tensor.clone(), SQRT_2.elem());
         let x = B::erf(x);
         let x = B::add_scalar(x, 1i32.elem());
@@ -67,9 +69,9 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn gelu_backward<const D: usize>(
-        x: B::TensorPrimitive<D>,
-        grad: B::TensorPrimitive<D>,
-    ) -> B::TensorPrimitive<D> {
+        x: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
         // Derivative of the approximate gelu implementation based on tanh.
 
         let constant_1 = 0.0356774;

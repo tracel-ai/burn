@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 use core::time::Duration;
 
 use alloc::boxed::Box;
-use alloc::format;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_common::benchmark::{Benchmark, BenchmarkResult};
 
@@ -55,7 +55,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let results: Vec<BenchmarkResult> = autotunables
             .into_iter()
             .map(|op| {
-                names.push(format!("{}", op.name()));
+                names.push(op.name().to_string());
                 self.run_benchmark(op, client)
             })
             .collect();

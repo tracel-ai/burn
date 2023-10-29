@@ -15,13 +15,13 @@ The backend supports Vulkan, Metal, DirectX11/12, OpenGL, WebGPU.
 ```rust
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn_autodiff::ADBackendDecorator;
-    use burn_wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
+    use burn_autodiff::Autodiff;
+    use burn_wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
     use mnist::training;
 
     pub fn run() {
         let device = WgpuDevice::default();
-        training::run::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, f32, i32>>>(device);
+        training::run::<Autodiff<Wgpu<AutoGraphicsApi, f32, i32>>>(device);
     }
 }
 ```

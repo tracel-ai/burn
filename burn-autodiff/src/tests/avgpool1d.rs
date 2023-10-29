@@ -70,7 +70,7 @@ mod tests {
     impl AvgPool1dTestCase {
         fn assert_output(self, x_grad: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.length]);
-            let x = TestADTensor::from_data(
+            let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
