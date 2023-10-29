@@ -1,5 +1,8 @@
-use crate::{FusionBackend, FloatTensor, IntTensor};
-use burn_tensor::{backend::Backend, ops::{ModuleOps, ConvOptions, ConvTransposeOptions, MaxPool2dWithIndices, MaxPool2dBackward}};
+use crate::{FloatTensor, FusionBackend, IntTensor};
+use burn_tensor::{
+    backend::Backend,
+    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+};
 
 impl<B: Backend> ModuleOps<FusionBackend<B>> for FusionBackend<B> {
     fn conv1d(

@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 mod backend;
 mod ops;
 mod tensor;
