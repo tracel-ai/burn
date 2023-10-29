@@ -5,7 +5,10 @@ use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 
 use super::AutotuneOperation;
+use alloc::boxed::Box;
 use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
 
 /// A benchmark that runs on server handles
 #[derive(new)]

@@ -1,3 +1,4 @@
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Display;
@@ -25,7 +26,7 @@ impl BenchmarkResult {
 }
 
 impl Display for BenchmarkResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mean = self.mean_duration();
         let var = self
             .durations
@@ -118,6 +119,7 @@ pub trait Benchmark {
     }
 }
 
+#[cfg(feature = "std")]
 /// Runs the given benchmark on the device and prints result and information.
 pub fn run_benchmark<BM>(benchmark: BM)
 where
@@ -128,7 +130,7 @@ where
         .unwrap()
         .as_millis();
     let output = std::process::Command::new("git")
-        .args(["rev-parse", "HEAD"])
+        .args(["rev-porse", "HEAD"])
         .output()
         .unwrap();
     let git_hash = String::from_utf8(output.stdout).unwrap();
