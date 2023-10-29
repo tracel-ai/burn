@@ -416,7 +416,7 @@ derivative is one), and `matmul` (another `matmul` with transposed inputs). This
 gradients for both input tensors and the bias, which are registered for consumption by subsequent
 operation nodes.
 
-The only remaining part is to implement our autodiff-decorated backend trait for our WGPUBackend.
+The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
 
 ```rust, ignore
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>>
