@@ -50,14 +50,7 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4Primitive<E> {
 pub fn matmul_tiling_2d_vec4_primitive_default<E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
-    matmul_tiling_2d_vec4_primitive::<E, D>(lhs, rhs)
-}
-
-/// vec4 multiplication using tiling 2d algorithm with vec4 primitive with custom size workgroups
-pub fn matmul_tiling_2d_vec4_primitive<E: WgpuElement + Element, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
+    out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let b_m = 64;
     let b_n = 64;
@@ -65,13 +58,14 @@ pub fn matmul_tiling_2d_vec4_primitive<E: WgpuElement + Element, const D: usize>
     let wgx = 16;
     let wgy = 16;
     let kernel = MatmulTiling2Dvec4Primitive::<E>::new(b_m, b_n, b_k, wgx, wgy);
-    matmul_tiling_2d_launch(lhs, rhs, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
+    matmul_tiling_2d_launch(lhs, rhs, out, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims};
+
+    use super::matmul_tiling_2d_vec4_primitive_default;
 
     #[test]
     pub fn test_matmul_vec4_primitive_straightforward() {
@@ -129,7 +123,7 @@ mod tests {
     }
 
     fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
-        let func = matmul_tiling_2d_vec4_primitive::<f32, 4>;
+        let func = matmul_tiling_2d_vec4_primitive_default::<f32, 4>;
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
@@ -137,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_batches_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_primitive::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4_primitive_default::<f32, 4>;
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -146,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_row_col_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_primitive::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4_primitive_default::<f32, 4>;
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -156,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_row_with_batch_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_primitive::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4_primitive_default::<f32, 4>;
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

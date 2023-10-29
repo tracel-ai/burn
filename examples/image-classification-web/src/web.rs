@@ -6,7 +6,7 @@ use alloc::{
 };
 use core::convert::Into;
 
-use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet1::Model as SqueezenetModel};
+use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
 use burn::{
     backend::{

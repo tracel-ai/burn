@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -35,7 +33,7 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &tensor.handle,
             &indices.handle,
@@ -92,7 +90,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
     ));
 
     tensor.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&tensor.handle, &indices.handle, &value.handle, &info_handle],
     );
 

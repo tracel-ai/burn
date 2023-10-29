@@ -1,7 +1,8 @@
 use burn_tensor::Element;
 
 /// The base element trait for the wgou backend.
-pub trait WgpuElement: core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
+pub trait WgpuElement:
+    burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
 where
     Self: Sized,
 {

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -32,7 +30,7 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[
             &input.handle,
             &value.handle,
@@ -66,7 +64,7 @@ pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
     input.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&input.handle, &value.handle, &mask.handle, &info_handle],
     );
 
