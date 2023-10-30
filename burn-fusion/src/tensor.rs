@@ -5,6 +5,7 @@ use core::marker::PhantomData;
 pub struct FusionTensor<B: Backend, E> {
     shape: Vec<usize>,
     device: B::Device,
+    id: usize,
     _elem: PhantomData<E>,
 }
 

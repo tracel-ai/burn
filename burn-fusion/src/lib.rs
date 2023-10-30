@@ -1,5 +1,7 @@
 #![allow(unused_variables)]
 
+pub mod graph;
+
 mod backend;
 mod ops;
 mod tensor;
