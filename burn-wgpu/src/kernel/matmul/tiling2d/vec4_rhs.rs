@@ -33,7 +33,7 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4RHS<E> {
             .register("b_n", self.b_n.to_string())
             .register("b_k", self.b_k.to_string())
             .register("bm_x_bk_4", (self.b_m * self.b_k / 4).to_string())
-            .register("bk_x_bn", (self.b_k * self.b_n).to_string())
+            .register("bk_x_bn_4", (self.b_k * self.b_n / 4).to_string())
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
             .register("workgroup_size_y", self.workgroup_size_y.to_string())
             .register("workgroup_size_z", "1".to_string())
