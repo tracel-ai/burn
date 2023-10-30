@@ -34,10 +34,62 @@ impl TryFrom<TensorProto> for Tensor {
                     Data::Float32s(tensor.float_data)
                 },
             ),
-            DataType::INT16 => {
-                // TODO : Add support for int16 by converting to int32
-                todo!("Add support for int16");
-            }
+            DataType::UINT8 => (
+                ElementType::Int32,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    Data::Int32s(
+                        cast_slice::<u8, u8>(&tensor.raw_data[..])
+                            .iter()
+                            .map(|raw_datum| *raw_datum as i32)
+                            .collect(),
+                    )
+                } else {
+                    Data::Int32s(vec![])
+                },
+            ),
+            DataType::INT8 => (
+                ElementType::Int32,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    Data::Int32s(
+                        cast_slice::<u8, i8>(&tensor.raw_data[..])
+                            .iter()
+                            .map(|raw_datum| *raw_datum as i32)
+                            .collect(),
+                    )
+                } else {
+                    Data::Int32s(vec![])
+                },
+            ),
+            DataType::UINT16 => (
+                ElementType::Int32,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    Data::Int32s(
+                        cast_slice::<u8, u16>(&tensor.raw_data[..])
+                            .iter()
+                            .map(|raw_datum| *raw_datum as i32)
+                            .collect(),
+                    )
+                } else {
+                    Data::Int32s(vec![])
+                },
+            ),
+            DataType::INT16 => (
+                ElementType::Int32,
+                // Convert the raw data to a vector of ints
+                if !tensor.raw_data.is_empty() {
+                    Data::Int32s(
+                        cast_slice::<u8, i16>(&tensor.raw_data[..])
+                            .iter()
+                            .map(|raw_datum| *raw_datum as i32)
+                            .collect(),
+                    )
+                } else {
+                    Data::Int32s(vec![])
+                },
+            ),
             DataType::INT32 => (
                 ElementType::Int32,
                 // Convert the raw data to a vector of ints
