@@ -4,7 +4,7 @@ use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
 use crate::kernel::matmul::matmul_autotune;
 #[cfg(not(feature = "autotune"))]
-use crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default;
+use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
@@ -156,7 +156,7 @@ where
         #[cfg(not(feature = "autotune"))]
         {
             let out = init_matmul_output(&lhs, &rhs);
-            matmul_tiling_2d_vec4_primitive_default(lhs, rhs, out)
+            matmul_tiling_2d_vec4(lhs, rhs, out)
         }
     }
 

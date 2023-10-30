@@ -165,13 +165,13 @@ matmul_tune_ops!(MemoryCoalescingMatmulW16x16, |lhs, rhs, out| {
 // Probably the fastest on MacOS.
 matmul_tune_ops!(
     Vec4LhsOnlyTilingMatmulDefault,
-    crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default
+    crate::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs
 );
 
 // Probably the fastest.
 matmul_tune_ops!(
     Vec4TilingMatmulDefault,
-    crate::kernel::matmul::vec4_rhs::matmul_tiling_2d_vec4_rhs
+    crate::kernel::matmul::vec4::matmul_tiling_2d_vec4
 );
 
 #[cfg(test)]

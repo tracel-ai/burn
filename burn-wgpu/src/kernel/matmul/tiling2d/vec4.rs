@@ -9,33 +9,28 @@ use std::marker::PhantomData;
 
 use crate::kernel_wgsl;
 
-use super::base::matmul_tiling_2d_launch;
+use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
 
 kernel_wgsl!(
     MatmulTiling2Dvec4RHSRaw,
-    "../../../template/matmul/blocktiling_2d/vec4_rhs.wgsl"
+    "../../../template/matmul/blocktiling_2d/vec4.wgsl"
 );
 
 #[derive(new, Debug)]
 struct MatmulTiling2Dvec4RHS<E: WgpuElement> {
-    b_m: usize,
-    b_n: usize,
-    b_k: usize,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
     _elem: PhantomData<E>,
 }
 
 impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4RHS<E> {
     fn source(&self) -> SourceTemplate {
         MatmulTiling2Dvec4RHSRaw::source()
-            .register("b_m", self.b_m.to_string())
-            .register("b_n", self.b_n.to_string())
-            .register("b_k", self.b_k.to_string())
-            .register("bm_x_bk_4", (self.b_m * self.b_k / 4).to_string())
-            .register("bk_x_bn_4", (self.b_k * self.b_n / 4).to_string())
-            .register("workgroup_size_x", self.workgroup_size_x.to_string())
-            .register("workgroup_size_y", self.workgroup_size_y.to_string())
+            .register("b_m", B_M.to_string())
+            .register("b_n", B_N.to_string())
+            .register("b_k", B_K.to_string())
+            .register("bm_x_bk_4", (B_M * B_K / 4).to_string())
+            .register("bk_x_bn_4", (B_K * B_N / 4).to_string())
+            .register("workgroup_size_x", WORKGROUP_SIZE.to_string())
+            .register("workgroup_size_y", WORKGROUP_SIZE.to_string())
             .register("workgroup_size_z", "1".to_string())
             .register("elem", E::type_name())
             .register("int", "i32")
@@ -46,19 +41,15 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4RHS<E> {
     }
 }
 
-/// vec4 multiplication using tiling 2d algorithm with vec4 primitive with custom size workgroups
-pub fn matmul_tiling_2d_vec4_rhs<E: WgpuElement + Element, const D: usize>(
+/// Matrix multiplication using tiling 2d algorithm with
+/// vec4 primitive on both lhs and rhs
+pub fn matmul_tiling_2d_vec4<E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    let b_m = 64;
-    let b_n = 64;
-    let b_k = 32;
-    let wgx = 16;
-    let wgy = 16;
-    let kernel = MatmulTiling2Dvec4RHS::<E>::new(b_m, b_n, b_k, wgx, wgy);
-    matmul_tiling_2d_launch(lhs, rhs, out, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
+    let kernel = MatmulTiling2Dvec4RHS::<E>::new();
+    matmul_tiling_2d_launch(lhs, rhs, out, kernel)
 }
 
 #[cfg(test)]
@@ -122,7 +113,7 @@ mod tests {
     }
 
     fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
-        let func = matmul_tiling_2d_vec4_rhs::<f32, 4>;
+        let func = matmul_tiling_2d_vec4;
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
@@ -130,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_batches_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_rhs::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4;
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -139,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_row_col_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_rhs::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4;
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -149,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_matmul_tiling_2d_vec4_primitive_swapped_row_with_batch_no_padding() {
-        let matmul_func = matmul_tiling_2d_vec4_rhs::<f32, 4>;
+        let matmul_func = matmul_tiling_2d_vec4;
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];
