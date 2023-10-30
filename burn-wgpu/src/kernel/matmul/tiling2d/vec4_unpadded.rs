@@ -10,9 +10,7 @@ use std::marker::PhantomData;
 
 use crate::kernel_wgsl;
 
-use super::base::{
-    make_info_handle, make_workgroup, matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE,
-};
+use super::base::{make_info_handle, make_workgroup, B_K, B_M, B_N, WORKGROUP_SIZE};
 
 kernel_wgsl!(
     MatmulTiling2Dvec4UnpaddedRaw,
@@ -51,15 +49,13 @@ pub fn matmul_tiling_2d_vec4_unpadded<E: WgpuElement + Element, const D: usize>(
     rhs: WgpuTensor<E, D>,
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    let lhs = if lhs.batch_swapped_with_row_col() {
-        into_contiguous(lhs)
-    } else {
-        lhs
+    let lhs = match lhs.batch_swapped_with_row_col() {
+        true => into_contiguous(lhs),
+        false => lhs,
     };
-    let rhs = if rhs.batch_swapped_with_row_col() {
-        into_contiguous(rhs)
-    } else {
-        rhs
+    let rhs = match rhs.batch_swapped_with_row_col() {
+        true => into_contiguous(rhs),
+        false => rhs,
     };
 
     let workgroup = make_workgroup(&out.shape);
