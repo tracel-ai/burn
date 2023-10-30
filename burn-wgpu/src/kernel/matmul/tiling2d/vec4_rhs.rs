@@ -50,6 +50,7 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4RHS<E> {
 pub fn matmul_tiling_2d_vec4_rhs<E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let b_m = 64;
     let b_n = 64;
@@ -57,7 +58,7 @@ pub fn matmul_tiling_2d_vec4_rhs<E: WgpuElement + Element, const D: usize>(
     let wgx = 16;
     let wgy = 16;
     let kernel = MatmulTiling2Dvec4RHS::<E>::new(b_m, b_n, b_k, wgx, wgy);
-    matmul_tiling_2d_launch(lhs, rhs, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
+    matmul_tiling_2d_launch(lhs, rhs, out, b_m, b_n, b_k, 4, 4, wgx, wgy, kernel)
 }
 
 #[cfg(test)]

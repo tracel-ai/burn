@@ -5,13 +5,12 @@ explicitly designated the backend to be used at any point. Indeed, only the `mai
 
 ```rust , ignore
 use burn::optim::AdamConfig;
-use burn::backend::{WgpuBackend, wgpu::AutoGraphicsApi};
-use burn::autodiff::ADBackendDecorator;
+use burn::backend::{Autodiff, Wgpu, wgpu::AutoGraphicsApi};
 use guide::model::ModelConfig;
 
 fn main() {
-    type MyBackend = WgpuBackend<AutoGraphicsApi, f32, i32>;
-    type MyAutodiffBackend = ADBackendDecorator<MyBackend>;
+    type MyBackend = Wgpu<AutoGraphicsApi, f32, i32>;
+    type MyAutodiffBackend = Autodiff<MyBackend>;
 
     let device = burn::backend::wgpu::WgpuDevice::default();
     guide::training::train::<MyAutodiffBackend>(
@@ -22,12 +21,12 @@ fn main() {
 }
 ```
 
-In this example, we use the `WgpuBackend` which is compatible with any operating system and will use
-the GPU. For other options, see the Burn README. This backend type takes the graphics api, the float
-type and the int type as generic arguments that will be used during the training. By leaving the
-graphics API as `AutoGraphicsApi`, it should automatically use an API available on your machine. The
-autodiff backend is simply the same backend, wrapped within the `ADBackendDecorator` struct which
-imparts differentiability to any backend.
+In this example, we use the `Wgpu` backend which is compatible with any operating system and will
+use the GPU. For other options, see the Burn README. This backend type takes the graphics api, the
+float type and the int type as generic arguments that will be used during the training. By leaving
+the graphics API as `AutoGraphicsApi`, it should automatically use an API available on your machine.
+The autodiff backend is simply the same backend, wrapped within the `Autodiff` struct which imparts
+differentiability to any backend.
 
 We call the `train` function defined earlier with a directory for artifacts, the configuration of
 the model (the number of digit classes is 10 and the hidden dimension is 512), the optimizer

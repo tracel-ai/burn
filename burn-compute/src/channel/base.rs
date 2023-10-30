@@ -1,8 +1,4 @@
-use crate::{
-    server::{ComputeServer, Handle},
-    tune::AutotuneOperation,
-};
-use alloc::boxed::Box;
+use crate::server::{ComputeServer, Handle};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 
@@ -23,11 +19,4 @@ pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
 
     /// Wait for the completion of every task in the server.
     fn sync(&self);
-
-    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
-    fn execute_autotune(
-        &self,
-        autotune_kernel: Box<dyn AutotuneOperation<Server>>,
-        handles: &[&Handle<Server>],
-    );
 }

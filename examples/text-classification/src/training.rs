@@ -17,7 +17,7 @@ use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
     record::{CompactRecorder, Recorder},
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
@@ -39,7 +39,7 @@ pub struct ExperimentConfig {
 }
 
 // Define train function
-pub fn train<B: ADBackend, D: TextClassificationDataset + 'static>(
+pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)
     dataset_train: D,  // Training dataset
     dataset_test: D,   // Testing dataset

@@ -4,7 +4,7 @@ use crate::{
     graph::{
         NodeRef, Requirement, {Graph, Step},
     },
-    tensor::ADTensor,
+    tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
 use std::marker::PhantomData;
@@ -37,7 +37,7 @@ where
     BO: Backward<B, D, N, State = ()>,
 {
     /// Prepare a stateless operation.
-    pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
+    pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
         match self.stateful() {
             OpsKind::Tracked(prep) => prep.finish((), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
@@ -77,8 +77,8 @@ where
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
-    pub fn finish(self, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
-        ADTensor::from_parents(
+    pub fn finish(self, output: <B as Backend>::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+        AutodiffTensor::from_parents(
             output,
             &self.nodes,
             self.graphs.into_iter(),
@@ -94,8 +94,12 @@ where
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
-    pub fn finish(self, state: S, output: <B as Backend>::TensorPrimitive<D>) -> ADTensor<B, D> {
-        let output = ADTensor::from_parents(
+    pub fn finish(
+        self,
+        state: S,
+        output: <B as Backend>::TensorPrimitive<D>,
+    ) -> AutodiffTensor<B, D> {
+        let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
             self.graphs.into_iter(),

@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use crate::backend::ADBackend;
+use crate::backend::AutodiffBackend;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
@@ -276,7 +276,7 @@ where
     }
 }
 
-impl<const D: usize, B: ADBackend> Tensor<B, D> {
+impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {
         B::backward::<D>(self.primitive.clone())
@@ -291,12 +291,12 @@ impl<const D: usize, B: ADBackend> Tensor<B, D> {
         B::grad(&self.primitive, grads).map(Tensor::new)
     }
 
-    /// Remove the grad tensor from the [grads](ADBackend::Gradients) struct returning the result.
+    /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
         B::grad_remove(&self.primitive, grads).map(Tensor::new)
     }
 
-    /// Replace the grad tensor from the [grads](ADBackend::Gradients) struct with the provided
+    /// Replace the grad tensor from the [grads](AutodiffBackend::Gradients) struct with the provided
     /// gradient.
     pub fn grad_replace(&self, grads: &mut B::Gradients, grad: Tensor<B::InnerBackend, D>) {
         B::grad_replace(&self.primitive, grads, grad.primitive);

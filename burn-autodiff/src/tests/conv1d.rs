@@ -189,20 +189,20 @@ mod tests {
                 self.channels_in / self.groups,
                 self.kernel_size,
             ]);
-            let weight = TestADTensor::from_data(
+            let weight = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_weight.num_elements())
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
             )
             .require_grad();
-            let bias = TestADTensor::from_data(
+            let bias = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..self.channels_out)
                     .into_data()
                     .convert(),
             )
             .require_grad();
-            let x = TestADTensor::from_data(
+            let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()

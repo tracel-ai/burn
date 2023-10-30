@@ -4,20 +4,20 @@ use crate::{
 };
 use burn_core::{
     lr_scheduler::LrScheduler,
-    module::{ADModule, Module},
+    module::{AutodiffModule, Module},
     optim::Optimizer,
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
 };
 use std::marker::PhantomData;
 
 /// All components necessary to train a model grouped in one trait.
 pub trait LearnerComponents {
     /// The backend in used for the training.
-    type Backend: ADBackend;
+    type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
     type LrScheduler: LrScheduler;
     /// The model to train.
-    type Model: ADModule<Self::Backend> + core::fmt::Display + 'static;
+    type Model: AutodiffModule<Self::Backend> + core::fmt::Display + 'static;
     /// The optimizer used for the training.
     type Optimizer: Optimizer<Self::Model, Self::Backend>;
     /// The checkpointer used for the model.
@@ -49,9 +49,9 @@ pub struct LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S> {
 impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
     for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
-    B: ADBackend,
+    B: AutodiffBackend,
     LR: LrScheduler,
-    M: ADModule<B> + core::fmt::Display + 'static,
+    M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     CM: Checkpointer<M::Record>,
     CO: Checkpointer<O::Record>,

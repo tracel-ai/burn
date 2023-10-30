@@ -2,12 +2,12 @@ use core::marker::PhantomData;
 
 use crate::{
     self as burn,
-    module::{ADModule, Module, ModuleMapper, ModuleVisitor},
+    module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor},
     record::Record,
 };
 use burn::record::PrecisionSettings;
 use burn_tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     Tensor,
 };
 
@@ -84,7 +84,7 @@ macro_rules! constant {
             constant!(module);
         }
 
-        impl<B: burn::tensor::backend::ADBackend> burn::module::ADModule<B> for $type {
+        impl<B: burn::tensor::backend::AutodiffBackend> burn::module::AutodiffModule<B> for $type {
             constant!(ad_module, $type);
         }
     };
@@ -145,7 +145,7 @@ impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for Tensor<B, D> {
+impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Tensor<B, D> {
     type InnerModule = Tensor<B::InnerBackend, D>;
 
     fn valid(&self) -> Self::InnerModule {
@@ -173,7 +173,7 @@ impl<B: Backend> Module<B> for PhantomData<B> {
     }
 }
 
-impl<B: ADBackend> ADModule<B> for PhantomData<B> {
+impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
     type InnerModule = PhantomData<B::InnerBackend>;
 
     fn valid(&self) -> Self::InnerModule {
@@ -191,7 +191,7 @@ mod tests {
     use crate::TestBackend;
     use crate::{
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-        TestADBackend,
+        TestAutodiffBackend,
     };
     use burn::module::Module;
 
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn tensor_load_record_setting() {
-        let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3]);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder

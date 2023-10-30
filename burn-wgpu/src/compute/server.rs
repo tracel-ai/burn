@@ -148,7 +148,7 @@ where
         self.tasks.clear();
     }
 
-    fn pipeline(&mut self, kernel: Arc<dyn Kernel>) -> Arc<ComputePipeline> {
+    fn pipeline(&mut self, kernel: Box<dyn Kernel>) -> Arc<ComputePipeline> {
         let kernel_id = kernel.id();
         if let Some(pipeline) = self.pipelines.get(&kernel_id) {
             return pipeline.clone();
@@ -251,7 +251,7 @@ impl<MM> ComputeServer for WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,
 {
-    type Kernel = Arc<dyn Kernel>;
+    type Kernel = Box<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
 

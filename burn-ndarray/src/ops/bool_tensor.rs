@@ -8,14 +8,14 @@ use core::ops::Range;
 // Current crate
 use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
-use crate::{tensor::NdArrayTensor, NdArrayBackend};
+use crate::{tensor::NdArrayTensor, NdArray};
 
 // Workspace crates
 use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
         _device: &NdArrayDevice,
@@ -24,13 +24,13 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
     }
 
     fn bool_shape<const D: usize>(
-        tensor: &<NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        tensor: &<NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Shape<D> {
         tensor.shape()
     }
 
     fn bool_into_data<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> Reader<Data<bool, D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
@@ -60,47 +60,47 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
     }
 
     fn bool_into_int<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> NdArrayTensor<i64, D> {
         let data = Self::bool_into_data(tensor)
             .read_sync()
             .expect("Always sync with ndarray");
-        NdArrayBackend::<E>::int_from_data(data.convert(), &NdArrayDevice::Cpu)
+        NdArray::<E>::int_from_data(data.convert(), &NdArrayDevice::Cpu)
     }
 
     fn bool_device<const D: usize>(
-        _tensor: &<NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::Device {
+        _tensor: &<NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::Device {
         NdArrayDevice::Cpu
     }
 
     fn bool_empty<const D: usize>(
         shape: Shape<D>,
-        _device: &<NdArrayBackend<E> as Backend>::Device,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        _device: &<NdArray<E> as Backend>::Device,
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         let values = vec![false; shape.num_elements()];
         NdArrayTensor::from_data(Data::new(values, shape))
     }
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D1>,
         ranges: [Range<usize>; D2],
-        value: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1>,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D1> {
+        value: <NdArray<E> as Backend>::BoolTensorPrimitive<D1>,
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D1> {
         NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(
-        tensors: Vec<<NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>>,
+        tensors: Vec<<NdArray<E> as Backend>::BoolTensorPrimitive<D>>,
         dim: usize,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         NdArrayOps::cat(tensors, dim)
     }
 
     fn bool_equal<const D: usize>(
-        lhs: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-        rhs: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        lhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+        rhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         let mut array = lhs.array;
         array.zip_mut_with(&rhs.array, |a, b| *a = *a == *b);
 
@@ -108,24 +108,24 @@ impl<E: FloatNdArrayElement> BoolTensorOps<NdArrayBackend<E>> for NdArrayBackend
     }
 
     fn bool_not<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| !a).into_shared();
         NdArrayTensor { array }
     }
 
     fn bool_into_float<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::TensorPrimitive<D> {
         let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }
 
     fn bool_swap_dims<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <NdArrayBackend<E> as Backend>::BoolTensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 }

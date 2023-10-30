@@ -7,7 +7,7 @@ use crate::{
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
-use std::{ops::Range, sync::Arc};
+use std::ops::Range;
 
 kernel_wgsl!(IndexRaw, "../../template/index/slice.wgsl");
 kernel_wgsl!(
@@ -24,9 +24,15 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
         dims[i] = indices[i].end - indices[i].start;
     }
     let shape_output = Shape::new(dims);
-    let num_elems = shape_output.num_elements();
-
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    slice_on_output(tensor, output, indices)
+}
+
+pub(crate) fn slice_on_output<E: WgpuElement, const D1: usize, const D2: usize>(
+    tensor: WgpuTensor<E, D1>,
+    output: WgpuTensor<E, D1>,
+    indices: [Range<usize>; D2],
+) -> WgpuTensor<E, D1> {
     let mut info = build_info(&[&tensor, &output]);
 
     for i in 0..D1 {
@@ -38,10 +44,13 @@ pub(crate) fn slice<E: WgpuElement, const D1: usize, const D2: usize>(
 
     let kernel = StaticKernel::<
         KernelSettings<IndexRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
+    >::new(elemwise_workgroup(
+        output.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+    ));
 
     tensor.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&tensor.handle, &output.handle, &info_handle],
     );
 
@@ -72,7 +81,7 @@ pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
 
     tensor.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&tensor.handle, &value.handle, &info_handle],
     );
 

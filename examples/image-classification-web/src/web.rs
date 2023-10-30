@@ -10,12 +10,12 @@ use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as S
 
 use burn::{
     backend::{
-        wgpu::{compute::init_async, AutoGraphicsApi, WgpuBackend, WgpuDevice},
-        NdArrayBackend,
+        wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice},
+        NdArray,
     },
     tensor::{activation::softmax, backend::Backend, Tensor},
 };
-use burn_candle::CandleBackend;
+use burn_candle::Candle;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -25,13 +25,13 @@ use wasm_timer::Instant;
 /// The model is loaded to a specific backend
 pub enum ModelType {
     /// The model is loaded to the Candle backend
-    WithCandleBackend(Model<CandleBackend<f32, i64>>),
+    WithCandleBackend(Model<Candle<f32, i64>>),
 
     /// The model is loaded to the NdArray backend
-    WithNdarrayBackend(Model<NdArrayBackend<f32>>),
+    WithNdArrayBackend(Model<NdArray<f32>>),
 
     /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<WgpuBackend<AutoGraphicsApi, f32, i32>>),
+    WithWgpuBackend(Model<Wgpu<AutoGraphicsApi, f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)
@@ -56,7 +56,7 @@ impl ImageClassifier {
         log::info!("Initializing the image classifier");
 
         Self {
-            model: ModelType::WithNdarrayBackend(Model::new()),
+            model: ModelType::WithNdArrayBackend(Model::new()),
         }
     }
 
@@ -68,7 +68,7 @@ impl ImageClassifier {
 
         let result = match self.model {
             ModelType::WithCandleBackend(ref model) => model.forward(input).await,
-            ModelType::WithNdarrayBackend(ref model) => model.forward(input).await,
+            ModelType::WithNdArrayBackend(ref model) => model.forward(input).await,
             ModelType::WithWgpuBackend(ref model) => model.forward(input).await,
         };
 
@@ -93,7 +93,7 @@ impl ImageClassifier {
     pub async fn set_backend_ndarray(&mut self) -> Result<(), JsValue> {
         log::info!("Loading the model to the NdArray backend");
         let start = Instant::now();
-        self.model = ModelType::WithNdarrayBackend(Model::new());
+        self.model = ModelType::WithNdArrayBackend(Model::new());
         let duration = start.elapsed();
         log::debug!("Model is loaded to the NdArray backend in {:?}", duration);
         Ok(())

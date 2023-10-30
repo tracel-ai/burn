@@ -16,7 +16,7 @@ pub use tensor::*;
 mod tests {
     extern crate alloc;
 
-    type TestBackend = crate::TchBackend<f32>;
+    type TestBackend = crate::LibTorch<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 

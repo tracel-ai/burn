@@ -29,7 +29,7 @@ extern crate alloc;
 
 #[cfg(test)]
 mod tests {
-    type TestBackend = crate::NdArrayBackend<f32>;
+    type TestBackend = crate::NdArray<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     use alloc::format;

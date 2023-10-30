@@ -2,19 +2,19 @@
 
 Burn's tensor also supports autodifferentiation, which is an essential part of any deep learning
 framework. We introduced the `Backend` trait in the [previous section](./backend.md), but Burn also
-has another trait for autodiff: `ADBackend`.
+has another trait for autodiff: `AutodiffBackend`.
 
 However, not all tensors support auto-differentiation; you need a backend that implements both the
-`Backend` and `ADBackend` traits. Fortunately, you can add autodifferentiation capabilities to any
-backend using a backend decorator: `type MyAutodiffBackend = ADBackendDecorator<MyBackend>`. This
-decorator implements both the `ADBackend` and `Backend` traits by maintaining a dynamic
+`Backend` and `AutodiffBackend` traits. Fortunately, you can add autodifferentiation capabilities to any
+backend using a backend decorator: `type MyAutodiffBackend = Autodiff<MyBackend>`. This
+decorator implements both the `AutodiffBackend` and `Backend` traits by maintaining a dynamic
 computational graph and utilizing the inner backend to execute tensor operations.
 
-The `ADBackend` trait adds new operations on float tensors that can't be called otherwise. It also
+The `AutodiffBackend` trait adds new operations on float tensors that can't be called otherwise. It also
 provides a new associated type, `B::Gradients`, where each calculated gradient resides.
 
 ```rust, ignore
-fn calculate_gradients<B: ADBackend>(tensor: Tensor<B, 2>) -> B::Gradients {
+fn calculate_gradients<B: AutodiffBackend>(tensor: Tensor<B, 2>) -> B::Gradients {
     let mut gradients = tensor.clone().backward();
 
     let tensor_grad = tensor.grad(&gradients);        // get
@@ -25,7 +25,7 @@ fn calculate_gradients<B: ADBackend>(tensor: Tensor<B, 2>) -> B::Gradients {
 ```
 
 Note that some functions will always be available even if the backend doesn't implement the
-`ADBackend` trait. In such cases, those functions will do nothing.
+`AutodiffBackend` trait. In such cases, those functions will do nothing.
 
 | Burn API                                | PyTorch Equivalent            |
 | --------------------------------------- | ----------------------------- |
@@ -35,7 +35,7 @@ Note that some functions will always be available even if the backend doesn't im
 | `tensor.set_require_grad(require_grad)` | `tensor.requires_grad(False)` |
 
 However, you're unlikely to make any mistakes since you can't call `backward` on a tensor that is on
-a backend that doesn't implement `ADBackend`. Additionally, you can't retrieve the gradient of a
+a backend that doesn't implement `AutodiffBackend`. Additionally, you can't retrieve the gradient of a
 tensor without an autodiff backend.
 
 ## Difference with PyTorch
@@ -64,12 +64,12 @@ torch.no_grad():
    ...
 ```
 
-With Burn, you don't need to wrap the backend with the `ADBackendDecorator` for inference, and you
+With Burn, you don't need to wrap the backend with the `Autodiff` for inference, and you
 can call `inner()` to obtain the inner tensor, which is useful for validation.ß
 
 ```rust, ignore
-/// Use `B: ADBackend`
-fn example_validation<B: ADBackend>(tensor: Tensor<B, 2>) {
+/// Use `B: AutodiffBackend`
+fn example_validation<B: AutodiffBackend>(tensor: Tensor<B, 2>) {
     let inner_tensor: Tensor<B::InnerBackend, 2> = tensor.inner();
     let _ = inner_tensor + 5;
 }

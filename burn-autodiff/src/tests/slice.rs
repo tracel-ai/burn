@@ -8,8 +8,8 @@ mod tests {
         let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0, 100.0], [2.0, 3.0, 15.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_2.clone().slice([0..2, 0..2]);
         let tensor_4 = tensor_1.clone().matmul(tensor_3);
@@ -31,9 +31,9 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_assigned: Data<f32, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
-        let tensor_assigned = TestADTensor::from_data(data_assigned).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
+        let tensor_assigned = TestAutodiffTensor::from_data(data_assigned).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.slice_assign([0..1, 0..1], tensor_assigned);
@@ -54,9 +54,9 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f32, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
-        let tensor_3 = TestADTensor::from_data(data_3).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
+        let tensor_3 = TestAutodiffTensor::from_data(data_3).require_grad();
 
         let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_5 = tensor_2.clone().slice([0..1, 0..1]);

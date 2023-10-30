@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
@@ -70,7 +68,7 @@ pub fn comparison_elem<K: StaticKernelSource, E: WgpuElement, const D: usize>(
         );
 
     lhs.client
-        .execute(Arc::new(kernel), &[&lhs.handle, &rhs_handle, &handle]);
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle, &handle]);
 
     WgpuTensor::new(lhs.client, lhs.device, lhs.shape, handle)
 }
@@ -85,7 +83,7 @@ pub fn comparison_elem_inplace<K: StaticKernelSource, E: WgpuElement, const D: u
         );
     let rhs_handle = lhs.client.create(E::as_bytes(&[rhs]));
     lhs.client
-        .execute(Arc::new(kernel), &[&lhs.handle, &rhs_handle]);
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs_handle]);
 
     WgpuTensor::new(lhs.client, lhs.device, lhs.shape, lhs.handle)
 }

@@ -3,7 +3,7 @@ use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
     tensor::WgpuTensor,
 };
-use std::{any::TypeId, marker::PhantomData, sync::Arc};
+use std::{any::TypeId, marker::PhantomData};
 
 kernel_wgsl!(CastRaw, "../template/cast.wgsl");
 
@@ -54,7 +54,7 @@ pub fn cast<InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
 
     tensor
         .client
-        .execute(Arc::new(kernel), &[&tensor.handle, &output.handle]);
+        .execute(Box::new(kernel), &[&tensor.handle, &output.handle]);
 
     output
 }

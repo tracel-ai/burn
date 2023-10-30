@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{Conv1dBackward, Conv2dBackward, ConvOptions, ConvTransposeOptions};
-use crate::{backend::Backend, Shape};
+use crate::{backend::Backend, ops::FloatTensor, Shape};
 use libm::ceilf;
 
 /// Calculate the expected padding size required when applying a convolution.
@@ -34,10 +34,10 @@ pub fn calculate_conv_output_size(
 
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
 pub(crate) fn conv1d_backward<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    weight: B::TensorPrimitive<3>,
-    bias: Option<B::TensorPrimitive<1>>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    weight: FloatTensor<B, 3>,
+    bias: Option<FloatTensor<B, 1>>,
+    output_grad: FloatTensor<B, 3>,
     options: ConvOptions<1>,
 ) -> Conv1dBackward<B> {
     let weight_shape = B::shape(&weight);
@@ -94,10 +94,10 @@ pub(crate) fn conv1d_backward<B: Backend>(
 
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass using convolutions.
 pub(crate) fn conv2d_backward<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    weight: B::TensorPrimitive<4>,
-    bias: Option<B::TensorPrimitive<1>>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    weight: FloatTensor<B, 4>,
+    bias: Option<FloatTensor<B, 1>>,
+    output_grad: FloatTensor<B, 4>,
     options: ConvOptions<2>,
 ) -> Conv2dBackward<B> {
     let weight_shape = B::shape(&weight);
@@ -165,10 +165,10 @@ pub(crate) fn conv2d_backward<B: Backend>(
 
 /// Calculate the [2D convolution transpose](crate::ops::ModuleOps::conv_transpose2d) backward pass using convolutions.
 pub(crate) fn conv_transpose2d_backward<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    weight: B::TensorPrimitive<4>,
-    bias: Option<B::TensorPrimitive<1>>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    weight: FloatTensor<B, 4>,
+    bias: Option<FloatTensor<B, 1>>,
+    output_grad: FloatTensor<B, 4>,
     options: ConvTransposeOptions<2>,
 ) -> Conv2dBackward<B> {
     let weight_shape = B::shape(&weight);
@@ -222,10 +222,10 @@ pub(crate) fn conv_transpose2d_backward<B: Backend>(
 
 /// Calculate the [1D convolution transpose](crate::ops::ModuleOps::conv_transpose1d) backward pass using convolutions.
 pub(crate) fn conv_transpose1d_backward<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    weight: B::TensorPrimitive<3>,
-    bias: Option<B::TensorPrimitive<1>>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    weight: FloatTensor<B, 3>,
+    bias: Option<FloatTensor<B, 1>>,
+    output_grad: FloatTensor<B, 3>,
     options: ConvTransposeOptions<1>,
 ) -> Conv1dBackward<B> {
     let weight_shape = B::shape(&weight);
@@ -276,11 +276,11 @@ pub(crate) fn conv_transpose1d_backward<B: Backend>(
 
 /// Execute a 1D convolution using a 2D convolution.
 pub(crate) fn conv1d_from_conv2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    weight: B::TensorPrimitive<3>,
-    bias: Option<B::TensorPrimitive<1>>,
+    x: FloatTensor<B, 3>,
+    weight: FloatTensor<B, 3>,
+    bias: Option<FloatTensor<B, 1>>,
     options: ConvOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [channels_out, _channels_in, kernel_size] = B::shape(&weight).dims;
     let [batch_size, channels_in, length_in] = B::shape(&x).dims;
 
@@ -307,11 +307,11 @@ pub(crate) fn conv1d_from_conv2d<B: Backend>(
 
 /// Execute a 1D transposed convolution using a 2D transposed convolution.
 pub(crate) fn conv_transpose1d_from_conv_transpose2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    weight: B::TensorPrimitive<3>,
-    bias: Option<B::TensorPrimitive<1>>,
+    x: FloatTensor<B, 3>,
+    weight: FloatTensor<B, 3>,
+    bias: Option<FloatTensor<B, 1>>,
     options: ConvTransposeOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [channels_in, channels_out, kernel_size] = B::shape(&weight).dims;
     let [batch_size, _channels_in, length_in] = B::shape(&x).dims;
 
@@ -338,11 +338,11 @@ pub(crate) fn conv_transpose1d_from_conv_transpose2d<B: Backend>(
 }
 
 fn conv1d_weight_grad_groups<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    mut weight_grad: B::TensorPrimitive<3>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    mut weight_grad: FloatTensor<B, 3>,
+    output_grad: FloatTensor<B, 3>,
     options: ConvOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [channels_out, increment_ci, kernel_size] = B::shape(&weight_grad).dims;
     let increment_co = channels_out / options.groups;
 
@@ -375,11 +375,11 @@ fn conv1d_weight_grad_groups<B: Backend>(
 }
 
 fn conv2d_weight_grad_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    mut weight_grad: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    mut weight_grad: FloatTensor<B, 4>,
+    output_grad: FloatTensor<B, 4>,
     options: ConvOptions<2>,
-) -> B::TensorPrimitive<4> {
+) -> FloatTensor<B, 4> {
     let [channels_out, increment_ci, kernel_size_1, kernel_size_2] = B::shape(&weight_grad).dims;
     let increment_co = channels_out / options.groups;
 
@@ -417,11 +417,11 @@ fn conv2d_weight_grad_groups<B: Backend>(
 }
 
 fn conv_transpose2d_weight_grad_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    mut weight_grad: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    mut weight_grad: FloatTensor<B, 4>,
+    output_grad: FloatTensor<B, 4>,
     options: ConvTransposeOptions<2>,
-) -> B::TensorPrimitive<4> {
+) -> FloatTensor<B, 4> {
     let [channels_in, increment_co, kernel_size_1, kernel_size_2] = B::shape(&weight_grad).dims;
     let increment_ci = channels_in / options.groups;
 
@@ -473,11 +473,11 @@ fn conv_transpose2d_weight_grad_groups<B: Backend>(
 }
 
 fn conv1d_weight_grad_no_groups<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    output_grad: FloatTensor<B, 3>,
     weight_shape: Shape<3>,
     options: ConvOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let x_swapped = B::swap_dims(x, 0, 1);
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv1d(
@@ -502,11 +502,11 @@ fn conv1d_weight_grad_no_groups<B: Backend>(
 }
 
 fn conv_transpose1d_weight_grad_groups<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    mut weight_grad: B::TensorPrimitive<3>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    mut weight_grad: FloatTensor<B, 3>,
+    output_grad: FloatTensor<B, 3>,
     options: ConvTransposeOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [channels_in, increment_co, kernel_size] = B::shape(&weight_grad).dims;
     let increment_ci = channels_in / options.groups;
 
@@ -548,11 +548,11 @@ fn conv_transpose1d_weight_grad_groups<B: Backend>(
 }
 
 fn conv2d_weight_grad_no_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    output_grad: FloatTensor<B, 4>,
     weight_shape: Shape<4>,
     options: ConvOptions<2>,
-) -> B::TensorPrimitive<4> {
+) -> FloatTensor<B, 4> {
     let x_swapped = B::swap_dims(x, 0, 1);
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv2d(
@@ -578,11 +578,11 @@ fn conv2d_weight_grad_no_groups<B: Backend>(
 }
 
 fn conv_transpose1d_weight_grad_no_groups<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    output_grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    output_grad: FloatTensor<B, 3>,
     weight_shape: Shape<3>,
     options: ConvTransposeOptions<1>,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let x_swapped = B::swap_dims(x, 0, 1);
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv1d(
@@ -609,11 +609,11 @@ fn conv_transpose1d_weight_grad_no_groups<B: Backend>(
 }
 
 fn conv_transpose2d_weight_grad_no_groups<B: Backend>(
-    x: B::TensorPrimitive<4>,
-    output_grad: B::TensorPrimitive<4>,
+    x: FloatTensor<B, 4>,
+    output_grad: FloatTensor<B, 4>,
     weight_shape: Shape<4>,
     options: ConvTransposeOptions<2>,
-) -> B::TensorPrimitive<4> {
+) -> FloatTensor<B, 4> {
     let x_swapped = B::swap_dims(x, 0, 1);
     let output_grad_swapped = B::swap_dims(output_grad, 0, 1);
     let weight_grad_swapped = B::conv2d(

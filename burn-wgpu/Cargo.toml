@@ -11,7 +11,8 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.11.0"
 
 [features]
-default = []
+default = ["autotune"]
+autotune = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.11.0" }
@@ -45,7 +46,6 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", default-feature
 ] }
 burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = false, features = [
   "export_tests",
-  "benchmark",
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.11.0" }
 serial_test = "2.0.0"

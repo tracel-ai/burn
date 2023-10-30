@@ -1,19 +1,23 @@
-use crate::{grads::Gradients, graph::backward::backward, tensor::ADTensor};
-use burn_tensor::backend::{ADBackend, Backend};
+use crate::{grads::Gradients, graph::backward::backward, tensor::AutodiffTensor};
+use burn_tensor::backend::{AutodiffBackend, Backend};
+use core::marker::PhantomData;
 
-/// A decorator for a backend that enables automatic differentiation.
+/// Enable auto-differentiation on a backend.
+///
+/// This works as a backend decorator, extending the functionality of any backend with
+/// backpropagation.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ADBackendDecorator<B> {
-    _b: B,
+pub struct Autodiff<B> {
+    _b: PhantomData<B>,
 }
 
-impl<B: Backend> Backend for ADBackendDecorator<B> {
+impl<B: Backend> Backend for Autodiff<B> {
     type Device = B::Device;
 
     type FullPrecisionElem = B::FullPrecisionElem;
-    type FullPrecisionBackend = ADBackendDecorator<B::FullPrecisionBackend>;
+    type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
 
-    type TensorPrimitive<const D: usize> = ADTensor<B, D>;
+    type TensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
     type FloatElem = B::FloatElem;
 
     type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
@@ -38,37 +42,37 @@ impl<B: Backend> Backend for ADBackendDecorator<B> {
     }
 }
 
-impl<B: Backend> ADBackend for ADBackendDecorator<B> {
+impl<B: Backend> AutodiffBackend for Autodiff<B> {
     type InnerBackend = B;
     type Gradients = Gradients;
 
-    fn backward<const D: usize>(tensor: ADTensor<B, D>) -> Gradients {
+    fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
         backward(tensor)
     }
 
     fn grad<const D: usize>(
-        tensor: &ADTensor<B, D>,
+        tensor: &AutodiffTensor<B, D>,
         grads: &Gradients,
     ) -> Option<B::TensorPrimitive<D>> {
         grads.get(tensor)
     }
 
     fn grad_remove<const D: usize>(
-        tensor: &ADTensor<B, D>,
+        tensor: &AutodiffTensor<B, D>,
         grads: &mut Gradients,
     ) -> Option<B::TensorPrimitive<D>> {
         grads.remove(tensor)
     }
-    fn inner<const D: usize>(tensor: ADTensor<B, D>) -> B::TensorPrimitive<D> {
+    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::TensorPrimitive<D> {
         tensor.primitive
     }
 
-    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> ADTensor<B, D> {
-        ADTensor::new(tensor)
+    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+        AutodiffTensor::new(tensor)
     }
 
     fn grad_replace<const D: usize>(
-        tensor: &ADTensor<B, D>,
+        tensor: &AutodiffTensor<B, D>,
         grads: &mut Self::Gradients,
         grad: B::TensorPrimitive<D>,
     ) {

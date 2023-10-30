@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::{
     build_info, elemwise_workgroup, KernelSettings, StaticKernelSource, WORKGROUP_DEFAULT,
 };
@@ -97,7 +95,7 @@ pub fn binary_elemwise<
     );
 
     lhs.client.execute(
-        Arc::new(kernel),
+        Box::new(kernel),
         &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
     );
 
@@ -131,7 +129,7 @@ pub fn binary_elemwise_inplace<
     );
 
     lhs.client
-        .execute(Arc::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
+        .execute(Box::new(kernel), &[&lhs.handle, &rhs.handle, &info_handle]);
 
     lhs
 }

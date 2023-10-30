@@ -1,25 +1,22 @@
 use crate::FloatTensor;
 
-use super::{ADBackend, Backend};
-use burn::autodiff::{
+use super::{AutodiffBackend, Backend};
+use burn::backend::autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
-    ADBackendDecorator,
+    Autodiff,
 };
-use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
+use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn::tensor::Shape;
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ADBackend
-    for ADBackendDecorator<WgpuBackend<G, F, I>>
-{
-}
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //
 // Note that we could implement the backend trait only for the Wgpu backend instead of any backend that
 // also implements our own API. This would allow us to call any function only implemented for Wgpu
 // and potentially call a custom kernel crafted only for this task.
-impl<B: Backend> Backend for ADBackendDecorator<B> {
+impl<B: Backend> Backend for Autodiff<B> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
