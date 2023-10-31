@@ -1,16 +1,19 @@
-use super::{FloatOps, TensorId};
+use super::{TensorId, TensorOps};
 use crate::FusionTensor;
-use std::{collections::HashMap, sync::Arc};
+use burn_tensor::Element;
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 pub struct FusionServer<B: FusedBackend> {
-    candidates: Vec<Box<dyn FusedOps<B::Handle>>>,
-    status: Vec<RegisterResult>,
-    current_ops: Vec<FloatOps>,
-    container: HandleContainer<B::Handle>,
+    candidates: Vec<Box<dyn FusedOps<B::Handle, B::FloatElem, B::IntElem>>>,
+    status: Vec<FusionStatus>,
+    current_ops: Vec<Rc<TensorOps<B::FloatElem, B::IntElem>>>,
+    handles: HandleContainer<B::Handle>,
 }
 
+/// Trait name graph execution strategy.
 impl<B: FusedBackend> FusionServer<B> {
-    pub fn register(&mut self, ops: FloatOps) {
+    pub fn register(&mut self, ops: TensorOps<B::FloatElem, B::IntElem>) {
+        let ops = Rc::new(ops);
         self.current_ops.push(ops.clone());
 
         for (candidate, status) in self.candidates.iter_mut().zip(self.status.iter_mut()) {
@@ -22,16 +25,16 @@ impl<B: FusedBackend> FusionServer<B> {
 
     pub fn maybe_execute(&mut self) {
         loop {
-            let mut num_stoped = 0;
+            let mut num_stopped = 0;
 
             for status in self.status.iter() {
                 match status {
-                    RegisterResult::Rejected(_) => num_stoped += 1,
+                    FusionStatus::Closed(_) => num_stopped += 1,
                     _ => {}
                 };
             }
 
-            if num_stoped < self.status.len() {
+            if num_stopped < self.status.len() {
                 // not executing, some are still fusing.
                 break;
             }
@@ -41,8 +44,8 @@ impl<B: FusedBackend> FusionServer<B> {
 
             for (i, status) in self.status.iter().enumerate() {
                 let properties = match status {
-                    RegisterResult::Rejected(properties) => properties,
-                    RegisterResult::Accepted(properties) => properties,
+                    FusionStatus::Closed(properties) => properties,
+                    FusionStatus::Open(properties) => properties,
                 };
 
                 if properties.ready && properties.score >= best_score {
@@ -65,20 +68,20 @@ impl<B: FusedBackend> FusionServer<B> {
 
     fn execute_ops(&mut self) {
         for ops in self.current_ops.drain(..) {
-            B::execute_ops(ops, &mut self.container);
+            B::execute_ops(ops, &mut self.handles);
         }
     }
 
     fn execute_fused_ops(&mut self, index: usize) {
         let ops = self.candidates.get_mut(index).unwrap();
         let num_keep = ops.len();
-        ops.execute(&mut self.container);
+        ops.execute(&mut self.handles);
 
         self.current_ops.drain(0..num_keep);
 
         for (candidate, status) in self.candidates.iter_mut().zip(self.status.iter_mut()) {
             candidate.reset();
-            *status = RegisterResult::Accepted(FusionProperties::default());
+            *status = FusionStatus::Open(FusionProperties::default());
 
             for ops in self.current_ops.iter() {
                 Self::update_candidate(status, candidate, ops.clone());
@@ -87,12 +90,12 @@ impl<B: FusedBackend> FusionServer<B> {
     }
 
     fn update_candidate(
-        status: &mut RegisterResult,
-        candidate: &mut Box<dyn FusedOps<B::Handle>>,
-        ops: FloatOps,
+        status: &mut FusionStatus,
+        candidate: &mut Box<dyn FusedOps<B::Handle, B::FloatElem, B::IntElem>>,
+        ops: Rc<TensorOps<B::FloatElem, B::IntElem>>,
     ) {
         match status {
-            RegisterResult::Rejected(_) => return,
+            FusionStatus::Closed(_) => return,
             _ => {}
         };
 
@@ -100,9 +103,11 @@ impl<B: FusedBackend> FusionServer<B> {
     }
 }
 
-pub enum RegisterResult {
-    Rejected(FusionProperties),
-    Accepted(FusionProperties),
+pub enum FusionStatus {
+    /// No more operation can be fused.
+    Closed(FusionProperties),
+    /// More operations can be fused.
+    Open(FusionProperties),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -111,8 +116,12 @@ pub struct FusionProperties {
     pub ready: bool,
 }
 
-pub trait FusedOps<Handle> {
-    fn register(&mut self, ops: FloatOps) -> RegisterResult;
+pub trait FusedOps<Handle, FloatElem, IntElem>
+where
+    FloatElem: Element,
+    IntElem: Element,
+{
+    fn register(&mut self, ops: Rc<TensorOps<FloatElem, IntElem>>) -> FusionStatus;
     fn execute(&mut self, handles: &mut HandleContainer<Handle>);
     fn reset(&mut self);
     fn len(&self) -> usize;
@@ -120,10 +129,15 @@ pub trait FusedOps<Handle> {
 
 pub trait FusedBackend {
     type Handle;
+    type FloatElem: Element;
+    type IntElem: Element;
 
-    fn operations() -> Vec<Box<dyn FusedOps<Self::Handle>>>;
+    fn operations() -> Vec<Box<dyn FusedOps<Self::Handle, Self::FloatElem, Self::IntElem>>>;
     fn new(shape: Vec<usize>) -> Self::Handle;
-    fn execute_ops(ops: FloatOps, handles: &mut HandleContainer<Self::Handle>);
+    fn execute_ops(
+        ops: Rc<TensorOps<Self::FloatElem, Self::IntElem>>,
+        handles: &mut HandleContainer<Self::Handle>,
+    );
 }
 
 pub struct HandleContainer<Handle> {

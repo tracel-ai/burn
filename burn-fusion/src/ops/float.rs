@@ -1,11 +1,10 @@
-use std::ops::Range;
-
 use crate::FusionBackend;
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
     Data, Device, Distribution, Reader, Shape,
 };
+use std::ops::Range;
 
 impl<B: Backend> TensorOps<Self> for FusionBackend<B> {
     fn from_data<const D: usize>(
