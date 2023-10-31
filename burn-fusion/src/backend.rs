@@ -15,15 +15,15 @@ impl<B: Backend> Backend for FusionBackend<B> {
 
     type FullPrecisionElem = B::FullPrecisionElem;
 
-    type TensorPrimitive<const D: usize> = FusionTensor<B, B::FloatElem>;
+    type TensorPrimitive<const D: usize> = FusionTensor;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B, B::IntElem>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B, bool>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor;
 
     fn name() -> String {
         todo!()
