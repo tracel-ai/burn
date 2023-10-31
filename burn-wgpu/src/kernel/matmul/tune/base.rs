@@ -77,7 +77,12 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulDefault::<E, 3>::new(lhs, rhs, out)),
+            Box::new(Vec4TilingMatmulDefault::<E, 3>::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
+            )),
+            Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, 3>::new(lhs, rhs, out)),
         ]
     }
 
@@ -90,6 +95,9 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet
                 self.lhs, self.rhs, self.out,
             )),
             2 => Box::new(Vec4TilingMatmulDefault::<E, D>::new(
+                self.lhs, self.rhs, self.out,
+            )),
+            3 => Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
                 self.lhs, self.rhs, self.out,
             )),
             _ => panic!("Fastest index is out of bound"),
@@ -154,10 +162,16 @@ matmul_tune_ops!(MemoryCoalescingMatmulW16x16, |lhs, rhs, out| {
     crate::kernel::matmul::matmul_mem_coalescing(lhs, rhs, out, 16, 16)
 });
 
+// Probably the fastest on MacOS.
+matmul_tune_ops!(
+    Vec4LhsOnlyTilingMatmulDefault,
+    crate::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs
+);
+
 // Probably the fastest.
 matmul_tune_ops!(
     Vec4TilingMatmulDefault,
-    crate::kernel::matmul::vec4_primitive::matmul_tiling_2d_vec4_primitive_default
+    crate::kernel::matmul::vec4::matmul_tiling_2d_vec4
 );
 
 #[cfg(test)]
