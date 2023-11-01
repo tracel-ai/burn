@@ -129,8 +129,8 @@ pub fn bench(device: &WgpuDevice) {
             ));
         };
     }
-    run_matmul_benchmark!(NaiveMatmulBenchmark);
-    run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
+    // run_matmul_benchmark!(NaiveMatmulBenchmark);
+    // run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4LHSBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4Benchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4UnpaddedBenchmark);
