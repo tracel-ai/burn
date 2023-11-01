@@ -89,22 +89,27 @@ mod tests {
 
     #[test]
     pub fn test64_matmul_vec4_unpadded_shapes_equal_blocks() {
-        test_with_params(64, 32, 64, 1, 1);
+        test_with_params(64, 32, 64, 2, 2);
     }
 
     #[test]
     pub fn test64_matmul_vec4_unpadded_m_exceeds_block() {
-        test_with_params(75, 32, 64, 1, 1);
+        test_with_params(75, 32, 64, 2, 2);
     }
 
     #[test]
     pub fn test64_matmul_vec4_unpadded_k_exceeds_block() {
-        test_with_params(64, 35, 64, 1, 1);
+        test_with_params(64, 33, 32, 1, 1);
+    }
+    
+    #[test]
+    pub fn ultimate_the_one_test64() {
+        test_with_params(123, 255, 72, 3, 5);
     }
 
     #[test]
     pub fn test64_matmul_vec4_unpadded_n_exceeds_block() {
-        test_with_params(64, 32, 75, 1, 1);
+        test_with_params(64, 32, 75, 2, 2);
     }
 
     #[test]
