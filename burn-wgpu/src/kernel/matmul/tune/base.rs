@@ -185,7 +185,7 @@ matmul_tune_ops!(
 // Probably the fastest otherwise.
 matmul_tune_ops!(
     Vec4TilingMatmulUnpaddedDefault,
-    crate::kernel::matmul::vec4_unpadded::matmul_tiling_2d_vec4_unpadded
+    crate::kernel::matmul::unpadded::matmul_tiling_2d_unpadded
 );
 
 #[cfg(test)]

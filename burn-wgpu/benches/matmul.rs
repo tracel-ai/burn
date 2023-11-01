@@ -2,9 +2,9 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::kernel::matmul::init_matmul_output;
+use burn_wgpu::kernel::matmul::unpadded::matmul_tiling_2d_unpadded;
 use burn_wgpu::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use burn_wgpu::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs;
-use burn_wgpu::kernel::matmul::vec4_unpadded::matmul_tiling_2d_vec4_unpadded;
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, Wgpu};
 use derive_new::new;
@@ -102,9 +102,9 @@ bench_matmul!(
     matmul_tiling_2d_vec4
 );
 bench_matmul!(
-    Tiling2DMatmulVec4UnpaddedBenchmark,
-    Tiling2DMatmulVec4Unpadded,
-    matmul_tiling_2d_vec4_unpadded
+    Tiling2DMatmulUnpaddedBenchmark,
+    Tiling2DMatmulUnpadded,
+    matmul_tiling_2d_unpadded
 );
 
 #[allow(dead_code)]
@@ -113,9 +113,9 @@ pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 2023;
-    let k = 2023;
-    let n = 1017;
+    let m = 1007;
+    let k = 1023;
+    let n = 1005;
     let shape_lhs = Shape::new([batch_size, m, k]);
     let shape_rhs = Shape::new([batch_size, k, n]);
 
@@ -129,11 +129,11 @@ pub fn bench(device: &WgpuDevice) {
             ));
         };
     }
-    // run_matmul_benchmark!(NaiveMatmulBenchmark);
-    // run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
+    run_matmul_benchmark!(NaiveMatmulBenchmark);
+    run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulUnpaddedBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4LHSBenchmark);
     run_matmul_benchmark!(Tiling2DMatmulVec4Benchmark);
-    run_matmul_benchmark!(Tiling2DMatmulVec4UnpaddedBenchmark);
 }
 
 fn main() {

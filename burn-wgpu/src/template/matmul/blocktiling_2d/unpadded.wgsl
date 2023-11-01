@@ -37,10 +37,13 @@ fn main(
     let skip_row = workgroup_id.x * B_M;
     let skip_col = workgroup_id.y * B_N;
 
-    let n_thread_per_row = ((B_N - 1u) / T_N) + 1u; // 16
-    let thread_row = (local_idx / n_thread_per_row) * T_M; // 0,0,0,... 4,4,4,...
-    let thread_col = (local_idx % n_thread_per_row) * T_N; // 0, 4, 8..., 60
+    let n_thread_per_row = ((B_N - 1u) / T_N) + 1u; 
     
+    // Position of the first element of the thread, relative to the block
+    let thread_row = (local_idx / n_thread_per_row) * T_M;
+    let thread_col = (local_idx % n_thread_per_row) * T_N;
+    
+    // Position of the first element of the thread, in absolute (in one batch)
     let row = skip_row + thread_row;
     let col = skip_col + thread_col;
 
@@ -77,31 +80,33 @@ fn main(
         offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
     }
     
+    // Registers used in the compute pass
     var results: array<{{ elem }}, T_M_X_T_N>;
     var register_M: vec4<{{ elem }}>;
     var register_N: vec4<{{ elem }}>;
     
+    // How close is the thread to the end of the matrix. 
+    // If < 4 then it is an edge case
     let remain_row_lhs = n_rows - row;
     let remain_col_rhs = n_cols - col;
 
     for (var k = 0u; k < K; k += B_K) {
-       
 
+        // LHS LOAD PASS 
+
+        // For the 4 vec4 columns of this thread
         for (var j = 0u; j < 4u; j++) {
+
+            // The precise 
             let current_col = thread_col + j;
             
-            // thread_row/4 -> because we store a column vec4
-            // B_K -> stride of lhs_sm_position
-            // current_col -> from 0 to 63
-            // but B_K is not 64
-            // this is why we had if current_col < B_K
-            // but if current_col >= B_K we don't want an empty vec4, it's just not valid
+            // Position of the column vec4 in shared memory
             let lhs_sm_position = (thread_row/4u) * B_K + current_col;
 
-            // if current_col + k < K && row < n_rows {
-            if current_col < B_K {
+            // To avoid overwriting following row in share memory
+            if current_col < B_K { 
+                // To pad with zeros if outside lhs 
                 if current_col + k < K && remain_row_lhs >= 1u {
-
                     let lhs_position0 = offset_lhs + (k + current_col) * lhs_stride_col + thread_row * lhs_stride_row;
                     let lhs_position1 = lhs_position0 + lhs_stride_row;
                     let lhs_position2 = lhs_position1 + lhs_stride_row;
@@ -141,6 +146,8 @@ fn main(
                 }
             }
         }
+
+        // RHS LOAD PASS
 
         for (var i = 0u; i < 4u; i++) {
             let current_row = thread_row + i;
@@ -192,6 +199,8 @@ fn main(
 
         workgroupBarrier();
 
+        // COMPUTE PASS
+
         // Compute intermediate results
         // Results are cumulated in results array and updated at each block
         // Outer loop indicates which subcolumns/subrows to read from shared memories
@@ -215,6 +224,8 @@ fn main(
         
         workgroupBarrier();
     }
+
+    // OUTPUT PASS
 
     // Write output matrix
     // Each thread is responsible of writing T_M x T_N results
