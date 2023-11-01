@@ -86,7 +86,8 @@ fn main(
         // Each thread is responsible of loading T_M x T_N values from both lhs and rhs
         
        
-        let remain = thread_row - n_rows;
+        let remain_lhs = thread_row - n_rows;
+        let remain_rhs = thread_col - n_cols;
 
         for (var j = 0u; j < 4u; j++) {
             let current_col = thread_col + j;
@@ -99,90 +100,89 @@ fn main(
                 let lhs_position1 = lhs_position0 + lhs_stride_row;
                 let lhs_position2 = lhs_position1 + lhs_stride_row;
                 let lhs_position3 = lhs_position2 + lhs_stride_row;
-                if remain >= 4u {
+                if remain_lhs >= 4u {
                     shared_lhs[lhs_sm_position] = vec4(
                         lhs[lhs_position0],
                         lhs[lhs_position1],
                         lhs[lhs_position2],
                         lhs[lhs_position3],
                     );
-                } else if remain == 3u {
+                } else if remain_lhs == 3u {
                     shared_lhs[lhs_sm_position] = vec4(
                         lhs[lhs_position0],
                         lhs[lhs_position1],
                         lhs[lhs_position2],
                         0.
                     ); 
-                } else if remain == 2u {
+                } else if remain_lhs == 2u {
                     shared_lhs[lhs_sm_position] = vec4(
                         lhs[lhs_position0],
                         lhs[lhs_position1],
                         0.,
                         0.
                     ); 
-                } else if remain == 1u {
-                      
+                } else if remain_lhs == 1u {
+                      shared_lhs[lhs_sm_position] = vec4(
+                        lhs[lhs_position0],
+                        0.,
+                        0.,
+                        0.
+                    );  
                 } else {
                     shared_lhs[lhs_sm_position] = vec4(0.,0.,0.,0.);
                 }
-
-                // var lhs_1 = 0.;
-                // var lhs_2 = 0.;
-                // var lhs_3 = 0.;
-
-                // if remain >= 2u {
-                //     lhs_1 = lhs[lhs_position0 + lhs_stride_row];
-                // }
-                // if remain >= 3u {
-                //     lhs_2 = lhs[lhs_position0 + 2u * lhs_stride_row];
-                // }
-                // if remain >= 4u {
-                //     lhs_3 = lhs[lhs_position0 + 3u * lhs_stride_row];
-                // }
-                    
-            // shared_lhs[lhs_sm_position] = vec4(
-            //         lhs_0,
-            //         lhs_1,
-            //         lhs_2,
-            //         lhs_3
-            //     ); 
-            // }
             } 
         }
-        // }
 
-        // for (var i = 0u; i < 4u; i++) {
-        //     let current_row = thread_row + i;
+        for (var i = 0u; i < 4u; i++) {
+            let current_row = thread_row + i;
             
-        //     if current_row < B_K { // so that threads who work on between B_K and B_M store nothing
+            if current_row < B_K { // so that threads who work on between B_K and B_M store nothing
 
-        //         let rhs_sm_position = (current_row * B_N + thread_col) / 4u;
-        //         let rhs_position0 = offset_rhs + (k + current_row) * rhs_stride_row + thread_col * rhs_stride_col;
+                let rhs_sm_position = (current_row * B_N + thread_col) / 4u;
+                let rhs_position0 = offset_rhs + (k + current_row) * rhs_stride_row + thread_col * rhs_stride_col;
+                let rhs_position1 = rhs_position0 + rhs_stride_col;
+                let rhs_position2 = rhs_position1 + rhs_stride_col;
+                let rhs_position3 = rhs_position2 + rhs_stride_col;
 
-        //         let rhs_0 = rhs[rhs_position0];
-        //         var rhs_1 = 0.;
-        //         var rhs_2 = 0.;
-        //         var rhs_3 = 0.;
+                let rhs_0 = rhs[rhs_position0];
+                var rhs_1 = 0.;
+                var rhs_2 = 0.;
+                var rhs_3 = 0.;
 
-        //         let remain = thread_col - n_cols;
-        //         if remain >= 2u {
-        //             rhs_1 = rhs[rhs_position0 + rhs_stride_col];
-        //         }
-        //         if remain >= 3u {
-        //             rhs_2 = rhs[rhs_position0 + 2u * rhs_stride_col];
-        //         }
-        //         if remain >= 4u {
-        //             rhs_3 = rhs[rhs_position0 + 3u * rhs_stride_col];
-        //         }
-
-        //         shared_rhs[rhs_sm_position] = vec4(
-        //             rhs_0,
-        //             rhs_1,
-        //             rhs_2,
-        //             rhs_3,
-        //         );
-        //     }
-        // } 
+                if remain_rhs >= 4u {
+                    shared_rhs[rhs_sm_position] = vec4(
+                        rhs[rhs_position0],
+                        rhs[rhs_position1],
+                        rhs[rhs_position2],
+                        rhs[rhs_position3],
+                    );
+                } else if remain_rhs == 3u {
+                    shared_rhs[rhs_sm_position] = vec4(
+                        rhs[rhs_position0],
+                        rhs[rhs_position1],
+                        rhs[rhs_position2],
+                        0.
+                    ); 
+                } else if remain_lhs == 2u {
+                    shared_rhs[rhs_sm_position] = vec4(
+                        rhs[rhs_position0],
+                        rhs[rhs_position1],
+                        0.,
+                        0.
+                    ); 
+                } else if remain_rhs == 1u {
+                      shared_rhs[rhs_sm_position] = vec4(
+                        rhs[rhs_position0],
+                        0.,
+                        0.,
+                        0.
+                    );  
+                } else {
+                    shared_rhs[rhs_sm_position] = vec4(0.,0.,0.,0.);
+                }
+            }
+        } 
 
         for (var i = 0u; i < 4u; i++) {
             let current_row = thread_row + i;
