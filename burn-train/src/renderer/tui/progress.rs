@@ -133,25 +133,24 @@ impl ProgressEstimate {
     }
 
     fn update(&mut self, progress: &TrainingProgress, starting_epoch: usize) {
-        if let Some(_) = self.started_after_warmup {
+        if self.started_after_warmup.is_some() {
             self.progress = calculate_progress(progress, starting_epoch, self.warmup_num_items);
             return;
         }
 
         const WARMUP_NUM_ITERATION: usize = 10;
 
-        // When the training is started since 30 seconds.
+        // When the training has started since 30 seconds.
         if self.started.elapsed() > Duration::from_secs(30) {
             self.init(progress, starting_epoch);
             return;
         }
 
-        // When the training is started since at least 10 seconds and completed 10 iterations.
+        // When the training has started since at least 10 seconds and completed 10 iterations.
         if progress.iteration >= WARMUP_NUM_ITERATION
             && self.started.elapsed() > Duration::from_secs(10)
         {
             self.init(progress, starting_epoch);
-            return;
         }
     }
 
