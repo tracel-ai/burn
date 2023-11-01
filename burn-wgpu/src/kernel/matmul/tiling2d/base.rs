@@ -13,7 +13,7 @@ pub(crate) const B_N: usize = 64;
 pub(crate) const B_K: usize = 32;
 pub(crate) const WORKGROUP_SIZE: usize = 16;
 
-pub(super) fn make_workgroup<const D: usize>(output_shape: Shape<D>) -> WorkGroup {
+pub(super) fn make_workgroup<const D: usize>(output_shape: &Shape<D>) -> WorkGroup {
     let num_blocks_x = f32::ceil(output_shape.dims[D - 2] as f32 / B_M as f32) as u32;
     let num_blocks_y = f32::ceil(output_shape.dims[D - 1] as f32 / B_N as f32) as u32;
     let mut num_blocks_z = 1;
@@ -71,7 +71,7 @@ pub(super) fn matmul_tiling_2d_launch<
         rounded_output_shape.clone(),
     );
 
-    let workgroup = make_workgroup(rounded_output_shape);
+    let workgroup = make_workgroup(&rounded_output_shape);
     let info_handle = make_info_handle(&lhs, &rhs, &rounded_output);
 
     lhs.client.execute(

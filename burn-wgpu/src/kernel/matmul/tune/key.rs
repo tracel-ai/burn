@@ -51,3 +51,34 @@ fn anchor(x: usize) -> usize {
     let exp = f32::ceil(f32::log2(x as f32)) as u32;
     2_u32.pow(exp) as usize
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matmul_autotune_key_all_same_and_round() {
+        let lhs_shape: Shape<3> = [4, 512, 512].into();
+        let rhs_shape: Shape<3> = [4, 512, 512].into();
+        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
+
+        assert!(key.round);
+        assert!(!key.broadcast);
+        assert!(key.anchored_m == 512);
+        assert!(key.anchored_k == 512);
+        assert!(key.anchored_n == 512);
+    }
+
+    #[test]
+    fn matmul_autotune_key_all_different() {
+        let lhs_shape: Shape<3> = [3, 511, 512].into();
+        let rhs_shape: Shape<3> = [4, 512, 513].into();
+        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
+
+        assert!(!key.round);
+        assert!(key.broadcast);
+        assert!(key.anchored_m == 512);
+        assert!(key.anchored_k == 512);
+        assert!(key.anchored_n == 1024);
+    }
+}
