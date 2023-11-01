@@ -12,7 +12,7 @@ use spin::Mutex;
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
 #[derive(Debug)]
-pub struct ComputeClient<Server, Channel> {
+pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
     tuner: Arc<Mutex<Tuner<Server, Channel>>>,
     _server: PhantomData<Server>,
@@ -72,7 +72,10 @@ where
     }
 
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
-    pub fn execute_autotune(&self, autotune_operation_set: Box<dyn AutotuneOperationSet>) {
+    pub fn execute_autotune(
+        &self,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<Server::AutotuneKey>>,
+    ) {
         self.tuner
             .lock()
             .execute_autotune(autotune_operation_set, self);

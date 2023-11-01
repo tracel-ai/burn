@@ -13,8 +13,8 @@ use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCa
 
 #[derive(Debug, Default)]
 /// Executes autotune benchmarking and caching
-pub struct Tuner<S, C> {
-    tune_cache: TuneCache<S>,
+pub struct Tuner<S: ComputeServer, C> {
+    tune_cache: TuneCache<S::AutotuneKey>,
     _server: PhantomData<S>,
     _channel: PhantomData<C>,
 }
@@ -31,7 +31,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
 
     pub(crate) fn execute_autotune(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
         client: &ComputeClient<S, C>,
     ) {
         let operation = match self.tune_cache.try_cache(autotune_operation_set) {
@@ -44,7 +44,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
 
     fn autotuning(
         &mut self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet>,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
         client: &ComputeClient<S, C>,
     ) -> Box<dyn AutotuneOperation> {
         let key = autotune_operation_set.key();
