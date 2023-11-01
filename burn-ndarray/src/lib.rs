@@ -23,7 +23,7 @@ mod tensor;
 pub use backend::*;
 pub use element::FloatNdArrayElement;
 pub(crate) use sharing::*;
-pub(crate) use tensor::*;
+pub use tensor::*;
 
 extern crate alloc;
 
