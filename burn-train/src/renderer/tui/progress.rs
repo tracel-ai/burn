@@ -122,19 +122,23 @@ fn format_eta(eta_secs: u64) -> String {
     let hours = eta_secs / HOUR % 24;
     let days = eta_secs / DAY;
 
-    if days > 0 {
-        return format!("{days} days");
+    if days > 1 {
+        format!("{days} days")
+    } else if days == 1 {
+        format!("1 day")
+    } else if hours > 1 {
+        format!("{hours} hours")
+    } else if hours == 1 {
+        format!("1 hour")
+    } else if minutes > 1 {
+        format!("{minutes} mins")
+    } else if minutes == 1 {
+        format!("1 min")
+    } else if seconds > 1 {
+        format!("{seconds} secs")
+    } else {
+        format!("1 sec")
     }
-
-    if hours > 0 {
-        return format!("{hours} hours");
-    }
-
-    if minutes > 0 {
-        return format!("{minutes} mins");
-    }
-
-    format!("{seconds} secs")
 }
 
 #[cfg(test)]
