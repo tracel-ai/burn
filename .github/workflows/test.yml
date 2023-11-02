@@ -122,7 +122,7 @@ jobs:
           key: ${{ runner.os }}-typos-${{ hashFiles('**/Cargo.toml') }}
           prefix-key: "v5-rust"
 
-      - name: Install grcov
+      - name: Install typos
         env:
           TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
           TYPOS_VERSION: v1.16.20

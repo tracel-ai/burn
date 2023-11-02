@@ -1,6 +1,6 @@
 use crate::metric::{format_float, MetricEntry, Numeric};
 
-/// Usefull utility to implement numeric metrics.
+/// Useful utility to implement numeric metrics.
 ///
 /// # Notes
 ///
