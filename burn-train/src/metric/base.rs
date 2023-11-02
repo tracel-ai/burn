@@ -67,7 +67,7 @@ pub trait Adaptor<T> {
 
 /// Declare a metric to be numeric.
 ///
-/// This is usefull to plot the values of a metric during training.
+/// This is useful to plot the values of a metric during training.
 pub trait Numeric {
     /// Returns the numeric value of the metric.
     fn value(&self) -> f64;

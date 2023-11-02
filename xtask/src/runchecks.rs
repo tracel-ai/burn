@@ -3,6 +3,7 @@
 //! It is used to check that the code compiles and passes all tests.
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
+
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
@@ -289,8 +290,18 @@ fn std_checks() {
 }
 
 fn check_typos() {
-    // Install typos-cli
-    cargo_install(["typos-cli", "--version", "1.16.5"].into());
+    // This path defines where typos-cl is installed on different
+    // operating systems.
+    let typos_cli_path = std::env::var("CARGO_HOME")
+        .map(|v| std::path::Path::new(&v).join("bin/typos-cli"))
+        .unwrap();
+
+    // Do not run cargo install on CI to speed up the computation.
+    // Check whether the file has been installed on
+    if std::env::var("CI_RUN").is_err() && !typos_cli_path.exists() {
+        // Install typos-cli
+        cargo_install(["typos-cli", "--version", "1.16.5"].into());
+    }
 
     println!("Running typos check \n\n");
 

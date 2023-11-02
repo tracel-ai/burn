@@ -1,5 +1,5 @@
 mod base;
 pub use base::*;
 
-// Not needed for now, usefull for different tensor memory layout
+// Not needed for now, useful for different tensor memory layout
 // pub mod conversion;
