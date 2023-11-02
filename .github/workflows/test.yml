@@ -131,4 +131,4 @@ jobs:
           tar xz -C $HOME/.cargo/bin
 
       - name: run spelling checks using typos
-        run: cargo xtask run-checks typos
+        run: CI_RUN=1 cargo xtask run-checks typos
