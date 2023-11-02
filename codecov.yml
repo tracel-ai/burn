@@ -7,3 +7,5 @@ coverage:
     patch:
       default:
         target: 80%
+github_checks:
+    annotations: false
