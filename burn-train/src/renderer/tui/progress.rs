@@ -149,11 +149,11 @@ mod tests {
     #[test]
     fn test_format_eta() {
         assert_eq!("55 secs", format_eta(55), "Less than 1 minutes");
-        assert_eq!("1 mins", format_eta(61), "More than 1 minutes");
+        assert_eq!("1 min", format_eta(61), "More than 1 minutes");
         assert_eq!("2 mins", format_eta(2 * 61), "More than 2 minutes");
-        assert_eq!("1 hours", format_eta(3601), "More than 1 hour");
+        assert_eq!("1 hour", format_eta(3601), "More than 1 hour");
         assert_eq!("2 hours", format_eta(2 * 3601), "More than 2 hour");
-        assert_eq!("1 days", format_eta(24 * 3601), "More than 1 day");
+        assert_eq!("1 day", format_eta(24 * 3601), "More than 1 day");
         assert_eq!("2 days", format_eta(48 * 3601), "More than 2 day");
     }
 
