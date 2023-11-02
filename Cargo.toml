@@ -24,10 +24,11 @@ members = [
     "burn-train",
     "xtask",
     "examples/*",
+    "examples/train-web/train",
     "backend-comparison",
 ]
 
-exclude = ["examples/notebook"]
+exclude = ["examples/notebook", "examples/train-web"]
 
 [workspace.dependencies]
 async-trait = "0.1.73"
