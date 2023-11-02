@@ -8,16 +8,13 @@ use crate::kernel::matmul::MatmulAutotuneKey;
 /// Key for all autotune-enabled operations
 pub enum WgpuAutotuneKey {
     /// Key for matmul operation
-    Matmul {
-        /// The key with specific matmul information
-        matmul_key: MatmulAutotuneKey,
-    },
+    Matmul(MatmulAutotuneKey),
 }
 
 impl Display for WgpuAutotuneKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgpuAutotuneKey::Matmul { matmul_key } => std::fmt::Display::fmt(&matmul_key, f),
+            WgpuAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
         }
     }
 }

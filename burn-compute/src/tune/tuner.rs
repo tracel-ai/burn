@@ -15,7 +15,6 @@ use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCa
 /// Executes autotune benchmarking and caching
 pub struct Tuner<S: ComputeServer, C> {
     tune_cache: TuneCache<S::AutotuneKey>,
-    _server: PhantomData<S>,
     _channel: PhantomData<C>,
 }
 
@@ -24,7 +23,6 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
     pub fn new() -> Self {
         Self {
             tune_cache: TuneCache::new(),
-            _server: PhantomData,
             _channel: PhantomData,
         }
     }

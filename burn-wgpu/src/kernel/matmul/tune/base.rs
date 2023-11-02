@@ -21,9 +21,7 @@ pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
 impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
     fn new(lhs: WgpuTensor<E, D>, rhs: WgpuTensor<E, D>, out: WgpuTensor<E, D>) -> Self {
         Self {
-            key: WgpuAutotuneKey::Matmul {
-                matmul_key: MatmulAutotuneKey::new(&lhs.shape, &rhs.shape),
-            },
+            key: WgpuAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
             lhs,
             rhs,
             out,
