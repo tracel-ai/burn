@@ -1,12 +1,8 @@
 //! This script publishes a crate on `crates.io`.
 //!
-//! To build this script, run the following command:
-//!
-//! rustc scripts/publish.rs --crate-type bin --out-dir scripts
-//!
 //! To run the script:
 //!
-//! ./scripts/publish crate_name
+//! cargo xtask publish INPUT_CRATE
 
 use std::env;
 use std::process::{Command, Stdio};
