@@ -51,6 +51,39 @@ pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
     output
 }
 
+/// Pseudo-random generator for uniform distribution, based on
+/// another tensor's client, device and shape
+pub fn random_like_uniform<E: WgpuElement, const D: usize>(
+    tensor: &WgpuTensor<E, D>,
+    low: f32,
+    high: f32,
+) -> WgpuTensor<E, D> {
+    const N_VALUES_PER_THREAD: usize = 128;
+
+    let output = empty_device(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        tensor.shape.clone(),
+    );
+    let info_handle = make_info_buffer(tensor.client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer(tensor.client.clone(), &[low, high]);
+    let workgroup = prng_workgroup(
+        tensor.shape.num_elements(),
+        WORKGROUP_DEFAULT,
+        N_VALUES_PER_THREAD,
+    );
+    let kernel = StaticKernel::<
+        KernelSettings<UniformPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(workgroup);
+
+    tensor.client.execute(
+        Box::new(kernel),
+        &[&output.handle, &info_handle, &args_handle],
+    );
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use core::f32;
