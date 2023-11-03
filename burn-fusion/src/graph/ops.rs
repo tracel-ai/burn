@@ -1,6 +1,8 @@
+use burn_tensor::{
+    ops::{ConvOptions, ConvTransposeOptions},
+    Distribution, Element,
+};
 use std::{ops::Range, sync::atomic::AtomicU64};
-
-use burn_tensor::{Distribution, Element};
 
 const ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -33,6 +35,7 @@ pub enum TensorOps<F: Element, I: Element> {
     BoolOps(BoolOps),
     IntOps(IntOps),
     FloatOps(FloatOps<F>),
+    ModuleOps(ModuleOps),
 }
 
 #[derive(Debug)]
@@ -86,6 +89,157 @@ pub enum FloatOps<E: core::fmt::Debug> {
     Random {
         shape: Vec<usize>,
         distribution: Distribution<E>,
+    },
+}
+
+#[derive(Debug)]
+pub enum ModuleOps {
+    Embedding {
+        weights: TensorDefinition,
+        indices: TensorDefinition,
+        out: TensorDefinition,
+    },
+    EmbeddingBackward {
+        weights: TensorDefinition,
+        out_grad: TensorDefinition,
+        indices: TensorDefinition,
+        out: TensorDefinition,
+    },
+    Conv1d {
+        x: TensorDefinition,
+        weight: TensorDefinition,
+        bias: Option<TensorDefinition>,
+        options: ConvOptions<1>,
+        out: TensorDefinition,
+    },
+    Conv2d {
+        x: TensorDefinition,
+        weight: TensorDefinition,
+        bias: Option<TensorDefinition>,
+        options: ConvOptions<2>,
+        out: TensorDefinition,
+    },
+    ConvTranspose1d {
+        x: TensorDefinition,
+        weight: TensorDefinition,
+        bias: Option<TensorDefinition>,
+        options: ConvTransposeOptions<1>,
+        out: TensorDefinition,
+    },
+    ConvTranspose2d {
+        x: TensorDefinition,
+        weight: TensorDefinition,
+        bias: Option<TensorDefinition>,
+        options: ConvTransposeOptions<2>,
+        out: TensorDefinition,
+    },
+    AvgPool1d {
+        x: TensorDefinition,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        count_include_pad: bool,
+        out: TensorDefinition,
+    },
+    AvgPool2d {
+        x: TensorDefinition,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        count_include_pad: bool,
+        out: TensorDefinition,
+    },
+    AvgPool1dBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        count_include_pad: bool,
+        out: TensorDefinition,
+    },
+    AvgPool2dBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        count_include_pad: bool,
+        out: TensorDefinition,
+    },
+    AdaptiveAvgPool1d {
+        x: TensorDefinition,
+        output_size: usize,
+        out: TensorDefinition,
+    },
+    AdaptiveAvgPool2d {
+        x: TensorDefinition,
+        output_size: [usize; 2],
+        out: TensorDefinition,
+    },
+    AdaptiveAvgPool1dBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        out: TensorDefinition,
+    },
+    AdaptiveAvgPool2dBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        out: TensorDefinition,
+    },
+    MaxPool1d {
+        x: TensorDefinition,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+        out: TensorDefinition,
+    },
+    MaxPool1dWithIndices {
+        x: TensorDefinition,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+        out: TensorDefinition,
+        out_indices: TensorDefinition,
+    },
+    MaxPool1dWithIndicesBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        indices: TensorDefinition,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+        out: TensorDefinition,
+    },
+    MaxPool2d {
+        x: TensorDefinition,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilation: [usize; 2],
+        out: TensorDefinition,
+    },
+    MaxPool2dWithIndices {
+        x: TensorDefinition,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilation: [usize; 2],
+        out: TensorDefinition,
+        out_indices: TensorDefinition,
+    },
+    MaxPool2dWithIndicesBackward {
+        x: TensorDefinition,
+        grad: TensorDefinition,
+        indices: TensorDefinition,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilation: [usize; 2],
+        out: TensorDefinition,
     },
 }
 

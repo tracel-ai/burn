@@ -7,7 +7,9 @@ pub mod graph;
 
 mod backend;
 mod ops;
+mod server;
 mod tensor;
 
 pub use backend::*;
+pub use server::*;
 pub use tensor::*;
