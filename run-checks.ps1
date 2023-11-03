@@ -3,7 +3,7 @@
 #
 # Run `run-checks` using this command:
 #
-# ./scripts/run-checks environment
+# ./run-checks.ps1 environment
 #
 # where `environment` can assume **ONLY** the following values:
 #

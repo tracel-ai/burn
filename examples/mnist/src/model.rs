@@ -47,9 +47,9 @@ impl<B: Backend> Model<B> {
             conv1,
             conv2,
             conv3,
+            dropout,
             fc1,
             fc2,
-            dropout,
             activation: nn::GELU::new(),
         }
     }

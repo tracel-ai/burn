@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 
 /// The compute type has the responsibility to retrieve the correct compute client based on the
 /// given device.
-pub struct Compute<Device, Server, Channel> {
+pub struct Compute<Device, Server: ComputeServer, Channel> {
     clients: spin::Mutex<Option<HashMap<Device, ComputeClient<Server, Channel>>>>,
 }
 
