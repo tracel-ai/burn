@@ -1,10 +1,14 @@
-use crate::{FloatTensor, FusionBackend, IntTensor};
+use crate::{graph::FusedBackend, FloatTensor, FusionBackend, IntTensor};
 use burn_tensor::{
     backend::Backend,
     ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
 };
 
-impl<B: Backend> ModuleOps<FusionBackend<B>> for FusionBackend<B> {
+impl<B: FusedBackend> ModuleOps<FusionBackend<B>> for FusionBackend<B>
+where
+    B::FullPrecisionBackend: FusedBackend,
+    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
+{
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,

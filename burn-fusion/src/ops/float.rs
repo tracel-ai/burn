@@ -1,4 +1,4 @@
-use crate::FusionBackend;
+use crate::{graph::FusedBackend, FusionBackend};
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -6,7 +6,11 @@ use burn_tensor::{
 };
 use std::ops::Range;
 
-impl<B: Backend> TensorOps<Self> for FusionBackend<B> {
+impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B>
+where
+    B::FullPrecisionBackend: FusedBackend,
+    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
+{
     fn from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,

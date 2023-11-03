@@ -1,13 +1,18 @@
-use super::{TensorId, TensorOps};
-use crate::FusionTensor;
-use burn_tensor::Element;
-use std::{collections::HashMap, ops::RangeBounds, rc::Rc, sync::Arc, vec::Drain};
+use super::TensorOps;
+use crate::HandleContainer;
+use burn_tensor::{backend::Backend, Element};
+use std::{ops::RangeBounds, rc::Rc, vec::Drain};
 
 pub struct Graph<B: FusedBackend> {
     operations: Vec<Rc<TensorOps<B::FloatElem, B::IntElem>>>,
 }
 
 impl<B: FusedBackend> Graph<B> {
+    pub fn new() -> Self {
+        Self {
+            operations: Vec::new(),
+        }
+    }
     pub fn add(&mut self, ops: Rc<TensorOps<B::FloatElem, B::IntElem>>) {
         self.operations.push(ops);
     }
@@ -37,7 +42,7 @@ impl<B: FusedBackend> Graph<B> {
 
     pub fn execute_optimization(
         &mut self,
-        handles: &mut HandleContainer<B::Handle>,
+        handles: &mut HandleContainer<B>,
         index: usize,
         optimizations: &mut [Optimization<B>],
     ) {
@@ -55,15 +60,17 @@ impl<B: FusedBackend> Graph<B> {
             }
         }
     }
-    pub fn execute(&mut self, handles: &mut HandleContainer<B::Handle>) {
+
+    pub fn execute(&mut self, handles: &mut HandleContainer<B>) {
         for ops in self.drain(..) {
             B::execute_ops(ops, handles);
         }
     }
 }
 
+#[derive(new)]
 pub struct Optimization<B: FusedBackend> {
-    pub ops: Box<dyn FusedOps<B::Handle, B::FloatElem, B::IntElem>>,
+    pub ops: Box<dyn FusedOps<B>>,
     pub status: FusionStatus,
 }
 
@@ -96,63 +103,20 @@ pub struct FusionProperties {
     pub ready: bool,
 }
 
-pub trait FusedOps<Handle, FloatElem, IntElem>
-where
-    FloatElem: Element,
-    IntElem: Element,
-{
-    fn register(&mut self, ops: Rc<TensorOps<FloatElem, IntElem>>) -> FusionStatus;
-    fn execute(&mut self, handles: &mut HandleContainer<Handle>);
+pub trait FusedOps<B: FusedBackend> {
+    fn register(&mut self, ops: Rc<TensorOps<B::FloatElem, B::IntElem>>) -> FusionStatus;
+    fn execute(&mut self, handles: &mut HandleContainer<B>);
     fn reset(&mut self);
     fn len(&self) -> usize;
 }
 
-pub trait FusedBackend {
-    type Handle;
-    type FloatElem: Element;
-    type IntElem: Element;
+pub trait FusedBackend: Backend {
+    type Handle: Clone;
 
-    fn operations() -> Vec<Box<dyn FusedOps<Self::Handle, Self::FloatElem, Self::IntElem>>>;
+    fn operations() -> Vec<Box<dyn FusedOps<Self>>>;
     fn new(shape: Vec<usize>) -> Self::Handle;
     fn execute_ops(
         ops: Rc<TensorOps<Self::FloatElem, Self::IntElem>>,
-        handles: &mut HandleContainer<Self::Handle>,
+        handles: &mut HandleContainer<Self>,
     );
-}
-
-pub struct HandleContainer<Handle> {
-    handles: HashMap<TensorId, Handle>,
-    tensors: HashMap<TensorId, FusionTensor>,
-}
-
-pub enum HandleResult<Handle> {
-    ReadOnly(Handle),
-    ReadWrite(Handle),
-}
-
-impl<Handle: Clone> HandleContainer<Handle> {
-    fn get(&mut self, id: &TensorId) -> HandleResult<Handle> {
-        if let Some(tensor) = self.tensors.get(id) {
-            let handle = self.handles.get(&id).unwrap().clone();
-
-            if tensor.can_mut() {
-                HandleResult::ReadWrite(handle)
-            } else {
-                HandleResult::ReadOnly(handle)
-            }
-        } else {
-            panic!("No handle");
-        }
-    }
-
-    fn new(&mut self, shape: Vec<usize>, handle: Handle) -> FusionTensor {
-        let id = TensorId::new();
-        let reference = Arc::new(id.clone());
-        let tensor = FusionTensor::new(shape, reference);
-
-        self.handles.insert(id.clone(), handle);
-        self.tensors.insert(id, tensor.clone());
-
-        tensor
-    }
 }

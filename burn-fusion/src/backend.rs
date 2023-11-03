@@ -1,29 +1,33 @@
 use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
 
-use crate::FusionTensor;
+use crate::{graph::FusedBackend, FusionTensor};
 
 #[derive(Clone, Debug, Default)]
 pub struct FusionBackend<B> {
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend> Backend for FusionBackend<B> {
+impl<B: FusedBackend> Backend for FusionBackend<B>
+where
+    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
+    B::FullPrecisionBackend: FusedBackend,
+{
     type Device = B::Device;
 
     type FullPrecisionBackend = FusionBackend<B::FullPrecisionBackend>;
 
     type FullPrecisionElem = B::FullPrecisionElem;
 
-    type TensorPrimitive<const D: usize> = FusionTensor;
+    type TensorPrimitive<const D: usize> = FusionTensor<B>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<B>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<B>;
 
     fn name() -> String {
         todo!()

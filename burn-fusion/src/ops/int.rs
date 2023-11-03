@@ -1,4 +1,4 @@
-use crate::FusionBackend;
+use crate::{graph::FusedBackend, FusionBackend};
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
@@ -6,7 +6,11 @@ use burn_tensor::{
 };
 use core::ops::Range;
 
-impl<B: Backend> IntTensorOps<Self> for FusionBackend<B> {
+impl<B: FusedBackend> IntTensorOps<Self> for FusionBackend<B>
+where
+    B::FullPrecisionBackend: FusedBackend,
+    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
+{
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         todo!()
     }

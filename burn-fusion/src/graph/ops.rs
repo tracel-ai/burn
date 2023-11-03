@@ -1,29 +1,9 @@
+use crate::TensorDefinition;
 use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions},
     Distribution, Element,
 };
-use std::{ops::Range, sync::atomic::AtomicU64};
-
-const ID_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct TensorId {
-    value: u64,
-}
-
-#[derive(Clone, Debug)]
-pub struct TensorDefinition {
-    pub id: TensorId,
-    pub shape: Vec<usize>,
-}
-
-impl TensorId {
-    pub(crate) fn new() -> Self {
-        let id = ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-        Self { value: id.into() }
-    }
-}
+use std::ops::Range;
 
 #[derive(Debug)]
 pub enum TensorOps<F: Element, I: Element> {
