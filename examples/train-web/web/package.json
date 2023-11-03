@@ -12,5 +12,8 @@
 		"prettier": "3.0.3",
 		"typescript": "^5.2.2",
 		"vite": "^4.5.0"
+	},
+	"dependencies": {
+		"train": "link:../train/pkg"
 	}
 }
