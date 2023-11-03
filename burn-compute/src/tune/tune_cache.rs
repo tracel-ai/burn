@@ -1,40 +1,35 @@
-use core::marker::PhantomData;
-
-use hashbrown::HashMap;
-
 use super::AutotuneKey;
 use super::AutotuneOperation;
 use super::AutotuneOperationSet;
 use alloc::boxed::Box;
+use hashbrown::HashMap;
 
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug, Default)]
-pub(crate) struct TuneCache<S> {
-    cache: HashMap<AutotuneKey, usize>,
-    _server: PhantomData<S>,
+pub(crate) struct TuneCache<K> {
+    cache: HashMap<K, usize>,
 }
 
 /// Result of the cache try
-pub enum TuneCacheResult {
+pub enum TuneCacheResult<K> {
     /// An operation is found and given
     Hit(Box<dyn AutotuneOperation>),
     /// No operation is found and the set is given back for ownership
-    Miss(Box<dyn AutotuneOperationSet>),
+    Miss(Box<dyn AutotuneOperationSet<K>>),
 }
 
-impl<S> TuneCache<S> {
+impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn new() -> Self {
         TuneCache {
             cache: HashMap::new(),
-            _server: PhantomData,
         }
     }
 
     #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &self,
-        autotune_operation_set: Box<dyn AutotuneOperationSet>,
-    ) -> TuneCacheResult {
+        autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
+    ) -> TuneCacheResult<K> {
         let index = self.cache.get(&autotune_operation_set.key());
         if let Some(&i) = index {
             return TuneCacheResult::Hit(autotune_operation_set.fastest(i));
@@ -42,7 +37,7 @@ impl<S> TuneCache<S> {
         TuneCacheResult::Miss(autotune_operation_set)
     }
 
-    pub(crate) fn cache_insert(&mut self, key: AutotuneKey, fastest_index: usize) {
+    pub(crate) fn cache_insert(&mut self, key: K, fastest_index: usize) {
         self.cache.insert(key, fastest_index);
     }
 }

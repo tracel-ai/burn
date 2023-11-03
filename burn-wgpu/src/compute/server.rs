@@ -1,4 +1,4 @@
-use super::{WgpuStorage, WorkGroup};
+use super::{WgpuAutotuneKey, WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
@@ -254,6 +254,7 @@ where
     type Kernel = Box<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
+    type AutotuneKey = WgpuAutotuneKey;
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]

@@ -7,8 +7,6 @@ use crate::server::ComputeServer;
 use super::AutotuneOperation;
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
-use alloc::vec;
-use alloc::vec::Vec;
 
 /// A benchmark that runs on server handles
 #[derive(new)]
@@ -18,20 +16,17 @@ pub struct TuneBenchmark<S: ComputeServer, C> {
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
-    // list of operations
-    type Args = Vec<Box<dyn AutotuneOperation>>;
+    type Args = Box<dyn AutotuneOperation>;
 
     fn prepare(&self) -> Self::Args {
-        vec![self.operation.clone()]
+        self.operation.clone()
     }
 
     fn num_samples(&self) -> usize {
         10
     }
 
-    fn execute(&self, args: Self::Args) {
-        let operation = args[0].clone(); // TODO rm 0
-
+    fn execute(&self, operation: Self::Args) {
         AutotuneOperation::execute(operation);
     }
 

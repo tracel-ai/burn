@@ -24,6 +24,7 @@ where
     type Kernel = Arc<dyn DummyKernel>;
     type Storage = BytesStorage;
     type MemoryManagement = MM;
+    type AutotuneKey = String;
 
     fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>> {
         let bytes = self.memory_management.get(&handle.memory);
