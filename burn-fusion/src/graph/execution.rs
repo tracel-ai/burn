@@ -1,6 +1,5 @@
-use crate::{Handle, HandleContainer};
-
 use super::{FusedBackend, FusionStatus, Graph, Optimization};
+use crate::HandleContainer;
 
 pub trait GraphExecution<B: FusedBackend>: Default + Send {
     /// Maybe execute the given graph using the list of potential operations.

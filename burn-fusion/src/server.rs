@@ -3,7 +3,7 @@ use crate::{
         FusedBackend, FusionProperties, FusionStatus, Graph, GraphExecution, Optimization,
         TensorOps,
     },
-    HandleContainer, TensorId,
+    FusionTensor, HandleContainer, TensorId,
 };
 use std::sync::Arc;
 
@@ -16,6 +16,7 @@ where
     graph: Graph<B>,
     handles: HandleContainer<B>,
     execution: G,
+    pub device: B::HandleDevice,
 }
 
 /// Trait name graph execution strategy.
@@ -33,8 +34,9 @@ where
         Self {
             optimizations,
             graph: Graph::new(),
-            handles: HandleContainer::new(device),
+            handles: HandleContainer::new(device.clone()),
             execution: G::default(),
+            device,
         }
     }
 
@@ -63,7 +65,7 @@ where
         );
     }
 
-    pub fn create(&mut self, shape: Vec<usize>) -> (B::HandleDevice, Arc<TensorId>) {
+    pub fn create(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
         self.handles.not_initialized(shape)
     }
 }

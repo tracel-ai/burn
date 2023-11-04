@@ -1,7 +1,10 @@
+use crate::client::mutex::MutexFusionClient;
+use crate::graph::GreedyGraphExecution;
+use crate::{graph::FusedBackend, FusionTensor};
 use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
 
-use crate::{graph::FusedBackend, FusionTensor};
+type Client<B> = MutexFusionClient<B, GreedyGraphExecution>;
 
 #[derive(Clone, Debug, Default)]
 pub struct FusionBackend<B> {
@@ -15,15 +18,15 @@ impl<B: FusedBackend> Backend for FusionBackend<B> {
 
     type FullPrecisionElem = B::FullPrecisionElem;
 
-    type TensorPrimitive<const D: usize> = FusionTensor<B>;
+    type TensorPrimitive<const D: usize> = FusionTensor<Client<B>>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<Client<B>>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<Client<B>>;
 
     fn name() -> String {
         todo!()

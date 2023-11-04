@@ -1,19 +1,19 @@
-use crate::{graph::FusedBackend, Client};
+use crate::{client::FusionClient, graph::FusedBackend};
 use burn_tensor::Shape;
 use std::sync::{atomic::AtomicU64, Arc};
 
 #[derive(new, Clone, Debug)]
-pub struct FusionTensor<B: FusedBackend> {
+pub struct FusionTensor<C: FusionClient> {
     pub shape: Vec<usize>,
     pub id: Arc<TensorId>,
-    pub client: Client<B>,
-    pub device: B::HandleDevice,
+    pub client: C,
 }
 
-impl<B: FusedBackend> FusionTensor<B> {
+impl<C: FusionClient> FusionTensor<C> {
     pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
         Shape::from(self.shape.clone())
     }
+
     pub fn can_mut(&self) -> bool {
         Arc::strong_count(&self.id) <= 2
     }

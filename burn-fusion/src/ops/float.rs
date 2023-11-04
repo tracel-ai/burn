@@ -1,4 +1,5 @@
 use crate::{
+    client::FusionClient,
     graph::{FusedBackend, NumericOps, TensorOps::NumericOpsFloat},
     FusionBackend, FusionTensor, TensorDefinition, TensorId,
 };
@@ -33,7 +34,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
-        tensor.device.clone().into()
+        tensor.client.device().clone().into()
     }
 
     fn to_device<const D: usize>(
@@ -51,11 +52,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        let shape = lhs.shape.clone();
-        let client = lhs.client.clone();
-
-        let (device, id) = client.empty(shape.clone());
-        let out = FusionTensor::new(shape, id, client, device);
+        let out = lhs.client.empty(lhs.shape.clone());
 
         out.client.register(NumericOpsFloat(NumericOps::Add {
             lhs: lhs.into_definition(),

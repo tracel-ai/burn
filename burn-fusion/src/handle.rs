@@ -1,10 +1,10 @@
-use crate::{graph::FusedBackend, Client, FusionTensor, TensorId};
+use crate::{graph::FusedBackend, TensorId};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct HandleContainer<B: FusedBackend> {
     handles: HashMap<TensorId, B::Handle>,
-    tensors: HashMap<TensorId, FusionTensor<B>>,
+    references: HashMap<TensorId, Arc<TensorId>>,
     device: B::HandleDevice,
 }
 
@@ -22,15 +22,18 @@ impl<B: FusedBackend> HandleContainer<B> {
     pub fn new(device: B::HandleDevice) -> Self {
         Self {
             handles: HashMap::new(),
-            tensors: HashMap::new(),
+            references: HashMap::new(),
             device,
         }
     }
     pub fn get(&mut self, id: &TensorId) -> HandleResult<B::Handle> {
-        if let Some(tensor) = self.tensors.get(id) {
+        if let Some(tensor) = self.references.get(id) {
             let handle = self.handles.get(&id).unwrap().clone();
+            let count = Arc::strong_count(&tensor);
 
-            if tensor.can_mut() {
+            if count == 0 {
+                HandleResult::NotInitialized
+            } else if count <= 2 {
                 HandleResult::ReadWrite(handle)
             } else {
                 HandleResult::ReadOnly(handle)
@@ -40,28 +43,22 @@ impl<B: FusedBackend> HandleContainer<B> {
         }
     }
 
-    pub fn create(
-        &mut self,
-        shape: Vec<usize>,
-        handle: B::Handle,
-        client: Client<B>,
-    ) -> FusionTensor<B> {
+    pub fn create(&mut self, shape: Vec<usize>, handle: B::Handle) -> Arc<TensorId> {
         let id = TensorId::new();
         let reference = Arc::new(id.clone());
-        let tensor = FusionTensor::new(shape, reference, client, self.device.clone());
 
         self.handles.insert(id.clone(), handle);
-        self.tensors.insert(id, tensor.clone());
+        self.references.insert(id, reference.clone());
 
-        tensor
+        reference
     }
 
-    pub fn not_initialized(&mut self, shape: Vec<usize>) -> (B::HandleDevice, Arc<TensorId>) {
+    pub fn not_initialized(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
         let id = TensorId::new();
         let reference = Arc::new(id.clone());
 
-        // self.tensors.insert(id, tensor.clone());
+        self.references.insert(id, reference.clone());
 
-        (self.device.clone(), reference)
+        reference
     }
 }

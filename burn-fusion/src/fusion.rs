@@ -1,29 +1,16 @@
+use crate::{client::FusionClient, graph::FusedBackend, FusionServer};
 use burn_tensor::backend::Backend;
-
-use crate::{
-    channel::{mutex::MutexFusionChannel, FusionChannel},
-    graph::{FusedBackend, GraphExecution, GreedyGraphExecution},
-    FusionClient, FusionServer,
-};
 use std::{collections::HashMap, ops::DerefMut};
-
-pub type Client<B> =
-    FusionClient<B, MutexFusionChannel<B, GreedyGraphExecution>, GreedyGraphExecution>;
 
 pub type Handle<B> = <B as FusedBackend>::Handle;
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type IntElem<B> = <B as Backend>::IntElem;
 
-pub struct Fusion<B: FusedBackend, C, G> {
-    clients: spin::Mutex<Option<HashMap<B::HandleDevice, FusionClient<B, C, G>>>>,
+pub struct Fusion<C: FusionClient> {
+    clients: spin::Mutex<Option<HashMap<<C::FusedBackend as FusedBackend>::HandleDevice, C>>>,
 }
 
-impl<B, C, G> Fusion<B, C, G>
-where
-    B: FusedBackend,
-    G: GraphExecution<B>,
-    C: FusionChannel<B, G>,
-{
+impl<C: FusionClient> Fusion<C> {
     /// Create a new compute.
     pub const fn new() -> Self {
         Self {
@@ -34,11 +21,11 @@ where
     /// Get the fusion client for the given device.
     ///
     /// Provide the init function to create a new client if it isn't already initialized.
-    pub fn client(&self, device: &B::HandleDevice) -> FusionClient<B, C, G> {
+    pub fn client(&self, device: &<C::FusedBackend as FusedBackend>::HandleDevice) -> C {
         let mut clients = self.clients.lock();
 
         if clients.is_none() {
-            let client = FusionClient::new(C::new(FusionServer::new(device.clone())));
+            let client = C::new(FusionServer::new(device.clone()));
             Self::register_inner(device, client, &mut clients);
         }
 
@@ -46,7 +33,7 @@ where
             Some(clients) => match clients.get(device) {
                 Some(client) => client.clone(),
                 None => {
-                    let client = FusionClient::new(C::new(FusionServer::new(device.clone())));
+                    let client = C::new(FusionServer::new(device.clone()));
                     clients.insert(device.clone(), client.clone());
                     client
                 }
@@ -56,9 +43,9 @@ where
     }
 
     fn register_inner(
-        device: &B::HandleDevice,
-        client: FusionClient<B, C, G>,
-        clients: &mut Option<HashMap<B::HandleDevice, FusionClient<B, C, G>>>,
+        device: &<C::FusedBackend as FusedBackend>::HandleDevice,
+        client: C,
+        clients: &mut Option<HashMap<<C::FusedBackend as FusedBackend>::HandleDevice, C>>,
     ) {
         if clients.is_none() {
             *clients = Some(HashMap::new());
