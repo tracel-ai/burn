@@ -1,4 +1,7 @@
+use burn::backend::{ndarray::NdArrayDevice, Autodiff, NdArray};
 use wasm_bindgen::prelude::*;
+
+mod train;
 
 #[wasm_bindgen(start)]
 pub fn start() {
@@ -9,4 +12,5 @@ pub fn start() {
 #[wasm_bindgen]
 pub fn run() {
     log::info!("Hello from Rust");
+    train::run::<Autodiff<NdArray<f32>>>(NdArrayDevice::Cpu);
 }
