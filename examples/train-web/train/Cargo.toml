@@ -3,6 +3,11 @@ name = "train"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
+wasm-bindgen = { version = "0.2.88" }
+log = { workspace = true }
+console_error_panic_hook = "0.1.7"
+console_log = { version = "1", features = ["color"] }
