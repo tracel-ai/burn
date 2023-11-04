@@ -1,5 +1,7 @@
 import wasm, { run } from 'train'
 
+Error.stackTraceLimit = 30
+
 await wasm()
 
 export function setupCounter(element: HTMLButtonElement) {
