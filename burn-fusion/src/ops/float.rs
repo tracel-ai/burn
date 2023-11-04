@@ -1,16 +1,14 @@
-use crate::{graph::FusedBackend, FusionBackend};
+use crate::{
+    graph::{FusedBackend, NumericOps, TensorOps::NumericOpsFloat},
+    FusionBackend, FusionTensor, TensorDefinition, TensorId,
+};
 use burn_tensor::{
-    backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
     Data, Device, Distribution, Reader, Shape,
 };
 use std::ops::Range;
 
-impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B>
-where
-    B::FullPrecisionBackend: FusedBackend,
-    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
-{
+impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
@@ -27,7 +25,7 @@ where
     }
 
     fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
-        todo!()
+        tensor.shape()
     }
 
     fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<Self>, D>> {
@@ -35,7 +33,7 @@ where
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
-        todo!()
+        tensor.device.clone().into()
     }
 
     fn to_device<const D: usize>(
@@ -53,7 +51,19 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        let shape = lhs.shape.clone();
+        let client = lhs.client.clone();
+
+        let (device, id) = client.empty(shape.clone());
+        let out = FusionTensor::new(shape, id, client, device);
+
+        out.client.register(NumericOpsFloat(NumericOps::Add {
+            lhs: lhs.into_definition(),
+            rhs: rhs.into_definition(),
+            out: out.to_definition(),
+        }));
+
+        out
     }
 
     fn add_scalar<const D: usize>(

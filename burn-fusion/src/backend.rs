@@ -8,14 +8,10 @@ pub struct FusionBackend<B> {
     _backend: PhantomData<B>,
 }
 
-impl<B: FusedBackend> Backend for FusionBackend<B>
-where
-    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
-    B::FullPrecisionBackend: FusedBackend,
-{
+impl<B: FusedBackend> Backend for FusionBackend<B> {
     type Device = B::Device;
 
-    type FullPrecisionBackend = FusionBackend<B::FullPrecisionBackend>;
+    type FullPrecisionBackend = FusionBackend<B::FullPrecisionFusedBackend>;
 
     type FullPrecisionElem = B::FullPrecisionElem;
 

@@ -1,6 +1,7 @@
 use crate::{
     channel::FusionChannel,
     graph::{FusedBackend, GraphExecution, TensorOps},
+    FusionTensor, TensorId,
 };
 use std::{marker::PhantomData, sync::Arc};
 
@@ -17,6 +18,20 @@ impl<B, C, G> Clone for FusionClient<B, C, G> {
             _backend: PhantomData,
             _graph: PhantomData,
         }
+    }
+}
+
+impl<B, C, G> std::fmt::Debug for FusionClient<B, C, G> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!(
+                "Backend {} Channel {} Graph {}",
+                core::any::type_name::<B>(),
+                core::any::type_name::<C>(),
+                core::any::type_name::<G>()
+            )
+            .as_str(),
+        )
     }
 }
 
@@ -39,5 +54,9 @@ where
 
     pub fn sync(&self) {
         self.channel.sync();
+    }
+
+    pub fn empty(&self, shape: Vec<usize>) -> (B::HandleDevice, Arc<TensorId>) {
+        self.channel.create(shape.clone())
     }
 }

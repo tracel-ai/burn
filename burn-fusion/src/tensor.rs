@@ -7,6 +7,7 @@ pub struct FusionTensor<B: FusedBackend> {
     pub shape: Vec<usize>,
     pub id: Arc<TensorId>,
     pub client: Client<B>,
+    pub device: B::HandleDevice,
 }
 
 impl<B: FusedBackend> FusionTensor<B> {
@@ -15,6 +16,20 @@ impl<B: FusedBackend> FusionTensor<B> {
     }
     pub fn can_mut(&self) -> bool {
         Arc::strong_count(&self.id) <= 2
+    }
+
+    pub(crate) fn into_definition(self) -> TensorDefinition {
+        TensorDefinition {
+            id: self.id.as_ref().clone(),
+            shape: self.shape,
+        }
+    }
+
+    pub(crate) fn to_definition(&self) -> TensorDefinition {
+        TensorDefinition {
+            id: self.id.as_ref().clone(),
+            shape: self.shape.clone(),
+        }
     }
 }
 

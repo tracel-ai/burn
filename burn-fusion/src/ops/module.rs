@@ -4,11 +4,7 @@ use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
 };
 
-impl<B: FusedBackend> ModuleOps<FusionBackend<B>> for FusionBackend<B>
-where
-    B::FullPrecisionBackend: FusedBackend,
-    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
-{
+impl<B: FusedBackend> ModuleOps<FusionBackend<B>> for FusionBackend<B> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,

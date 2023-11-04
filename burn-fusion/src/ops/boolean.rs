@@ -5,11 +5,7 @@ use burn_tensor::{
     Device, Shape,
 };
 
-impl<B: FusedBackend> BoolTensorOps<Self> for FusionBackend<B>
-where
-    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
-    B::FullPrecisionBackend: FusedBackend,
-{
+impl<B: FusedBackend> BoolTensorOps<Self> for FusionBackend<B> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         todo!()
     }

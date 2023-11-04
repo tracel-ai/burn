@@ -1,10 +1,11 @@
-use crate::{
-    graph::{FusedBackend, GraphExecution, TensorOps},
-    FusionServer,
-};
-use spin::Mutex;
+use std::sync::Arc;
 
 use super::FusionChannel;
+use crate::{
+    graph::{FusedBackend, GraphExecution, TensorOps},
+    FusionServer, TensorId,
+};
+use spin::Mutex;
 
 pub struct MutexFusionChannel<B, G>
 where
@@ -26,5 +27,8 @@ impl<B: FusedBackend, G: GraphExecution<B>> FusionChannel<B, G> for MutexFusionC
 
     fn sync(&self) {
         self.server.lock().sync();
+    }
+    fn create(&self, shape: Vec<usize>) -> (B::HandleDevice, Arc<TensorId>) {
+        self.server.lock().create(shape)
     }
 }

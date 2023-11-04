@@ -6,11 +6,7 @@ use burn_tensor::{
 };
 use core::ops::Range;
 
-impl<B: FusedBackend> IntTensorOps<Self> for FusionBackend<B>
-where
-    B::FullPrecisionBackend: FusedBackend,
-    <B::FullPrecisionBackend as Backend>::FullPrecisionBackend: FusedBackend,
-{
+impl<B: FusedBackend> IntTensorOps<Self> for FusionBackend<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         todo!()
     }

@@ -2,7 +2,7 @@ use crate::{Handle, HandleContainer};
 
 use super::{FusedBackend, FusionStatus, Graph, Optimization};
 
-pub trait GraphExecution<B: FusedBackend>: Default {
+pub trait GraphExecution<B: FusedBackend>: Default + Send {
     /// Maybe execute the given graph using the list of potential operations.
     fn maybe_execute(
         &mut self,

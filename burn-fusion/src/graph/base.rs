@@ -1,10 +1,10 @@
 use super::TensorOps;
 use crate::HandleContainer;
-use burn_tensor::{backend::Backend, Element};
-use std::{ops::RangeBounds, rc::Rc, vec::Drain};
+use burn_tensor::backend::Backend;
+use std::{ops::RangeBounds, sync::Arc, vec::Drain};
 
 pub struct Graph<B: FusedBackend> {
-    operations: Vec<Rc<TensorOps<B::FloatElem, B::IntElem>>>,
+    operations: Vec<Arc<TensorOps<B::FloatElem, B::IntElem>>>,
 }
 
 impl<B: FusedBackend> Graph<B> {
@@ -13,7 +13,7 @@ impl<B: FusedBackend> Graph<B> {
             operations: Vec::new(),
         }
     }
-    pub fn add(&mut self, ops: Rc<TensorOps<B::FloatElem, B::IntElem>>) {
+    pub fn add(&mut self, ops: Arc<TensorOps<B::FloatElem, B::IntElem>>) {
         self.operations.push(ops);
     }
 
@@ -25,7 +25,7 @@ impl<B: FusedBackend> Graph<B> {
         self.operations.len() == 0
     }
 
-    pub fn drain<R>(&mut self, range: R) -> Drain<'_, Rc<TensorOps<B::FloatElem, B::IntElem>>>
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOps<B::FloatElem, B::IntElem>>>
     where
         R: RangeBounds<usize>,
     {
@@ -36,7 +36,7 @@ impl<B: FusedBackend> Graph<B> {
         self.operations.drain(range);
     }
 
-    pub fn nodes<'a>(&'a self) -> &'a [Rc<TensorOps<B::FloatElem, B::IntElem>>] {
+    pub fn nodes<'a>(&'a self) -> &'a [Arc<TensorOps<B::FloatElem, B::IntElem>>] {
         &self.operations
     }
 
@@ -75,7 +75,7 @@ pub struct Optimization<B: FusedBackend> {
 }
 
 impl<B: FusedBackend> Optimization<B> {
-    pub fn register(&mut self, ops: &Rc<TensorOps<B::FloatElem, B::IntElem>>) {
+    pub fn register(&mut self, ops: &Arc<TensorOps<B::FloatElem, B::IntElem>>) {
         match self.status {
             FusionStatus::Closed(_) => return,
             _ => {}
@@ -103,20 +103,34 @@ pub struct FusionProperties {
     pub ready: bool,
 }
 
-pub trait FusedOps<B: FusedBackend> {
-    fn register(&mut self, ops: Rc<TensorOps<B::FloatElem, B::IntElem>>) -> FusionStatus;
+pub trait FusedOps<B: FusedBackend>: Send {
+    fn register(&mut self, ops: Arc<TensorOps<B::FloatElem, B::IntElem>>) -> FusionStatus;
     fn execute(&mut self, handles: &mut HandleContainer<B>);
     fn reset(&mut self);
     fn len(&self) -> usize;
 }
 
 pub trait FusedBackend: Backend {
-    type Handle: Clone;
+    type HandleDevice: core::hash::Hash
+        + core::cmp::Eq
+        + Clone
+        + Send
+        + Sync
+        + core::fmt::Debug
+        + From<Self::Device>
+        + Into<Self::Device>;
+    type Handle: Sync + Send + Clone;
+
+    type FullPrecisionFusedBackend: FusedBackend<
+            Handle = Self::Handle,
+            Device = Self::Device,
+            HandleDevice = Self::HandleDevice,
+        > + Backend<Device = Self::Device, FloatElem = Self::FullPrecisionElem>;
 
     fn operations() -> Vec<Box<dyn FusedOps<Self>>>;
     fn new(shape: Vec<usize>) -> Self::Handle;
     fn execute_ops(
-        ops: Rc<TensorOps<Self::FloatElem, Self::IntElem>>,
+        ops: Arc<TensorOps<Self::FloatElem, Self::IntElem>>,
         handles: &mut HandleContainer<Self>,
     );
 }

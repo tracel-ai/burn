@@ -3,9 +3,9 @@ use crate::{
         FusedBackend, FusionProperties, FusionStatus, Graph, GraphExecution, Optimization,
         TensorOps,
     },
-    HandleContainer,
+    HandleContainer, TensorId,
 };
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct FusionServer<B, G>
 where
@@ -24,7 +24,7 @@ where
     B: FusedBackend,
     G: GraphExecution<B>,
 {
-    pub fn new() -> Self {
+    pub fn new(device: B::HandleDevice) -> Self {
         let optimizations = B::operations()
             .into_iter()
             .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
@@ -33,13 +33,13 @@ where
         Self {
             optimizations,
             graph: Graph::new(),
-            handles: HandleContainer::new(),
+            handles: HandleContainer::new(device),
             execution: G::default(),
         }
     }
 
     pub fn register(&mut self, ops: TensorOps<B::FloatElem, B::IntElem>) {
-        let ops = Rc::new(ops);
+        let ops = Arc::new(ops);
         self.graph.add(ops.clone());
 
         self.optimizations
@@ -61,5 +61,9 @@ where
             &mut self.optimizations,
             true,
         );
+    }
+
+    pub fn create(&mut self, shape: Vec<usize>) -> (B::HandleDevice, Arc<TensorId>) {
+        self.handles.not_initialized(shape)
     }
 }
