@@ -1,20 +1,21 @@
-use crate::TensorDefinition;
+use crate::{HandleContainer, TensorDefinition};
 use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions},
     Distribution, Element,
 };
 use std::ops::Range;
 
-#[derive(Debug)]
-pub enum TensorOps<F: Element, I: Element> {
-    BaseOpsFloat(BaseOps<F>),
-    BaseOpsInt(BaseOps<I>),
+use super::FusedBackend;
+
+pub enum TensorOps<B: FusedBackend> {
+    BaseOpsFloat(BaseOps<B::FloatElem>),
+    BaseOpsInt(BaseOps<B::IntElem>),
     BaseOpsBool(BaseOps<bool>),
-    NumericOpsFloat(NumericOps<F>),
-    NumericOpsInt(NumericOps<F>),
+    NumericOpsFloat(NumericOps<B, B::FloatElem>),
+    NumericOpsInt(NumericOps<B, B::IntElem>),
     BoolOps(BoolOps),
     IntOps(IntOps),
-    FloatOps(FloatOps<F>),
+    FloatOps(FloatOps<B::FloatElem>),
     ModuleOps(ModuleOps),
 }
 
@@ -275,12 +276,18 @@ pub enum BaseOps<E> {
     },
 }
 
-#[derive(Debug)]
-pub enum NumericOps<E: Element> {
+pub trait SingleOps<B: FusedBackend>: Send + Sync {
+    type Input: Send + Sync;
+
+    fn execute(self: Box<Self>, input: Self::Input, handles: &mut HandleContainer<B>);
+}
+
+pub enum NumericOps<B: FusedBackend, E: Element> {
     Add {
         lhs: TensorDefinition,
         rhs: TensorDefinition,
         out: TensorDefinition,
+        ops: Box<dyn SingleOps<B, Input = (TensorDefinition, TensorDefinition, TensorDefinition)>>,
     },
     AddScalar {
         lhs: TensorDefinition,

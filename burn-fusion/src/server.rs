@@ -40,7 +40,7 @@ where
         }
     }
 
-    pub fn register(&mut self, ops: TensorOps<B::FloatElem, B::IntElem>) {
+    pub fn register(&mut self, ops: TensorOps<B>) {
         let ops = Arc::new(ops);
         self.graph.add(ops.clone());
 

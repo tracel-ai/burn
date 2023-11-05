@@ -53,7 +53,7 @@ where
         }
     }
 
-    fn register(&self, ops: TensorOps<B::FloatElem, B::IntElem>) {
+    fn register(&self, ops: TensorOps<B>) {
         self.server.lock().register(ops);
     }
 

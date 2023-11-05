@@ -26,21 +26,41 @@ impl<B: FusedBackend> HandleContainer<B> {
             device,
         }
     }
+
     pub fn get(&mut self, id: &TensorId) -> HandleResult<B::Handle> {
         if let Some(tensor) = self.references.get(id) {
-            let handle = self.handles.get(&id).unwrap().clone();
             let count = Arc::strong_count(&tensor);
 
             if count == 0 {
                 HandleResult::NotInitialized
             } else if count <= 2 {
+                let handle = self.handles.remove(&id).unwrap();
+                self.references.remove(id);
                 HandleResult::ReadWrite(handle)
             } else {
+                let handle = self.handles.get(&id).unwrap().clone();
                 HandleResult::ReadOnly(handle)
             }
         } else {
             panic!("No handle");
         }
+    }
+
+    pub fn get_float_tensor<const D: usize>(&mut self, id: &TensorId) -> B::TensorPrimitive<D> {
+        match self.get(id) {
+            HandleResult::ReadOnly(handle) => B::float_tensor(handle),
+            HandleResult::ReadWrite(handle) => B::float_tensor(handle),
+            HandleResult::NotInitialized => panic!(),
+        }
+    }
+
+    pub fn register_float_tensor<const D: usize>(
+        &mut self,
+        id: &TensorId,
+        tensor: B::TensorPrimitive<D>,
+    ) {
+        let handle = B::float_tensor_handle(tensor);
+        self.handles.insert(id.clone(), handle);
     }
 
     pub fn create(&mut self, shape: Vec<usize>, handle: B::Handle) -> Arc<TensorId> {

@@ -1,7 +1,7 @@
 use crate::{
     client::FusionClient,
-    graph::{FusedBackend, NumericOps, TensorOps::NumericOpsFloat},
-    FusionBackend, FusionTensor, TensorDefinition, TensorId,
+    graph::{FusedBackend, NumericOps, SingleOps, TensorOps::NumericOpsFloat},
+    FusionBackend, TensorDefinition,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -54,10 +54,31 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
     ) -> FloatTensor<Self, D> {
         let out = lhs.client.empty(lhs.shape.clone());
 
+        struct AddOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> SingleOps<B> for AddOps<D> {
+            type Input = (TensorDefinition, TensorDefinition, TensorDefinition);
+
+            fn execute(
+                self: Box<Self>,
+                input: Self::Input,
+                handles: &mut crate::HandleContainer<B>,
+            ) {
+                let (lhs, rhs, out) = input;
+
+                let lhs = handles.get_float_tensor::<D>(&lhs.id);
+                let rhs = handles.get_float_tensor(&rhs.id);
+                let output = B::add(lhs, rhs);
+
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
         out.client.register(NumericOpsFloat(NumericOps::Add {
             lhs: lhs.into_definition(),
             rhs: rhs.into_definition(),
             out: out.to_definition(),
+            ops: Box::new(AddOps::<D>),
         }));
 
         out
