@@ -1,6 +1,5 @@
 use crate::{graph::FusedBackend, FusionBackend};
 use burn_tensor::{
-    backend::Backend,
     ops::{BoolTensor, BoolTensorOps},
     Device, Shape,
 };

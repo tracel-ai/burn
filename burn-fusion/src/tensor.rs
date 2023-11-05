@@ -1,11 +1,11 @@
-use crate::{client::FusionClient, graph::FusedBackend};
-use burn_tensor::Shape;
+use crate::client::FusionClient;
+use burn_tensor::{ops::FloatElem, Data, Reader, Shape};
 use std::sync::{atomic::AtomicU64, Arc};
 
 #[derive(new, Clone, Debug)]
 pub struct FusionTensor<C: FusionClient> {
-    pub shape: Vec<usize>,
     pub id: Arc<TensorId>,
+    pub shape: Vec<usize>,
     pub client: C,
 }
 
@@ -14,22 +14,24 @@ impl<C: FusionClient> FusionTensor<C> {
         Shape::from(self.shape.clone())
     }
 
-    pub fn can_mut(&self) -> bool {
-        Arc::strong_count(&self.id) <= 2
+    fn status(&self) -> TensorStatus {
+        if Arc::strong_count(&self.id) <= 2 {
+            TensorStatus::ReadWrite
+        } else {
+            TensorStatus::ReadOnly
+        }
     }
 
     pub(crate) fn into_definition(self) -> TensorDefinition {
         TensorDefinition {
-            id: self.id.as_ref().clone(),
+            status: self.status(),
             shape: self.shape,
+            id: self.id.as_ref().clone(),
         }
     }
 
-    pub(crate) fn to_definition(&self) -> TensorDefinition {
-        TensorDefinition {
-            id: self.id.as_ref().clone(),
-            shape: self.shape.clone(),
-        }
+    pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusedBackend>, D>> {
+        self.client.clone().read_float(self.into_definition())
     }
 }
 
@@ -41,9 +43,17 @@ pub struct TensorId {
 }
 
 #[derive(Clone, Debug)]
+pub enum TensorStatus {
+    ReadOnly,
+    ReadWrite,
+}
+
+/// A tensor definition represent a snapshot of a tensor when it was used.
+#[derive(Debug)]
 pub struct TensorDefinition {
     pub id: TensorId,
     pub shape: Vec<usize>,
+    pub status: TensorStatus,
 }
 
 impl TensorId {

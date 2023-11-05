@@ -1,6 +1,6 @@
-use super::{BaseOps, TensorOps};
-use crate::HandleContainer;
-use burn_tensor::{backend::Backend, Shape};
+use super::TensorOps;
+use crate::{client::FusionClient, Fusion, HandleContainer};
+use burn_tensor::backend::Backend;
 use std::{ops::RangeBounds, sync::Arc, vec::Drain};
 
 pub struct Graph<B: FusedBackend> {
@@ -25,15 +25,17 @@ impl<B: FusedBackend> Graph<B> {
         self.operations.len() == 0
     }
 
-    pub fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOps<B>>>
+    fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOps<B>>>
     where
         R: RangeBounds<usize>,
     {
         self.operations.drain(range)
     }
 
-    pub fn remove<R: RangeBounds<usize>>(&mut self, range: R) {
-        self.operations.drain(range);
+    pub fn remove<R: RangeBounds<usize>>(&mut self, range: R, handles: &mut HandleContainer<B>) {
+        for ops in self.operations.drain(range) {
+            ops.cleanup_tensor(handles)
+        }
     }
 
     pub fn nodes<'a>(&'a self) -> &'a [Arc<TensorOps<B>>] {
@@ -50,7 +52,7 @@ impl<B: FusedBackend> Graph<B> {
         let num_keep = optimization.ops.len();
         optimization.ops.execute(handles);
 
-        self.remove(0..num_keep);
+        self.remove(0..num_keep, handles);
 
         for optimization in optimizations.iter_mut() {
             optimization.reset();
@@ -63,50 +65,8 @@ impl<B: FusedBackend> Graph<B> {
 
     pub fn execute(&mut self, handles: &mut HandleContainer<B>) {
         for ops in self.drain(..) {
-            match ops.as_ref() {
-                TensorOps::BaseOpsFloat(ops) => match ops {
-                    BaseOps::Empty { shape, out } => todo!(),
-                    BaseOps::Reshape { tensor, shape, out } => {
-                        let tensor = handles.get_float_tensor::<2>(&tensor.id);
-                        let tensor_output = B::reshape::<2, 2>(tensor, Shape::from(shape));
-                    }
-                    BaseOps::SwapDims {
-                        tensor,
-                        dim1,
-                        dim2,
-                        out,
-                    } => todo!(),
-                    BaseOps::Slice {
-                        tensor,
-                        ranges,
-                        out,
-                    } => todo!(),
-                    BaseOps::SliceAssign {
-                        tensor,
-                        ranges,
-                        values,
-                        out,
-                    } => todo!(),
-                    BaseOps::FromData { value, shape, out } => todo!(),
-                    BaseOps::Repeat {
-                        tensor,
-                        dim,
-                        times,
-                        shape,
-                        out,
-                    } => todo!(),
-                    BaseOps::Equal { lhs, rhs, out } => todo!(),
-                    BaseOps::Cat { tensors, dim, out } => todo!(),
-                },
-                TensorOps::BaseOpsInt(_) => todo!(),
-                TensorOps::BaseOpsBool(_) => todo!(),
-                TensorOps::NumericOpsFloat(_) => todo!(),
-                TensorOps::NumericOpsInt(_) => todo!(),
-                TensorOps::BoolOps(_) => todo!(),
-                TensorOps::IntOps(_) => todo!(),
-                TensorOps::FloatOps(_) => todo!(),
-                TensorOps::ModuleOps(_) => todo!(),
-            }
+            todo!("execute the ops");
+            ops.cleanup_tensor(handles);
         }
     }
 }
@@ -180,4 +140,7 @@ pub trait FusedBackend: Backend {
     fn float_tensor_handle<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Handle;
     fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
+
+    type FusionClient: FusionClient<FusedBackend = Self>;
+    const FUSION: Fusion<Self::FusionClient> = Fusion::new();
 }

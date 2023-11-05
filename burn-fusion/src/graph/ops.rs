@@ -8,15 +8,70 @@ use std::ops::Range;
 use super::FusedBackend;
 
 pub enum TensorOps<B: FusedBackend> {
-    BaseOpsFloat(BaseOps<B::FloatElem>),
-    BaseOpsInt(BaseOps<B::IntElem>),
-    BaseOpsBool(BaseOps<bool>),
+    BaseOpsFloat(BaseOps<B, B::FloatElem>),
+    BaseOpsInt(BaseOps<B, B::IntElem>),
+    BaseOpsBool(BaseOps<B, bool>),
     NumericOpsFloat(NumericOps<B, B::FloatElem>),
     NumericOpsInt(NumericOps<B, B::IntElem>),
     BoolOps(BoolOps),
     IntOps(IntOps),
     FloatOps(FloatOps<B::FloatElem>),
     ModuleOps(ModuleOps),
+}
+
+impl<B: FusedBackend> TensorOps<B> {
+    pub(crate) fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            TensorOps::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
+            TensorOps::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
+            TensorOps::BaseOpsBool(_) => todo!(),
+            TensorOps::NumericOpsFloat(_) => todo!(),
+            TensorOps::NumericOpsInt(_) => todo!(),
+            TensorOps::BoolOps(_) => todo!(),
+            TensorOps::IntOps(_) => todo!(),
+            TensorOps::FloatOps(_) => todo!(),
+            TensorOps::ModuleOps(_) => todo!(),
+        }
+    }
+}
+impl<B: FusedBackend, E> BaseOps<B, E> {
+    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            BaseOps::Reshape {
+                tensor,
+                shape,
+                out,
+                ops,
+            } => handles.cleanup(&tensor),
+            BaseOps::SwapDims {
+                tensor,
+                dim1,
+                dim2,
+                out,
+            } => todo!(),
+            BaseOps::Slice {
+                tensor,
+                ranges,
+                out,
+            } => todo!(),
+            BaseOps::SliceAssign {
+                tensor,
+                ranges,
+                values,
+                out,
+            } => todo!(),
+            BaseOps::FromData { value, shape, out } => todo!(),
+            BaseOps::Repeat {
+                tensor,
+                dim,
+                times,
+                shape,
+                out,
+            } => todo!(),
+            BaseOps::Equal { lhs, rhs, out } => todo!(),
+            BaseOps::Cat { tensors, dim, out } => todo!(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -224,16 +279,12 @@ pub enum ModuleOps {
     },
 }
 
-#[derive(Debug)]
-pub enum BaseOps<E> {
-    Empty {
-        shape: Vec<usize>,
-        out: TensorDefinition,
-    },
+pub enum BaseOps<B: FusedBackend, E> {
     Reshape {
         tensor: TensorDefinition,
         shape: Vec<usize>,
         out: TensorDefinition,
+        ops: Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     },
     SwapDims {
         tensor: TensorDefinition,
@@ -276,19 +327,23 @@ pub enum BaseOps<E> {
     },
 }
 
-pub trait SingleOps<B: FusedBackend>: Send + Sync {
-    type Input: Send + Sync;
+pub trait Ops<B: FusedBackend>: Send + Sync {
+    type Args: Send + Sync;
 
-    fn execute(self: Box<Self>, input: Self::Input, handles: &mut HandleContainer<B>);
+    fn execute(self: Box<Self>, args: Self::Args, handles: &mut HandleContainer<B>);
+}
+
+pub struct BinaryOpsDescription {
+    pub lhs: TensorDefinition,
+    pub rhs: TensorDefinition,
+    pub out: TensorDefinition,
 }
 
 pub enum NumericOps<B: FusedBackend, E: Element> {
-    Add {
-        lhs: TensorDefinition,
-        rhs: TensorDefinition,
-        out: TensorDefinition,
-        ops: Box<dyn SingleOps<B, Input = (TensorDefinition, TensorDefinition, TensorDefinition)>>,
-    },
+    Add(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
     AddScalar {
         lhs: TensorDefinition,
         rhs: E,

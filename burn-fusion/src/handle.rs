@@ -1,17 +1,16 @@
-use crate::{graph::FusedBackend, TensorId};
+use crate::{graph::FusedBackend, TensorDefinition, TensorId, TensorStatus};
+use burn_tensor::Shape;
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct HandleContainer<B: FusedBackend> {
-    handles: HashMap<TensorId, B::Handle>,
-    references: HashMap<TensorId, Arc<TensorId>>,
-    device: B::HandleDevice,
+    handles: HashMap<TensorId, Handle<B>>,
+    device: B::Device,
 }
 
-pub enum HandleResult<Handle> {
-    ReadOnly(Handle),
-    ReadWrite(Handle),
-    NotInitialized,
+enum Handle<B: FusedBackend> {
+    Empty,
+    Existing(B::Handle),
 }
 
 pub enum TensorCreation {
@@ -19,38 +18,33 @@ pub enum TensorCreation {
 }
 
 impl<B: FusedBackend> HandleContainer<B> {
-    pub fn new(device: B::HandleDevice) -> Self {
+    pub fn new(device_handle: B::HandleDevice) -> Self {
         Self {
             handles: HashMap::new(),
-            references: HashMap::new(),
-            device,
+            device: device_handle.clone().into(),
         }
     }
 
-    pub fn get(&mut self, id: &TensorId) -> HandleResult<B::Handle> {
-        if let Some(tensor) = self.references.get(id) {
-            let count = Arc::strong_count(&tensor);
-
-            if count == 0 {
-                HandleResult::NotInitialized
-            } else if count <= 2 {
-                let handle = self.handles.remove(&id).unwrap();
-                self.references.remove(id);
-                HandleResult::ReadWrite(handle)
-            } else {
-                let handle = self.handles.get(&id).unwrap().clone();
-                HandleResult::ReadOnly(handle)
-            }
-        } else {
-            panic!("No handle");
-        }
-    }
-
-    pub fn get_float_tensor<const D: usize>(&mut self, id: &TensorId) -> B::TensorPrimitive<D> {
-        match self.get(id) {
-            HandleResult::ReadOnly(handle) => B::float_tensor(handle),
-            HandleResult::ReadWrite(handle) => B::float_tensor(handle),
-            HandleResult::NotInitialized => panic!(),
+    pub fn get_float_tensor<const D: usize>(
+        &mut self,
+        tensor: &TensorDefinition,
+    ) -> B::TensorPrimitive<D> {
+        match tensor.status {
+            TensorStatus::ReadOnly => match self.handles.get(&tensor.id).unwrap() {
+                Handle::Empty => {
+                    let output = B::empty(Shape::from(tensor.shape.clone()), &self.device);
+                    self.handles.insert(
+                        tensor.id.clone(),
+                        Handle::Existing(B::float_tensor_handle(output.clone())),
+                    );
+                    output
+                }
+                Handle::Existing(handle) => B::float_tensor(handle.clone()),
+            },
+            TensorStatus::ReadWrite => match self.handles.remove(&tensor.id).unwrap() {
+                Handle::Empty => B::empty(Shape::from(tensor.shape.clone()), &self.device),
+                Handle::Existing(handle) => B::float_tensor(handle),
+            },
         }
     }
 
@@ -60,25 +54,22 @@ impl<B: FusedBackend> HandleContainer<B> {
         tensor: B::TensorPrimitive<D>,
     ) {
         let handle = B::float_tensor_handle(tensor);
-        self.handles.insert(id.clone(), handle);
+        self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
-    pub fn create(&mut self, shape: Vec<usize>, handle: B::Handle) -> Arc<TensorId> {
+    pub fn create_empty(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
         let id = TensorId::new();
-        let reference = Arc::new(id.clone());
+        self.handles.insert(id.clone(), Handle::Empty);
 
-        self.handles.insert(id.clone(), handle);
-        self.references.insert(id, reference.clone());
-
-        reference
+        Arc::new(id)
     }
 
-    pub fn not_initialized(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
-        let id = TensorId::new();
-        let reference = Arc::new(id.clone());
-
-        self.references.insert(id, reference.clone());
-
-        reference
+    pub fn cleanup(&mut self, tensor: &TensorDefinition) {
+        match tensor.status {
+            TensorStatus::ReadOnly => (),
+            TensorStatus::ReadWrite => {
+                self.handles.remove(&tensor.id);
+            }
+        }
     }
 }

@@ -1,7 +1,8 @@
 use crate::{
+    binary_float_ops,
     client::FusionClient,
-    graph::{FusedBackend, NumericOps, SingleOps, TensorOps::NumericOpsFloat},
-    FusionBackend, TensorDefinition,
+    graph::{BinaryOpsDescription, FusedBackend, NumericOps, Ops, TensorOps::NumericOpsFloat},
+    FusionBackend,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -30,7 +31,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
     }
 
     fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<Self>, D>> {
-        todo!()
+        tensor.into_data()
     }
 
     fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -45,41 +46,26 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        todo!()
+        let client = B::FUSION.client(&device.clone().into());
+        let out = client.empty(shape.dims.into());
+        out
     }
 
     fn add<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
+        binary_float_ops!(AddOps, B::add);
+
         let out = lhs.client.empty(lhs.shape.clone());
-
-        struct AddOps<const D: usize>;
-
-        impl<const D: usize, B: FusedBackend> SingleOps<B> for AddOps<D> {
-            type Input = (TensorDefinition, TensorDefinition, TensorDefinition);
-
-            fn execute(
-                self: Box<Self>,
-                input: Self::Input,
-                handles: &mut crate::HandleContainer<B>,
-            ) {
-                let (lhs, rhs, out) = input;
-
-                let lhs = handles.get_float_tensor::<D>(&lhs.id);
-                let rhs = handles.get_float_tensor(&rhs.id);
-                let output = B::add(lhs, rhs);
-
-                handles.register_float_tensor(&out.id, output);
-            }
-        }
-
-        out.client.register(NumericOpsFloat(NumericOps::Add {
-            lhs: lhs.into_definition(),
-            rhs: rhs.into_definition(),
-            out: out.to_definition(),
-            ops: Box::new(AddOps::<D>),
-        }));
+        out.client.register(NumericOpsFloat(NumericOps::Add(
+            BinaryOpsDescription {
+                lhs: lhs.into_definition(),
+                rhs: rhs.into_definition(),
+                out: out.clone().into_definition(),
+            },
+            Box::new(AddOps::<D>),
+        )));
 
         out
     }

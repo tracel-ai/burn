@@ -67,4 +67,12 @@ where
     fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice {
         &self.device
     }
+
+    fn read_float<const D: usize>(
+        &self,
+        tensor: crate::TensorDefinition,
+    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::FloatElem<Self::FusedBackend>, D>>
+    {
+        self.server.lock().read_float(tensor)
+    }
 }

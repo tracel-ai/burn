@@ -1,7 +1,7 @@
-use crate::{graph::FusedBackend, FloatTensor, FusionBackend, IntTensor};
-use burn_tensor::{
-    backend::Backend,
-    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+use crate::{graph::FusedBackend, FusionBackend};
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
+    MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<B: FusedBackend> ModuleOps<FusionBackend<B>> for FusionBackend<B> {

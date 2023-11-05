@@ -3,7 +3,7 @@ use crate::{
         FusedBackend, FusionProperties, FusionStatus, Graph, GraphExecution, Optimization,
         TensorOps,
     },
-    FusionTensor, HandleContainer, TensorId,
+    HandleContainer, TensorId,
 };
 use std::sync::Arc;
 
@@ -66,6 +66,18 @@ where
     }
 
     pub fn create(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
-        self.handles.not_initialized(shape)
+        self.handles.create_empty(shape)
+    }
+
+    pub fn read_float<const D: usize>(
+        &mut self,
+        tensor: crate::TensorDefinition,
+    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::FloatElem<B>, D>> {
+        // Make sure all registered operations are executed.
+        // The underlying backend can still be async.
+        self.sync();
+
+        let tensor = self.handles.get_float_tensor(&tensor);
+        B::into_data(tensor)
     }
 }

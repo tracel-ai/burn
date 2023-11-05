@@ -1,6 +1,5 @@
 use crate::{graph::FusedBackend, FusionBackend};
 use burn_tensor::{
-    backend::Backend,
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Data, Device, Reader, Shape,
 };
@@ -298,7 +297,7 @@ impl<B: FusedBackend> IntTensorOps<Self> for FusionBackend<B> {
     }
 
     fn int_swap_dims<const D: usize>(
-        mut tensor: IntTensor<Self, D>,
+        tensor: IntTensor<Self, D>,
         dim1: usize,
         dim2: usize,
     ) -> IntTensor<Self, D> {
