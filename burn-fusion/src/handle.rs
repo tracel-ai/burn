@@ -1,20 +1,17 @@
-use crate::{graph::FusedBackend, TensorDefinition, TensorId, TensorStatus};
-use burn_tensor::Shape;
+use crate::{graph::FusedBackend, FloatElem, TensorDefinition, TensorId, TensorStatus};
+use burn_tensor::{Data, Shape};
 use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct HandleContainer<B: FusedBackend> {
     handles: HashMap<TensorId, Handle<B>>,
-    device: B::Device,
+    pub device: B::Device,
 }
 
 enum Handle<B: FusedBackend> {
     Empty,
+    DataFloat(Vec<FloatElem<B>>),
     Existing(B::Handle),
-}
-
-pub enum TensorCreation {
-    Empty { shape: Vec<usize> },
 }
 
 impl<B: FusedBackend> HandleContainer<B> {
@@ -29,23 +26,35 @@ impl<B: FusedBackend> HandleContainer<B> {
         &mut self,
         tensor: &TensorDefinition,
     ) -> B::TensorPrimitive<D> {
-        match tensor.status {
-            TensorStatus::ReadOnly => match self.handles.get(&tensor.id).unwrap() {
-                Handle::Empty => {
-                    let output = B::empty(Shape::from(tensor.shape.clone()), &self.device);
-                    self.handles.insert(
-                        tensor.id.clone(),
-                        Handle::Existing(B::float_tensor_handle(output.clone())),
-                    );
-                    output
+        let (id, handle) = self.handles.remove_entry(&tensor.id).unwrap();
+
+        if let Handle::Existing(handle) = handle {
+            match tensor.status {
+                TensorStatus::ReadOnly => {
+                    self.handles.insert(id, Handle::Existing(handle.clone()));
+                    return B::float_tensor(handle);
                 }
-                Handle::Existing(handle) => B::float_tensor(handle.clone()),
-            },
-            TensorStatus::ReadWrite => match self.handles.remove(&tensor.id).unwrap() {
-                Handle::Empty => B::empty(Shape::from(tensor.shape.clone()), &self.device),
-                Handle::Existing(handle) => B::float_tensor(handle),
-            },
+                TensorStatus::ReadWrite => {
+                    return B::float_tensor(handle);
+                }
+            }
         }
+
+        let output = match handle {
+            Handle::Empty => B::empty(Shape::from(tensor.shape.clone()), &self.device),
+            Handle::DataFloat(values) => B::from_data(
+                Data::new(values, Shape::from(tensor.shape.clone())),
+                &self.device,
+            ),
+            Handle::Existing(handle) => B::float_tensor(handle),
+        };
+
+        if let TensorStatus::ReadOnly = tensor.status {
+            self.handles
+                .insert(id, Handle::Existing(B::float_tensor_handle(output.clone())));
+        }
+
+        output
     }
 
     pub fn register_float_tensor<const D: usize>(
@@ -57,9 +66,16 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
-    pub fn create_empty(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
+    pub fn create_emtpy(&mut self) -> Arc<TensorId> {
         let id = TensorId::new();
         self.handles.insert(id.clone(), Handle::Empty);
+
+        Arc::new(id)
+    }
+
+    pub fn create_float(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
+        let id = TensorId::new();
+        self.handles.insert(id.clone(), Handle::DataFloat(values));
 
         Arc::new(id)
     }

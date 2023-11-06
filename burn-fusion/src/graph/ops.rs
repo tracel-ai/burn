@@ -15,7 +15,7 @@ pub enum TensorOps<B: FusedBackend> {
     NumericOpsInt(NumericOps<B, B::IntElem>),
     BoolOps(BoolOps),
     IntOps(IntOps),
-    FloatOps(FloatOps<B::FloatElem>),
+    FloatOps(FloatOps<B, B::FloatElem>),
     ModuleOps(ModuleOps),
 }
 
@@ -75,7 +75,7 @@ impl<B: FusedBackend, E> BaseOps<B, E> {
 }
 
 #[derive(Debug)]
-pub enum FloatOps<E: core::fmt::Debug> {
+pub enum FloatOps<B: FusedBackend, E: core::fmt::Debug> {
     Exp {
         tensor: TensorDefinition,
         out: TensorDefinition,
@@ -123,8 +123,9 @@ pub enum FloatOps<E: core::fmt::Debug> {
         out: TensorDefinition,
     },
     Random {
-        shape: Vec<usize>,
         distribution: Distribution<E>,
+        out: TensorDefinition,
+        ops: Box<dyn Ops<B, Args = (TensorDefinition, Distribution<E>)>>,
     },
 }
 

@@ -1,3 +1,5 @@
+use burn_tensor::ops::FloatElem;
+
 use crate::{
     graph::{
         FusedBackend, FusionProperties, FusionStatus, Graph, GraphExecution, Optimization,
@@ -65,14 +67,18 @@ where
         );
     }
 
-    pub fn create(&mut self, shape: Vec<usize>) -> Arc<TensorId> {
-        self.handles.create_empty(shape)
+    pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
+        self.handles.create_emtpy()
+    }
+
+    pub fn create_float_handle(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
+        self.handles.create_float(values)
     }
 
     pub fn read_float<const D: usize>(
         &mut self,
         tensor: crate::TensorDefinition,
-    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::FloatElem<B>, D>> {
+    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.sync();

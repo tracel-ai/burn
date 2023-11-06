@@ -12,8 +12,13 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
     fn new(server: FusionServer<Self::FusedBackend, Self::GraphExecution>) -> Self;
     fn register(&self, ops: TensorOps<Self::FusedBackend>);
     fn sync(&self);
-    fn empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
     fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice;
+    fn create_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
+    fn create_float(
+        &self,
+        values: Vec<FloatElem<Self::FusedBackend>>,
+        shape: Vec<usize>,
+    ) -> FusionTensor<Self>;
     fn read_float<const D: usize>(
         &self,
         tensor: TensorDefinition,

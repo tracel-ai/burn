@@ -3,6 +3,7 @@ use crate::{
     graph::{FusedBackend, GraphExecution, TensorOps},
     FusionServer, FusionTensor,
 };
+use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
 
@@ -60,8 +61,14 @@ where
     fn sync(&self) {
         self.server.lock().sync();
     }
-    fn empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
-        todo!()
+    fn create_empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
+        let id = self.server.lock().create_empty_handle();
+
+        FusionTensor {
+            id,
+            shape,
+            client: self.clone(),
+        }
     }
 
     fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice {
@@ -71,8 +78,21 @@ where
     fn read_float<const D: usize>(
         &self,
         tensor: crate::TensorDefinition,
-    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::FloatElem<Self::FusedBackend>, D>>
-    {
+    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusedBackend>, D>> {
         self.server.lock().read_float(tensor)
+    }
+
+    fn create_float(
+        &self,
+        values: Vec<FloatElem<Self::FusedBackend>>,
+        shape: Vec<usize>,
+    ) -> FusionTensor<Self> {
+        let id = self.server.lock().create_float_handle(values);
+
+        FusionTensor {
+            id,
+            shape,
+            client: self.clone(),
+        }
     }
 }
