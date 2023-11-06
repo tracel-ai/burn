@@ -1,7 +1,7 @@
 use super::FusionClient;
 use crate::{
-    graph::{FusedBackend, GraphExecution, TensorOps},
-    FusionServer, FusionTensor,
+    graph::{GraphExecution, TensorOps},
+    FusedBackend, FusionServer, FusionTensor,
 };
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
@@ -77,7 +77,7 @@ where
 
     fn read_float<const D: usize>(
         &self,
-        tensor: crate::TensorDefinition,
+        tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusedBackend>, D>> {
         self.server.lock().read_float(tensor)
     }

@@ -1,12 +1,8 @@
-use burn_tensor::ops::FloatElem;
-
 use crate::{
-    graph::{
-        FusedBackend, FusionProperties, FusionStatus, Graph, GraphExecution, Optimization,
-        TensorOps,
-    },
-    HandleContainer, TensorId,
+    graph::{Graph, GraphExecution, Optimization, TensorOps},
+    FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
+use burn_tensor::ops::FloatElem;
 use std::sync::Arc;
 
 pub struct FusionServer<B, G>
@@ -77,7 +73,7 @@ where
 
     pub fn read_float<const D: usize>(
         &mut self,
-        tensor: crate::TensorDefinition,
+        tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.

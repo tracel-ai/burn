@@ -1,4 +1,4 @@
-use crate::{client::FusionClient, graph::FusedBackend, FusionServer};
+use crate::{client::FusionClient, FusedBackend, FusionServer};
 use burn_tensor::backend::Backend;
 use std::{collections::HashMap, ops::DerefMut};
 
@@ -6,11 +6,11 @@ pub type Handle<B> = <B as FusedBackend>::Handle;
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 pub type IntElem<B> = <B as Backend>::IntElem;
 
-pub struct Fusion<C: FusionClient> {
+pub struct FusionClientLocator<C: FusionClient> {
     clients: spin::Mutex<Option<HashMap<<C::FusedBackend as FusedBackend>::HandleDevice, C>>>,
 }
 
-impl<C: FusionClient> Fusion<C> {
+impl<C: FusionClient> FusionClientLocator<C> {
     /// Create a new compute.
     pub const fn new() -> Self {
         Self {

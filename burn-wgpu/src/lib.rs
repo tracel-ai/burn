@@ -27,6 +27,9 @@ pub use backend::*;
 mod graphics;
 pub use graphics::*;
 
+#[cfg(feature = "fusion")]
+mod fusion;
+
 #[cfg(test)]
 mod tests {
     use super::*;

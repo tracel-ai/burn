@@ -1,4 +1,4 @@
-use crate::{graph::FusedBackend, FloatElem, TensorDefinition, TensorId, TensorStatus};
+use crate::{FloatElem, FusedBackend, TensorDescription, TensorId, TensorStatus};
 use burn_tensor::{Data, Shape};
 use std::{collections::HashMap, sync::Arc};
 
@@ -24,7 +24,7 @@ impl<B: FusedBackend> HandleContainer<B> {
 
     pub fn get_float_tensor<const D: usize>(
         &mut self,
-        tensor: &TensorDefinition,
+        tensor: &TensorDescription,
     ) -> B::TensorPrimitive<D> {
         let (id, handle) = self.handles.remove_entry(&tensor.id).unwrap();
 
@@ -80,7 +80,7 @@ impl<B: FusedBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub fn cleanup(&mut self, tensor: &TensorDefinition) {
+    pub fn cleanup(&mut self, tensor: &TensorDescription) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
             TensorStatus::ReadWrite => {

@@ -1,9 +1,8 @@
-use burn_tensor::{ops::FloatElem, Data, Reader};
-
 use crate::{
-    graph::{FusedBackend, GraphExecution, TensorOps},
-    FusionServer, FusionTensor, TensorDefinition,
+    graph::{GraphExecution, TensorOps},
+    FusedBackend, FusionServer, FusionTensor, TensorDescription,
 };
+use burn_tensor::{ops::FloatElem, Data, Reader};
 
 pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
     type FusedBackend: FusedBackend;
@@ -21,6 +20,6 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
     ) -> FusionTensor<Self>;
     fn read_float<const D: usize>(
         &self,
-        tensor: TensorDefinition,
+        tensor: TensorDescription,
     ) -> Reader<Data<FloatElem<Self::FusedBackend>, D>>;
 }

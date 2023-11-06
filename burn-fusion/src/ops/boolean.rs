@@ -1,10 +1,10 @@
-use crate::{graph::FusedBackend, FusionBackend};
+use crate::{FusedBackend, Fusion};
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps},
     Device, Shape,
 };
 
-impl<B: FusedBackend> BoolTensorOps<Self> for FusionBackend<B> {
+impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         todo!()
     }

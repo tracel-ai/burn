@@ -1,10 +1,8 @@
 use crate::{
     binary_float_ops,
     client::FusionClient,
-    graph::{
-        self, BinaryOpsDescription, FusedBackend, NumericOps, Ops, TensorOps::NumericOpsFloat,
-    },
-    FusionBackend, TensorDefinition,
+    graph::{self, BinaryOpsDescription, NumericOps, Ops, TensorOps::NumericOpsFloat},
+    FusedBackend, Fusion, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -12,7 +10,7 @@ use burn_tensor::{
 };
 use std::ops::Range;
 
-impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
+impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
@@ -30,7 +28,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
         struct RandomOps<const D: usize>;
 
         impl<const D: usize, B: FusedBackend> Ops<B> for RandomOps<D> {
-            type Args = (TensorDefinition, Distribution<FloatElem<B>>);
+            type Args = (TensorDescription, Distribution<FloatElem<B>>);
 
             fn execute(
                 self: Box<Self>,
@@ -38,7 +36,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
                 handles: &mut crate::HandleContainer<B>,
             ) {
                 let shape = Shape::from(out.shape);
-                let output = B::random(shape, distribution, &handles.device);
+                let output: B::TensorPrimitive<D> = B::random(shape, distribution, &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
@@ -48,7 +46,7 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
         let out = client.create_empty(shape);
 
         client.register(graph::TensorOps::FloatOps(graph::FloatOps::Random {
-            out: out.clone().into_definition(),
+            out: out.clone().into_description(),
             distribution,
             ops: Box::new(RandomOps::<D>),
         }));
@@ -90,9 +88,9 @@ impl<B: FusedBackend> TensorOps<Self> for FusionBackend<B> {
         let out = lhs.client.create_empty(lhs.shape.clone());
         out.client.register(NumericOpsFloat(NumericOps::Add(
             BinaryOpsDescription {
-                lhs: lhs.into_definition(),
-                rhs: rhs.into_definition(),
-                out: out.clone().into_definition(),
+                lhs: lhs.into_description(),
+                rhs: rhs.into_description(),
+                out: out.clone().into_description(),
             },
             Box::new(AddOps::<D>),
         )));

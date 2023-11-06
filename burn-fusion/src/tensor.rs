@@ -22,8 +22,8 @@ impl<C: FusionClient> FusionTensor<C> {
         }
     }
 
-    pub(crate) fn into_definition(self) -> TensorDefinition {
-        TensorDefinition {
+    pub(crate) fn into_description(self) -> TensorDescription {
+        TensorDescription {
             status: self.status(),
             shape: self.shape,
             id: self.id.as_ref().clone(),
@@ -31,7 +31,7 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusedBackend>, D>> {
-        self.client.clone().read_float(self.into_definition())
+        self.client.clone().read_float(self.into_description())
     }
 }
 
@@ -50,7 +50,7 @@ pub enum TensorStatus {
 
 /// A tensor definition represent a snapshot of a tensor when it was used.
 #[derive(Debug)]
-pub struct TensorDefinition {
+pub struct TensorDescription {
     pub id: TensorId,
     pub shape: Vec<usize>,
     pub status: TensorStatus,

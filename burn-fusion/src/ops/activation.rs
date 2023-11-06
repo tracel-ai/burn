@@ -1,4 +1,4 @@
-use crate::{graph::FusedBackend, FusionBackend};
+use crate::{FusedBackend, Fusion};
 use burn_tensor::ops::ActivationOps;
 
-impl<B: FusedBackend> ActivationOps<Self> for FusionBackend<B> {}
+impl<B: FusedBackend> ActivationOps<Self> for Fusion<B> {}

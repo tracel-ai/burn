@@ -1,10 +1,10 @@
-use crate::{graph::FusedBackend, FusionBackend};
+use crate::{FusedBackend, Fusion};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
     MaxPool2dWithIndices, ModuleOps,
 };
 
-impl<B: FusedBackend> ModuleOps<FusionBackend<B>> for FusionBackend<B> {
+impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
