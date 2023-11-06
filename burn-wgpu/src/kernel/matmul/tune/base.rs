@@ -1,10 +1,11 @@
 use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
-use burn_tensor::Element;
+use burn_tensor::{Element, ElementConversion};
 
 use crate::{
     compute::WgpuAutotuneKey,
     element::WgpuElement,
-    kernel::matmul::{tune::utils::autotune_tensors, utils::init_matmul_output},
+    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
+    ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
 
@@ -37,32 +38,42 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
-        let lhs = autotune_tensors(&self.lhs);
-        let rhs = autotune_tensors(&self.rhs);
-        let out = autotune_tensors(&self.out);
+        let random_bounds: (E, E) = ((-10.0).elem::<E>(), (10.0).elem::<E>());
+        let lhs = random_like_uniform(&self.lhs, random_bounds.0, random_bounds.1);
+        let rhs = random_like_uniform(&self.rhs, random_bounds.0, random_bounds.1);
+
+        let out = empty_device(
+            self.out.client.clone(),
+            self.out.device.clone(),
+            self.out.shape.clone(),
+        );
 
         vec![
-            Box::new(MemoryCoalescingMatmulDefault::<E, 3>::new(
+            Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(MemoryCoalescingMatmulW16x16::<E, 3>::new(
+            Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulDefault::<E, 3>::new(
+            Box::new(Vec4TilingMatmulDefault::<E, D>::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulUnpaddedDefault::<E, 3>::new(
+            Box::new(Vec4TilingMatmulUnpaddedDefault::<E, D>::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, 3>::new(lhs, rhs, out)),
+            Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
+                lhs.clone(),
+                rhs.clone(),
+                out.clone(),
+            )),
         ]
     }
 
