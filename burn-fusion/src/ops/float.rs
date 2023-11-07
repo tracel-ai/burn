@@ -3,8 +3,9 @@ use crate::{
     client::FusionClient,
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, GatherOpsDescription,
-        NumericOpsDescription, Ops, ReshapeDescription, ScalarOpsDescription, SwapDimsDescription,
-        TensorOpsDescription,
+        NumericOpsDescription, Ops, ReshapeDescription, ScalarOpsDescription,
+        ScatterOpsDescription, SelectAssignOpsDescription, SelectOpsDescription,
+        SwapDimsDescription, TensorOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_float_ops, FusedBackend, Fusion, TensorDescription,
@@ -467,9 +468,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D>,
         indices: IntTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        struct GatherDimsOps<const D: usize>;
+        struct GatherOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for GatherDimsOps<D> {
+        impl<const D: usize, B: FusedBackend> Ops<B> for GatherOps<D> {
             type Args = GatherOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -495,7 +496,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
                         indices: indices.into_description(),
                         out: out.to_description_out(),
                     },
-                    Box::new(GatherDimsOps::<D>),
+                    Box::new(GatherOps::<D>),
                 ),
             ));
 
@@ -508,7 +509,42 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct ScatterOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for ScatterOps<D> {
+            type Args = ScatterOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let indices = handles.get_int_tensor(&args.indices);
+                let value = handles.get_float_tensor(&args.value);
+
+                let output = B::scatter(args.dim, tensor, indices, value);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::Scatter(
+                    ScatterOpsDescription {
+                        tensor: tensor.into_description(),
+                        dim,
+                        indices: indices.into_description(),
+                        value: value.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(ScatterOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn select<const D: usize>(
@@ -516,7 +552,40 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         dim: usize,
         indices: IntTensor<Self, 1>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct SelectOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for SelectOps<D> {
+            type Args = SelectOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let indices = handles.get_int_tensor(&args.indices);
+
+                let output = B::select(tensor, args.dim, indices);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::Select(
+                    SelectOpsDescription {
+                        tensor: tensor.into_description(),
+                        dim,
+                        indices: indices.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SelectOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn select_assign<const D: usize>(
@@ -525,7 +594,42 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self, 1>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct SelectAssignOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for SelectAssignOps<D> {
+            type Args = SelectAssignOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let indices = handles.get_int_tensor(&args.indices);
+                let value = handles.get_float_tensor(&args.value);
+
+                let output = B::select_assign(tensor, args.dim, indices, value);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::SelectAssign(
+                    SelectAssignOpsDescription {
+                        tensor: tensor.into_description(),
+                        dim,
+                        indices: indices.into_description(),
+                        value: value.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SelectAssignOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn slice<const D1: usize, const D2: usize>(

@@ -107,9 +107,24 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.indices);
             }
+            NumericOpsDescription::Scatter(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+                handles.cleanup(&desc.value);
+            }
+            NumericOpsDescription::Select(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+            }
+            NumericOpsDescription::SelectAssign(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+                handles.cleanup(&desc.value);
+            }
             _ => todo!(),
         }
     }
+
     fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
             NumericOpsDescription::Add(desc, ops) => ops.execute(desc, handles),
@@ -122,6 +137,9 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::MulScalar(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Ones(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Gather(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Scatter(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Select(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::SelectAssign(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
@@ -436,6 +454,29 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
+pub struct ScatterOpsDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub indices: TensorDescription,
+    pub value: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct SelectOpsDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub indices: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct SelectAssignOpsDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub indices: TensorDescription,
+    pub value: TensorDescription,
+    pub out: TensorDescription,
+}
+
 pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     Add(
         BinaryOpsDescription,
@@ -486,6 +527,18 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     Gather(
         GatherOpsDescription,
         Box<dyn Ops<B, Args = GatherOpsDescription>>,
+    ),
+    Scatter(
+        ScatterOpsDescription,
+        Box<dyn Ops<B, Args = ScatterOpsDescription>>,
+    ),
+    Select(
+        SelectOpsDescription,
+        Box<dyn Ops<B, Args = SelectOpsDescription>>,
+    ),
+    SelectAssign(
+        SelectAssignOpsDescription,
+        Box<dyn Ops<B, Args = SelectAssignOpsDescription>>,
     ),
     Mean {
         tensor: TensorDescription,
@@ -561,25 +614,6 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
         mask: TensorDescription,
         value: E,
         out: TensorDescription,
-    },
-
-    Scatter {
-        tensor: TensorDescription,
-        dim: usize,
-        indices: TensorDescription,
-        values: TensorDescription,
-        out: TensorDescription,
-    },
-    Select {
-        tensor: TensorDescription,
-        dim: usize,
-        indices: TensorDescription,
-    },
-    SelectAssign {
-        tensor: TensorDescription,
-        dim: usize,
-        indices: TensorDescription,
-        values: TensorDescription,
     },
     ArgMax {
         tensor: TensorDescription,
