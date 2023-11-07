@@ -1,5 +1,5 @@
 #[macro_export(local_inner_macros)]
-macro_rules! binary_float_ops {
+macro_rules! scalar_float_ops {
     (
         $name:ident,
         $ops:expr
@@ -7,12 +7,11 @@ macro_rules! binary_float_ops {
         struct $name<const D: usize>;
 
         impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
-            type Args = BinaryOpsDescription;
+            type Args = ScalarOpsDescription<FloatElem<B>>;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&args.lhs);
-                let rhs = handles.get_float_tensor(&args.rhs);
-                let output = $ops(lhs, rhs);
+                let output = $ops(lhs, args.rhs.clone());
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -20,18 +19,8 @@ macro_rules! binary_float_ops {
     };
 }
 
-pub(crate) fn binary_ops_shape(lhs: &Vec<usize>, rhs: &Vec<usize>) -> Vec<usize> {
-    let mut shape_out = Vec::with_capacity(lhs.len());
-
-    for (l, r) in lhs.iter().zip(rhs.iter()) {
-        shape_out.push(usize::max(*l, *r));
-    }
-
-    shape_out
-}
-
 #[macro_export(local_inner_macros)]
-macro_rules! binary_int_ops {
+macro_rules! scalar_int_ops {
     (
         $name:ident,
         $ops:expr
@@ -39,12 +28,11 @@ macro_rules! binary_int_ops {
         struct $name<const D: usize>;
 
         impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
-            type Args = BinaryOpsDescription;
+            type Args = ScalarOpsDescription<IntElem<B>>;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&args.lhs);
-                let rhs = handles.get_int_tensor(&args.rhs);
-                let output = $ops(lhs, rhs);
+                let output = $ops(lhs, args.rhs.clone());
 
                 handles.register_int_tensor(&args.out.id, output);
             }

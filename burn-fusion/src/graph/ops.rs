@@ -25,7 +25,7 @@ impl<B: FusedBackend> TensorOps<B> {
             TensorOps::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
             TensorOps::BaseOpsBool(_) => todo!(),
             TensorOps::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOps::NumericOpsInt(_) => todo!(),
+            TensorOps::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
             TensorOps::BoolOps(_) => todo!(),
             TensorOps::IntOps(_) => todo!(),
             TensorOps::FloatOps(_) => todo!(),
@@ -38,7 +38,7 @@ impl<B: FusedBackend> TensorOps<B> {
             TensorOps::BaseOpsInt(ops) => ops.execute(handles),
             TensorOps::BaseOpsBool(_) => todo!(),
             TensorOps::NumericOpsFloat(ops) => ops.execute(handles),
-            TensorOps::NumericOpsInt(_) => todo!(),
+            TensorOps::NumericOpsInt(ops) => ops.execute(handles),
             TensorOps::BoolOps(_) => todo!(),
             TensorOps::IntOps(_) => todo!(),
             TensorOps::FloatOps(_) => todo!(),
@@ -46,82 +46,16 @@ impl<B: FusedBackend> TensorOps<B> {
         }
     }
 }
+
 impl<B: FusedBackend, E> BaseOps<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            BaseOps::Reshape {
-                tensor,
-                shape,
-                out,
-                ops,
-            } => handles.cleanup(&tensor),
-            BaseOps::SwapDims {
-                tensor,
-                dim1,
-                dim2,
-                out,
-            } => todo!(),
-            BaseOps::Slice {
-                tensor,
-                ranges,
-                out,
-            } => todo!(),
-            BaseOps::SliceAssign {
-                tensor,
-                ranges,
-                values,
-                out,
-            } => todo!(),
-            BaseOps::FromData { value, shape, out } => todo!(),
-            BaseOps::Repeat {
-                tensor,
-                dim,
-                times,
-                shape,
-                out,
-            } => todo!(),
-            BaseOps::Equal { lhs, rhs, out } => todo!(),
-            BaseOps::Cat { tensors, dim, out } => todo!(),
-        }
+        todo!();
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            BaseOps::Reshape {
-                tensor,
-                shape,
-                out,
-                ops,
-            } => todo!(),
-            BaseOps::SwapDims {
-                tensor,
-                dim1,
-                dim2,
-                out,
-            } => todo!(),
-            BaseOps::Slice {
-                tensor,
-                ranges,
-                out,
-            } => todo!(),
-            BaseOps::SliceAssign {
-                tensor,
-                ranges,
-                values,
-                out,
-            } => todo!(),
-            BaseOps::FromData { value, shape, out } => todo!(),
-            BaseOps::Repeat {
-                tensor,
-                dim,
-                times,
-                shape,
-                out,
-            } => todo!(),
-            BaseOps::Equal { lhs, rhs, out } => todo!(),
-            BaseOps::Cat { tensors, dim, out } => todo!(),
-        }
+        todo!();
     }
 }
+
 impl<B: FusedBackend, E: Element> NumericOps<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
@@ -129,12 +63,16 @@ impl<B: FusedBackend, E: Element> NumericOps<B, E> {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
+            NumericOps::AddScalar(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+            }
             _ => todo!(),
         }
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
             NumericOps::Add(desc, ops) => ops.execute(desc, handles),
+            NumericOps::AddScalar(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
@@ -405,16 +343,21 @@ pub struct BinaryOpsDescription {
     pub out: TensorDescription,
 }
 
+pub struct ScalarOpsDescription<E> {
+    pub lhs: TensorDescription,
+    pub rhs: E,
+    pub out: TensorDescription,
+}
+
 pub enum NumericOps<B: FusedBackend, E: Element> {
     Add(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     ),
-    AddScalar {
-        lhs: TensorDescription,
-        rhs: E,
-        out: TensorDescription,
-    },
+    AddScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
     Sub {
         lhs: TensorDescription,
         rhs: TensorDescription,

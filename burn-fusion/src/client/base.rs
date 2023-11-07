@@ -2,7 +2,10 @@ use crate::{
     graph::{GraphExecution, TensorOps},
     FusedBackend, FusionServer, FusionTensor, TensorDescription,
 };
-use burn_tensor::{ops::FloatElem, Data, Reader};
+use burn_tensor::{
+    ops::{FloatElem, IntElem},
+    Data, Reader,
+};
 
 pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
     type FusedBackend: FusedBackend;
@@ -18,8 +21,19 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
         values: Vec<FloatElem<Self::FusedBackend>>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self>;
+    fn create_int(
+        &self,
+        values: Vec<IntElem<Self::FusedBackend>>,
+        shape: Vec<usize>,
+    ) -> FusionTensor<Self>;
+    fn create_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self>;
     fn read_float<const D: usize>(
         &self,
         tensor: TensorDescription,
     ) -> Reader<Data<FloatElem<Self::FusedBackend>, D>>;
+    fn read_int<const D: usize>(
+        &self,
+        tensor: TensorDescription,
+    ) -> Reader<Data<IntElem<Self::FusedBackend>, D>>;
+    fn read_bool<const D: usize>(&self, tensor: TensorDescription) -> Reader<Data<bool, D>>;
 }

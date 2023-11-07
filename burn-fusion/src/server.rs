@@ -2,7 +2,7 @@ use crate::{
     graph::{Graph, GraphExecution, Optimization, TensorOps},
     FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
-use burn_tensor::ops::FloatElem;
+use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
 
 pub struct FusionServer<B, G>
@@ -71,6 +71,14 @@ where
         self.handles.create_float(values)
     }
 
+    pub fn create_int_handle(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
+        self.handles.create_int(values)
+    }
+
+    pub fn create_bool_handle(&mut self, values: Vec<bool>) -> Arc<TensorId> {
+        self.handles.create_bool(values)
+    }
+
     pub fn read_float<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
@@ -81,5 +89,29 @@ where
 
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
+    }
+
+    pub fn read_int<const D: usize>(
+        &mut self,
+        tensor: crate::TensorDescription,
+    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
+        // Make sure all registered operations are executed.
+        // The underlying backend can still be async.
+        self.sync();
+
+        let tensor = self.handles.get_int_tensor(&tensor);
+        B::int_into_data(tensor)
+    }
+
+    pub fn read_bool<const D: usize>(
+        &mut self,
+        tensor: crate::TensorDescription,
+    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
+        // Make sure all registered operations are executed.
+        // The underlying backend can still be async.
+        self.sync();
+
+        let tensor = self.handles.get_bool_tensor(&tensor);
+        B::bool_into_data(tensor)
     }
 }

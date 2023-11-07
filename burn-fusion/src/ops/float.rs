@@ -1,8 +1,12 @@
 use crate::{
     binary_float_ops,
     client::FusionClient,
-    graph::{self, BinaryOpsDescription, NumericOps, Ops, TensorOps::NumericOpsFloat},
-    FusedBackend, Fusion, TensorDescription,
+    graph::{
+        self, BinaryOpsDescription, NumericOps, Ops, ScalarOpsDescription,
+        TensorOps::NumericOpsFloat,
+    },
+    ops::binary::binary_ops_shape,
+    scalar_float_ops, FusedBackend, Fusion, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -86,7 +90,10 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(AddOps, B::add);
 
-        let out = lhs.client.create_empty(lhs.shape.clone());
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
         out.client.register(NumericOpsFloat(NumericOps::Add(
             BinaryOpsDescription {
                 lhs: lhs.into_description(),
@@ -103,7 +110,20 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(AddOps, B::add_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(NumericOpsFloat(NumericOps::AddScalar(
+            ScalarOpsDescription {
+                lhs: lhs.into_description(),
+                rhs,
+                out: out.clone().into_description(),
+            },
+            Box::new(AddOps::<D>),
+        )));
+
+        out
     }
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {

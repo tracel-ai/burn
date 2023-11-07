@@ -1,5 +1,8 @@
 use crate::client::FusionClient;
-use burn_tensor::{ops::FloatElem, Data, Reader, Shape};
+use burn_tensor::{
+    ops::{FloatElem, IntElem},
+    Data, Reader, Shape,
+};
 use std::sync::Arc;
 
 #[derive(new, Clone, Debug)]
@@ -32,6 +35,14 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusedBackend>, D>> {
         self.client.clone().read_float(self.into_description())
+    }
+
+    pub(crate) fn int_into_data<const D: usize>(self) -> Reader<Data<IntElem<C::FusedBackend>, D>> {
+        self.client.clone().read_int(self.into_description())
+    }
+
+    pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
+        self.client.clone().read_bool(self.into_description())
     }
 }
 

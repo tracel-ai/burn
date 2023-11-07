@@ -1,8 +1,9 @@
 use crate::{
     binary_int_ops,
     client::FusionClient,
-    graph::{self, BinaryOpsDescription, NumericOps, Ops},
-    FusedBackend, Fusion,
+    graph::{self, BinaryOpsDescription, NumericOps, Ops, ScalarOpsDescription},
+    ops::binary::binary_ops_shape,
+    scalar_int_ops, FusedBackend, Fusion,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
@@ -12,26 +13,30 @@ use core::ops::Range;
 
 impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        todo!()
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape.dims.into());
+        out
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
-        todo!()
+        tensor.shape()
     }
 
     fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        todo!()
+        tensor.int_into_data()
     }
 
     fn int_from_data<const D: usize>(
         data: Data<IntElem<Self>, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        let client = B::client(&device.clone().into());
+        let out = client.create_int(data.value, data.shape.dims.into());
+        out
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
-        todo!()
+        tensor.client.device().clone().into()
     }
 
     fn int_to_device<const D: usize>(
@@ -193,7 +198,10 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         binary_int_ops!(AddOps, B::int_add);
 
-        let out = lhs.client.create_empty(lhs.shape.clone());
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
         out.client
             .register(graph::TensorOps::NumericOpsInt(NumericOps::Add(
                 BinaryOpsDescription {
@@ -211,7 +219,21 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        scalar_int_ops!(AddOps, B::int_add_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(graph::TensorOps::NumericOpsInt(NumericOps::AddScalar(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.clone().into_description(),
+                },
+                Box::new(AddOps::<D>),
+            )));
+
+        out
     }
 
     fn int_sub<const D: usize>(
