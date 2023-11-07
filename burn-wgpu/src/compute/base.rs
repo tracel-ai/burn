@@ -62,8 +62,8 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
     let storage = WgpuStorage::new(device.clone());
     let memory_management = SimpleMemoryManagement::new(
         storage,
-        DeallocStrategy::new_period_tick(1000),
-        SliceStrategy::Ratio(0.9),
+        DeallocStrategy::new_period_tick(max_tasks * 2),
+        SliceStrategy::Ratio(0.8),
     );
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
     let channel = Channel::new(server);
