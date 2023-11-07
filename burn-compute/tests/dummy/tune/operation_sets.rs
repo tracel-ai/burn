@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use burn_compute::{
     server::Handle,
-    tune::{AutotuneKey, AutotuneOperation, AutotuneOperationSet},
+    tune::{AutotuneOperation, AutotuneOperationSet},
 };
 
 use crate::dummy::{
@@ -15,7 +15,7 @@ use super::DummyElementwiseAdditionSlowWrong;
 
 pub struct AdditionAutotuneOperationSet {
     client: DummyClient,
-    key: AutotuneKey,
+    key: String,
     shapes: Vec<Vec<usize>>,
     handles: Vec<Handle<DummyServer>>,
 }
@@ -28,15 +28,15 @@ impl AdditionAutotuneOperationSet {
     ) -> Self {
         Self {
             client,
-            key: AutotuneKey::new("add".to_string(), log_shape_input_key(&shapes)),
+            key: format!("{}-{}", "add", log_shape_input_key(&shapes)),
             shapes,
             handles,
         }
     }
 }
 
-impl AutotuneOperationSet for AdditionAutotuneOperationSet {
-    fn key(&self) -> AutotuneKey {
+impl AutotuneOperationSet<String> for AdditionAutotuneOperationSet {
+    fn key(&self) -> String {
         self.key.clone()
     }
 
@@ -64,7 +64,7 @@ impl AutotuneOperationSet for AdditionAutotuneOperationSet {
 
 pub struct MultiplicationAutotuneOperationSet {
     client: DummyClient,
-    key: AutotuneKey,
+    key: String,
     shapes: Vec<Vec<usize>>,
     handles: Vec<Handle<DummyServer>>,
 }
@@ -77,14 +77,14 @@ impl MultiplicationAutotuneOperationSet {
     ) -> Self {
         Self {
             client,
-            key: AutotuneKey::new("mul".to_string(), log_shape_input_key(&shapes)),
+            key: format!("{}-{}", "mul", log_shape_input_key(&shapes)),
             shapes,
             handles,
         }
     }
 }
-impl AutotuneOperationSet for MultiplicationAutotuneOperationSet {
-    fn key(&self) -> AutotuneKey {
+impl AutotuneOperationSet<String> for MultiplicationAutotuneOperationSet {
+    fn key(&self) -> String {
         self.key.clone()
     }
 
@@ -112,7 +112,7 @@ impl AutotuneOperationSet for MultiplicationAutotuneOperationSet {
 
 pub struct CacheTestAutotuneOperationSet {
     client: DummyClient,
-    key: AutotuneKey,
+    key: String,
     shapes: Vec<Vec<usize>>,
     handles: Vec<Handle<DummyServer>>,
 }
@@ -125,14 +125,14 @@ impl CacheTestAutotuneOperationSet {
     ) -> Self {
         Self {
             client,
-            key: AutotuneKey::new("cache_test".to_string(), log_shape_input_key(&shapes)),
+            key: format!("{}-{}", "cache_test", log_shape_input_key(&shapes)),
             shapes,
             handles,
         }
     }
 }
-impl AutotuneOperationSet for CacheTestAutotuneOperationSet {
-    fn key(&self) -> AutotuneKey {
+impl AutotuneOperationSet<String> for CacheTestAutotuneOperationSet {
+    fn key(&self) -> String {
         self.key.clone()
     }
 

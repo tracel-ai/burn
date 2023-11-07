@@ -2,16 +2,16 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::kernel::matmul::init_matmul_output;
-use burn_wgpu::{kernel::matmul::vec4_primitive, WgpuDevice};
+use burn_wgpu::kernel::matmul::unpadded::matmul_tiling_2d_unpadded;
+use burn_wgpu::kernel::matmul::vec4::matmul_tiling_2d_vec4;
+use burn_wgpu::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs;
+use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, Wgpu};
 use derive_new::new;
 use std::marker::PhantomData;
 
 use burn_wgpu::{
-    kernel::matmul::{
-        contiguous, contiguous_vectorized, matmul_mem_coalescing_default, matmul_naive_default,
-        tile, tile_vectorized,
-    },
+    kernel::matmul::{matmul_mem_coalescing_default, matmul_naive_default},
     GraphicsApi,
 };
 
@@ -85,7 +85,6 @@ macro_rules! bench_matmul {
             MatmulBenchmark<Wgpu<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
     };
 }
-
 bench_matmul!(NaiveMatmulBenchmark, NaiveMatmul, matmul_naive_default);
 bench_matmul!(
     MemCoalescingMatmulBenchmark,
@@ -93,29 +92,19 @@ bench_matmul!(
     matmul_mem_coalescing_default
 );
 bench_matmul!(
-    Tiling2DMatmulContiguousBenchmark,
-    Tiling2DMatmulContiguous,
-    contiguous::matmul_tiling_2d_default
+    Tiling2DMatmulVec4LHSBenchmark,
+    Tiling2DMatmulVec4LHS,
+    matmul_tiling_2d_vec4_lhs
 );
 bench_matmul!(
-    Tiling2DMatmulTileBenchmark,
-    Tiling2DMatmulTile,
-    tile::matmul_tiling_2d_default
+    Tiling2DMatmulVec4Benchmark,
+    Tiling2DMatmulVec4,
+    matmul_tiling_2d_vec4
 );
 bench_matmul!(
-    Tiling2DMatmulTileVectorizedBenchmark,
-    Tiling2DMatmulTileVectorized,
-    tile_vectorized::matmul_tiling_2d_default
-);
-bench_matmul!(
-    Tiling2DMatmulContiguousVectorizedBenchmark,
-    Tiling2DMatmulContiguousVectorized,
-    contiguous_vectorized::matmul_tiling_2d_default
-);
-bench_matmul!(
-    Tiling2DMatmulVec4PrimitiveBenchmark,
-    Tiling2DMatmulVec4Primitive,
-    vec4_primitive::matmul_tiling_2d_vec4_primitive_default
+    Tiling2DMatmulUnpaddedBenchmark,
+    Tiling2DMatmulUnpadded,
+    matmul_tiling_2d_unpadded
 );
 
 #[allow(dead_code)]
@@ -124,9 +113,9 @@ pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 2048;
-    let k = 2048;
-    let n = 1024;
+    let m = 1007;
+    let k = 1023;
+    let n = 1005;
     let shape_lhs = Shape::new([batch_size, m, k]);
     let shape_rhs = Shape::new([batch_size, k, n]);
 
@@ -142,11 +131,9 @@ pub fn bench(device: &WgpuDevice) {
     }
     run_matmul_benchmark!(NaiveMatmulBenchmark);
     run_matmul_benchmark!(MemCoalescingMatmulBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulContiguousBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulTileVectorizedBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulContiguousVectorizedBenchmark);
-    run_matmul_benchmark!(Tiling2DMatmulVec4PrimitiveBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulUnpaddedBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulVec4LHSBenchmark);
+    run_matmul_benchmark!(Tiling2DMatmulVec4Benchmark);
 }
 
 fn main() {

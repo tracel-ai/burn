@@ -4,7 +4,7 @@ use crate::graph::NodeRef;
 ///
 /// # Notes
 ///
-/// This is usefull since you don't have to keep N cloned references alive event if just 1 node
+/// This is useful since you don't have to keep N cloned references alive event if just 1 node
 /// will be updated.
 ///
 /// If the object is a tensor and if one reference exists, it can be updated inplace.
