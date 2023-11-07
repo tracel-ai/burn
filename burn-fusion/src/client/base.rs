@@ -36,4 +36,9 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
         tensor: TensorDescription,
     ) -> Reader<Data<IntElem<Self::FusedBackend>, D>>;
     fn read_bool<const D: usize>(&self, tensor: TensorDescription) -> Reader<Data<bool, D>>;
+    fn change_client_float<const D: usize>(
+        &self,
+        tensor: TensorDescription,
+        client: Self,
+    ) -> FusionTensor<Self>;
 }

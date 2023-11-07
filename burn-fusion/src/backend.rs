@@ -65,7 +65,7 @@ pub struct DeviceId {
     pub index_id: u32,
 }
 
-pub trait HandleDevice: Clone + Send + Sync {
+pub trait HandleDevice: Clone + Send + Sync + PartialEq {
     fn id(&self) -> DeviceId;
 }
 

@@ -64,6 +64,7 @@ impl<const D: usize> From<&Vec<usize>> for Shape<D> {
         Self::new(dims)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

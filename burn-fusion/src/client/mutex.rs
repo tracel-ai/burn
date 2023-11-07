@@ -134,4 +134,23 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         self.server.lock().read_bool(tensor)
     }
+
+    fn change_client_float<const D: usize>(
+        &self,
+        tensor: crate::TensorDescription,
+        client: Self,
+    ) -> FusionTensor<Self> {
+        let device = client.device.clone().into();
+
+        let mut other_server = client.server.lock();
+
+        let id = self
+            .server
+            .lock()
+            .change_server::<D>(&tensor, &device, &mut other_server);
+
+        core::mem::drop(other_server);
+
+        FusionTensor::new(id, tensor.shape, client)
+    }
 }

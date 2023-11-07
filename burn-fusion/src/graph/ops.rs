@@ -24,7 +24,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
         match self {
             TensorOpsDescription::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BaseOpsBool(_) => todo!(),
+            TensorOpsDescription::BaseOpsBool(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::BoolOps(_) => todo!(),
@@ -37,7 +37,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
         match self {
             TensorOpsDescription::BaseOpsFloat(ops) => ops.execute(handles),
             TensorOpsDescription::BaseOpsInt(ops) => ops.execute(handles),
-            TensorOpsDescription::BaseOpsBool(_) => todo!(),
+            TensorOpsDescription::BaseOpsBool(ops) => ops.execute(handles),
             TensorOpsDescription::NumericOpsFloat(ops) => ops.execute(handles),
             TensorOpsDescription::NumericOpsInt(ops) => ops.execute(handles),
             TensorOpsDescription::BoolOps(_) => todo!(),
@@ -50,10 +50,24 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
 
 impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
-        todo!();
+        match self {
+            BaseOpsDescription::ToDevice(_, _) => (),
+            BaseOpsDescription::Reshape(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            BaseOpsDescription::SwapDims(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            _ => todo!(),
+        }
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
-        todo!();
+        match self {
+            BaseOpsDescription::ToDevice(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::Reshape(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::SwapDims(desc, ops) => ops.execute(desc, handles),
+            _ => todo!(),
+        }
     }
 }
 
@@ -89,6 +103,10 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
                 handles.cleanup(&desc.lhs);
             }
             NumericOpsDescription::Ones(desc, ops) => {}
+            NumericOpsDescription::Gather(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+            }
             _ => todo!(),
         }
     }
@@ -103,6 +121,7 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::Mul(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::MulScalar(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Ones(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Gather(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
@@ -331,19 +350,32 @@ pub enum ModuleOpsDescription {
     },
 }
 
+pub struct SwapDimsDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+    pub dim1: usize,
+    pub dim2: usize,
+}
+
+pub struct ReshapeDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+    pub shape: Vec<usize>,
+}
+
 pub enum BaseOpsDescription<B: FusedBackend, E> {
-    Reshape {
-        tensor: TensorDescription,
-        shape: Vec<usize>,
-        out: TensorDescription,
-        ops: Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    },
-    SwapDims {
-        tensor: TensorDescription,
-        dim1: usize,
-        dim2: usize,
-        out: TensorDescription,
-    },
+    ToDevice(
+        (TensorDescription, B::Device),
+        Box<dyn Ops<B, Args = (TensorDescription, B::Device)>>,
+    ),
+    Reshape(
+        ReshapeDescription,
+        Box<dyn Ops<B, Args = ReshapeDescription>>,
+    ),
+    SwapDims(
+        SwapDimsDescription,
+        Box<dyn Ops<B, Args = SwapDimsDescription>>,
+    ),
     Slice {
         tensor: TensorDescription,
         ranges: Vec<Range<usize>>,
@@ -397,6 +429,13 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
+pub struct GatherOpsDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub indices: TensorDescription,
+    pub out: TensorDescription,
+}
+
 pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     Add(
         BinaryOpsDescription,
@@ -438,16 +477,16 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
         tensor: TensorDescription,
         out: TensorDescription,
     },
-    Zeros {
-        shape: Vec<usize>,
-        out: TensorDescription,
-    },
     Ones(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
-    Full {
-        shape: Vec<usize>,
-        value: E,
-        out: TensorDescription,
-    },
+    Zeros(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
+    Full(
+        (TensorDescription, E),
+        Box<dyn Ops<B, Args = (TensorDescription, E)>>,
+    ),
+    Gather(
+        GatherOpsDescription,
+        Box<dyn Ops<B, Args = GatherOpsDescription>>,
+    ),
     Mean {
         tensor: TensorDescription,
         out: TensorDescription,
@@ -523,12 +562,7 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
         value: E,
         out: TensorDescription,
     },
-    Gather {
-        tensor: TensorDescription,
-        dim: usize,
-        indices: TensorDescription,
-        out: TensorDescription,
-    },
+
     Scatter {
         tensor: TensorDescription,
         dim: usize,

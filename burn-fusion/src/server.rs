@@ -1,6 +1,6 @@
 use crate::{
     graph::{Graph, GraphExecution, Optimization, TensorOpsDescription},
-    FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
+    FusedBackend, FusionProperties, FusionStatus, FusionTensor, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
@@ -113,5 +113,22 @@ where
 
         let tensor = self.handles.get_bool_tensor(&tensor);
         B::bool_into_data(tensor)
+    }
+
+    pub fn change_server<const D: usize>(
+        &mut self,
+        tensor: &crate::TensorDescription,
+        device: &B::Device,
+        server_device: &mut Self,
+    ) -> Arc<TensorId> {
+        let tensor = self.handles.get_float_tensor::<D>(&tensor);
+        let tensor = B::to_device(tensor, &device);
+        let id = server_device.create_empty_handle();
+
+        server_device
+            .handles
+            .register_float_tensor(&id, tensor.clone());
+
+        id
     }
 }

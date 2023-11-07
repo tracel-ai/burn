@@ -2,8 +2,9 @@ use crate::{
     binary_float_ops,
     client::FusionClient,
     graph::{
-        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, Ops,
-        ScalarOpsDescription, TensorOpsDescription,
+        BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, GatherOpsDescription,
+        NumericOpsDescription, Ops, ReshapeDescription, ScalarOpsDescription, SwapDimsDescription,
+        TensorOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_float_ops, FusedBackend, Fusion, TensorDescription,
@@ -74,7 +75,19 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        let device_original: &B::HandleDevice = tensor.client.device();
+        let device_target: B::HandleDevice = device.clone().into();
+
+        if device_original == &device_target {
+            return tensor;
+        }
+
+        let client_target = B::client(&device_target);
+        let client_original = tensor.client.clone();
+
+        client_original
+            .clone()
+            .change_client_float::<D>(tensor.into_description(), client_target)
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -130,7 +143,27 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     }
 
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        todo!()
+        struct ZerosOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for ZerosOps<D> {
+            type Args = TensorDescription;
+
+            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::zeros(shape, &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Zeros(out.to_description_out(), Box::new(ZerosOps::<D>)),
+        ));
+
+        out
     }
 
     fn full<const D: usize>(
@@ -138,7 +171,30 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         fill_value: FloatElem<Self>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct FullOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for FullOps<D> {
+            type Args = (TensorDescription, FloatElem<B>);
+
+            fn execute(&self, (out, value): &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::full(shape, value.clone(), &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Full(
+                (out.to_description_out(), fill_value),
+                Box::new(FullOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -334,14 +390,76 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         dim1: usize,
         dim2: usize,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct SwapDimsOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for SwapDimsOps<D> {
+            type Args = SwapDimsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&args.input);
+                let output = B::swap_dims(input, args.dim1, args.dim2);
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let mut shape = tensor.shape.clone();
+        shape[dim1] = tensor.shape[dim2];
+        shape[dim2] = tensor.shape[dim1];
+
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::BaseOpsFloat(
+                BaseOpsDescription::SwapDims(
+                    SwapDimsDescription {
+                        input: tensor.into_description(),
+                        dim1,
+                        dim2,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SwapDimsOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
-        todo!()
+        struct ReshapeDimsOps<const D1: usize, const D2: usize>;
+
+        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
+            type Args = ReshapeDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D1>(&args.input);
+                let output = B::reshape::<D1, D2>(input, Shape::from(&args.shape));
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.clone().into();
+        let out = tensor.client.create_empty(shape.clone());
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::BaseOpsFloat(
+                BaseOpsDescription::Reshape(
+                    ReshapeDescription {
+                        input: tensor.into_description(),
+                        shape,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(ReshapeDimsOps::<D1, D2>),
+                ),
+            ));
+
+        out
     }
 
     fn gather<const D: usize>(
@@ -349,7 +467,39 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D>,
         indices: IntTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct GatherDimsOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for GatherDimsOps<D> {
+            type Args = GatherOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let indices = handles.get_int_tensor(&args.indices);
+
+                let output = B::gather(args.dim, tensor, indices);
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = indices.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::Gather(
+                    GatherOpsDescription {
+                        tensor: tensor.into_description(),
+                        dim,
+                        indices: indices.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(GatherDimsOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn scatter<const D: usize>(
