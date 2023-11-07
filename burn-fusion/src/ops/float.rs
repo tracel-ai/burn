@@ -3,9 +3,10 @@ use crate::{
     client::FusionClient,
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, GatherOpsDescription,
-        NumericOpsDescription, Ops, ReshapeDescription, ScalarOpsDescription,
-        ScatterOpsDescription, SelectAssignOpsDescription, SelectOpsDescription,
-        SwapDimsDescription, TensorOpsDescription,
+        MaskFillOpsDescription, MaskWhereOpsDescription, NumericOpsDescription, Ops,
+        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
+        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
+        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_float_ops, FusedBackend, Fusion, TensorDescription,
@@ -636,7 +637,43 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D1>,
         ranges: [Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
-        todo!()
+        struct SliceOps<const D1: usize, const D2: usize>;
+
+        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for SliceOps<D1, D2> {
+            type Args = SliceOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D1>(&args.tensor);
+
+                let output = B::slice::<D1, D2>(tensor, args.ranges.clone().try_into().unwrap());
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
+
+        for i in shape.len()..D1 {
+            shape.push(tensor.shape[i]);
+        }
+
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::BaseOpsFloat(
+                BaseOpsDescription::Slice(
+                    SliceOpsDescription {
+                        tensor: tensor.into_description(),
+                        ranges: ranges.into(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SliceOps::<D1, D2>),
+                ),
+            ));
+
+        out
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -644,7 +681,44 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         ranges: [Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        todo!()
+        struct SliceAssignOps<const D1: usize, const D2: usize>;
+
+        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for SliceAssignOps<D1, D2> {
+            type Args = SliceAssignOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D1>(&args.tensor);
+                let value = handles.get_float_tensor::<D1>(&args.tensor);
+
+                let output = B::slice_assign::<D1, D2>(
+                    tensor,
+                    args.ranges.clone().try_into().unwrap(),
+                    value,
+                );
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::BaseOpsFloat(
+                BaseOpsDescription::SliceAssign(
+                    SliceAssignOpsDescription {
+                        tensor: tensor.into_description(),
+                        ranges: ranges.into(),
+                        value: value.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SliceAssignOps::<D1, D2>),
+                ),
+            ));
+
+        out
     }
 
     fn mask_where<const D: usize>(
@@ -652,7 +726,41 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct MaskWhereOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for MaskWhereOps<D> {
+            type Args = MaskWhereOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let value = handles.get_float_tensor(&args.value);
+                let mask = handles.get_bool_tensor(&args.mask);
+
+                let output = B::mask_where(tensor, mask, value);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::MaskWhere(
+                    MaskWhereOpsDescription {
+                        tensor: tensor.into_description(),
+                        value: value.into_description(),
+                        mask: mask.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(MaskWhereOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn mask_fill<const D: usize>(
@@ -660,7 +768,40 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self, D>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        struct MaskFillOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for MaskFillOps<D> {
+            type Args = MaskFillOpsDescription<FloatElem<B>>;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let mask = handles.get_bool_tensor(&args.mask);
+
+                let output = B::mask_fill(tensor, mask, args.value);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = tensor.shape.clone();
+        let out = tensor.client.create_empty(shape);
+
+        tensor
+            .client
+            .clone()
+            .register(TensorOpsDescription::NumericOpsFloat(
+                NumericOpsDescription::MaskFill(
+                    MaskFillOpsDescription {
+                        tensor: tensor.into_description(),
+                        value,
+                        mask: mask.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(MaskFillOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn equal<const D: usize>(

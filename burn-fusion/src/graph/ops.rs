@@ -58,6 +58,13 @@ impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
             BaseOpsDescription::SwapDims(desc, _) => {
                 handles.cleanup(&desc.input);
             }
+            BaseOpsDescription::Slice(desc, _) => {
+                handles.cleanup(&desc.tensor);
+            }
+            BaseOpsDescription::SliceAssign(desc, _) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.value);
+            }
             _ => todo!(),
         }
     }
@@ -66,6 +73,8 @@ impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
             BaseOpsDescription::ToDevice(desc, ops) => ops.execute(desc, handles),
             BaseOpsDescription::Reshape(desc, ops) => ops.execute(desc, handles),
             BaseOpsDescription::SwapDims(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::Slice(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::SliceAssign(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
@@ -121,6 +130,15 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
                 handles.cleanup(&desc.indices);
                 handles.cleanup(&desc.value);
             }
+            NumericOpsDescription::MaskWhere(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.value);
+                handles.cleanup(&desc.mask);
+            }
+            NumericOpsDescription::MaskFill(desc, ops) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.mask);
+            }
             _ => todo!(),
         }
     }
@@ -140,6 +158,8 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::Scatter(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Select(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::SelectAssign(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MaskWhere(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MaskFill(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
@@ -394,17 +414,14 @@ pub enum BaseOpsDescription<B: FusedBackend, E> {
         SwapDimsDescription,
         Box<dyn Ops<B, Args = SwapDimsDescription>>,
     ),
-    Slice {
-        tensor: TensorDescription,
-        ranges: Vec<Range<usize>>,
-        out: TensorDescription,
-    },
-    SliceAssign {
-        tensor: TensorDescription,
-        ranges: Vec<Range<usize>>,
-        values: TensorDescription,
-        out: TensorDescription,
-    },
+    Slice(
+        SliceOpsDescription,
+        Box<dyn Ops<B, Args = SliceOpsDescription>>,
+    ),
+    SliceAssign(
+        SliceAssignOpsDescription,
+        Box<dyn Ops<B, Args = SliceAssignOpsDescription>>,
+    ),
     FromData {
         value: Vec<E>,
         shape: Vec<usize>,
@@ -477,6 +494,32 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
+pub struct SliceOpsDescription {
+    pub tensor: TensorDescription,
+    pub ranges: Vec<Range<usize>>,
+    pub out: TensorDescription,
+}
+
+pub struct SliceAssignOpsDescription {
+    pub tensor: TensorDescription,
+    pub ranges: Vec<Range<usize>>,
+    pub value: TensorDescription,
+    pub out: TensorDescription,
+}
+pub struct MaskWhereOpsDescription {
+    pub tensor: TensorDescription,
+    pub mask: TensorDescription,
+    pub value: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct MaskFillOpsDescription<E> {
+    pub tensor: TensorDescription,
+    pub mask: TensorDescription,
+    pub value: E,
+    pub out: TensorDescription,
+}
+
 pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     Add(
         BinaryOpsDescription,
@@ -540,6 +583,14 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
         SelectAssignOpsDescription,
         Box<dyn Ops<B, Args = SelectAssignOpsDescription>>,
     ),
+    MaskWhere(
+        MaskWhereOpsDescription,
+        Box<dyn Ops<B, Args = MaskWhereOpsDescription>>,
+    ),
+    MaskFill(
+        MaskFillOpsDescription<E>,
+        Box<dyn Ops<B, Args = MaskFillOpsDescription<E>>>,
+    ),
     Mean {
         tensor: TensorDescription,
         out: TensorDescription,
@@ -601,18 +652,6 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     LowerEqualElem {
         tensor: TensorDescription,
         elem: E,
-        out: TensorDescription,
-    },
-    MaskWhere {
-        tensor: TensorDescription,
-        mask: TensorDescription,
-        value: TensorDescription,
-        out: TensorDescription,
-    },
-    MaskFill {
-        tensor: TensorDescription,
-        mask: TensorDescription,
-        value: E,
         out: TensorDescription,
     },
     ArgMax {
