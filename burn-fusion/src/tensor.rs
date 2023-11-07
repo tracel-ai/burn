@@ -1,6 +1,6 @@
 use crate::client::FusionClient;
 use burn_tensor::{ops::FloatElem, Data, Reader, Shape};
-use std::sync::{atomic::AtomicU64, Arc};
+use std::sync::Arc;
 
 #[derive(new, Clone, Debug)]
 pub struct FusionTensor<C: FusionClient> {
@@ -35,8 +35,6 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 }
 
-const ID_COUNTER: AtomicU64 = AtomicU64::new(0);
-
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TensorId {
     value: u64,
@@ -57,9 +55,7 @@ pub struct TensorDescription {
 }
 
 impl TensorId {
-    pub(crate) fn new() -> Self {
-        let id = ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-        Self { value: id.into() }
+    pub(crate) fn new(value: u64) -> Self {
+        Self { value }
     }
 }

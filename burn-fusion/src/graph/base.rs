@@ -64,7 +64,7 @@ impl<B: FusedBackend> Graph<B> {
 
     pub fn execute(&mut self, handles: &mut HandleContainer<B>) {
         for ops in self.drain(..) {
-            todo!("execute the ops");
+            ops.execute(handles);
             ops.cleanup_tensor(handles);
         }
     }

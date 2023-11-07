@@ -24,7 +24,20 @@ impl<B: FusedBackend> TensorOps<B> {
             TensorOps::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
             TensorOps::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
             TensorOps::BaseOpsBool(_) => todo!(),
-            TensorOps::NumericOpsFloat(_) => todo!(),
+            TensorOps::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
+            TensorOps::NumericOpsInt(_) => todo!(),
+            TensorOps::BoolOps(_) => todo!(),
+            TensorOps::IntOps(_) => todo!(),
+            TensorOps::FloatOps(_) => todo!(),
+            TensorOps::ModuleOps(_) => todo!(),
+        }
+    }
+    pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            TensorOps::BaseOpsFloat(ops) => ops.execute(handles),
+            TensorOps::BaseOpsInt(ops) => ops.execute(handles),
+            TensorOps::BaseOpsBool(_) => todo!(),
+            TensorOps::NumericOpsFloat(ops) => ops.execute(handles),
             TensorOps::NumericOpsInt(_) => todo!(),
             TensorOps::BoolOps(_) => todo!(),
             TensorOps::IntOps(_) => todo!(),
@@ -69,6 +82,60 @@ impl<B: FusedBackend, E> BaseOps<B, E> {
             } => todo!(),
             BaseOps::Equal { lhs, rhs, out } => todo!(),
             BaseOps::Cat { tensors, dim, out } => todo!(),
+        }
+    }
+    fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            BaseOps::Reshape {
+                tensor,
+                shape,
+                out,
+                ops,
+            } => todo!(),
+            BaseOps::SwapDims {
+                tensor,
+                dim1,
+                dim2,
+                out,
+            } => todo!(),
+            BaseOps::Slice {
+                tensor,
+                ranges,
+                out,
+            } => todo!(),
+            BaseOps::SliceAssign {
+                tensor,
+                ranges,
+                values,
+                out,
+            } => todo!(),
+            BaseOps::FromData { value, shape, out } => todo!(),
+            BaseOps::Repeat {
+                tensor,
+                dim,
+                times,
+                shape,
+                out,
+            } => todo!(),
+            BaseOps::Equal { lhs, rhs, out } => todo!(),
+            BaseOps::Cat { tensors, dim, out } => todo!(),
+        }
+    }
+}
+impl<B: FusedBackend, E: Element> NumericOps<B, E> {
+    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            NumericOps::Add(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            _ => todo!(),
+        }
+    }
+    fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            NumericOps::Add(desc, ops) => ops.execute(desc, handles),
+            _ => todo!(),
         }
     }
 }
@@ -329,7 +396,7 @@ pub enum BaseOps<B: FusedBackend, E> {
 pub trait Ops<B: FusedBackend>: Send + Sync {
     type Args: Send + Sync;
 
-    fn execute(self: Box<Self>, args: Self::Args, handles: &mut HandleContainer<B>);
+    fn execute(&self, args: &Self::Args, handles: &mut HandleContainer<B>);
 }
 
 pub struct BinaryOpsDescription {

@@ -1,16 +1,14 @@
-use crate::{client::FusionClient, FusedBackend, FusionServer};
-use burn_tensor::backend::Backend;
-use std::{collections::HashMap, ops::DerefMut};
+use crate::{client::FusionClient, DeviceId, FusedBackend, FusionServer, HandleDevice};
+use std::{any::Any, collections::HashMap, ops::DerefMut};
 
 pub type Handle<B> = <B as FusedBackend>::Handle;
-pub type FloatElem<B> = <B as Backend>::FloatElem;
-pub type IntElem<B> = <B as Backend>::IntElem;
+type Key = (core::any::TypeId, DeviceId);
 
-pub struct FusionClientLocator<C: FusionClient> {
-    clients: spin::Mutex<Option<HashMap<<C::FusedBackend as FusedBackend>::HandleDevice, C>>>,
+pub struct FusionClientLocator {
+    clients: spin::Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
 
-impl<C: FusionClient> FusionClientLocator<C> {
+impl FusionClientLocator {
     /// Create a new compute.
     pub const fn new() -> Self {
         Self {
@@ -21,20 +19,30 @@ impl<C: FusionClient> FusionClientLocator<C> {
     /// Get the fusion client for the given device.
     ///
     /// Provide the init function to create a new client if it isn't already initialized.
-    pub fn client(&self, device: &<C::FusedBackend as FusedBackend>::HandleDevice) -> C {
+    pub fn client<C: FusionClient + 'static>(
+        &self,
+        device: &<C::FusedBackend as FusedBackend>::HandleDevice,
+    ) -> C {
+        let device_id = device.id();
+        let client_id = (core::any::TypeId::of::<C>(), device_id);
         let mut clients = self.clients.lock();
 
         if clients.is_none() {
             let client = C::new(FusionServer::new(device.clone()));
-            Self::register_inner(device, client, &mut clients);
+            Self::register_inner::<C>(client_id, client, &mut clients);
         }
 
         match clients.deref_mut() {
-            Some(clients) => match clients.get(device) {
-                Some(client) => client.clone(),
+            Some(clients) => match clients.get(&client_id) {
+                Some(client) => {
+                    let client: &C = client.downcast_ref().unwrap();
+                    client.clone()
+                }
                 None => {
                     let client = C::new(FusionServer::new(device.clone()));
-                    clients.insert(device.clone(), client.clone());
+                    println!("New client");
+                    let any = Box::new(client.clone());
+                    clients.insert(client_id, any);
                     client
                 }
             },
@@ -42,21 +50,21 @@ impl<C: FusionClient> FusionClientLocator<C> {
         }
     }
 
-    fn register_inner(
-        device: &<C::FusedBackend as FusedBackend>::HandleDevice,
+    fn register_inner<C: FusionClient + 'static>(
+        key: Key,
         client: C,
-        clients: &mut Option<HashMap<<C::FusedBackend as FusedBackend>::HandleDevice, C>>,
+        clients: &mut Option<HashMap<Key, Box<dyn Any + Send>>>,
     ) {
         if clients.is_none() {
             *clients = Some(HashMap::new());
         }
 
         if let Some(clients) = clients {
-            if clients.contains_key(device) {
-                panic!("Client already created for device {:?}", device);
+            if clients.contains_key(&key) {
+                panic!("Client already created for device {:?}", key);
             }
 
-            clients.insert(device.clone(), client);
+            clients.insert(key, Box::new(client));
         }
     }
 }

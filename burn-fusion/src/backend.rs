@@ -1,9 +1,11 @@
 use crate::{
     client::FusionClient, graph::TensorOps, FusionClientLocator, FusionTensor, HandleContainer,
 };
-use burn_tensor::backend::Backend;
+use burn_tensor::{backend::Backend, Shape};
 use core::marker::PhantomData;
 use std::sync::Arc;
+
+static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
 #[derive(Clone, Debug, Default)]
 pub struct Fusion<B> {
@@ -56,15 +58,18 @@ pub trait FusedOps<B: FusedBackend>: Send {
     fn len(&self) -> usize;
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
+pub struct DeviceId {
+    pub type_id: u16,
+    pub index_id: u32,
+}
+
+pub trait HandleDevice: Clone + Send + Sync {
+    fn id(&self) -> DeviceId;
+}
+
 pub trait FusedBackend: Backend {
-    type HandleDevice: core::hash::Hash
-        + core::cmp::Eq
-        + Clone
-        + Send
-        + Sync
-        + core::fmt::Debug
-        + From<Self::Device>
-        + Into<Self::Device>;
+    type HandleDevice: HandleDevice + From<Self::Device> + Into<Self::Device>;
     type Handle: Sync + Send + Clone;
 
     type FullPrecisionFusedBackend: FusedBackend<
@@ -74,16 +79,26 @@ pub trait FusedBackend: Backend {
         > + Backend<Device = Self::Device, FloatElem = Self::FullPrecisionElem>;
 
     fn operations() -> Vec<Box<dyn FusedOps<Self>>>;
-    fn new(shape: Vec<usize>) -> Self::Handle;
-
-    fn float_tensor<const D: usize>(handle: Self::Handle) -> Self::TensorPrimitive<D>;
-    fn int_tensor<const D: usize>(handle: Self::Handle) -> Self::IntTensorPrimitive<D>;
-    fn bool_tensor<const D: usize>(handle: Self::Handle) -> Self::BoolTensorPrimitive<D>;
+    fn float_tensor<const D: usize>(
+        handle: Self::Handle,
+        shape: Shape<D>,
+    ) -> Self::TensorPrimitive<D>;
+    fn int_tensor<const D: usize>(
+        handle: Self::Handle,
+        shape: Shape<D>,
+    ) -> Self::IntTensorPrimitive<D>;
+    fn bool_tensor<const D: usize>(
+        handle: Self::Handle,
+        shape: Shape<D>,
+    ) -> Self::BoolTensorPrimitive<D>;
 
     fn float_tensor_handle<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Handle;
     fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
 
     type FusionClient: FusionClient<FusedBackend = Self>;
-    const FUSION: FusionClientLocator<Self::FusionClient> = FusionClientLocator::new();
+
+    fn client(device: &Self::HandleDevice) -> Self::FusionClient {
+        CLIENTS.client(device)
+    }
 }

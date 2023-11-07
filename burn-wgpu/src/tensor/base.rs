@@ -23,40 +23,40 @@ pub struct WgpuTensor<E: WgpuElement, const D: usize> {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct WgpuTensorDyn<E: WgpuElement> {
+/// Handle to be used when fusing operations.
+pub struct WgpuFusionHandle {
     /// Compute client for wgpu.
     pub client: WgpuComputeClient,
     /// The buffer where the data are stored.
     pub handle: WgpuHandle,
     /// The device of the current tensor.
     pub device: WgpuDevice,
-    pub(crate) shape: Vec<usize>,
     pub(crate) strides: Vec<usize>,
-    elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuTensorDyn<E> {
-    fn from(value: WgpuTensor<E, D>) -> Self {
-        WgpuTensorDyn {
-            client: value.client,
-            handle: value.handle,
-            device: value.device,
-            shape: value.shape.dims.to_vec(),
-            strides: value.strides.to_vec(),
+impl WgpuFusionHandle {
+    pub(crate) fn into_tensor<const D: usize, E: WgpuElement>(
+        self,
+        shape: Shape<D>,
+    ) -> WgpuTensor<E, D> {
+        WgpuTensor {
+            client: self.client,
+            handle: self.handle,
+            device: self.device,
+            shape,
+            strides: self.strides.try_into().expect("Wrong dimension"),
             elem: PhantomData,
         }
     }
 }
 
-impl<E: WgpuElement, const D: usize> From<WgpuTensorDyn<E>> for WgpuTensor<E, D> {
-    fn from(value: WgpuTensorDyn<E>) -> Self {
-        WgpuTensor {
+impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuFusionHandle {
+    fn from(value: WgpuTensor<E, D>) -> Self {
+        Self {
             client: value.client,
             handle: value.handle,
             device: value.device,
-            shape: Shape::new(value.shape.try_into().expect("Wrong dimension")),
-            strides: value.strides.try_into().expect("Wrong dimension"),
-            elem: PhantomData,
+            strides: value.strides.into(),
         }
     }
 }

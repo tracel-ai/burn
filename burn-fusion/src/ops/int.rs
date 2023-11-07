@@ -1,4 +1,9 @@
-use crate::{FusedBackend, Fusion};
+use crate::{
+    binary_int_ops,
+    client::FusionClient,
+    graph::{self, BinaryOpsDescription, NumericOps, Ops},
+    FusedBackend, Fusion,
+};
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Data, Device, Reader, Shape,
@@ -186,7 +191,20 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        binary_int_ops!(AddOps, B::int_add);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+        out.client
+            .register(graph::TensorOps::NumericOpsInt(NumericOps::Add(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.clone().into_description(),
+                },
+                Box::new(AddOps::<D>),
+            )));
+
+        out
     }
 
     fn int_add_scalar<const D: usize>(

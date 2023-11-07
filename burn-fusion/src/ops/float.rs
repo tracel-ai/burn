@@ -15,7 +15,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        let client = B::FUSION.client(&device.clone().into());
+        let client = B::client(&device.clone().into());
         let out = client.create_float(data.value, data.shape.dims.into());
         out
     }
@@ -31,18 +31,19 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
             type Args = (TensorDescription, Distribution<FloatElem<B>>);
 
             fn execute(
-                self: Box<Self>,
-                (out, distribution): Self::Args,
+                &self,
+                (out, distribution): &Self::Args,
                 handles: &mut crate::HandleContainer<B>,
             ) {
-                let shape = Shape::from(out.shape);
-                let output: B::TensorPrimitive<D> = B::random(shape, distribution, &handles.device);
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> =
+                    B::random(shape, distribution.clone(), &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let client = B::FUSION.client(&device.clone().into());
+        let client = B::client(&device.clone().into());
         let out = client.create_empty(shape);
 
         client.register(graph::TensorOps::FloatOps(graph::FloatOps::Random {
@@ -74,7 +75,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        let client = B::FUSION.client(&device.clone().into());
+        let client = B::client(&device.clone().into());
         let out = client.create_empty(shape.dims.into());
         out
     }
