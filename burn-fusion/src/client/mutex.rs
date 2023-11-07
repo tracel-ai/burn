@@ -1,6 +1,6 @@
 use super::FusionClient;
 use crate::{
-    graph::{GraphExecution, TensorOps},
+    graph::{GraphExecution, TensorOpsDescription},
     FusedBackend, FusionServer, FusionTensor,
 };
 use burn_tensor::ops::FloatElem;
@@ -54,7 +54,7 @@ where
         }
     }
 
-    fn register(&self, ops: TensorOps<B>) {
+    fn register(&self, ops: TensorOpsDescription<B>) {
         self.server.lock().register(ops);
     }
 

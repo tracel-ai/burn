@@ -1,5 +1,5 @@
 use crate::{
-    graph::{Graph, GraphExecution, Optimization, TensorOps},
+    graph::{Graph, GraphExecution, Optimization, TensorOpsDescription},
     FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
@@ -38,7 +38,7 @@ where
         }
     }
 
-    pub fn register(&mut self, ops: TensorOps<B>) {
+    pub fn register(&mut self, ops: TensorOpsDescription<B>) {
         let ops = Arc::new(ops);
         self.graph.add(ops.clone());
 

@@ -1,5 +1,5 @@
 use crate::{
-    graph::{GraphExecution, TensorOps},
+    graph::{GraphExecution, TensorOpsDescription},
     FusedBackend, FusionServer, FusionTensor, TensorDescription,
 };
 use burn_tensor::{
@@ -12,7 +12,7 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
     type GraphExecution: GraphExecution<Self::FusedBackend>;
 
     fn new(server: FusionServer<Self::FusedBackend, Self::GraphExecution>) -> Self;
-    fn register(&self, ops: TensorOps<Self::FusedBackend>);
+    fn register(&self, ops: TensorOpsDescription<Self::FusedBackend>);
     fn sync(&self);
     fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice;
     fn create_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;

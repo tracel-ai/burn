@@ -2,8 +2,8 @@ use crate::{
     binary_float_ops,
     client::FusionClient,
     graph::{
-        self, BinaryOpsDescription, NumericOps, Ops, ScalarOpsDescription,
-        TensorOps::NumericOpsFloat,
+        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, Ops,
+        ScalarOpsDescription, TensorOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_float_ops, FusedBackend, Fusion, TensorDescription,
@@ -50,11 +50,10 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         let client = B::client(&device.clone().into());
         let out = client.create_empty(shape);
 
-        client.register(graph::TensorOps::FloatOps(graph::FloatOps::Random {
-            out: out.clone().into_description(),
-            distribution,
-            ops: Box::new(RandomOps::<D>),
-        }));
+        client.register(TensorOpsDescription::FloatOps(FloatOpsDescription::Random(
+            (out.to_description_out(), distribution),
+            Box::new(RandomOps::<D>),
+        )));
 
         out
     }
@@ -94,14 +93,16 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
             .client
             .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(NumericOpsFloat(NumericOps::Add(
-            BinaryOpsDescription {
-                lhs: lhs.into_description(),
-                rhs: rhs.into_description(),
-                out: out.clone().into_description(),
-            },
-            Box::new(AddOps::<D>),
-        )));
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Add(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(AddOps::<D>),
+            ),
+        ));
 
         out
     }
@@ -114,14 +115,16 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs.client.create_empty(lhs.shape.clone());
 
-        out.client.register(NumericOpsFloat(NumericOps::AddScalar(
-            ScalarOpsDescription {
-                lhs: lhs.into_description(),
-                rhs,
-                out: out.clone().into_description(),
-            },
-            Box::new(AddOps::<D>),
-        )));
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::AddScalar(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(AddOps::<D>),
+            ),
+        ));
 
         out
     }
@@ -139,56 +142,191 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     }
 
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        todo!()
+        struct OnesOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for OnesOps<D> {
+            type Args = TensorDescription;
+
+            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::ones(shape, &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Ones(out.to_description_out(), Box::new(OnesOps::<D>)),
+        ));
+
+        out
     }
 
     fn sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        binary_float_ops!(SubOps, B::sub);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Sub(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(SubOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(SubOps, B::sub_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::SubScalar(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(SubOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        binary_float_ops!(MulOps, B::mul);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Mul(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MulOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(MulOps, B::mul_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MulScalar(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(MulOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        binary_float_ops!(DivOps, B::div);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Div(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(DivOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(DivOps, B::div_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::DivScalar(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(DivOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn matmul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        binary_float_ops!(MatmulOps, B::matmul);
+
+        let mut shape = binary_ops_shape(&lhs.shape, &rhs.shape);
+
+        shape[D - 2] = lhs.shape[D - 2];
+        shape[D - 1] = rhs.shape[D - 1];
+
+        let out = lhs.client.create_empty(shape);
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Matmul(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MatmulOps::<D>),
+            )));
+
+        out
     }
 
     fn swap_dims<const D: usize>(

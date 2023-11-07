@@ -1,7 +1,7 @@
 use crate::{
     binary_int_ops,
     client::FusionClient,
-    graph::{self, BinaryOpsDescription, NumericOps, Ops, ScalarOpsDescription},
+    graph::{self, BinaryOpsDescription, NumericOpsDescription, Ops, ScalarOpsDescription},
     ops::binary::binary_ops_shape,
     scalar_int_ops, FusedBackend, Fusion,
 };
@@ -203,14 +203,16 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
             .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client
-            .register(graph::TensorOps::NumericOpsInt(NumericOps::Add(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.clone().into_description(),
-                },
-                Box::new(AddOps::<D>),
-            )));
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::Add(
+                    BinaryOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs: rhs.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(AddOps::<D>),
+                ),
+            ));
 
         out
     }
@@ -224,14 +226,16 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
         let out = lhs.client.create_empty(lhs.shape.clone());
 
         out.client
-            .register(graph::TensorOps::NumericOpsInt(NumericOps::AddScalar(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.clone().into_description(),
-                },
-                Box::new(AddOps::<D>),
-            )));
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::AddScalar(
+                    ScalarOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(AddOps::<D>),
+                ),
+            ));
 
         out
     }
@@ -240,42 +244,144 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        binary_int_ops!(SubOps, B::int_sub);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::Sub(
+                    BinaryOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs: rhs.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SubOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_sub_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        scalar_int_ops!(SubOps, B::int_sub_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::SubScalar(
+                    ScalarOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(SubOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_mul<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        binary_int_ops!(MulOps, B::int_mul);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::Mul(
+                    BinaryOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs: rhs.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(MulOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_mul_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        scalar_int_ops!(MulOps, B::int_mul_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::MulScalar(
+                    ScalarOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(MulOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_div<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        binary_int_ops!(DivOps, B::int_div);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::Div(
+                    BinaryOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs: rhs.into_description(),
+                        out: out.to_description_out(),
+                    },
+                    Box::new(DivOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        scalar_int_ops!(DivOps, B::int_div_scalar);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(graph::TensorOpsDescription::NumericOpsInt(
+                NumericOpsDescription::DivScalar(
+                    ScalarOpsDescription {
+                        lhs: lhs.into_description(),
+                        rhs,
+                        out: out.to_description_out(),
+                    },
+                    Box::new(DivOps::<D>),
+                ),
+            ));
+
+        out
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {

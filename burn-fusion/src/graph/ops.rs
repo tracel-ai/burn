@@ -1,53 +1,54 @@
 use crate::FusedBackend;
 use crate::{HandleContainer, TensorDescription};
+use burn_tensor::ops::FloatElem;
 use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions},
     Distribution, Element,
 };
 use std::ops::Range;
 
-pub enum TensorOps<B: FusedBackend> {
-    BaseOpsFloat(BaseOps<B, B::FloatElem>),
-    BaseOpsInt(BaseOps<B, B::IntElem>),
-    BaseOpsBool(BaseOps<B, bool>),
-    NumericOpsFloat(NumericOps<B, B::FloatElem>),
-    NumericOpsInt(NumericOps<B, B::IntElem>),
-    BoolOps(BoolOps),
-    IntOps(IntOps),
-    FloatOps(FloatOps<B, B::FloatElem>),
-    ModuleOps(ModuleOps),
+pub enum TensorOpsDescription<B: FusedBackend> {
+    BaseOpsFloat(BaseOpsDescription<B, B::FloatElem>),
+    BaseOpsInt(BaseOpsDescription<B, B::IntElem>),
+    BaseOpsBool(BaseOpsDescription<B, bool>),
+    NumericOpsFloat(NumericOpsDescription<B, B::FloatElem>),
+    NumericOpsInt(NumericOpsDescription<B, B::IntElem>),
+    BoolOps(BoolOpsDescription),
+    IntOps(IntOpsDescription),
+    FloatOps(FloatOpsDescription<B>),
+    ModuleOps(ModuleOpsDescription),
 }
 
-impl<B: FusedBackend> TensorOps<B> {
+impl<B: FusedBackend> TensorOpsDescription<B> {
     pub(crate) fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
-            TensorOps::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOps::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOps::BaseOpsBool(_) => todo!(),
-            TensorOps::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOps::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOps::BoolOps(_) => todo!(),
-            TensorOps::IntOps(_) => todo!(),
-            TensorOps::FloatOps(_) => todo!(),
-            TensorOps::ModuleOps(_) => todo!(),
+            TensorOpsDescription::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::BaseOpsBool(_) => todo!(),
+            TensorOpsDescription::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::BoolOps(_) => todo!(),
+            TensorOpsDescription::IntOps(_) => todo!(),
+            TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::ModuleOps(_) => todo!(),
         }
     }
     pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
-            TensorOps::BaseOpsFloat(ops) => ops.execute(handles),
-            TensorOps::BaseOpsInt(ops) => ops.execute(handles),
-            TensorOps::BaseOpsBool(_) => todo!(),
-            TensorOps::NumericOpsFloat(ops) => ops.execute(handles),
-            TensorOps::NumericOpsInt(ops) => ops.execute(handles),
-            TensorOps::BoolOps(_) => todo!(),
-            TensorOps::IntOps(_) => todo!(),
-            TensorOps::FloatOps(_) => todo!(),
-            TensorOps::ModuleOps(_) => todo!(),
+            TensorOpsDescription::BaseOpsFloat(ops) => ops.execute(handles),
+            TensorOpsDescription::BaseOpsInt(ops) => ops.execute(handles),
+            TensorOpsDescription::BaseOpsBool(_) => todo!(),
+            TensorOpsDescription::NumericOpsFloat(ops) => ops.execute(handles),
+            TensorOpsDescription::NumericOpsInt(ops) => ops.execute(handles),
+            TensorOpsDescription::BoolOps(_) => todo!(),
+            TensorOpsDescription::IntOps(_) => todo!(),
+            TensorOpsDescription::FloatOps(ops) => ops.execute(handles),
+            TensorOpsDescription::ModuleOps(_) => todo!(),
         }
     }
 }
 
-impl<B: FusedBackend, E> BaseOps<B, E> {
+impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         todo!();
     }
@@ -56,29 +57,78 @@ impl<B: FusedBackend, E> BaseOps<B, E> {
     }
 }
 
-impl<B: FusedBackend, E: Element> NumericOps<B, E> {
+impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
-            NumericOps::Add(desc, ops) => {
+            NumericOpsDescription::Add(desc, ops) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOps::AddScalar(desc, ops) => {
+            NumericOpsDescription::AddScalar(desc, ops) => {
                 handles.cleanup(&desc.lhs);
             }
+            NumericOpsDescription::Sub(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::SubScalar(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Mul(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::MulScalar(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Div(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::DivScalar(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Ones(desc, ops) => {}
             _ => todo!(),
         }
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
-            NumericOps::Add(desc, ops) => ops.execute(desc, handles),
-            NumericOps::AddScalar(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Add(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::AddScalar(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Sub(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::SubScalar(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Div(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::DivScalar(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Mul(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MulScalar(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Ones(desc, ops) => ops.execute(desc, handles),
             _ => todo!(),
         }
     }
 }
 
-pub enum FloatOps<B: FusedBackend, E: core::fmt::Debug> {
+impl<B: FusedBackend> FloatOpsDescription<B> {
+    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            FloatOpsDescription::Matmul(desc, ops) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            FloatOpsDescription::Random(desc, ops) => {}
+            _ => todo!(),
+        }
+    }
+    fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            FloatOpsDescription::Matmul(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Random(desc, ops) => ops.execute(desc, handles),
+            _ => todo!(),
+        }
+    }
+}
+
+pub enum FloatOpsDescription<B: FusedBackend> {
     Exp {
         tensor: TensorDescription,
         out: TensorDescription,
@@ -97,7 +147,7 @@ pub enum FloatOps<B: FusedBackend, E: core::fmt::Debug> {
     },
     Powf {
         tensor: TensorDescription,
-        value: E,
+        value: FloatElem<B>,
         out: TensorDescription,
     },
     Sqrt {
@@ -120,20 +170,18 @@ pub enum FloatOps<B: FusedBackend, E: core::fmt::Debug> {
         tensor: TensorDescription,
         out: TensorDescription,
     },
-    Matmul {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    Random {
-        distribution: Distribution<E>,
-        out: TensorDescription,
-        ops: Box<dyn Ops<B, Args = (TensorDescription, Distribution<E>)>>,
-    },
+    Matmul(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    Random(
+        (TensorDescription, Distribution<FloatElem<B>>),
+        Box<dyn Ops<B, Args = (TensorDescription, Distribution<FloatElem<B>>)>>,
+    ),
 }
 
 #[derive(Debug)]
-pub enum ModuleOps {
+pub enum ModuleOpsDescription {
     Embedding {
         weights: TensorDescription,
         indices: TensorDescription,
@@ -283,7 +331,7 @@ pub enum ModuleOps {
     },
 }
 
-pub enum BaseOps<B: FusedBackend, E> {
+pub enum BaseOpsDescription<B: FusedBackend, E> {
     Reshape {
         tensor: TensorDescription,
         shape: Vec<usize>,
@@ -349,7 +397,7 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-pub enum NumericOps<B: FusedBackend, E: Element> {
+pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     Add(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
@@ -358,36 +406,30 @@ pub enum NumericOps<B: FusedBackend, E: Element> {
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
-    Sub {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    SubScalar {
-        lhs: TensorDescription,
-        rhs: E,
-        out: TensorDescription,
-    },
-    Div {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    DivScalar {
-        lhs: TensorDescription,
-        rhs: E,
-        out: TensorDescription,
-    },
-    Mul {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    MulScalar {
-        lhs: TensorDescription,
-        rhs: E,
-        out: TensorDescription,
-    },
+    Sub(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    SubScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Div(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    DivScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Mul(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    MulScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
     Neg {
         tensor: TensorDescription,
         out: TensorDescription,
@@ -400,10 +442,7 @@ pub enum NumericOps<B: FusedBackend, E: Element> {
         shape: Vec<usize>,
         out: TensorDescription,
     },
-    Ones {
-        shape: Vec<usize>,
-        out: TensorDescription,
-    },
+    Ones(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
     Full {
         shape: Vec<usize>,
         value: E,
@@ -561,7 +600,7 @@ pub enum NumericOps<B: FusedBackend, E: Element> {
 }
 
 #[derive(Debug)]
-pub enum IntOps {
+pub enum IntOpsDescription {
     Arange {
         tensor: TensorDescription,
         range: Range<usize>,
@@ -580,7 +619,7 @@ pub enum IntOps {
 }
 
 #[derive(Debug)]
-pub enum BoolOps {
+pub enum BoolOpsDescription {
     IntoFloat {
         tensor: TensorDescription,
         out: TensorDescription,

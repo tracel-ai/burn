@@ -18,14 +18,25 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     fn status(&self) -> TensorStatus {
-        if Arc::strong_count(&self.id) <= 2 {
+        if Arc::strong_count(&self.id) <= 1 {
             TensorStatus::ReadWrite
         } else {
             TensorStatus::ReadOnly
         }
     }
 
+    /// Description to be used when using an uninitialized tensor as output.
+    pub(crate) fn to_description_out(&self) -> TensorDescription {
+        TensorDescription {
+            status: TensorStatus::NotInit,
+            shape: self.shape.clone(),
+            id: self.id.as_ref().clone(),
+        }
+    }
+
+    /// Description to be used when using an initialized tensor used as input.
     pub(crate) fn into_description(self) -> TensorDescription {
+        let status = self.status();
         TensorDescription {
             status: self.status(),
             shape: self.shape,
@@ -55,6 +66,7 @@ pub struct TensorId {
 pub enum TensorStatus {
     ReadOnly,
     ReadWrite,
+    NotInit,
 }
 
 /// A tensor definition represent a snapshot of a tensor when it was used.

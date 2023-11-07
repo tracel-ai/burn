@@ -1,5 +1,6 @@
 use crate::{
-    client::FusionClient, graph::TensorOps, FusionClientLocator, FusionTensor, HandleContainer,
+    client::FusionClient, graph::TensorOpsDescription, FusionClientLocator, FusionTensor,
+    HandleContainer,
 };
 use burn_tensor::{backend::Backend, Shape};
 use core::marker::PhantomData;
@@ -52,7 +53,7 @@ pub struct FusionProperties {
 }
 
 pub trait FusedOps<B: FusedBackend>: Send {
-    fn register(&mut self, ops: Arc<TensorOps<B>>) -> FusionStatus;
+    fn register(&mut self, ops: Arc<TensorOpsDescription<B>>) -> FusionStatus;
     fn execute(&mut self, handles: &mut HandleContainer<B>);
     fn reset(&mut self);
     fn len(&self) -> usize;

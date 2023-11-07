@@ -1,9 +1,9 @@
-use super::TensorOps;
+use super::TensorOpsDescription;
 use crate::{FusedBackend, FusedOps, FusionProperties, FusionStatus, HandleContainer};
 use std::{ops::RangeBounds, sync::Arc, vec::Drain};
 
 pub struct Graph<B: FusedBackend> {
-    operations: Vec<Arc<TensorOps<B>>>,
+    operations: Vec<Arc<TensorOpsDescription<B>>>,
 }
 
 impl<B: FusedBackend> Graph<B> {
@@ -12,7 +12,7 @@ impl<B: FusedBackend> Graph<B> {
             operations: Vec::new(),
         }
     }
-    pub fn add(&mut self, ops: Arc<TensorOps<B>>) {
+    pub fn add(&mut self, ops: Arc<TensorOpsDescription<B>>) {
         self.operations.push(ops);
     }
 
@@ -24,7 +24,7 @@ impl<B: FusedBackend> Graph<B> {
         self.operations.len() == 0
     }
 
-    fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOps<B>>>
+    fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOpsDescription<B>>>
     where
         R: RangeBounds<usize>,
     {
@@ -37,7 +37,7 @@ impl<B: FusedBackend> Graph<B> {
         }
     }
 
-    pub fn nodes<'a>(&'a self) -> &'a [Arc<TensorOps<B>>] {
+    pub fn nodes<'a>(&'a self) -> &'a [Arc<TensorOpsDescription<B>>] {
         &self.operations
     }
 
@@ -77,7 +77,7 @@ pub struct Optimization<B: FusedBackend> {
 }
 
 impl<B: FusedBackend> Optimization<B> {
-    pub fn register(&mut self, ops: &Arc<TensorOps<B>>) {
+    pub fn register(&mut self, ops: &Arc<TensorOpsDescription<B>>) {
         match self.status {
             FusionStatus::Closed(_) => return,
             _ => {}

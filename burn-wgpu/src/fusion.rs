@@ -24,7 +24,7 @@ where
 {
     type HandleDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
-
+    type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
     type FullPrecisionFusedBackend = Wgpu<G, f32, i32>;
 
     fn operations() -> Vec<Box<dyn burn_fusion::FusedOps<Self>>> {
@@ -63,8 +63,6 @@ where
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle {
         tensor.into()
     }
-
-    type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 }
 
 #[cfg(test)]
@@ -80,4 +78,10 @@ mod tests {
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
     burn_tensor::testgen_add!();
+    burn_tensor::testgen_sub!();
+    burn_tensor::testgen_mul!();
+    burn_tensor::testgen_div!();
+    burn_tensor::testgen_matmul!();
+
+    burn_autodiff::testgen_all!();
 }
