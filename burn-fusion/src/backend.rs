@@ -31,11 +31,11 @@ impl<B: FusedBackend> Backend for Fusion<B> {
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
     fn name() -> String {
-        todo!()
+        format!("Fusion<{}>", B::name())
     }
 
     fn seed(seed: u64) {
-        todo!()
+        B::seed(seed);
     }
 }
 

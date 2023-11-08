@@ -1,6 +1,6 @@
 use crate::{
     graph::{Graph, GraphExecution, Optimization, TensorOpsDescription},
-    FusedBackend, FusionProperties, FusionStatus, FusionTensor, HandleContainer, TensorId,
+    FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;

@@ -16,7 +16,7 @@ pub enum TensorOpsDescription<B: FusedBackend> {
     BoolOps(BoolOpsDescription<B>),
     IntOps(IntOpsDescription<B>),
     FloatOps(FloatOpsDescription<B>),
-    ModuleOps(ModuleOpsDescription),
+    ModuleOps(ModuleOpsDescription<B>),
 }
 
 impl<B: FusedBackend> TensorOpsDescription<B> {
@@ -30,7 +30,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
             TensorOpsDescription::BoolOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::IntOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::ModuleOps(_) => todo!(),
+            TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
         }
     }
     pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
@@ -43,7 +43,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
             TensorOpsDescription::BoolOps(ops) => ops.execute(handles),
             TensorOpsDescription::IntOps(ops) => ops.execute(handles),
             TensorOpsDescription::FloatOps(ops) => ops.execute(handles),
-            TensorOpsDescription::ModuleOps(_) => todo!(),
+            TensorOpsDescription::ModuleOps(ops) => ops.execute(handles),
         }
     }
 }
@@ -360,6 +360,136 @@ impl<B: FusedBackend> BoolOpsDescription<B> {
     }
 }
 
+impl<B: FusedBackend> ModuleOpsDescription<B> {
+    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            ModuleOpsDescription::Embedding(desc, _) => {
+                handles.cleanup(&desc.weights);
+                handles.cleanup(&desc.indices);
+            }
+            ModuleOpsDescription::EmbeddingBackward(desc, _) => {
+                handles.cleanup(&desc.weights);
+                handles.cleanup(&desc.out_grad);
+                handles.cleanup(&desc.indices);
+            }
+            ModuleOpsDescription::Conv1d(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.weight);
+
+                if let Some(bias) = &desc.bias {
+                    handles.cleanup(bias);
+                }
+            }
+            ModuleOpsDescription::Conv2d(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.weight);
+
+                if let Some(bias) = &desc.bias {
+                    handles.cleanup(bias);
+                }
+            }
+            ModuleOpsDescription::ConvTranspose1d(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.weight);
+
+                if let Some(bias) = &desc.bias {
+                    handles.cleanup(bias);
+                }
+            }
+            ModuleOpsDescription::ConvTranspose2d(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.weight);
+
+                if let Some(bias) = &desc.bias {
+                    handles.cleanup(bias);
+                }
+            }
+            ModuleOpsDescription::AvgPool1d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AvgPool2d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AvgPool1dBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+            }
+            ModuleOpsDescription::AvgPool2dBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool1d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool2d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+            }
+            ModuleOpsDescription::MaxPool1d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::MaxPool1dWithIndices(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+                handles.cleanup(&desc.indices);
+            }
+            ModuleOpsDescription::MaxPool2d(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::MaxPool2dWithIndices(desc, _) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc, _) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+                handles.cleanup(&desc.indices);
+            }
+        }
+    }
+    fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            ModuleOpsDescription::Embedding(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::EmbeddingBackward(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::Conv1d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::Conv2d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::ConvTranspose1d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::ConvTranspose2d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AvgPool1d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AvgPool2d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AvgPool1dBackward(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AvgPool2dBackward(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AdaptiveAvgPool1d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AdaptiveAvgPool2d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc, ops) => {
+                ops.execute(desc, handles)
+            }
+            ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc, ops) => {
+                ops.execute(desc, handles)
+            }
+            ModuleOpsDescription::MaxPool1d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::MaxPool1dWithIndices(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc, ops) => {
+                ops.execute(desc, handles)
+            }
+            ModuleOpsDescription::MaxPool2d(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::MaxPool2dWithIndices(desc, ops) => ops.execute(desc, handles),
+            ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc, ops) => {
+                ops.execute(desc, handles)
+            }
+        }
+    }
+}
+
 pub enum FloatOpsDescription<B: FusedBackend> {
     Exp(
         UnaryOpsDescription,
@@ -411,155 +541,81 @@ pub enum FloatOpsDescription<B: FusedBackend> {
     ),
 }
 
-#[derive(Debug)]
-pub enum ModuleOpsDescription {
-    Embedding {
-        weights: TensorDescription,
-        indices: TensorDescription,
-        out: TensorDescription,
-    },
-    EmbeddingBackward {
-        weights: TensorDescription,
-        out_grad: TensorDescription,
-        indices: TensorDescription,
-        out: TensorDescription,
-    },
-    Conv1d {
-        x: TensorDescription,
-        weight: TensorDescription,
-        bias: Option<TensorDescription>,
-        options: ConvOptions<1>,
-        out: TensorDescription,
-    },
-    Conv2d {
-        x: TensorDescription,
-        weight: TensorDescription,
-        bias: Option<TensorDescription>,
-        options: ConvOptions<2>,
-        out: TensorDescription,
-    },
-    ConvTranspose1d {
-        x: TensorDescription,
-        weight: TensorDescription,
-        bias: Option<TensorDescription>,
-        options: ConvTransposeOptions<1>,
-        out: TensorDescription,
-    },
-    ConvTranspose2d {
-        x: TensorDescription,
-        weight: TensorDescription,
-        bias: Option<TensorDescription>,
-        options: ConvTransposeOptions<2>,
-        out: TensorDescription,
-    },
-    AvgPool1d {
-        x: TensorDescription,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        count_include_pad: bool,
-        out: TensorDescription,
-    },
-    AvgPool2d {
-        x: TensorDescription,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        count_include_pad: bool,
-        out: TensorDescription,
-    },
-    AvgPool1dBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        count_include_pad: bool,
-        out: TensorDescription,
-    },
-    AvgPool2dBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        count_include_pad: bool,
-        out: TensorDescription,
-    },
-    AdaptiveAvgPool1d {
-        x: TensorDescription,
-        output_size: usize,
-        out: TensorDescription,
-    },
-    AdaptiveAvgPool2d {
-        x: TensorDescription,
-        output_size: [usize; 2],
-        out: TensorDescription,
-    },
-    AdaptiveAvgPool1dBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        out: TensorDescription,
-    },
-    AdaptiveAvgPool2dBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        out: TensorDescription,
-    },
-    MaxPool1d {
-        x: TensorDescription,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
-        out: TensorDescription,
-    },
-    MaxPool1dWithIndices {
-        x: TensorDescription,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
-        out: TensorDescription,
-        out_indices: TensorDescription,
-    },
-    MaxPool1dWithIndicesBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        indices: TensorDescription,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
-        out: TensorDescription,
-    },
-    MaxPool2d {
-        x: TensorDescription,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
-        out: TensorDescription,
-    },
-    MaxPool2dWithIndices {
-        x: TensorDescription,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
-        out: TensorDescription,
-        out_indices: TensorDescription,
-    },
-    MaxPool2dWithIndicesBackward {
-        x: TensorDescription,
-        grad: TensorDescription,
-        indices: TensorDescription,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
-        out: TensorDescription,
-    },
+pub enum ModuleOpsDescription<B: FusedBackend> {
+    Embedding(
+        EmbeddingDescription,
+        Box<dyn Ops<B, Args = EmbeddingDescription>>,
+    ),
+    EmbeddingBackward(
+        EmbeddingBackwardDescription,
+        Box<dyn Ops<B, Args = EmbeddingBackwardDescription>>,
+    ),
+    Conv1d(Conv1dDescription, Box<dyn Ops<B, Args = Conv1dDescription>>),
+    Conv2d(Conv2dDescription, Box<dyn Ops<B, Args = Conv2dDescription>>),
+    ConvTranspose1d(
+        ConvTranspose1dDescription,
+        Box<dyn Ops<B, Args = ConvTranspose1dDescription>>,
+    ),
+    ConvTranspose2d(
+        ConvTranspose2dDescription,
+        Box<dyn Ops<B, Args = ConvTranspose2dDescription>>,
+    ),
+    AvgPool1d(
+        AvgPool1dDescription,
+        Box<dyn Ops<B, Args = AvgPool1dDescription>>,
+    ),
+    AvgPool2d(
+        AvgPool2dDescription,
+        Box<dyn Ops<B, Args = AvgPool2dDescription>>,
+    ),
+    AvgPool1dBackward(
+        AvgPool1dBackwardDescription,
+        Box<dyn Ops<B, Args = AvgPool1dBackwardDescription>>,
+    ),
+    AvgPool2dBackward(
+        AvgPool2dBackwardDescription,
+        Box<dyn Ops<B, Args = AvgPool2dBackwardDescription>>,
+    ),
+    AdaptiveAvgPool1d(
+        AdaptiveAvgPool1dDescription,
+        Box<dyn Ops<B, Args = AdaptiveAvgPool1dDescription>>,
+    ),
+    AdaptiveAvgPool2d(
+        AdaptiveAvgPool2dDescription,
+        Box<dyn Ops<B, Args = AdaptiveAvgPool2dDescription>>,
+    ),
+    AdaptiveAvgPool1dBackward(
+        AdaptiveAvgPool1dBackwardDescription,
+        Box<dyn Ops<B, Args = AdaptiveAvgPool1dBackwardDescription>>,
+    ),
+    AdaptiveAvgPool2dBackward(
+        AdaptiveAvgPool2dBackwardDescription,
+        Box<dyn Ops<B, Args = AdaptiveAvgPool2dBackwardDescription>>,
+    ),
+    MaxPool1d(
+        MaxPool1dDescription,
+        Box<dyn Ops<B, Args = MaxPool1dDescription>>,
+    ),
+    MaxPool1dWithIndices(
+        MaxPool1dWithIndicesDescription,
+        Box<dyn Ops<B, Args = MaxPool1dWithIndicesDescription>>,
+    ),
+    MaxPool1dWithIndicesBackward(
+        MaxPool1dWithIndicesBackwardDescription,
+        Box<dyn Ops<B, Args = MaxPool1dWithIndicesBackwardDescription>>,
+    ),
+    MaxPool2d(
+        MaxPool2dDescription,
+        Box<dyn Ops<B, Args = MaxPool2dDescription>>,
+    ),
+    MaxPool2dWithIndices(
+        MaxPool2dWithIndicesDescription,
+        Box<dyn Ops<B, Args = MaxPool2dWithIndicesDescription>>,
+    ),
+    MaxPool2dWithIndicesBackward(
+        MaxPool2dWithIndicesBackwardDescription,
+        Box<dyn Ops<B, Args = MaxPool2dWithIndicesBackwardDescription>>,
+    ),
 }
 
 pub enum BaseOpsDescription<B: FusedBackend> {
@@ -899,4 +955,171 @@ pub struct ReduceDimWithIndicesDescription {
     pub dim: usize,
     pub out: TensorDescription,
     pub out_indices: TensorDescription,
+}
+
+pub struct EmbeddingDescription {
+    pub weights: TensorDescription,
+    pub indices: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct EmbeddingBackwardDescription {
+    pub weights: TensorDescription,
+    pub out_grad: TensorDescription,
+    pub indices: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct Conv1dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: ConvOptions<1>,
+    pub out: TensorDescription,
+}
+
+pub struct Conv2dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: ConvOptions<2>,
+    pub out: TensorDescription,
+}
+
+pub struct ConvTranspose1dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: ConvTransposeOptions<1>,
+    pub out: TensorDescription,
+}
+
+pub struct ConvTranspose2dDescription {
+    pub x: TensorDescription,
+    pub weight: TensorDescription,
+    pub bias: Option<TensorDescription>,
+    pub options: ConvTransposeOptions<2>,
+    pub out: TensorDescription,
+}
+
+pub struct AvgPool1dDescription {
+    pub x: TensorDescription,
+    pub kernel_size: usize,
+    pub stride: usize,
+    pub padding: usize,
+    pub count_include_pad: bool,
+    pub out: TensorDescription,
+}
+
+pub struct AvgPool2dDescription {
+    pub x: TensorDescription,
+    pub kernel_size: [usize; 2],
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub count_include_pad: bool,
+    pub out: TensorDescription,
+}
+
+pub struct AvgPool1dBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub kernel_size: usize,
+    pub stride: usize,
+    pub padding: usize,
+    pub count_include_pad: bool,
+    pub out: TensorDescription,
+}
+
+pub struct AvgPool2dBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub kernel_size: [usize; 2],
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub count_include_pad: bool,
+    pub out: TensorDescription,
+}
+
+pub struct AdaptiveAvgPool1dDescription {
+    pub x: TensorDescription,
+    pub output_size: usize,
+    pub out: TensorDescription,
+}
+
+pub struct AdaptiveAvgPool2dDescription {
+    pub x: TensorDescription,
+    pub output_size: [usize; 2],
+    pub out: TensorDescription,
+}
+
+pub struct AdaptiveAvgPool1dBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct AdaptiveAvgPool2dBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct MaxPool1dDescription {
+    pub x: TensorDescription,
+    pub kernel_size: usize,
+    pub stride: usize,
+    pub padding: usize,
+    pub dilation: usize,
+    pub out: TensorDescription,
+}
+
+pub struct MaxPool1dWithIndicesDescription {
+    pub x: TensorDescription,
+    pub kernel_size: usize,
+    pub stride: usize,
+    pub padding: usize,
+    pub dilation: usize,
+    pub out: TensorDescription,
+    pub out_indices: TensorDescription,
+}
+
+pub struct MaxPool1dWithIndicesBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub indices: TensorDescription,
+    pub kernel_size: usize,
+    pub stride: usize,
+    pub padding: usize,
+    pub dilation: usize,
+    pub out: TensorDescription,
+}
+
+pub struct MaxPool2dDescription {
+    pub x: TensorDescription,
+    pub kernel_size: [usize; 2],
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub out: TensorDescription,
+}
+
+pub struct MaxPool2dWithIndicesDescription {
+    pub x: TensorDescription,
+    pub kernel_size: [usize; 2],
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub out: TensorDescription,
+    pub out_indices: TensorDescription,
+}
+
+pub struct MaxPool2dWithIndicesBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub indices: TensorDescription,
+    pub kernel_size: [usize; 2],
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub out: TensorDescription,
 }

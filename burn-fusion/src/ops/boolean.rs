@@ -338,7 +338,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
                 let output = B::bool_not(input);
                 handles.register_bool_tensor(&args.out.id, output);
             }
-        };
+        }
 
         let out = tensor.client.create_empty(tensor.shape.clone());
 
