@@ -58,12 +58,10 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     // the grid has n_sum_groups workgroups
     // a workgroup has num_invocation_per_workgroup invocations/threads
     // let grid = elemwise_workgroup(n_sum_groups, WORKGROUP_DEFAULT);
-    let workgroup_x = f32::ceil(f32::sqrt(n_sum_groups as f32));
-    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x as f32));
+    let n_workgroups_x = f32::ceil(f32::sqrt(n_sum_groups as f32));
+    let n_workgroups_y = f32::ceil(n_sum_groups as f32 / n_workgroups_x as f32);
 
-    let grid = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
-    println!("{:?}", n_sum_groups);
-    println!("{:?}", grid);
+    let grid = WorkGroup::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     // optimization to do after: have workgroups that do several sum_groups, leveraging idleness well
     // because 4000000 is too many workgroups!

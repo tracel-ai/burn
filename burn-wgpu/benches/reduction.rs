@@ -80,7 +80,8 @@ bench_reduce!(NewSumDimBenchmark, NewSumDim, sum_dim_alt);
 pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
-    let shape = Shape::new([50, 10000, 50]);
+    let shape = Shape::new([5, 20000, 5]);
+    // let shape = Shape::new([2000, 2000, 2000]);
     let dim = 1;
 
     macro_rules! run_reduce_benchmark {
