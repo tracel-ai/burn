@@ -94,7 +94,7 @@ fn main(
                 let value = shared_memory[read_position];
                 shared_memory[write_position] += value;
             }
-        } // else it's idle
+        } else {return;}
 
         workgroupBarrier();
     }

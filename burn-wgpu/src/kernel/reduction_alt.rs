@@ -1,6 +1,9 @@
 use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
-    compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
+    compute::{StaticKernel, WorkGroup},
+    element::WgpuElement,
+    kernel::elemwise_workgroup,
+    kernel_wgsl,
     tensor::WgpuTensor,
 };
 
@@ -54,7 +57,13 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     // we want n_sum_groups workgroups
     // the grid has n_sum_groups workgroups
     // a workgroup has num_invocation_per_workgroup invocations/threads
-    let grid = elemwise_workgroup(n_sum_groups, WORKGROUP_DEFAULT);
+    // let grid = elemwise_workgroup(n_sum_groups, WORKGROUP_DEFAULT);
+    let workgroup_x = f32::ceil(f32::sqrt(n_sum_groups as f32));
+    let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x as f32));
+
+    let grid = WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1);
+    println!("{:?}", n_sum_groups);
+    println!("{:?}", grid);
 
     // optimization to do after: have workgroups that do several sum_groups, leveraging idleness well
     // because 4000000 is too many workgroups!
@@ -88,12 +97,13 @@ mod tests {
     fn reduction_sum_dim_alt_simplest() {
         let tensor = Tensor::<TestBackend, 1>::random([700], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data());
+        let reduce_dim = 0;
 
         let val = Tensor::<TestBackend, 1>::from_primitive(reduction_dim::<SumDim, f32, 1>(
             tensor.into_primitive(),
-            0,
+            reduce_dim,
         ));
-        let val_ref = tensor_ref.sum_dim(0);
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
         println!("{:?}", val_ref);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -104,12 +114,13 @@ mod tests {
     fn reduction_sum_dim_alt_mid() {
         let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let reduce_dim = 0;
 
         let val = Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<SumDim, f32, 2>(
             tensor.into_primitive(),
-            1,
+            reduce_dim,
         ));
-        let val_ref = tensor_ref.sum_dim(1);
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
     }
@@ -118,12 +129,13 @@ mod tests {
     fn reduction_sum_dim_alt_large() {
         let tensor = Tensor::<TestBackend, 3>::random([50, 1024, 50], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
+        let reduce_dim = 2;
 
         let val = Tensor::<TestBackend, 3>::from_primitive(reduction_dim::<SumDim, f32, 3>(
             tensor.into_primitive(),
-            1,
+            reduce_dim,
         ));
-        let val_ref = tensor_ref.sum_dim(1);
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
     }
