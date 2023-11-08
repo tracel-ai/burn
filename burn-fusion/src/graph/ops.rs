@@ -13,7 +13,7 @@ pub enum TensorOpsDescription<B: FusedBackend> {
     BaseOpsBool(BaseOpsDescription<B>),
     NumericOpsFloat(NumericOpsDescription<B, B::FloatElem>),
     NumericOpsInt(NumericOpsDescription<B, B::IntElem>),
-    BoolOps(BoolOpsDescription),
+    BoolOps(BoolOpsDescription<B>),
     IntOps(IntOpsDescription<B>),
     FloatOps(FloatOpsDescription<B>),
     ModuleOps(ModuleOpsDescription),
@@ -27,7 +27,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
             TensorOpsDescription::BaseOpsBool(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BoolOps(_) => todo!(),
+            TensorOpsDescription::BoolOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::IntOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::ModuleOps(_) => todo!(),
@@ -40,7 +40,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
             TensorOpsDescription::BaseOpsBool(ops) => ops.execute(handles),
             TensorOpsDescription::NumericOpsFloat(ops) => ops.execute(handles),
             TensorOpsDescription::NumericOpsInt(ops) => ops.execute(handles),
-            TensorOpsDescription::BoolOps(_) => todo!(),
+            TensorOpsDescription::BoolOps(ops) => ops.execute(handles),
             TensorOpsDescription::IntOps(ops) => ops.execute(handles),
             TensorOpsDescription::FloatOps(ops) => ops.execute(handles),
             TensorOpsDescription::ModuleOps(_) => todo!(),
@@ -333,6 +333,29 @@ impl<B: FusedBackend> IntOpsDescription<B> {
     fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
             IntOpsDescription::IntoFloat(desc, ops) => ops.execute(desc, handles),
+        }
+    }
+}
+
+impl<B: FusedBackend> BoolOpsDescription<B> {
+    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            BoolOpsDescription::IntoFloat(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            BoolOpsDescription::IntoInt(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            BoolOpsDescription::Not(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+        }
+    }
+    fn execute(&self, handles: &mut HandleContainer<B>) {
+        match self {
+            BoolOpsDescription::IntoFloat(desc, ops) => ops.execute(desc, handles),
+            BoolOpsDescription::IntoInt(desc, ops) => ops.execute(desc, handles),
+            BoolOpsDescription::Not(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
@@ -750,20 +773,19 @@ pub enum IntOpsDescription<B: FusedBackend> {
     ),
 }
 
-#[derive(Debug)]
-pub enum BoolOpsDescription {
-    IntoFloat {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    IntoInt {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Not {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
+pub enum BoolOpsDescription<B: FusedBackend> {
+    IntoFloat(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    IntoInt(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Not(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
 }
 
 pub struct SwapDimsDescription {
