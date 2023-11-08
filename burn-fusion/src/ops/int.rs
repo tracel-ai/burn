@@ -1171,7 +1171,31 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        struct IntoFloatOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for IntoFloatOps<D> {
+            type Args = UnaryOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&args.input);
+                let output = B::int_into_float(input);
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::IntOps(
+            graph::IntOpsDescription::IntoFloat(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(IntoFloatOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn int_swap_dims<const D: usize>(
