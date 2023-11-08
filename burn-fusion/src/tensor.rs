@@ -47,11 +47,18 @@ impl<C: FusionClient> FusionTensor<C> {
     pub(crate) fn into_description(mut self) -> TensorDescription {
         let status = self.status();
         let mut shape_out = Vec::new();
-        self.should_drop = false;
         core::mem::swap(&mut self.shape, &mut shape_out);
 
+        match status {
+            TensorStatus::ReadWrite => {
+                // Used for the last time, so it's going to be dropped.
+                self.should_drop = false;
+            }
+            _ => {}
+        }
+
         TensorDescription {
-            status: self.status(),
+            status,
             shape: shape_out,
             id: self.id.as_ref().clone(),
         }
