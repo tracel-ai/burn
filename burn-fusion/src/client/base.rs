@@ -1,6 +1,6 @@
 use crate::{
     graph::{GraphExecution, TensorOpsDescription},
-    FusedBackend, FusionServer, FusionTensor, TensorDescription,
+    FusedBackend, FusionServer, FusionTensor, TensorDescription, TensorId,
 };
 use burn_tensor::{
     ops::{FloatElem, IntElem},
@@ -51,4 +51,5 @@ pub trait FusionClient: Send + Sync + Clone + core::fmt::Debug {
         tensor: TensorDescription,
         client: Self,
     ) -> FusionTensor<Self>;
+    fn drop_tensor(&self, id: &TensorId);
 }

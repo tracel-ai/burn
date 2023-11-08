@@ -5,14 +5,23 @@ use burn_tensor::{
 };
 use std::sync::Arc;
 
-#[derive(new, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct FusionTensor<C: FusionClient> {
     pub id: Arc<TensorId>,
     pub shape: Vec<usize>,
     pub client: C,
+    pub should_drop: bool,
 }
 
 impl<C: FusionClient> FusionTensor<C> {
+    pub(crate) fn new(id: Arc<TensorId>, shape: Vec<usize>, client: C) -> Self {
+        Self {
+            id,
+            shape,
+            client,
+            should_drop: true,
+        }
+    }
     pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
         Shape::from(self.shape.clone())
     }
@@ -35,11 +44,15 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     /// Description to be used when using an initialized tensor used as input.
-    pub(crate) fn into_description(self) -> TensorDescription {
+    pub(crate) fn into_description(mut self) -> TensorDescription {
         let status = self.status();
+        let mut shape_out = Vec::new();
+        self.should_drop = false;
+        core::mem::swap(&mut self.shape, &mut shape_out);
+
         TensorDescription {
             status: self.status(),
-            shape: self.shape,
+            shape: shape_out,
             id: self.id.as_ref().clone(),
         }
     }
@@ -54,6 +67,22 @@ impl<C: FusionClient> FusionTensor<C> {
 
     pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
         self.client.clone().read_bool(self.into_description())
+    }
+}
+
+impl<C: FusionClient> Drop for FusionTensor<C> {
+    fn drop(&mut self) {
+        if !self.should_drop {
+            return;
+        }
+
+        match self.status() {
+            TensorStatus::ReadWrite => {
+                self.client.drop_tensor(&self.id);
+            }
+            TensorStatus::ReadOnly => {}
+            TensorStatus::NotInit => {}
+        }
     }
 }
 

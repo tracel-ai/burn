@@ -32,6 +32,8 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
             TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
         }
+
+        handles.cleanup_unused();
     }
     pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {

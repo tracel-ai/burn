@@ -163,4 +163,8 @@ where
 
         id
     }
+
+    pub fn drop_tensor_handle(&mut self, id: TensorId) {
+        self.handles.handles_to_drop.push(id);
+    }
 }

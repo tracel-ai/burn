@@ -9,6 +9,7 @@ use std::{collections::HashMap, sync::Arc};
 pub struct HandleContainer<B: FusedBackend> {
     handles: HashMap<TensorId, Handle<B>>,
     counter: u64,
+    pub(crate) handles_to_drop: Vec<TensorId>,
     pub device: B::Device,
 }
 
@@ -24,6 +25,7 @@ impl<B: FusedBackend> HandleContainer<B> {
     pub fn new(device_handle: B::HandleDevice) -> Self {
         Self {
             handles: HashMap::new(),
+            handles_to_drop: Vec::new(),
             counter: 0,
             device: device_handle.clone().into(),
         }
@@ -219,6 +221,12 @@ impl<B: FusedBackend> HandleContainer<B> {
             TensorStatus::ReadWrite => {
                 self.handles.remove(&tensor.id);
             }
+        }
+    }
+
+    pub fn cleanup_unused(&mut self) {
+        for id in self.handles_to_drop.drain(..) {
+            self.handles.remove(&id);
         }
     }
 }

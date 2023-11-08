@@ -64,11 +64,7 @@ where
     fn create_empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
-        FusionTensor {
-            id,
-            shape,
-            client: self.clone(),
-        }
+        FusionTensor::new(id, shape, self.clone())
     }
 
     fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice {
@@ -89,11 +85,7 @@ where
     ) -> FusionTensor<Self> {
         let id = self.server.lock().create_float_handle(values);
 
-        FusionTensor {
-            id,
-            shape,
-            client: self.clone(),
-        }
+        FusionTensor::new(id, shape, self.clone())
     }
 
     fn create_int(
@@ -103,21 +95,13 @@ where
     ) -> FusionTensor<Self> {
         let id = self.server.lock().create_int_handle(values);
 
-        FusionTensor {
-            id,
-            shape,
-            client: self.clone(),
-        }
+        FusionTensor::new(id, shape, self.clone())
     }
 
     fn create_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_bool_handle(values);
 
-        FusionTensor {
-            id,
-            shape,
-            client: self.clone(),
-        }
+        FusionTensor::new(id, shape, self.clone())
     }
 
     fn read_int<const D: usize>(
@@ -189,5 +173,9 @@ where
         core::mem::drop(other_server);
 
         FusionTensor::new(id, tensor.shape, client)
+    }
+
+    fn drop_tensor(&self, id: &crate::TensorId) {
+        self.server.lock().drop_tensor_handle(id.clone());
     }
 }
