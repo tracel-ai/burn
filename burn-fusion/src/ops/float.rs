@@ -678,7 +678,8 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let mut shape: Vec<usize> = tensor.shape.clone();
+        shape[dim] = indices.shape[0];
         let out = tensor.client.create_empty(shape);
 
         tensor
@@ -798,7 +799,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D1>(&args.tensor);
-                let value = handles.get_float_tensor::<D1>(&args.tensor);
+                let value = handles.get_float_tensor::<D1>(&args.value);
 
                 let output = B::slice_assign::<D1, D2>(
                     tensor,
@@ -1147,7 +1148,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(SumOps, B::sum);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Sum(
@@ -1165,7 +1166,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(SumDimOps, B::sum_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::SumDim(
@@ -1184,7 +1187,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MeanOps, B::mean);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Mean(
@@ -1202,7 +1205,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MeanDimOps, B::mean_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MeanDim(
@@ -1448,7 +1453,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_float2int_ops!(ArgMaxOps, B::argmax, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ArgMax(
@@ -1467,7 +1474,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_float2int_ops!(ArgMinOps, B::argmin, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ArgMin(
@@ -1486,7 +1495,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn max<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MaxOps, B::max);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Max(
@@ -1504,7 +1513,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn max_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MaxDimOps, B::max_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MaxDim(
@@ -1538,9 +1549,11 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_empty(tensor.shape.clone());
-        let out_indices = client.create_empty(tensor.shape.clone());
+        let out = client.create_empty(shape.clone());
+        let out_indices = client.create_empty(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MaxDimWithIndices(
@@ -1560,7 +1573,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn min<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MinOps, B::min);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Min(
@@ -1578,7 +1591,9 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn min_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MinDimOps, B::min_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MinDim(
@@ -1612,9 +1627,11 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_empty(tensor.shape.clone());
-        let out_indices = client.create_empty(tensor.shape.clone());
+        let out = client.create_empty(shape.clone());
+        let out_indices = client.create_empty(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MinDimWithIndices(

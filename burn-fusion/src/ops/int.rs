@@ -155,7 +155,7 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_int_tensor::<D1>(&args.tensor);
-                let value = handles.get_int_tensor::<D1>(&args.tensor);
+                let value = handles.get_int_tensor::<D1>(&args.value);
 
                 let output = B::int_slice_assign::<D1, D2>(
                     tensor,
@@ -375,7 +375,8 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = tensor.shape.clone();
+        let mut shape: Vec<usize> = tensor.shape.clone();
+        shape[dim] = indices.shape[0];
         let out = tensor.client.create_empty(shape);
 
         tensor
@@ -955,7 +956,7 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(SumOps, B::int_sum);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::Sum(
@@ -973,7 +974,9 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_int_ops!(SumDimOps, B::int_sum_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::SumDim(
@@ -992,7 +995,7 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_mean<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(MeanOps, B::int_mean);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_empty(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::Mean(
@@ -1010,7 +1013,9 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_int_ops!(MeanDimOps, B::int_mean_dim, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::MeanDim(
@@ -1029,7 +1034,9 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_int_ops!(ArgMaxOps, B::int_argmax, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::ArgMax(
@@ -1048,7 +1055,9 @@ impl<B: FusedBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_int_ops!(ArgMinOps, B::int_argmin, usize);
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_empty(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsInt(
             NumericOpsDescription::ArgMin(
