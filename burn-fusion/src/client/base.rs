@@ -1,9 +1,9 @@
 use crate::{
     graph::{GraphExecution, TensorOpsDescription},
-    FusedBackend, FusionServer, FusionTensor, TensorDescription, TensorId,
+    FusedBackend, FusionServer, FusionTensor, TensorDescription,
 };
 use burn_tensor::{
-    ops::{FloatElem, FloatTensor, IntElem},
+    ops::{FloatElem, IntElem},
     Data, Reader,
 };
 

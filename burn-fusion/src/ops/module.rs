@@ -572,7 +572,12 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_empty(output_size.into());
+        let mut shape = Vec::with_capacity(4);
+        shape.push(x.shape[0]);
+        shape.push(x.shape[1]);
+        shape.push(output_size[0]);
+        shape.push(output_size[1]);
+        let out = x.client.create_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool2d(
