@@ -182,7 +182,6 @@ impl<B: FusedBackend> HandleContainer<B> {
 
     pub fn create_emtpy(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
-        println!("Creating empty handle {:?}", id);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::Empty);
 
@@ -191,7 +190,6 @@ impl<B: FusedBackend> HandleContainer<B> {
 
     pub fn create_float(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
-        println!("Creating float handle {:?}", id);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataFloat(values));
 
@@ -200,7 +198,6 @@ impl<B: FusedBackend> HandleContainer<B> {
 
     pub fn create_int(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
-        println!("Creating int handle {:?}", id);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataInt(values));
 
@@ -209,7 +206,6 @@ impl<B: FusedBackend> HandleContainer<B> {
 
     pub fn create_bool(&mut self, values: Vec<bool>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
-        println!("Creating bool handle {:?}", id);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataBool(values));
 
@@ -221,7 +217,6 @@ impl<B: FusedBackend> HandleContainer<B> {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
             TensorStatus::ReadWrite => {
-                println!("Cleanup {:?}", tensor.id);
                 self.handles.remove(&tensor.id);
             }
         }

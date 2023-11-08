@@ -38,6 +38,7 @@ dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
 
 # Backends
 autodiff = ["burn-core/autodiff"]
+fusion = ["burn-core/fusion"]
 
 ndarray = ["burn-core/ndarray"]
 ndarray-no-std = ["burn-core/ndarray-no-std"]
