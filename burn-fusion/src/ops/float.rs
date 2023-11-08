@@ -1,15 +1,17 @@
 use crate::{
-    binary_float_ops,
+    binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
     graph::{
-        BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, GatherOpsDescription,
-        MaskFillOpsDescription, MaskWhereOpsDescription, NumericOpsDescription, Ops,
-        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
-        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
-        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription,
+        BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
+        FloatOpsDescription, GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
+        NumericOpsDescription, Ops, ReduceDimWithIndicesDescription, ReshapeDescription,
+        ScalarOpsDescription, ScatterOpsDescription, SelectAssignOpsDescription,
+        SelectOpsDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
+        TensorOpsDescription, UnaryOpsDescription,
     },
     ops::binary::binary_ops_shape,
-    scalar_float_ops, FusedBackend, Fusion, TensorDescription,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, FusedBackend,
+    Fusion, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -61,6 +63,85 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        struct ZerosOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for ZerosOps<D> {
+            type Args = TensorDescription;
+
+            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::zeros(shape, &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Zeros(out.to_description_out(), Box::new(ZerosOps::<D>)),
+        ));
+
+        out
+    }
+
+    fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        struct OnesOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for OnesOps<D> {
+            type Args = TensorDescription;
+
+            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::ones(shape, &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Ones(out.to_description_out(), Box::new(OnesOps::<D>)),
+        ));
+
+        out
+    }
+
+    fn full<const D: usize>(
+        shape: Shape<D>,
+        fill_value: FloatElem<Self>,
+        device: &Device<Self>,
+    ) -> FloatTensor<Self, D> {
+        struct FullOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for FullOps<D> {
+            type Args = (TensorDescription, FloatElem<B>);
+
+            fn execute(&self, (out, value): &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(out.shape.clone());
+                let output: B::TensorPrimitive<D> = B::full(shape, value.clone(), &handles.device);
+                handles.register_float_tensor(&out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = B::client(&device.clone().into());
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Full(
+                (out.to_description_out(), fill_value),
+                Box::new(FullOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
     fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
         tensor.shape()
     }
@@ -90,6 +171,35 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         client_original
             .clone()
             .change_client_float::<D>(tensor.into_description(), client_target)
+    }
+
+    fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
+        struct IntoIntOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for IntoIntOps<D> {
+            type Args = UnaryOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&args.input);
+                let output = B::into_int(input);
+
+                handles.register_int_tensor(&args.out.id, output);
+            }
+        }
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::FloatOps(
+            FloatOpsDescription::IntoInt(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(IntoIntOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -144,80 +254,80 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        struct ZerosOps<const D: usize>;
-
-        impl<const D: usize, B: FusedBackend> Ops<B> for ZerosOps<D> {
-            type Args = TensorDescription;
-
-            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::zeros(shape, &handles.device);
-                handles.register_float_tensor(&out.id, output);
-            }
-        }
-
-        let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
-        let out = client.create_empty(shape);
-
-        client.register(TensorOpsDescription::NumericOpsFloat(
-            NumericOpsDescription::Zeros(out.to_description_out(), Box::new(ZerosOps::<D>)),
-        ));
-
-        out
-    }
-
-    fn full<const D: usize>(
-        shape: Shape<D>,
-        fill_value: FloatElem<Self>,
-        device: &Device<Self>,
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        struct FullOps<const D: usize>;
+        scalar_float_ops!(ClampMinOps, B::clamp_min);
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for FullOps<D> {
-            type Args = (TensorDescription, FloatElem<B>);
+        let out = tensor.client.create_empty(tensor.shape.clone());
 
-            fn execute(&self, (out, value): &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::full(shape, value.clone(), &handles.device);
-                handles.register_float_tensor(&out.id, output);
-            }
-        }
-
-        let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
-        let out = client.create_empty(shape);
-
-        client.register(TensorOpsDescription::NumericOpsFloat(
-            NumericOpsDescription::Full(
-                (out.to_description_out(), fill_value),
-                Box::new(FullOps::<D>),
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::ClampMin(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: min,
+                    out: out.to_description_out(),
+                },
+                Box::new(ClampMinOps::<D>),
             ),
         ));
 
         out
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        struct OnesOps<const D: usize>;
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        scalar_float_ops!(ClampMaxOps, B::clamp_max);
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for OnesOps<D> {
-            type Args = TensorDescription;
+        let out = tensor.client.create_empty(tensor.shape.clone());
 
-            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::ones(shape, &handles.device);
-                handles.register_float_tensor(&out.id, output);
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::ClampMax(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: max,
+                    out: out.to_description_out(),
+                },
+                Box::new(ClampMaxOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        struct ClampOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for ClampOps<D> {
+            type Args = ClampOpsDescription<FloatElem<B>>;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&args.tensor);
+                let output = B::clamp(input, args.min.clone(), args.max.clone());
+
+                handles.register_float_tensor(&args.out.id, output);
             }
         }
 
-        let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
-        let out = client.create_empty(shape);
+        let out = tensor.client.create_empty(tensor.shape.clone());
 
-        client.register(TensorOpsDescription::NumericOpsFloat(
-            NumericOpsDescription::Ones(out.to_description_out(), Box::new(OnesOps::<D>)),
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Clamp(
+                ClampOpsDescription {
+                    tensor: tensor.into_description(),
+                    min,
+                    max,
+                    out: out.to_description_out(),
+                },
+                Box::new(ClampOps::<D>),
+            ),
         ));
 
         out
@@ -808,171 +918,719 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        binary_float_cmp_ops!(EqualOps, B::equal);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::BaseOpsFloat(
+            BaseOpsDescription::Equal(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(EqualOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        scalar_float_cmp_ops!(EqualElemOps, B::equal_elem);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::EqualElem(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(EqualElemOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn greater<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        binary_float_cmp_ops!(GreaterOps, B::greater);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Greater(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(GreaterOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn greater_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        scalar_float_cmp_ops!(GreaterElemOps, B::greater_elem);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::GreaterElem(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(GreaterElemOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn greater_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        binary_float_cmp_ops!(GreaterEqualOps, B::greater_equal);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::GreaterEqual(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(GreaterEqualOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn greater_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        scalar_float_cmp_ops!(GreaterEqualElemOps, B::greater_equal_elem);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::GreaterEqualElem(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(GreaterEqualElemOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn lower<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        binary_float_cmp_ops!(LowerOps, B::lower);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Lower(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(LowerOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn lower_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        scalar_float_cmp_ops!(LowerElemOps, B::lower_elem);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::LowerElem(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(LowerElemOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn lower_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        binary_float_cmp_ops!(LowerEqualOps, B::lower_equal);
+
+        let out = lhs
+            .client
+            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::LowerEqual(
+                BinaryOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs: rhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(LowerEqualOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn lower_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        todo!()
+        scalar_float_cmp_ops!(LowerEqualElemOps, B::lower_equal_elem);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::LowerEqualElem(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(LowerEqualElemOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        todo!()
+        unary_float_ops!(SumOps, B::sum);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Sum(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(SumOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(SumDimOps, B::sum_dim, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::SumDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(SumDimOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        unary_float_ops!(MeanOps, B::mean);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Mean(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MeanOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(MeanDimOps, B::mean_dim, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MeanDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(MeanDimOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        todo!()
+        let client_target =
+            <B::FullPrecisionFusedBackend as FusedBackend>::client(&tensor.client.device());
+
+        todo!("Not supported with fused backend for now.")
     }
 
     fn from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        todo!("Not supported with fused backend for now.")
     }
 
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(ExpOps, B::exp);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(
+                UnaryOpsDescription {
+                    input: lhs.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(ExpOps::<D>),
+            )));
+
+        out
     }
 
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(LogOps, B::log);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Log(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(LogOps::<D>),
+            )));
+
+        out
     }
 
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(Log1pOps, B::log1p);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Log1p(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(Log1pOps::<D>),
+            )));
+
+        out
     }
 
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        todo!()
+        scalar_float_ops!(PowfOps, B::powf, f32);
+
+        let out = lhs.client.create_empty(lhs.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Powf(
+                ScalarOpsDescription {
+                    lhs: lhs.into_description(),
+                    rhs,
+                    out: out.to_description_out(),
+                },
+                Box::new(PowfOps::<D>),
+            )));
+
+        out
     }
 
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(SqrtOps, B::sqrt);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Sqrt(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(SqrtOps::<D>),
+            )));
+
+        out
     }
 
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(AbsOps, B::abs);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Abs(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(AbsOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(CosOps, B::cos);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Cos(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(CosOps::<D>),
+            )));
+
+        out
     }
 
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(SinOps, B::sin);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Sin(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(SinOps::<D>),
+            )));
+
+        out
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(TanhOps, B::tanh);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Tanh(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(TanhOps::<D>),
+            )));
+
+        out
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        todo!()
+        unary_float_ops!(TanhOps, B::erf);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Erf(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(TanhOps::<D>),
+            )));
+
+        out
     }
 
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
-        todo!()
+        struct CatOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for CatOps<D> {
+            type Args = CatOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensors = args
+                    .tensors
+                    .iter()
+                    .map(|tensor| handles.get_float_tensor(tensor))
+                    .collect();
+
+                let output = B::cat::<D>(tensors, args.dim.clone());
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let tensor_first = tensors.get(0).unwrap();
+        let client = tensor_first.client.clone();
+
+        // Calculate the output shape
+        let mut shape: Vec<usize> = tensor_first.shape.clone();
+        shape[dim] = 0;
+        for tensor in tensors.iter() {
+            shape[dim] += tensor.shape[dim];
+        }
+
+        let out = client.create_empty(shape);
+
+        client.register(TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Cat(
+            CatOpsDescription {
+                tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
+                dim,
+                out: out.to_description_out(),
+            },
+            Box::new(CatOps::<D>),
+        )));
+
+        out
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        todo!()
+        scalar_float2int_ops!(ArgMaxOps, B::argmax, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::ArgMax(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(ArgMaxOps::<D>),
+            ),
+        ));
+
+        out
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        todo!()
+        scalar_float2int_ops!(ArgMinOps, B::argmin, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::ArgMin(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(ArgMinOps::<D>),
+            ),
+        ));
+
+        out
     }
 
-    fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
-        todo!()
+    fn max<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        unary_float_ops!(MaxOps, B::max);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Max(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxOps::<D>),
+            ),
+        ));
+
+        out
     }
 
-    fn clamp_min<const D: usize>(
+    fn max_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        scalar_float_ops!(MaxDimOps, B::max_dim, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MaxDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxDimOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn max_dim_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        todo!()
+        dim: usize,
+    ) -> (FloatTensor<Self, D>, IntTensor<Self, D>) {
+        struct MaxDimWithIndicesOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for MaxDimWithIndicesOps<D> {
+            type Args = ReduceDimWithIndicesDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let (output, indices) = B::max_dim_with_indices(tensor, args.dim.clone());
+
+                handles.register_float_tensor(&args.out.id, output);
+                handles.register_int_tensor(&args.out_indices.id, indices);
+            }
+        }
+
+        let client = tensor.client.clone();
+        let out = client.create_empty(tensor.shape.clone());
+        let out_indices = client.create_empty(tensor.shape.clone());
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MaxDimWithIndices(
+                ReduceDimWithIndicesDescription {
+                    tensor: tensor.into_description(),
+                    dim,
+                    out: out.to_description_out(),
+                    out_indices: out_indices.to_description_out(),
+                },
+                Box::new(MaxDimWithIndicesOps::<D>),
+            ),
+        ));
+
+        (out, out_indices)
     }
 
-    fn clamp_max<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        todo!()
+    fn min<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        unary_float_ops!(MinOps, B::min);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::Min(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MinOps::<D>),
+            ),
+        ));
+
+        out
     }
 
-    fn clamp<const D: usize>(
+    fn min_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        scalar_float_ops!(MinDimOps, B::min_dim, usize);
+
+        let out = tensor.client.create_empty(tensor.shape.clone());
+
+        out.client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MinDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(MinDimOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn min_dim_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        todo!()
+        dim: usize,
+    ) -> (FloatTensor<Self, D>, IntTensor<Self, D>) {
+        struct MinDimWithIndicesOps<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for MinDimWithIndicesOps<D> {
+            type Args = ReduceDimWithIndicesDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_float_tensor::<D>(&args.tensor);
+                let (output, indices) = B::min_dim_with_indices(tensor, args.dim.clone());
+
+                handles.register_float_tensor(&args.out.id, output);
+                handles.register_int_tensor(&args.out_indices.id, indices);
+            }
+        }
+
+        let client = tensor.client.clone();
+        let out = client.create_empty(tensor.shape.clone());
+        let out_indices = client.create_empty(tensor.shape.clone());
+
+        client.register(TensorOpsDescription::NumericOpsFloat(
+            NumericOpsDescription::MinDimWithIndices(
+                ReduceDimWithIndicesDescription {
+                    tensor: tensor.into_description(),
+                    dim,
+                    out: out.to_description_out(),
+                    out_indices: out_indices.to_description_out(),
+                },
+                Box::new(MinDimWithIndicesOps::<D>),
+            ),
+        ));
+
+        (out, out_indices)
     }
 }

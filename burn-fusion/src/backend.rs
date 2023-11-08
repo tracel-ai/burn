@@ -74,10 +74,12 @@ pub trait FusedBackend: Backend {
     type Handle: Sync + Send + Clone;
 
     type FullPrecisionFusedBackend: FusedBackend<
-            Handle = Self::Handle,
-            Device = Self::Device,
-            HandleDevice = Self::HandleDevice,
-        > + Backend<Device = Self::Device, FloatElem = Self::FullPrecisionElem>;
+        Handle = Self::Handle,
+        Device = Self::Device,
+        FloatElem = Self::FullPrecisionElem,
+        HandleDevice = Self::HandleDevice,
+        FullPrecisionFusedBackend = Self::FullPrecisionFusedBackend,
+    >;
 
     fn operations() -> Vec<Box<dyn FusedOps<Self>>>;
     fn float_tensor<const D: usize>(

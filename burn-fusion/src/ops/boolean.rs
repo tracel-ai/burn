@@ -16,7 +16,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_into_data<const D: usize>(
         tensor: BoolTensor<Self, D>,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
-        todo!()
+        tensor.bool_into_data()
     }
 
     fn bool_from_data<const D: usize>(

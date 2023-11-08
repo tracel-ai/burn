@@ -8,9 +8,9 @@ use burn_tensor::{
 use std::ops::Range;
 
 pub enum TensorOpsDescription<B: FusedBackend> {
-    BaseOpsFloat(BaseOpsDescription<B, B::FloatElem>),
-    BaseOpsInt(BaseOpsDescription<B, B::IntElem>),
-    BaseOpsBool(BaseOpsDescription<B, bool>),
+    BaseOpsFloat(BaseOpsDescription<B>),
+    BaseOpsInt(BaseOpsDescription<B>),
+    BaseOpsBool(BaseOpsDescription<B>),
     NumericOpsFloat(NumericOpsDescription<B, B::FloatElem>),
     NumericOpsInt(NumericOpsDescription<B, B::IntElem>),
     BoolOps(BoolOpsDescription),
@@ -48,7 +48,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
+impl<B: FusedBackend> BaseOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             BaseOpsDescription::ToDevice(_, _) => (),
@@ -65,7 +65,18 @@ impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.value);
             }
-            _ => todo!(),
+            BaseOpsDescription::Equal(desc, _) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            BaseOpsDescription::Repeat(desc, _) => {
+                handles.cleanup(&desc.tensor);
+            }
+            BaseOpsDescription::Cat(desc, _) => {
+                for t in desc.tensors.iter() {
+                    handles.cleanup(t);
+                }
+            }
         }
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
@@ -75,7 +86,9 @@ impl<B: FusedBackend, E> BaseOpsDescription<B, E> {
             BaseOpsDescription::SwapDims(desc, ops) => ops.execute(desc, handles),
             BaseOpsDescription::Slice(desc, ops) => ops.execute(desc, handles),
             BaseOpsDescription::SliceAssign(desc, ops) => ops.execute(desc, handles),
-            _ => todo!(),
+            BaseOpsDescription::Equal(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::Repeat(desc, ops) => ops.execute(desc, handles),
+            BaseOpsDescription::Cat(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
@@ -139,7 +152,88 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.mask);
             }
-            _ => todo!(),
+            NumericOpsDescription::EqualElem(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::GreaterElem(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::GreaterEqualElem(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::LowerElem(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::LowerEqualElem(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Greater(desc, _) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::GreaterEqual(desc, _) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::Lower(desc, _) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::LowerEqual(desc, _) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::ArgMax(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::ArgMin(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Clamp(desc, _) => {
+                handles.cleanup(&desc.tensor);
+            }
+            NumericOpsDescription::ClampMin(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::ClampMax(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Neg { tensor, out } => todo!(),
+            NumericOpsDescription::Abs(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            NumericOpsDescription::Zeros(desc, _) => {}
+            NumericOpsDescription::Full(desc, _) => {}
+            NumericOpsDescription::MeanDim(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Mean(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            NumericOpsDescription::Sum(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            NumericOpsDescription::SumDim(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Max(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            NumericOpsDescription::MaxDimWithIndices(desc, _) => {
+                handles.cleanup(&desc.tensor);
+            }
+            NumericOpsDescription::MinDimWithIndices(desc, _) => {
+                handles.cleanup(&desc.tensor);
+            }
+            NumericOpsDescription::Min(desc, _) => {
+                handles.cleanup(&desc.input);
+            }
+            NumericOpsDescription::MaxDim(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::MinDim(desc, _) => {
+                handles.cleanup(&desc.lhs);
+            }
         }
     }
 
@@ -160,7 +254,34 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::SelectAssign(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::MaskWhere(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::MaskFill(desc, ops) => ops.execute(desc, handles),
-            _ => todo!(),
+            NumericOpsDescription::EqualElem(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Greater(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::GreaterElem(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::GreaterEqual(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::GreaterEqualElem(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Lower(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::LowerElem(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::LowerEqual(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::LowerEqualElem(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::ArgMax(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::ArgMin(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Clamp(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::ClampMin(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::ClampMax(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Neg { tensor, out } => todo!(),
+            NumericOpsDescription::Abs(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Zeros(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Full(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MeanDim(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Mean(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Sum(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::SumDim(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Max(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MaxDimWithIndices(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MinDimWithIndices(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::Min(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MaxDim(desc, ops) => ops.execute(desc, handles),
+            NumericOpsDescription::MinDim(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
@@ -173,60 +294,77 @@ impl<B: FusedBackend> FloatOpsDescription<B> {
                 handles.cleanup(&desc.rhs);
             }
             FloatOpsDescription::Random(desc, ops) => {}
-            _ => todo!(),
+            FloatOpsDescription::Exp(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Log(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Log1p(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Erf(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Powf(desc, _) => handles.cleanup(&desc.lhs),
+            FloatOpsDescription::Sqrt(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Cos(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Sin(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Tanh(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::IntoInt(desc, _) => handles.cleanup(&desc.input),
         }
     }
     fn execute(&self, handles: &mut HandleContainer<B>) {
         match self {
             FloatOpsDescription::Matmul(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Random(desc, ops) => ops.execute(desc, handles),
-            _ => todo!(),
+            FloatOpsDescription::Exp(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Log(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Log1p(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Erf(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Powf(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Sqrt(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Cos(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Sin(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Tanh(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::IntoInt(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
 
 pub enum FloatOpsDescription<B: FusedBackend> {
-    Exp {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Log {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Log1p {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Erf {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Powf {
-        tensor: TensorDescription,
-        value: FloatElem<B>,
-        out: TensorDescription,
-    },
-    Sqrt {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Cos {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Sin {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Tanh {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    IntoInt {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
+    Exp(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Log(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Log1p(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Erf(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Powf(
+        ScalarOpsDescription<f32>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<f32>>>,
+    ),
+    Sqrt(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Cos(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Sin(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Tanh(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    IntoInt(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
     Matmul(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
@@ -388,20 +526,7 @@ pub enum ModuleOpsDescription {
     },
 }
 
-pub struct SwapDimsDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
-    pub dim1: usize,
-    pub dim2: usize,
-}
-
-pub struct ReshapeDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
-    pub shape: Vec<usize>,
-}
-
-pub enum BaseOpsDescription<B: FusedBackend, E> {
+pub enum BaseOpsDescription<B: FusedBackend> {
     ToDevice(
         (TensorDescription, B::Device),
         Box<dyn Ops<B, Args = (TensorDescription, B::Device)>>,
@@ -422,28 +547,15 @@ pub enum BaseOpsDescription<B: FusedBackend, E> {
         SliceAssignOpsDescription,
         Box<dyn Ops<B, Args = SliceAssignOpsDescription>>,
     ),
-    FromData {
-        value: Vec<E>,
-        shape: Vec<usize>,
-        out: TensorDescription,
-    },
-    Repeat {
-        tensor: TensorDescription,
-        dim: usize,
-        times: usize,
-        shape: Vec<usize>,
-        out: TensorDescription,
-    },
-    Equal {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    Cat {
-        tensors: Vec<TensorDescription>,
-        dim: usize,
-        out: TensorDescription,
-    },
+    Equal(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    Repeat(
+        RepeatOpsDescription,
+        Box<dyn Ops<B, Args = RepeatOpsDescription>>,
+    ),
+    Cat(CatOpsDescription, Box<dyn Ops<B, Args = CatOpsDescription>>),
 }
 
 pub trait Ops<B: FusedBackend>: Send + Sync {
@@ -452,9 +564,232 @@ pub trait Ops<B: FusedBackend>: Send + Sync {
     fn execute(&self, args: &Self::Args, handles: &mut HandleContainer<B>);
 }
 
+pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
+    Add(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    AddScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Sub(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    SubScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Div(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    DivScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Mul(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    MulScalar(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Neg {
+        tensor: TensorDescription,
+        out: TensorDescription,
+    },
+    Abs(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Ones(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
+    Zeros(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
+    Full(
+        (TensorDescription, E),
+        Box<dyn Ops<B, Args = (TensorDescription, E)>>,
+    ),
+    Gather(
+        GatherOpsDescription,
+        Box<dyn Ops<B, Args = GatherOpsDescription>>,
+    ),
+    Scatter(
+        ScatterOpsDescription,
+        Box<dyn Ops<B, Args = ScatterOpsDescription>>,
+    ),
+    Select(
+        SelectOpsDescription,
+        Box<dyn Ops<B, Args = SelectOpsDescription>>,
+    ),
+    SelectAssign(
+        SelectAssignOpsDescription,
+        Box<dyn Ops<B, Args = SelectAssignOpsDescription>>,
+    ),
+    MaskWhere(
+        MaskWhereOpsDescription,
+        Box<dyn Ops<B, Args = MaskWhereOpsDescription>>,
+    ),
+    MaskFill(
+        MaskFillOpsDescription<E>,
+        Box<dyn Ops<B, Args = MaskFillOpsDescription<E>>>,
+    ),
+    MeanDim(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+    Mean(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    Sum(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    SumDim(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+    EqualElem(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Greater(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    GreaterElem(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    GreaterEqual(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    GreaterEqualElem(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    Lower(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    LowerElem(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    LowerEqual(
+        BinaryOpsDescription,
+        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
+    ),
+    LowerEqualElem(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    ArgMax(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+    ArgMin(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+    Max(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    MaxDimWithIndices(
+        ReduceDimWithIndicesDescription,
+        Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
+    ),
+    MinDimWithIndices(
+        ReduceDimWithIndicesDescription,
+        Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
+    ),
+    Min(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
+    MaxDim(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+    MinDim(
+        ScalarOpsDescription<usize>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
+    ),
+
+    Clamp(
+        ClampOpsDescription<E>,
+        Box<dyn Ops<B, Args = ClampOpsDescription<E>>>,
+    ),
+    ClampMax(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+    ClampMin(
+        ScalarOpsDescription<E>,
+        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
+    ),
+}
+
+#[derive(Debug)]
+pub enum IntOpsDescription {
+    Arange {
+        tensor: TensorDescription,
+        range: Range<usize>,
+        out: TensorDescription,
+    },
+    ArangeStep {
+        tensor: TensorDescription,
+        range: Range<usize>,
+        step: usize,
+        out: TensorDescription,
+    },
+    IntoFloat {
+        tensor: TensorDescription,
+        out: TensorDescription,
+    },
+}
+
+#[derive(Debug)]
+pub enum BoolOpsDescription {
+    IntoFloat {
+        tensor: TensorDescription,
+        out: TensorDescription,
+    },
+    IntoInt {
+        tensor: TensorDescription,
+        out: TensorDescription,
+    },
+    Not {
+        tensor: TensorDescription,
+        out: TensorDescription,
+    },
+}
+
+pub struct SwapDimsDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+    pub dim1: usize,
+    pub dim2: usize,
+}
+
+pub struct ReshapeDescription {
+    pub input: TensorDescription,
+    pub out: TensorDescription,
+    pub shape: Vec<usize>,
+}
+
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
     pub rhs: TensorDescription,
+    pub out: TensorDescription,
+}
+
+pub struct UnaryOpsDescription {
+    pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
@@ -520,223 +855,29 @@ pub struct MaskFillOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
-    Add(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
-    AddScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
-    Sub(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
-    SubScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
-    Div(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
-    DivScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
-    Mul(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
-    MulScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
-    Neg {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Abs {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Ones(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
-    Zeros(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
-    Full(
-        (TensorDescription, E),
-        Box<dyn Ops<B, Args = (TensorDescription, E)>>,
-    ),
-    Gather(
-        GatherOpsDescription,
-        Box<dyn Ops<B, Args = GatherOpsDescription>>,
-    ),
-    Scatter(
-        ScatterOpsDescription,
-        Box<dyn Ops<B, Args = ScatterOpsDescription>>,
-    ),
-    Select(
-        SelectOpsDescription,
-        Box<dyn Ops<B, Args = SelectOpsDescription>>,
-    ),
-    SelectAssign(
-        SelectAssignOpsDescription,
-        Box<dyn Ops<B, Args = SelectAssignOpsDescription>>,
-    ),
-    MaskWhere(
-        MaskWhereOpsDescription,
-        Box<dyn Ops<B, Args = MaskWhereOpsDescription>>,
-    ),
-    MaskFill(
-        MaskFillOpsDescription<E>,
-        Box<dyn Ops<B, Args = MaskFillOpsDescription<E>>>,
-    ),
-    Mean {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    MeanDim {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    Sum {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    SumDim {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    EqualElem {
-        tensor: TensorDescription,
-        elem: E,
-        out: TensorDescription,
-    },
-    Greater {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    GreaterElem {
-        tensor: TensorDescription,
-        elem: E,
-        out: TensorDescription,
-    },
-    GreaterEqual {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    GreaterEqualElem {
-        tensor: TensorDescription,
-        elem: E,
-        out: TensorDescription,
-    },
-    Lower {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    LowerElem {
-        tensor: TensorDescription,
-        elem: E,
-        out: TensorDescription,
-    },
-    LowerEqual {
-        lhs: TensorDescription,
-        rhs: TensorDescription,
-        out: TensorDescription,
-    },
-    LowerEqualElem {
-        tensor: TensorDescription,
-        elem: E,
-        out: TensorDescription,
-    },
-    ArgMax {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    ArgMin {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    Max {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    MaxDim {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    MaxDimWithIndices {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-        out_indices: TensorDescription,
-    },
-    Min {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    MinDim {
-        tensor: TensorDescription,
-        dim: usize,
-        out: TensorDescription,
-    },
-    Clamp {
-        tensor: TensorDescription,
-        min: usize,
-        max: usize,
-        out: TensorDescription,
-    },
-    ClampMax {
-        tensor: TensorDescription,
-        max: usize,
-        out: TensorDescription,
-    },
-    ClampMin {
-        tensor: TensorDescription,
-        min: usize,
-        out: TensorDescription,
-    },
+pub struct ClampOpsDescription<E> {
+    pub tensor: TensorDescription,
+    pub min: E,
+    pub max: E,
+    pub out: TensorDescription,
+}
+pub struct RepeatOpsDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub times: usize,
+    pub shape: Vec<usize>,
+    pub out: TensorDescription,
 }
 
-#[derive(Debug)]
-pub enum IntOpsDescription {
-    Arange {
-        tensor: TensorDescription,
-        range: Range<usize>,
-        out: TensorDescription,
-    },
-    ArangeStep {
-        tensor: TensorDescription,
-        range: Range<usize>,
-        step: usize,
-        out: TensorDescription,
-    },
-    IntoFloat {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
+pub struct CatOpsDescription {
+    pub tensors: Vec<TensorDescription>,
+    pub dim: usize,
+    pub out: TensorDescription,
 }
 
-#[derive(Debug)]
-pub enum BoolOpsDescription {
-    IntoFloat {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    IntoInt {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
-    Not {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
+pub struct ReduceDimWithIndicesDescription {
+    pub tensor: TensorDescription,
+    pub dim: usize,
+    pub out: TensorDescription,
+    pub out_indices: TensorDescription,
 }

@@ -167,6 +167,15 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
+    pub fn register_bool_tensor<const D: usize>(
+        &mut self,
+        id: &TensorId,
+        tensor: B::BoolTensorPrimitive<D>,
+    ) {
+        let handle = B::bool_tensor_handle(tensor);
+        self.handles.insert(id.clone(), Handle::Existing(handle));
+    }
+
     pub fn create_emtpy(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         println!("Creating empty handle {:?}", id);
