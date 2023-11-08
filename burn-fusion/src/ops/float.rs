@@ -71,7 +71,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::zeros(shape, &handles.device);
+                let output = B::zeros::<D>(shape, &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
@@ -95,7 +95,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::ones(shape, &handles.device);
+                let output = B::ones::<D>(shape, &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
@@ -1221,16 +1221,13 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        let client_target =
-            <B::FullPrecisionFusedBackend as FusedBackend>::client(&tensor.client.device());
-
-        todo!("Not supported with fused backend for now.")
+        tensor.clone()
     }
 
     fn from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        todo!("Not supported with fused backend for now.")
+        tensor
     }
 
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

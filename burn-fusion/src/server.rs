@@ -12,7 +12,7 @@ where
 {
     optimizations: Vec<Optimization<B>>,
     graph: Graph<B>,
-    handles: HandleContainer<B>,
+    pub(crate) handles: HandleContainer<B>,
     execution: G,
     pub device: B::HandleDevice,
 }
@@ -115,7 +115,7 @@ where
         B::bool_into_data(tensor)
     }
 
-    pub fn change_server<const D: usize>(
+    pub fn change_server_float<const D: usize>(
         &mut self,
         tensor: &crate::TensorDescription,
         device: &B::Device,
@@ -128,6 +128,38 @@ where
         server_device
             .handles
             .register_float_tensor(&id, tensor.clone());
+
+        id
+    }
+    pub fn change_server_int<const D: usize>(
+        &mut self,
+        tensor: &crate::TensorDescription,
+        device: &B::Device,
+        server_device: &mut Self,
+    ) -> Arc<TensorId> {
+        let tensor = self.handles.get_int_tensor::<D>(&tensor);
+        let tensor = B::int_to_device(tensor, &device);
+        let id = server_device.create_empty_handle();
+
+        server_device
+            .handles
+            .register_int_tensor(&id, tensor.clone());
+
+        id
+    }
+    pub fn change_server_bool<const D: usize>(
+        &mut self,
+        tensor: &crate::TensorDescription,
+        device: &B::Device,
+        server_device: &mut Self,
+    ) -> Arc<TensorId> {
+        let tensor = self.handles.get_bool_tensor::<D>(&tensor);
+        let tensor = B::bool_to_device(tensor, &device);
+        let id = server_device.create_empty_handle();
+
+        server_device
+            .handles
+            .register_bool_tensor(&id, tensor.clone());
 
         id
     }

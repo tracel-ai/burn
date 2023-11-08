@@ -147,7 +147,44 @@ where
         let id = self
             .server
             .lock()
-            .change_server::<D>(&tensor, &device, &mut other_server);
+            .change_server_float::<D>(&tensor, &device, &mut other_server);
+
+        core::mem::drop(other_server);
+
+        FusionTensor::new(id, tensor.shape, client)
+    }
+    fn change_client_int<const D: usize>(
+        &self,
+        tensor: crate::TensorDescription,
+        client: Self,
+    ) -> FusionTensor<Self> {
+        let device = client.device.clone().into();
+
+        let mut other_server = client.server.lock();
+
+        let id = self
+            .server
+            .lock()
+            .change_server_int::<D>(&tensor, &device, &mut other_server);
+
+        core::mem::drop(other_server);
+
+        FusionTensor::new(id, tensor.shape, client)
+    }
+
+    fn change_client_bool<const D: usize>(
+        &self,
+        tensor: crate::TensorDescription,
+        client: Self,
+    ) -> FusionTensor<Self> {
+        let device = client.device.clone().into();
+
+        let mut other_server = client.server.lock();
+
+        let id = self
+            .server
+            .lock()
+            .change_server_bool::<D>(&tensor, &device, &mut other_server);
 
         core::mem::drop(other_server);
 

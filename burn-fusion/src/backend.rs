@@ -16,9 +16,9 @@ pub struct Fusion<B> {
 impl<B: FusedBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
-    type FullPrecisionBackend = Fusion<B::FullPrecisionFusedBackend>;
-
-    type FullPrecisionElem = B::FullPrecisionElem;
+    // TODO: Find a better way to handle full precision.
+    type FullPrecisionBackend = Self;
+    type FullPrecisionElem = B::FloatElem;
 
     type TensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
@@ -72,14 +72,6 @@ pub trait HandleDevice: Clone + Send + Sync + PartialEq {
 pub trait FusedBackend: Backend {
     type HandleDevice: HandleDevice + From<Self::Device> + Into<Self::Device>;
     type Handle: Sync + Send + Clone;
-
-    type FullPrecisionFusedBackend: FusedBackend<
-        Handle = Self::Handle,
-        Device = Self::Device,
-        FloatElem = Self::FullPrecisionElem,
-        HandleDevice = Self::HandleDevice,
-        FullPrecisionFusedBackend = Self::FullPrecisionFusedBackend,
-    >;
 
     fn operations() -> Vec<Box<dyn FusedOps<Self>>>;
     fn float_tensor<const D: usize>(

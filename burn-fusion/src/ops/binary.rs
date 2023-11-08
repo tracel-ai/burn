@@ -42,6 +42,28 @@ macro_rules! binary_float_cmp_ops {
     };
 }
 
+#[macro_export(local_inner_macros)]
+macro_rules! binary_int_cmp_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        struct $name<const D: usize>;
+
+        impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
+            type Args = BinaryOpsDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let lhs = handles.get_int_tensor::<D>(&args.lhs);
+                let rhs = handles.get_int_tensor(&args.rhs);
+                let output = $ops(lhs, rhs);
+
+                handles.register_bool_tensor(&args.out.id, output);
+            }
+        }
+    };
+}
+
 pub(crate) fn binary_ops_shape(lhs: &Vec<usize>, rhs: &Vec<usize>) -> Vec<usize> {
     let mut shape_out = Vec::with_capacity(lhs.len());
 

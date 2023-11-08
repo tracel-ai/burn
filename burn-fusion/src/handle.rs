@@ -158,6 +158,10 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
+    pub fn register_handle(&mut self, id: TensorId, handle: B::Handle) {
+        self.handles.insert(id.clone(), Handle::Existing(handle));
+    }
+
     pub fn register_int_tensor<const D: usize>(
         &mut self,
         id: &TensorId,

@@ -198,7 +198,6 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::ClampMax(desc, _) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Neg { tensor, out } => todo!(),
             NumericOpsDescription::Abs(desc, _) => {
                 handles.cleanup(&desc.input);
             }
@@ -268,7 +267,6 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
             NumericOpsDescription::Clamp(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::ClampMin(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::ClampMax(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Neg { tensor, out } => todo!(),
             NumericOpsDescription::Abs(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Zeros(desc, ops) => ops.execute(desc, handles),
             NumericOpsDescription::Full(desc, ops) => ops.execute(desc, handles),
@@ -597,10 +595,6 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
-    Neg {
-        tensor: TensorDescription,
-        out: TensorDescription,
-    },
     Abs(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
