@@ -3,7 +3,7 @@ use std::{cmp::min, fmt::Display};
 use burn_tensor::Shape;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
-/// Autotune key representative of matmul versions
+/// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
     reduce_dim_length: usize,
     others_product: usize,
@@ -22,6 +22,7 @@ impl Display for ReduceAutotuneKey {
 }
 
 impl ReduceAutotuneKey {
+    /// Create a reduce autotune key from the input shape and reduce dim
     pub fn new<const D: usize>(shape: &Shape<D>, reduce_dim: usize) -> Self {
         let reduce_dim_length = shape.dims[reduce_dim];
         let mut others_product = 1;

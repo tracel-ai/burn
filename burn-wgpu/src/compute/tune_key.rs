@@ -9,6 +9,7 @@ use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
 pub enum WgpuAutotuneKey {
     /// Key for matmul operation
     Matmul(MatmulAutotuneKey),
+    /// Key for reduce operations
     Reduce(ReduceAutotuneKey),
 }
 

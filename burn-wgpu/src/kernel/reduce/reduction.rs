@@ -107,20 +107,9 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     output: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    let mut shape_out = input.shape.clone();
-    shape_out.dims[dim] = 1;
-    let num_elems = shape_out.num_elements();
-    let handle = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
-        input.client.clone(),
-        input.device.clone(),
-        shape_out,
-        handle,
-    );
-
     let kernel =
         StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
-            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
+            elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT),
         );
 
     let mut info = build_info(&[&input, &output]);
