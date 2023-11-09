@@ -1,9 +1,12 @@
 use crate::{
     client::FusionClient,
     graph::{
+        AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
         AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
-        AvgPool2dBackwardDescription, AvgPool2dDescription, Conv1dDescription, Conv2dDescription,
-        ConvTranspose1dDescription, ConvTranspose2dDescription, MaxPool2dDescription,
+        AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
+        AvgPool2dDescription, Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription,
+        ConvTranspose2dDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+        MaxPool1dWithIndicesDescription, MaxPool2dDescription,
         MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription, Ops,
         TensorOpsDescription,
     },
@@ -14,8 +17,8 @@ use burn_tensor::ops::{
         calculate_conv_output_size, calculate_conv_transpose_output_size,
         calculate_pool_output_size,
     },
-    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool1dBackward,
+    MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
@@ -244,6 +247,53 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
+    fn avg_pool1d(
+        x: FloatTensor<Self, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        count_include_pad: bool,
+    ) -> FloatTensor<Self, 3> {
+        struct AvgPool1dOps;
+
+        impl<B: FusionBackend> Ops<B> for AvgPool1dOps {
+            type Args = AvgPool1dDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::avg_pool1d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                );
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
+        let shape = vec![x.shape[0], x.shape[1], size];
+        let out = x.client.create_tensor_empty(shape);
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::AvgPool1d(
+                AvgPool1dDescription {
+                    x: x.into_description(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    count_include_pad,
+                    out: out.to_description_out(),
+                },
+                Box::new(AvgPool1dOps),
+            ),
+        ));
+
+        out
+    }
+
     fn avg_pool2d(
         x: FloatTensor<Self, 4>,
         kernel_size: [usize; 2],
@@ -295,6 +345,54 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
+    fn avg_pool1d_backward(
+        x: FloatTensor<Self, 3>,
+        grad: FloatTensor<Self, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        count_include_pad: bool,
+    ) -> FloatTensor<Self, 3> {
+        struct AvgPool1dBackwardOps;
+
+        impl<B: FusionBackend> Ops<B> for AvgPool1dBackwardOps {
+            type Args = AvgPool1dBackwardDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let grad = handles.get_float_tensor(&args.grad);
+                let output = B::avg_pool1d_backward(
+                    x,
+                    grad,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                );
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let out = x.client.create_tensor_empty(x.shape.clone());
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::AvgPool1dBackward(
+                AvgPool1dBackwardDescription {
+                    x: x.into_description(),
+                    grad: grad.into_description(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    count_include_pad,
+                    out: out.to_description_out(),
+                },
+                Box::new(AvgPool1dBackwardOps),
+            ),
+        ));
+
+        out
+    }
     fn avg_pool2d_backward(
         x: FloatTensor<Self, 4>,
         grad: FloatTensor<Self, 4>,
@@ -338,6 +436,54 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     out: out.to_description_out(),
                 },
                 Box::new(AvgPool2dBackwardOps),
+            ),
+        ));
+
+        out
+    }
+
+    fn max_pool1d(
+        x: FloatTensor<Self, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+    ) -> FloatTensor<Self, 3> {
+        struct MaxPool1dOps;
+
+        impl<B: FusionBackend> Ops<B> for MaxPool1dOps {
+            type Args = MaxPool1dDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::max_pool1d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                );
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+
+        let shape = vec![x.shape[0], x.shape[1], size];
+        let out = x.client.create_tensor_empty(shape);
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::MaxPool1d(
+                MaxPool1dDescription {
+                    x: x.into_description(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxPool1dOps),
             ),
         ));
 
@@ -405,6 +551,56 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
+    fn max_pool1d_with_indices(
+        x: FloatTensor<Self, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+    ) -> MaxPool1dWithIndices<Self> {
+        struct MaxPool1dWithIndicesOps;
+
+        impl<B: FusionBackend> Ops<B> for MaxPool1dWithIndicesOps {
+            type Args = MaxPool1dWithIndicesDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::max_pool1d_with_indices(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                );
+
+                handles.register_float_tensor(&args.out.id, output.output);
+                handles.register_int_tensor(&args.out_indices.id, output.indices);
+            }
+        }
+
+        let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
+        let shape = vec![x.shape[0], x.shape[1], size];
+        let out = x.client.create_tensor_empty(shape.clone());
+        let out_indices = x.client.create_tensor_empty(shape);
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::MaxPool1dWithIndices(
+                MaxPool1dWithIndicesDescription {
+                    x: x.into_description(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    out: out.to_description_out(),
+                    out_indices: out_indices.to_description_out(),
+                },
+                Box::new(MaxPool1dWithIndicesOps),
+            ),
+        ));
+
+        MaxPool1dWithIndices::new(out, out_indices)
+    }
+
     fn max_pool2d_with_indices(
         x: FloatTensor<Self, 4>,
         kernel_size: [usize; 2],
@@ -469,6 +665,59 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         MaxPool2dWithIndices::new(out, out_indices)
     }
 
+    fn max_pool1d_with_indices_backward(
+        x: FloatTensor<Self, 3>,
+        kernel_size: usize,
+        stride: usize,
+        padding: usize,
+        dilation: usize,
+        output_grad: FloatTensor<Self, 3>,
+        indices: IntTensor<Self, 3>,
+    ) -> MaxPool1dBackward<Self> {
+        struct MaxPool1dWithIndicesBackwardOps;
+
+        impl<B: FusionBackend> Ops<B> for MaxPool1dWithIndicesBackwardOps {
+            type Args = MaxPool1dWithIndicesBackwardDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let grad = handles.get_float_tensor(&args.grad);
+                let indices = handles.get_int_tensor(&args.indices);
+                let output = B::max_pool1d_with_indices_backward(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                    grad,
+                    indices,
+                );
+
+                handles.register_float_tensor(&args.out.id, output.x_grad);
+            }
+        }
+
+        let out = x.client.create_tensor_empty(x.shape.clone());
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::MaxPool1dWithIndicesBackward(
+                MaxPool1dWithIndicesBackwardDescription {
+                    x: x.into_description(),
+                    grad: output_grad.into_description(),
+                    indices: indices.into_description(),
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxPool1dWithIndicesBackwardOps),
+            ),
+        ));
+
+        MaxPool1dBackward::new(out)
+    }
+
     fn max_pool2d_with_indices_backward(
         x: FloatTensor<Self, 4>,
         kernel_size: [usize; 2],
@@ -522,6 +771,37 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         MaxPool2dBackward::new(out)
     }
 
+    fn adaptive_avg_pool1d(x: FloatTensor<Self, 3>, output_size: usize) -> FloatTensor<Self, 3> {
+        struct AdaptiveAvgPool1dOps;
+
+        impl<B: FusionBackend> Ops<B> for AdaptiveAvgPool1dOps {
+            type Args = AdaptiveAvgPool1dDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::adaptive_avg_pool1d(x, args.output_size);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let shape = vec![x.shape[0], x.shape[1], output_size];
+        let out = x.client.create_tensor_empty(shape);
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::AdaptiveAvgPool1d(
+                AdaptiveAvgPool1dDescription {
+                    x: x.into_description(),
+                    output_size,
+                    out: out.to_description_out(),
+                },
+                Box::new(AdaptiveAvgPool1dOps),
+            ),
+        ));
+
+        out
+    }
+
     fn adaptive_avg_pool2d(
         x: FloatTensor<Self, 4>,
         output_size: [usize; 2],
@@ -550,6 +830,40 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     out: out.to_description_out(),
                 },
                 Box::new(AdaptiveAvgPool2dOps),
+            ),
+        ));
+
+        out
+    }
+
+    fn adaptive_avg_pool1d_backward(
+        x: FloatTensor<Self, 3>,
+        grad: FloatTensor<Self, 3>,
+    ) -> FloatTensor<Self, 3> {
+        struct AdaptiveAvgPool1dBackwardOps;
+
+        impl<B: FusionBackend> Ops<B> for AdaptiveAvgPool1dBackwardOps {
+            type Args = AdaptiveAvgPool1dBackwardDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let x = handles.get_float_tensor(&args.x);
+                let grad = handles.get_float_tensor(&args.grad);
+                let output = B::adaptive_avg_pool1d_backward(x, grad);
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        }
+
+        let out = x.client.create_tensor_empty(x.shape.clone());
+
+        x.client.clone().register(TensorOpsDescription::ModuleOps(
+            crate::graph::ModuleOpsDescription::AdaptiveAvgPool1dBackward(
+                AdaptiveAvgPool1dBackwardDescription {
+                    x: x.into_description(),
+                    grad: grad.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(AdaptiveAvgPool1dBackwardOps),
             ),
         ));
 

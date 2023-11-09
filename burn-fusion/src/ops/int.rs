@@ -5,10 +5,10 @@ use crate::{
     graph::{
         self, BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
-        NumericOpsDescription, Ops, ReshapeDescription, ScalarOpsDescription,
-        ScatterOpsDescription, SelectAssignOpsDescription, SelectOpsDescription,
-        SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription, TensorOpsDescription,
-        UnaryOpsDescription,
+        NumericOpsDescription, Ops, ReduceDimWithIndicesDescription, ReshapeDescription,
+        ScalarOpsDescription, ScatterOpsDescription, SelectAssignOpsDescription,
+        SelectOpsDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
+        TensorOpsDescription, UnaryOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_int_cmp_ops, scalar_int_ops, unary_int_ops, Fusion, FusionBackend, TensorDescription,
@@ -1238,5 +1238,161 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             ));
 
         out
+    }
+
+    fn int_max<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+        unary_int_ops!(MaxOps, B::int_max);
+
+        let out = tensor.client.create_tensor_empty(vec![1]);
+
+        out.client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::Max(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn int_max_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        scalar_int_ops!(MaxDimOps, B::int_max_dim, usize);
+
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_tensor_empty(shape);
+
+        out.client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::MaxDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(MaxDimOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn int_max_dim_with_indices<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+        struct MaxDimWithIndicesOps<const D: usize>;
+
+        impl<const D: usize, B: FusionBackend> Ops<B> for MaxDimWithIndicesOps<D> {
+            type Args = ReduceDimWithIndicesDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&args.tensor);
+                let (output, indices) = B::int_max_dim_with_indices(tensor, args.dim);
+
+                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&args.out_indices.id, indices);
+            }
+        }
+
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let client = tensor.client.clone();
+        let out = client.create_tensor_empty(shape.clone());
+        let out_indices = client.create_tensor_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::MaxDimWithIndices(
+                ReduceDimWithIndicesDescription {
+                    tensor: tensor.into_description(),
+                    dim,
+                    out: out.to_description_out(),
+                    out_indices: out_indices.to_description_out(),
+                },
+                Box::new(MaxDimWithIndicesOps::<D>),
+            ),
+        ));
+
+        (out, out_indices)
+    }
+
+    fn int_min<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+        unary_int_ops!(MinOps, B::int_min);
+
+        let out = tensor.client.create_tensor_empty(vec![1]);
+
+        out.client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::Min(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(MinOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn int_min_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        scalar_int_ops!(MinDimOps, B::int_min_dim, usize);
+
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.create_tensor_empty(shape);
+
+        out.client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::MinDim(
+                ScalarOpsDescription {
+                    lhs: tensor.into_description(),
+                    rhs: dim,
+                    out: out.to_description_out(),
+                },
+                Box::new(MinDimOps::<D>),
+            ),
+        ));
+
+        out
+    }
+
+    fn int_min_dim_with_indices<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+        struct MinDimWithIndicesOps<const D: usize>;
+
+        impl<const D: usize, B: FusionBackend> Ops<B> for MinDimWithIndicesOps<D> {
+            type Args = ReduceDimWithIndicesDescription;
+
+            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&args.tensor);
+                let (output, indices) = B::int_min_dim_with_indices(tensor, args.dim);
+
+                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&args.out_indices.id, indices);
+            }
+        }
+
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let client = tensor.client.clone();
+        let out = client.create_tensor_empty(shape.clone());
+        let out_indices = client.create_tensor_empty(shape);
+
+        client.register(TensorOpsDescription::NumericOpsInt(
+            NumericOpsDescription::MinDimWithIndices(
+                ReduceDimWithIndicesDescription {
+                    tensor: tensor.into_description(),
+                    dim,
+                    out: out.to_description_out(),
+                    out_indices: out_indices.to_description_out(),
+                },
+                Box::new(MinDimWithIndicesOps::<D>),
+            ),
+        ));
+
+        (out, out_indices)
     }
 }
