@@ -61,7 +61,7 @@ fn main(
             let current_position = index_offset + nth * stride_input_dim_reduce;
             let value = input[current_position];
             
-            {{ assign }}
+            {{ update }}
         }
     }
 
@@ -75,7 +75,8 @@ fn main(
             for (var i = 1u; i < reduce_factor; i++) {
                 let read_position = local_id + i * n_threads;
                 let value = shared_memory[read_position];
-                {{ assign }}
+                
+                {{ update }}
             }
         } 
 
@@ -84,6 +85,8 @@ fn main(
     
     if local_id == 0u {
         let output_position = reduce_group_id; 
-        output[output_position] = shared_memory[0u];
+        let final_value = shared_memory[0u];
+
+        {{ assign }}
     }
 }

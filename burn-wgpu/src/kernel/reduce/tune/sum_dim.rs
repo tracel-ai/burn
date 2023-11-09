@@ -82,7 +82,7 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
     }
 }
 
-/// Executes autotune on matmul operations
+/// Executes autotune on sum_dim operation
 pub fn sum_dim_autotune<E: WgpuElement + Element, const D: usize>(
     input: WgpuTensor<E, D>,
     reduce_dim: usize,

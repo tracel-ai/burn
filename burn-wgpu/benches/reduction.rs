@@ -74,8 +74,12 @@ macro_rules! bench_reduce {
     };
 }
 
-bench_reduce!(FormerSumDimBenchmark, FormerSumDim, sum_dim);
-bench_reduce!(NewSumDimBenchmark, NewSumDim, sum_dim_shared_memory);
+bench_reduce!(SumDimBenchmark, SumDim, sum_dim);
+bench_reduce!(
+    SumDimSharedMemoryBenchmark,
+    SumDimSharedMemory,
+    sum_dim_shared_memory
+);
 
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
@@ -95,8 +99,8 @@ pub fn bench(device: &WgpuDevice) {
         };
     }
 
-    run_reduce_benchmark!(NewSumDimBenchmark);
-    run_reduce_benchmark!(FormerSumDimBenchmark);
+    run_reduce_benchmark!(SumDimSharedMemoryBenchmark);
+    run_reduce_benchmark!(SumDimBenchmark);
 }
 
 fn main() {

@@ -12,6 +12,7 @@ kernel_wgsl!(
 );
 
 pub(crate) struct SumDimSharedMemory;
+pub(crate) struct MeanDimSharedMemory;
 
 impl StaticKernelSource for SumDimSharedMemory {
     fn source() -> SourceTemplate {
@@ -21,7 +22,29 @@ impl StaticKernelSource for SumDimSharedMemory {
                 (WORKGROUP_DEFAULT * WORKGROUP_DEFAULT).to_string(),
             )
             .register("initial", 0.0.to_string())
-            .register("assign", "shared_memory[local_id] += value; ")
+            .register("update", "shared_memory[local_id] += value; ")
+            .register("assign", "output[output_position] = final_value; ")
+    }
+}
+
+impl StaticKernelSource for MeanDimSharedMemory {
+    fn source() -> SourceTemplate {
+        ReductionDimSharedMemoryRaw::source()
+            .register(
+                "shared_size",
+                (WORKGROUP_DEFAULT * WORKGROUP_DEFAULT).to_string(),
+            )
+            .register("initial", 0.0.to_string())
+            .register("update", "shared_memory[local_id] += value; ")
+            .add_template(
+                "fn mean_dim(sum: {{ elem }}, dim: u32) -> {{ elem }} { 
+                    return sum / {{ elem }}(dim);
+                }",
+            )
+            .register(
+                "assign",
+                "output[output_position] = mean_dim(final_value, shape_input_dim_reduce);",
+            )
     }
 }
 
@@ -34,6 +57,17 @@ pub fn sum_dim_shared_memory<E: WgpuElement, const D: usize>(
     dim: usize,
 ) -> WgpuTensor<E, D> {
     reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, output, dim)
+}
+
+/// Execute the mean dim kernel leveraging shared memory
+/// Probably more efficient on tensors where the dimension to reduced
+/// is much larger than the others
+pub fn mean_dim_shared_memory<E: WgpuElement, const D: usize>(
+    input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
+    dim: usize,
+) -> WgpuTensor<E, D> {
+    reduction_dim_shared_memory::<MeanDimSharedMemory, E, D>(input, output, dim)
 }
 
 fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: usize>(

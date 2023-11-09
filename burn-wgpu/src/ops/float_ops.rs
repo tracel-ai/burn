@@ -330,7 +330,8 @@ where
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         let output = init_reduce_output(&tensor, dim);
-        reduce::mean_dim(tensor, output, dim)
+        // reduce::mean_dim(tensor, output, dim)
+        reduce::mean_dim_shared_memory(tensor, output, dim)
     }
 
     fn to_full_precision<const D: usize>(
