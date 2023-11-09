@@ -41,7 +41,6 @@ impl FusionClientLocator {
                 }
                 None => {
                     let client = C::new(device.clone());
-                    println!("New client");
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client

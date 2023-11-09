@@ -393,6 +393,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         out
     }
+
     fn avg_pool2d_backward(
         x: FloatTensor<Self, 4>,
         grad: FloatTensor<Self, 4>,

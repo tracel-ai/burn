@@ -15,7 +15,8 @@ pub struct FusionTensor<C: FusionClient> {
     pub shape: Vec<usize>,
     /// The [fusion client](FusionClient).
     pub client: C,
-    // Orphan mean that a tensor is never converted into a description when it becomes read write.
+    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
     pub(crate) is_orphan: bool,
@@ -122,7 +123,7 @@ impl<C: FusionClient> Drop for FusionTensor<C> {
 /// The tensor unique identifier.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TensorId {
-    value: u64,
+    value: u128,
 }
 
 /// The status of the current tensor.
@@ -157,7 +158,7 @@ pub struct TensorDescription {
 }
 
 impl TensorId {
-    pub(crate) fn new(value: u64) -> Self {
+    pub(crate) fn new(value: u128) -> Self {
         Self { value }
     }
 }

@@ -21,6 +21,7 @@ impl FusionDevice for WgpuDevice {
         }
     }
 }
+
 impl<G, F, I> FusionBackend for Wgpu<G, F, I>
 where
     G: GraphicsApi,

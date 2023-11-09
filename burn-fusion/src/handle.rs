@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 #[derive(Default)]
 pub struct HandleContainer<B: FusionBackend> {
     handles: HashMap<TensorId, Handle<B>>,
-    counter: u64,
+    counter: u128,
     pub(crate) handles_orphan: Vec<TensorId>,
     /// The device on which all tensor are held.
     pub device: B::Device,
@@ -64,7 +64,7 @@ impl<B: FusionBackend> HandleContainer<B> {
                 Data::new(values, Shape::from(tensor.shape.clone())),
                 &self.device,
             ),
-            Handle::Existing(handle) => B::float_tensor(handle, Shape::from(tensor.shape.clone())),
+            Handle::Existing(_) => unreachable!(),
             Handle::DataInt(_) => panic!("From int unsupported when getting float tensor."),
             Handle::DataBool(_) => panic!("From bool unsupported when getting float tensor."),
         };
@@ -104,7 +104,7 @@ impl<B: FusionBackend> HandleContainer<B> {
                 Data::new(values, Shape::from(tensor.shape.clone())),
                 &self.device,
             ),
-            Handle::Existing(handle) => B::int_tensor(handle, Shape::from(tensor.shape.clone())),
+            Handle::Existing(_) => unreachable!(),
             Handle::DataFloat(_) => panic!("From float unsupported when getting int tensor."),
             Handle::DataBool(_) => panic!("From bool unsupported when getting int tensor."),
         };
@@ -147,7 +147,7 @@ impl<B: FusionBackend> HandleContainer<B> {
                 Data::new(data, Shape::from(tensor.shape.clone())),
                 &self.device,
             ),
-            Handle::Existing(handle) => B::bool_tensor(handle, Shape::from(tensor.shape.clone())),
+            Handle::Existing(_) => unreachable!(),
             Handle::DataFloat(_) => panic!("From float unsupported when getting bool tensor."),
             Handle::DataInt(_) => panic!("From int unsupported when getting bool tensor."),
         };

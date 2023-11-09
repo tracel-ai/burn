@@ -71,8 +71,8 @@ pub struct FusionProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (FusionStatus::Closed) when no more operations can better
-/// registered.
+/// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
+/// improve the performance.
 pub trait FusionOps<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     ///
