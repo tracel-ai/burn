@@ -6,6 +6,7 @@ use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::Backend;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -24,7 +25,7 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) interrupter: TrainingInterrupter,
     pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     pub(crate) event_processor: LC::EventProcessor,
-    pub(crate) event_store: Arc<EventStoreClient>,
+    pub(crate) event_store: Rc<EventStoreClient>,
 }
 
 #[derive(new)]
