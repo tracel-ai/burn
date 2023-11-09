@@ -33,10 +33,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
-                let bias = match &args.bias {
-                    Some(bias) => Some(handles.get_float_tensor(bias)),
-                    None => None,
-                };
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
 
                 let output = B::conv1d(x, weight, bias, args.options.clone());
 
@@ -89,10 +89,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
-                let bias = match &args.bias {
-                    Some(bias) => Some(handles.get_float_tensor(bias)),
-                    None => None,
-                };
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
 
                 let output = B::conv2d(x, weight, bias, args.options.clone());
 
@@ -153,10 +153,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
-                let bias = match &args.bias {
-                    Some(bias) => Some(handles.get_float_tensor(bias)),
-                    None => None,
-                };
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
 
                 let output = B::conv_transpose1d(x, weight, bias, args.options.clone());
 
@@ -210,10 +210,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
-                let bias = match &args.bias {
-                    Some(bias) => Some(handles.get_float_tensor(bias)),
-                    None => None,
-                };
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
 
                 let output = B::conv_transpose2d(x, weight, bias, args.options.clone());
 

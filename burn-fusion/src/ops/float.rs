@@ -26,8 +26,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_float(data.value, data.shape.dims.into());
-        out
+
+        client.create_tensor_float(data.value, data.shape.dims.into())
     }
 
     fn random<const D: usize>(
@@ -47,7 +47,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             ) {
                 let shape = Shape::from(out.shape.clone());
                 let output: B::TensorPrimitive<D> =
-                    B::random(shape, distribution.clone(), &handles.device);
+                    B::random(shape, *distribution, &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
@@ -124,7 +124,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, (out, value): &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(out.shape.clone());
-                let output: B::TensorPrimitive<D> = B::full(shape, value.clone(), &handles.device);
+                let output: B::TensorPrimitive<D> = B::full(shape, *value, &handles.device);
                 handles.register_float_tensor(&out.id, output);
             }
         }
@@ -205,8 +205,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape.dims.into());
-        out
+
+        client.create_tensor_empty(shape.dims.into())
     }
 
     fn add<const D: usize>(
@@ -311,7 +311,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&args.tensor);
-                let output = B::clamp(input, args.min.clone(), args.max.clone());
+                let output = B::clamp(input, args.min, args.max);
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -555,7 +555,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = shape.dims.clone().into();
+        let shape: Vec<usize> = shape.dims.into();
         let out = tensor.client.create_tensor_empty(shape.clone());
 
         tensor
@@ -1421,7 +1421,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
                     .map(|tensor| handles.get_float_tensor(tensor))
                     .collect();
 
-                let output = B::cat::<D>(tensors, args.dim.clone());
+                let output = B::cat::<D>(tensors, args.dim);
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -1543,7 +1543,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&args.tensor);
-                let (output, indices) = B::max_dim_with_indices(tensor, args.dim.clone());
+                let (output, indices) = B::max_dim_with_indices(tensor, args.dim);
 
                 handles.register_float_tensor(&args.out.id, output);
                 handles.register_int_tensor(&args.out_indices.id, indices);
@@ -1621,7 +1621,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&args.tensor);
-                let (output, indices) = B::min_dim_with_indices(tensor, args.dim.clone());
+                let (output, indices) = B::min_dim_with_indices(tensor, args.dim);
 
                 handles.register_float_tensor(&args.out.id, output);
                 handles.register_int_tensor(&args.out_indices.id, indices);

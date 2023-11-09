@@ -17,8 +17,8 @@ use burn_tensor::{
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape.dims.into());
-        out
+
+        client.create_tensor_empty(shape.dims.into())
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
@@ -36,8 +36,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_bool(data.value, data.shape.dims.into());
-        out
+
+        client.create_tensor_bool(data.value, data.shape.dims.into())
     }
 
     fn bool_into_int<const D: usize>(
@@ -138,7 +138,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = shape.dims.clone().into();
+        let shape: Vec<usize> = shape.dims.into();
         let out = tensor.client.create_tensor_empty(shape.clone());
 
         tensor
@@ -263,7 +263,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                     .map(|tensor| handles.get_bool_tensor(tensor))
                     .collect();
 
-                let output = B::bool_cat::<D>(tensors, args.dim.clone());
+                let output = B::bool_cat::<D>(tensors, args.dim);
 
                 handles.register_bool_tensor(&args.out.id, output);
             }

@@ -17,7 +17,7 @@ macro_rules! scalar_float_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = ScalarOpsDescription<$elem>;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&args.lhs);
                 let output = $ops(lhs, args.rhs.clone());
 
@@ -40,7 +40,7 @@ macro_rules! scalar_float2int_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = ScalarOpsDescription<$elem>;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&args.lhs);
                 let output = $ops(lhs, args.rhs.clone());
 
@@ -62,7 +62,7 @@ macro_rules! unary_float_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = UnaryOpsDescription;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&args.input);
                 let output = $ops(input);
 
@@ -84,7 +84,7 @@ macro_rules! unary_int_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = UnaryOpsDescription;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&args.input);
                 let output = $ops(input);
 
@@ -106,7 +106,7 @@ macro_rules! scalar_float_cmp_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = ScalarOpsDescription<FloatElem<B>>;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&args.lhs);
                 let output = $ops(lhs, args.rhs.clone());
 
@@ -128,7 +128,7 @@ macro_rules! scalar_int_cmp_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = ScalarOpsDescription<IntElem<B>>;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&args.lhs);
                 let output = $ops(lhs, args.rhs.clone());
 
@@ -157,7 +157,7 @@ macro_rules! scalar_int_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = ScalarOpsDescription<$elem>;
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
+            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&args.lhs);
                 let output = $ops(lhs, args.rhs.clone());
 

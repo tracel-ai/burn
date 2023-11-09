@@ -40,7 +40,7 @@ impl<B: FusionBackend> Graph<B> {
         }
     }
 
-    fn nodes<'a>(&'a self) -> &'a [Arc<TensorOpsDescription<B>>] {
+    fn nodes(&self) -> &[Arc<TensorOpsDescription<B>>] {
         &self.operations
     }
 

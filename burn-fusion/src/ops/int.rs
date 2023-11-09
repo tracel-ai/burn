@@ -22,8 +22,8 @@ use core::ops::Range;
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape.dims.into());
-        out
+
+        client.create_tensor_empty(shape.dims.into())
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
@@ -39,8 +39,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_int(data.value, data.shape.dims.into());
-        out
+
+        client.create_tensor_int(data.value, data.shape.dims.into())
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -82,7 +82,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let shape: Vec<usize> = shape.dims.clone().into();
+        let shape: Vec<usize> = shape.dims.into();
         let out = tensor.client.create_tensor_empty(shape.clone());
 
         tensor
@@ -455,7 +455,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                     .map(|tensor| handles.get_int_tensor(tensor))
                     .collect();
 
-                let output = B::int_cat::<D>(tensors, args.dim.clone());
+                let output = B::int_cat::<D>(tensors, args.dim);
 
                 handles.register_int_tensor(&args.out.id, output);
             }
@@ -1130,7 +1130,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D>(&args.tensor);
-                let output = B::int_clamp(input, args.min.clone(), args.max.clone());
+                let output = B::int_clamp(input, args.min, args.max);
 
                 handles.register_int_tensor(&args.out.id, output);
             }

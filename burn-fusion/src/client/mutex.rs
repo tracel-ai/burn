@@ -58,7 +58,7 @@ where
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusionBackend>::FusionDevice {
+    fn device(&self) -> &<Self::FusedBackend as FusionBackend>::FusionDevice {
         &self.device
     }
 

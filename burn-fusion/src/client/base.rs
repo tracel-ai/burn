@@ -21,7 +21,7 @@ pub trait FusionClient: Send + Sync + Clone {
     /// Sync the computation.
     fn sync(&self);
     /// Get the current device used by all operations handled by this client.
-    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusionBackend>::FusionDevice;
+    fn device(&self) -> &<Self::FusedBackend as FusionBackend>::FusionDevice;
     /// Create an empty tensor.
     fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
     /// Create a float tensor with the given values.
