@@ -123,7 +123,7 @@ impl<C: FusionClient> Drop for FusionTensor<C> {
 /// The tensor unique identifier.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TensorId {
-    value: u128,
+    value: u64,
 }
 
 /// The status of the current tensor.
@@ -158,7 +158,7 @@ pub struct TensorDescription {
 }
 
 impl TensorId {
-    pub(crate) fn new(value: u128) -> Self {
+    pub(crate) fn new(value: u64) -> Self {
         Self { value }
     }
 }

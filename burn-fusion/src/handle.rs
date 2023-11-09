@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 #[derive(Default)]
 pub struct HandleContainer<B: FusionBackend> {
     handles: HashMap<TensorId, Handle<B>>,
-    counter: u128,
+    counter: u64,
     pub(crate) handles_orphan: Vec<TensorId>,
     /// The device on which all tensor are held.
     pub device: B::Device,
