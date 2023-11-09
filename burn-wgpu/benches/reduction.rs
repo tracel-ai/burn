@@ -1,7 +1,7 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::kernel::{sum_dim, sum_dim_alt};
+use burn_wgpu::kernel::{sum_dim, sum_dim_shared_memory};
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, Wgpu};
 use derive_new::new;
@@ -73,15 +73,13 @@ macro_rules! bench_reduce {
 }
 
 bench_reduce!(FormerSumDimBenchmark, FormerSumDim, sum_dim);
-bench_reduce!(NewSumDimBenchmark, NewSumDim, sum_dim_alt);
+bench_reduce!(NewSumDimBenchmark, NewSumDim, sum_dim_shared_memory);
 
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
-    const D: usize = 3;
     let num_repeats = 3;
-    let shape = Shape::new([5, 20000, 5]);
-    // let shape = Shape::new([2000, 2000, 2000]);
+    let shape = Shape::new([50, 8000, 50]);
     let dim = 1;
 
     macro_rules! run_reduce_benchmark {

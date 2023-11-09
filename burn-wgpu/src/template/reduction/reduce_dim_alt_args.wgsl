@@ -61,6 +61,7 @@ fn main(
             let current_position = index_offset + nth * stride_input_dim_reduce;
             let value = input[current_position];
             
+            // Specialized line
             {{ assign }}
         }
     }
@@ -72,10 +73,11 @@ fn main(
         n_threads /= reduce_factor;
 
         if local_id < n_threads {
+            let write_position = local_id;
             for (var i = 1u; i < reduce_factor; i++) {
-                let read_position = local_id + i * n_threads;
+                let read_position = write_position + i * n_threads;
                 let value = shared_memory[read_position];
-                {{ assign }}
+                shared_memory[write_position] += value;
             }
         } 
 

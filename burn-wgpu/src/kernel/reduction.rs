@@ -9,10 +9,10 @@ kernel_wgsl!(RecursiveSumRaw, "../template/reduction/recursive_sum.wgsl");
 kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
 kernel_wgsl!(ReductionArgsRaw, "../template/reduction/args.wgsl");
 
-pub struct ArgsMax;
-pub struct ArgsMin;
-pub struct SumDim;
-pub struct MeanDim;
+pub(crate) struct ArgsMax;
+pub(crate) struct ArgsMin;
+pub(crate) struct SumDim;
+pub(crate) struct MeanDim;
 
 impl StaticKernelSource for SumDim {
     fn source() -> SourceTemplate {
