@@ -1,6 +1,6 @@
 use crate::{
     graph::{GraphExecution, TensorOpsDescription},
-    FusedBackend, FusionTensor, TensorDescription, TensorId,
+    FusionBackend, FusionTensor, TensorDescription, TensorId,
 };
 use burn_tensor::{
     ops::{FloatElem, IntElem},
@@ -10,18 +10,18 @@ use burn_tensor::{
 /// Define how to interact with the fusion server.
 pub trait FusionClient: Send + Sync + Clone {
     /// The [fused backend](FusedBackend) associated type.
-    type FusedBackend: FusedBackend;
+    type FusedBackend: FusionBackend;
     /// The [graph execution](GraphExecution) associated type.
     type GraphExecution: GraphExecution<Self::FusedBackend>;
 
     /// Create a new client for the given [handle device](FusedBackend::HandleDevice).
-    fn new(device: <Self::FusedBackend as FusedBackend>::HandleDevice) -> Self;
+    fn new(device: <Self::FusedBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
     fn register(&self, ops: TensorOpsDescription<Self::FusedBackend>);
     /// Sync the computation.
     fn sync(&self);
     /// Get the current device used by all operations handled by this client.
-    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice;
+    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusionBackend>::FusionDevice;
     /// Create an empty tensor.
     fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
     /// Create a float tensor with the given values.

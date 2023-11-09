@@ -1,10 +1,10 @@
 use crate::{tensor::WgpuFusionHandle, FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice};
 use burn_fusion::{
-    client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusedBackend, HandleDevice,
+    client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
 };
 use burn_tensor::Shape;
 
-impl HandleDevice for WgpuDevice {
+impl FusionDevice for WgpuDevice {
     fn id(&self) -> DeviceId {
         match self {
             WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
@@ -15,17 +15,17 @@ impl HandleDevice for WgpuDevice {
         }
     }
 }
-impl<G, F, I> FusedBackend for Wgpu<G, F, I>
+impl<G, F, I> FusionBackend for Wgpu<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    type HandleDevice = WgpuDevice;
+    type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 
-    fn operations() -> Vec<Box<dyn burn_fusion::FusedOps<Self>>> {
+    fn operations() -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
         Vec::new()
     }
 

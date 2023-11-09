@@ -1,7 +1,7 @@
 use super::FusionClient;
 use crate::{
     graph::{GraphExecution, TensorOpsDescription},
-    FusedBackend, FusionServer, FusionTensor,
+    FusionBackend, FusionServer, FusionTensor,
 };
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
@@ -10,16 +10,16 @@ use std::sync::Arc;
 /// Use a mutex to communicate with the fusion server.
 pub struct MutexFusionClient<B, G>
 where
-    B: FusedBackend,
+    B: FusionBackend,
     G: GraphExecution<B>,
 {
     server: Arc<Mutex<FusionServer<B, G>>>,
-    device: B::HandleDevice,
+    device: B::FusionDevice,
 }
 
 impl<B, G> Clone for MutexFusionClient<B, G>
 where
-    B: FusedBackend,
+    B: FusionBackend,
     G: GraphExecution<B>,
 {
     fn clone(&self) -> Self {
@@ -32,13 +32,13 @@ where
 
 impl<B, G> FusionClient for MutexFusionClient<B, G>
 where
-    B: FusedBackend,
+    B: FusionBackend,
     G: GraphExecution<B>,
 {
     type FusedBackend = B;
     type GraphExecution = G;
 
-    fn new(device: B::HandleDevice) -> Self {
+    fn new(device: B::FusionDevice) -> Self {
         Self {
             device: device.clone(),
             server: Arc::new(Mutex::new(FusionServer::new(device))),
@@ -58,7 +58,7 @@ where
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusedBackend>::HandleDevice {
+    fn device<'a>(&'a self) -> &'a <Self::FusedBackend as FusionBackend>::FusionDevice {
         &self.device
     }
 

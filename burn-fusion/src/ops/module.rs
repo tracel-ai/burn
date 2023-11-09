@@ -7,7 +7,7 @@ use crate::{
         MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription, Ops,
         TensorOpsDescription,
     },
-    FusedBackend, Fusion,
+    Fusion, FusionBackend,
 };
 use burn_tensor::ops::{
     conv::{
@@ -18,7 +18,7 @@ use burn_tensor::ops::{
     MaxPool2dWithIndices, ModuleOps,
 };
 
-impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
+impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
@@ -27,7 +27,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 3> {
         struct Conv1dOps;
 
-        impl<B: FusedBackend> Ops<B> for Conv1dOps {
+        impl<B: FusionBackend> Ops<B> for Conv1dOps {
             type Args = Conv1dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -83,7 +83,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct Conv2dOps;
 
-        impl<B: FusedBackend> Ops<B> for Conv2dOps {
+        impl<B: FusionBackend> Ops<B> for Conv2dOps {
             type Args = Conv2dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -147,7 +147,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 3> {
         struct ConvTranspose1dOps;
 
-        impl<B: FusedBackend> Ops<B> for ConvTranspose1dOps {
+        impl<B: FusionBackend> Ops<B> for ConvTranspose1dOps {
             type Args = ConvTranspose1dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -204,7 +204,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct ConvTranspose2dOps;
 
-        impl<B: FusedBackend> Ops<B> for ConvTranspose2dOps {
+        impl<B: FusionBackend> Ops<B> for ConvTranspose2dOps {
             type Args = ConvTranspose2dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -271,7 +271,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct AvgPool2dOps;
 
-        impl<B: FusedBackend> Ops<B> for AvgPool2dOps {
+        impl<B: FusionBackend> Ops<B> for AvgPool2dOps {
             type Args = AvgPool2dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -328,7 +328,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct AvgPool2dBackwardOps;
 
-        impl<B: FusedBackend> Ops<B> for AvgPool2dBackwardOps {
+        impl<B: FusionBackend> Ops<B> for AvgPool2dBackwardOps {
             type Args = AvgPool2dBackwardDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -376,7 +376,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct MaxPool2dOps;
 
-        impl<B: FusedBackend> Ops<B> for MaxPool2dOps {
+        impl<B: FusionBackend> Ops<B> for MaxPool2dOps {
             type Args = MaxPool2dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -442,7 +442,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> MaxPool2dWithIndices<Self> {
         struct MaxPool2dWithIndicesOps;
 
-        impl<B: FusedBackend> Ops<B> for MaxPool2dWithIndicesOps {
+        impl<B: FusionBackend> Ops<B> for MaxPool2dWithIndicesOps {
             type Args = MaxPool2dWithIndicesDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -513,7 +513,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> MaxPool2dBackward<Self> {
         struct MaxPool2dWithIndicesBackwardOps;
 
-        impl<B: FusedBackend> Ops<B> for MaxPool2dWithIndicesBackwardOps {
+        impl<B: FusionBackend> Ops<B> for MaxPool2dWithIndicesBackwardOps {
             type Args = MaxPool2dWithIndicesBackwardDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -561,7 +561,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct AdaptiveAvgPool2dOps;
 
-        impl<B: FusedBackend> Ops<B> for AdaptiveAvgPool2dOps {
+        impl<B: FusionBackend> Ops<B> for AdaptiveAvgPool2dOps {
             type Args = AdaptiveAvgPool2dDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -599,7 +599,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> FloatTensor<Self, 4> {
         struct AdaptiveAvgPool2dBackwardOps;
 
-        impl<B: FusedBackend> Ops<B> for AdaptiveAvgPool2dBackwardOps {
+        impl<B: FusionBackend> Ops<B> for AdaptiveAvgPool2dBackwardOps {
             type Args = AdaptiveAvgPool2dBackwardDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {

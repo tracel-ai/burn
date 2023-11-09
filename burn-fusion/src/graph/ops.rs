@@ -1,4 +1,4 @@
-use crate::FusedBackend;
+use crate::FusionBackend;
 use crate::{HandleContainer, TensorDescription};
 use burn_tensor::ops::FloatElem;
 use burn_tensor::{
@@ -8,7 +8,7 @@ use burn_tensor::{
 use std::ops::Range;
 
 /// Describe all tensor operations possible.
-pub enum TensorOpsDescription<B: FusedBackend> {
+pub enum TensorOpsDescription<B: FusionBackend> {
     /// Basic operation on a float tensor.
     BaseOpsFloat(BaseOpsDescription<B>),
     /// Basic operation on an int tensor.
@@ -30,7 +30,7 @@ pub enum TensorOpsDescription<B: FusedBackend> {
 }
 
 /// Operation description specific to a float tensor.
-pub enum FloatOpsDescription<B: FusedBackend> {
+pub enum FloatOpsDescription<B: FusionBackend> {
     /// Operation corresponding to [exp](burn_tensor::ops::TensorOps::exp).
     Exp(
         UnaryOpsDescription,
@@ -94,7 +94,7 @@ pub enum FloatOpsDescription<B: FusedBackend> {
 }
 
 /// Operation description specific to module.
-pub enum ModuleOpsDescription<B: FusedBackend> {
+pub enum ModuleOpsDescription<B: FusionBackend> {
     /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
     Embedding(
         EmbeddingDescription,
@@ -204,7 +204,7 @@ pub enum ModuleOpsDescription<B: FusedBackend> {
 }
 
 /// Basic operations that can be done on any tensor type.
-pub enum BaseOpsDescription<B: FusedBackend> {
+pub enum BaseOpsDescription<B: FusionBackend> {
     /// Operation corresponding to:
     ///
     /// Float => [to device](burn_tensor::ops::TensorOps::to_device).
@@ -277,7 +277,7 @@ pub enum BaseOpsDescription<B: FusedBackend> {
 }
 
 /// General trait to abstract how a single operation is executed.
-pub trait Ops<B: FusedBackend>: Send + Sync {
+pub trait Ops<B: FusionBackend>: Send + Sync {
     /// The argument necessary for the execution to happen.
     type Args: Send + Sync;
 
@@ -286,7 +286,7 @@ pub trait Ops<B: FusedBackend>: Send + Sync {
 }
 
 /// Numeric operations on int and float tensors.
-pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
+pub enum NumericOpsDescription<B: FusionBackend, E: Element> {
     /// Operation corresponding to:
     ///
     /// Float => [add](burn_tensor::ops::TensorOps::add).
@@ -620,7 +620,7 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
 }
 
 /// Operation description specific to an int tensor.
-pub enum IntOpsDescription<B: FusedBackend> {
+pub enum IntOpsDescription<B: FusionBackend> {
     /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
     IntoFloat(
         UnaryOpsDescription,
@@ -629,7 +629,7 @@ pub enum IntOpsDescription<B: FusedBackend> {
 }
 
 /// Operation description specific to a bool tensor.
-pub enum BoolOpsDescription<B: FusedBackend> {
+pub enum BoolOpsDescription<B: FusionBackend> {
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(
         UnaryOpsDescription,
@@ -647,36 +647,46 @@ pub enum BoolOpsDescription<B: FusedBackend> {
     ),
 }
 
+/// Swap dim operation description.
 pub struct SwapDimsDescription {
+    /// Input tensor description.
     pub input: TensorDescription,
+    /// output tensor description.
     pub out: TensorDescription,
+    /// The first dim to swap.
     pub dim1: usize,
+    /// The second dim to swap.
     pub dim2: usize,
 }
 
+#[allow(missing_docs)]
 pub struct ReshapeDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
     pub shape: Vec<usize>,
 }
 
+#[allow(missing_docs)]
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
     pub rhs: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct UnaryOpsDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ScalarOpsDescription<E> {
     pub lhs: TensorDescription,
     pub rhs: E,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct GatherOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -684,6 +694,7 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ScatterOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -692,6 +703,7 @@ pub struct ScatterOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct SelectOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -699,6 +711,7 @@ pub struct SelectOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct SelectAssignOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -707,18 +720,22 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct SliceOpsDescription {
     pub tensor: TensorDescription,
     pub ranges: Vec<Range<usize>>,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct SliceAssignOpsDescription {
     pub tensor: TensorDescription,
     pub ranges: Vec<Range<usize>>,
     pub value: TensorDescription,
     pub out: TensorDescription,
 }
+
+#[allow(missing_docs)]
 pub struct MaskWhereOpsDescription {
     pub tensor: TensorDescription,
     pub mask: TensorDescription,
@@ -726,6 +743,7 @@ pub struct MaskWhereOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaskFillOpsDescription<E> {
     pub tensor: TensorDescription,
     pub mask: TensorDescription,
@@ -733,12 +751,15 @@ pub struct MaskFillOpsDescription<E> {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ClampOpsDescription<E> {
     pub tensor: TensorDescription,
     pub min: E,
     pub max: E,
     pub out: TensorDescription,
 }
+
+#[allow(missing_docs)]
 pub struct RepeatOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -747,12 +768,14 @@ pub struct RepeatOpsDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct CatOpsDescription {
     pub tensors: Vec<TensorDescription>,
     pub dim: usize,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ReduceDimWithIndicesDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
@@ -760,12 +783,14 @@ pub struct ReduceDimWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct EmbeddingDescription {
     pub weights: TensorDescription,
     pub indices: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct EmbeddingBackwardDescription {
     pub weights: TensorDescription,
     pub out_grad: TensorDescription,
@@ -773,6 +798,7 @@ pub struct EmbeddingBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct Conv1dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -781,6 +807,7 @@ pub struct Conv1dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct Conv2dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -789,6 +816,7 @@ pub struct Conv2dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -797,6 +825,7 @@ pub struct ConvTranspose1dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct ConvTranspose2dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -805,6 +834,7 @@ pub struct ConvTranspose2dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AvgPool1dDescription {
     pub x: TensorDescription,
     pub kernel_size: usize,
@@ -814,6 +844,7 @@ pub struct AvgPool1dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AvgPool2dDescription {
     pub x: TensorDescription,
     pub kernel_size: [usize; 2],
@@ -823,6 +854,7 @@ pub struct AvgPool2dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AvgPool1dBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
@@ -833,6 +865,7 @@ pub struct AvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AvgPool2dBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
@@ -843,30 +876,35 @@ pub struct AvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dDescription {
     pub x: TensorDescription,
     pub output_size: usize,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dDescription {
     pub x: TensorDescription,
     pub output_size: [usize; 2],
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool1dDescription {
     pub x: TensorDescription,
     pub kernel_size: usize,
@@ -876,6 +914,7 @@ pub struct MaxPool1dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesDescription {
     pub x: TensorDescription,
     pub kernel_size: usize,
@@ -886,6 +925,7 @@ pub struct MaxPool1dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
@@ -897,6 +937,7 @@ pub struct MaxPool1dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool2dDescription {
     pub x: TensorDescription,
     pub kernel_size: [usize; 2],
@@ -906,6 +947,7 @@ pub struct MaxPool2dDescription {
     pub out: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesDescription {
     pub x: TensorDescription,
     pub kernel_size: [usize; 2],
@@ -916,6 +958,7 @@ pub struct MaxPool2dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesBackwardDescription {
     pub x: TensorDescription,
     pub grad: TensorDescription,
@@ -927,7 +970,7 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
-impl<B: FusedBackend> TensorOpsDescription<B> {
+impl<B: FusionBackend> TensorOpsDescription<B> {
     /// Cleanup the remaining tensor handles that have not been used.
     pub(crate) fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
@@ -943,7 +986,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
         }
 
         // Cleanup tensor handles that were outputed, but ingored.
-        handles.cleanup_unused();
+        handles.cleanup_orphans();
     }
     /// Execute the operation.
     pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
@@ -961,7 +1004,7 @@ impl<B: FusedBackend> TensorOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend> BaseOpsDescription<B> {
+impl<B: FusionBackend> BaseOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             BaseOpsDescription::ToDevice(_, _) => (),
@@ -1006,7 +1049,7 @@ impl<B: FusedBackend> BaseOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
+impl<B: FusionBackend, E: Element> NumericOpsDescription<B, E> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             NumericOpsDescription::Add(desc, _) => {
@@ -1197,7 +1240,7 @@ impl<B: FusedBackend, E: Element> NumericOpsDescription<B, E> {
     }
 }
 
-impl<B: FusedBackend> FloatOpsDescription<B> {
+impl<B: FusionBackend> FloatOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             FloatOpsDescription::Matmul(desc, _) => {
@@ -1235,7 +1278,7 @@ impl<B: FusedBackend> FloatOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend> IntOpsDescription<B> {
+impl<B: FusionBackend> IntOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             IntOpsDescription::IntoFloat(desc, _) => {
@@ -1250,7 +1293,7 @@ impl<B: FusedBackend> IntOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend> BoolOpsDescription<B> {
+impl<B: FusionBackend> BoolOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             BoolOpsDescription::IntoFloat(desc, _) => {
@@ -1273,7 +1316,7 @@ impl<B: FusedBackend> BoolOpsDescription<B> {
     }
 }
 
-impl<B: FusedBackend> ModuleOpsDescription<B> {
+impl<B: FusionBackend> ModuleOpsDescription<B> {
     fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
         match self {
             ModuleOpsDescription::Embedding(desc, _) => {

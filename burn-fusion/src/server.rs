@@ -1,29 +1,29 @@
 use crate::{
     graph::{Graph, GraphExecution, Optimization, TensorOpsDescription},
-    FusedBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
+    FusionBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
 
 pub struct FusionServer<B, G>
 where
-    B: FusedBackend,
+    B: FusionBackend,
     G: GraphExecution<B>,
 {
     optimizations: Vec<Optimization<B>>,
     graph: Graph<B>,
     pub(crate) handles: HandleContainer<B>,
     execution: G,
-    pub device: B::HandleDevice,
+    pub device: B::FusionDevice,
 }
 
 /// Trait name graph execution strategy.
 impl<B, G> FusionServer<B, G>
 where
-    B: FusedBackend,
+    B: FusionBackend,
     G: GraphExecution<B>,
 {
-    pub fn new(device: B::HandleDevice) -> Self {
+    pub fn new(device: B::FusionDevice) -> Self {
         let optimizations = B::operations()
             .into_iter()
             .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
@@ -64,19 +64,19 @@ where
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
-        self.handles.create_emtpy()
+        self.handles.create_tensor_emtpy()
     }
 
     pub fn create_float_handle(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
-        self.handles.create_float(values)
+        self.handles.create_tensor_float(values)
     }
 
     pub fn create_int_handle(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
-        self.handles.create_int(values)
+        self.handles.create_tensor_int(values)
     }
 
     pub fn create_bool_handle(&mut self, values: Vec<bool>) -> Arc<TensorId> {
-        self.handles.create_bool(values)
+        self.handles.create_tensor_bool(values)
     }
 
     pub fn read_float<const D: usize>(
@@ -165,6 +165,6 @@ where
     }
 
     pub fn drop_tensor_handle(&mut self, id: TensorId) {
-        self.handles.handles_to_drop.push(id);
+        self.handles.handles_orphan.push(id);
     }
 }

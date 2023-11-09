@@ -1,3 +1,4 @@
+#[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
 macro_rules! binary_float_ops {
     (
@@ -6,7 +7,7 @@ macro_rules! binary_float_ops {
     ) => {
         struct $name<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = BinaryOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -20,6 +21,7 @@ macro_rules! binary_float_ops {
     };
 }
 
+#[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
 macro_rules! binary_float_cmp_ops {
     (
@@ -28,7 +30,7 @@ macro_rules! binary_float_cmp_ops {
     ) => {
         struct $name<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = BinaryOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -42,6 +44,7 @@ macro_rules! binary_float_cmp_ops {
     };
 }
 
+#[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
 macro_rules! binary_int_cmp_ops {
     (
@@ -50,7 +53,7 @@ macro_rules! binary_int_cmp_ops {
     ) => {
         struct $name<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = BinaryOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -74,6 +77,7 @@ pub(crate) fn binary_ops_shape(lhs: &Vec<usize>, rhs: &Vec<usize>) -> Vec<usize>
     shape_out
 }
 
+#[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
 macro_rules! binary_int_ops {
     (
@@ -82,7 +86,7 @@ macro_rules! binary_int_ops {
     ) => {
         struct $name<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             type Args = BinaryOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {

@@ -1,10 +1,11 @@
-use crate::{client::FusionClient, DeviceId, FusedBackend, HandleDevice};
+use crate::{client::FusionClient, DeviceId, FusionBackend, FusionDevice};
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
-pub type Handle<B> = <B as FusedBackend>::Handle;
+/// Type alias for [fusion backend handle](FusionBackend::Handle).
+pub type Handle<B> = <B as FusionBackend>::Handle;
 type Key = (core::any::TypeId, DeviceId);
 
-pub struct FusionClientLocator {
+pub(crate) struct FusionClientLocator {
     clients: spin::Mutex<Option<HashMap<Key, Box<dyn core::any::Any + Send>>>>,
 }
 
@@ -21,7 +22,7 @@ impl FusionClientLocator {
     /// Provide the init function to create a new client if it isn't already initialized.
     pub fn client<C: FusionClient + 'static>(
         &self,
-        device: &<C::FusedBackend as FusedBackend>::HandleDevice,
+        device: &<C::FusedBackend as FusionBackend>::FusionDevice,
     ) -> C {
         let device_id = device.id();
         let client_id = (core::any::TypeId::of::<C>(), device_id);

@@ -1,13 +1,13 @@
 use super::TensorOpsDescription;
-use crate::{FusedBackend, FusedOps, FusionProperties, FusionStatus, HandleContainer};
+use crate::{FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer};
 use std::{ops::RangeBounds, sync::Arc, vec::Drain};
 
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
-pub struct Graph<B: FusedBackend> {
+pub struct Graph<B: FusionBackend> {
     operations: Vec<Arc<TensorOpsDescription<B>>>,
 }
 
-impl<B: FusedBackend> Graph<B> {
+impl<B: FusionBackend> Graph<B> {
     pub(crate) fn new() -> Self {
         Self {
             operations: Vec::new(),
@@ -75,14 +75,14 @@ impl<B: FusedBackend> Graph<B> {
 
 /// An optimization that can be executed.
 #[derive(new)]
-pub struct Optimization<B: FusedBackend> {
+pub struct Optimization<B: FusionBackend> {
     /// The [fused operation](FusedOps) to potentially be executed.
-    pub ops: Box<dyn FusedOps<B>>,
+    pub ops: Box<dyn FusionOps<B>>,
     /// The current status of the optimization.
     pub status: FusionStatus,
 }
 
-impl<B: FusedBackend> Optimization<B> {
+impl<B: FusionBackend> Optimization<B> {
     pub(crate) fn register(&mut self, ops: &Arc<TensorOpsDescription<B>>) {
         match self.status {
             FusionStatus::Closed(_) => return,

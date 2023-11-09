@@ -1,6 +1,7 @@
 use crate::{
     binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
+    get_client,
     graph::{
         BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         FloatOpsDescription, GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
@@ -10,8 +11,8 @@ use crate::{
         TensorOpsDescription, UnaryOpsDescription,
     },
     ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, FusedBackend,
-    Fusion, TensorDescription,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, Fusion,
+    FusionBackend, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -19,12 +20,12 @@ use burn_tensor::{
 };
 use std::ops::Range;
 
-impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
+impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_float(data.value, data.shape.dims.into());
         out
     }
@@ -36,7 +37,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct RandomOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for RandomOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for RandomOps<D> {
             type Args = (TensorDescription, Distribution<FloatElem<B>>);
 
             fn execute(
@@ -52,7 +53,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_empty(shape);
 
         client.register(TensorOpsDescription::FloatOps(FloatOpsDescription::Random(
@@ -66,7 +67,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         struct ZerosOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for ZerosOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for ZerosOps<D> {
             type Args = TensorDescription;
 
             fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -77,7 +78,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_empty(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
@@ -90,7 +91,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         struct OnesOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for OnesOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for OnesOps<D> {
             type Args = TensorDescription;
 
             fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -101,7 +102,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_empty(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
@@ -118,7 +119,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct FullOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for FullOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for FullOps<D> {
             type Args = (TensorDescription, FloatElem<B>);
 
             fn execute(&self, (out, value): &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -129,7 +130,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_empty(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
@@ -158,14 +159,14 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        let device_original: &B::HandleDevice = tensor.client.device();
-        let device_target: B::HandleDevice = device.clone().into();
+        let device_original: &B::FusionDevice = tensor.client.device();
+        let device_target: B::FusionDevice = device.clone().into();
 
         if device_original == &device_target {
             return tensor;
         }
 
-        let client_target = B::client(&device_target);
+        let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
         client_original
@@ -176,7 +177,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
         struct IntoIntOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for IntoIntOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for IntoIntOps<D> {
             type Args = UnaryOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -203,7 +204,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     }
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        let client = B::client(&device.clone().into());
+        let client = get_client::<B>(&device.clone().into());
         let out = client.create_tensor_empty(shape.dims.into());
         out
     }
@@ -305,7 +306,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct ClampOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for ClampOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for ClampOps<D> {
             type Args = ClampOpsDescription<FloatElem<B>>;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -504,7 +505,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct SwapDimsOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for SwapDimsOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for SwapDimsOps<D> {
             type Args = SwapDimsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -544,7 +545,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D2> {
         struct ReshapeDimsOps<const D1: usize, const D2: usize>;
 
-        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
             type Args = ReshapeDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -581,7 +582,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct GatherOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for GatherOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for GatherOps<D> {
             type Args = GatherOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -622,7 +623,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct ScatterOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for ScatterOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for ScatterOps<D> {
             type Args = ScatterOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -665,7 +666,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct SelectOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for SelectOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for SelectOps<D> {
             type Args = SelectOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -708,7 +709,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct SelectAssignOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for SelectAssignOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for SelectAssignOps<D> {
             type Args = SelectAssignOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -750,7 +751,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D1> {
         struct SliceOps<const D1: usize, const D2: usize>;
 
-        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for SliceOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceOps<D1, D2> {
             type Args = SliceOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -794,7 +795,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D1> {
         struct SliceAssignOps<const D1: usize, const D2: usize>;
 
-        impl<const D1: usize, const D2: usize, B: FusedBackend> Ops<B> for SliceAssignOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceAssignOps<D1, D2> {
             type Args = SliceAssignOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -839,7 +840,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct MaskWhereOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for MaskWhereOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for MaskWhereOps<D> {
             type Args = MaskWhereOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -881,7 +882,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         struct MaskFillOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for MaskFillOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for MaskFillOps<D> {
             type Args = MaskFillOpsDescription<FloatElem<B>>;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -1410,7 +1411,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
         struct CatOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for CatOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for CatOps<D> {
             type Args = CatOpsDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -1537,7 +1538,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> (FloatTensor<Self, D>, IntTensor<Self, D>) {
         struct MaxDimWithIndicesOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for MaxDimWithIndicesOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for MaxDimWithIndicesOps<D> {
             type Args = ReduceDimWithIndicesDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
@@ -1615,7 +1616,7 @@ impl<B: FusedBackend> TensorOps<Self> for Fusion<B> {
     ) -> (FloatTensor<Self, D>, IntTensor<Self, D>) {
         struct MinDimWithIndicesOps<const D: usize>;
 
-        impl<const D: usize, B: FusedBackend> Ops<B> for MinDimWithIndicesOps<D> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for MinDimWithIndicesOps<D> {
             type Args = ReduceDimWithIndicesDescription;
 
             fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {

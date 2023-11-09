@@ -1,5 +1,10 @@
 #![warn(missing_docs)]
 
+//! # Burn Fusion
+//!
+//! This library is a part of the Burn project. It is a standalone crate that
+//! can be used to perform automatic operation fusion on backends that support it.
+
 #[macro_use]
 extern crate derive_new;
 

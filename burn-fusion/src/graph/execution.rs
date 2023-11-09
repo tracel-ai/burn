@@ -1,8 +1,8 @@
 use super::{Graph, Optimization};
-use crate::{FusedBackend, FusionStatus, HandleContainer};
+use crate::{FusionBackend, FusionStatus, HandleContainer};
 
 /// The graph execution trait abstract the way the graph is executing optimizations.
-pub trait GraphExecution<B: FusedBackend>: Default + Send {
+pub trait GraphExecution<B: FusionBackend>: Default + Send {
     /// Maybe execute the given graph using the list of potential [optimizations](Optimization).
     fn maybe_execute(
         &mut self,
@@ -17,7 +17,7 @@ pub trait GraphExecution<B: FusedBackend>: Default + Send {
 #[derive(Default)]
 pub struct GreedyGraphExecution;
 
-impl<B: FusedBackend> GraphExecution<B> for GreedyGraphExecution {
+impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
     fn maybe_execute(
         &mut self,
         graph: &mut Graph<B>,
@@ -43,7 +43,7 @@ impl<B: FusedBackend> GraphExecution<B> for GreedyGraphExecution {
     }
 }
 
-fn still_optimizing<B: FusedBackend>(optimizations: &[Optimization<B>]) -> bool {
+fn still_optimizing<B: FusionBackend>(optimizations: &[Optimization<B>]) -> bool {
     let mut num_stopped = 0;
 
     for optimization in optimizations.iter() {
@@ -56,7 +56,7 @@ fn still_optimizing<B: FusedBackend>(optimizations: &[Optimization<B>]) -> bool 
     num_stopped < optimizations.len()
 }
 
-fn find_best_optimization_index<B: FusedBackend>(
+fn find_best_optimization_index<B: FusionBackend>(
     optimizations: &[Optimization<B>],
 ) -> Option<usize> {
     let mut best_index = None;

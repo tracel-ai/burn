@@ -1,19 +1,22 @@
-use crate::{FusedBackend, TensorDescription, TensorId, TensorStatus};
+use crate::{FusionBackend, TensorDescription, TensorId, TensorStatus};
 use burn_tensor::{
     ops::{FloatElem, IntElem},
     Data, ElementConversion, Shape,
 };
 use std::{collections::HashMap, sync::Arc};
 
+/// Keep all [tensor handles](FusionBackend::Handle) in one place and ensure that all ressources
+/// are used optimally.
 #[derive(Default)]
-pub struct HandleContainer<B: FusedBackend> {
+pub struct HandleContainer<B: FusionBackend> {
     handles: HashMap<TensorId, Handle<B>>,
     counter: u64,
-    pub(crate) handles_to_drop: Vec<TensorId>,
+    pub(crate) handles_orphan: Vec<TensorId>,
+    /// The device on which all tensor are held.
     pub device: B::Device,
 }
 
-enum Handle<B: FusedBackend> {
+enum Handle<B: FusionBackend> {
     Empty,
     DataFloat(Vec<FloatElem<B>>),
     DataInt(Vec<IntElem<B>>),
@@ -21,16 +24,18 @@ enum Handle<B: FusedBackend> {
     Existing(B::Handle),
 }
 
-impl<B: FusedBackend> HandleContainer<B> {
-    pub fn new(device_handle: B::HandleDevice) -> Self {
+impl<B: FusionBackend> HandleContainer<B> {
+    pub(crate) fn new(device_handle: B::FusionDevice) -> Self {
         Self {
             handles: HashMap::new(),
-            handles_to_drop: Vec::new(),
+            handles_orphan: Vec::new(),
             counter: 0,
             device: device_handle.clone().into(),
         }
     }
 
+    /// Get the [float tensor](burn_tensor::backend::Backend::TensorPrimitive) corresponding to the
+    /// given [tensor description](TensorDescription).
     pub fn get_float_tensor<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
@@ -72,6 +77,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         output
     }
 
+    /// Get the [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) corresponding to the
+    /// given [tensor description](TensorDescription).
     pub fn get_int_tensor<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
@@ -110,6 +117,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         output
     }
 
+    /// Get the [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) corresponding to the
+    /// given [tensor description](TensorDescription).
     pub fn get_bool_tensor<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
@@ -151,6 +160,7 @@ impl<B: FusedBackend> HandleContainer<B> {
         output
     }
 
+    /// Register a new [float tensor](burn_tensor::backend::Backend::TensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_float_tensor<const D: usize>(
         &mut self,
         id: &TensorId,
@@ -160,10 +170,7 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
-    pub fn register_handle(&mut self, id: TensorId, handle: B::Handle) {
-        self.handles.insert(id.clone(), Handle::Existing(handle));
-    }
-
+    /// Register a new [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_int_tensor<const D: usize>(
         &mut self,
         id: &TensorId,
@@ -173,6 +180,7 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
+    /// Register a new [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_bool_tensor<const D: usize>(
         &mut self,
         id: &TensorId,
@@ -182,7 +190,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
 
-    pub fn create_emtpy(&mut self) -> Arc<TensorId> {
+    /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
+    pub fn create_tensor_emtpy(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::Empty);
@@ -190,7 +199,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub fn create_float(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
+    /// Lazily create a new float tensor and return its corresponding [tensor id](TensorId).
+    pub(crate) fn create_tensor_float(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataFloat(values));
@@ -198,7 +208,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub fn create_int(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
+    /// Lazily create a new int tensor and return its corresponding [tensor id](TensorId).
+    pub(crate) fn create_tensor_int(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataInt(values));
@@ -206,7 +217,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub fn create_bool(&mut self, values: Vec<bool>) -> Arc<TensorId> {
+    /// Lazily create a new bool tensor and return its corresponding [tensor id](TensorId).
+    pub(crate) fn create_tensor_bool(&mut self, values: Vec<bool>) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::DataBool(values));
@@ -214,7 +226,7 @@ impl<B: FusedBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub fn cleanup(&mut self, tensor: &TensorDescription) {
+    pub(crate) fn cleanup(&mut self, tensor: &TensorDescription) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
@@ -224,8 +236,8 @@ impl<B: FusedBackend> HandleContainer<B> {
         }
     }
 
-    pub fn cleanup_unused(&mut self) {
-        for id in self.handles_to_drop.drain(..) {
+    pub(crate) fn cleanup_orphans(&mut self) {
+        for id in self.handles_orphan.drain(..) {
             self.handles.remove(&id);
         }
     }
