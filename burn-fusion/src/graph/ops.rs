@@ -435,206 +435,212 @@ pub enum NumericOpsDescription<B: FusedBackend, E: Element> {
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [mean](burn_tensor::ops::TensorOps::mean).
+    /// Int => [mean](burn_tensor::ops::IntTensorOps::int_mean).
     Mean(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [sum](burn_tensor::ops::TensorOps::sum).
+    /// Int => [sum](burn_tensor::ops::IntTensorOps::int_sum).
     Sum(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [sum dim](burn_tensor::ops::TensorOps::sum_dim).
+    /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
     SumDim(
         ScalarOpsDescription<usize>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [equal elem](burn_tensor::ops::TensorOps::equal_elem).
+    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
     EqualElem(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [greater](burn_tensor::ops::TensorOps::greater).
+    /// Int => [greater](burn_tensor::ops::IntTensorOps::int_greater).
     Greater(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [greater elem](burn_tensor::ops::TensorOps::greater_elem).
+    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
     GreaterElem(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [greater equal](burn_tensor::ops::TensorOps::greater_elem).
+    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
     GreaterEqual(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [greater equal elem](burn_tensor::ops::TensorOps::greater_equal_elem).
+    /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
     GreaterEqualElem(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [lower](burn_tensor::ops::TensorOps::lower).
+    /// Int => [lower](burn_tensor::ops::IntTensorOps::int_lower).
     Lower(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [lower elem](burn_tensor::ops::TensorOps::lower_elem).
+    /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
     LowerElem(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [lower equal](burn_tensor::ops::TensorOps::lower_equal).
+    /// Int => [lower equal](burn_tensor::ops::IntTensorOps::int_lower_equal).
     LowerEqual(
         BinaryOpsDescription,
         Box<dyn Ops<B, Args = BinaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [lower equal elem](burn_tensor::ops::TensorOps::lower_equal_elem).
+    /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
     LowerEqualElem(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [argmax](burn_tensor::ops::TensorOps::argmax).
+    /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
     ArgMax(
         ScalarOpsDescription<usize>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [argmin](burn_tensor::ops::TensorOps::argmin).
+    /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
     ArgMin(
         ScalarOpsDescription<usize>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [max](burn_tensor::ops::TensorOps::max).
+    /// Int => [max](burn_tensor::ops::IntTensorOps::int_max).
     Max(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [max dim with indicies](burn_tensor::ops::TensorOps::max_dim_with_indices).
+    /// Int => [max dim with indicies](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
     MaxDimWithIndices(
         ReduceDimWithIndicesDescription,
         Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [min dim with indicies](burn_tensor::ops::TensorOps::min_dim_with_indices).
+    /// Int => [min dim with indicies](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
     MinDimWithIndices(
         ReduceDimWithIndicesDescription,
         Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [min](burn_tensor::ops::TensorOps::min).
+    /// Int => [min](burn_tensor::ops::IntTensorOps::int_min).
     Min(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [max dim](burn_tensor::ops::TensorOps::max_dim).
+    /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
     MaxDim(
         ScalarOpsDescription<usize>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [min dim](burn_tensor::ops::TensorOps::min_dim).
+    /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
     MinDim(
         ScalarOpsDescription<usize>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
+    /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(
         ClampOpsDescription<E>,
         Box<dyn Ops<B, Args = ClampOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [clamp max](burn_tensor::ops::TensorOps::clamp_max).
+    /// Int => [clamp max](burn_tensor::ops::IntTensorOps::int_clamp_max).
     ClampMax(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [clamp min](burn_tensor::ops::TensorOps::clamp_min).
+    /// Int => [cleamp min](burn_tensor::ops::IntTensorOps::int_clamp_min).
     ClampMin(
         ScalarOpsDescription<E>,
         Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
     ),
 }
 
+/// Operation description specific to an int tensor.
 pub enum IntOpsDescription<B: FusedBackend> {
+    /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
     IntoFloat(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
 }
 
+/// Operation description specific to a bool tensor.
 pub enum BoolOpsDescription<B: FusedBackend> {
+    /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
+    /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
     IntoInt(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
     ),
+    /// Operation corresponding to [not](burn_tensor::ops::BoolTensorOps::bool_not).
     Not(
         UnaryOpsDescription,
         Box<dyn Ops<B, Args = UnaryOpsDescription>>,
