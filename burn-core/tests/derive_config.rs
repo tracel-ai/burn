@@ -25,14 +25,20 @@ pub enum TestEnumConfig {
 }
 
 #[cfg(feature = "std")]
+#[inline(always)]
+fn file_path(file_name: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(file_name)
+}
+
+#[cfg(feature = "std")]
 #[test]
 fn struct_config_should_impl_serde() {
     let config = TestStructConfig::new(2, 3.0, "Allow".to_string(), TestEmptyStructConfig::new());
-    let file_path = "/tmp/test_struct_config.json";
+    let file_path = file_path("test_struct_config.json");
 
-    config.save(file_path).unwrap();
+    config.save(&file_path).unwrap();
 
-    let config_loaded = TestStructConfig::load(file_path).unwrap();
+    let config_loaded = TestStructConfig::load(&file_path).unwrap();
     assert_eq!(config, config_loaded);
 }
 
@@ -52,11 +58,11 @@ fn struct_config_should_impl_display() {
 #[test]
 fn enum_config_no_value_should_impl_serde() {
     let config = TestEnumConfig::None;
-    let file_path = "/tmp/test_enum_no_value_config.json";
+    let file_path = file_path("test_enum_no_value_config.json");
 
-    config.save(file_path).unwrap();
+    config.save(&file_path).unwrap();
 
-    let config_loaded = TestEnumConfig::load(file_path).unwrap();
+    let config_loaded = TestEnumConfig::load(&file_path).unwrap();
     assert_eq!(config, config_loaded);
 }
 
@@ -64,11 +70,11 @@ fn enum_config_no_value_should_impl_serde() {
 #[test]
 fn enum_config_one_value_should_impl_serde() {
     let config = TestEnumConfig::Single(42.0);
-    let file_path = "/tmp/test_enum_one_value_config.json";
+    let file_path = file_path("test_enum_one_value_config.json");
 
-    config.save(file_path).unwrap();
+    config.save(&file_path).unwrap();
 
-    let config_loaded = TestEnumConfig::load(file_path).unwrap();
+    let config_loaded = TestEnumConfig::load(&file_path).unwrap();
     assert_eq!(config, config_loaded);
 }
 
@@ -76,11 +82,11 @@ fn enum_config_one_value_should_impl_serde() {
 #[test]
 fn enum_config_multiple_values_should_impl_serde() {
     let config = TestEnumConfig::Multiple(42.0, "Allow".to_string());
-    let file_path = "/tmp/test_enum_multiple_values_config.json";
+    let file_path = file_path("test_enum_multiple_values_config.json");
 
-    config.save(file_path).unwrap();
+    config.save(&file_path).unwrap();
 
-    let config_loaded = TestEnumConfig::load(file_path).unwrap();
+    let config_loaded = TestEnumConfig::load(&file_path).unwrap();
     assert_eq!(config, config_loaded);
 }
 

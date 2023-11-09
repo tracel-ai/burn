@@ -309,7 +309,12 @@ mod tests {
 
     use crate as burn;
 
-    static FILE_PATH: &str = "/tmp/burn_test_file_recorder";
+    #[inline(always)]
+    fn file_path() -> PathBuf {
+        std::env::temp_dir()
+            .as_path()
+            .join("burn_test_file_recorder")
+    }
 
     #[test]
     fn test_can_save_and_load_jsongz_format() {
@@ -344,10 +349,10 @@ mod tests {
     fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {
         let model_before = create_model();
         recorder
-            .record(model_before.clone().into_record(), FILE_PATH.into())
+            .record(model_before.clone().into_record(), file_path())
             .unwrap();
 
-        let model_after = create_model().load_record(recorder.load(FILE_PATH.into()).unwrap());
+        let model_after = create_model().load_record(recorder.load(file_path()).unwrap());
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder
