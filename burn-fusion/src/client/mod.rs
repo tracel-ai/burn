@@ -1,4 +1,5 @@
 mod base;
-pub use base::*;
+mod mutex;
 
-pub mod mutex;
+pub use base::*;
+pub use mutex::*;

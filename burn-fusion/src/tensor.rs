@@ -1,16 +1,33 @@
 use crate::client::FusionClient;
 use burn_tensor::{
+    backend::Backend,
     ops::{FloatElem, IntElem},
     Data, Reader, Shape,
 };
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FusionTensor<C: FusionClient> {
     pub id: Arc<TensorId>,
     pub shape: Vec<usize>,
     pub client: C,
     pub should_drop: bool,
+}
+
+impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!(
+                "{{ id: {:?}, shape: {:?}, should_drop: {:?}, backend: {:?}, device: {:?} }}",
+                self.id,
+                self.shape,
+                self.should_drop,
+                <C::FusedBackend as Backend>::name(),
+                self.client.device().clone().into(),
+            )
+            .as_str(),
+        )
+    }
 }
 
 impl<C: FusionClient> FusionTensor<C> {
@@ -65,15 +82,19 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusedBackend>, D>> {
-        self.client.clone().read_float(self.into_description())
+        self.client
+            .clone()
+            .read_tensor_float(self.into_description())
     }
 
     pub(crate) fn int_into_data<const D: usize>(self) -> Reader<Data<IntElem<C::FusedBackend>, D>> {
-        self.client.clone().read_int(self.into_description())
+        self.client.clone().read_tensor_int(self.into_description())
     }
 
     pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
-        self.client.clone().read_bool(self.into_description())
+        self.client
+            .clone()
+            .read_tensor_bool(self.into_description())
     }
 }
 

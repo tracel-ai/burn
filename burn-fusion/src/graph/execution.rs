@@ -1,8 +1,9 @@
 use super::{Graph, Optimization};
 use crate::{FusedBackend, FusionStatus, HandleContainer};
 
+/// The graph execution trait abstract the way the graph is executing optimizations.
 pub trait GraphExecution<B: FusedBackend>: Default + Send {
-    /// Maybe execute the given graph using the list of potential operations.
+    /// Maybe execute the given graph using the list of potential [optimizations](Optimization).
     fn maybe_execute(
         &mut self,
         graph: &mut Graph<B>,
@@ -12,6 +13,7 @@ pub trait GraphExecution<B: FusedBackend>: Default + Send {
     );
 }
 
+/// Execute an optimization following a greedy algorithm.
 #[derive(Default)]
 pub struct GreedyGraphExecution;
 

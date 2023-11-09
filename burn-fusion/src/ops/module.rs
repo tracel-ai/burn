@@ -57,7 +57,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(weight.shape[0]);
         shape.push(size);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::Conv1d(
@@ -121,7 +121,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(size_0);
         shape.push(size_1);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::Conv2d(
@@ -178,7 +178,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(weight.shape[1] * options.groups);
         shape.push(size);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::ConvTranspose1d(
@@ -244,7 +244,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(size_0);
         shape.push(size_1);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::ConvTranspose2d(
@@ -299,7 +299,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(size_0);
         shape.push(size_1);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool2d(
@@ -347,7 +347,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_empty(x.shape.clone());
+        let out = x.client.create_tensor_empty(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool2dBackward(
@@ -414,7 +414,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(size_0);
         shape.push(size_1);
 
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2d(
@@ -481,8 +481,8 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(size_0);
         shape.push(size_1);
 
-        let out = x.client.create_empty(shape.clone());
-        let out_indices = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape.clone());
+        let out_indices = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2dWithIndices(
@@ -534,7 +534,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_empty(x.shape.clone());
+        let out = x.client.create_tensor_empty(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2dWithIndicesBackward(
@@ -577,7 +577,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         shape.push(x.shape[1]);
         shape.push(output_size[0]);
         shape.push(output_size[1]);
-        let out = x.client.create_empty(shape);
+        let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool2d(
@@ -611,7 +611,7 @@ impl<B: FusedBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_empty(x.shape.clone());
+        let out = x.client.create_tensor_empty(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool2dBackward(

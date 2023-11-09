@@ -7,6 +7,7 @@ use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
 
+/// Use a mutex to communicate with the fusion server.
 pub struct MutexFusionClient<B, G>
 where
     B: FusedBackend,
@@ -29,16 +30,6 @@ where
     }
 }
 
-impl<B, G> core::fmt::Debug for MutexFusionClient<B, G>
-where
-    B: FusedBackend,
-    G: GraphExecution<B>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 impl<B, G> FusionClient for MutexFusionClient<B, G>
 where
     B: FusedBackend,
@@ -47,10 +38,10 @@ where
     type FusedBackend = B;
     type GraphExecution = G;
 
-    fn new(server: FusionServer<B, G>) -> Self {
+    fn new(device: B::HandleDevice) -> Self {
         Self {
-            device: server.device.clone(),
-            server: Arc::new(Mutex::new(server)),
+            device: device.clone(),
+            server: Arc::new(Mutex::new(FusionServer::new(device))),
         }
     }
 
@@ -61,7 +52,7 @@ where
     fn sync(&self) {
         self.server.lock().sync();
     }
-    fn create_empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
+    fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, self.clone())
@@ -71,14 +62,14 @@ where
         &self.device
     }
 
-    fn read_float<const D: usize>(
+    fn read_tensor_float<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusedBackend>, D>> {
         self.server.lock().read_float(tensor)
     }
 
-    fn create_float(
+    fn create_tensor_float(
         &self,
         values: Vec<FloatElem<Self::FusedBackend>>,
         shape: Vec<usize>,
@@ -88,7 +79,7 @@ where
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn create_int(
+    fn create_tensor_int(
         &self,
         values: Vec<burn_tensor::ops::IntElem<Self::FusedBackend>>,
         shape: Vec<usize>,
@@ -98,13 +89,13 @@ where
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn create_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self> {
+    fn create_tensor_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_bool_handle(values);
 
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn read_int<const D: usize>(
+    fn read_tensor_int<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusedBackend>, D>>
@@ -112,7 +103,7 @@ where
         self.server.lock().read_int(tensor)
     }
 
-    fn read_bool<const D: usize>(
+    fn read_tensor_bool<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {

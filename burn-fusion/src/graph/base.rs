@@ -2,24 +2,27 @@ use super::TensorOpsDescription;
 use crate::{FusedBackend, FusedOps, FusionProperties, FusionStatus, HandleContainer};
 use std::{ops::RangeBounds, sync::Arc, vec::Drain};
 
+/// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Graph<B: FusedBackend> {
     operations: Vec<Arc<TensorOpsDescription<B>>>,
 }
 
 impl<B: FusedBackend> Graph<B> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             operations: Vec::new(),
         }
     }
-    pub fn add(&mut self, ops: Arc<TensorOpsDescription<B>>) {
+    pub(crate) fn add(&mut self, ops: Arc<TensorOpsDescription<B>>) {
         self.operations.push(ops);
     }
 
+    /// The size of the graph.
     pub fn len(&self) -> usize {
         self.operations.len()
     }
 
+    /// If the graph is empty.
     pub fn is_empty(&self) -> bool {
         self.operations.len() == 0
     }
@@ -31,17 +34,17 @@ impl<B: FusedBackend> Graph<B> {
         self.operations.drain(range)
     }
 
-    pub fn remove<R: RangeBounds<usize>>(&mut self, range: R, handles: &mut HandleContainer<B>) {
+    fn remove<R: RangeBounds<usize>>(&mut self, range: R, handles: &mut HandleContainer<B>) {
         for ops in self.operations.drain(range) {
             ops.cleanup_tensor(handles)
         }
     }
 
-    pub fn nodes<'a>(&'a self) -> &'a [Arc<TensorOpsDescription<B>>] {
+    fn nodes<'a>(&'a self) -> &'a [Arc<TensorOpsDescription<B>>] {
         &self.operations
     }
 
-    pub fn execute_optimization(
+    pub(crate) fn execute_optimization(
         &mut self,
         handles: &mut HandleContainer<B>,
         index: usize,
@@ -62,7 +65,7 @@ impl<B: FusedBackend> Graph<B> {
         }
     }
 
-    pub fn execute(&mut self, handles: &mut HandleContainer<B>) {
+    pub(crate) fn execute(&mut self, handles: &mut HandleContainer<B>) {
         for ops in self.drain(..) {
             ops.execute(handles);
             ops.cleanup_tensor(handles);
@@ -70,14 +73,17 @@ impl<B: FusedBackend> Graph<B> {
     }
 }
 
+/// An optimization that can be executed.
 #[derive(new)]
 pub struct Optimization<B: FusedBackend> {
+    /// The [fused operation](FusedOps) to potentially be executed.
     pub ops: Box<dyn FusedOps<B>>,
+    /// The current status of the optimization.
     pub status: FusionStatus,
 }
 
 impl<B: FusedBackend> Optimization<B> {
-    pub fn register(&mut self, ops: &Arc<TensorOpsDescription<B>>) {
+    pub(crate) fn register(&mut self, ops: &Arc<TensorOpsDescription<B>>) {
         match self.status {
             FusionStatus::Closed(_) => return,
             _ => {}
@@ -86,7 +92,7 @@ impl<B: FusedBackend> Optimization<B> {
         self.status = self.ops.register(ops.clone());
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.ops.reset();
         self.status = FusionStatus::Open(FusionProperties::default());
     }

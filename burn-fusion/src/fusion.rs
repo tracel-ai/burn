@@ -1,4 +1,4 @@
-use crate::{client::FusionClient, DeviceId, FusedBackend, FusionServer, HandleDevice};
+use crate::{client::FusionClient, DeviceId, FusedBackend, HandleDevice};
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
 pub type Handle<B> = <B as FusedBackend>::Handle;
@@ -28,7 +28,7 @@ impl FusionClientLocator {
         let mut clients = self.clients.lock();
 
         if clients.is_none() {
-            let client = C::new(FusionServer::new(device.clone()));
+            let client = C::new(device.clone());
             Self::register_inner::<C>(client_id, client, &mut clients);
         }
 
@@ -39,7 +39,7 @@ impl FusionClientLocator {
                     client.clone()
                 }
                 None => {
-                    let client = C::new(FusionServer::new(device.clone()));
+                    let client = C::new(device.clone());
                     println!("New client");
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);

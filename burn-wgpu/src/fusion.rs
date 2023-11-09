@@ -1,7 +1,6 @@
 use crate::{tensor::WgpuFusionHandle, FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice};
 use burn_fusion::{
-    client::mutex::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusedBackend,
-    HandleDevice,
+    client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusedBackend, HandleDevice,
 };
 use burn_tensor::Shape;
 

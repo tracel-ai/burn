@@ -16,7 +16,7 @@ use burn_tensor::{
 impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         let client = B::client(&device.clone().into());
-        let out = client.create_empty(shape.dims.into());
+        let out = client.create_tensor_empty(shape.dims.into());
         out
     }
 
@@ -35,7 +35,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
         let client = B::client(&device.clone().into());
-        let out = client.create_bool(data.value, data.shape.dims.into());
+        let out = client.create_tensor_bool(data.value, data.shape.dims.into());
         out
     }
 
@@ -54,7 +54,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::BoolOps(BoolOpsDescription::IntoInt(
@@ -83,7 +83,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::BoolOps(
             BoolOpsDescription::IntoFloat(
@@ -138,7 +138,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.clone().into();
-        let out = tensor.client.create_empty(shape.clone());
+        let out = tensor.client.create_tensor_empty(shape.clone());
 
         tensor
             .client
@@ -182,7 +182,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
             shape.push(tensor.shape[i]);
         }
 
-        let out = tensor.client.create_empty(shape);
+        let out = tensor.client.create_tensor_empty(shape);
 
         tensor
             .client
@@ -226,7 +226,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_empty(shape);
+        let out = tensor.client.create_tensor_empty(shape);
 
         tensor
             .client
@@ -278,7 +278,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
             shape[dim] += tensor.shape[dim];
         }
 
-        let out = client.create_empty(shape);
+        let out = client.create_tensor_empty(shape);
 
         client.register(TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Cat(
             CatOpsDescription {
@@ -311,7 +311,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::BaseOpsBool(
             BaseOpsDescription::Equal(
@@ -340,7 +340,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_empty(tensor.shape.clone());
+        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::BoolOps(
             crate::graph::BoolOpsDescription::Not(
@@ -376,7 +376,7 @@ impl<B: FusedBackend> BoolTensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.create_empty(shape);
+        let out = tensor.client.create_tensor_empty(shape);
 
         tensor
             .client
