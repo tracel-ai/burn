@@ -1,13 +1,21 @@
-use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
-    compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
+    compute::StaticKernel,
+    element::WgpuElement,
+    kernel::{
+        build_info, elemwise_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
+        WORKGROUP_DEFAULT,
+    },
+    kernel_wgsl,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
 
-kernel_wgsl!(RecursiveSumRaw, "../template/reduction/recursive_sum.wgsl");
-kernel_wgsl!(ReductionDimRaw, "../template/reduction/reduce_dim.wgsl");
-kernel_wgsl!(ReductionArgsRaw, "../template/reduction/args.wgsl");
+kernel_wgsl!(
+    RecursiveSumRaw,
+    "../../template/reduction/recursive_sum.wgsl"
+);
+kernel_wgsl!(ReductionDimRaw, "../../template/reduction/reduce_dim.wgsl");
+kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
 
 pub(crate) struct ArgsMax;
 pub(crate) struct ArgsMin;
@@ -79,21 +87,24 @@ pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTenso
 /// Execute the sum dim kernel.
 pub fn sum_dim<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    reduction_dim::<SumDim, E, D>(input, dim)
+    reduction_dim::<SumDim, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
 pub fn mean_dim<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    reduction_dim::<MeanDim, E, D>(input, dim)
+    reduction_dim::<MeanDim, E, D>(input, output, dim)
 }
 
 fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
     let mut shape_out = input.shape.clone();
@@ -174,7 +185,10 @@ fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, con
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::{
+        kernel::reduce::init_reduce_output,
+        tests::{ReferenceBackend, TestBackend},
+    };
     use burn_tensor::{Distribution, Int, Tensor};
 
     #[test]
@@ -192,10 +206,13 @@ mod tests {
     fn reduction_sum_dim_should_work_with_multiple_invocations() {
         let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let reduce_dim = 1;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val = Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<SumDim, f32, 2>(
             tensor.into_primitive(),
-            1,
+            output,
+            reduce_dim,
         ));
         let val_ref = tensor_ref.sum_dim(1);
 

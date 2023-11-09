@@ -6,8 +6,6 @@ mod clamp;
 mod comparison;
 mod index;
 mod mask;
-mod reduction;
-mod reduction_alt;
 mod source;
 mod unary;
 mod unary_scalar;
@@ -27,11 +25,11 @@ pub mod matmul;
 pub mod pool;
 /// Pseudo-random number generator kernels
 pub mod prng;
+/// Reduction algorithms
+pub mod reduce;
 
 pub(crate) use cat::*;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
 pub(crate) use mask::*;
-pub use reduction::*;
-pub use reduction_alt::*;

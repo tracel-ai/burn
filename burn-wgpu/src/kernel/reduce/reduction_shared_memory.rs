@@ -1,14 +1,14 @@
-use super::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
+    kernel::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
 };
 
 kernel_wgsl!(
     ReductionDimSharedMemoryRaw,
-    "../template/reduction/reduce_dim_alt.wgsl"
+    "../../template/reduction/reduce_dim_shared_memory.wgsl"
 );
 
 pub(crate) struct SumDimSharedMemory;
@@ -30,31 +30,18 @@ impl StaticKernelSource for SumDimSharedMemory {
 /// is much larger than the others
 pub fn sum_dim_shared_memory<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, dim)
+    reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, output, dim)
 }
 
 fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
     reduce_dim: usize,
 ) -> WgpuTensor<E, D> {
-    // Set output dimension with reduced dim
-    let mut shape_out = input.shape.clone();
-    shape_out.dims[reduce_dim] = 1;
-
-    // Create output handle
-    let num_elems_output = shape_out.num_elements();
-    let handle = input
-        .client
-        .empty(num_elems_output * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
-        input.client.clone(),
-        input.device.clone(),
-        shape_out.clone(),
-        handle,
-    );
-
+    let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x as f32);
     let grid = WorkGroup::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
@@ -90,7 +77,10 @@ fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::{
+        kernel::reduce::init_reduce_output,
+        tests::{ReferenceBackend, TestBackend},
+    };
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -98,9 +88,11 @@ mod tests {
         let tensor = Tensor::<TestBackend, 1>::random([700], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data());
         let reduce_dim = 0;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val = Tensor::<TestBackend, 1>::from_primitive(sum_dim_shared_memory(
             tensor.into_primitive(),
+            output,
             reduce_dim,
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
@@ -113,9 +105,11 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
         let reduce_dim = 1;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim_shared_memory(
             tensor.into_primitive(),
+            output,
             reduce_dim,
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
@@ -128,9 +122,11 @@ mod tests {
         let tensor = Tensor::<TestBackend, 3>::random([4, 1024, 50], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
         let reduce_dim = 2;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val = Tensor::<TestBackend, 3>::from_primitive(sum_dim_shared_memory(
             tensor.into_primitive(),
+            output,
             reduce_dim,
         ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);

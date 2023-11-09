@@ -1,7 +1,7 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::kernel::{sum_dim, sum_dim_shared_memory};
+use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory};
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, Wgpu};
 use derive_new::new;
@@ -64,7 +64,9 @@ macro_rules! bench_reduce {
         struct $reduce_name {}
         impl<G: GraphicsApi, const D: usize> ReduceFunction<G, D> for $reduce_name {
             fn run(input: WTensor<G, D>, dim: usize) -> WTensor<G, D> {
-                Tensor::from_primitive($func(input.into_primitive(), dim))
+                let input = input.into_primitive();
+                let output = init_reduce_output(&input, dim);
+                Tensor::from_primitive($func(input, output, dim))
             }
         }
         type $benchmark<const D: usize> =
