@@ -69,5 +69,5 @@ pub trait FusionClient: Send + Sync + Clone {
         client: Self,
     ) -> FusionTensor<Self>;
     /// Drop the tensor with the given [tensor id](TensorId).
-    fn drop_tensor(&self, id: &TensorId);
+    fn register_orphan(&self, id: &TensorId);
 }

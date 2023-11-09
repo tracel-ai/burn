@@ -166,7 +166,7 @@ where
         FusionTensor::new(id, tensor.shape, client)
     }
 
-    fn drop_tensor(&self, id: &crate::TensorId) {
+    fn register_orphan(&self, id: &crate::TensorId) {
         self.server.lock().drop_tensor_handle(id.clone());
     }
 }

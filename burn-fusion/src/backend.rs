@@ -89,6 +89,10 @@ pub trait FusionOps<B: FusionBackend>: Send {
     fn reset(&mut self);
     /// The size of operations fused.
     fn len(&self) -> usize;
+    /// If the current operation is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The device id.

@@ -47,10 +47,9 @@ fn still_optimizing<B: FusionBackend>(optimizations: &[Optimization<B>]) -> bool
     let mut num_stopped = 0;
 
     for optimization in optimizations.iter() {
-        match optimization.status {
-            FusionStatus::Closed(_) => num_stopped += 1,
-            _ => {}
-        };
+        if let FusionStatus::Closed(_) = optimization.status {
+            num_stopped += 1
+        }
     }
 
     num_stopped < optimizations.len()

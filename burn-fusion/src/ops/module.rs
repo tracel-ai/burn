@@ -52,11 +52,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[2],
         );
 
-        let mut shape = Vec::with_capacity(3);
-        shape.push(x.shape[0]);
-        shape.push(weight.shape[0]);
-        shape.push(size);
-
+        let shape = vec![x.shape[0], weight.shape[0], size];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -115,12 +111,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(weight.shape[0]);
-        shape.push(size_0);
-        shape.push(size_1);
-
+        let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -173,11 +164,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[2],
         );
 
-        let mut shape = Vec::with_capacity(3);
-        shape.push(x.shape[0]);
-        shape.push(weight.shape[1] * options.groups);
-        shape.push(size);
-
+        let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -238,12 +225,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(weight.shape[1] * options.groups);
-        shape.push(size_0);
-        shape.push(size_1);
-
+        let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -293,12 +275,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let size_1 =
             calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3]);
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(x.shape[1]);
-        shape.push(size_0);
-        shape.push(size_1);
-
+        let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -408,12 +385,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(x.shape[1]);
-        shape.push(size_0);
-        shape.push(size_1);
-
+        let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
@@ -475,12 +447,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(x.shape[1]);
-        shape.push(size_0);
-        shape.push(size_1);
-
+        let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.create_tensor_empty(shape.clone());
         let out_indices = x.client.create_tensor_empty(shape);
 
@@ -572,11 +539,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let mut shape = Vec::with_capacity(4);
-        shape.push(x.shape[0]);
-        shape.push(x.shape[1]);
-        shape.push(output_size[0]);
-        shape.push(output_size[1]);
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
         let out = x.client.create_tensor_empty(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(

@@ -11,7 +11,10 @@ pub struct FusionTensor<C: FusionClient> {
     pub id: Arc<TensorId>,
     pub shape: Vec<usize>,
     pub client: C,
-    pub should_drop: bool,
+    // Orphan mean that a tensor is never converted into a description when it becomes read write.
+    // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
+    // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
+    pub is_orphan: bool,
 }
 
 impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
@@ -21,7 +24,7 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
                 "{{ id: {:?}, shape: {:?}, should_drop: {:?}, backend: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
-                self.should_drop,
+                self.is_orphan,
                 <C::FusedBackend as Backend>::name(),
                 self.client.device().clone().into(),
             )
@@ -36,7 +39,7 @@ impl<C: FusionClient> FusionTensor<C> {
             id,
             shape,
             client,
-            should_drop: true,
+            is_orphan: true,
         }
     }
     pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
@@ -66,12 +69,8 @@ impl<C: FusionClient> FusionTensor<C> {
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
 
-        match status {
-            TensorStatus::ReadWrite => {
-                // Used for the last time, so it's going to be dropped.
-                self.should_drop = false;
-            }
-            _ => {}
+        if let TensorStatus::ReadWrite = status {
+            self.is_orphan = false;
         }
 
         TensorDescription {
@@ -100,13 +99,13 @@ impl<C: FusionClient> FusionTensor<C> {
 
 impl<C: FusionClient> Drop for FusionTensor<C> {
     fn drop(&mut self) {
-        if !self.should_drop {
+        if !self.is_orphan {
             return;
         }
 
         match self.status() {
             TensorStatus::ReadWrite => {
-                self.client.drop_tensor(&self.id);
+                self.client.register_orphan(&self.id);
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}
