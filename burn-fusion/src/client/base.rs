@@ -9,31 +9,31 @@ use burn_tensor::{
 
 /// Define how to interact with the fusion server.
 pub trait FusionClient: Send + Sync + Clone {
-    /// The [fused backend](FusedBackend) associated type.
-    type FusedBackend: FusionBackend;
+    /// The [fusion backend](FusionBackend) associated type.
+    type FusionBackend: FusionBackend;
     /// The [graph execution](GraphExecution) associated type.
-    type GraphExecution: GraphExecution<Self::FusedBackend>;
+    type GraphExecution: GraphExecution<Self::FusionBackend>;
 
-    /// Create a new client for the given [handle device](FusedBackend::HandleDevice).
-    fn new(device: <Self::FusedBackend as FusionBackend>::FusionDevice) -> Self;
+    /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
+    fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
-    fn register(&self, ops: TensorOpsDescription<Self::FusedBackend>);
+    fn register(&self, ops: TensorOpsDescription<Self::FusionBackend>);
     /// Sync the computation.
     fn sync(&self);
     /// Get the current device used by all operations handled by this client.
-    fn device(&self) -> &<Self::FusedBackend as FusionBackend>::FusionDevice;
+    fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice;
     /// Create an empty tensor.
     fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
     /// Create a float tensor with the given values.
     fn create_tensor_float(
         &self,
-        values: Vec<FloatElem<Self::FusedBackend>>,
+        values: Vec<FloatElem<Self::FusionBackend>>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self>;
     /// Create an integer tensor with the given values.
     fn create_tensor_int(
         &self,
-        values: Vec<IntElem<Self::FusedBackend>>,
+        values: Vec<IntElem<Self::FusionBackend>>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self>;
     /// Create a bool tensor with the given values.
@@ -42,12 +42,12 @@ pub trait FusionClient: Send + Sync + Clone {
     fn read_tensor_float<const D: usize>(
         &self,
         tensor: TensorDescription,
-    ) -> Reader<Data<FloatElem<Self::FusedBackend>, D>>;
+    ) -> Reader<Data<FloatElem<Self::FusionBackend>, D>>;
     /// Read the values contained by an int tensor.
     fn read_tensor_int<const D: usize>(
         &self,
         tensor: TensorDescription,
-    ) -> Reader<Data<IntElem<Self::FusedBackend>, D>>;
+    ) -> Reader<Data<IntElem<Self::FusionBackend>, D>>;
     /// Read the values contained by a bool tensor.
     fn read_tensor_bool<const D: usize>(&self, tensor: TensorDescription) -> Reader<Data<bool, D>>;
     /// Change the client of the given float tensor.

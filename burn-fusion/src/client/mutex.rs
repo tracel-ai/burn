@@ -35,7 +35,7 @@ where
     B: FusionBackend,
     G: GraphExecution<B>,
 {
-    type FusedBackend = B;
+    type FusionBackend = B;
     type GraphExecution = G;
 
     fn new(device: B::FusionDevice) -> Self {
@@ -58,20 +58,20 @@ where
         FusionTensor::new(id, shape, self.clone())
     }
 
-    fn device(&self) -> &<Self::FusedBackend as FusionBackend>::FusionDevice {
+    fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice {
         &self.device
     }
 
     fn read_tensor_float<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusedBackend>, D>> {
+    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusionBackend>, D>> {
         self.server.lock().read_float(tensor)
     }
 
     fn create_tensor_float(
         &self,
-        values: Vec<FloatElem<Self::FusedBackend>>,
+        values: Vec<FloatElem<Self::FusionBackend>>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self> {
         let id = self.server.lock().create_float_handle(values);
@@ -81,7 +81,7 @@ where
 
     fn create_tensor_int(
         &self,
-        values: Vec<burn_tensor::ops::IntElem<Self::FusedBackend>>,
+        values: Vec<burn_tensor::ops::IntElem<Self::FusionBackend>>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self> {
         let id = self.server.lock().create_int_handle(values);
@@ -98,7 +98,7 @@ where
     fn read_tensor_int<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
-    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusedBackend>, D>>
+    ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusionBackend>, D>>
     {
         self.server.lock().read_int(tensor)
     }

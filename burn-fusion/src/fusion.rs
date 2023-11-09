@@ -22,7 +22,7 @@ impl FusionClientLocator {
     /// Provide the init function to create a new client if it isn't already initialized.
     pub fn client<C: FusionClient + 'static>(
         &self,
-        device: &<C::FusedBackend as FusionBackend>::FusionDevice,
+        device: &<C::FusionBackend as FusionBackend>::FusionDevice,
     ) -> C {
         let device_id = device.id();
         let client_id = (core::any::TypeId::of::<C>(), device_id);

@@ -76,7 +76,7 @@ impl<B: FusionBackend> Graph<B> {
 /// An optimization that can be executed.
 #[derive(new)]
 pub struct Optimization<B: FusionBackend> {
-    /// The [fused operation](FusedOps) to potentially be executed.
+    /// The [fusion operation](FusionOps) to potentially be executed.
     pub ops: Box<dyn FusionOps<B>>,
     /// The current status of the optimization.
     pub status: FusionStatus,

@@ -6,15 +6,19 @@ use burn_tensor::{
 };
 use std::sync::Arc;
 
+/// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 #[derive(Clone)]
 pub struct FusionTensor<C: FusionClient> {
+    /// Tensor id.
     pub id: Arc<TensorId>,
+    /// The shape of the tensor.
     pub shape: Vec<usize>,
+    /// The [fusion client](FusionClient).
     pub client: C,
     // Orphan mean that a tensor is never converted into a description when it becomes read write.
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
-    pub is_orphan: bool,
+    pub(crate) is_orphan: bool,
 }
 
 impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
@@ -25,7 +29,7 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
                 self.id,
                 self.shape,
                 self.is_orphan,
-                <C::FusedBackend as Backend>::name(),
+                <C::FusionBackend as Backend>::name(),
                 self.client.device().clone().into(),
             )
             .as_str(),
@@ -80,13 +84,15 @@ impl<C: FusionClient> FusionTensor<C> {
         }
     }
 
-    pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusedBackend>, D>> {
+    pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
         self.client
             .clone()
             .read_tensor_float(self.into_description())
     }
 
-    pub(crate) fn int_into_data<const D: usize>(self) -> Reader<Data<IntElem<C::FusedBackend>, D>> {
+    pub(crate) fn int_into_data<const D: usize>(
+        self,
+    ) -> Reader<Data<IntElem<C::FusionBackend>, D>> {
         self.client.clone().read_tensor_int(self.into_description())
     }
 
@@ -113,23 +119,40 @@ impl<C: FusionClient> Drop for FusionTensor<C> {
     }
 }
 
+/// The tensor unique identifier.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct TensorId {
     value: u64,
 }
 
+/// The status of the current tensor.
 #[derive(Clone, Debug)]
 pub enum TensorStatus {
+    /// The tensor can be read, but not written.
     ReadOnly,
+    /// The tensor can be mutated inplace.
     ReadWrite,
+    /// Not handle exists for that tensor.
     NotInit,
 }
 
 /// A tensor definition represent a snapshot of a tensor when it was used.
+///
+/// # Example
+///
+/// A tensor that is used multiple times has its status updated for each operation.
+///
+///   1. Status::NotInit
+///   2. Status::ReadOnly
+///   3. Status::ReadOnly
+///   4. Status::ReadWrite
 #[derive(Debug)]
 pub struct TensorDescription {
+    /// The [tensor id](TensorId).
     pub id: TensorId,
+    /// The shape of the tensor.
     pub shape: Vec<usize>,
+    /// The [status](TensorStatus) of the tensor when it was used.
     pub status: TensorStatus,
 }
 

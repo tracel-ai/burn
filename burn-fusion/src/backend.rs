@@ -12,7 +12,7 @@ pub(crate) fn get_client<B: FusionBackend>(device: &B::FusionDevice) -> B::Fusio
     CLIENTS.client(device)
 }
 
-/// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusedBackend).
+/// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
 #[derive(Clone, Debug, Default)]
 pub struct Fusion<B> {
     _backend: PhantomData<B>,
@@ -120,7 +120,7 @@ pub trait FusionBackend: Backend {
     /// The type that can be used to point to a tensor of any kind.
     type Handle: Sync + Send + Clone;
     /// What kind of client should be used.
-    type FusionClient: FusionClient<FusedBackend = Self>;
+    type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of operations that will be used to optimize the computational graph.
     fn operations() -> Vec<Box<dyn FusionOps<Self>>>;
