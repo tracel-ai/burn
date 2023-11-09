@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 #[cfg(not(feature = "browser"))]
 pub fn spawn<F>(f: F) -> Box<dyn FnOnce() -> Result<(), ()>>
 where
-    F: FnOnce() -> (),
+    F: FnOnce(),
     F: Send + 'static,
 {
     let handle = std::thread::spawn(f);
@@ -18,7 +18,7 @@ where
 #[cfg(feature = "browser")]
 pub fn spawn<F>(f: F) -> Box<dyn FnOnce() -> Result<(), ()>>
 where
-    F: FnOnce() -> (),
+    F: FnOnce(),
     F: Send + 'static,
 {
     let mut worker_options = web_sys::WorkerOptions::new();
@@ -30,7 +30,7 @@ where
             .expect("You must first call `init` with the worker's url."),
         &worker_options,
     )
-    .expect(&format!("Error initializing worker at {:?}", WORKER_URL));
+    .unwrap_or_else(|_| panic!("Error initializing worker at {:?}", WORKER_URL));
     // an undefined layout (although I think in practice its a pointer and a length?).
     let ptr = Box::into_raw(Box::new(Box::new(f) as Box<dyn FnOnce()>));
 
@@ -48,7 +48,10 @@ where
         let _ = unsafe { Box::from_raw(ptr) };
         panic!("Error initializing worker during post_message: {:?}", e)
     } else {
-        Box::new(move || Ok(w.terminate()))
+        Box::new(move || {
+            w.terminate();
+            Ok(())
+        })
     }
 }
 
