@@ -555,16 +555,16 @@ pub enum NumericOpsDescription<B: FusionBackend, E: Element> {
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim with indicies](burn_tensor::ops::TensorOps::max_dim_with_indices).
-    /// Int => [max dim with indicies](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
+    /// Float => [max dim with indices](burn_tensor::ops::TensorOps::max_dim_with_indices).
+    /// Int => [max dim with indices](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
     MaxDimWithIndices(
         ReduceDimWithIndicesDescription,
         Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
     ),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim with indicies](burn_tensor::ops::TensorOps::min_dim_with_indices).
-    /// Int => [min dim with indicies](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
+    /// Float => [min dim with indices](burn_tensor::ops::TensorOps::min_dim_with_indices).
+    /// Int => [min dim with indices](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
     MinDimWithIndices(
         ReduceDimWithIndicesDescription,
         Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
@@ -985,7 +985,7 @@ impl<B: FusionBackend> TensorOpsDescription<B> {
             TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
         }
 
-        // Cleanup tensor handles that were outputed, but ingored.
+        // Cleanup tensor handles that were outputted, but ignored.
         handles.cleanup_orphans();
     }
     /// Execute the operation.

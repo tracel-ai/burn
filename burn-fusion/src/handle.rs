@@ -5,7 +5,7 @@ use burn_tensor::{
 };
 use std::{collections::HashMap, sync::Arc};
 
-/// Keep all [tensor handles](FusionBackend::Handle) in one place and ensure that all ressources
+/// Keep all [tensor handles](FusionBackend::Handle) in one place and ensure that all resources
 /// are used optimally.
 #[derive(Default)]
 pub struct HandleContainer<B: FusionBackend> {
@@ -191,7 +191,7 @@ impl<B: FusionBackend> HandleContainer<B> {
     }
 
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
-    pub fn create_tensor_emtpy(&mut self) -> Arc<TensorId> {
+    pub fn create_tensor_empty(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::Empty);

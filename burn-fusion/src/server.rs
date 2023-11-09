@@ -64,7 +64,7 @@ where
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
-        self.handles.create_tensor_emtpy()
+        self.handles.create_tensor_empty()
     }
 
     pub fn create_float_handle(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
