@@ -275,7 +275,9 @@ fn std_checks() {
     }
 
     // Test each workspace
-    cargo_test(["--workspace"].into());
+    cargo_test(["--workspace", "--exclude", "burn-train"].into());
+    // Separate out `burn-train` to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
+    cargo_test(["-p", "burn-train", "--lib"].into());
 
     // Test burn-dataset features
     burn_dataset_features_std();
