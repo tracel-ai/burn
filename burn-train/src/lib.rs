@@ -2,6 +2,8 @@
 
 //! A library for training neural networks using the burn crate.
 
+pub mod util;
+
 #[macro_use]
 extern crate derive_new;
 

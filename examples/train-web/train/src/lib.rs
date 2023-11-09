@@ -1,4 +1,7 @@
-use burn::backend::{ndarray::NdArrayDevice, Autodiff, NdArray};
+use burn::{
+    backend::{ndarray::NdArrayDevice, Autodiff, NdArray},
+    train::util,
+};
 use wasm_bindgen::prelude::*;
 
 mod train;
@@ -10,7 +13,15 @@ pub fn start() {
 }
 
 #[wasm_bindgen]
-pub fn run() {
+pub fn run(worker_url: String) -> Result<(), String> {
     log::info!("Hello from Rust");
+    util::init(worker_url)?;
     train::run::<Autodiff<NdArray<f32>>>(NdArrayDevice::Cpu);
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn child_entry_point(ptr: u32) {
+    let work = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce()>) };
+    (*work)();
 }

@@ -1,11 +1,12 @@
 use super::EventStore;
 use super::{Aggregate, Direction, Event, Split};
-use std::{sync::mpsc, thread::JoinHandle};
+use crate::util;
+use std::sync::mpsc;
 
 /// Type that allows to communicate with an [event store](EventStore).
 pub struct EventStoreClient {
     sender: mpsc::Sender<Message>,
-    handler: Option<JoinHandle<()>>,
+    handler: Option<Box<dyn FnOnce() -> Result<(), ()>>>,
 }
 
 impl EventStoreClient {
@@ -17,7 +18,7 @@ impl EventStoreClient {
         let (sender, receiver) = mpsc::channel();
         let thread = WorkerThread::new(store, receiver);
 
-        let handler = std::thread::spawn(move || thread.run());
+        let handler = util::spawn(move || thread.run());
         let handler = Some(handler);
 
         Self { sender, handler }
@@ -153,7 +154,7 @@ impl Drop for EventStoreClient {
         let handler = self.handler.take();
 
         if let Some(handler) = handler {
-            handler.join().expect("The event store thread should stop.");
+            handler().expect("The event store thread should stop.");
         }
     }
 }
