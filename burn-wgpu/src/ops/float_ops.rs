@@ -6,9 +6,11 @@ use crate::kernel::matmul::matmul_autotune;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::reduce::{self, init_reduce_output};
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{
-    self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
+    self, reduce, unary_default, unary_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
 use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
@@ -323,15 +325,22 @@ where
 
         #[cfg(not(feature = "autotune"))]
         {
-            let output = init_matmul_output(&tensor, dim);
+            let output = init_reduce_output(&tensor, dim);
             reduce::sum_dim(tensor, output, dim)
         }
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        let output = init_reduce_output(&tensor, dim);
-        // reduce::mean_dim(tensor, output, dim)
-        reduce::mean_dim_shared_memory(tensor, output, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::mean_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::mean_dim(tensor, output, dim)
+        }
     }
 
     fn to_full_precision<const D: usize>(

@@ -1,5 +1,6 @@
 use super::numeric;
-use crate::kernel::reduce::init_reduce_output;
+
+use crate::kernel::reduce::{self, init_reduce_output};
 use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
@@ -262,21 +263,13 @@ where
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            kernel::reduce::sum_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_matmul_output(&tensor, dim);
-            reduce::sum_dim(tensor, output, dim)
-        }
+        let output = init_reduce_output(&tensor, dim);
+        reduce::sum_dim(tensor, output, dim)
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         let output = init_reduce_output(&tensor, dim);
-        kernel::reduce::mean_dim(tensor, output, dim)
+        reduce::mean_dim(tensor, output, dim)
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {

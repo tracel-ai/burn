@@ -6,7 +6,7 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::random_like_uniform,
-        reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory},
+        reduce::{init_reduce_output, mean_dim, mean_dim_shared_memory},
     },
     ops::numeric::empty_device,
     reduce_tune_ops,
@@ -15,19 +15,19 @@ use crate::{
 
 use super::ReduceAutotuneKey;
 
-/// Set of sum_dim implementations available for autotune
+/// Set of mean_dim implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of
 /// dim to reduce, and product of others
-pub struct SumDimAutotuneOperationSet<E: WgpuElement, const D: usize> {
+pub struct MeanDimAutotuneOperationSet<E: WgpuElement, const D: usize> {
     key: WgpuAutotuneKey,
     input: WgpuTensor<E, D>,
     output: WgpuTensor<E, D>,
     reduce_dim: usize,
 }
-impl<E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<E, D> {
+impl<E: WgpuElement, const D: usize> MeanDimAutotuneOperationSet<E, D> {
     fn new(input: WgpuTensor<E, D>, output: WgpuTensor<E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(&input.shape, reduce_dim)),
+            key: WgpuAutotuneKey::MeanDim(ReduceAutotuneKey::new(&input.shape, reduce_dim)),
             input,
             output,
             reduce_dim,
@@ -36,7 +36,7 @@ impl<E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<E, D> {
 }
 
 impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
-    for SumDimAutotuneOperationSet<E, D>
+    for MeanDimAutotuneOperationSet<E, D>
 {
     fn key(&self) -> WgpuAutotuneKey {
         self.key.clone()
@@ -53,12 +53,12 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
         );
 
         vec![
-            Box::new(SumDimAutotune::<E, D>::new(
+            Box::new(MeanDimAutotune::<E, D>::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(SumDimSharedMemoryAutotune::<E, D>::new(
+            Box::new(MeanDimSharedMemoryAutotune::<E, D>::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
@@ -67,15 +67,15 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
     }
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
-        // Warning: since AutotuneOperationSet shares his key with MeanDimAutotuneOperationSet
-        // we must make sure the order here is correlated with MeanDim
+        // Warning: since AutotuneOperationSet shares his key with SumDimAutotuneOperationSet
+        // we must make sure the order here is correlated with SumDim
         match fastest_index {
-            0 => Box::new(SumDimAutotune::<E, D>::new(
+            0 => Box::new(MeanDimAutotune::<E, D>::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
             )),
-            1 => Box::new(SumDimSharedMemoryAutotune::<E, D>::new(
+            1 => Box::new(MeanDimSharedMemoryAutotune::<E, D>::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
@@ -85,8 +85,8 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
     }
 }
 
-/// Executes autotune on sum_dim operation
-pub fn sum_dim_autotune<E: WgpuElement + Element, const D: usize>(
+/// Executes autotune on mean_dim operation
+pub fn mean_dim_autotune<E: WgpuElement + Element, const D: usize>(
     input: WgpuTensor<E, D>,
     reduce_dim: usize,
 ) -> WgpuTensor<E, D> {
@@ -94,7 +94,7 @@ pub fn sum_dim_autotune<E: WgpuElement + Element, const D: usize>(
 
     let output = init_reduce_output(&input, reduce_dim);
 
-    let operation_set = Box::new(SumDimAutotuneOperationSet::<E, D>::new(
+    let operation_set = Box::new(MeanDimAutotuneOperationSet::<E, D>::new(
         input,
         output.clone(),
         reduce_dim,
@@ -106,7 +106,7 @@ pub fn sum_dim_autotune<E: WgpuElement + Element, const D: usize>(
 }
 
 // Probably better on balanced tensor shapes
-reduce_tune_ops!(SumDimAutotune, sum_dim);
+reduce_tune_ops!(MeanDimAutotune, mean_dim);
 
 // Probably better on tensors large along reduce dim
-reduce_tune_ops!(SumDimSharedMemoryAutotune, sum_dim_shared_memory);
+reduce_tune_ops!(MeanDimSharedMemoryAutotune, mean_dim_shared_memory);
