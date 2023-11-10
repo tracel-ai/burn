@@ -77,7 +77,7 @@ fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: u
 ) -> WgpuTensor<E, D> {
     let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
-    let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x as f32);
+    let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);
     let grid = WorkGroup::new(n_workgroups_x as u32, n_workgroups_y as u32, 1);
 
     let kernel =
