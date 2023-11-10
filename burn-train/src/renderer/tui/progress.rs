@@ -190,19 +190,19 @@ fn format_eta(eta_secs: u64) -> String {
     if days > 1 {
         format!("{days} days")
     } else if days == 1 {
-        format!("1 day")
+        "1 day".to_string()
     } else if hours > 1 {
         format!("{hours} hours")
     } else if hours == 1 {
-        format!("1 hour")
+        "1 hour".to_string()
     } else if minutes > 1 {
         format!("{minutes} mins")
     } else if minutes == 1 {
-        format!("1 min")
+        "1 min".to_string()
     } else if seconds > 1 {
         format!("{seconds} secs")
     } else {
-        format!("1 sec")
+        "1 sec".to_string()
     }
 }
 
