@@ -48,7 +48,7 @@ fake = "2.9.1"
 flate2 = "1.0.28"
 float-cmp = "0.9.0"
 getrandom = { version = "0.2.11", default-features = false }
-gix-tempfile = { version = "8.0.0", features = ["signals"] }
+gix-tempfile = { version = "11.0.0", features = ["signals"] }
 hashbrown = "0.14.2"
 indicatif = "0.17.7"
 js-sys = "0.3.65"
