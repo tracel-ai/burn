@@ -34,6 +34,45 @@ impl<B: FusionBackend> HandleContainer<B> {
         }
     }
 
+    pub fn get_handle(&mut self, tensor: &TensorDescription) -> B::Handle {
+        let (id, handle) = self
+            .handles
+            .remove_entry(&tensor.id)
+            .expect(&format!("Should have handle for tensor {:?}", tensor.id));
+
+        if let Handle::Existing(handle) = handle {
+            match tensor.status {
+                TensorStatus::ReadOnly => {
+                    self.handles.insert(id, Handle::Existing(handle.clone()));
+                    return handle;
+                }
+                TensorStatus::ReadWrite => {
+                    return handle;
+                }
+                TensorStatus::NotInit => panic!("Can't get uninitialized tensor."),
+            }
+        }
+
+        todo!();
+        //         let output = match handle {
+        //             Handle::Empty => B::empty(Shape::from(tensor.shape.clone()), &self.device),
+        //             Handle::DataFloat(values) => B::from_data(
+        //                 Data::new(values, Shape::from(tensor.shape.clone())),
+        //                 &self.device,
+        //             ),
+        //             Handle::Existing(_) => unreachable!(),
+        //             Handle::DataInt(_) => panic!("From int unsupported when getting float tensor."),
+        //             Handle::DataBool(_) => panic!("From bool unsupported when getting float tensor."),
+        //         };
+        //
+        // if let TensorStatus::ReadOnly = tensor.status {
+        //     self.handles
+        //         .insert(id, Handle::Existing(B::float_tensor_handle(output.clone())));
+        // }
+
+        // output
+    }
+
     /// Get the [float tensor](burn_tensor::backend::Backend::TensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_float_tensor<const D: usize>(

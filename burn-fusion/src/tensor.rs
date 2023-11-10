@@ -127,7 +127,7 @@ pub struct TensorId {
 }
 
 /// The status of the current tensor.
-#[derive(Clone, Debug)]
+#[derive(Hash, Clone, Debug)]
 pub enum TensorStatus {
     /// The tensor can be read, but not written.
     ReadOnly,
@@ -147,7 +147,7 @@ pub enum TensorStatus {
 ///   2. Status::ReadOnly
 ///   3. Status::ReadOnly
 ///   4. Status::ReadWrite
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash)]
 pub struct TensorDescription {
     /// The [tensor id](TensorId).
     pub id: TensorId,

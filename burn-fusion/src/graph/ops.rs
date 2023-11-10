@@ -5,6 +5,7 @@ use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions},
     Distribution, Element,
 };
+use core::hash::Hash;
 use std::ops::Range;
 
 /// General trait to abstract how a single operation is executed.
@@ -647,6 +648,7 @@ pub enum BoolOpsDescription<B: FusionBackend> {
     ),
 }
 
+#[derive(Hash)]
 /// Swap dim operation description.
 pub struct SwapDimsDescription {
     /// Input tensor description.
@@ -659,6 +661,7 @@ pub struct SwapDimsDescription {
     pub dim2: usize,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
     pub input: TensorDescription,
@@ -666,6 +669,7 @@ pub struct ReshapeDescription {
     pub shape: Vec<usize>,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
@@ -673,6 +677,7 @@ pub struct BinaryOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct UnaryOpsDescription {
     pub input: TensorDescription,
@@ -686,6 +691,7 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct GatherOpsDescription {
     pub tensor: TensorDescription,
@@ -694,6 +700,7 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct ScatterOpsDescription {
     pub tensor: TensorDescription,
@@ -703,6 +710,7 @@ pub struct ScatterOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct SelectOpsDescription {
     pub tensor: TensorDescription,
@@ -711,6 +719,7 @@ pub struct SelectOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct SelectAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -720,6 +729,7 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct SliceOpsDescription {
     pub tensor: TensorDescription,
@@ -727,6 +737,7 @@ pub struct SliceOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct SliceAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -735,6 +746,7 @@ pub struct SliceAssignOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaskWhereOpsDescription {
     pub tensor: TensorDescription,
@@ -768,6 +780,7 @@ pub struct RepeatOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct CatOpsDescription {
     pub tensors: Vec<TensorDescription>,
@@ -775,6 +788,7 @@ pub struct CatOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct ReduceDimWithIndicesDescription {
     pub tensor: TensorDescription,
@@ -783,6 +797,7 @@ pub struct ReduceDimWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct EmbeddingDescription {
     pub weights: TensorDescription,
@@ -790,6 +805,7 @@ pub struct EmbeddingDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct EmbeddingBackwardDescription {
     pub weights: TensorDescription,
@@ -798,6 +814,7 @@ pub struct EmbeddingBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct Conv1dDescription {
     pub x: TensorDescription,
@@ -807,6 +824,7 @@ pub struct Conv1dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct Conv2dDescription {
     pub x: TensorDescription,
@@ -816,6 +834,7 @@ pub struct Conv2dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
@@ -825,6 +844,7 @@ pub struct ConvTranspose1dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct ConvTranspose2dDescription {
     pub x: TensorDescription,
@@ -834,6 +854,7 @@ pub struct ConvTranspose2dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AvgPool1dDescription {
     pub x: TensorDescription,
@@ -844,6 +865,7 @@ pub struct AvgPool1dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AvgPool2dDescription {
     pub x: TensorDescription,
@@ -854,6 +876,7 @@ pub struct AvgPool2dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -865,6 +888,7 @@ pub struct AvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -876,6 +900,7 @@ pub struct AvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dDescription {
     pub x: TensorDescription,
@@ -883,6 +908,7 @@ pub struct AdaptiveAvgPool1dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dDescription {
     pub x: TensorDescription,
@@ -890,6 +916,7 @@ pub struct AdaptiveAvgPool2dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -897,6 +924,7 @@ pub struct AdaptiveAvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -904,6 +932,7 @@ pub struct AdaptiveAvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool1dDescription {
     pub x: TensorDescription,
@@ -914,6 +943,7 @@ pub struct MaxPool1dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesDescription {
     pub x: TensorDescription,
@@ -925,6 +955,7 @@ pub struct MaxPool1dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -937,6 +968,7 @@ pub struct MaxPool1dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool2dDescription {
     pub x: TensorDescription,
@@ -947,6 +979,7 @@ pub struct MaxPool2dDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesDescription {
     pub x: TensorDescription,
@@ -958,6 +991,7 @@ pub struct MaxPool2dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
+#[derive(Hash)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesBackwardDescription {
     pub x: TensorDescription,

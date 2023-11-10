@@ -1,6 +1,7 @@
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
+    fusion::FloatElementWiseFusionOps,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -33,7 +34,7 @@ where
     type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 
     fn operations() -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
-        Vec::new()
+        vec![Box::new(FloatElementWiseFusionOps::default())]
     }
 
     fn float_tensor<const D: usize>(
