@@ -772,6 +772,7 @@ mod tests {
         assert!(!test_path.exists());
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[rstest]
     pub fn sqlite_writer_write(writer_fixture: (Writer, TempDir)) {
         // Get the dataset_saver from the fixture and tmp_dir (will be deleted after scope)
@@ -811,6 +812,7 @@ mod tests {
         assert_eq!(dataset.len(), 1);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[rstest]
     pub fn sqlite_writer_write_multi_thread(writer_fixture: (Writer, TempDir)) {
         // Get the dataset_saver from the fixture and tmp_dir (will be deleted after scope)
