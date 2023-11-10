@@ -46,7 +46,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
 /// The status of a [fusion ops](FusionOps).
 pub enum FusionStatus {
-    /// No more operation can be fused.
+    /// No more operations can be fused.
     Closed(FusionProperties),
     /// More operations can be fused.
     Open(FusionProperties),
@@ -61,8 +61,8 @@ pub struct FusionProperties {
     pub ready: bool,
 }
 
-/// The fusion operation abstraction allows implementations to fused many
-/// [tensor operations](TensorOpsDescription) into one improving the performance of the backend.
+/// The fusion operation abstraction allows implementations to fuse many
+/// [tensor operations](TensorOpsDescription) into one, improving the performance of the backend.
 ///
 ///
 /// # Notes
@@ -81,7 +81,7 @@ pub trait FusionOps<B: FusionBackend>: Send {
     ///
     /// When [closed](FusionStatus::Closed), it's assumed that no more operation can be added
     /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
-    /// ignored, they are either accepted or refused, and the [status](FusionStatus) describes it.
+    /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
     fn register(&mut self, ops: Arc<TensorOpsDescription<B>>) -> FusionStatus;
     /// Execute the operation.
     fn execute(&mut self, handles: &mut HandleContainer<B>);
@@ -141,10 +141,10 @@ pub trait FusionBackend: Backend {
         shape: Shape<D>,
     ) -> Self::BoolTensorPrimitive<D>;
 
-    /// Convert a [float tensor](Backend::TensorPrimitive) to an [handle](FusionBackend::Handle).
+    /// Convert a [float tensor](Backend::TensorPrimitive) to a [handle](FusionBackend::Handle).
     fn float_tensor_handle<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Handle;
-    /// Convert an [int tensor](Backend::IntTensorPrimitive) to an [handle](FusionBackend::Handle).
+    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](FusionBackend::Handle).
     fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
-    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to an [handle](FusionBackend::Handle).
+    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](FusionBackend::Handle).
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
 }

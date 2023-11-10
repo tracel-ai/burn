@@ -1,9 +1,10 @@
 use super::{Graph, Optimization};
 use crate::{FusionBackend, FusionStatus, HandleContainer};
 
-/// The graph execution trait abstract the way the graph is executing optimizations.
+/// The graph execution trait abstracts the way the graph is executing optimizations.
 pub trait GraphExecution<B: FusionBackend>: Default + Send {
-    /// Maybe execute the given graph using the list of potential [optimizations](Optimization).
+    /// Execute the given graph using the list of potential [optimizations](Optimization).
+    /// May do nothing if empty or not ready
     fn maybe_execute(
         &mut self,
         graph: &mut Graph<B>,

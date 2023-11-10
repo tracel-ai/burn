@@ -10,7 +10,7 @@ pub(crate) struct FusionClientLocator {
 }
 
 impl FusionClientLocator {
-    /// Create a new compute.
+    /// Create a new client locator.
     pub const fn new() -> Self {
         Self {
             clients: spin::Mutex::new(None),

@@ -17,7 +17,6 @@ where
     pub device: B::FusionDevice,
 }
 
-/// Trait name graph execution strategy.
 impl<B, G> FusionServer<B, G>
 where
     B: FusionBackend,

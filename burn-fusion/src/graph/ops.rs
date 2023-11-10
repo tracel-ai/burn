@@ -7,6 +7,15 @@ use burn_tensor::{
 };
 use std::ops::Range;
 
+/// General trait to abstract how a single operation is executed.
+pub trait Ops<B: FusionBackend>: Send + Sync {
+    /// The argument necessary for the execution to happen.
+    type Args: Send + Sync;
+
+    /// Execute the operation.
+    fn execute(&self, args: &Self::Args, handles: &mut HandleContainer<B>);
+}
+
 /// Describe all tensor operations possible.
 pub enum TensorOpsDescription<B: FusionBackend> {
     /// Basic operation on a float tensor.
@@ -274,15 +283,6 @@ pub enum BaseOpsDescription<B: FusionBackend> {
     /// Int => [cat](burn_tensor::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_tensor::ops::BoolTensorOps::bool_cat).
     Cat(CatOpsDescription, Box<dyn Ops<B, Args = CatOpsDescription>>),
-}
-
-/// General trait to abstract how a single operation is executed.
-pub trait Ops<B: FusionBackend>: Send + Sync {
-    /// The argument necessary for the execution to happen.
-    type Args: Send + Sync;
-
-    /// Execute the operation.
-    fn execute(&self, args: &Self::Args, handles: &mut HandleContainer<B>);
 }
 
 /// Numeric operations on int and float tensors.

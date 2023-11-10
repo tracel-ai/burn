@@ -133,11 +133,11 @@ pub enum TensorStatus {
     ReadOnly,
     /// The tensor can be mutated inplace.
     ReadWrite,
-    /// Not handle exists for that tensor.
+    /// No handle exists for that tensor.
     NotInit,
 }
 
-/// A tensor definition represent a snapshot of a tensor when it was used.
+/// A tensor definition represents a snapshot of a tensor when it was used.
 ///
 /// # Example
 ///

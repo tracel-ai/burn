@@ -12,7 +12,7 @@ pub struct HandleContainer<B: FusionBackend> {
     handles: HashMap<TensorId, Handle<B>>,
     counter: u64,
     pub(crate) handles_orphan: Vec<TensorId>,
-    /// The device on which all tensor are held.
+    /// The device on which all tensors are held.
     pub device: B::Device,
 }
 
@@ -43,7 +43,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         let (id, handle) = self
             .handles
             .remove_entry(&tensor.id)
-            .unwrap_or_else(|| panic!("No handle found for tensor {:?}", tensor.id));
+            .expect(&format!("Should have handle for tensor {:?}", tensor.id));
 
         if let Handle::Existing(handle) = handle {
             match tensor.status {
@@ -54,7 +54,7 @@ impl<B: FusionBackend> HandleContainer<B> {
                 TensorStatus::ReadWrite => {
                     return B::float_tensor(handle, Shape::from(tensor.shape.clone()));
                 }
-                TensorStatus::NotInit => panic!("Can get uninitialized tensor."),
+                TensorStatus::NotInit => panic!("Can't get uninitialized tensor."),
             }
         }
 
