@@ -162,8 +162,10 @@ mod tests {
 
     #[test]
     fn test_adagrad_optimizer_save_load_state() {
-        let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default);
+        let device = Default::default();
+        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let x =
+            Tensor::<TestAutodiffBackend, 2>::random_device([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adagrad();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);

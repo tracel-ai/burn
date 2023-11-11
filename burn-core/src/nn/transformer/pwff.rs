@@ -41,14 +41,14 @@ pub struct PositionWiseFeedForward<B: Backend> {
 
 impl PositionWiseFeedForwardConfig {
     /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module.
-    pub fn init<B: Backend>(&self) -> PositionWiseFeedForward<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> PositionWiseFeedForward<B> {
         PositionWiseFeedForward {
             linear_inner: LinearConfig::new(self.d_model, self.d_ff)
                 .with_initializer(self.initializer.clone())
-                .init(),
+                .init(device),
             linear_outer: LinearConfig::new(self.d_ff, self.d_model)
                 .with_initializer(self.initializer.clone())
-                .init(),
+                .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
             gelu: GELU::new(),
         }

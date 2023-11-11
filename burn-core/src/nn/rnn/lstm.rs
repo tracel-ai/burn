@@ -37,7 +37,7 @@ pub struct Lstm<B: Backend> {
 
 impl LstmConfig {
     /// Initialize a new [lstm](Lstm) module.
-    pub fn init<B: Backend>(&self) -> Lstm<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Lstm<B> {
         let d_output = self.d_hidden;
 
         let input_gate = gate_controller::GateController::new(
@@ -45,24 +45,28 @@ impl LstmConfig {
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let forget_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let output_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let cell_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
 
         Lstm {
@@ -226,7 +230,7 @@ mod tests {
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let lstm = config.init::<TestBackend>();
+        let lstm = config.init::<TestBackend>(&Default::default());
 
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
@@ -250,7 +254,8 @@ mod tests {
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let config = LstmConfig::new(1, 1, false);
-        let mut lstm = config.init::<TestBackend>();
+        let device = Default::default();
+        let mut lstm = config.init::<TestBackend>(&device);
 
         fn create_gate_controller(
             weights: f32,
@@ -259,10 +264,14 @@ mod tests {
             d_output: usize,
             bias: bool,
             initializer: Initializer,
+            device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]))),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases])))),
+                weight: Param::from(Tensor::from_data_device(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data_device(
+                    Data::from([biases]),
+                    device,
+                ))),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -281,6 +290,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.forget_gate = create_gate_controller(
             0.7,
@@ -289,6 +299,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.cell_gate = create_gate_controller(
             0.9,
@@ -297,6 +308,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.output_gate = create_gate_controller(
             1.1,
@@ -305,10 +317,11 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
+        let input = Tensor::<TestBackend, 3>::from_data_device(Data::from([[[0.1]]]), &device);
 
         let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
         let cell_state = cell_state_batch.select(0, Tensor::arange(0..1)).squeeze(0);
@@ -325,8 +338,10 @@ mod tests {
 
     #[test]
     fn test_batched_forward_pass() {
-        let lstm = LstmConfig::new(64, 1024, true).init::<TestBackend>();
-        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+        let device = Default::default();
+        let lstm = LstmConfig::new(64, 1024, true).init(&device);
+        let batched_input =
+            Tensor::<TestBackend, 3>::random_device([8, 10, 64], Distribution::Default, &device);
 
         let (cell_state, hidden_state) = lstm.forward(batched_input, None);
 

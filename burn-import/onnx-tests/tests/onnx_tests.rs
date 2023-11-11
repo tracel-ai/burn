@@ -127,10 +127,11 @@ mod tests {
     #[test]
     fn div_tensor_by_scalar_and_tensor_by_tensor() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: div::Model<Backend> = div::Model::new();
+        let device = Default::default();
+        let model: div::Model<Backend> = div::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[3., 6., 6., 9.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_device([[[[3., 6., 6., 9.]]]], &device);
         let scalar1 = 9.0f64;
         let scalar2 = 3.0f64;
         let output = model.forward(input, scalar1, scalar2);
@@ -142,10 +143,11 @@ mod tests {
     #[test]
     fn concat_tensors() {
         // Initialize the model
-        let model: concat::Model<Backend> = concat::Model::new();
+        let device = Default::default();
+        let model: concat::Model<Backend> = concat::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 5]);
+        let input = Tensor::<Backend, 4>::zeros_device([1, 2, 3, 5], &device);
 
         let output = model.forward(input);
 
@@ -275,13 +277,17 @@ mod tests {
     #[test]
     fn softmax() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: softmax::Model<Backend> = softmax::Model::new();
+        let device = Default::default();
+        let model: softmax::Model<Backend> = softmax::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.128_809_4, 0.23446237],
-            [0.23033303, -1.122_856_4, -0.18632829],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats_device(
+            [
+                [0.33669037, 0.128_809_4, 0.23446237],
+                [0.23033303, -1.122_856_4, -0.18632829],
+            ],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([
             [0.36830685, 0.29917702, 0.33251613],
@@ -294,13 +300,17 @@ mod tests {
     #[test]
     fn log_softmax() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: log_softmax::Model<Backend> = log_softmax::Model::new();
+        let device = Default::default();
+        let model: log_softmax::Model<Backend> = log_softmax::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.128_809_4, 0.23446237],
-            [0.23033303, -1.122_856_4, -0.18632829],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats_device(
+            [
+                [0.33669037, 0.128_809_4, 0.23446237],
+                [0.23033303, -1.122_856_4, -0.18632829],
+            ],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([
             [-0.998_838_9, -1.206_719_9, -1.101_067],
@@ -313,16 +323,20 @@ mod tests {
     #[test]
     fn maxpool2d() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new();
+        let device = Default::default();
+        let model: maxpool2d::Model<Backend> = maxpool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[
-            [1.927, 1.487, 0.901, -2.106, 0.678],
-            [-1.235, -0.043, -1.605, -0.752, -0.687],
-            [-0.493, 0.241, -1.111, 0.092, -2.317],
-            [-0.217, -1.385, -0.396, 0.803, -0.622],
-            [-0.592, -0.063, -0.829, 0.331, -1.558],
-        ]]]);
+        let input = Tensor::<Backend, 4>::from_floats_device(
+            [[[
+                [1.927, 1.487, 0.901, -2.106, 0.678],
+                [-1.235, -0.043, -1.605, -0.752, -0.687],
+                [-0.493, 0.241, -1.111, 0.092, -2.317],
+                [-0.217, -1.385, -0.396, 0.803, -0.622],
+                [-0.592, -0.063, -0.829, 0.331, -1.558],
+            ]]],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([[[
             [0.901, 1.927, 1.487, 0.901],
@@ -336,16 +350,20 @@ mod tests {
     #[test]
     fn avg_pool2d() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new();
+        let device = Default::default();
+        let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[
-            [-0.077, 0.360, -0.782, 0.072, 0.665],
-            [-0.287, 1.621, -1.597, -0.052, 0.611],
-            [0.760, -0.034, -0.345, 0.494, -0.078],
-            [-1.805, -0.476, 0.205, 0.338, 1.353],
-            [0.374, 0.013, 0.774, -0.109, -0.271],
-        ]]]);
+        let input = Tensor::<Backend, 4>::from_floats_device(
+            [[[
+                [-0.077, 0.360, -0.782, 0.072, 0.665],
+                [-0.287, 1.621, -1.597, -0.052, 0.611],
+                [0.760, -0.034, -0.345, 0.494, -0.078],
+                [-1.805, -0.476, 0.205, 0.338, 1.353],
+                [0.374, 0.013, 0.774, -0.109, -0.271],
+            ]]],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
 
@@ -355,10 +373,11 @@ mod tests {
     #[test]
     fn reshape() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: reshape::Model<Backend> = reshape::Model::new();
+        let device = Default::default();
+        let model: reshape::Model<Backend> = reshape::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.]);
+        let input = Tensor::<Backend, 1>::from_floats_device([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = Data::from([[0., 1., 2., 3.]]);
 
@@ -368,10 +387,11 @@ mod tests {
     #[test]
     fn flatten() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: flatten::Model<Backend> = flatten::Model::new();
+        let device = Default::default();
+        let model: flatten::Model<Backend> = flatten::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 3>::ones([1, 5, 15]);
+        let input = Tensor::<Backend, 3>::ones_device([1, 5, 15], &device);
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 75]);
@@ -397,13 +417,17 @@ mod tests {
     #[test]
     fn relu() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: relu::Model<Backend> = relu::Model::new();
+        let device = Default::default();
+        let model: relu::Model<Backend> = relu::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.128_809_4, 0.23446237],
-            [0.23033303, -1.122_856_4, -0.18632829],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats_device(
+            [
+                [0.33669037, 0.128_809_4, 0.23446237],
+                [0.23033303, -1.122_856_4, -0.18632829],
+            ],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([
             [0.33669037, 0.128_809_4, 0.23446237],
@@ -416,13 +440,17 @@ mod tests {
     #[test]
     fn sigmoid() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: sigmoid::Model<Backend> = sigmoid::Model::new();
+        let device = Default::default();
+        let model: sigmoid::Model<Backend> = sigmoid::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.128_809_4, 0.23446237],
-            [0.23033303, -1.122_856_4, -0.18632829],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats_device(
+            [
+                [0.33669037, 0.128_809_4, 0.23446237],
+                [0.23033303, -1.122_856_4, -0.18632829],
+            ],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([
             [0.58338636, 0.532_157_9, 0.55834854],
@@ -435,13 +463,17 @@ mod tests {
     #[test]
     fn transpose() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: transpose::Model<Backend> = transpose::Model::new();
+        let device = Default::default();
+        let model: transpose::Model<Backend> = transpose::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.33669037, 0.128_809_4, 0.23446237],
-            [0.23033303, -1.122_856_4, -0.18632829],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats_device(
+            [
+                [0.33669037, 0.128_809_4, 0.23446237],
+                [0.23033303, -1.122_856_4, -0.18632829],
+            ],
+            &device,
+        );
         let output = model.forward(input);
         let expected = Data::from([
             [0.33669037, 0.23033303],
@@ -472,17 +504,21 @@ mod tests {
     #[test]
     fn clip_opset16() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: clip_opset16::Model<Backend> = clip_opset16::Model::new();
+        let device = Default::default();
+        let model: clip_opset16::Model<Backend> = clip_opset16::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats([
-            0.88226926,
-            0.91500396,
-            0.38286376,
-            0.95930564,
-            0.390_448_2,
-            0.60089535,
-        ]);
+        let input = Tensor::<Backend, 1>::from_floats_device(
+            [
+                0.88226926,
+                0.91500396,
+                0.38286376,
+                0.95930564,
+                0.390_448_2,
+                0.60089535,
+            ],
+            &device,
+        );
         let (output1, output2, output3) = model.forward(input);
         let expected1 = Data::from([
             0.88226926,
@@ -503,17 +539,21 @@ mod tests {
     #[test]
     fn clip_opset7() {
         // Initialize the model without weights (because the exported file does not contain them)
-        let model: clip_opset7::Model<Backend> = clip_opset7::Model::new();
+        let device = Default::default();
+        let model: clip_opset7::Model<Backend> = clip_opset7::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats([
-            0.88226926,
-            0.91500396,
-            0.38286376,
-            0.95930564,
-            0.390_448_2,
-            0.60089535,
-        ]);
+        let input = Tensor::<Backend, 1>::from_floats_device(
+            [
+                0.88226926,
+                0.91500396,
+                0.38286376,
+                0.95930564,
+                0.390_448_2,
+                0.60089535,
+            ],
+            &device,
+        );
         let (output1, output2, output3) = model.forward(input);
         let expected1 = Data::from([
             0.88226926,
@@ -567,10 +607,11 @@ mod tests {
     #[test]
     fn tanh() {
         // Initialize the model
-        let model = tanh::Model::<Backend>::new();
+        let device = Default::default();
+        let model = tanh::Model::<Backend>::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_device([[[[1., 2., 3., 4.]]]], &device);
         let output = model.forward(input);
         // data from pyTorch
         let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);

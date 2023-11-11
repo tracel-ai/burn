@@ -83,9 +83,9 @@ impl<B: Backend> TransformerEncoderInput<B> {
 }
 impl TransformerEncoderConfig {
     /// Initialize a new [transformer encoder](TransformerEncoder) module.
-    pub fn init<B: Backend>(&self) -> TransformerEncoder<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerEncoder<B> {
         let layers = (0..self.n_layers)
-            .map(|_| TransformerEncoderLayer::new(self))
+            .map(|_| TransformerEncoderLayer::new(self, device))
             .collect::<Vec<_>>();
 
         TransformerEncoder { layers }
@@ -193,18 +193,18 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             norm_first: config.norm_first,
         }
     }
-    fn new(config: &TransformerEncoderConfig) -> Self {
+    fn new(config: &TransformerEncoderConfig, device: &B::Device) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
-            .init();
-        let norm_1 = LayerNormConfig::new(config.d_model).init();
-        let norm_2 = LayerNormConfig::new(config.d_model).init();
+            .init(device);
+        let norm_1 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_2 = LayerNormConfig::new(config.d_model).init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
-            .init();
+            .init(device);
 
         Self {
             mha,
@@ -354,11 +354,13 @@ mod tests {
 
     fn test_autoregressive(config: TransformerEncoderConfig) {
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
-        let transformer = config.init();
+        let device = Default::default();
+        let transformer = config.init(&device);
 
-        let tensor = Tensor::<TestBackend, 3>::random(
+        let tensor = Tensor::<TestBackend, 3>::random_device(
             [batch_size, seq_length, d_model],
             Distribution::Default,
+            &device,
         );
         let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &tensor.device());
         let input = TransformerEncoderInput::new(tensor.clone()).mask_attn(mask_attn);

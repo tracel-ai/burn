@@ -446,7 +446,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         quote! {
             #[allow(dead_code)]
-            pub fn new() -> Self {
+            pub fn new(device: &B::Device) -> Self {
                 #body
 
                 Self {

@@ -33,11 +33,11 @@ pub struct Mlp<B: Backend> {
 
 impl<B: Backend> Mlp<B> {
     /// Create the module from the given configuration.
-    pub fn new(config: &MlpConfig) -> Self {
+    pub fn new(config: &MlpConfig, device: &B::Device) -> Self {
         let mut linears = Vec::with_capacity(config.num_layers);
 
         for _ in 0..config.num_layers {
-            linears.push(nn::LinearConfig::new(config.d_model, config.d_model).init());
+            linears.push(nn::LinearConfig::new(config.d_model, config.d_model).init(device));
         }
 
         Self {

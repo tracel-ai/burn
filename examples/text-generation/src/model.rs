@@ -33,13 +33,13 @@ pub struct TextGenerationModel<B: Backend> {
 }
 
 impl TextGenerationModelConfig {
-    pub fn init<B: Backend>(&self) -> TextGenerationModel<B> {
-        let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init();
-        let transformer = self.transformer.init();
+    pub fn init<B: Backend>(&self, device: &B::Device) -> TextGenerationModel<B> {
+        let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init(device);
+        let transformer = self.transformer.init(device);
         let embedding_token =
-            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init(device);
         let embedding_pos =
-            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init(device);
 
         TextGenerationModel {
             transformer,

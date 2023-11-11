@@ -72,7 +72,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv1dNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 

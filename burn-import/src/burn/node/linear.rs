@@ -68,7 +68,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 

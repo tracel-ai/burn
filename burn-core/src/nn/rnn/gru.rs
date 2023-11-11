@@ -36,7 +36,7 @@ pub struct Gru<B: Backend> {
 
 impl GruConfig {
     /// Initialize a new [gru](Gru) module.
-    pub fn init<B: Backend>(&self) -> Gru<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Gru<B> {
         let d_output = self.d_hidden;
 
         let update_gate = gate_controller::GateController::new(
@@ -44,18 +44,21 @@ impl GruConfig {
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let reset_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let new_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
 
         Gru {
@@ -110,7 +113,10 @@ impl<B: Backend> Gru<B> {
 
         let mut hidden_state = match state {
             Some(state) => state,
-            None => Tensor::zeros([batch_size, seq_length, self.d_hidden]),
+            None => Tensor::zeros_device(
+                [batch_size, seq_length, self.d_hidden],
+                &batched_input.device(),
+            ),
         };
 
         for (t, (input_t, hidden_t)) in batched_input
@@ -209,7 +215,8 @@ mod tests {
     fn tests_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let config = GruConfig::new(1, 1, false);
-        let mut gru = config.init::<TestBackend>();
+        let device = Default::default();
+        let mut gru = config.init::<TestBackend>(&device);
 
         fn create_gate_controller(
             weights: f32,
@@ -218,10 +225,14 @@ mod tests {
             d_output: usize,
             bias: bool,
             initializer: Initializer,
+            device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]))),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases])))),
+                weight: Param::from(Tensor::from_data_device(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data_device(
+                    Data::from([biases]),
+                    device,
+                ))),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -240,6 +251,7 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
+            &device,
         );
         gru.reset_gate = create_gate_controller(
             0.6,
@@ -248,6 +260,7 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
+            &device,
         );
         gru.new_gate = create_gate_controller(
             0.7,
@@ -256,21 +269,26 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
+            &device,
         );
 
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
+        let input = Tensor::<TestBackend, 3>::from_data_device(Data::from([[[0.1]]]), &device);
 
         let state = gru.forward(input, None);
 
-        let output = state.select(0, Tensor::arange(0..1)).squeeze(0);
+        let output = state
+            .select(0, Tensor::arange_device(0..1, &device))
+            .squeeze(0);
 
         output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
     }
 
     #[test]
     fn test_batched_forward_pass() {
-        let gru = GruConfig::new(64, 1024, true).init::<TestBackend>();
-        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+        let device = Default::default();
+        let gru = GruConfig::new(64, 1024, true).init::<TestBackend>(&device);
+        let batched_input =
+            Tensor::<TestBackend, 3>::random_device([8, 10, 64], Distribution::Default, &device);
 
         let hidden_state = gru.forward(batched_input, None);
 

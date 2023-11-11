@@ -63,7 +63,7 @@ pub struct ConvTranspose1d<B: Backend> {
 
 impl ConvTranspose1dConfig {
     /// Initialize a new [conv transpose 1d](ConvTranspose1d) module.
-    pub fn init<B: Backend>(&self) -> ConvTranspose1d<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> ConvTranspose1d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
 
         let shape = [
@@ -73,13 +73,15 @@ impl ConvTranspose1dConfig {
         ];
 
         let fan_in = self.channels[1] / self.groups * self.kernel_size;
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
+        let weight = self
+            .initializer
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
             bias = Some(
                 self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None),
+                    .init_with([self.channels[1]], Some(fan_in), None, device),
             );
         }
 
@@ -146,7 +148,7 @@ mod tests {
         let config = ConvTranspose1dConfig::new([5, 1], 5);
         let k = (config.channels[1] * config.kernel_size) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
@@ -156,7 +158,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = ConvTranspose1dConfig::new([5, 2], 5).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight

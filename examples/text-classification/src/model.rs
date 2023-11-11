@@ -40,13 +40,13 @@ pub struct TextClassificationModel<B: Backend> {
 // Define functions for model initialization
 impl TextClassificationModelConfig {
     /// Initializes a model with default weights
-    pub fn init<B: Backend>(&self) -> TextClassificationModel<B> {
-        let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init();
-        let transformer = self.transformer.init();
+    pub fn init<B: Backend>(&self, device: &B::Device) -> TextClassificationModel<B> {
+        let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init(device);
+        let transformer = self.transformer.init(device);
         let embedding_token =
-            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init(device);
         let embedding_pos =
-            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init(device);
 
         TextClassificationModel {
             transformer,

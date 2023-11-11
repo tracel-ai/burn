@@ -91,7 +91,8 @@ mod tests {
     #[test]
     fn test_init_with_record_setting() {
         let config = LinearConfig::new(32, 32);
-        let module_init = config.init::<TestAutodiffBackend>();
+        let device = Default::default();
+        let module_init = config.init::<TestAutodiffBackend>(&device);
 
         let record = module_init.clone().into_record();
         let module_init_with = config.init_with::<TestAutodiffBackend>(record);

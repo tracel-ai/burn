@@ -104,6 +104,24 @@ where
         Self::from_data(floats.into().convert())
     }
 
+    /// Create a tensor from floats (f32) on a given device.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let _ = Tensor::<B, 1>::from_floats_device([1.0, 2.0], &device);
+    ///     let _ = Tensor::<B, 2>::from_floats_device([[1.0, 2.0], [3.0, 4.0]], &device);
+    /// }
+    /// ```
+    pub fn from_floats_device<A: Into<Data<f32, D>>>(floats: A, device: &B::Device) -> Self {
+        Self::from_data_device(floats.into().convert(), device)
+    }
+
     /// Returns a new tensor with the same shape and device as the current tensor and the data
     /// casted to Integer.
     ///

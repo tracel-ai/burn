@@ -53,9 +53,9 @@ pub struct TransformerDecoder<B: Backend> {
 
 impl TransformerDecoderConfig {
     /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
-    pub fn init<B: Backend>(&self) -> TransformerDecoder<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerDecoder<B> {
         let layers = (0..self.n_layers)
-            .map(|_| TransformerDecoderLayer::new(self))
+            .map(|_| TransformerDecoderLayer::new(self, device))
             .collect::<Vec<_>>();
 
         TransformerDecoder { layers }
@@ -182,23 +182,23 @@ impl<B: Backend> TransformerDecoderAutoregressiveCache<B> {
 }
 
 impl<B: Backend> TransformerDecoderLayer<B> {
-    fn new(config: &TransformerDecoderConfig) -> Self {
+    fn new(config: &TransformerDecoderConfig, device: &B::Device) -> Self {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
-            .init();
+            .init(device);
 
         let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
-            .init();
-        let norm_1 = LayerNormConfig::new(config.d_model).init();
-        let norm_2 = LayerNormConfig::new(config.d_model).init();
-        let norm_3 = LayerNormConfig::new(config.d_model).init();
+            .init(device);
+        let norm_1 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_2 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_3 = LayerNormConfig::new(config.d_model).init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_dropout(config.dropout)
-            .init();
+            .init(device);
 
         Self {
             cross_attn,
@@ -407,16 +407,19 @@ mod tests {
     }
 
     fn test_autoregressive(config: TransformerDecoderConfig) {
+        let device = Default::default();
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
-        let transformer = config.init();
+        let transformer = config.init(&device);
 
-        let memory = Tensor::<TestBackend, 3>::random(
+        let memory = Tensor::<TestBackend, 3>::random_device(
             [batch_size, seq_length, d_model],
             Distribution::Default,
+            &device,
         );
-        let target = Tensor::<TestBackend, 3>::random(
+        let target = Tensor::<TestBackend, 3>::random_device(
             [batch_size, seq_length, d_model],
             Distribution::Default,
+            &device,
         );
         let mask_attn = generate_autoregressive_mask(batch_size, seq_length, &target.device());
         let input = TransformerDecoderInput::new(target.clone(), memory.clone())
