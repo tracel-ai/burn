@@ -78,34 +78,63 @@ impl Default for WorkgroupSize {
 }
 
 pub struct WgslTempate {
-    pub bindings: Vec<Binding>,
+    pub inputs: Vec<Binding>,
+    pub outputs: Vec<Binding>,
+    pub info: Option<Binding>,
     pub workgroup_sizes: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
     pub body: Box<dyn DynamicKernelSource>,
 }
 
-impl DynamicKernelSource for WgslTempate {
-    fn source(&self) -> SourceTemplate {
-        let mut source_template = String::new();
-        for (i, binding) in self.bindings.iter().enumerate() {
-            source_template += format!(
-                "
-@group(0)
-@binding({})
-var<{}, {}> input_{}: array<{}>;
-",
-                i, binding.location, binding.visibility, i, binding.elem
+impl WgslTempate {
+    fn format_bindings(prefix: &str, bindings: &[Binding], num_entry: usize) -> String {
+        let mut output = String::new();
+
+        for (i, binding) in bindings.iter().enumerate() {
+            output += Self::format_binding(
+                format!("{prefix}_{i}_global").as_str(),
+                binding,
+                num_entry + i,
             )
             .as_str();
         }
 
+        output
+    }
+
+    fn format_binding(name: &str, binding: &Binding, num_entry: usize) -> String {
+        let ty = match binding.size {
+            Some(size) => format!("array<{}; {}>", binding.elem, size),
+            None => format!("array<{}>", binding.elem),
+        };
+
+        format!(
+            "@group(0)
+@binding({})
+var<{}, {}> {}: {};
+\n",
+            num_entry, binding.location, binding.visibility, name, ty
+        )
+    }
+}
+
+impl DynamicKernelSource for WgslTempate {
+    fn source(&self) -> SourceTemplate {
+        let mut source_template = String::new();
+        source_template += Self::format_bindings("input", &self.inputs, 0).as_str();
+        source_template +=
+            Self::format_bindings("output", &self.outputs, self.inputs.len()).as_str();
+
+        if let Some(info) = &self.info {
+            source_template +=
+                Self::format_binding("info", info, self.inputs.len() + self.outputs.len()).as_str();
+        }
+
         source_template += format!(
-            "
-const WORKGROUP_SIZE_X = {}u;
+            "const WORKGROUP_SIZE_X = {}u;
 const WORKGROUP_SIZE_Y = {}u;
-const WORKGROUP_SIZE_Z = {}u;
-",
+const WORKGROUP_SIZE_Z = {}u;\n",
             self.workgroup_sizes.x, self.workgroup_sizes.y, self.workgroup_sizes.z
         )
         .as_str();
@@ -120,29 +149,25 @@ fn main(
         .as_str();
 
         if self.global_invocation_id {
-            source_template += "
-    @builtin(global_invocation_id) global_id: vec3<u32>,
-";
+            source_template += "    @builtin(global_invocation_id) global_id: vec3<u32>,\n";
         }
 
         if self.num_workgroups {
-            source_template += "
-    @builtin(num_workgroups) num_workgroups: vec3<u32>,
-";
+            source_template += "    @builtin(num_workgroups) num_workgroups: vec3<u32>,\n";
         }
 
-        source_template += "
-) {
+        source_template += ") {
     {{ body }}
-}
-";
+}";
 
         SourceTemplate::new(source_template).register("body", self.body.source().complete())
     }
 
     fn id(&self) -> String {
         let mut s = DefaultHasher::new();
-        self.bindings.hash(&mut s);
+        self.inputs.hash(&mut s);
+        self.outputs.hash(&mut s);
+        self.info.hash(&mut s);
         self.workgroup_sizes.hash(&mut s);
         self.global_invocation_id.hash(&mut s);
         self.num_workgroups.hash(&mut s);

@@ -158,7 +158,8 @@ pub struct TensorDescription {
 }
 
 impl TensorId {
-    pub(crate) fn new(value: u64) -> Self {
+    /// Create a new tensor id.
+    pub fn new(value: u64) -> Self {
         Self { value }
     }
 }
