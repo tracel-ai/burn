@@ -14,7 +14,7 @@ use core::hash::Hash;
 use hashbrown::{HashMap, HashSet};
 use std::{collections::hash_map::DefaultHasher, hash::Hasher, sync::Arc};
 
-use super::{Binding, WgslTempate};
+use super::{Binding, WgpuFusionHandle, WgslTempate};
 
 pub struct FloatElementWiseFusionOps {
     inputs: Vec<TensorDescription>,
@@ -40,7 +40,6 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     for FloatElementWiseFusionOps
 {
     fn register(&mut self, ops: Arc<TensorOpsDescription<Wgpu<G, F, I>>>) -> FusionStatus {
-        println!("Register OPS ");
         match ops.as_ref() {
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
@@ -204,8 +203,18 @@ impl FloatElementWiseFusionOps {
             if num_elems_launch_option == 0 {
                 num_elems_launch_option = num_elems_output;
             }
+            let strides = dyn_strides(&output.shape);
             let handle = client.empty(num_elems_output * core::mem::size_of::<f32>());
-            // TODO: handles.register_handle(handle);
+
+            handles.register_handle(
+                output.id,
+                WgpuFusionHandle::new(
+                    client.clone(),
+                    handle.clone(),
+                    crate::WgpuDevice::BestAvailable,
+                    strides.clone(),
+                ),
+            );
             let mut strides = dyn_strides(&output.shape);
 
             info.append(&mut strides);
@@ -221,9 +230,10 @@ impl FloatElementWiseFusionOps {
         }
 
         // INFO
+        let info = info.into_iter().map(|i| i as u32).collect::<Vec<_>>();
         let info_handle = client.create(bytemuck::cast_slice(&info));
         kernel_handles.push(info_handle);
-        let info_binding = Some(Binding {
+        let info = Some(Binding {
             elem: super::Elem::U32,
             visibility: super::Visibility::Read,
             location: super::Location::Storage,
@@ -233,7 +243,7 @@ impl FloatElementWiseFusionOps {
         let kernel = WgslTempate {
             inputs: input_bindings,
             outputs: output_bindings,
-            info: info_binding,
+            info,
             workgroup_sizes: super::WorkgroupSize::default(),
             body: Box::new(ElemWiseBody { operations }),
             num_workgroups: true,
@@ -286,7 +296,6 @@ impl FloatElementWiseFusionOps {
     ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc, _) => {
-                println!("Register add");
                 let lhs = self.input_to_ident(&desc.lhs);
                 let rhs = self.input_to_ident(&desc.rhs);
                 let out = self.output_to_ident(&desc.out);
@@ -490,7 +499,6 @@ mod tests {
         let (kernel, handles, client) = optimization.create_kernel(&mut handles);
 
         let source = kernel.source().complete();
-        println!("{source}");
         pretty_assertions::assert_eq!(source, "");
     }
 
@@ -550,7 +558,6 @@ mod tests {
         let (kernel, handles, client) = optimization.create_kernel(&mut handles);
 
         let source = kernel.source().complete();
-        println!("{source}");
         pretty_assertions::assert_eq!(source, "");
     }
 
@@ -559,18 +566,23 @@ mod tests {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
 
-        let tensor_1 = Tensor::<Backend, 2>::full([32, 32], 1);
-        let tensor_2 = Tensor::<Backend, 2>::full([32, 32], 2);
+        let data_1 =
+            Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
+        let data_2 =
+            Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
+
+        let tensor_1 = Tensor::<Backend, 2>::from_data(data_1.clone());
+        let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3 + tensor_1;
         let result_ref = tensor_4.into_data();
 
-        let tensor_1 = Tensor::<FusedBackend, 2>::full([32, 32], 1);
-        let tensor_2 = Tensor::<FusedBackend, 2>::full([32, 32], 2);
+        let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
+        let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3 + tensor_1;
         let result_fused = tensor_4.into_data();
 
-        assert_eq!(result_ref, result_fused);
+        result_fused.assert_approx_eq(&result_ref, 3);
     }
 }

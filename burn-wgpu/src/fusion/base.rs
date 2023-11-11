@@ -1,5 +1,5 @@
 use crate::{
-    compute::{WgpuComputeClient, WgpuHandle},
+    compute::{compute_client, WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
     fusion::FloatElementWiseFusionOps,
     tensor::WgpuTensor,
@@ -8,7 +8,7 @@ use crate::{
 use burn_fusion::{
     client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
 };
-use burn_tensor::Shape;
+use burn_tensor::{ops::FloatElem, Shape};
 use core::marker::PhantomData;
 
 impl FusionDevice for WgpuDevice {
@@ -69,9 +69,33 @@ where
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle {
         tensor.into()
     }
+
+    fn create_handle_float(
+        values: Vec<FloatElem<Self>>,
+        shape: &[usize],
+        device: &WgpuDevice,
+    ) -> Self::Handle {
+        let client = compute_client::<G>(device);
+        let buffer = client.create(FloatElem::<Self>::as_bytes(&values));
+        let strides = dyn_strides(&shape);
+
+        WgpuFusionHandle::new(client, buffer, device.clone(), strides)
+    }
 }
 
-#[derive(Debug, Clone)]
+fn dyn_strides(shape: &[usize]) -> Vec<usize> {
+    let mut strides = vec![0; shape.len()];
+
+    let mut current = 1;
+    shape.iter().enumerate().rev().for_each(|(index, val)| {
+        strides[index] = current;
+        current *= val;
+    });
+
+    strides
+}
+
+#[derive(new, Debug, Clone)]
 /// Handle to be used when fusing operations.
 pub struct WgpuFusionHandle {
     /// Compute client for wgpu.

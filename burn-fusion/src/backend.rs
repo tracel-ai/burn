@@ -2,7 +2,7 @@ use crate::{
     client::FusionClient, graph::TensorOpsDescription, FusionClientLocator, FusionTensor,
     HandleContainer,
 };
-use burn_tensor::{backend::Backend, Shape};
+use burn_tensor::{backend::Backend, ops::FloatElem, Device, Element, Shape};
 use core::marker::PhantomData;
 use std::sync::Arc;
 
@@ -147,4 +147,11 @@ pub trait FusionBackend: Backend {
     fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](FusionBackend::Handle).
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
+
+    /// Create a handle for the given element.
+    fn create_handle_float(
+        values: Vec<FloatElem<Self>>,
+        shape: &[usize],
+        device: &Device<Self>,
+    ) -> Self::Handle;
 }

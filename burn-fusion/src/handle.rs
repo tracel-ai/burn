@@ -34,6 +34,10 @@ impl<B: FusionBackend> HandleContainer<B> {
         }
     }
 
+    pub fn register_handle(&mut self, id: TensorId, handle: B::Handle) {
+        self.handles.insert(id, Handle::Existing(handle));
+    }
+
     pub fn get_handle(&mut self, tensor: &TensorDescription) -> B::Handle {
         let (id, handle) = self
             .handles
@@ -53,24 +57,21 @@ impl<B: FusionBackend> HandleContainer<B> {
             }
         }
 
-        todo!();
-        //         let output = match handle {
-        //             Handle::Empty => B::empty(Shape::from(tensor.shape.clone()), &self.device),
-        //             Handle::DataFloat(values) => B::from_data(
-        //                 Data::new(values, Shape::from(tensor.shape.clone())),
-        //                 &self.device,
-        //             ),
-        //             Handle::Existing(_) => unreachable!(),
-        //             Handle::DataInt(_) => panic!("From int unsupported when getting float tensor."),
-        //             Handle::DataBool(_) => panic!("From bool unsupported when getting float tensor."),
-        //         };
-        //
-        // if let TensorStatus::ReadOnly = tensor.status {
-        //     self.handles
-        //         .insert(id, Handle::Existing(B::float_tensor_handle(output.clone())));
-        // }
+        let output = match handle {
+            Handle::DataFloat(values) => {
+                B::create_handle_float(values, &tensor.shape, &self.device)
+            }
+            Handle::Empty => todo!(),
+            Handle::Existing(_) => unreachable!(),
+            Handle::DataInt(_) => panic!("From int unsupported when getting float tensor."),
+            Handle::DataBool(_) => panic!("From bool unsupported when getting float tensor."),
+        };
 
-        // output
+        if let TensorStatus::ReadOnly = tensor.status {
+            self.handles.insert(id, Handle::Existing(output.clone()));
+        }
+
+        output
     }
 
     /// Get the [float tensor](burn_tensor::backend::Backend::TensorPrimitive) corresponding to the
