@@ -26,14 +26,23 @@ impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
         optimizations: &mut [Optimization<B>],
         force: bool,
     ) {
+        println!("Maybe execute graph force={force}");
         loop {
             if !force && still_optimizing(optimizations) {
+                println!("Still optimizing ...");
                 break;
             }
 
             match find_best_optimization_index(optimizations) {
-                Some(index) => graph.execute_optimization(handles, index, optimizations),
-                None => graph.execute(handles),
+                Some(index) => {
+                    println!("Execute optimization {index}");
+                    graph.execute_optimization(handles, index, optimizations);
+                }
+                None => {
+                    println!("Execute graph");
+                    graph.execute(handles);
+                    optimizations.iter_mut().for_each(|ops| ops.reset());
+                }
             }
 
             if graph.is_empty() {
@@ -49,6 +58,7 @@ fn still_optimizing<B: FusionBackend>(optimizations: &[Optimization<B>]) -> bool
 
     for optimization in optimizations.iter() {
         if let FusionStatus::Closed(_) = optimization.status {
+            println!("Close!");
             num_stopped += 1
         }
     }
@@ -67,6 +77,7 @@ fn find_best_optimization_index<B: FusionBackend>(
             FusionStatus::Closed(properties) => properties,
             FusionStatus::Open(properties) => properties,
         };
+        println!("{properties:?}");
 
         if properties.ready && properties.score >= best_score {
             best_index = Some(i);

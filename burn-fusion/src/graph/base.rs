@@ -50,6 +50,7 @@ impl<B: FusionBackend> Graph<B> {
         index: usize,
         optimizations: &mut [Optimization<B>],
     ) {
+        println!("Execute optimization");
         let optimization = optimizations.get_mut(index).unwrap();
         let num_keep = optimization.ops.len();
         optimization.ops.execute(handles);
@@ -92,6 +93,7 @@ impl<B: FusionBackend> Optimization<B> {
     }
 
     pub(crate) fn reset(&mut self) {
+        println!("Reset");
         self.ops.reset();
         self.status = FusionStatus::Open(FusionProperties::default());
     }

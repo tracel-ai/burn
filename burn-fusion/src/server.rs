@@ -38,6 +38,7 @@ where
     }
 
     pub fn register(&mut self, ops: TensorOpsDescription<B>) {
+        println!("Server register ");
         let ops = Arc::new(ops);
         self.graph.add(ops.clone());
 

@@ -40,6 +40,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     for FloatElementWiseFusionOps
 {
     fn register(&mut self, ops: Arc<TensorOpsDescription<Wgpu<G, F, I>>>) -> FusionStatus {
+        println!("Register OPS ");
         match ops.as_ref() {
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
@@ -51,13 +52,6 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
 
         self.properties.score += 1;
         self.properties.ready = self.ops.len() > 1;
-
-        self.tensors
-            .values()
-            .for_each(|tensor| match tensor.status {
-                burn_fusion::TensorStatus::ReadWrite => {}
-                _ => self.properties.ready = false,
-            });
 
         return FusionStatus::Open(self.properties.clone());
     }
@@ -292,6 +286,7 @@ impl FloatElementWiseFusionOps {
     ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc, _) => {
+                println!("Register add");
                 let lhs = self.input_to_ident(&desc.lhs);
                 let rhs = self.input_to_ident(&desc.rhs);
                 let out = self.output_to_ident(&desc.out);
@@ -351,7 +346,7 @@ impl Display for Operator {
         match self {
             Operator::Add { lhs, rhs, out } => f.write_str(&format!("let {out} = {lhs} + {rhs};")),
             Operator::Sub { lhs, rhs, out } => f.write_str(&format!("let {out} = {lhs} - {rhs};")),
-            Operator::Assign { input, out } => f.write_str(&format!("let {out} = {input};")),
+            Operator::Assign { input, out } => f.write_str(&format!("{out} = {input};")),
             Operator::ReadGlobal {
                 ident,
                 position,
@@ -373,8 +368,8 @@ impl Display for Operator {
 var index_{local}: u32 = 0u;
 
 for (var i: u32 = 1u; i <= dim; i++) {{
-    let position = {position} * (2 * dim);
-    let position_out = {position_out} * (2 * dim);
+    let position = {position}u * (2u * dim);
+    let position_out = {position_out}u * (2u * dim);
 
     let stride = info[position + i];
     let stride_out = info[position_out + i];
@@ -441,7 +436,8 @@ mod tests {
     use super::*;
     use crate::tests::{TestBackend, TestTensor};
     use burn_fusion::graph::{BinaryOpsDescription, Ops};
-    use burn_fusion::TensorStatus;
+    use burn_fusion::{Fusion, TensorStatus};
+    use burn_tensor::Tensor;
 
     struct FakeAddOps;
 
@@ -556,5 +552,25 @@ mod tests {
         let source = kernel.source().complete();
         println!("{source}");
         pretty_assertions::assert_eq!(source, "");
+    }
+
+    #[test]
+    fn test_fusion_two_elems() {
+        type Backend = Wgpu;
+        type FusedBackend = Fusion<Wgpu>;
+
+        let tensor_1 = Tensor::<Backend, 2>::full([32, 32], 1);
+        let tensor_2 = Tensor::<Backend, 2>::full([32, 32], 2);
+        let tensor_3 = tensor_1.clone() + tensor_2;
+        let tensor_4 = tensor_3 + tensor_1;
+        let result_ref = tensor_4.into_data();
+
+        let tensor_1 = Tensor::<FusedBackend, 2>::full([32, 32], 1);
+        let tensor_2 = Tensor::<FusedBackend, 2>::full([32, 32], 2);
+        let tensor_3 = tensor_1.clone() + tensor_2;
+        let tensor_4 = tensor_3 + tensor_1;
+        let result_fused = tensor_4.into_data();
+
+        assert_eq!(result_ref, result_fused);
     }
 }

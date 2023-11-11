@@ -105,7 +105,7 @@ impl WgslTempate {
 
     fn format_binding(name: &str, binding: &Binding, num_entry: usize) -> String {
         let ty = match binding.size {
-            Some(size) => format!("array<{}; {}>", binding.elem, size),
+            Some(size) => format!("array<{}, {}>", binding.elem, size),
             None => format!("array<{}>", binding.elem),
         };
 
