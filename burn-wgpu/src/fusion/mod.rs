@@ -1,7 +1,7 @@
 mod base;
 mod elemwise;
-mod template;
+
+pub(crate) mod codegen;
 
 pub use base::*;
 pub use elemwise::*;
-pub use template::*;

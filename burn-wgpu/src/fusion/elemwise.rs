@@ -1,5 +1,6 @@
 use crate::{
     compute::{DynamicKernel, Kernel, WgpuComputeClient, WgpuHandle},
+    fusion::codegen::{Elem, Location, ShaderCodegen, Visibility, WorkgroupSize},
     kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
@@ -14,13 +15,16 @@ use core::hash::Hash;
 use hashbrown::{HashMap, HashSet};
 use std::{collections::hash_map::DefaultHasher, hash::Hasher, sync::Arc};
 
-use super::{Binding, WgpuFusionHandle, WgslTempate};
+use super::{
+    codegen::{Binding, Operator, Variable},
+    WgpuFusionHandle,
+};
 
 pub struct FloatElementWiseFusionOps {
     inputs: Vec<TensorDescription>,
-    temps: HashMap<TensorId, u16>,
+    locals: HashMap<TensorId, u16>,
     tensors: HashMap<TensorId, TensorDescription>,
-    ops: Vec<Operator>,
+    operators: Vec<Operator>,
     properties: FusionProperties,
 }
 
@@ -28,9 +32,9 @@ impl Default for FloatElementWiseFusionOps {
     fn default() -> Self {
         Self {
             inputs: Vec::new(),
-            temps: HashMap::new(),
+            locals: HashMap::new(),
             tensors: HashMap::new(),
-            ops: Vec::new(),
+            operators: Vec::new(),
             properties: FusionProperties::default(),
         }
     }
@@ -50,7 +54,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         };
 
         self.properties.score += 1;
-        self.properties.ready = self.ops.len() > 1;
+        self.properties.ready = self.operators.len() > 1;
 
         return FusionStatus::Open(self.properties.clone());
     }
@@ -65,11 +69,11 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     fn reset(&mut self) {
         self.properties = FusionProperties::default();
         self.tensors.clear();
-        self.ops.clear();
+        self.operators.clear();
     }
 
     fn len(&self) -> usize {
-        self.ops.len()
+        self.operators.len()
     }
 }
 
@@ -81,9 +85,11 @@ impl FloatElementWiseFusionOps {
 
         let mark_temp = |var: &Variable, list: &mut HashSet<TensorId>| {
             match var {
-                Variable::Temp(index) => {
-                    if let Some((id, _)) =
-                        self.temps.iter().find(|(_id, position)| *position == index)
+                Variable::Local(index) => {
+                    if let Some((id, _)) = self
+                        .locals
+                        .iter()
+                        .find(|(_id, position)| *position == index)
                     {
                         list.insert(id.clone());
                     }
@@ -91,7 +97,7 @@ impl FloatElementWiseFusionOps {
                 _ => {}
             };
         };
-        for ops in self.ops.iter() {
+        for ops in self.operators.iter() {
             match ops {
                 Operator::Add { lhs, rhs, out } => {
                     mark_temp(lhs, &mut read_tensor);
@@ -116,7 +122,7 @@ impl FloatElementWiseFusionOps {
         for tensor in self.tensors.values() {
             match tensor.status {
                 burn_fusion::TensorStatus::ReadOnly => {
-                    if self.temps.contains_key(&tensor.id) {
+                    if self.locals.contains_key(&tensor.id) {
                         // If used after.
                         outputs.push(tensor.clone());
                     }
@@ -163,9 +169,9 @@ impl FloatElementWiseFusionOps {
             }
 
             input_bindings.push(Binding {
-                elem: super::Elem::F32,
-                visibility: super::Visibility::Read,
-                location: super::Location::Storage,
+                elem: Elem::F32,
+                visibility: Visibility::Read,
+                location: Location::Storage,
                 size: None,
             });
             operations.push(Operator::ReadGlobal {
@@ -186,12 +192,12 @@ impl FloatElementWiseFusionOps {
         };
 
         // REGISTER OUTPUTS
-        operations.append(&mut self.ops.clone());
+        operations.append(&mut self.operators.clone());
 
         for (i, output) in outputs.iter().enumerate() {
-            if let Some(temp) = self.temps.get(&output.id) {
+            if let Some(temp) = self.locals.get(&output.id) {
                 operations.push(Operator::AssignGlobal {
-                    input: Variable::Temp(*temp),
+                    input: Variable::Local(*temp),
                     out: Variable::Output(i as u16),
                 });
             }
@@ -222,9 +228,9 @@ impl FloatElementWiseFusionOps {
             kernel_handles.push(handle);
 
             output_bindings.push(Binding {
-                elem: super::Elem::F32,
-                visibility: super::Visibility::ReadWrite,
-                location: super::Location::Storage,
+                elem: Elem::F32,
+                visibility: Visibility::ReadWrite,
+                location: Location::Storage,
                 size: None,
             });
         }
@@ -234,19 +240,19 @@ impl FloatElementWiseFusionOps {
         let info_handle = client.create(bytemuck::cast_slice(&info));
         kernel_handles.push(info_handle);
         let info = Some(Binding {
-            elem: super::Elem::U32,
-            visibility: super::Visibility::Read,
-            location: super::Location::Storage,
+            elem: Elem::U32,
+            visibility: Visibility::Read,
+            location: Location::Storage,
             size: Some(info.len()),
         });
 
         println!("Operations {:?}", operations);
 
-        let kernel = WgslTempate {
+        let kernel = ShaderCodegen {
             inputs: input_bindings,
             outputs: output_bindings,
             info,
-            workgroup_sizes: super::WorkgroupSize::default(),
+            workgroup_sizes: WorkgroupSize::default(),
             body: Box::new(ElemWiseBody { operations }),
             num_workgroups: true,
             global_invocation_id: true,
@@ -262,14 +268,19 @@ impl FloatElementWiseFusionOps {
     }
 
     fn input_to_var(&mut self, tensor: &TensorDescription) -> Variable {
-        let variable = match self.tensors.contains_key(&tensor.id) {
+        let already_exists = self.tensors.contains_key(&tensor.id);
+
+        let variable = match already_exists {
             false => {
+                // New input
                 let var = Variable::Input(self.inputs.len() as u16);
                 self.inputs.push(tensor.clone());
                 var
             }
-            true => match self.temps.get(&tensor.id) {
-                Some(index) => Variable::Temp(*index),
+            true => match self.locals.get(&tensor.id) {
+                // Is a local variable.
+                Some(local_index) => Variable::Local(*local_index),
+                // Isn't a local variable, so must be an input.
                 None => {
                     let input = self
                         .inputs
@@ -277,20 +288,31 @@ impl FloatElementWiseFusionOps {
                         .enumerate()
                         .find(|(_, input)| input.id == tensor.id)
                         .unwrap();
-                    Variable::Input(input.0 as u16)
+                    let input_index = input.0;
+                    Variable::Input(input_index as u16)
                 }
             },
         };
+
+        // Update the tensor description with the new version.
         self.tensors.insert(tensor.id.clone(), tensor.clone());
 
         variable
     }
 
     fn output_to_var(&mut self, tensor: &TensorDescription) -> Variable {
-        let temp = self.ops.len() as u16;
-        self.temps.insert(tensor.id.clone(), temp);
+        // Update the tensor description to the new version.
         self.tensors.insert(tensor.id.clone(), tensor.clone());
-        Variable::Temp(temp)
+
+        // Output already registered as a local variable.
+        if let Some(index) = self.locals.get(&tensor.id) {
+            return Variable::Local(*index);
+        }
+
+        // New local variable.
+        let local_index = self.locals.len() as u16;
+        self.locals.insert(tensor.id.clone(), local_index);
+        Variable::Local(local_index)
     }
 
     fn register_numeric<B: FusionBackend, E: Element>(
@@ -303,7 +325,7 @@ impl FloatElementWiseFusionOps {
                 let rhs = self.input_to_var(&desc.rhs);
                 let out = self.output_to_var(&desc.out);
 
-                self.ops.push(Operator::Add { lhs, rhs, out });
+                self.operators.push(Operator::Add { lhs, rhs, out });
 
                 return true;
             }
@@ -312,102 +334,11 @@ impl FloatElementWiseFusionOps {
                 let rhs = self.input_to_var(&desc.rhs);
                 let out = self.output_to_var(&desc.out);
 
-                self.ops.push(Operator::Sub { lhs, rhs, out });
+                self.operators.push(Operator::Sub { lhs, rhs, out });
 
                 return true;
             }
             _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Hash, Clone)]
-enum Variable {
-    Input(u16),
-    Temp(u16),
-    Output(u16),
-}
-
-#[derive(Debug, Hash, Clone)]
-enum Operator {
-    Add {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Sub {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    AssignGlobal {
-        input: Variable,
-        out: Variable,
-    },
-    ReadGlobal {
-        variable: Variable,
-        position: usize,
-        position_out: usize,
-    },
-}
-
-impl Display for Variable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Variable::Input(number) => f.write_fmt(format_args!("input_{number}")),
-            Variable::Temp(number) => f.write_fmt(format_args!("temp_{number}")),
-            Variable::Output(number) => f.write_fmt(format_args!("output_{number}")),
-        }
-    }
-}
-
-impl Display for Operator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Operator::Add { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} + {rhs};"))
-            }
-            Operator::Sub { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
-            }
-            Operator::AssignGlobal { input, out } => {
-                f.write_fmt(format_args!("{out}_global[id] = {input};"))
-            }
-            Operator::ReadGlobal {
-                variable,
-                position,
-                position_out,
-            } => {
-                let (global, local) = match variable {
-                    Variable::Input(number) => {
-                        (format!("input_{number}_global"), format!("input_{number}"))
-                    }
-                    Variable::Temp(_) => panic!("can't ready global a temp variable."),
-                    Variable::Output(number) => (
-                        format!("output_{number}_global"),
-                        format!("output_{number}"),
-                    ),
-                };
-
-                f.write_fmt(format_args!(
-                    "
-var index_{local}: u32 = 0u;
-
-for (var i: u32 = 1u; i <= dim; i++) {{
-    let position = {position}u * (2u * dim);
-    let position_out = {position_out}u * (2u * dim);
-
-    let stride = info[position + i];
-    let stride_out = info[position_out + i];
-    let shape = info[position + dim + i];
-
-    index_{local} += id / stride_out % shape * stride;
-}}
-
-let {local} = {global}[index_{local}];
-"
-                ))
-            }
         }
     }
 }
@@ -501,6 +432,5 @@ mod tests {
         let result_fused = tensor_6.into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
-        panic!("Haha");
     }
 }
