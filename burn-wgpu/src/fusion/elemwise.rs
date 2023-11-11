@@ -79,9 +79,9 @@ impl FloatElementWiseFusionOps {
         let mut read_tensor = HashSet::new();
         let mut out_tensor = HashSet::new();
 
-        let mark_temp = |ident: &Ident, list: &mut HashSet<TensorId>| {
-            match ident {
-                Ident::Temp(index) => {
+        let mark_temp = |var: &Variable, list: &mut HashSet<TensorId>| {
+            match var {
+                Variable::Temp(index) => {
                     if let Some((id, _)) =
                         self.temps.iter().find(|(_id, position)| *position == index)
                     {
@@ -153,7 +153,7 @@ impl FloatElementWiseFusionOps {
                 info.push(input.shape.len()); // Rank
             }
 
-            let mut handle = handles.get_handle(&input);
+            let mut handle = handles.get_handle_float(&input);
             info.append(&mut handle.strides);
             info.append(&mut input.shape.clone());
             kernel_handles.push(handle.handle);
@@ -169,7 +169,7 @@ impl FloatElementWiseFusionOps {
                 size: None,
             });
             operations.push(Operator::ReadGlobal {
-                ident: Ident::Input(i as u16),
+                variable: Variable::Input(i as u16),
                 position: i,
                 position_out: self.inputs.len(), // First output
             });
@@ -190,9 +190,9 @@ impl FloatElementWiseFusionOps {
 
         for (i, output) in outputs.iter().enumerate() {
             if let Some(temp) = self.temps.get(&output.id) {
-                operations.push(Operator::Assign {
-                    input: Ident::Temp(*temp),
-                    out: Ident::Output(i as u16),
+                operations.push(Operator::AssignGlobal {
+                    input: Variable::Temp(*temp),
+                    out: Variable::Output(i as u16),
                 });
             }
         }
@@ -240,6 +240,8 @@ impl FloatElementWiseFusionOps {
             size: Some(info.len()),
         });
 
+        println!("Operations {:?}", operations);
+
         let kernel = WgslTempate {
             inputs: input_bindings,
             outputs: output_bindings,
@@ -258,15 +260,16 @@ impl FloatElementWiseFusionOps {
             client,
         )
     }
-    fn input_to_ident(&mut self, tensor: &TensorDescription) -> Ident {
-        let ident = match self.tensors.contains_key(&tensor.id) {
+
+    fn input_to_var(&mut self, tensor: &TensorDescription) -> Variable {
+        let variable = match self.tensors.contains_key(&tensor.id) {
             false => {
-                let ident = Ident::Input(self.inputs.len() as u16);
+                let var = Variable::Input(self.inputs.len() as u16);
                 self.inputs.push(tensor.clone());
-                ident
+                var
             }
             true => match self.temps.get(&tensor.id) {
-                Some(index) => Ident::Temp(*index),
+                Some(index) => Variable::Temp(*index),
                 None => {
                     let input = self
                         .inputs
@@ -274,20 +277,20 @@ impl FloatElementWiseFusionOps {
                         .enumerate()
                         .find(|(_, input)| input.id == tensor.id)
                         .unwrap();
-                    Ident::Input(input.0 as u16)
+                    Variable::Input(input.0 as u16)
                 }
             },
         };
         self.tensors.insert(tensor.id.clone(), tensor.clone());
 
-        ident
+        variable
     }
 
-    fn output_to_ident(&mut self, tensor: &TensorDescription) -> Ident {
+    fn output_to_var(&mut self, tensor: &TensorDescription) -> Variable {
         let temp = self.ops.len() as u16;
         self.temps.insert(tensor.id.clone(), temp);
         self.tensors.insert(tensor.id.clone(), tensor.clone());
-        Ident::Temp(temp)
+        Variable::Temp(temp)
     }
 
     fn register_numeric<B: FusionBackend, E: Element>(
@@ -296,11 +299,20 @@ impl FloatElementWiseFusionOps {
     ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc, _) => {
-                let lhs = self.input_to_ident(&desc.lhs);
-                let rhs = self.input_to_ident(&desc.rhs);
-                let out = self.output_to_ident(&desc.out);
+                let lhs = self.input_to_var(&desc.lhs);
+                let rhs = self.input_to_var(&desc.rhs);
+                let out = self.output_to_var(&desc.out);
 
                 self.ops.push(Operator::Add { lhs, rhs, out });
+
+                return true;
+            }
+            NumericOpsDescription::Sub(desc, _) => {
+                let lhs = self.input_to_var(&desc.lhs);
+                let rhs = self.input_to_var(&desc.rhs);
+                let out = self.output_to_var(&desc.out);
+
+                self.ops.push(Operator::Sub { lhs, rhs, out });
 
                 return true;
             }
@@ -309,43 +321,42 @@ impl FloatElementWiseFusionOps {
     }
 }
 
-#[derive(Hash, Clone)]
-enum Ident {
+#[derive(Debug, Hash, Clone)]
+enum Variable {
     Input(u16),
     Temp(u16),
     Output(u16),
 }
 
-#[derive(Hash, Clone)]
+#[derive(Debug, Hash, Clone)]
 enum Operator {
     Add {
-        lhs: Ident,
-        rhs: Ident,
-        out: Ident,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Sub {
-        lhs: Ident,
-        rhs: Ident,
-        out: Ident,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
-    Assign {
-        input: Ident,
-        out: Ident,
+    AssignGlobal {
+        input: Variable,
+        out: Variable,
     },
     ReadGlobal {
-        ident: Ident,
+        variable: Variable,
         position: usize,
         position_out: usize,
     },
 }
 
-impl Display for Ident {
+impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Ident::Input(number) => f.write_str(format!("input_{number}").as_str()),
-            Ident::Temp(number) => f.write_str(format!("temp_{number}").as_str()),
-            Ident::Output(number) => f.write_str(format!("output_{number}_global[id]").as_str()),
-            _ => todo!(),
+            Variable::Input(number) => f.write_fmt(format_args!("input_{number}")),
+            Variable::Temp(number) => f.write_fmt(format_args!("temp_{number}")),
+            Variable::Output(number) => f.write_fmt(format_args!("output_{number}")),
         }
     }
 }
@@ -353,26 +364,32 @@ impl Display for Ident {
 impl Display for Operator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operator::Add { lhs, rhs, out } => f.write_str(&format!("let {out} = {lhs} + {rhs};")),
-            Operator::Sub { lhs, rhs, out } => f.write_str(&format!("let {out} = {lhs} - {rhs};")),
-            Operator::Assign { input, out } => f.write_str(&format!("{out} = {input};")),
+            Operator::Add { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} + {rhs};"))
+            }
+            Operator::Sub { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
+            }
+            Operator::AssignGlobal { input, out } => {
+                f.write_fmt(format_args!("{out}_global[id] = {input};"))
+            }
             Operator::ReadGlobal {
-                ident,
+                variable,
                 position,
                 position_out,
             } => {
-                let (global, local) = match ident {
-                    Ident::Input(number) => {
+                let (global, local) = match variable {
+                    Variable::Input(number) => {
                         (format!("input_{number}_global"), format!("input_{number}"))
                     }
-                    Ident::Temp(_) => panic!("can't ready global a temp ident"),
-                    Ident::Output(number) => (
+                    Variable::Temp(_) => panic!("can't ready global a temp variable."),
+                    Variable::Output(number) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
                     ),
                 };
 
-                f.write_str(&format!(
+                f.write_fmt(format_args!(
                     "
 var index_{local}: u32 = 0u;
 
@@ -408,7 +425,7 @@ impl Display for ElemWiseBody {
         f.write_str("let dim: u32 = info[0];\n\n")?;
 
         for ops in self.operations.iter() {
-            f.write_str(ops.to_string().as_str())?;
+            f.write_fmt(format_args!("{ops}"))?;
             f.write_str("\n")?;
         }
 
@@ -443,9 +460,8 @@ fn dyn_strides(shape: &[usize]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{TestBackend, TestTensor};
     use burn_fusion::graph::{BinaryOpsDescription, Ops};
-    use burn_fusion::{Fusion, TensorStatus};
+    use burn_fusion::Fusion;
     use burn_tensor::Tensor;
 
     struct FakeAddOps;
@@ -459,109 +475,6 @@ mod tests {
     }
 
     #[test]
-    fn test_source_one_operation() {
-        let mut optimization = FloatElementWiseFusionOps::default();
-        let mut handles = HandleContainer::<TestBackend>::default();
-
-        let tensor1 = TestTensor::ones([32, 32]);
-        let tensor1_desc = TensorDescription {
-            id: TensorId::new(0),
-            shape: vec![32, 32],
-            status: TensorStatus::ReadOnly,
-        };
-        let tensor2 = TestTensor::ones([32, 32]);
-        let tensor2_desc = TensorDescription {
-            id: TensorId::new(1),
-            shape: vec![32, 32],
-            status: TensorStatus::ReadOnly,
-        };
-        let tensor3_desc = TensorDescription {
-            id: TensorId::new(2),
-            shape: vec![32, 32],
-            status: TensorStatus::NotInit,
-        };
-
-        handles.register_float_tensor(&tensor1_desc.id, tensor1.clone().into_primitive());
-        handles.register_float_tensor(&tensor2_desc.id, tensor2.clone().into_primitive());
-
-        let ops =
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::<TestBackend, f32>::Add(
-                BinaryOpsDescription {
-                    lhs: tensor1_desc,
-                    rhs: tensor2_desc,
-                    out: tensor3_desc,
-                },
-                Box::new(FakeAddOps),
-            ));
-
-        optimization.register(Arc::new(ops));
-
-        let (kernel, handles, client) = optimization.create_kernel(&mut handles);
-
-        let source = kernel.source().complete();
-        pretty_assertions::assert_eq!(source, "");
-    }
-
-    #[test]
-    fn test_source_two_operations() {
-        let mut optimization = FloatElementWiseFusionOps::default();
-        let mut handles = HandleContainer::<TestBackend>::default();
-
-        let tensor1 = TestTensor::ones([32, 32]);
-        let tensor1_desc = TensorDescription {
-            id: TensorId::new(0),
-            shape: vec![32, 32],
-            status: TensorStatus::ReadOnly,
-        };
-        let tensor2 = TestTensor::ones([32, 32]);
-        let tensor2_desc = TensorDescription {
-            id: TensorId::new(1),
-            shape: vec![32, 32],
-            status: TensorStatus::ReadOnly,
-        };
-        let tensor3_desc = TensorDescription {
-            id: TensorId::new(2),
-            shape: vec![32, 32],
-            status: TensorStatus::NotInit,
-        };
-        let tensor4_desc = TensorDescription {
-            id: TensorId::new(3),
-            shape: vec![32, 32],
-            status: TensorStatus::NotInit,
-        };
-
-        handles.register_float_tensor(&tensor1_desc.id, tensor1.clone().into_primitive());
-        handles.register_float_tensor(&tensor2_desc.id, tensor2.clone().into_primitive());
-
-        let ops =
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::<TestBackend, f32>::Add(
-                BinaryOpsDescription {
-                    lhs: tensor1_desc.clone(),
-                    rhs: tensor2_desc,
-                    out: tensor3_desc.clone(),
-                },
-                Box::new(FakeAddOps),
-            ));
-
-        optimization.register(Arc::new(ops));
-        let ops =
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::<TestBackend, f32>::Add(
-                BinaryOpsDescription {
-                    lhs: tensor3_desc,
-                    rhs: tensor1_desc.clone(),
-                    out: tensor4_desc,
-                },
-                Box::new(FakeAddOps),
-            ));
-        optimization.register(Arc::new(ops));
-
-        let (kernel, handles, client) = optimization.create_kernel(&mut handles);
-
-        let source = kernel.source().complete();
-        pretty_assertions::assert_eq!(source, "");
-    }
-
-    #[test]
     fn test_fusion_two_elems() {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
@@ -569,20 +482,25 @@ mod tests {
         let data_1 =
             Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
         let data_2 =
-            Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
+            Tensor::<Backend, 2>::random([1, 32], burn_tensor::Distribution::Default).into_data();
 
         let tensor_1 = Tensor::<Backend, 2>::from_data(data_1.clone());
         let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
         let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3 + tensor_1;
-        let result_ref = tensor_4.into_data();
+        let tensor_4 = tensor_3.clone() - tensor_1;
+        let tensor_5 = tensor_4 + 5.0;
+        let tensor_6 = tensor_5 + tensor_3;
+        let result_ref = tensor_6.into_data();
 
         let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
         let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3 + tensor_1;
-        let result_fused = tensor_4.into_data();
+        let tensor_4 = tensor_3.clone() - tensor_1;
+        let tensor_5 = tensor_4 + 5.0;
+        let tensor_6 = tensor_5 + tensor_3;
+        let result_fused = tensor_6.into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
+        panic!("Haha");
     }
 }
