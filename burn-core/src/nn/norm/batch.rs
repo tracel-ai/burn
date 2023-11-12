@@ -174,12 +174,12 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
 #[cfg(test)]
 mod tests_1d {
     use super::*;
-    use crate::{module::ADModule, TestADBackend};
+    use crate::{module::AutodiffModule, TestAutodiffBackend};
     use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
 
         let output = module.forward(input_tensor());
 
@@ -202,7 +202,7 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 1>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
 
         module.forward(input_tensor());
         let module = module.valid();
@@ -229,12 +229,12 @@ mod tests_1d {
 #[cfg(test)]
 mod tests_2d {
     use super::*;
-    use crate::{module::ADModule, TestADBackend};
+    use crate::{module::AutodiffModule, TestAutodiffBackend};
     use burn_tensor::Data;
 
     #[test]
     fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
 
         let output = module.forward(input_tensor());
 
@@ -257,7 +257,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
 
         module.forward(input_tensor());
         let module = module.valid();
@@ -282,7 +282,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -296,7 +296,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_var() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -310,7 +310,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean_inner_module() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
 
         let _output = module.forward(input_tensor());
 
@@ -325,7 +325,7 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_grads() {
-        let module = BatchNormConfig::new(3).init::<TestADBackend, 2>();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
         let input = input_tensor().require_grad();
 
         let output = module.forward(input.clone());

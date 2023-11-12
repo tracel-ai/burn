@@ -5,53 +5,53 @@
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::backend::ndarray::NdArrayDevice;
-    use burn::backend::NdArrayAutodiffBackend;
+    use burn::backend::ndarray::{NdArray, NdArrayDevice};
+    use burn::backend::Autodiff;
     use mnist::training;
 
     pub fn run() {
         let device = NdArrayDevice::Cpu;
-        training::run::<NdArrayAutodiffBackend>(device);
+        training::run::<Autodiff<NdArray>>(device);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::tch::TchDevice;
-    use burn::backend::TchAutodiffBackend;
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::backend::Autodiff;
     use mnist::training;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = TchDevice::Cuda(0);
+        let device = LibTorchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
-        let device = TchDevice::Mps;
+        let device = LibTorchDevice::Mps;
 
-        training::run::<TchAutodiffBackend>(device);
+        training::run::<Autodiff<LibTorch>>(device);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::WgpuDevice;
-    use burn::backend::WgpuAutodiffBackend;
+    use burn::backend::wgpu::{Wgpu, WgpuDevice};
+    use burn::backend::Autodiff;
     use mnist::training;
 
     pub fn run() {
         let device = WgpuDevice::default();
-        training::run::<WgpuAutodiffBackend>(device);
+        training::run::<Autodiff<Wgpu>>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::tch::TchDevice;
-    use burn::backend::TchAutodiffBackend;
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::backend::Autodiff;
     use mnist::training;
 
     pub fn run() {
-        let device = TchDevice::Cpu;
-        training::run::<TchAutodiffBackend>(device);
+        let device = LibTorchDevice::Cpu;
+        training::run::<Autodiff<LibTorch>>(device);
     }
 }
 

@@ -6,12 +6,12 @@ use super::{
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
-use burn_ndarray::NdArrayBackend;
+use burn_ndarray::NdArray;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
 /// Backend used for serialization.
-pub type SerializationBackend = NdArrayBackend<f32>;
+pub type SerializationBackend = NdArray<f32>;
 
 /// Codegen trait that should be implemented by all [node](Node) entries.
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {

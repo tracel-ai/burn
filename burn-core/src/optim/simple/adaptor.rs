@@ -1,11 +1,11 @@
 use super::{record::AdaptorRecord, SimpleOptimizer};
 use crate::{
     grad_clipping::GradientClipping,
-    module::{ADModule, ModuleMapper, ParamId},
+    module::{AutodiffModule, ModuleMapper, ParamId},
     optim::{GradientsParams, Optimizer},
     LearningRate,
 };
-use burn_tensor::{backend::ADBackend, Tensor};
+use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
@@ -14,8 +14,8 @@ use hashbrown::HashMap;
 pub struct OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
-    M: ADModule<B>,
-    B: ADBackend,
+    M: AutodiffModule<B>,
+    B: AutodiffBackend,
 {
     optim: O,
     records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
@@ -25,8 +25,8 @@ where
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
 where
-    B: ADBackend,
-    M: ADModule<B>,
+    B: AutodiffBackend,
+    M: AutodiffModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn from(optim: O) -> Self {
@@ -42,8 +42,8 @@ where
 impl<O, M, B> OptimizerAdaptor<O, M, B>
 where
     O: SimpleOptimizer<B::InnerBackend>,
-    M: ADModule<B>,
-    B: ADBackend,
+    M: AutodiffModule<B>,
+    B: AutodiffBackend,
 {
     /// Sets the gradient clipping.
     ///
@@ -67,8 +67,8 @@ where
 
 impl<O, B, M> Optimizer<M, B> for OptimizerAdaptor<O, M, B>
 where
-    B: ADBackend,
-    M: ADModule<B>,
+    B: AutodiffBackend,
+    M: AutodiffModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
@@ -97,8 +97,8 @@ where
 #[derive(new)]
 struct SimpleOptimizerMapper<'a, M, B, O>
 where
-    M: ADModule<B>,
-    B: ADBackend,
+    M: AutodiffModule<B>,
+    B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     optimizer: &'a O,
@@ -111,8 +111,8 @@ where
 
 impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
 where
-    M: ADModule<B>,
-    B: ADBackend,
+    M: AutodiffModule<B>,
+    B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
     fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {

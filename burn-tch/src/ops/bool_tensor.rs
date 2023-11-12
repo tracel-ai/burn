@@ -1,15 +1,12 @@
+use super::TchOps;
+use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
-
-use crate::{element::TchElement, TchBackend, TchDevice, TchTensor};
-
-use super::TchOps;
-
-impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
+impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data<const D: usize>(
         data: Data<bool, D>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::from_data(data, (*device).into())
     }
@@ -36,7 +33,7 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
 
     fn bool_to_device<const D: usize>(
         tensor: TchTensor<bool, D>,
-        device: &TchDevice,
+        device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
         TchTensor::new(tensor.tensor.to((*device).into()))
     }
@@ -48,13 +45,13 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
         TchOps::reshape(tensor, shape)
     }
 
-    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> TchDevice {
+    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> LibTorchDevice {
         tensor.tensor.device().into()
     }
 
     fn bool_empty<const D: usize>(
         shape: Shape<D>,
-        device: &<TchBackend<E> as Backend>::Device,
+        device: &<LibTorch<E> as Backend>::Device,
     ) -> TchTensor<bool, D> {
         let tensor = tch::Tensor::empty(
             shape.dims.map(|a| a as i64),
@@ -111,10 +108,10 @@ impl<E: TchElement> BoolTensorOps<TchBackend<E>> for TchBackend<E> {
     }
 
     fn bool_swap_dims<const D: usize>(
-        tensor: <TchBackend<E> as Backend>::BoolTensorPrimitive<D>,
+        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <TchBackend<E> as Backend>::BoolTensorPrimitive<D> {
+    ) -> <LibTorch<E> as Backend>::BoolTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
 }

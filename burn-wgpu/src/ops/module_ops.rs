@@ -1,19 +1,15 @@
-use burn_tensor::{
-    ops::{
-        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-        TensorOps, UnfoldOptions,
-    },
-    Shape,
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, GraphicsApi, WgpuBackend,
+    kernel, GraphicsApi, Wgpu,
 };
 
-use super::{FloatTensor, IntTensor};
+use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<G, F, I> ModuleOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> ModuleOps<Self> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -35,19 +31,6 @@ where
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self, 4> {
         kernel::conv::conv_transpose2d(x, weight, bias, options)
-    }
-
-    fn unfold4d(
-        x: FloatTensor<Self, 4>,
-        kernel_size: [usize; 2],
-        options: UnfoldOptions,
-    ) -> FloatTensor<Self, 3> {
-        let unfold_intermediate = kernel::unfold::unfold4d(x, kernel_size, options);
-        let [batch_size, channels_out, out_height, out_width] = unfold_intermediate.shape.dims;
-        <WgpuBackend<G, F, I> as TensorOps<WgpuBackend<G, F, I>>>::reshape(
-            unfold_intermediate,
-            Shape::new([batch_size, channels_out, out_height * out_width]),
-        )
     }
 
     fn avg_pool2d(
@@ -87,7 +70,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<WgpuBackend<G, F, I>> {
+    ) -> MaxPool2dWithIndices<Wgpu<G, F, I>> {
         let (output, indices) =
             kernel::pool::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
@@ -102,7 +85,7 @@ where
         dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<WgpuBackend<G, F, I>> {
+    ) -> MaxPool2dBackward<Wgpu<G, F, I>> {
         MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward(
             x,
             output_grad,

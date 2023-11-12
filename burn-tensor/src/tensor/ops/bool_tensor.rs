@@ -1,3 +1,4 @@
+use super::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -16,8 +17,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the given shape.
-    fn bool_empty<const D: usize>(shape: Shape<D>, device: &B::Device)
-        -> B::BoolTensorPrimitive<D>;
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> BoolTensor<B, D>;
 
     /// Returns the shape of the tensor.
     ///
@@ -28,7 +28,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The shape of the tensor.
-    fn bool_shape<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Shape<D>;
+    fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> Shape<D>;
 
     /// Converts the tensor to a data structure.
     ///
@@ -39,7 +39,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> Reader<Data<bool, D>>;
+    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>>;
 
     /// Gets the data from the tensor.
     ///
@@ -51,7 +51,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data cloned from the data structure.
-    fn bool_to_data<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> Reader<Data<bool, D>> {
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
         Self::bool_into_data(tensor.clone())
     }
 
@@ -65,10 +65,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
-        device: &B::Device,
-    ) -> B::BoolTensorPrimitive<D>;
+    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D>;
 
     /// Converts bool tensor to int tensor.
     ///
@@ -79,8 +76,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The int tensor with the same data as the bool tensor.
-    fn bool_into_int<const D: usize>(tensor: B::BoolTensorPrimitive<D>)
-        -> B::IntTensorPrimitive<D>;
+    fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D>;
 
     /// Converts bool tensor to float tensor.
     ///
@@ -91,7 +87,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The float tensor with the same data as the bool tensor.
-    fn bool_into_float<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> B::TensorPrimitive<D>;
+    fn bool_into_float<const D: usize>(tensor: BoolTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Gets the device of the tensor.
     ///
@@ -102,13 +98,13 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The device of the tensor.
-    fn bool_device<const D: usize>(tensor: &B::BoolTensorPrimitive<D>) -> B::Device;
+    fn bool_device<const D: usize>(tensor: &BoolTensor<B, D>) -> Device<B>;
 
     /// Moves the tensor to the device.
     fn bool_to_device<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
-        device: &B::Device,
-    ) -> B::BoolTensorPrimitive<D>;
+        tensor: BoolTensor<B, D>,
+        device: &Device<B>,
+    ) -> BoolTensor<B, D>;
 
     /// Reshapes the tensor.
     ///
@@ -121,9 +117,9 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the new shape.
     fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: B::BoolTensorPrimitive<D1>,
+        tensor: BoolTensor<B, D1>,
         shape: Shape<D2>,
-    ) -> B::BoolTensorPrimitive<D2>;
+    ) -> BoolTensor<B, D2>;
 
     /// Gets the values from the tensor for the given ranges.
     ///
@@ -136,9 +132,9 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the values for the given ranges.
     fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: B::BoolTensorPrimitive<D1>,
+        tensor: BoolTensor<B, D1>,
         ranges: [Range<usize>; D2],
-    ) -> B::BoolTensorPrimitive<D1>;
+    ) -> BoolTensor<B, D1>;
 
     /// Sets the values in the tensor for the given ranges.
     ///
@@ -152,10 +148,10 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the values set for the given ranges.
     fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: B::BoolTensorPrimitive<D1>,
+        tensor: BoolTensor<B, D1>,
         ranges: [Range<usize>; D2],
-        value: B::BoolTensorPrimitive<D1>,
-    ) -> B::BoolTensorPrimitive<D1>;
+        value: BoolTensor<B, D1>,
+    ) -> BoolTensor<B, D1>;
 
     /// Repeats one dimension of the tensor a given number of times along that dimension.
     ///
@@ -169,10 +165,10 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the dimension repeated.
     fn bool_repeat<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
+        tensor: BoolTensor<B, D>,
         dim: usize,
         times: usize,
-    ) -> B::BoolTensorPrimitive<D> {
+    ) -> BoolTensor<B, D> {
         let mut shape = Self::bool_shape(&tensor);
         if shape.dims[dim] != 1 {
             panic!("Can only repeat dimension with dim=1");
@@ -207,10 +203,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the tensors concatenated along the given dimension.
-    fn bool_cat<const D: usize>(
-        tensors: Vec<B::BoolTensorPrimitive<D>>,
-        dim: usize,
-    ) -> B::BoolTensorPrimitive<D>;
+    fn bool_cat<const D: usize>(tensors: Vec<BoolTensor<B, D>>, dim: usize) -> BoolTensor<B, D>;
 
     /// Equates the two tensors.
     ///
@@ -222,10 +215,8 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the result of the equate.
-    fn bool_equal<const D: usize>(
-        lhs: B::BoolTensorPrimitive<D>,
-        rhs: B::BoolTensorPrimitive<D>,
-    ) -> B::BoolTensorPrimitive<D>;
+    fn bool_equal<const D: usize>(lhs: BoolTensor<B, D>, rhs: BoolTensor<B, D>)
+        -> BoolTensor<B, D>;
 
     /// Inverses boolean values.
     ///
@@ -236,7 +227,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the result of the negation.
-    fn bool_not<const D: usize>(tensor: B::BoolTensorPrimitive<D>) -> B::BoolTensorPrimitive<D>;
+    fn bool_not<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, D>;
 
     /// Transposes a bool tensor.
     ///
@@ -247,9 +238,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn bool_transpose<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
-    ) -> B::BoolTensorPrimitive<D> {
+    fn bool_transpose<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, D> {
         Self::bool_swap_dims(tensor, D - 2, D - 1)
     }
 
@@ -265,8 +254,8 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the dimensions swapped.
     fn bool_swap_dims<const D: usize>(
-        tensor: B::BoolTensorPrimitive<D>,
+        tensor: BoolTensor<B, D>,
         dim1: usize,
         dim2: usize,
-    ) -> B::BoolTensorPrimitive<D>;
+    ) -> BoolTensor<B, D>;
 }

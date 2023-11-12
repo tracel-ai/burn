@@ -36,7 +36,7 @@ where
     Read(Handle<Server>, Callback<Reader<Vec<u8>>>),
     Create(Vec<u8>, Callback<Handle<Server>>),
     Empty(usize, Callback<Handle<Server>>),
-    Execute(Server::Kernel, Vec<Handle<Server>>),
+    ExecuteKernel(Server::Kernel, Vec<Handle<Server>>),
     Sync(Callback<()>),
 }
 
@@ -64,7 +64,7 @@ where
                         let handle = server.empty(size);
                         callback.send(handle).unwrap();
                     }
-                    Message::Execute(kernel, handles) => {
+                    Message::ExecuteKernel(kernel, handles) => {
                         server.execute(kernel, &handles.iter().collect::<Vec<_>>());
                     }
                     Message::Sync(callback) => {
@@ -129,7 +129,7 @@ where
     fn execute(&self, kernel: Server::Kernel, handles: &[&Handle<Server>]) {
         self.state
             .sender
-            .send(Message::Execute(
+            .send(Message::ExecuteKernel(
                 kernel,
                 handles
                     .iter()

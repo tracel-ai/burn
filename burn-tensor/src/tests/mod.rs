@@ -1,4 +1,5 @@
 mod activation;
+mod clone_invariance;
 mod module;
 mod ops;
 mod stats;
@@ -76,5 +77,8 @@ macro_rules! testgen_all {
         burn_tensor::testgen_cov!();
         burn_tensor::testgen_diagonal!();
         burn_tensor::testgen_display!();
+
+        // test clone invariance
+        burn_tensor::testgen_clone_invariance!();
     };
 }

@@ -1,5 +1,5 @@
 use crate::{
-    self as burn, grad_clipping::GradientClippingConfig, module::ADModule, record::Record,
+    self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
 };
 
@@ -9,7 +9,7 @@ use super::{
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::ADBackend, Tensor};
+use crate::tensor::{backend::AutodiffBackend, Tensor};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create the [RMSProp](RMSProp) optimizer.
@@ -39,7 +39,7 @@ impl RMSPropConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: ADBackend, M: ADModule<B>>(
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<RMSProp<B::InnerBackend>, M, B> {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
@@ -317,7 +317,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestADBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend, TestBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {
         let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestADBackend, 2>::random([2, 6], Distribution::Default);
+        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default);
         let mut optimizer = create_rmsprop();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -491,7 +491,10 @@ mod tests {
         weight_updated.assert_approx_eq(&weights_expected, ASSERT_PRECISION);
     }
 
-    fn given_linear_layer(weight: Data<f32, 2>, bias: Data<f32, 1>) -> nn::Linear<TestADBackend> {
+    fn given_linear_layer(
+        weight: Data<f32, 2>,
+        bias: Data<f32, 1>,
+    ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
             weight: Param::from(Tensor::from_data(weight)),
             bias: Some(Param::from(Tensor::from_data(bias))),
@@ -501,12 +504,13 @@ mod tests {
     }
 
     #[allow(dead_code)]
-    fn create_random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
+    fn create_random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
     }
 
     fn create_rmsprop(
-    ) -> OptimizerAdaptor<RMSProp<TestBackend>, nn::Linear<TestADBackend>, TestADBackend> {
+    ) -> OptimizerAdaptor<RMSProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    {
         RMSPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

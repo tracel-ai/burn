@@ -1,18 +1,10 @@
-use alloc::string::String;
-use core::marker::PhantomData;
-
 use crate::element::FloatNdArrayElement;
 use crate::NdArrayTensor;
-
-use burn_tensor::backend::Backend;
-
-use rand::{rngs::StdRng, SeedableRng};
-
-#[cfg(feature = "std")]
-use std::sync::Mutex;
-
-#[cfg(not(feature = "std"))]
+use alloc::string::String;
 use burn_common::stub::Mutex;
+use burn_tensor::backend::Backend;
+use core::marker::PhantomData;
+use rand::{rngs::StdRng, SeedableRng};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -29,16 +21,19 @@ impl Default for NdArrayDevice {
     }
 }
 
-/// The ndarray backend.
+/// Tensor backend that uses the [ndarray](ndarray) crate for executing tensor operations.
+///
+/// This backend is compatible with CPUs and can be compiled for almost any platform, including
+/// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArrayBackend<E> {
+pub struct NdArray<E = f32> {
     phantom: PhantomData<E>,
 }
 
-impl<E: FloatNdArrayElement> Backend for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> Backend for NdArray<E> {
     type Device = NdArrayDevice;
     type FullPrecisionElem = f32;
-    type FullPrecisionBackend = NdArrayBackend<f32>;
+    type FullPrecisionBackend = NdArray<f32>;
 
     type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
     type FloatElem = E;

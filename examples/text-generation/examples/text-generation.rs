@@ -6,7 +6,7 @@ type Elem = burn::tensor::f16;
 #[cfg(not(feature = "f16"))]
 type Elem = f32;
 
-type Backend = burn::autodiff::ADBackendDecorator<burn::backend::tch::TchBackend<Elem>>;
+type Backend = burn::backend::Autodiff<burn::backend::LibTorch<Elem>>;
 
 fn main() {
     let config = ExperimentConfig::new(
@@ -17,9 +17,9 @@ fn main() {
 
     text_generation::training::train::<Backend, DbPediaDataset>(
         if cfg!(target_os = "macos") {
-            burn::backend::tch::TchDevice::Mps
+            burn::tensor::Device::<Backend>::Mps
         } else {
-            burn::backend::tch::TchDevice::Cuda(0)
+            burn::tensor::Device::<Backend>::Cuda(0)
         },
         DbPediaDataset::train(),
         DbPediaDataset::test(),

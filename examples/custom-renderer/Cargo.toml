@@ -5,7 +5,7 @@ license = "MIT OR Apache-2.0"
 name = "custom-renderer"
 description = "Example of how to render training progress outside of the tui"
 publish = false
-version = "0.10.0"
+version = "0.11.0"
 
 [dependencies]
 burn = {path = "../../burn", features=["autodiff", "wgpu", "train-minimal", "dataset"]}

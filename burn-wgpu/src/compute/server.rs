@@ -1,4 +1,4 @@
-use super::{WgpuStorage, WorkGroup};
+use super::{WgpuAutotuneKey, WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
@@ -37,9 +37,9 @@ struct ComputeTask {
 /// provided id.
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send {
+pub trait Kernel: 'static + Send + Sync {
     /// Source template for the kernel.
-    fn source(self: Box<Self>) -> SourceTemplate;
+    fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
@@ -254,6 +254,7 @@ where
     type Kernel = Box<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
+    type AutotuneKey = WgpuAutotuneKey;
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]

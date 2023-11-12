@@ -1,7 +1,7 @@
 use super::{Param, ParamId};
-use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
+use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
 use crate::tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     Tensor,
 };
 
@@ -43,7 +43,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for Param<Tensor<B, D>> {
+impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D>> {
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {
@@ -61,12 +61,12 @@ mod tests {
         module::Module,
         nn::LinearConfig,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-        TestADBackend,
+        TestAutodiffBackend,
     };
 
     #[test]
     fn test_load_record_setting() {
-        let tensor = Tensor::<TestADBackend, 2>::ones([3, 3]);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3]);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
@@ -91,10 +91,10 @@ mod tests {
     #[test]
     fn test_init_with_record_setting() {
         let config = LinearConfig::new(32, 32);
-        let module_init = config.init::<TestADBackend>();
+        let module_init = config.init::<TestAutodiffBackend>();
 
         let record = module_init.clone().into_record();
-        let module_init_with = config.init_with::<TestADBackend>(record);
+        let module_init_with = config.init_with::<TestAutodiffBackend>(record);
 
         assert_eq!(
             module_init.weight.is_require_grad(),

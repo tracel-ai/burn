@@ -1,20 +1,25 @@
-use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use super::numeric;
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::matmul::init_matmul_output;
+#[cfg(feature = "autotune")]
+use crate::kernel::matmul::matmul_autotune;
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
 };
-
-use crate::{
-    element::{FloatElement, IntElement},
-    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
-};
+use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
+use burn_tensor::ops::{
+    BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
+};
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
-impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> TensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -143,7 +148,16 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::contiguous::matmul_tiling_2d_default(lhs, rhs)
+        #[cfg(feature = "autotune")]
+        {
+            matmul_autotune(lhs, rhs)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let out = init_matmul_output(&lhs, &rhs);
+            matmul_tiling_2d_vec4(lhs, rhs, out)
+        }
     }
 
     fn swap_dims<const D: usize>(
@@ -454,26 +468,25 @@ where
         kernel::cast(tensor)
     }
 
-    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
-    // fn clamp_min<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_min(tensor, min)
-    // }
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_min(tensor, min)
+    }
 
-    // fn clamp_max<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_max(tensor, max)
-    // }
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_max(tensor, max)
+    }
 
-    // fn clamp<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp(tensor, min, max)
-    // }
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
 }

@@ -1,15 +1,16 @@
-use super::{numeric, BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use super::numeric;
 use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, unary, unary_inplace, GraphicsApi, WgpuBackend,
+    kernel, unary, unary_inplace, GraphicsApi, Wgpu,
 };
+use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -275,28 +276,27 @@ where
         kernel::argmin(tensor, dim)
     }
 
-    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
-    // fn int_clamp_min<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     min: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp_min(tensor, min)
-    // }
+    fn int_clamp_min<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp_min(tensor, min)
+    }
 
-    // fn int_clamp_max<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     max: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp_max(tensor, max)
-    // }
+    fn int_clamp_max<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp_max(tensor, max)
+    }
 
-    // fn int_clamp<const D: usize>(
-    //     tensor: IntTensor<Self, D>,
-    //     min: IntElem<Self>,
-    //     max: IntElem<Self>,
-    // ) -> IntTensor<Self, D> {
-    //     kernel::clamp(tensor, min, max)
-    // }
+    fn int_clamp<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        min: IntElem<Self>,
+        max: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(IntAbs, func "abs");

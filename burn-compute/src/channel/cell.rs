@@ -25,6 +25,7 @@ impl<S> Clone for RefCellComputeChannel<S> {
         }
     }
 }
+
 impl<Server> RefCellComputeChannel<Server>
 where
     Server: ComputeServer,
@@ -42,9 +43,7 @@ where
     Server: ComputeServer,
 {
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-        let mut server = self.server.borrow_mut();
-
-        server.read(handle)
+        self.server.borrow_mut().read(handle)
     }
 
     fn create(&self, resource: &[u8]) -> Handle<Server> {

@@ -1,18 +1,17 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape};
+use burn_tensor::{
+    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    Data, Device, Distribution, ElementConversion, Reader, Shape,
+};
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-use super::base::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I> {
     fn from_data<const D: usize>(data: Data<F, D>, device: &Device<Self>) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
     }
@@ -393,8 +392,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // TODO submit an issue at Candle
-        panic!("erf not supported by Candle")
+        CandleTensor::new(tensor.tensor.erf().unwrap())
     }
 
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
@@ -421,5 +419,27 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
                 .to_dtype(I::DTYPE)
                 .unwrap(),
         )
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.minimum(max).unwrap())
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.maximum(min).unwrap())
+    }
+
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
     }
 }

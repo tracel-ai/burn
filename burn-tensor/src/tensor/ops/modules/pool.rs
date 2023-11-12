@@ -1,14 +1,18 @@
-use crate::{backend::Backend, Shape};
+use crate::{
+    backend::Backend,
+    ops::{FloatTensor, IntTensor},
+    Shape,
+};
 
 use super::{MaxPool1dBackward, MaxPool1dWithIndices};
 
 pub(crate) fn avg_pool1d_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     count_include_pad: bool,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [batch_size, channels, length] = B::shape(&x).dims;
 
     let x = B::reshape(x, Shape::from([batch_size, channels, length, 1]));
@@ -26,13 +30,13 @@ pub(crate) fn avg_pool1d_from_2d<B: Backend>(
 }
 
 pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    grad: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
+    grad: FloatTensor<B, 3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     count_include_pad: bool,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [batch_size, channels, length_in] = B::shape(&x).dims;
     let [_, _, length_out] = B::shape(&grad).dims;
 
@@ -52,9 +56,9 @@ pub(crate) fn avg_pool1d_backward_from_2d<B: Backend>(
 }
 
 pub(crate) fn adaptive_avg_pool1d_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
     output_size: usize,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [batch_size, channels, length] = B::shape(&x).dims;
 
     let x = B::reshape(x, Shape::from([batch_size, channels, length, 1]));
@@ -66,9 +70,9 @@ pub(crate) fn adaptive_avg_pool1d_from_2d<B: Backend>(
 }
 
 pub(crate) fn adaptive_avg_pool1d_backward_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
-    grad: B::TensorPrimitive<3>,
-) -> B::TensorPrimitive<3> {
+    x: FloatTensor<B, 3>,
+    grad: FloatTensor<B, 3>,
+) -> FloatTensor<B, 3> {
     let [batch_size, channels, length_in] = B::shape(&x).dims;
     let [_, _, length_out] = B::shape(&grad).dims;
 
@@ -81,12 +85,12 @@ pub(crate) fn adaptive_avg_pool1d_backward_from_2d<B: Backend>(
 }
 
 pub(crate) fn max_pool1d_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
-) -> B::TensorPrimitive<3> {
+) -> FloatTensor<B, 3> {
     let [batch_size, channels, length] = B::shape(&x).dims;
 
     let x = B::reshape(x, Shape::from([batch_size, channels, length, 1]));
@@ -104,7 +108,7 @@ pub(crate) fn max_pool1d_from_2d<B: Backend>(
 }
 
 pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
@@ -127,13 +131,13 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
 }
 
 pub(crate) fn max_pool1d_with_indices_backward_from_2d<B: Backend>(
-    x: B::TensorPrimitive<3>,
+    x: FloatTensor<B, 3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
-    output_grad: B::TensorPrimitive<3>,
-    indices: B::IntTensorPrimitive<3>,
+    output_grad: FloatTensor<B, 3>,
+    indices: IntTensor<B, 3>,
 ) -> MaxPool1dBackward<B> {
     let [batch_size, channels, length_in] = B::shape(&x).dims;
     let [_, _, length_out] = B::shape(&output_grad).dims;

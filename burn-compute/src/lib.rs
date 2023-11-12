@@ -15,6 +15,9 @@ pub mod channel;
 /// Compute client module.
 pub mod client;
 
+/// Autotune module
+pub mod tune;
+
 /// Memory management module.
 pub mod memory_management;
 /// Compute server module.

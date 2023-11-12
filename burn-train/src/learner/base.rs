@@ -1,5 +1,7 @@
 use crate::checkpoint::{Checkpointer, CheckpointingAction, CheckpointingStrategy};
 use crate::components::LearnerComponents;
+use crate::learner::EarlyStoppingStrategy;
+use crate::metric::store::EventStoreClient;
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
@@ -19,8 +21,10 @@ pub struct Learner<LC: LearnerComponents> {
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) checkpointer: Option<LearnerCheckpointer<LC>>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
-    pub(crate) collector: LC::EventCollector,
     pub(crate) interrupter: TrainingInterrupter,
+    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    pub(crate) event_processor: LC::EventProcessor,
+    pub(crate) event_store: Arc<EventStoreClient>,
 }
 
 #[derive(new)]
@@ -38,23 +42,33 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         optim: &LC::Optimizer,
         scheduler: &LC::LrScheduler,
         epoch: usize,
-        collector: &mut LC::EventCollector,
+        store: &EventStoreClient,
     ) {
-        let actions = self.strategy.checkpointing(epoch, collector);
+        let actions = self.strategy.checkpointing(epoch, store);
 
         for action in actions {
             match action {
                 CheckpointingAction::Delete(epoch) => {
-                    self.model.delete(epoch).unwrap();
-                    self.optim.delete(epoch).unwrap();
-                    self.lr_scheduler.delete(epoch).unwrap();
+                    self.model
+                        .delete(epoch)
+                        .expect("Can delete model checkpoint.");
+                    self.optim
+                        .delete(epoch)
+                        .expect("Can delete optimizer checkpoint.");
+                    self.lr_scheduler
+                        .delete(epoch)
+                        .expect("Can delete learning rate scheduler checkpoint.");
                 }
                 CheckpointingAction::Save => {
-                    self.model.save(epoch, model.clone().into_record()).unwrap();
-                    self.optim.save(epoch, optim.to_record()).unwrap();
+                    self.model
+                        .save(epoch, model.clone().into_record())
+                        .expect("Can save model checkpoint.");
+                    self.optim
+                        .save(epoch, optim.to_record())
+                        .expect("Can save optimizer checkpoint.");
                     self.lr_scheduler
                         .save(epoch, scheduler.to_record())
-                        .unwrap();
+                        .expect("Can save learning rate scheduler checkpoint.");
                 }
             }
         }
@@ -67,13 +81,22 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         scheduler: LC::LrScheduler,
         epoch: usize,
     ) -> (LC::Model, LC::Optimizer, LC::LrScheduler) {
-        let record = self.model.restore(epoch).unwrap();
+        let record = self
+            .model
+            .restore(epoch)
+            .expect("Can load model checkpoint.");
         let model = model.load_record(record);
 
-        let record = self.optim.restore(epoch).unwrap();
+        let record = self
+            .optim
+            .restore(epoch)
+            .expect("Can load optimizer checkpoint.");
         let optim = optim.load_record(record);
 
-        let record = self.lr_scheduler.restore(epoch).unwrap();
+        let record = self
+            .lr_scheduler
+            .restore(epoch)
+            .expect("Can load learning rate scheduler checkpoint.");
         let scheduler = scheduler.load_record(record);
 
         (model, optim, scheduler)

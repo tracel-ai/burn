@@ -18,15 +18,15 @@ mod tests {
     extern crate alloc;
     use super::*;
 
-    pub type TestBackend = CandleBackend<f32, i64>;
-    pub type ReferenceBackend = burn_tch::TchBackend<f32>;
+    pub type TestBackend = Candle<f32, i64>;
+    pub type ReferenceBackend = burn_tch::LibTorch<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-    type TestADBackend = burn_autodiff::ADBackendDecorator<TestBackend>;
-    type TestADTensor<const D: usize, K> = burn_tensor::Tensor<TestADBackend, D, K>;
+    type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+    type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
     // test activation
     burn_tensor::testgen_gelu!();
@@ -59,7 +59,7 @@ mod tests {
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
     // burn_tensor::testgen_div!();
-    // burn_tensor::testgen_erf!();
+    burn_tensor::testgen_erf!();
     burn_tensor::testgen_exp!();
     burn_tensor::testgen_flatten!();
     burn_tensor::testgen_full!();
@@ -121,7 +121,7 @@ mod tests {
     burn_autodiff::testgen_ad_cos!();
     burn_autodiff::testgen_ad_cross_entropy_loss!();
     burn_autodiff::testgen_ad_div!();
-    // burn_autodiff::testgen_ad_erf!();
+    burn_autodiff::testgen_ad_erf!();
     burn_autodiff::testgen_ad_exp!();
     // burn_autodiff::testgen_ad_slice!();
     burn_autodiff::testgen_ad_gather_scatter!();

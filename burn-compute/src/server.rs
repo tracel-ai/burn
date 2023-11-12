@@ -1,6 +1,9 @@
+use core::fmt::Debug;
+
 use crate::{
     memory_management::{MemoryHandle, MemoryManagement},
     storage::ComputeStorage,
+    tune::AutotuneKey,
 };
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -19,6 +22,8 @@ where
     type Storage: ComputeStorage;
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.
     type MemoryManagement: MemoryManagement<Self::Storage>;
+    /// The key used to cache operations used on specific inputs in autotune
+    type AutotuneKey: AutotuneKey;
 
     /// Given a handle, returns the owned resource as bytes.
     fn read(&mut self, handle: &Handle<Self>) -> Reader<Vec<u8>>;

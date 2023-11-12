@@ -41,7 +41,7 @@ Moving forward, we will proceed with the implementation of both the training and
 for our model.
 
 ```rust , ignore
-impl<B: ADBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
     fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -59,12 +59,12 @@ impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> 
 Here we define the input and output types as generic arguments in the `TrainStep` and `ValidStep`.
 We will call them `MNISTBatch` and `ClassificationOutput`. In the training step, the computation of
 gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
-that contrary to PyTorch, gradients are not store alongside each tensor parameter, but are rather
+that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
 returned by the backward pass, as such: `let gradients = loss.backward();`. The gradient of a
 parameter can be obtained with the grad function: `let grad = tensor.grad(&gradients);`. Although it
 is not necessary when using the learner struct and the optimizers, it can prove to be quite useful
 when debugging or writing custom training loops. One of the differences between the training and the
-validation steps is that the former requires the backend to implement `ADBackend` and not just
+validation steps is that the former requires the backend to implement `AutodiffBackend` and not just
 `Backend`. Otherwise, the `backward` function is not available, as the backend does not support
 autodiff. We will see later how to create a backend with autodiff support.
 
@@ -87,7 +87,7 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-pub fn train<B: ADBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))

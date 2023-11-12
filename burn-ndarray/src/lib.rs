@@ -23,13 +23,13 @@ mod tensor;
 pub use backend::*;
 pub use element::FloatNdArrayElement;
 pub(crate) use sharing::*;
-pub(crate) use tensor::*;
+pub use tensor::*;
 
 extern crate alloc;
 
 #[cfg(test)]
 mod tests {
-    type TestBackend = crate::NdArrayBackend<f32>;
+    type TestBackend = crate::NdArray<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     use alloc::format;

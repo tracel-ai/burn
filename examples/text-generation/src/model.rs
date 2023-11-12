@@ -8,7 +8,7 @@ use burn::{
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{ADBackend, Backend},
+    tensor::backend::{AutodiffBackend, Backend},
     tensor::Tensor,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
@@ -96,7 +96,7 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-impl<B: ADBackend> TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
+impl<B: AutodiffBackend> TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
     for TextGenerationModel<B>
 {
     fn step(&self, item: TrainingTextGenerationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {

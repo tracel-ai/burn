@@ -26,3 +26,7 @@ pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
 pub use memory_use::*;
+
+pub(crate) mod processor;
+/// Module responsible to save and exposes data collected during training.
+pub mod store;

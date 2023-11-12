@@ -56,7 +56,7 @@ mod tests {
     use crate::tensor::Shape;
 
     #[cfg(feature = "std")]
-    use crate::{TestADBackend, TestBackend};
+    use crate::{TestAutodiffBackend, TestBackend};
 
     #[cfg(not(feature = "std"))]
     use crate::TestBackend;
@@ -64,7 +64,7 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn with_ad_backend_should_mark_input() {
-        let tensor = Tensor::<TestADBackend, 2>::ones(Shape::new([100, 100]));
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones(Shape::new([100, 100]));
         let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());

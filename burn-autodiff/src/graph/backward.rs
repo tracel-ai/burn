@@ -1,10 +1,10 @@
 use burn_tensor::backend::Backend;
 
-use crate::{grads::Gradients, tensor::ADTensor};
+use crate::{grads::Gradients, tensor::AutodiffTensor};
 
 use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
-pub fn backward<B: Backend, const D: usize>(root: ADTensor<B, D>) -> Gradients {
+pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
     let tape = build_tape(root.node, root.graph);
 
