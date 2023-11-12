@@ -1,14 +1,12 @@
 use burn_core::{
-    data::dataloader::DataLoader,
-    lr_scheduler::LrScheduler,
-    module::ADModule,
-    optim::{GradientsAccumulator, Optimizer},
-    tensor::backend::ADBackend,
+    data::dataloader::DataLoader, lr_scheduler::LrScheduler, module::AutodiffModule,
+    optim::GradientsAccumulator, tensor::backend::Backend,
 };
 use std::sync::Arc;
 
-use crate::{learner::base::TrainingInterrupter, Event};
-use crate::{EventCollector, LearnerItem, MultiDevicesTrainStep, TrainStep, ValidStep};
+use crate::metric::processor::{Event, EventProcessor, LearnerItem};
+use crate::{components::LearnerComponents, learner::base::TrainingInterrupter};
+use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.
 #[derive(new)]
@@ -33,16 +31,15 @@ impl<VI> ValidEpoch<VI> {
     /// # Arguments
     ///
     /// * `model` - The model to validate.
-    /// * `callback` - The callback to use.
-    pub fn run<B, M, TO, VO>(
+    /// * `processor` - The event processor to use.
+    pub fn run<LC: LearnerComponents, VO>(
         &self,
-        model: &M,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
+        model: &LC::Model,
+        processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
     ) where
-        B: ADBackend,
-        M: ADModule<B>,
-        M::InnerModule: ValidStep<VI, VO>,
+        LC::EventProcessor: EventProcessor<ItemValid = VO>,
+        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -64,14 +61,14 @@ impl<VI> ValidEpoch<VI> {
                 None,
             );
 
-            callback.on_event_valid(Event::ProcessedItem(item));
+            processor.process_valid(Event::ProcessedItem(item));
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_event_valid(Event::EndEpoch(self.epoch));
+        processor.process_valid(Event::EndEpoch(self.epoch));
     }
 }
 
@@ -83,24 +80,22 @@ impl<TI> TrainEpoch<TI> {
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `scheduler` - The learning rate scheduler to use.
-    /// * `callback` - The callback to use.
+    /// * `processor` - The event processor to use.
     ///
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run<B, M, O, LR, TO, VO>(
+    pub fn run<LC: LearnerComponents, TO>(
         &self,
-        mut model: M,
-        mut optim: O,
-        scheduler: &mut LR,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
+        mut model: LC::Model,
+        mut optim: LC::Optimizer,
+        scheduler: &mut LC::LrScheduler,
+        processor: &mut LC::EventProcessor,
         interrupter: &TrainingInterrupter,
-    ) -> (M, O)
+    ) -> (LC::Model, LC::Optimizer)
     where
-        B: ADBackend,
-        M: TrainStep<TI, TO> + ADModule<B>,
-        O: Optimizer<M, B>,
-        LR: LrScheduler,
+        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
+        LC::Model: TrainStep<TI, TO>,
     {
         log::info!("Executing training step for epoch {}", self.epoch,);
 
@@ -140,13 +135,14 @@ impl<TI> TrainEpoch<TI> {
                 Some(lr),
             );
 
-            callback.on_event_train(Event::ProcessedItem(item));
+            processor.process_train(Event::ProcessedItem(item));
+
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");
                 break;
             }
         }
-        callback.on_event_train(Event::EndEpoch(self.epoch));
+        processor.process_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }
@@ -160,29 +156,26 @@ impl<TI> TrainEpoch<TI> {
     /// * `model` - The model to train.
     /// * `optim` - The optimizer to use.
     /// * `lr_scheduler` - The learning rate scheduler to use.
-    /// * `callback` - The callback to use.
+    /// * `processor` - The event processor to use.
     /// * `devices` - The devices to use.
     ///
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    pub fn run_multi_device<B, M, O, S, TO, VO>(
+    pub fn run_multi_device<LC: LearnerComponents, TO>(
         &self,
-        mut model: M,
-        mut optim: O,
-        lr_scheduler: &mut S,
-        callback: &mut Box<dyn EventCollector<ItemTrain = TO, ItemValid = VO>>,
-        devices: Vec<B::Device>,
+        mut model: LC::Model,
+        mut optim: LC::Optimizer,
+        lr_scheduler: &mut LC::LrScheduler,
+        processor: &mut LC::EventProcessor,
+        devices: Vec<<LC::Backend as Backend>::Device>,
         interrupter: &TrainingInterrupter,
-    ) -> (M, O)
+    ) -> (LC::Model, LC::Optimizer)
     where
-        B: ADBackend,
-        M: ADModule<B> + 'static,
-        O: Optimizer<M, B>,
-        M: TrainStep<TI, TO>,
-        S: LrScheduler,
-        TI: Send + 'static,
+        LC::EventProcessor: EventProcessor<ItemTrain = TO>,
+        LC::Model: TrainStep<TI, TO>,
         TO: Send + 'static,
+        TI: Send + 'static,
     {
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
@@ -199,7 +192,7 @@ impl<TI> TrainEpoch<TI> {
         let step = MultiDevicesTrainStep::new(&devices);
 
         // The main device is always the first in the list.
-        let device_main = devices.get(0).unwrap().clone();
+        let device_main = devices.get(0).expect("A minimum of one device.").clone();
         let mut interrupted = false;
 
         loop {
@@ -233,7 +226,7 @@ impl<TI> TrainEpoch<TI> {
                     Some(lr),
                 );
 
-                callback.on_event_train(Event::ProcessedItem(item));
+                processor.process_train(Event::ProcessedItem(item));
 
                 if interrupter.should_stop() {
                     log::info!("Training interrupted.");
@@ -247,7 +240,7 @@ impl<TI> TrainEpoch<TI> {
             }
         }
 
-        callback.on_event_train(Event::EndEpoch(self.epoch));
+        processor.process_train(Event::EndEpoch(self.epoch));
 
         (model, optim)
     }

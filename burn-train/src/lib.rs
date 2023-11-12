@@ -19,14 +19,9 @@ pub mod logger;
 /// The metric module.
 pub mod metric;
 
-/// All information collected during training.
-pub mod info;
-
-mod collector;
 mod learner;
 
-pub use collector::*;
 pub use learner::*;
 
 #[cfg(test)]
-pub(crate) type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

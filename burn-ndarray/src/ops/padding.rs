@@ -1,4 +1,4 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
 use burn_tensor::ops::TensorOps;
 use ndarray::Array4;
 
@@ -18,7 +18,7 @@ pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
     );
     let mut x_new = NdArrayTensor::new(x_new.into_shared().into_dyn());
 
-    x_new = NdArrayBackend::slice_assign(
+    x_new = NdArray::slice_assign(
         x_new,
         [
             0..batch_size,

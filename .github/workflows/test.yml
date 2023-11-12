@@ -4,8 +4,26 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - '**.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
   pull_request:
     types: [opened, synchronize]
+    paths:
+      - '**.rs'
+      - '**.sh'
+      - '**.ps1'
+      - '**.yml'
+      - '**.toml'
+      - '!**.md'
+      - '!LICENSE-APACHE'
+      - '!LICENSE-MIT'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,12 +35,19 @@ jobs:
     strategy:
       matrix:
         rust: [stable, 1.71.0]
-        test: ['std', 'no-std']
+        test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
+          - coverage-flags: COVERAGE=1
+            rust: stable
+            test: std
+        exclude:
+          # only need to check this once
+          - rust: 1.71.0
+            test: 'examples'
 
     steps:
 
@@ -57,8 +82,33 @@ jobs:
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
+      - name: Run cargo clippy for stable version
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        uses: giraffate/clippy-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Run clippy for each workspace, targets, and featrues, considering
+          # warnings as errors
+          clippy_flags: --workspace --all-targets --all-features -- -D warnings
+          reporter: github-pr-check
+
+      - name: Install grcov
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        env:
+          GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
+          GRCOV_VERSION: v0.8.18
+        run: |
+          curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          tar xj -C $HOME/.cargo/bin
+
       - name: run checks & tests
-        run: RUST_MATRIX=${{ matrix.rust }} cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+
+      - name: Codecov upload
+        if: matrix.rust == 'stable' && matrix.test == 'std'
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov.info
 
   check-typos:
     runs-on: ubuntu-latest
@@ -66,5 +116,19 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
+      - name: caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-typos-${{ hashFiles('**/Cargo.toml') }}
+          prefix-key: "v5-rust"
+
+      - name: Install typos
+        env:
+          TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
+          TYPOS_VERSION: v1.16.20
+        run: |
+          curl -L "$TYPOS_LINK/$TYPOS_VERSION/typos-$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
+          tar xz -C $HOME/.cargo/bin
+
       - name: run spelling checks using typos
-        run: cargo xtask run-checks typos
+        run: CI_RUN=1 cargo xtask run-checks typos

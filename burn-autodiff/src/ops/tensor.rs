@@ -4,58 +4,63 @@ use crate::{
     grads::Gradients,
     graph::{NodeRef, Requirement, Step},
     ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
-    tensor::{ADTensor, BoolTensor, FloatElem, IntTensor},
+    tensor::AutodiffTensor,
     utils::duplicate,
-    ADBackendDecorator,
+    Autodiff,
 };
 
 use burn_tensor::{
-    backend::Backend, ops::TensorOps, Data, ElementConversion, Reader, Shape, Tensor,
+    backend::Backend,
+    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 
 use super::maxmin::MaxMinDim;
 
-impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
+impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
-        device: &B::Device,
-    ) -> ADTensor<B, D> {
-        ADTensor::new(B::from_data(data, device))
+        device: &Device<Self>,
+    ) -> FloatTensor<Self, D> {
+        AutodiffTensor::new(B::from_data(data, device))
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
         distribution: burn_tensor::Distribution<FloatElem<B>>,
-        device: &B::Device,
-    ) -> ADTensor<B, D> {
-        ADTensor::new(B::random(shape, distribution, device))
+        device: &Device<Self>,
+    ) -> FloatTensor<Self, D> {
+        AutodiffTensor::new(B::random(shape, distribution, device))
     }
 
-    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+    fn zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         Self::from_data(Data::zeros(shape), device)
     }
 
-    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
+    fn ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         Self::from_data(Data::ones(shape), device)
     }
 
-    fn shape<const D: usize>(tensor: &ADTensor<B, D>) -> Shape<D> {
+    fn shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
         B::shape(&tensor.primitive)
     }
 
-    fn to_data<const D: usize>(tensor: &ADTensor<B, D>) -> Reader<Data<FloatElem<B>, D>> {
+    fn to_data<const D: usize>(tensor: &FloatTensor<Self, D>) -> Reader<Data<FloatElem<B>, D>> {
         B::to_data(&tensor.primitive)
     }
 
-    fn into_data<const D: usize>(tensor: ADTensor<B, D>) -> Reader<Data<FloatElem<B>, D>> {
+    fn into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> Reader<Data<FloatElem<B>, D>> {
         B::into_data(tensor.primitive)
     }
 
-    fn device<const D: usize>(tensor: &ADTensor<B, D>) -> B::Device {
+    fn device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
         B::device(&tensor.primitive)
     }
 
-    fn to_device<const D: usize>(tensor: ADTensor<B, D>, device: &B::Device) -> ADTensor<B, D> {
+    fn to_device<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        device: &Device<Self>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct ToDevice;
 
@@ -78,15 +83,18 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn arange(range: std::ops::Range<usize>, device: &B::Device) -> IntTensor<B, 1> {
+    fn arange(range: std::ops::Range<usize>, device: &Device<Self>) -> IntTensor<Self, 1> {
         B::arange(range, device)
     }
 
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> ADTensor<B, D> {
-        ADTensor::new(B::empty(shape, device))
+    fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+        AutodiffTensor::new(B::empty(shape, device))
     }
 
-    fn add<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn add<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Add;
 
@@ -118,7 +126,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn add_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
+    fn add_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct AddScalar;
 
@@ -135,7 +146,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .stateless(B::add_scalar(lhs.primitive, rhs))
     }
 
-    fn sub<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sub<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sub;
 
@@ -167,7 +181,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn sub_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
+    fn sub_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct SubScalar;
 
@@ -184,7 +201,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .stateless(B::sub_scalar(lhs.primitive, rhs))
     }
 
-    fn mul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn mul<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Mul;
 
@@ -234,7 +254,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn mul_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
+    fn mul_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct MulScalar;
 
@@ -254,7 +277,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn div<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn div<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Div;
 
@@ -312,7 +338,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn div_scalar<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> ADTensor<B, D> {
+    fn div_scalar<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct DivScalar;
 
@@ -333,7 +362,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn matmul<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn matmul<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Matmul;
 
@@ -387,7 +419,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn neg<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn neg<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Neg;
 
@@ -404,10 +436,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn swap_dims<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         dim1: usize,
         dim2: usize,
-    ) -> ADTensor<B, D> {
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct SwapDim;
 
@@ -432,9 +464,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn reshape<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
+        tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,
-    ) -> ADTensor<B, D2> {
+    ) -> FloatTensor<Self, D2> {
         #[derive(Debug)]
         struct ReshapeDim<const D1: usize>;
 
@@ -470,9 +502,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn gather<const D: usize>(
         dim: usize,
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         indices: IntTensor<B, D>,
-    ) -> ADTensor<B, D> {
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Gather;
 
@@ -505,10 +537,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
     fn scatter<const D: usize>(
         dim: usize,
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         indices: IntTensor<B, D>,
-        value: ADTensor<B, D>,
-    ) -> ADTensor<B, D> {
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Scatter;
 
@@ -556,10 +588,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn select<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         dim: usize,
         indices: IntTensor<B, 1>,
-    ) -> ADTensor<B, D> {
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct IndexSelectDim;
 
@@ -594,11 +626,11 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn select_assign<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         dim: usize,
         indices: IntTensor<B, 1>,
-        value: ADTensor<B, D>,
-    ) -> ADTensor<B, D> {
+        value: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct IndexSelectDimAssign<const D: usize>;
 
@@ -649,9 +681,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn slice<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
+        tensor: FloatTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
-    ) -> ADTensor<B, D1> {
+    ) -> FloatTensor<Self, D1> {
         #[derive(Debug)]
         struct Index<const D2: usize>;
 
@@ -682,10 +714,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: ADTensor<B, D1>,
+        tensor: FloatTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
-        value: ADTensor<B, D1>,
-    ) -> ADTensor<B, D1> {
+        value: FloatTensor<Self, D1>,
+    ) -> FloatTensor<Self, D1> {
         #[derive(Debug)]
         struct IndexAssign<const D2: usize>;
 
@@ -728,10 +760,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn mask_where<const D: usize>(
-        tensor: ADTensor<B, D>,
-        mask: BoolTensor<B, D>,
-        source: ADTensor<B, D>,
-    ) -> ADTensor<B, D> {
+        tensor: FloatTensor<Self, D>,
+        mask: BoolTensor<Self, D>,
+        source: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct MaskWhere;
 
@@ -782,10 +814,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn mask_fill<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         mask: BoolTensor<B, D>,
         value: FloatElem<B>,
-    ) -> ADTensor<B, D> {
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct MaskFill;
 
@@ -807,57 +839,81 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn equal<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<B, D> {
         B::equal(lhs.primitive, rhs.primitive)
     }
 
-    fn equal_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+    fn equal_elem<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
         B::equal_elem(lhs.primitive, rhs)
     }
 
-    fn greater<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn greater<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<B, D> {
         B::greater(lhs.primitive, rhs.primitive)
     }
 
-    fn greater_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+    fn greater_elem<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
         B::greater_elem(lhs.primitive, rhs)
     }
 
-    fn greater_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn greater_equal<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<B, D> {
         B::greater_equal(lhs.primitive, rhs.primitive)
     }
 
     fn greater_equal_elem<const D: usize>(
-        lhs: ADTensor<B, D>,
+        lhs: FloatTensor<Self, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         B::greater_equal_elem(lhs.primitive, rhs)
     }
 
-    fn lower<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn lower<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<B, D> {
         B::lower(lhs.primitive, rhs.primitive)
     }
 
-    fn lower_elem<const D: usize>(lhs: ADTensor<B, D>, rhs: FloatElem<B>) -> BoolTensor<B, D> {
+    fn lower_elem<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
         B::lower_elem(lhs.primitive, rhs)
     }
 
-    fn lower_equal<const D: usize>(lhs: ADTensor<B, D>, rhs: ADTensor<B, D>) -> BoolTensor<B, D> {
+    fn lower_equal<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> BoolTensor<B, D> {
         B::lower_equal(lhs.primitive, rhs.primitive)
     }
 
     fn lower_equal_elem<const D: usize>(
-        lhs: ADTensor<B, D>,
+        lhs: FloatTensor<Self, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         B::lower_equal_elem(lhs.primitive, rhs)
     }
 
-    fn detach<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn detach<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
         // `require_grad` setting.
         let is_require_grad = Self::is_require_grad(&tensor);
-        let tensor = ADTensor::new(tensor.primitive);
+        let tensor = AutodiffTensor::new(tensor.primitive);
 
         match is_require_grad {
             true => tensor.require_grad(),
@@ -866,21 +922,21 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn set_require_grad<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         require_grad: bool,
-    ) -> ADTensor<B, D> {
+    ) -> FloatTensor<Self, D> {
         if require_grad {
             return tensor.require_grad();
         }
 
-        ADTensor::new(tensor.primitive)
+        AutodiffTensor::new(tensor.primitive)
     }
 
-    fn is_require_grad<const D: usize>(tensor: &ADTensor<B, D>) -> bool {
+    fn is_require_grad<const D: usize>(tensor: &FloatTensor<Self, D>) -> bool {
         matches!(tensor.node.requirement, Requirement::Grad)
     }
 
-    fn mean<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
+    fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         #[derive(Debug)]
         struct Mean<const D: usize>;
 
@@ -910,7 +966,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn sum<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, 1> {
+    fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         #[derive(Debug)]
         struct Sum<const D: usize>;
 
@@ -937,7 +993,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn mean_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct MeamDim;
 
@@ -967,7 +1023,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn sum_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct SumDim;
 
@@ -996,8 +1052,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn to_full_precision<const D: usize>(
-        tensor: &ADTensor<B, D>,
-    ) -> ADTensor<B::FullPrecisionBackend, D> {
+        tensor: &FloatTensor<Self, D>,
+    ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
         #[derive(Debug)]
         struct ToFullPrecision<B: Backend> {
             phantom: PhantomData<B>,
@@ -1024,8 +1080,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn from_full_precision<const D: usize>(
-        tensor: ADTensor<B::FullPrecisionBackend, D>,
-    ) -> ADTensor<B, D> {
+        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct FromFullPrecision<B: Backend> {
             phantom: PhantomData<B>,
@@ -1052,15 +1108,15 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             .stateless(B::from_full_precision(tensor.primitive))
     }
 
-    fn argmax<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
         B::argmax(tensor.primitive, dim)
     }
 
-    fn argmin<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
         B::argmin(tensor.primitive, dim)
     }
 
-    fn exp<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Exp;
 
@@ -1080,7 +1136,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn log<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Log;
 
@@ -1103,7 +1159,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn log1p<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Log1P;
 
@@ -1128,7 +1184,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn powf<const D: usize>(tensor: ADTensor<B, D>, value: f32) -> ADTensor<B, D> {
+    fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct PowF;
 
@@ -1156,7 +1212,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn sqrt<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sqrt;
 
@@ -1181,7 +1237,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn abs<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Abs;
 
@@ -1203,7 +1259,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn cos<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Cos;
 
@@ -1228,7 +1284,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn sin<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sin;
 
@@ -1251,7 +1307,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn tanh<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Tanh;
 
@@ -1275,7 +1331,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn erf<const D: usize>(tensor: ADTensor<B, D>) -> ADTensor<B, D> {
+    fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Erf;
 
@@ -1302,7 +1358,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
 
-    fn cat<const D: usize>(tensors: Vec<ADTensor<B, D>>, dim: usize) -> ADTensor<B, D> {
+    fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
         #[derive(new, Debug)]
         struct CatStep<B: Backend, const D: usize> {
             nodes: Vec<Option<NodeRef>>,
@@ -1355,10 +1411,10 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
 
         let output = B::cat(primitives, dim);
         if requirement.is_none() {
-            return ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
+            return AutodiffTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         }
 
-        let output = ADTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
+        let output = AutodiffTensor::from_parents(output, &nodes, graphs.into_iter(), requirement);
         let nodes = nodes
             .into_iter()
             .map(|node| node.clone_if_require_grad())
@@ -1368,7 +1424,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         output.register_step(ops)
     }
 
-    fn max_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn max_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
@@ -1379,9 +1435,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
     fn max_dim_with_indices<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         dim: usize,
-    ) -> (ADTensor<B, D>, IntTensor<B, D>) {
+    ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
@@ -1398,7 +1454,7 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
             }
         }
     }
-    fn min_dim<const D: usize>(tensor: ADTensor<B, D>, dim: usize) -> ADTensor<B, D> {
+    fn min_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
@@ -1409,9 +1465,9 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
         }
     }
     fn min_dim_with_indices<const D: usize>(
-        tensor: ADTensor<B, D>,
+        tensor: FloatTensor<Self, D>,
         dim: usize,
-    ) -> (ADTensor<B, D>, IntTensor<B, D>) {
+    ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => {
                 let shape = B::shape(&tensor.primitive);
@@ -1430,8 +1486,8 @@ impl<B: Backend> TensorOps<ADBackendDecorator<B>> for ADBackendDecorator<B> {
     }
 
     fn into_int<const D: usize>(
-        tensor: ADTensor<B, D>,
-    ) -> <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D> {
+        tensor: FloatTensor<Self, D>,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::into_int(tensor.primitive)
     }
 }

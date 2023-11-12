@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "burn-derive"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/burn-derive"
-version = "0.10.0"
+version = "0.11.0"
 
 [lib]
 proc-macro = true

@@ -19,6 +19,7 @@ fn main() {
         .input("tests/dropout/dropout_opset16.onnx")
         .input("tests/dropout/dropout_opset7.onnx")
         .input("tests/equal/equal.onnx")
+        .input("tests/erf/erf.onnx")
         .input("tests/flatten/flatten.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/linear/linear.onnx")

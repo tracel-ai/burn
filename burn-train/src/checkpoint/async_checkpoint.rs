@@ -5,6 +5,7 @@ use std::sync::mpsc;
 enum Message<R> {
     Restore(usize, mpsc::SyncSender<Result<R, CheckpointerError>>),
     Save(usize, R),
+    Delete(usize),
     End,
 }
 
@@ -18,11 +19,20 @@ impl<C: Checkpointer<R>, R: Record> CheckpointerThread<C, R> {
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
-                Message::Restore(epoch, sender) => {
+                Message::Restore(epoch, callback) => {
                     let record = self.checkpointer.restore(epoch);
-                    sender.send(record).unwrap();
+                    callback
+                        .send(record)
+                        .expect("Can send response through callback channel.");
                 }
-                Message::Save(epoch, state) => self.checkpointer.save(epoch, state).unwrap(),
+                Message::Save(epoch, state) => self
+                    .checkpointer
+                    .save(epoch, state)
+                    .expect("Can save the state."),
+                Message::Delete(epoch) => self
+                    .checkpointer
+                    .delete(epoch)
+                    .expect("Can delete the state."),
                 Message::End => {
                     return;
                 }
@@ -65,7 +75,9 @@ where
     R: Record + 'static,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
-        self.sender.send(Message::Save(epoch, record)).unwrap();
+        self.sender
+            .send(Message::Save(epoch, record))
+            .expect("Can send message to checkpointer thread.");
 
         Ok(())
     }
@@ -82,15 +94,27 @@ where
 
         Err(CheckpointerError::Unknown("Channel error.".to_string()))
     }
+
+    fn delete(&self, epoch: usize) -> Result<(), CheckpointerError> {
+        self.sender
+            .send(Message::Delete(epoch))
+            .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 impl<E> Drop for AsyncCheckpointer<E> {
     fn drop(&mut self) {
-        self.sender.send(Message::End).unwrap();
+        self.sender
+            .send(Message::End)
+            .expect("Can send the end message to the checkpointer thread.");
         let handler = self.handler.take();
 
         if let Some(handler) = handler {
-            handler.join().unwrap();
+            handler
+                .join()
+                .expect("The checkpointer thread should stop.");
         }
     }
 }

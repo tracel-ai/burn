@@ -5,11 +5,13 @@ use burn::module::Module;
 use burn::optim::decay::WeightDecayConfig;
 use burn::optim::AdamConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
+use burn::train::metric::store::{Aggregate, Direction, Split};
 use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
+use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
-    tensor::backend::ADBackend,
+    tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, LossMetric},
         LearnerBuilder,
@@ -35,7 +37,7 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: ADBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Config
     let config_optimizer = AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5)));
     let config = MnistTrainingConfig::new(config_optimizer);
@@ -68,7 +70,13 @@ pub fn run<B: ADBackend>(device: B::Device) {
         .metric_valid_numeric(CpuTemperature::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
+        .early_stopping(MetricEarlyStoppingStrategy::new::<LossMetric<B>>(
+            Aggregate::Mean,
+            Direction::Lowest,
+            Split::Valid,
+            StoppingCondition::NoImprovementSince { n_epochs: 1 },
+        ))
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(Model::new(), config.optimizer.init(), 1e-4);

@@ -40,7 +40,7 @@ impl<K> Kernel for DynamicKernel<K>
 where
     K: DynamicKernelSource + 'static,
 {
-    fn source(self: Box<Self>) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         self.kernel.source()
     }
 
@@ -57,7 +57,7 @@ impl<K> Kernel for StaticKernel<K>
 where
     K: StaticKernelSource + 'static,
 {
-    fn source(self: Box<Self>) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         K::source()
     }
 

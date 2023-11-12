@@ -5,19 +5,14 @@ use crate::{
     graph::{
         Node, NodeID, NodeRef, Requirement, {Graph, Step},
     },
-    ADBackendDecorator,
 };
 
 #[derive(Debug, Clone)]
-pub struct ADTensor<B: Backend, const D: usize> {
+pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::TensorPrimitive<D>,
     pub node: NodeRef,
     pub graph: Graph,
 }
-
-pub type FloatElem<B> = <ADBackendDecorator<B> as Backend>::FloatElem;
-pub type BoolTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::BoolTensorPrimitive<D>;
-pub type IntTensor<B, const D: usize> = <ADBackendDecorator<B> as Backend>::IntTensorPrimitive<D>;
 
 #[derive(new, Debug)]
 struct RootStep {
@@ -34,7 +29,7 @@ impl Step for RootStep {
     }
 }
 
-impl<B: Backend, const D: usize> ADTensor<B, D> {
+impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
         let id = NodeID::new();

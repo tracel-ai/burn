@@ -1,6 +1,6 @@
-use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor};
+use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
 use alloc::vec::Vec;
-use burn_tensor::backend::{ADBackend, Backend};
+use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::fmt::Debug;
 
 impl<T, B> Module<B> for Option<T>
@@ -30,10 +30,10 @@ where
     }
 }
 
-impl<T, B> ADModule<B> for Option<T>
+impl<T, B> AutodiffModule<B> for Option<T>
 where
-    T: ADModule<B> + Debug + Send + Sync + Clone,
-    B: ADBackend,
+    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    B: AutodiffBackend,
 {
     type InnerModule = Option<T::InnerModule>;
 
@@ -80,10 +80,10 @@ where
     }
 }
 
-impl<T, B> ADModule<B> for Vec<T>
+impl<T, B> AutodiffModule<B> for Vec<T>
 where
-    T: ADModule<B> + Debug + Send + Sync + Clone,
-    B: ADBackend,
+    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    B: AutodiffBackend,
 {
     type InnerModule = Vec<T::InnerModule>;
 
@@ -141,13 +141,13 @@ where
     }
 }
 
-impl<const N: usize, T, B> ADModule<B> for [T; N]
+impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
 where
-    T: ADModule<B> + Debug + Send + Sync + Clone + Copy,
+    T: AutodiffModule<B> + Debug + Send + Sync + Clone + Copy,
     T::InnerModule: Copy + Debug,
     <T::InnerModule as Module<B::InnerBackend>>::Record: Debug,
     <T as Module<B>>::Record: Debug,
-    B: ADBackend,
+    B: AutodiffBackend,
 {
     type InnerModule = [T::InnerModule; N];
 

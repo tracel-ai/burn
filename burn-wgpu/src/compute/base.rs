@@ -5,12 +5,15 @@ use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
+    tune::Tuner,
     Compute,
 };
+use spin::Mutex;
 use wgpu::DeviceDescriptor;
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
-type Server = WgpuServer<MemoryManagement>;
+/// Wgpu [compute server](WgpuServer)
+pub type Server = WgpuServer<MemoryManagement>;
 type Channel = MutexComputeChannel<Server>;
 
 /// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
@@ -59,13 +62,13 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
     let storage = WgpuStorage::new(device.clone());
     let memory_management = SimpleMemoryManagement::new(
         storage,
-        DeallocStrategy::new_period_tick(1000),
-        SliceStrategy::Ratio(0.9),
+        DeallocStrategy::new_period_tick(max_tasks * 2),
+        SliceStrategy::Ratio(0.8),
     );
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
     let channel = Channel::new(server);
 
-    ComputeClient::new(channel)
+    ComputeClient::new(channel, Arc::new(Mutex::new(Tuner::new())))
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
@@ -195,22 +198,25 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
             let mut most_performant_adapter = None;
             let mut current_score = -1;
 
-            adapters.into_iter().for_each(|adapter| {
-                let info = adapter.get_info();
-                let score = match info.device_type {
-                    DeviceType::DiscreteGpu => 5,
-                    DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
-                    // often a Discrete Gpu.
-                    DeviceType::IntegratedGpu => 3,
-                    DeviceType::VirtualGpu => 2,
-                    DeviceType::Cpu => 1,
-                };
+            adapters
+                .into_iter()
+                .chain(adapters_other)
+                .for_each(|adapter| {
+                    let info = adapter.get_info();
+                    let score = match info.device_type {
+                        DeviceType::DiscreteGpu => 5,
+                        DeviceType::Other => 4, // Let's be optimistic with the Other device, it's
+                        // often a Discrete Gpu.
+                        DeviceType::IntegratedGpu => 3,
+                        DeviceType::VirtualGpu => 2,
+                        DeviceType::Cpu => 1,
+                    };
 
-                if score > current_score {
-                    most_performant_adapter = Some(adapter);
-                    current_score = score;
-                }
-            });
+                    if score > current_score {
+                        most_performant_adapter = Some(adapter);
+                        current_score = score;
+                    }
+                });
 
             if let Some(adapter) = most_performant_adapter {
                 adapter

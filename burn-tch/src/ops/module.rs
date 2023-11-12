@@ -1,10 +1,10 @@
-use crate::{element::TchElement, TchBackend, TchTensor};
+use crate::{element::TchElement, LibTorch, TchTensor};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices, ModuleOps,
 };
 
-impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
+impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     fn embedding(weights: TchTensor<E, 2>, indices: TchTensor<i64, 2>) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::embedding(&weights.tensor, &indices.tensor, -1, false, false);
 
@@ -192,7 +192,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<TchBackend<E>> {
+    ) -> MaxPool1dWithIndices<LibTorch<E>> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
@@ -230,7 +230,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<TchBackend<E>> {
+    ) -> MaxPool2dWithIndices<LibTorch<E>> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
@@ -251,7 +251,7 @@ impl<E: TchElement> ModuleOps<TchBackend<E>> for TchBackend<E> {
         dilation: [usize; 2],
         output_grad: TchTensor<E, 4>,
         indices: TchTensor<i64, 4>,
-    ) -> MaxPool2dBackward<TchBackend<E>> {
+    ) -> MaxPool2dBackward<LibTorch<E>> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,

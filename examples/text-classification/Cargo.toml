@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "text-classification"
 publish = false
-version = "0.10.0"
+version = "0.11.0"
 
 [features]
 default = ["burn/dataset-sqlite-bundled"]
@@ -19,7 +19,7 @@ wgpu = ["burn/wgpu"]
 
 [dependencies]
 # Burn
-burn = {path = "../../burn", features=["train", "ndarray"]}
+burn = {path = "../../burn", features=["train", "ndarray", "fusion"]}
 
 # Tokenizer
 tokenizers = { version = "0.13.4", default-features = false, features = [

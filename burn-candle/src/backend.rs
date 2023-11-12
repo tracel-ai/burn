@@ -8,6 +8,20 @@ use crate::{
     CandleTensor,
 };
 
+/// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
+///
+/// It is compatible with a wide range of hardware configurations, including CPUs and Nvidia GPUs
+/// that support CUDA. Additionally, the backend can be compiled to `wasm` when using the CPU.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct Candle<F = f32, I = i64>
+where
+    F: FloatCandleElement,
+    I: IntCandleElement,
+{
+    _float: PhantomData<F>,
+    _int: PhantomData<I>,
+}
+
 /// The device type for the candle backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `candle` backend.
@@ -46,17 +60,10 @@ impl Default for CandleDevice {
     }
 }
 
-/// The Candle backend.
-#[derive(Clone, Copy, Default, Debug)]
-pub struct CandleBackend<F: FloatCandleElement, I: IntCandleElement> {
-    _float: PhantomData<F>,
-    _int: PhantomData<I>,
-}
-
-impl<F: FloatCandleElement, I: IntCandleElement> Backend for CandleBackend<F, I> {
+impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
-    type FullPrecisionBackend = CandleBackend<Self::FullPrecisionElem, Self::IntElem>;
+    type FullPrecisionBackend = Candle<Self::FullPrecisionElem, Self::IntElem>;
     type FullPrecisionElem = f32;
 
     type TensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;

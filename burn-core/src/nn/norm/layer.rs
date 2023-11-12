@@ -73,7 +73,7 @@ mod tests {
     use burn_tensor::Data;
 
     #[cfg(feature = "std")]
-    use crate::{TestADBackend, TestBackend};
+    use crate::{TestAutodiffBackend, TestBackend};
 
     #[cfg(not(feature = "std"))]
     use crate::TestBackend;
@@ -98,11 +98,13 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn layer_norm_backward() {
-        let module = LayerNormConfig::new(2).init::<TestADBackend>();
-        let tensor_1 = Tensor::<TestADBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]))
-            .require_grad();
-        let tensor_2 = Tensor::<TestADBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]))
-            .require_grad();
+        let module = LayerNormConfig::new(2).init::<TestAutodiffBackend>();
+        let tensor_1 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]))
+                .require_grad();
+        let tensor_2 =
+            Tensor::<TestAutodiffBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]))
+                .require_grad();
 
         let x = tensor_1.clone().matmul(tensor_2.clone());
 

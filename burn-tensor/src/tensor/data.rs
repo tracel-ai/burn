@@ -26,7 +26,7 @@ pub struct Data<E, const D: usize> {
 }
 
 /// Distribution for random value of a tensor.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Distribution<E> {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Default,

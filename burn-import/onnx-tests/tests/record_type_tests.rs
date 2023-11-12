@@ -48,7 +48,7 @@ mod tests {
     use float_cmp::ApproxEq;
     use std::f64::consts;
 
-    type Backend = burn_ndarray::NdArrayBackend<f32>;
+    type Backend = burn_ndarray::NdArray<f32>;
 
     test_model!(named_mpk);
     test_model!(named_mpk_half, 1.0e-2); // Reduce tolerance for half precision

@@ -21,6 +21,7 @@ pub struct UnaryNode {
 #[derive(Clone)]
 pub enum UnaryNodeKind {
     Cast,
+    Erf,
     Flatten,
     LogSoftmax,
     Softmax,
@@ -34,6 +35,7 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast => "cast",
+            Self::Erf => "erf",
             Self::Flatten => "flatten",
             Self::LogSoftmax => "log_softmax",
             Self::Softmax => "softmax",
@@ -94,6 +96,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 }
 
 impl UnaryNode {
+    pub(crate) fn erf(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.erf() };
+        Self::new(input, output, UnaryNodeKind::Erf, Rc::new(function))
+    }
+
     pub(crate) fn flatten(input: Type, output: Type, start_dim: usize, end_dim: usize) -> Self {
         let start_dim = start_dim.to_tokens();
         let end_dim = end_dim.to_tokens();
@@ -193,6 +200,25 @@ mod tests {
     }
 
     #[test]
+    fn test_unary_codegen_erf() {
+        one_node_graph(
+            UnaryNode::erf(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.erf();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
     fn test_unary_codegen_relu() {
         one_node_graph(
             UnaryNode::relu(
@@ -261,6 +287,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::softmax(tensor1, 1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_tanh() {
+        one_node_graph(
+            UnaryNode::tanh(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::tanh(tensor1);
 
                     tensor2
                 }

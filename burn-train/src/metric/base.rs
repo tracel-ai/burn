@@ -67,14 +67,14 @@ pub trait Adaptor<T> {
 
 /// Declare a metric to be numeric.
 ///
-/// This is usefull to plot the values of a metric during training.
+/// This is useful to plot the values of a metric during training.
 pub trait Numeric {
     /// Returns the numeric value of the metric.
     fn value(&self) -> f64;
 }
 
 /// Data type that contains the current state of a metric at a given time.
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct MetricEntry {
     /// The name of the metric.
     pub name: String,

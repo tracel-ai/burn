@@ -1,5 +1,8 @@
 use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps},
+    ops::{
+        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+    },
     Shape,
 };
 use candle_core::ToUsize2;
@@ -7,14 +10,10 @@ use candle_core::ToUsize2;
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
     ops::base::reshape,
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-use super::base::{FloatTensor, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
@@ -192,7 +191,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<CandleBackend<F, I>> {
+    ) -> MaxPool2dWithIndices<Candle<F, I>> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
 
@@ -204,7 +203,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<CandleBackend<F, I>> {
+    ) -> MaxPool2dBackward<Candle<F, I>> {
         panic!("max_pool2d_with_indices_backward is not supported by Candle")
     }
 

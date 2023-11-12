@@ -4,11 +4,11 @@ use burn_no_std_tests::mlp::*;
 use burn_no_std_tests::model::*;
 
 use burn::tensor::{backend::Backend, Distribution::Default, Tensor};
-use burn_ndarray::NdArrayBackend;
+use burn_ndarray::NdArray;
 
 #[test]
 fn test_mnist_model_with_random_input() {
-    type Backend = NdArrayBackend<f32>;
+    type Backend = NdArray<f32>;
 
     // Model configurations
     let mlp_config = MlpConfig::new();

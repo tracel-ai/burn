@@ -3,6 +3,7 @@
 //! It is used to check that the code compiles and passes all tests.
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
+
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
@@ -25,24 +26,31 @@ fn handle_child_process(mut child: Child, error: &str) {
     }
 }
 
-// Define and run rustup command
-fn rustup(target: &str) {
-    // Rustup arguments
-    let args = ["target", "add", target];
+// Run a command
+fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &str) {
+    // Format command
+    println!("{command} {}\n\n", args.join(" "));
 
-    // Print rustup command
-    println!("rustup {}\n\n", args.join(" "));
-
-    // Run rustup command as child process
-    let rustup = Command::new("rustup")
+    // Run command as child process
+    let command = Command::new(command)
         .args(args)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()) // Send stderr directly to terminal
         .spawn()
-        .expect("Failed to run rustup");
+        .expect(command_error);
 
-    // Handle rustup child process
-    handle_child_process(rustup, "Failed to wait for rustup child process");
+    // Handle command child process
+    handle_child_process(command, child_error);
+}
+
+// Define and run rustup command
+fn rustup(command: &str, target: &str) {
+    run_command(
+        "rustup",
+        &[command, "add", target],
+        "Failed to run rustup",
+        "Failed to wait for rustup child process",
+    )
 }
 
 // Define and run a cargo command
@@ -106,7 +114,7 @@ fn cargo_fmt() {
 
 // Run cargo clippy command
 fn cargo_clippy() {
-    if std::env::var("RUST_MATRIX").map_or(false, |matrix| matrix != "stable") {
+    if std::env::var("CI_RUN").is_ok() {
         return;
     }
     // Run cargo clippy
@@ -156,15 +164,50 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
     );
 }
 
+// Setup code coverage
+fn setup_coverage() {
+    // Install llvm-tools-preview
+    rustup("component", "llvm-tools-preview");
+
+    // Set coverage environment variables
+    env::set_var("RUSTFLAGS", "-Cinstrument-coverage");
+    env::set_var("LLVM_PROFILE_FILE", "burn-%p-%m.profraw");
+}
+
+// Run grcov to produce lcov.info
+fn run_grcov() {
+    // grcov arguments
+    #[rustfmt::skip]
+    let args = [
+        ".",
+        "--binary-path", "./target/debug/",
+        "-s", ".",
+        "-t", "lcov",
+        "--branch",
+        "--ignore-not-existing",
+        "--ignore", "/*", // It excludes std library code coverage from analysis
+        "--ignore", "xtask/*",
+        "--ignore", "examples/*",
+        "-o", "lcov.info",
+    ];
+
+    run_command(
+        "grcov",
+        &args,
+        "Failed to run grcov",
+        "Failed to wait for grcov child process",
+    );
+}
+
 // Run no_std checks
 fn no_std_checks() {
     println!("Checks for no_std environment...\n\n");
 
     // Install wasm32 target
-    rustup(WASM32_TARGET);
+    rustup("target", WASM32_TARGET);
 
     // Install ARM target
-    rustup(ARM_TARGET);
+    rustup("target", ARM_TARGET);
 
     // Run checks for the following crates
     build_and_test_no_std("burn", []);
@@ -209,13 +252,10 @@ fn std_checks() {
     // for the documentation build
     env::set_var("RUSTDOCFLAGS", "-D warnings");
 
+    // Check if COVERAGE environment variable is set
+    let is_coverage = std::env::var("COVERAGE").is_ok();
+
     println!("Running std checks");
-
-    // Build each workspace
-    cargo_build(["--workspace", "--exclude=xtask"].into());
-
-    // Test each workspace
-    cargo_test(["--workspace"].into());
 
     // Check format
     cargo_fmt();
@@ -223,19 +263,45 @@ fn std_checks() {
     // Check clippy lints
     cargo_clippy();
 
+    // Build each workspace
+    cargo_build(["--workspace", "--exclude=xtask"].into());
+
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
+
+    // Setup code coverage
+    if is_coverage {
+        setup_coverage();
+    }
+
+    // Test each workspace
+    cargo_test(["--workspace"].into());
 
     // Test burn-dataset features
     burn_dataset_features_std();
 
     // Test burn-core with tch and wgpu backend
     burn_core_std();
+
+    // Run grcov and produce lcov.info
+    if is_coverage {
+        run_grcov();
+    }
 }
 
 fn check_typos() {
-    // Install typos-cli
-    cargo_install(["typos-cli", "--version", "1.16.5"].into());
+    // This path defines where typos-cl is installed on different
+    // operating systems.
+    let typos_cli_path = std::env::var("CARGO_HOME")
+        .map(|v| std::path::Path::new(&v).join("bin/typos-cli"))
+        .unwrap();
+
+    // Do not run cargo install on CI to speed up the computation.
+    // Check whether the file has been installed on
+    if std::env::var("CI_RUN").is_err() && !typos_cli_path.exists() {
+        // Install typos-cli
+        cargo_install(["typos-cli", "--version", "1.16.5"].into());
+    }
 
     println!("Running typos check \n\n");
 

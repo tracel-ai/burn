@@ -1,7 +1,7 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
 use burn_tensor::{ops::ActivationOps, ElementConversion};
 
-impl<E: FloatNdArrayElement> ActivationOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> ActivationOps<Self> for NdArray<E> {
     fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let zero = 0.elem();
         let array = tensor
