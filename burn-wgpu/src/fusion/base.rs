@@ -138,7 +138,7 @@ fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
     WgpuFusionHandle::new(client, buffer, device.clone(), strides)
 }
 
-fn dyn_strides(shape: &[usize]) -> Vec<usize> {
+pub fn dyn_strides(shape: &[usize]) -> Vec<usize> {
     let mut strides = vec![0; shape.len()];
 
     let mut current = 1;
@@ -148,6 +148,14 @@ fn dyn_strides(shape: &[usize]) -> Vec<usize> {
     });
 
     strides
+}
+
+pub fn calculate_num_elems(shape: &[usize]) -> usize {
+    let mut num_elems = 1;
+    for i in shape.iter() {
+        num_elems *= i;
+    }
+    num_elems
 }
 
 #[derive(new, Debug, Clone)]

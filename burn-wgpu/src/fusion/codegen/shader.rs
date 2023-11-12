@@ -18,7 +18,7 @@ pub enum Visibility {
     ReadWrite,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Elem {
     F32,
     #[allow(dead_code)]
@@ -54,7 +54,7 @@ impl Default for WorkgroupSize {
 pub struct ShaderCodegen {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
-    pub info: Option<Binding>,
+    pub named: Vec<(String, Binding)>,
     pub workgroup_sizes: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
@@ -70,7 +70,7 @@ impl DynamicKernelSource for ShaderCodegen {
         let mut s = DefaultHasher::new();
         self.inputs.hash(&mut s);
         self.outputs.hash(&mut s);
-        self.info.hash(&mut s);
+        self.named.hash(&mut s);
         self.workgroup_sizes.hash(&mut s);
         self.global_invocation_id.hash(&mut s);
         self.num_workgroups.hash(&mut s);
@@ -84,8 +84,13 @@ impl Display for ShaderCodegen {
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
 
-        if let Some(info) = &self.info {
-            Self::format_binding(f, "info", info, self.inputs.len() + self.outputs.len())?;
+        for (i, (name, binding)) in self.named.iter().enumerate() {
+            Self::format_binding(
+                f,
+                name.as_str(),
+                &binding,
+                self.inputs.len() + self.outputs.len() + i,
+            )?;
         }
 
         f.write_fmt(format_args!(

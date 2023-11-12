@@ -1,35 +1,32 @@
+use super::ElemWiseKernelCreation;
 use crate::{
-    compute::{DynamicKernel, Kernel, WgpuComputeClient, WgpuHandle},
-    fusion::codegen::{Elem, Location, ShaderCodegen, Visibility, WorkgroupSize},
-    kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    fusion::{
+        calculate_num_elems,
+        codegen::{Elem, Operator, Variable},
+    },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
     graph::{
-        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, TensorOpsDescription,
-        UnaryOpsDescription,
+        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, ScalarOpsDescription,
+        TensorOpsDescription, UnaryOpsDescription,
     },
     FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription,
     TensorId,
 };
 use burn_tensor::Element;
-use core::fmt::Display;
-use core::hash::Hash;
 use hashbrown::{HashMap, HashSet};
-use std::{collections::hash_map::DefaultHasher, hash::Hasher, sync::Arc};
+use std::sync::Arc;
 
-use super::{
-    codegen::{Binding, Operator, Variable},
-    WgpuFusionHandle,
-};
-
+/// Fused element wise operations that are normally memory bound.
 pub struct FloatElementWiseFusionOps {
-    inputs: Vec<TensorDescription>,
-    locals: HashMap<TensorId, u16>,
-    tensors: HashMap<TensorId, TensorDescription>,
-    operators: Vec<Operator>,
-    properties: FusionProperties,
-    num_elems_output: usize,
+    pub(crate) inputs: Vec<TensorDescription>,
+    pub(crate) locals: HashMap<TensorId, u16>,
+    pub(crate) tensors: HashMap<TensorId, TensorDescription>,
+    pub(crate) scalars_f32: Vec<f32>,
+    pub(crate) operators: Vec<Operator>,
+    pub(crate) properties: FusionProperties,
+    pub(crate) num_elems_output: usize,
 }
 
 impl Default for FloatElementWiseFusionOps {
@@ -38,6 +35,7 @@ impl Default for FloatElementWiseFusionOps {
             inputs: Vec::new(),
             locals: HashMap::new(),
             tensors: HashMap::new(),
+            scalars_f32: Vec::new(),
             operators: Vec::new(),
             properties: FusionProperties::default(),
             num_elems_output: 0,
@@ -72,7 +70,8 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     }
 
     fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
-        let (kernel, handles, client) = self.create_kernel(handles);
+        let (kernel, handles, client) =
+            ElemWiseKernelCreation::default().create_kernel(self, handles);
         let handles = handles.iter().collect::<Vec<_>>();
 
         client.execute(kernel, &handles);
@@ -83,6 +82,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         self.tensors.clear();
         self.locals.drain();
         self.inputs.clear();
+        self.scalars_f32.clear();
         self.operators.clear();
         self.num_elems_output = 0;
     }
@@ -93,12 +93,16 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
 }
 
 impl FloatElementWiseFusionOps {
-    fn output_descriptions(&self) -> Vec<TensorDescription> {
+    /// Create a list of all tensors that should be written to.
+    pub fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
         let mut outputs = Vec::new();
-        let mut read_tensor = HashSet::new();
-        let mut out_tensor = HashSet::new();
+        let mut tensor_ids_input = HashSet::new();
+        let mut tensor_ids_output = HashSet::new();
 
-        let mark = |var: &Variable, list: &mut HashSet<TensorId>| {
+        // Mask a variable to the provided set of tensor ids using the local variable list.
+        //
+        // Only local variables can become outputs.
+        let mark = |var: &Variable, set: &mut HashSet<TensorId>| {
             match var {
                 Variable::Local(index) => {
                     if let Some((id, _)) = self
@@ -106,54 +110,93 @@ impl FloatElementWiseFusionOps {
                         .iter()
                         .find(|(_id, position)| *position == index)
                     {
-                        list.insert(id.clone());
+                        set.insert(id.clone());
                     }
                 }
                 _ => {}
             };
         };
+
+        // For all operators, mark their local tensor id in the proper set.
         for ops in self.operators.iter() {
             match ops {
+                Operator::AssignGlobal { input: _, out: _ } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobal {
+                    variable: _,
+                    position: _,
+                    position_out: _,
+                } => {
+                    // Nothing to do here.
+                }
                 Operator::Add { lhs, rhs, out } => {
-                    mark(lhs, &mut read_tensor);
-                    mark(rhs, &mut read_tensor);
-                    mark(out, &mut out_tensor);
+                    mark(lhs, &mut tensor_ids_input);
+                    mark(rhs, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
                 }
                 Operator::Sub { lhs, rhs, out } => {
-                    mark(lhs, &mut read_tensor);
-                    mark(rhs, &mut read_tensor);
-                    mark(out, &mut out_tensor);
+                    mark(lhs, &mut tensor_ids_input);
+                    mark(rhs, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
                 }
                 Operator::Mul { lhs, rhs, out } => {
-                    mark(lhs, &mut read_tensor);
-                    mark(rhs, &mut read_tensor);
-                    mark(out, &mut out_tensor);
+                    mark(lhs, &mut tensor_ids_input);
+                    mark(rhs, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
                 }
                 Operator::Div { lhs, rhs, out } => {
-                    mark(lhs, &mut read_tensor);
-                    mark(rhs, &mut read_tensor);
-                    mark(out, &mut out_tensor);
+                    mark(lhs, &mut tensor_ids_input);
+                    mark(rhs, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
                 }
                 Operator::Exp { input, out } => {
-                    mark(input, &mut read_tensor);
-                    mark(out, &mut out_tensor);
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
                 }
-                _ => {}
+                Operator::Abs { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
+
+                Operator::Log { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
+                Operator::Log1p { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
+                Operator::Cos { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
+                Operator::Sin { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
+                Operator::Tanh { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
             }
         }
 
-        for out in out_tensor {
-            if !read_tensor.contains(&out) {
-                outputs.push(self.tensors.get(&out).unwrap().clone());
+        // All output tensor that is never read by a following operation should be writtent to
+        // since they are essentially the "logical" output of the shader.
+        for out in tensor_ids_output {
+            if !tensor_ids_input.contains(&out) {
+                outputs.push(self.tensors.get(&out).unwrap());
             }
         }
 
+        // All tensor where their latest description is read only should be written to since they
+        // are going to be used after the fused kernel.
         for tensor in self.tensors.values() {
             match tensor.status {
                 burn_fusion::TensorStatus::ReadOnly => {
                     if self.locals.contains_key(&tensor.id) {
-                        // If used after.
-                        outputs.push(tensor.clone());
+                        outputs.push(tensor);
                     }
                 }
                 _ => (),
@@ -161,137 +204,6 @@ impl FloatElementWiseFusionOps {
         }
 
         outputs
-    }
-    fn create_kernel<G, F, I>(
-        &mut self,
-        handles: &mut HandleContainer<Wgpu<G, F, I>>,
-    ) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient)
-    where
-        G: GraphicsApi,
-        F: FloatElement,
-        I: IntElement,
-    {
-        // BUILD THE OUTPUTS
-        let outputs = self.output_descriptions();
-        let mut operations = Vec::new();
-
-        // BUILD THE BINDINGS, INFO and HANDLES.
-        let mut input_bindings = Vec::new();
-        let mut output_bindings = Vec::new();
-        let mut info = Vec::new();
-        let mut kernel_handles = Vec::new();
-        let mut client = None;
-
-        // REGISTER INPUTS
-        for (i, input) in self.inputs.iter().enumerate() {
-            if info.is_empty() {
-                info.push(input.shape.len()); // Rank
-            }
-
-            let mut handle = handles.get_handle_float(&input);
-            info.append(&mut handle.strides);
-            info.append(&mut input.shape.clone());
-            kernel_handles.push(handle.handle);
-
-            if let None = client {
-                client = Some(handle.client.clone());
-            }
-
-            input_bindings.push(Binding {
-                elem: Elem::F32,
-                visibility: Visibility::Read,
-                location: Location::Storage,
-                size: None,
-            });
-            operations.push(Operator::ReadGlobal {
-                variable: Variable::Input(i as u16),
-                position: i,
-                position_out: self.inputs.len(), // First output
-            });
-        }
-
-        let client = client.unwrap();
-
-        let calculate_num_elems = |shape: &[usize]| {
-            let mut num_elems = 1;
-            for i in shape.iter() {
-                num_elems *= i;
-            }
-            num_elems
-        };
-
-        // REGISTER OUTPUTS
-        operations.append(&mut self.operators.clone());
-
-        for (i, output) in outputs.iter().enumerate() {
-            if let Some(temp) = self.locals.get(&output.id) {
-                operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(*temp),
-                    out: Variable::Output(i as u16),
-                });
-            }
-        }
-
-        let mut num_elems_launch_option = 0;
-        for output in outputs {
-            let num_elems_output = calculate_num_elems(&output.shape);
-            if num_elems_launch_option == 0 {
-                num_elems_launch_option = num_elems_output;
-            }
-            let strides = dyn_strides(&output.shape);
-            let handle = client.empty(num_elems_output * core::mem::size_of::<f32>());
-
-            handles.register_handle(
-                output.id,
-                WgpuFusionHandle::new(
-                    client.clone(),
-                    handle.clone(),
-                    crate::WgpuDevice::BestAvailable,
-                    strides.clone(),
-                ),
-            );
-            let mut strides = dyn_strides(&output.shape);
-
-            info.append(&mut strides);
-            info.append(&mut output.shape.clone());
-            kernel_handles.push(handle);
-
-            output_bindings.push(Binding {
-                elem: Elem::F32,
-                visibility: Visibility::ReadWrite,
-                location: Location::Storage,
-                size: None,
-            });
-        }
-
-        // INFO
-        let info = info.into_iter().map(|i| i as u32).collect::<Vec<_>>();
-        let info_handle = client.create(bytemuck::cast_slice(&info));
-        kernel_handles.push(info_handle);
-        let info = Some(Binding {
-            elem: Elem::U32,
-            visibility: Visibility::Read,
-            location: Location::Storage,
-            size: Some(info.len()),
-        });
-
-        let kernel = ShaderCodegen {
-            inputs: input_bindings,
-            outputs: output_bindings,
-            info,
-            workgroup_sizes: WorkgroupSize::default(),
-            body: Box::new(ElemWiseBody { operations }),
-            num_workgroups: true,
-            global_invocation_id: true,
-        };
-
-        let workgroup = elemwise_workgroup(num_elems_launch_option, WORKGROUP_DEFAULT);
-
-        (
-            Box::new(DynamicKernel::new(kernel, workgroup)),
-            kernel_handles,
-            client,
-        )
     }
 
     fn input_to_var(&mut self, tensor: &TensorDescription) -> Variable {
@@ -347,6 +259,21 @@ impl FloatElementWiseFusionOps {
             FloatOpsDescription::Exp(desc, _) => {
                 self.register_unary_ops(desc, |input, out| Operator::Exp { input, out })
             }
+            FloatOpsDescription::Log(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Log { input, out })
+            }
+            FloatOpsDescription::Log1p(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Log1p { input, out })
+            }
+            FloatOpsDescription::Cos(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Cos { input, out })
+            }
+            FloatOpsDescription::Sin(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Sin { input, out })
+            }
+            FloatOpsDescription::Tanh(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Tanh { input, out })
+            }
             _ => false,
         }
     }
@@ -363,6 +290,13 @@ impl FloatElementWiseFusionOps {
                     out,
                 });
             }
+            NumericOpsDescription::AddScalar(desc, _) => {
+                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Add {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
             NumericOpsDescription::Sub(desc, _) => {
                 return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Sub {
                     lhs,
@@ -370,9 +304,22 @@ impl FloatElementWiseFusionOps {
                     out,
                 });
             }
-
+            NumericOpsDescription::SubScalar(desc, _) => {
+                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Sub {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
             NumericOpsDescription::Mul(desc, _) => {
                 return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Mul {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
+            NumericOpsDescription::MulScalar(desc, _) => {
+                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Mul {
                     lhs,
                     rhs,
                     out,
@@ -384,6 +331,16 @@ impl FloatElementWiseFusionOps {
                     rhs,
                     out,
                 });
+            }
+            NumericOpsDescription::DivScalar(desc, _) => {
+                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Div {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
+            NumericOpsDescription::Abs(desc, _) => {
+                return self.register_unary_ops(desc, |input, out| Operator::Abs { input, out });
             }
             _ => false,
         }
@@ -422,8 +379,30 @@ impl FloatElementWiseFusionOps {
         return true;
     }
 
+    fn register_scalar_ops<F, E: Element>(
+        &mut self,
+        desc: &ScalarOpsDescription<E>,
+        func: F,
+    ) -> bool
+    where
+        F: Fn(Variable, Variable, Variable) -> Operator,
+    {
+        if !self.output_is_compatible(&desc.out) {
+            return false;
+        }
+
+        let lhs = self.input_to_var(&desc.lhs);
+        let rhs = Variable::Scalar(self.scalars_f32.len() as u16, Elem::F32);
+        self.scalars_f32.push(desc.rhs.elem());
+        let out = self.output_to_var(&desc.out);
+
+        self.operators.push(func(lhs, rhs, out));
+
+        return true;
+    }
+
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
-        let num_elems = num_elems(&out.shape);
+        let num_elems = calculate_num_elems(&out.shape);
         if self.num_elems_output == 0 {
             self.num_elems_output = num_elems;
         } else if num_elems != self.num_elems_output {
@@ -432,60 +411,6 @@ impl FloatElementWiseFusionOps {
 
         true
     }
-}
-
-fn num_elems(shape: &[usize]) -> usize {
-    let mut num_elems = 1;
-    for i in shape {
-        num_elems *= i;
-    }
-
-    num_elems
-}
-
-#[derive(Hash)]
-pub struct ElemWiseBody {
-    operations: Vec<Operator>,
-}
-
-impl Display for ElemWiseBody {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            "let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;\n",
-        )?;
-        f.write_str("let dim: u32 = info[0];\n\n")?;
-
-        for ops in self.operations.iter() {
-            f.write_fmt(format_args!("{ops}"))?;
-            f.write_str("\n")?;
-        }
-
-        Ok(())
-    }
-}
-
-impl DynamicKernelSource for ElemWiseBody {
-    fn source(&self) -> SourceTemplate {
-        SourceTemplate::new(self.to_string())
-    }
-
-    fn id(&self) -> String {
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-
-        s.finish().to_string()
-    }
-}
-fn dyn_strides(shape: &[usize]) -> Vec<usize> {
-    let mut strides = vec![0; shape.len()];
-
-    let mut current = 1;
-    shape.iter().enumerate().rev().for_each(|(index, val)| {
-        strides[index] = current;
-        current *= val;
-    });
-
-    strides
 }
 
 #[cfg(test)]

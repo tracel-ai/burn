@@ -23,7 +23,31 @@ pub enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    Abs {
+        input: Variable,
+        out: Variable,
+    },
     Exp {
+        input: Variable,
+        out: Variable,
+    },
+    Log {
+        input: Variable,
+        out: Variable,
+    },
+    Log1p {
+        input: Variable,
+        out: Variable,
+    },
+    Cos {
+        input: Variable,
+        out: Variable,
+    },
+    Sin {
+        input: Variable,
+        out: Variable,
+    },
+    Tanh {
         input: Variable,
         out: Variable,
     },
@@ -53,7 +77,17 @@ impl Display for Operator {
             Operator::Div { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} / {rhs};"))
             }
+            Operator::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
             Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
+            Operator::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operator::Log1p { input, out } => {
+                f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
+            }
+            Operator::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
+            Operator::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
+            Operator::Tanh { input, out } => {
+                f.write_fmt(format_args!("let {out} = tanh({input});"))
+            }
             Operator::AssignGlobal { input, out } => {
                 f.write_fmt(format_args!("{out}_global[id] = {input};"))
             }
@@ -66,11 +100,12 @@ impl Display for Operator {
                     Variable::Input(number) => {
                         (format!("input_{number}_global"), format!("input_{number}"))
                     }
-                    Variable::Local(_) => panic!("can't ready global a temp variable."),
+                    Variable::Local(_) => panic!("can't read globala local variable."),
                     Variable::Output(number) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
                     ),
+                    Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
                 };
 
                 f.write_fmt(format_args!(
