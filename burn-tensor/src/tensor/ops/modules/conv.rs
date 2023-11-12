@@ -32,6 +32,29 @@ pub fn calculate_conv_output_size(
     (size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
 }
 
+/// Calculate the expected output size when doing a transposed convolution operation.
+pub fn calculate_conv_transpose_output_size(
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    padding_out: usize,
+    dilation: usize,
+    size_in: usize,
+) -> usize {
+    (size_in - 1) * stride + dilation * (kernel_size - 1) + padding_out - 2 * padding + 1
+}
+
+/// Calculate the expected output size when doing a pooling operation.
+pub fn calculate_pool_output_size(
+    kernel_size: usize,
+    stride: usize,
+    padding: usize,
+    dilation: usize,
+    size_in: usize,
+) -> usize {
+    ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) / stride) + 1
+}
+
 /// Calculate the [1D convolution](crate::ops::ModuleOps::conv1d) backward pass using convolutions.
 pub(crate) fn conv1d_backward<B: Backend>(
     x: FloatTensor<B, 3>,

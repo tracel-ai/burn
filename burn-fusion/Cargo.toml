@@ -1,0 +1,19 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Kernel fusion backend decorator for the Burn framework"
+edition = "2021"
+keywords = ["deep-learning", "machine-learning", "data"]
+license = "MIT OR Apache-2.0"
+name = "burn-fusion"
+readme = "README.md"
+repository = "https://github.com/burn-rs/burn/tree/main/burn-fusion"
+version = "0.11.0"
+
+[features]
+
+[dependencies]
+burn-tensor = {path = "../burn-tensor", version = "0.11.0", default-features = false }
+burn-common = {path = "../burn-common", version = "0.11.0" }
+derive-new = {workspace = true}
+spin = {workspace = true}

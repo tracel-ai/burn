@@ -10,6 +10,9 @@ pub use burn_autodiff as autodiff;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
 
+#[cfg(feature = "fusion")]
+pub use burn_fusion::Fusion;
+
 #[cfg(feature = "wgpu")]
 pub use burn_wgpu as wgpu;
 

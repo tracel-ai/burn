@@ -1,13 +1,13 @@
 use alloc::boxed::Box;
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::Display;
+use core::fmt::{Debug, Display};
+use core::hash::Hash;
 
 /// Groups operations of the same type for autotune
-pub trait AutotuneOperationSet: Send {
+pub trait AutotuneOperationSet<K>: Send {
     /// The key used in the tune cache
-    fn key(&self) -> AutotuneKey;
+    fn key(&self) -> K;
 
     /// All candidate operations for autotuning this operation type
     /// Operations can run on toy tensors of relevant size
@@ -32,16 +32,6 @@ pub trait AutotuneOperation {
     fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
 
-#[derive(new, Clone, Debug, PartialEq, Eq, Hash)]
-/// The key used in the tune cache, referring to the operation type,
-/// generally hardcoded for an autotune operation, and to the input shape
-pub struct AutotuneKey {
-    operation: String,
-    input_description: String,
-}
-
-impl Display for AutotuneKey {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("{}-{}", self.operation, self.input_description).as_str())
-    }
-}
+/// Trait alias
+pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display {}
+impl AutotuneKey for String {}

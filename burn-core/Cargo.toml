@@ -33,6 +33,7 @@ wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 
 # Backend
 autodiff = ["burn-autodiff"]
+fusion = ["burn-fusion", "burn-wgpu?/fusion"]
 
 ndarray = ["__ndarray", "burn-ndarray/default"]
 ndarray-no-std = ["__ndarray", "burn-ndarray"]
@@ -50,8 +51,6 @@ ndarray-blas-openblas-system = [
 ]
 __ndarray = [] # Internal flag to know when one ndarray feature is enabled.
 
-wgpu = ["burn-wgpu/default"]
-
 tch = ["burn-tch"]
 
 candle = ["burn-candle"]
@@ -63,7 +62,10 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 test-tch = ["tch"]   # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
 
+wgpu = ["burn-wgpu/default"]
+
 [dependencies]
+
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
@@ -74,8 +76,9 @@ burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = 
 
 # Backends
 burn-ndarray = { path = "../burn-ndarray", version = "0.11.0", optional = true, default-features = false }
-burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.11.0", optional = true }
+burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", optional = true }
+burn-fusion = { path = "../burn-fusion", version = "0.11.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.11.0", optional = true }
 burn-candle = { path = "../burn-candle", version = "0.11.0", optional = true }
 

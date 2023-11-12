@@ -27,17 +27,14 @@ pub use backend::*;
 mod graphics;
 pub use graphics::*;
 
+#[cfg(any(feature = "fusion", test))]
+mod fusion;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[cfg(target_os = "macos")]
-    type GraphicsApi = Metal;
-
-    #[cfg(not(target_os = "macos"))]
-    type GraphicsApi = Vulkan;
-
-    pub type TestBackend = Wgpu<GraphicsApi, f32, i32>;
+    pub type TestBackend = Wgpu;
     pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
