@@ -21,6 +21,7 @@ fn main() {
         .input("tests/equal/equal.onnx")
         .input("tests/erf/erf.onnx")
         .input("tests/flatten/flatten.onnx")
+        .input("tests/gather/gather.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/linear/linear.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
