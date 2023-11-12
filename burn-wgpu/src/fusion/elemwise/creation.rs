@@ -137,6 +137,13 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         let mut functions = Vec::new();
         let mut seen = HashSet::new();
 
+        let mut register_function = |function: Function| {
+            if !seen.contains(&function) {
+                functions.push(function.clone());
+                seen.insert(function);
+            }
+        };
+
         for ops in ops.operators.iter() {
             match ops {
                 Operator::Powf {
@@ -144,11 +151,10 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                     rhs: _,
                     out: _,
                 } => {
-                    let function = Function::Powf(Elem::F32);
-                    if !seen.contains(&function) {
-                        functions.push(function.clone());
-                        seen.insert(function);
-                    }
+                    register_function(Function::Powf(Elem::F32));
+                }
+                Operator::Erf { input: _, out: _ } => {
+                    register_function(Function::Erf(Elem::F32));
                 }
                 _ => {}
             }

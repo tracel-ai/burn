@@ -158,7 +158,10 @@ impl FloatElementWiseFusionOps {
                     mark(input, &mut tensor_ids_input);
                     mark(out, &mut tensor_ids_output);
                 }
-
+                Operator::Erf { input, out } => {
+                    mark(input, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
                 Operator::Log { input, out } => {
                     mark(input, &mut tensor_ids_input);
                     mark(out, &mut tensor_ids_output);
@@ -281,6 +284,9 @@ impl FloatElementWiseFusionOps {
             }
             FloatOpsDescription::Tanh(desc, _) => {
                 self.register_unary_ops(desc, |input, out| Operator::Tanh { input, out })
+            }
+            FloatOpsDescription::Erf(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Erf { input, out })
             }
             _ => false,
         }
