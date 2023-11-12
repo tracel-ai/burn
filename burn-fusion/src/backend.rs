@@ -40,11 +40,17 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
     fn name() -> String {
-        format!("Fusion<{}>", B::name())
+        format!("fusion<{}>", B::name())
     }
 
     fn seed(seed: u64) {
         B::seed(seed);
+    }
+
+    fn sync(device: &Self::Device) {
+        let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
+        client.sync();
+        B::sync(device)
     }
 }
 

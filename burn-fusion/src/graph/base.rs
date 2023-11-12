@@ -57,7 +57,6 @@ impl<B: FusionBackend> Graph<B> {
         self.remove(0..num_keep, handles);
 
         for optimization in optimizations.iter_mut() {
-            println!("Clear optimization");
             optimization.reset();
 
             for node in self.nodes() {

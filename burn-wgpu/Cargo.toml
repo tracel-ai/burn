@@ -58,3 +58,7 @@ pretty_assertions = {workspace = true}
 [[bench]]
 name = "matmul"
 harness = false
+
+[[bench]]
+name = "fused_elemwise"
+harness = false

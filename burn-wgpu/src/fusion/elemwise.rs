@@ -275,8 +275,6 @@ impl FloatElementWiseFusionOps {
             size: Some(info.len()),
         });
 
-        println!("Operations {:?}", operations);
-
         let kernel = ShaderCodegen {
             inputs: input_bindings,
             outputs: output_bindings,
