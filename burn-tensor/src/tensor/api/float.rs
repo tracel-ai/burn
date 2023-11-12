@@ -67,6 +67,11 @@ where
         Self::new(B::powf(self.primitive, value))
     }
 
+    /// Applies element wise reciprocal operation.
+    pub fn recip(self) -> Self {
+        Self::new(B::recip(self.primitive))
+    }
+
     /// Applies element wise root square operation.
     pub fn sqrt(self) -> Self {
         Self::new(B::sqrt(self.primitive))

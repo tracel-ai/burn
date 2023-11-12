@@ -442,4 +442,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
     ) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
     }
+
+    fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.recip().unwrap())
+    }
 }

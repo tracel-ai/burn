@@ -100,6 +100,11 @@ pub enum FloatOpsDescription<B: FusionBackend> {
         (TensorDescription, Distribution<FloatElem<B>>),
         Box<dyn Ops<B, Args = (TensorDescription, Distribution<FloatElem<B>>)>>,
     ),
+    /// Operation corresponding to [recip](burn_tensor::ops::TensorOps::recip).
+    Recip(
+        UnaryOpsDescription,
+        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
+    ),
 }
 
 /// Operation description specific to module.
@@ -1252,6 +1257,7 @@ impl<B: FusionBackend> FloatOpsDescription<B> {
             FloatOpsDescription::Log(desc, _) => handles.cleanup(&desc.input),
             FloatOpsDescription::Log1p(desc, _) => handles.cleanup(&desc.input),
             FloatOpsDescription::Erf(desc, _) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Recip(desc, _) => handles.cleanup(&desc.input),
             FloatOpsDescription::Powf(desc, _) => handles.cleanup(&desc.lhs),
             FloatOpsDescription::Sqrt(desc, _) => handles.cleanup(&desc.input),
             FloatOpsDescription::Cos(desc, _) => handles.cleanup(&desc.input),
@@ -1268,6 +1274,7 @@ impl<B: FusionBackend> FloatOpsDescription<B> {
             FloatOpsDescription::Log(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Log1p(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Erf(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Recip(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Powf(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Sqrt(desc, ops) => ops.execute(desc, handles),
             FloatOpsDescription::Cos(desc, ops) => ops.execute(desc, handles),

@@ -510,4 +510,17 @@ where
     ) -> FloatTensor<Self, D> {
         kernel::clamp(tensor, min, max)
     }
+
+    fn recip<const D: usize>(
+        tensor: FloatTensor<Wgpu<G, F, I>, D>,
+    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        unary!(Recip, func "1.0 /");
+        unary_inplace!(RecipInplace, func "1.0 /");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<RecipInplace, F, D>(tensor);
+        }
+
+        unary_default::<Recip, F, D>(tensor)
+    }
 }

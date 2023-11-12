@@ -435,6 +435,23 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             .stateless(B::neg(tensor.primitive))
     }
 
+    fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct Recip;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Recip {
+            type State = ();
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::recip(grad));
+            }
+        }
+
+        Recip
+            .prepare([tensor.node], [tensor.graph])
+            .stateless(B::recip(tensor.primitive))
+    }
+
     fn swap_dims<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim1: usize,

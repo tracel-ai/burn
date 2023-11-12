@@ -181,6 +181,13 @@ where
         NdArrayTensor { array }
     }
 
+    pub fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        let array = tensor.array.map(|x| 1.elem::<E>() / *x);
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
     pub fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         let data = Data::from([tensor.array.mean().unwrap()]);
         NdArrayTensor::from_data(data)
