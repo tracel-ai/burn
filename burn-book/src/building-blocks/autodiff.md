@@ -65,7 +65,7 @@ torch.no_grad():
 ```
 
 With Burn, you don't need to wrap the backend with the `Autodiff` for inference, and you
-can call `inner()` to obtain the inner tensor, which is useful for validation.ß
+can call `inner()` to obtain the inner tensor, which is useful for validation.
 
 ```rust, ignore
 /// Use `B: AutodiffBackend`
