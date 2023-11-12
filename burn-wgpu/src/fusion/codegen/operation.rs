@@ -13,6 +13,20 @@ pub enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    Mul {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Div {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Exp {
+        input: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -33,6 +47,13 @@ impl Display for Operator {
             Operator::Sub { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
             }
+            Operator::Mul { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} * {rhs};"))
+            }
+            Operator::Div { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} / {rhs};"))
+            }
+            Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
             Operator::AssignGlobal { input, out } => {
                 f.write_fmt(format_args!("{out}_global[id] = {input};"))
             }

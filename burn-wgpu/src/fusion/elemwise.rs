@@ -5,7 +5,10 @@ use crate::{
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
-    graph::{NumericOpsDescription, TensorOpsDescription},
+    graph::{
+        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, TensorOpsDescription,
+        UnaryOpsDescription,
+    },
     FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription,
     TensorId,
 };
@@ -47,6 +50,11 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
 {
     fn register(&mut self, ops: Arc<TensorOpsDescription<Wgpu<G, F, I>>>) -> FusionStatus {
         match ops.as_ref() {
+            TensorOpsDescription::FloatOps(ops) => {
+                if !self.register_float(ops) {
+                    return FusionStatus::Closed(self.properties.clone());
+                }
+            }
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
                     return FusionStatus::Closed(self.properties.clone());
@@ -90,7 +98,7 @@ impl FloatElementWiseFusionOps {
         let mut read_tensor = HashSet::new();
         let mut out_tensor = HashSet::new();
 
-        let mark_temp = |var: &Variable, list: &mut HashSet<TensorId>| {
+        let mark = |var: &Variable, list: &mut HashSet<TensorId>| {
             match var {
                 Variable::Local(index) => {
                     if let Some((id, _)) = self
@@ -107,14 +115,28 @@ impl FloatElementWiseFusionOps {
         for ops in self.operators.iter() {
             match ops {
                 Operator::Add { lhs, rhs, out } => {
-                    mark_temp(lhs, &mut read_tensor);
-                    mark_temp(rhs, &mut read_tensor);
-                    mark_temp(out, &mut out_tensor);
+                    mark(lhs, &mut read_tensor);
+                    mark(rhs, &mut read_tensor);
+                    mark(out, &mut out_tensor);
                 }
                 Operator::Sub { lhs, rhs, out } => {
-                    mark_temp(lhs, &mut read_tensor);
-                    mark_temp(rhs, &mut read_tensor);
-                    mark_temp(out, &mut out_tensor);
+                    mark(lhs, &mut read_tensor);
+                    mark(rhs, &mut read_tensor);
+                    mark(out, &mut out_tensor);
+                }
+                Operator::Mul { lhs, rhs, out } => {
+                    mark(lhs, &mut read_tensor);
+                    mark(rhs, &mut read_tensor);
+                    mark(out, &mut out_tensor);
+                }
+                Operator::Div { lhs, rhs, out } => {
+                    mark(lhs, &mut read_tensor);
+                    mark(rhs, &mut read_tensor);
+                    mark(out, &mut out_tensor);
+                }
+                Operator::Exp { input, out } => {
+                    mark(input, &mut read_tensor);
+                    mark(out, &mut out_tensor);
                 }
                 _ => {}
             }
@@ -322,50 +344,95 @@ impl FloatElementWiseFusionOps {
         Variable::Local(local_index)
     }
 
+    fn register_float<B: FusionBackend>(&mut self, ops: &FloatOpsDescription<B>) -> bool {
+        match ops {
+            FloatOpsDescription::Exp(desc, _) => {
+                self.register_unary_ops(desc, |input, out| Operator::Exp { input, out })
+            }
+            _ => false,
+        }
+    }
+
     fn register_numeric<B: FusionBackend, E: Element>(
         &mut self,
         ops: &NumericOpsDescription<B, E>,
     ) -> bool {
-        let mut output_is_compatible = |out: &TensorDescription| {
-            let num_elems = num_elems(&out.shape);
-            if self.num_elems_output == 0 {
-                self.num_elems_output = num_elems;
-            } else if num_elems != self.num_elems_output {
-                return false;
-            }
-
-            true
-        };
-
         match ops {
             NumericOpsDescription::Add(desc, _) => {
-                if !output_is_compatible(&desc.out) {
-                    return false;
-                }
-
-                let lhs = self.input_to_var(&desc.lhs);
-                let rhs = self.input_to_var(&desc.rhs);
-                let out = self.output_to_var(&desc.out);
-
-                self.operators.push(Operator::Add { lhs, rhs, out });
-
-                return true;
+                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Add {
+                    lhs,
+                    rhs,
+                    out,
+                });
             }
             NumericOpsDescription::Sub(desc, _) => {
-                if !output_is_compatible(&desc.out) {
-                    return false;
-                }
+                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Sub {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
 
-                let lhs = self.input_to_var(&desc.lhs);
-                let rhs = self.input_to_var(&desc.rhs);
-                let out = self.output_to_var(&desc.out);
-
-                self.operators.push(Operator::Sub { lhs, rhs, out });
-
-                return true;
+            NumericOpsDescription::Mul(desc, _) => {
+                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Mul {
+                    lhs,
+                    rhs,
+                    out,
+                });
+            }
+            NumericOpsDescription::Div(desc, _) => {
+                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Div {
+                    lhs,
+                    rhs,
+                    out,
+                });
             }
             _ => false,
         }
+    }
+
+    fn register_binary_ops<F>(&mut self, desc: &BinaryOpsDescription, func: F) -> bool
+    where
+        F: Fn(Variable, Variable, Variable) -> Operator,
+    {
+        if !self.output_is_compatible(&desc.out) {
+            return false;
+        }
+
+        let lhs = self.input_to_var(&desc.lhs);
+        let rhs = self.input_to_var(&desc.rhs);
+        let out = self.output_to_var(&desc.out);
+
+        self.operators.push(func(lhs, rhs, out));
+
+        return true;
+    }
+
+    fn register_unary_ops<F>(&mut self, desc: &UnaryOpsDescription, func: F) -> bool
+    where
+        F: Fn(Variable, Variable) -> Operator,
+    {
+        if !self.output_is_compatible(&desc.out) {
+            return false;
+        }
+
+        let input = self.input_to_var(&desc.input);
+        let out = self.output_to_var(&desc.out);
+
+        self.operators.push(func(input, out));
+
+        return true;
+    }
+
+    fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
+        let num_elems = num_elems(&out.shape);
+        if self.num_elems_output == 0 {
+            self.num_elems_output = num_elems;
+        } else if num_elems != self.num_elems_output {
+            return false;
+        }
+
+        true
     }
 }
 
