@@ -120,7 +120,7 @@ pub trait FusionBackend: Backend {
     /// The device type that can return an ID.
     ///
     /// It can be the same as (Backend::Device), but must implement (FusionDevice).
-    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device>;
+    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device> + core::fmt::Debug;
     /// The type that can be used to point to a tensor of any kind.
     type Handle: Sync + Send + Clone;
     /// What kind of client should be used.

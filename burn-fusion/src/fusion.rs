@@ -26,9 +26,11 @@ impl FusionClientLocator {
     ) -> C {
         let device_id = device.id();
         let client_id = (core::any::TypeId::of::<C>(), device_id);
+        println!("Client ID {:?}", client_id);
         let mut clients = self.clients.lock();
 
         if clients.is_none() {
+            println!("New client {:?}", client_id);
             let client = C::new(device.clone());
             Self::register_inner::<C>(client_id, client, &mut clients);
         }
@@ -40,6 +42,7 @@ impl FusionClientLocator {
                     client.clone()
                 }
                 None => {
+                    println!("New client diff device {:?}", client_id);
                     let client = C::new(device.clone());
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);

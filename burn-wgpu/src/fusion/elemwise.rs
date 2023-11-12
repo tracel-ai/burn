@@ -26,6 +26,7 @@ pub struct FloatElementWiseFusionOps {
     tensors: HashMap<TensorId, TensorDescription>,
     operators: Vec<Operator>,
     properties: FusionProperties,
+    num_elems_output: usize,
 }
 
 impl Default for FloatElementWiseFusionOps {
@@ -36,6 +37,7 @@ impl Default for FloatElementWiseFusionOps {
             tensors: HashMap::new(),
             operators: Vec::new(),
             properties: FusionProperties::default(),
+            num_elems_output: 0,
         }
     }
 }
@@ -50,7 +52,9 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
                     return FusionStatus::Closed(self.properties.clone());
                 }
             }
-            _ => return FusionStatus::Closed(self.properties.clone()),
+            _ => {
+                return FusionStatus::Closed(self.properties.clone());
+            }
         };
 
         self.properties.score += 1;
@@ -69,7 +73,10 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     fn reset(&mut self) {
         self.properties = FusionProperties::default();
         self.tensors.clear();
+        self.locals.drain();
+        self.inputs.clear();
         self.operators.clear();
+        self.num_elems_output = 0;
     }
 
     fn len(&self) -> usize {
@@ -319,8 +326,23 @@ impl FloatElementWiseFusionOps {
         &mut self,
         ops: &NumericOpsDescription<B, E>,
     ) -> bool {
+        let mut output_is_compatible = |out: &TensorDescription| {
+            let num_elems = num_elems(&out.shape);
+            if self.num_elems_output == 0 {
+                self.num_elems_output = num_elems;
+            } else if num_elems != self.num_elems_output {
+                return false;
+            }
+
+            true
+        };
+
         match ops {
             NumericOpsDescription::Add(desc, _) => {
+                if !output_is_compatible(&desc.out) {
+                    return false;
+                }
+
                 let lhs = self.input_to_var(&desc.lhs);
                 let rhs = self.input_to_var(&desc.rhs);
                 let out = self.output_to_var(&desc.out);
@@ -330,6 +352,10 @@ impl FloatElementWiseFusionOps {
                 return true;
             }
             NumericOpsDescription::Sub(desc, _) => {
+                if !output_is_compatible(&desc.out) {
+                    return false;
+                }
+
                 let lhs = self.input_to_var(&desc.lhs);
                 let rhs = self.input_to_var(&desc.rhs);
                 let out = self.output_to_var(&desc.out);
@@ -341,6 +367,15 @@ impl FloatElementWiseFusionOps {
             _ => false,
         }
     }
+}
+
+fn num_elems(shape: &[usize]) -> usize {
+    let mut num_elems = 1;
+    for i in shape {
+        num_elems *= i;
+    }
+
+    num_elems
 }
 
 #[derive(Hash)]
