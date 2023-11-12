@@ -1,5 +1,6 @@
 use super::FloatElementWiseFusionOps;
 use crate::compute::{DynamicKernel, Kernel, WgpuComputeClient, WgpuHandle};
+use crate::fusion::codegen::Function;
 use crate::fusion::{calculate_num_elems, dyn_strides};
 use crate::fusion::{
     codegen::{
@@ -10,6 +11,7 @@ use crate::fusion::{
 use crate::kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT};
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_fusion::HandleContainer;
+use hashbrown::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
@@ -32,7 +34,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         handles: &mut HandleContainer<Wgpu<G, F, I>>,
     ) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient) {
         let (inputs, scalars, client) = self.register_inputs(ops, handles);
-        let outputs = self.register_outputs(ops, &client, handles);
+        let (outputs, functions) = self.register_outputs(ops, &client, handles);
 
         let mut named = Vec::new();
         // Scalar bindings should come after the output.
@@ -54,6 +56,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             body: Box::new(ElemWiseBody::new(self.operations)),
             num_workgroups: true,
             global_invocation_id: true,
+            functions,
         };
 
         let workgroup = elemwise_workgroup(ops.num_elems_output, WORKGROUP_DEFAULT);
@@ -128,10 +131,29 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         ops: &FloatElementWiseFusionOps,
         client: &WgpuComputeClient,
         handles: &mut HandleContainer<Wgpu<G, F, I>>,
-    ) -> Vec<Binding> {
+    ) -> (Vec<Binding>, Vec<Function>) {
         let outputs = ops.output_descriptions();
         let mut bindings = Vec::with_capacity(outputs.len());
-        self.operations.append(&mut ops.operators.clone());
+        let mut functions = Vec::new();
+        let mut seen = HashSet::new();
+
+        for ops in ops.operators.iter() {
+            match ops {
+                Operator::Powf {
+                    lhs: _,
+                    rhs: _,
+                    out: _,
+                } => {
+                    let function = Function::Powf(Elem::F32);
+                    if !seen.contains(&function) {
+                        functions.push(function.clone());
+                        seen.insert(function);
+                    }
+                }
+                _ => {}
+            }
+            self.operations.push(ops.clone());
+        }
 
         for (i, output) in outputs.iter().enumerate() {
             if let Some(temp) = ops.locals.get(&output.id) {
@@ -174,7 +196,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             });
         }
 
-        bindings
+        (bindings, functions)
     }
 
     fn kernel_creation_info(&mut self, client: &WgpuComputeClient) -> (Binding, WgpuHandle) {

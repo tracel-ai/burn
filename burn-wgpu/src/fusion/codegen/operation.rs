@@ -51,6 +51,11 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
+    Powf {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -80,6 +85,9 @@ impl Display for Operator {
             Operator::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
             Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
             Operator::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operator::Powf { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
+            }
             Operator::Log1p { input, out } => {
                 f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
             }

@@ -179,6 +179,11 @@ impl FloatElementWiseFusionOps {
                     mark(input, &mut tensor_ids_input);
                     mark(out, &mut tensor_ids_output);
                 }
+                Operator::Powf { lhs, rhs, out } => {
+                    mark(lhs, &mut tensor_ids_input);
+                    mark(rhs, &mut tensor_ids_input);
+                    mark(out, &mut tensor_ids_output);
+                }
             }
         }
 
@@ -270,6 +275,9 @@ impl FloatElementWiseFusionOps {
             }
             FloatOpsDescription::Sin(desc, _) => {
                 self.register_unary_ops(desc, |input, out| Operator::Sin { input, out })
+            }
+            FloatOpsDescription::Powf(desc, _) => {
+                self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Powf { lhs, rhs, out })
             }
             FloatOpsDescription::Tanh(desc, _) => {
                 self.register_unary_ops(desc, |input, out| Operator::Tanh { input, out })

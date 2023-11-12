@@ -1,3 +1,4 @@
+use super::Function;
 use crate::kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -59,6 +60,7 @@ pub struct ShaderCodegen {
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
     pub body: Box<dyn DynamicKernelSource>,
+    pub functions: Vec<Function>,
 }
 
 impl DynamicKernelSource for ShaderCodegen {
@@ -122,6 +124,10 @@ fn main(
     {{ body }}
 }",
         )?;
+
+        for function in self.functions.iter() {
+            f.write_fmt(format_args!("{function}\n\n"))?;
+        }
 
         Ok(())
     }
