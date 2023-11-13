@@ -9,11 +9,13 @@
 		"preview": "vite preview"
 	},
 	"devDependencies": {
+		"@types/sql.js": "^1.4.9",
 		"prettier": "3.0.3",
 		"typescript": "^5.2.2",
 		"vite": "^4.5.0"
 	},
 	"dependencies": {
+		"sql.js": "^1.8.0",
 		"train": "link:../train/pkg"
 	}
 }
