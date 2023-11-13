@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc && vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"postinstall": "./postinstall.sh"
 	},
 	"devDependencies": {
 		"@types/sql.js": "^1.4.9",
