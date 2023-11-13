@@ -123,7 +123,7 @@ fn create_handle_data<G: GraphicsApi, E: WgpuElement>(
     WgpuFusionHandle::new(client, buffer, device.clone(), strides)
 }
 
-fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
+pub fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
     shape: &[usize],
     device: &WgpuDevice,
 ) -> WgpuFusionHandle {

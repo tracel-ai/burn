@@ -16,30 +16,33 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
-pub struct ElemWiseKernelCreation<G, F, I>
+pub struct KernelBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
     operations: Vec<Operator>,
-    info: Vec<usize>,
-    input_bindings: Vec<(Binding, WgpuHandle)>,
-    output_bindings: Vec<(Binding, WgpuHandle)>,
-    named_bindings: Vec<(String, Binding, WgpuHandle)>,
+    input_bindings: Vec<(Binding, TensorDescription)>,
+    output_bindings: Vec<(Binding, TensorDescription)>,
+    named_bindings: Vec<(String, Binding, DataBuffer)>,
     functions: Vec<Function>,
     num_elems_output: usize,
     device: Device<Wgpu<G, F, I>>,
     client: WgpuComputeClient,
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F, I> {
+enum DataBuffer {
+    F32(Vec<f32>),
+    U32(Vec<u32>),
+}
+
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
     pub fn new(device: &Device<Wgpu<G, F, I>>) -> Self {
         let client = compute_client::<G>(device);
 
         Self {
             operations: Vec::new(),
-            info: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
@@ -50,24 +53,59 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         }
     }
 
-    pub fn build(mut self) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient) {
-        self.build_info_handle();
-
+    pub fn build(
+        mut self,
+        handles_fusion: &mut HandleContainer<Wgpu<G, F, I>>,
+    ) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient) {
         let mut inputs = Vec::with_capacity(self.input_bindings.len());
         let mut outputs = Vec::with_capacity(self.output_bindings.len());
         let mut named = Vec::with_capacity(2);
+        let mut info = Vec::new();
         let mut handles =
             Vec::with_capacity(inputs.capacity() + outputs.capacity() + named.capacity());
 
-        for (binding, handle) in self.input_bindings {
+        let mut register_info_tensor = |tensor: &TensorDescription, handle: &WgpuFusionHandle| {
+            if info.is_empty() {
+                info.push(handle.strides.len() as u32);
+            }
+
+            for s in handle.strides.iter() {
+                info.push(*s as u32);
+            }
+            for s in tensor.shape.iter() {
+                info.push(*s as u32);
+            }
+        };
+        for (binding, tensor) in self.input_bindings {
+            let handle = handles_fusion.get_handle_float(&tensor);
+            register_info_tensor(&tensor, &handle);
+
             inputs.push(binding);
-            handles.push(handle);
+            handles.push(handle.handle);
         }
-        for (binding, handle) in self.output_bindings {
+
+        for (binding, tensor) in self.output_bindings {
+            let num_elems = calculate_num_elems(&tensor.shape);
+            let handle_fusion = WgpuFusionHandle {
+                client: self.client.clone(),
+                device: self.device.clone(),
+                strides: dyn_strides(&tensor.shape),
+                handle: self.client.empty(core::mem::size_of::<F>() * num_elems),
+            };
+            register_info_tensor(&tensor, &handle_fusion);
+
+            handles.push(handle_fusion.handle.clone());
+            handles_fusion.register_handle(tensor.id, handle_fusion);
             outputs.push(binding);
-            handles.push(handle);
         }
-        for (name, binding, handle) in self.named_bindings {
+
+        Self::build_info_handle(&mut self.named_bindings, info);
+
+        for (name, binding, data) in self.named_bindings {
+            let handle = self.client.create(match &data {
+                DataBuffer::F32(values) => bytemuck::cast_slice(values),
+                DataBuffer::U32(values) => bytemuck::cast_slice(values),
+            });
             named.push((name, binding));
             handles.push(handle);
         }
@@ -92,20 +130,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         )
     }
 
-    pub fn inputs(
-        mut self,
-        handles: &mut HandleContainer<Wgpu<G, F, I>>,
-        inputs: &[&TensorDescription],
-        scalars_f32: &[f32],
-    ) -> Self {
+    pub fn inputs(mut self, inputs: &[&TensorDescription], scalars_f32: &[f32]) -> Self {
         for (i, input) in inputs.iter().enumerate() {
-            if self.info.is_empty() {
-                self.info.push(input.shape.len()); // Rank
-            }
-
-            let mut handle = handles.get_handle_float(&input);
-            self.info.append(&mut handle.strides);
-            self.info.append(&mut input.shape.clone());
             self.input_bindings.push((
                 Binding {
                     elem: Elem::F32,
@@ -113,7 +139,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                     location: Location::Storage,
                     size: None,
                 },
-                handle.handle,
+                (*input).clone(),
             ));
 
             self.operations.push(Operator::ReadGlobal {
@@ -124,7 +150,6 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         }
 
         if !scalars_f32.is_empty() {
-            let scalar_handle = self.client.create(bytemuck::cast_slice(&scalars_f32));
             self.named_bindings.push((
                 "scalars_f32".to_string(),
                 Binding {
@@ -133,7 +158,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                     location: Location::Storage,
                     size: Some(scalars_f32.len()),
                 },
-                scalar_handle,
+                DataBuffer::F32(scalars_f32.to_vec()),
             ));
         }
 
@@ -171,11 +196,13 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
 
     pub fn outputs(
         mut self,
-        handles: &mut HandleContainer<Wgpu<G, F, I>>,
         outputs: &[&TensorDescription],
         inputs: &[&TensorDescription],
         locals: &HashMap<TensorId, u16>,
     ) -> Self {
+        // Need to know the stride for the output id.
+        // If contiguous output id is [id]
+        // Otherwise it's index_{number}_input;
         let mut inputs_reused_as_outputs = Vec::new();
 
         inputs
@@ -183,7 +210,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             .enumerate()
             .for_each(|(i, tensor)| match tensor.status {
                 burn_fusion::TensorStatus::ReadWrite => {
-                    inputs_reused_as_outputs.push((false, i, tensor));
+                    let num_elems = calculate_num_elems(&tensor.shape);
+                    inputs_reused_as_outputs.push((false, num_elems, i));
                 }
                 _ => {}
             });
@@ -193,33 +221,21 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
 
         for output in outputs {
             let num_elems_output = calculate_num_elems(&output.shape);
-            if num_elems_launch_option == 0 {
+            if num_elems_output > num_elems_launch_option {
                 num_elems_launch_option = num_elems_output;
             }
-            let strides = dyn_strides(&output.shape);
-
-            let (handle, var) = match inputs_reused_as_outputs
+            let var = match inputs_reused_as_outputs
                 .iter_mut()
-                .find(|(taken, _index, input)| !taken && input.shape == output.shape)
+                .find(|(taken, num_elems, _index)| !taken && num_elems_output == *num_elems)
             {
-                Some((taken, index, _input)) => {
+                Some((taken, _, index)) => {
                     // Inplace
                     *taken = true;
-                    let (binding, handle) = self.input_bindings.get_mut(*index).unwrap();
+                    let (binding, _input) = self.input_bindings.get_mut(*index).unwrap();
                     binding.visibility = Visibility::ReadWrite;
-                    let handle = WgpuFusionHandle::new(
-                        self.client.clone(),
-                        handle.clone(),
-                        self.device.clone(),
-                        strides.clone(),
-                    );
-                    let variable = Variable::Input(*index as u16);
-                    (handle, variable)
+                    Variable::Input(*index as u16)
                 }
                 None => {
-                    let handle = self
-                        .client
-                        .empty(num_elems_output * core::mem::size_of::<f32>());
                     self.output_bindings.push((
                         Binding {
                             elem: Elem::F32,
@@ -227,26 +243,15 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                             location: Location::Storage,
                             size: None,
                         },
-                        handle.clone(),
+                        (*output).clone(),
                     ));
 
-                    let handle = WgpuFusionHandle::new(
-                        self.client.clone(),
-                        handle.clone(),
-                        self.device.clone(),
-                        strides.clone(),
-                    );
                     let variable = Variable::Output(output_number);
                     output_number += 1;
-                    (handle, variable)
+                    variable
                 }
             };
 
-            handles.register_handle(output.id.clone(), handle);
-            let mut strides = dyn_strides(&output.shape);
-
-            self.info.append(&mut strides);
-            self.info.append(&mut output.shape.clone());
             self.num_elems_output = num_elems_launch_option;
 
             if let Some(local_index) = locals.get(&output.id) {
@@ -260,11 +265,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         self
     }
 
-    fn build_info_handle(&mut self) {
-        let info = self.info.iter().map(|i| *i as u32).collect::<Vec<_>>();
-        let info_handle = self.client.create(bytemuck::cast_slice(&info));
-
-        self.named_bindings.push((
+    fn build_info_handle(named_bindings: &mut Vec<(String, Binding, DataBuffer)>, info: Vec<u32>) {
+        named_bindings.push((
             "info".to_string(),
             Binding {
                 elem: Elem::U32,
@@ -272,7 +274,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                 location: Location::Storage,
                 size: Some(info.len()),
             },
-            info_handle,
+            DataBuffer::U32(info),
         ));
     }
 }
