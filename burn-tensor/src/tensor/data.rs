@@ -301,6 +301,23 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
+        let tolerance = libm::pow(0.1, precision as f64);
+
+        self.assert_approx_eq_diff(other, tolerance)
+    }
+
+    /// Asserts the data is approximately equal to another data.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other data.
+    /// * `tolerance` - The tolerance of the comparison.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data is not approximately equal.
+    #[track_caller]
+    pub fn assert_approx_eq_diff(&self, other: &Self, tolerance: f64) {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -320,7 +337,6 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let b: f64 = b.into();
 
             let err = libm::sqrt(libm::pow(a - b, 2.0));
-            let tolerance = libm::pow(0.1, precision as f64);
 
             if err > tolerance {
                 // Only print the first 5 different values.
