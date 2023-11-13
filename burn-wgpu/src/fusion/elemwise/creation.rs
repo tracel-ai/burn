@@ -17,36 +17,66 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
-#[derive(Default)]
 pub struct ElemWiseKernelCreation<G, F, I> {
     operations: Vec<Operator>,
     info: Vec<usize>,
-    handles: Vec<WgpuHandle>,
+    input_bindings: Vec<(Binding, WgpuHandle)>,
+    output_bindings: Vec<(Binding, WgpuHandle)>,
+    named_bindings: Vec<(String, Binding, WgpuHandle)>,
+    functions: Vec<Function>,
+    num_elems_output: usize,
+    client: Option<WgpuComputeClient>,
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F, I> {
-    pub fn create_kernel(
-        mut self,
+    pub fn new(
         ops: &FloatElementWiseFusionOps,
         handles: &mut HandleContainer<Wgpu<G, F, I>>,
-    ) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient) {
-        let (inputs, scalars, client) = self.register_inputs(ops, handles);
-        let (outputs, functions) = self.register_outputs(ops, &client, handles);
+    ) -> Self {
+        let mut instance = Self {
+            operations: Vec::new(),
+            info: Vec::new(),
+            input_bindings: Vec::new(),
+            output_bindings: Vec::new(),
+            named_bindings: Vec::new(),
+            functions: Vec::new(),
+            num_elems_output: 0,
+            client: None,
+            _g: PhantomData,
+            _f: PhantomData,
+            _i: PhantomData,
+        };
+        instance.register_inputs(ops, handles);
+        instance.register_body(ops);
+        instance.register_outputs(ops, handles);
+        instance.kernel_creation_info();
 
-        let mut named = Vec::new();
-        // Scalar bindings should come after the output.
-        if let Some((binding, handle)) = scalars {
-            named.push(("scalars_f32".to_string(), binding));
-            self.handles.push(handle);
+        instance
+    }
+
+    pub fn build(self) -> (Box<dyn Kernel>, Vec<WgpuHandle>, WgpuComputeClient) {
+        let mut inputs = Vec::with_capacity(self.input_bindings.len());
+        let mut outputs = Vec::with_capacity(self.output_bindings.len());
+        let mut named = Vec::with_capacity(2);
+        let mut handles =
+            Vec::with_capacity(inputs.capacity() + outputs.capacity() + named.capacity());
+        let client = self.client();
+
+        for (binding, handle) in self.input_bindings {
+            inputs.push(binding);
+            handles.push(handle);
         }
-
-        // Info binding should come after the scalars.
-        let (binding, hadnle) = self.kernel_creation_info(&client);
-        named.push(("info".to_string(), binding));
-        self.handles.push(hadnle);
+        for (binding, handle) in self.output_bindings {
+            outputs.push(binding);
+            handles.push(handle);
+        }
+        for (name, binding, handle) in self.named_bindings {
+            named.push((name, binding));
+            handles.push(handle);
+        }
 
         let kernel = ShaderCodegen {
             inputs,
@@ -56,14 +86,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             body: Box::new(ElemWiseBody::new(self.operations)),
             num_workgroups: true,
             global_invocation_id: true,
-            functions,
+            functions: self.functions,
         };
 
-        let workgroup = elemwise_workgroup(ops.num_elems_output, WORKGROUP_DEFAULT);
+        let workgroup = elemwise_workgroup(self.num_elems_output, WORKGROUP_DEFAULT);
 
         (
             Box::new(DynamicKernel::new(kernel, workgroup)),
-            self.handles,
+            handles,
             client,
         )
     }
@@ -72,13 +102,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         &mut self,
         ops: &FloatElementWiseFusionOps,
         handles: &mut HandleContainer<Wgpu<G, F, I>>,
-    ) -> (
-        Vec<Binding>,
-        Option<(Binding, WgpuHandle)>,
-        WgpuComputeClient,
     ) {
         let mut client = None;
-        let mut bindings = Vec::new();
 
         for (i, input) in ops.inputs.iter().enumerate() {
             if self.info.is_empty() {
@@ -88,18 +113,20 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             let mut handle = handles.get_handle_float(&input);
             self.info.append(&mut handle.strides);
             self.info.append(&mut input.shape.clone());
-            self.handles.push(handle.handle);
+            self.input_bindings.push((
+                Binding {
+                    elem: Elem::F32,
+                    visibility: Visibility::Read,
+                    location: Location::Storage,
+                    size: None,
+                },
+                handle.handle,
+            ));
 
             if let None = client {
                 client = Some(handle.client.clone());
             }
 
-            bindings.push(Binding {
-                elem: Elem::F32,
-                visibility: Visibility::Read,
-                location: Location::Storage,
-                size: None,
-            });
             self.operations.push(Operator::ReadGlobal {
                 variable: Variable::Input(i as u16),
                 position: i,
@@ -108,11 +135,11 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
         }
 
         let client = client.unwrap();
-        let mut binding_scalar = None;
 
         if !ops.scalars_f32.is_empty() {
             let scalar_handle = client.create(bytemuck::cast_slice(&ops.scalars_f32));
-            binding_scalar = Some((
+            self.named_bindings.push((
+                "scalars_f32".to_string(),
                 Binding {
                     elem: Elem::F32,
                     visibility: Visibility::Read,
@@ -123,23 +150,21 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             ));
         }
 
-        (bindings, binding_scalar, client)
+        self.client = Some(client);
     }
 
-    fn register_outputs(
-        &mut self,
-        ops: &FloatElementWiseFusionOps,
-        client: &WgpuComputeClient,
-        handles: &mut HandleContainer<Wgpu<G, F, I>>,
-    ) -> (Vec<Binding>, Vec<Function>) {
-        let outputs = ops.output_descriptions();
-        let mut bindings = Vec::with_capacity(outputs.len());
-        let mut functions = Vec::new();
-        let mut seen = HashSet::new();
+    fn client(&self) -> WgpuComputeClient {
+        match &self.client {
+            Some(value) => value.clone(),
+            None => panic!("No client registered yet."),
+        }
+    }
 
+    fn register_body(&mut self, ops: &FloatElementWiseFusionOps) {
+        let mut seen = HashSet::new();
         let mut register_function = |function: Function| {
             if !seen.contains(&function) {
-                functions.push(function.clone());
+                self.functions.push(function.clone());
                 seen.insert(function);
             }
         };
@@ -160,56 +185,103 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
             }
             self.operations.push(ops.clone());
         }
+    }
 
-        for (i, output) in outputs.iter().enumerate() {
-            if let Some(temp) = ops.locals.get(&output.id) {
-                self.operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(*temp),
-                    out: Variable::Output(i as u16),
-                });
+    fn register_outputs(
+        &mut self,
+        ops: &FloatElementWiseFusionOps,
+        handles: &mut HandleContainer<Wgpu<G, F, I>>,
+    ) {
+        let client = self.client();
+        self.num_elems_output = ops.num_elems_output;
+        let outputs = ops.output_descriptions();
+        let mut inputs_reused_as_outputs = Vec::new();
+
+        ops.inputs.iter().enumerate().for_each(|(i, tensor)| {
+            let updated_tensor = ops.tensors.get(&tensor.id).unwrap();
+
+            match updated_tensor.status {
+                burn_fusion::TensorStatus::ReadWrite => {
+                    inputs_reused_as_outputs.push((false, i, updated_tensor));
+                }
+                _ => {}
             }
-        }
+        });
 
         let mut num_elems_launch_option = 0;
+        let mut output_number = 0;
+
         for output in outputs {
             let num_elems_output = calculate_num_elems(&output.shape);
             if num_elems_launch_option == 0 {
                 num_elems_launch_option = num_elems_output;
             }
             let strides = dyn_strides(&output.shape);
-            let handle = client.empty(num_elems_output * core::mem::size_of::<f32>());
 
-            handles.register_handle(
-                output.id.clone(),
-                WgpuFusionHandle::new(
-                    client.clone(),
-                    handle.clone(),
-                    crate::WgpuDevice::BestAvailable,
-                    strides.clone(),
-                ),
-            );
+            let (handle, var) = match inputs_reused_as_outputs
+                .iter_mut()
+                .find(|(taken, _index, input)| !taken && input.shape == output.shape)
+            {
+                Some((taken, index, _input)) => {
+                    // Inplace
+                    *taken = true;
+                    let (binding, handle) = self.input_bindings.get_mut(*index).unwrap();
+                    binding.visibility = Visibility::ReadWrite;
+                    let handle = WgpuFusionHandle::new(
+                        client.clone(),
+                        handle.clone(),
+                        crate::WgpuDevice::BestAvailable,
+                        strides.clone(),
+                    );
+                    let variable = Variable::Input(*index as u16);
+                    (handle, variable)
+                }
+                None => {
+                    let handle = client.empty(num_elems_output * core::mem::size_of::<f32>());
+                    self.output_bindings.push((
+                        Binding {
+                            elem: Elem::F32,
+                            visibility: Visibility::ReadWrite,
+                            location: Location::Storage,
+                            size: None,
+                        },
+                        handle.clone(),
+                    ));
+
+                    let handle = WgpuFusionHandle::new(
+                        client.clone(),
+                        handle.clone(),
+                        crate::WgpuDevice::BestAvailable,
+                        strides.clone(),
+                    );
+                    let variable = Variable::Output(output_number);
+                    output_number += 1;
+                    (handle, variable)
+                }
+            };
+
+            handles.register_handle(output.id.clone(), handle);
             let mut strides = dyn_strides(&output.shape);
 
             self.info.append(&mut strides);
             self.info.append(&mut output.shape.clone());
-            self.handles.push(handle);
 
-            bindings.push(Binding {
-                elem: Elem::F32,
-                visibility: Visibility::ReadWrite,
-                location: Location::Storage,
-                size: None,
-            });
+            if let Some(local_index) = ops.locals.get(&output.id) {
+                self.operations.push(Operator::AssignGlobal {
+                    input: Variable::Local(*local_index),
+                    out: var,
+                });
+            }
         }
-
-        (bindings, functions)
     }
 
-    fn kernel_creation_info(&mut self, client: &WgpuComputeClient) -> (Binding, WgpuHandle) {
+    fn kernel_creation_info(&mut self) {
+        let client = self.client();
         let info = self.info.iter().map(|i| *i as u32).collect::<Vec<_>>();
         let info_handle = client.create(bytemuck::cast_slice(&info));
 
-        (
+        self.named_bindings.push((
+            "info".to_string(),
             Binding {
                 elem: Elem::U32,
                 visibility: Visibility::Read,
@@ -217,7 +289,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> ElemWiseKernelCreation<G, F
                 size: Some(info.len()),
             },
             info_handle,
-        )
+        ));
     }
 }
 

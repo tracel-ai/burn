@@ -70,8 +70,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     }
 
     fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
-        let (kernel, handles, client) =
-            ElemWiseKernelCreation::default().create_kernel(self, handles);
+        let (kernel, handles, client) = ElemWiseKernelCreation::new(self, handles).build();
         let handles = handles.iter().collect::<Vec<_>>();
 
         client.execute(kernel, &handles);
