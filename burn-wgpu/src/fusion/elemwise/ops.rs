@@ -14,12 +14,17 @@ use burn_fusion::{
     FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription,
     TensorId,
 };
-use burn_tensor::Element;
+use burn_tensor::{Device, Element};
 use hashbrown::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// Fused element wise operations that are normally memory bound.
-pub struct FloatElementWiseFusionOps {
+pub struct FloatElementWiseFusionOps<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, TensorDescription>,
@@ -27,24 +32,11 @@ pub struct FloatElementWiseFusionOps {
     pub(crate) operators: Vec<Operator>,
     pub(crate) properties: FusionProperties,
     pub(crate) num_elems_output: usize,
-}
-
-impl Default for FloatElementWiseFusionOps {
-    fn default() -> Self {
-        Self {
-            inputs: Vec::new(),
-            locals: HashMap::new(),
-            tensors: HashMap::new(),
-            scalars_f32: Vec::new(),
-            operators: Vec::new(),
-            properties: FusionProperties::default(),
-            num_elems_output: 0,
-        }
-    }
+    device: Device<Wgpu<G, F, I>>,
 }
 
 impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
-    for FloatElementWiseFusionOps
+    for FloatElementWiseFusionOps<G, F, I>
 {
     fn register(&mut self, ops: Arc<TensorOpsDescription<Wgpu<G, F, I>>>) -> FusionStatus {
         match ops.as_ref() {
@@ -70,7 +62,15 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     }
 
     fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
-        let (kernel, handles, client) = ElemWiseKernelCreation::new(self, handles).build();
+        let inputs = self.input_descriptions();
+        let outputs = self.output_descriptions();
+
+        let (kernel, handles, client) = ElemWiseKernelCreation::new(&self.device)
+            .inputs(handles, &inputs, &self.scalars_f32)
+            .body(&self.operators)
+            .outputs(handles, &outputs, &inputs, &self.locals)
+            .build();
+
         let handles = handles.iter().collect::<Vec<_>>();
 
         client.execute(kernel, &handles);
@@ -91,7 +91,35 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     }
 }
 
-impl FloatElementWiseFusionOps {
+impl<G, F, I> FloatElementWiseFusionOps<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
+    pub fn new(device: Device<Wgpu<G, F, I>>) -> Self {
+        Self {
+            inputs: Vec::new(),
+            locals: HashMap::new(),
+            tensors: HashMap::new(),
+            scalars_f32: Vec::new(),
+            operators: Vec::new(),
+            properties: FusionProperties::default(),
+            num_elems_output: 0,
+            device,
+        }
+    }
+
+    pub fn input_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
+        self.inputs
+            .iter()
+            .map(|input| {
+                let updated_tensor = self.tensors.get(&input.id).unwrap();
+                updated_tensor
+            })
+            .collect::<Vec<_>>()
+    }
+
     /// Create a list of all tensors that should be written to.
     pub fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
         let mut outputs = Vec::new();
@@ -359,9 +387,9 @@ impl FloatElementWiseFusionOps {
         }
     }
 
-    fn register_binary_ops<F>(&mut self, desc: &BinaryOpsDescription, func: F) -> bool
+    fn register_binary_ops<Func>(&mut self, desc: &BinaryOpsDescription, func: Func) -> bool
     where
-        F: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable, Variable) -> Operator,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -376,9 +404,9 @@ impl FloatElementWiseFusionOps {
         return true;
     }
 
-    fn register_unary_ops<F>(&mut self, desc: &UnaryOpsDescription, func: F) -> bool
+    fn register_unary_ops<Func>(&mut self, desc: &UnaryOpsDescription, func: Func) -> bool
     where
-        F: Fn(Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable) -> Operator,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -392,13 +420,13 @@ impl FloatElementWiseFusionOps {
         return true;
     }
 
-    fn register_scalar_ops<F, E: Element>(
+    fn register_scalar_ops<Func, E: Element>(
         &mut self,
         desc: &ScalarOpsDescription<E>,
-        func: F,
+        func: Func,
     ) -> bool
     where
-        F: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable, Variable) -> Operator,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;

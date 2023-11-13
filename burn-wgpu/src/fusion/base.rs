@@ -36,8 +36,8 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 
-    fn operations() -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
-        vec![Box::new(FloatElementWiseFusionOps::default())]
+    fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
+        vec![Box::new(FloatElementWiseFusionOps::new(device.clone()))]
     }
 
     fn float_tensor<const D: usize>(

@@ -133,7 +133,7 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of operations that will be used to optimize the computational graph.
-    fn operations() -> Vec<Box<dyn FusionOps<Self>>>;
+    fn operations(device: &Device<Self>) -> Vec<Box<dyn FusionOps<Self>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

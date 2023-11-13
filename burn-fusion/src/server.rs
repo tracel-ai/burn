@@ -23,7 +23,7 @@ where
     G: GraphExecution<B>,
 {
     pub fn new(device: B::FusionDevice) -> Self {
-        let optimizations = B::operations()
+        let optimizations = B::operations(&device.clone().into())
             .into_iter()
             .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
             .collect();
