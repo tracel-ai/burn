@@ -7,6 +7,7 @@ use crate::{
 };
 use burn_fusion::{
     client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
+    FusionHandle, HandleDescription,
 };
 use burn_tensor::{
     ops::{FloatElem, IntElem},
@@ -22,6 +23,15 @@ impl FusionDevice for WgpuDevice {
             WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
             WgpuDevice::Cpu => DeviceId::new(3, 0),
             WgpuDevice::BestAvailable => DeviceId::new(4, 0),
+        }
+    }
+}
+
+impl FusionHandle for WgpuFusionHandle {
+    fn description(&self) -> HandleDescription {
+        HandleDescription {
+            shape: self.shape.clone(),
+            strides: self.strides.clone(),
         }
     }
 }
@@ -120,7 +130,7 @@ fn create_handle_data<G: GraphicsApi, E: WgpuElement>(
     let buffer = client.create(E::as_bytes(&values));
     let strides = dyn_strides(&shape);
 
-    WgpuFusionHandle::new(client, buffer, device.clone(), strides)
+    WgpuFusionHandle::new(client, buffer, device.clone(), strides, shape.into())
 }
 
 pub fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
@@ -135,7 +145,7 @@ pub fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
     let buffer = client.empty(core::mem::size_of::<E>() * num_elems);
     let strides = dyn_strides(&shape);
 
-    WgpuFusionHandle::new(client, buffer, device.clone(), strides)
+    WgpuFusionHandle::new(client, buffer, device.clone(), strides, shape.into())
 }
 
 pub fn dyn_strides(shape: &[usize]) -> Vec<usize> {
@@ -168,6 +178,7 @@ pub struct WgpuFusionHandle {
     /// The device of the current tensor.
     pub device: WgpuDevice,
     pub(crate) strides: Vec<usize>,
+    pub(crate) shape: Vec<usize>,
 }
 
 impl WgpuFusionHandle {
@@ -179,7 +190,7 @@ impl WgpuFusionHandle {
             client: self.client,
             handle: self.handle,
             device: self.device,
-            shape,
+            shape: Shape::from(self.shape),
             strides: self.strides.try_into().expect("Wrong dimension"),
             elem: PhantomData,
         }
@@ -193,6 +204,7 @@ impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuFusionHandle
             handle: value.handle,
             device: value.device,
             strides: value.strides.into(),
+            shape: value.shape.dims.into(),
         }
     }
 }

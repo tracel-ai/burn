@@ -90,6 +90,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
                 client: self.client.clone(),
                 device: self.device.clone(),
                 strides: dyn_strides(&tensor.shape),
+                shape: tensor.shape.clone(),
                 handle: self.client.empty(core::mem::size_of::<F>() * num_elems),
             };
             register_info_tensor(&tensor, &handle_fusion);
