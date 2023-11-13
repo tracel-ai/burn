@@ -22,6 +22,7 @@ use crate::{
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             dropout::DropoutNode,
+            gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
             matmul::MatmulNode,
@@ -37,15 +38,15 @@ use crate::{
         from_onnx::convert_constant_value,
         ir::{Node, NodeType},
         op_configuration::{
-            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
-            log_softmax_config, max_pool2d_config,
+            batch_norm_config, conv1d_config, conv2d_config, flatten_config, gather_config,
+            linear_config, log_softmax_config, max_pool2d_config,
         },
     },
 };
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{ArgType, Argument, Data, ElementType, ONNXGraph},
+    ir::{self, ArgType, Argument, Data, ElementType, ONNXGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
         softmax_config,
@@ -243,6 +244,7 @@ impl ONNXGraph {
                 }
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
+                NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
@@ -397,6 +399,15 @@ impl ONNXGraph {
         let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
+    }
+
+    fn gather_conversion(node: Node) -> GatherNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let index = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let dim = gather_config(&node);
+
+        GatherNode::new(input, index, output, dim)
     }
 
     fn transpose_conversion(node: Node) -> UnaryNode {
@@ -629,7 +640,16 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DataSerialize<E>
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
-            ArgType::Tensor(tensor) => TensorType::new_float(self.name.clone(), tensor.dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
+                dim,
+                ..
+            }) => TensorType::new_float(self.name.clone(), *dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Int32 | ElementType::Int64,
+                dim,
+                ..
+            }) => TensorType::new_int(self.name.clone(), *dim),
             _ => panic!("Can't transform to tensor."),
         }
     }

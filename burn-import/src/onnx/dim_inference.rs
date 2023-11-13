@@ -67,6 +67,7 @@ pub fn dim_inference(
             NodeType::MaxPool2d => same_as_input(node),
             NodeType::Linear => linear_update_outputs(node),
             NodeType::Flatten => flatten_update_outputs(node),
+            NodeType::GatherElements => same_as_input(node),
             NodeType::Relu => same_as_input(node),
             NodeType::LogSoftmax => same_as_input(node),
             NodeType::BatchNormalization => same_as_input(node),

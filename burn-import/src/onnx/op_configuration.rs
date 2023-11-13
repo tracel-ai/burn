@@ -197,6 +197,38 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     (start_dim as usize, end_dim)
 }
 
+/// Create a GatherConfig from the attributes of the node
+pub fn gather_config(curr: &Node) -> usize {
+    // Default: 0 per ONNX spec
+    let mut dim: i64 = 0;
+
+    // check if the node has only one input
+    if curr.inputs.len() != 2 {
+        panic!("Gather: index tensor must be present");
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "axis" => dim = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    // if dim is negative, it is counted from the end
+    if dim < 0 {
+        dim += tensor.dim as i64;
+    }
+
+    dim as usize
+}
+
 /// Create a LinearConfig from the attributes of the node
 pub fn linear_config(node: &Node) -> LinearConfig {
     if node.inputs.len() < 2 {
