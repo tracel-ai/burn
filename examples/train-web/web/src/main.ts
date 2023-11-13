@@ -2,6 +2,7 @@ import './style.css'
 import typescriptLogo from './typescript.svg'
 import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.ts'
+import { setupTrain } from './train.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
@@ -15,6 +16,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="card">
       <button id="counter" type="button"></button>
     </div>
+    <div class="card">
+      <input id="dbfile" type='file' />
+    </div>
     <p class="read-the-docs">
       Click on the Vite and TypeScript logos to learn more
     </p>
@@ -22,3 +26,4 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `
 
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+setupTrain(document.querySelector<HTMLInputElement>('#dbfile')!)
