@@ -61,6 +61,10 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
+    Recip {
+        input: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -102,6 +106,9 @@ impl Display for Operator {
                 f.write_fmt(format_args!("let {out} = tanh({input});"))
             }
             Operator::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
+            Operator::Recip { input, out } => {
+                f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
+            }
             Operator::AssignGlobal { input, out } => {
                 f.write_fmt(format_args!("{out}_global[id] = {input};"))
             }
