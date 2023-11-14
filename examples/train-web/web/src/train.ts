@@ -10,31 +10,49 @@ wasm()
 	.then(() => init(workerUrl))
 	.catch(console.error)
 
+const sqlJs = initSqlJs({
+	locateFile: () => sqliteWasmUrl,
+})
+
+// just load and run mnist on pageload
+fetch('./mnist.db')
+	.then((r) => r.arrayBuffer())
+	.then(loadSqliteAndRun)
+	.catch(console.error)
+
 export function setupTrain(element: HTMLInputElement) {
 	element.onchange = async function () {
-		const db = await getDb(element.files![0])
-		const trainQuery = db.prepare('select label, image_bytes from train')
-		const imageBytes: Uint8Array[] = []
-		const labels: number[] = []
-		const lengths: number[] = []
-		while (trainQuery.step()) {
-			const row = trainQuery.getAsObject()
-			const label = row.label as number
-			labels.push(label)
-			const bytes = row.image_bytes as Uint8Array
-			imageBytes.push(bytes)
-			lengths.push(bytes.length)
+		const files = element.files
+		if (files != null) {
+			const file = files[0]
+			if (file != null) {
+				let ab = await file.arrayBuffer()
+				await loadSqliteAndRun(ab)
+			}
 		}
-		run(Uint8Array.from(labels), concat(imageBytes), Uint16Array.from(lengths))
 	}
 }
 
-async function getDb(sqliteBuffer: File): Promise<Database> {
-	const sql = await initSqlJs({
-		locateFile: () => sqliteWasmUrl,
-	})
-	const buffer = await sqliteBuffer.arrayBuffer()
-	return new sql.Database(new Uint8Array(buffer))
+async function loadSqliteAndRun(ab: ArrayBuffer) {
+	const db = await getDb(ab)
+	const trainQuery = db.prepare('select label, image_bytes from train')
+	const imageBytes: Uint8Array[] = []
+	const labels: number[] = []
+	const lengths: number[] = []
+	while (trainQuery.step()) {
+		const row = trainQuery.getAsObject()
+		const label = row.label as number
+		labels.push(label)
+		const bytes = row.image_bytes as Uint8Array
+		imageBytes.push(bytes)
+		lengths.push(bytes.length)
+	}
+	run(Uint8Array.from(labels), concat(imageBytes), Uint16Array.from(lengths))
+}
+
+async function getDb(ab: ArrayBuffer): Promise<Database> {
+	const sql = await sqlJs
+	return new sql.Database(new Uint8Array(ab))
 }
 
 // https://stackoverflow.com/a/59902602
