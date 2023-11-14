@@ -74,7 +74,6 @@ where
         // The underlying backend can still be async.
         self.sync();
 
-        println!("Read float {tensor:?}");
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
     }

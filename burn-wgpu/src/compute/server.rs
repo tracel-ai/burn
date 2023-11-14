@@ -92,7 +92,6 @@ where
     }
 
     fn free_manual_allocations(&mut self) {
-        println!("free_manual_allocations");
         let mut manual_taken_tmp = Vec::new();
         core::mem::swap(&mut manual_taken_tmp, &mut self.manual_taken);
 
@@ -157,7 +156,6 @@ where
 
         let source = kernel.source().complete();
         log::trace!("Compiling kernel {kernel_id}:\n {source}");
-        // println!("Compiling kernel {kernel_id}:\n {source}");
         let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
@@ -337,9 +335,7 @@ where
     }
 
     fn sync(&mut self) {
-        println!("Sync");
         if !self.tasks.is_empty() {
-            println!("Submit");
             self.register_tasks();
             self.submit();
         }

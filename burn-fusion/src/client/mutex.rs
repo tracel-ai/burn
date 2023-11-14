@@ -52,6 +52,7 @@ where
     fn sync(&self) {
         self.server.lock().sync();
     }
+
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
