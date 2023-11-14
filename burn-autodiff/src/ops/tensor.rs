@@ -440,16 +440,25 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Recip;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Recip {
-            type State = ();
+            type State = B::TensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::recip(grad));
+                let tensor = ops.state;
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let tmp = B::powf(tensor, -2.0);
+                    let value = B::neg(tmp);
+
+                    B::mul(grad, value)
+                });
             }
         }
 
-        Recip
-            .prepare([tensor.node], [tensor.graph])
-            .stateless(B::recip(tensor.primitive))
+        match Recip.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                prep.finish(tensor.primitive.clone(), B::recip(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::recip(tensor.primitive)),
+        }
     }
 
     fn swap_dims<const D: usize>(
