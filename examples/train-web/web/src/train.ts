@@ -1,4 +1,4 @@
-import wasm, { run } from 'train'
+import wasm, { init, run } from 'train'
 import workerUrl from './worker.ts?url'
 import initSqlJs, { type Database } from 'sql.js'
 import sqliteWasmUrl from './assets/sql-wasm.wasm?url'
@@ -6,9 +6,12 @@ import sqliteWasmUrl from './assets/sql-wasm.wasm?url'
 // @ts-ignore https://github.com/rustwasm/console_error_panic_hook#errorstacktracelimit
 Error.stackTraceLimit = 30
 
+wasm()
+	.then(() => init(workerUrl))
+	.catch(console.error)
+
 export function setupTrain(element: HTMLInputElement) {
 	element.onchange = async function () {
-		await wasm()
 		const db = await getDb(element.files![0])
 		const trainQuery = db.prepare('select label, image_bytes from train')
 		const imageBytes: Uint8Array[] = []
@@ -22,12 +25,7 @@ export function setupTrain(element: HTMLInputElement) {
 			imageBytes.push(bytes)
 			lengths.push(bytes.length)
 		}
-		run(
-			workerUrl,
-			Uint8Array.from(labels),
-			concat(imageBytes),
-			Uint16Array.from(lengths),
-		)
+		run(Uint8Array.from(labels), concat(imageBytes), Uint16Array.from(lengths))
 	}
 }
 

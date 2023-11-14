@@ -60,5 +60,10 @@ static WORKER_URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 #[cfg(feature = "browser")]
 pub fn init(worker_url: String) -> Result<(), String> {
-    WORKER_URL.set(worker_url)
+    WORKER_URL.set(worker_url).map_err(|worker_url| {
+        format!(
+            "You can only call `init` once. You tried to `init` with: {:?}",
+            worker_url
+        )
+    })
 }

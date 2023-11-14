@@ -13,14 +13,13 @@ pub fn start() {
 }
 
 #[wasm_bindgen]
-pub fn run(
-    worker_url: String,
-    labels: &[u8],
-    images: &[u8],
-    lengths: &[u16],
-) -> Result<(), String> {
+pub fn init(worker_url: String) -> Result<(), String> {
+    util::init(worker_url)
+}
+
+#[wasm_bindgen]
+pub fn run(labels: &[u8], images: &[u8], lengths: &[u16]) -> Result<(), String> {
     log::info!("Hello from Rust");
-    util::init(worker_url)?;
     train::run::<Autodiff<NdArray<f32>>>(NdArrayDevice::Cpu);
     Ok(())
 }
