@@ -25,7 +25,6 @@ where
     operations: Vec<Operator>,
     input_bindings: Vec<(Binding, TensorDescription)>,
     output_bindings: Vec<(Binding, TensorDescription)>,
-    output_from_inputs: HashMap<TensorDescription, TensorDescription>,
     named_bindings: Vec<(String, Binding, DataBuffer)>,
     functions: Vec<Function>,
     num_elems_output: usize,
@@ -46,7 +45,6 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
-            output_from_inputs: HashMap::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
             num_elems_output: 0,
@@ -79,7 +77,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
             }
         };
         for (binding, tensor) in self.input_bindings.into_iter() {
-            let handle = handles_fusion.get_handle_float(&tensor);
+            let handle = handles_fusion.get_handle(&tensor);
             register_info_tensor(&tensor, &handle);
 
             inputs.push(binding);

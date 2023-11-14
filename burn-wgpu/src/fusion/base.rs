@@ -1,5 +1,5 @@
 use crate::{
-    compute::{compute_client, WgpuComputeClient, WgpuHandle},
+    compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
     fusion::FloatElementWiseFusionOps,
     tensor::WgpuTensor,
@@ -8,10 +8,7 @@ use crate::{
 use burn_fusion::{
     client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
 };
-use burn_tensor::{
-    ops::{FloatElem, IntElem},
-    Shape,
-};
+use burn_tensor::Shape;
 use core::marker::PhantomData;
 
 impl FusionDevice for WgpuDevice {
@@ -72,70 +69,6 @@ where
     fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle {
         tensor.into()
     }
-
-    fn create_handle_float(
-        values: Option<Vec<FloatElem<Self>>>,
-        shape: &[usize],
-        device: &WgpuDevice,
-    ) -> Self::Handle {
-        match values {
-            Some(values) => create_handle_data::<G, FloatElem<Self>>(values, shape, device),
-            None => create_handle_empty::<G, FloatElem<Self>>(shape, device),
-        }
-    }
-
-    fn create_handle_int(
-        values: Option<Vec<IntElem<Self>>>,
-        shape: &[usize],
-        device: &WgpuDevice,
-    ) -> Self::Handle {
-        match values {
-            Some(values) => create_handle_data::<G, IntElem<Self>>(values, shape, device),
-            None => create_handle_empty::<G, IntElem<Self>>(shape, device),
-        }
-    }
-
-    fn create_handle_bool(
-        values: Option<Vec<bool>>,
-        shape: &[usize],
-        device: &WgpuDevice,
-    ) -> Self::Handle {
-        match values {
-            Some(values) => create_handle_data::<G, u32>(
-                values.into_iter().map(|a| a as u32).collect(),
-                shape,
-                device,
-            ),
-            None => create_handle_empty::<G, u32>(shape, device),
-        }
-    }
-}
-
-fn create_handle_data<G: GraphicsApi, E: WgpuElement>(
-    values: Vec<E>,
-    shape: &[usize],
-    device: &WgpuDevice,
-) -> WgpuFusionHandle {
-    let client = compute_client::<G>(device);
-    let buffer = client.create(E::as_bytes(&values));
-    let strides = dyn_strides(&shape);
-
-    WgpuFusionHandle::new(client, buffer, device.clone(), strides)
-}
-
-pub fn create_handle_empty<G: GraphicsApi, E: WgpuElement>(
-    shape: &[usize],
-    device: &WgpuDevice,
-) -> WgpuFusionHandle {
-    let client = compute_client::<G>(device);
-    let mut num_elems = 1;
-    for s in shape {
-        num_elems *= s;
-    }
-    let buffer = client.empty(core::mem::size_of::<E>() * num_elems);
-    let strides = dyn_strides(&shape);
-
-    WgpuFusionHandle::new(client, buffer, device.clone(), strides)
 }
 
 pub fn dyn_strides(shape: &[usize]) -> Vec<usize> {
@@ -183,22 +116,6 @@ impl WgpuFusionHandle {
             strides: self.strides.try_into().expect("Wrong dimension"),
             elem: PhantomData,
         }
-    }
-
-    pub(crate) fn is_contiguous<E: WgpuElement>(&self) -> bool {
-        let rank = self.strides.len();
-        let mut current_stride = 0;
-        for d in 0..rank {
-            let stride = self.strides[rank - 1 - d];
-
-            if stride < current_stride {
-                return false;
-            }
-
-            current_stride = stride;
-        }
-
-        true
     }
 }
 

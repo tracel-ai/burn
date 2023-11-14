@@ -63,19 +63,7 @@ where
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
-        self.handles.create_tensor_empty()
-    }
-
-    pub fn create_float_handle(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
-        self.handles.create_tensor_float(values)
-    }
-
-    pub fn create_int_handle(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
-        self.handles.create_tensor_int(values)
-    }
-
-    pub fn create_bool_handle(&mut self, values: Vec<bool>) -> Arc<TensorId> {
-        self.handles.create_tensor_bool(values)
+        self.handles.create_tensor_uninit()
     }
 
     pub fn read_float<const D: usize>(
