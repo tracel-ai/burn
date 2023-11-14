@@ -120,15 +120,6 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
     fn id(&self) -> DeviceId;
 }
 
-pub struct HandleDescription {
-    pub shape: Vec<usize>,
-    pub strides: Vec<usize>,
-}
-
-pub trait FusionHandle: Sync + Send + Clone {
-    fn description(&self) -> HandleDescription;
-}
-
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [fusion operation](crate::FusionOps).
 pub trait FusionBackend: Backend {
@@ -137,7 +128,7 @@ pub trait FusionBackend: Backend {
     /// It can be the same as (Backend::Device), but must implement (FusionDevice).
     type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device> + core::fmt::Debug;
     /// The type that can be used to point to a tensor of any kind.
-    type Handle: FusionHandle;
+    type Handle: Sync + Send + Clone;
     /// What kind of client should be used.
     type FusionClient: FusionClient<FusionBackend = Self>;
 

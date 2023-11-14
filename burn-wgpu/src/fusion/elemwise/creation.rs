@@ -25,6 +25,7 @@ where
     operations: Vec<Operator>,
     input_bindings: Vec<(Binding, TensorDescription)>,
     output_bindings: Vec<(Binding, TensorDescription)>,
+    output_from_inputs: HashMap<TensorDescription, TensorDescription>,
     named_bindings: Vec<(String, Binding, DataBuffer)>,
     functions: Vec<Function>,
     num_elems_output: usize,
@@ -45,6 +46,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
+            output_from_inputs: HashMap::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
             num_elems_output: 0,
@@ -76,7 +78,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
                 info.push(*s as u32);
             }
         };
-        for (binding, tensor) in self.input_bindings {
+        for (binding, tensor) in self.input_bindings.into_iter() {
             let handle = handles_fusion.get_handle_float(&tensor);
             register_info_tensor(&tensor, &handle);
 
@@ -90,7 +92,6 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
                 client: self.client.clone(),
                 device: self.device.clone(),
                 strides: dyn_strides(&tensor.shape),
-                shape: tensor.shape.clone(),
                 handle: self.client.empty(core::mem::size_of::<F>() * num_elems),
             };
             register_info_tensor(&tensor, &handle_fusion);
@@ -198,67 +199,34 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
     pub fn outputs(
         mut self,
         outputs: &[&TensorDescription],
-        inputs: &[&TensorDescription],
         locals: &HashMap<TensorId, u16>,
     ) -> Self {
-        // Need to know the stride for the output id.
-        // If contiguous output id is [id]
-        // Otherwise it's index_{number}_input;
-        let mut inputs_reused_as_outputs = Vec::new();
-
-        inputs
-            .iter()
-            .enumerate()
-            .for_each(|(i, tensor)| match tensor.status {
-                burn_fusion::TensorStatus::ReadWrite => {
-                    let num_elems = calculate_num_elems(&tensor.shape);
-                    inputs_reused_as_outputs.push((false, num_elems, i));
-                }
-                _ => {}
-            });
-
         let mut num_elems_launch_option = 0;
-        let mut output_number = 0;
 
-        for output in outputs {
+        for (i, output) in outputs.into_iter().enumerate() {
             let num_elems_output = calculate_num_elems(&output.shape);
             if num_elems_output > num_elems_launch_option {
                 num_elems_launch_option = num_elems_output;
             }
-            let var = match inputs_reused_as_outputs
-                .iter_mut()
-                .find(|(taken, num_elems, _index)| !taken && num_elems_output == *num_elems)
-            {
-                Some((taken, _, index)) => {
-                    // Inplace
-                    *taken = true;
-                    let (binding, _input) = self.input_bindings.get_mut(*index).unwrap();
-                    binding.visibility = Visibility::ReadWrite;
-                    Variable::Input(*index as u16)
-                }
-                None => {
-                    self.output_bindings.push((
-                        Binding {
-                            elem: Elem::F32,
-                            visibility: Visibility::ReadWrite,
-                            location: Location::Storage,
-                            size: None,
-                        },
-                        (*output).clone(),
-                    ));
 
-                    let variable = Variable::Output(output_number);
-                    output_number += 1;
-                    variable
-                }
-            };
+            self.output_bindings.push((
+                Binding {
+                    elem: Elem::F32,
+                    visibility: Visibility::ReadWrite,
+                    location: Location::Storage,
+                    size: None,
+                },
+                (*output).clone(),
+            ));
+
+            let variable = Variable::Output(i as u16);
 
             self.num_elems_output = num_elems_launch_option;
 
             if let Some(local_index) = locals.get(&output.id) {
                 self.operations.push(Operator::AssignGlobal {
                     input: Variable::Local(*local_index),
-                    out: var,
+                    out: variable,
                 });
             }
         }
@@ -273,7 +241,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> KernelBuilder<G, F, I> {
                 elem: Elem::U32,
                 visibility: Visibility::Read,
                 location: Location::Storage,
-                size: Some(info.len()),
+                size: None, // We avoid putting the lenght here since it will force a new kernel
+                            // for each tensor rank.
             },
             DataBuffer::U32(info),
         ));

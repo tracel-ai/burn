@@ -86,6 +86,7 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
+        println!("Into data {self:?}");
         self.client
             .clone()
             .read_tensor_float(self.into_description())
@@ -127,7 +128,7 @@ pub struct TensorId {
 }
 
 /// The status of the current tensor.
-#[derive(Hash, Clone, Debug)]
+#[derive(Hash, Clone, Debug, PartialEq, Eq)]
 pub enum TensorStatus {
     /// The tensor can be read, but not written.
     ReadOnly,
@@ -147,7 +148,7 @@ pub enum TensorStatus {
 ///   2. Status::ReadOnly
 ///   3. Status::ReadOnly
 ///   4. Status::ReadWrite
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TensorDescription {
     /// The [tensor id](TensorId).
     pub id: TensorId,
