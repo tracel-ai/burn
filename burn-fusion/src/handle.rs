@@ -43,7 +43,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         let (id, handle) = self
             .handles
             .remove_entry(&tensor.id)
-            .expect(&format!("Should have handle for tensor {:?}", tensor.id));
+            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", tensor.id));
 
         if let Handle::Existing(handle) = handle {
             match tensor.status {
