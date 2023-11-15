@@ -28,7 +28,7 @@ where
     pub(crate) scalars_f32: Vec<f32>,
     pub(crate) operators: Vec<Operator>,
     pub(crate) properties: FusionProperties,
-    pub(crate) current_shape: Vec<usize>,
+    pub(crate) current_output_shape: Vec<usize>,
     device: Device<Wgpu<G, F, I>>,
 }
 
@@ -80,7 +80,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         self.scalars_f32.clear();
         self.operators.clear();
         self.properties = FusionProperties::default();
-        self.current_shape.clear();
+        self.current_output_shape.clear();
     }
 
     fn len(&self) -> usize {
@@ -101,7 +101,7 @@ where
             tensors: HashMap::new(),
             scalars_f32: Vec::new(),
             operators: Vec::new(),
-            current_shape: Vec::new(),
+            current_output_shape: Vec::new(),
             properties: FusionProperties::default(),
             device,
         }
@@ -119,10 +119,10 @@ where
 
     fn output_descriptions(&self) -> Vec<&TensorDescription> {
         let mut outputs = Vec::new();
-        let mut tensor_ids_input = Vec::new();
-        let mut tensor_ids_output = Vec::new();
+        let mut local_tensor_ids_input = Vec::new();
+        let mut local_tensor_ids_output = Vec::new();
 
-        // Mask a variable to the provided list of tensor ids using the local variable list.
+        // Mark a variable to the provided list of tensor ids using the variable list.
         //
         // Only local variables can become outputs.
         let mark = |var: &Variable, list: &mut Vec<TensorId>| {
@@ -153,69 +153,69 @@ where
                     // Nothing to do here.
                 }
                 Operator::Add { lhs, rhs, out } => {
-                    mark(lhs, &mut tensor_ids_input);
-                    mark(rhs, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Sub { lhs, rhs, out } => {
-                    mark(lhs, &mut tensor_ids_input);
-                    mark(rhs, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Mul { lhs, rhs, out } => {
-                    mark(lhs, &mut tensor_ids_input);
-                    mark(rhs, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Div { lhs, rhs, out } => {
-                    mark(lhs, &mut tensor_ids_input);
-                    mark(rhs, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Exp { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Abs { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Erf { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Log { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Log1p { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Cos { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Sin { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Tanh { input, out } => {
-                    mark(input, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::Powf { lhs, rhs, out } => {
-                    mark(lhs, &mut tensor_ids_input);
-                    mark(rhs, &mut tensor_ids_input);
-                    mark(out, &mut tensor_ids_output);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
                 }
             }
         }
 
         // All output tensors that are never read by a following operation should be written to
         // since they are essentially the "logical" output of the shader.
-        for out in tensor_ids_output {
-            let is_read = tensor_ids_input.contains(&out);
+        for out in local_tensor_ids_output {
+            let is_read = local_tensor_ids_input.contains(&out);
 
             if !is_read {
                 outputs.push(self.tensors.get(&out).unwrap());
@@ -248,7 +248,7 @@ where
             true => match self.locals.get(&tensor.id) {
                 // Is a local variable.
                 Some(local_index) => Variable::Local(*local_index),
-                // Isn't a local variable, so must be an input.
+                // Isn't a local variable, so must be an existing input.
                 None => {
                     let input = self
                         .inputs
@@ -405,9 +405,9 @@ where
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
-        if self.current_shape.is_empty() {
-            self.current_shape = out.shape.clone();
-        } else if self.current_shape != out.shape {
+        if self.current_output_shape.is_empty() {
+            self.current_output_shape = out.shape.clone();
+        } else if self.current_output_shape != out.shape {
             return false;
         }
 

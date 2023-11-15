@@ -52,37 +52,32 @@ impl Default for WorkgroupSize {
     }
 }
 
-pub struct ShaderCodegen {
+#[derive(Hash)]
+pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
-    pub workgroup_sizes: WorkgroupSize,
+    pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
     pub body: Body,
     pub functions: Vec<Function>,
 }
 
-impl DynamicKernelSource for ShaderCodegen {
+impl DynamicKernelSource for ComputeShader {
     fn source(&self) -> SourceTemplate {
         SourceTemplate::new(self.to_string())
     }
 
     fn id(&self) -> String {
         let mut s = DefaultHasher::new();
-        self.inputs.hash(&mut s);
-        self.outputs.hash(&mut s);
-        self.named.hash(&mut s);
-        self.workgroup_sizes.hash(&mut s);
-        self.global_invocation_id.hash(&mut s);
-        self.num_workgroups.hash(&mut s);
-        self.body.hash(&mut s);
+        self.hash(&mut s);
 
         s.finish().to_string()
     }
 }
 
-impl Display for ShaderCodegen {
+impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
@@ -100,7 +95,7 @@ impl Display for ShaderCodegen {
             "const WORKGROUP_SIZE_X = {}u;
 const WORKGROUP_SIZE_Y = {}u;
 const WORKGROUP_SIZE_Z = {}u;\n",
-            self.workgroup_sizes.x, self.workgroup_sizes.y, self.workgroup_sizes.z
+            self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.z
         ))?;
 
         f.write_fmt(format_args!(
@@ -109,7 +104,7 @@ const WORKGROUP_SIZE_Z = {}u;\n",
 @workgroup_size({}, {}, {})
 fn main(
 ",
-            self.workgroup_sizes.x, self.workgroup_sizes.y, self.workgroup_sizes.z
+            self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.z
         ))?;
 
         if self.global_invocation_id {
@@ -135,7 +130,7 @@ fn main(
     }
 }
 
-impl ShaderCodegen {
+impl ComputeShader {
     fn format_bindings(
         f: &mut core::fmt::Formatter<'_>,
         prefix: &str,

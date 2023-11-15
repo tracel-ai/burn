@@ -1,10 +1,10 @@
 use super::codegen::Body;
 use crate::compute::{compute_client, DynamicKernel, WgpuComputeClient};
 use crate::fusion::codegen::Function;
-use crate::fusion::{calculate_num_elems, dyn_strides};
+use crate::fusion::{calculate_num_elems_dyn_rank, strides_dyn_rank};
 use crate::fusion::{
     codegen::{
-        Binding, Elem, Location, Operator, ShaderCodegen, Variable, Visibility, WorkgroupSize,
+        Binding, ComputeShader, Elem, Location, Operator, Variable, Visibility, WorkgroupSize,
     },
     WgpuFusionHandle,
 };
@@ -29,16 +29,16 @@ pub struct ExecutionPhase;
 /// you to make mistakes.
 ///
 ///   1. [Input Phase](InputPhase)
-///     This phase focus on registering the input tensor descriptions that are going to be used by
+///     This phase focuses on registering the input tensor descriptions that are going to be used by
 ///     the fused kernel.
 ///   2. [Body Phase](BodyPhase)
-///     After the input phase is done, all the operations that happens in the body must be
+///     After the input phase is done, all the operations that happen in the body must be
 ///     registered.
 ///   3. [Output Phase](OutputPhase)
-///     This step focus on registering all tensor descriptions that the kernel needs to write to.
+///     This step focuses on registering all tensor descriptions that the kernel needs to write to.
 ///   4. [Execution Phase](ExecutionPhase)
 ///     Now that all other phases are completed, we can actually run the kernel on the given
-///     [handles](HandleContainer). Note that the actual kernel chosen may vary based on the
+///     [handles](HandleContainer). Note that the actual chosen kernel may vary based on the
 ///     handles provided.
 pub struct FusionKernel<G, F, I, Phase = InputPhase>
 where
@@ -136,7 +136,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, BodyP
     pub fn body(mut self, operators: &[Operator]) -> FusionKernel<G, F, I, OutputPhase> {
         let mut register_function = |function: Function| {
             if !self.functions.contains(&function) {
-                self.functions.push(function.clone());
+                self.functions.push(function);
             }
         };
 
@@ -186,7 +186,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
         let mut num_elems_launch_option = 0;
 
         for (i, (output, local)) in outputs.iter().zip(locals).enumerate() {
-            let num_elems_output = calculate_num_elems(&output.shape);
+            let num_elems_output = calculate_num_elems_dyn_rank(&output.shape);
             if num_elems_output > num_elems_launch_option {
                 num_elems_launch_option = num_elems_output;
             }
@@ -201,15 +201,13 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
                 (*output).clone(),
             ));
 
-            let variable = Variable::Output(i as u16);
-
-            self.num_elems_output = num_elems_launch_option;
-
             self.operations.push(Operator::AssignGlobal {
                 input: Variable::Local(*local),
-                out: variable,
+                out: Variable::Output(i as u16),
             });
         }
+
+        self.num_elems_output = num_elems_launch_option;
 
         FusionKernel {
             operations: self.operations,
@@ -227,7 +225,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, ExecutionPhase> {
     /// Execute the kernel on the provided [handles](HandleContainer).
-    pub fn execute(mut self, handles_fusion: &mut HandleContainer<Wgpu<G, F, I>>) {
+    pub fn execute(mut self, handle_container: &mut HandleContainer<Wgpu<G, F, I>>) {
         let mut inputs = Vec::with_capacity(self.input_bindings.len());
         let mut outputs = Vec::with_capacity(self.output_bindings.len());
         let mut named = Vec::with_capacity(2);
@@ -251,7 +249,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Execu
 
         // We start by registering the inputs.
         for (binding, tensor) in self.input_bindings.into_iter() {
-            let handle = handles_fusion.get_handle(&tensor);
+            let handle = handle_container.get_handle(&tensor);
             register_info_tensor(&tensor, &handle);
 
             inputs.push(binding);
@@ -260,17 +258,17 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Execu
 
         // Then we follow with the outputs.
         for (binding, tensor) in self.output_bindings {
-            let num_elems = calculate_num_elems(&tensor.shape);
+            let num_elems = calculate_num_elems_dyn_rank(&tensor.shape);
             let handle_fusion = WgpuFusionHandle {
                 client: self.client.clone(),
                 device: self.device.clone(),
-                strides: dyn_strides(&tensor.shape),
+                strides: strides_dyn_rank(&tensor.shape),
                 handle: self.client.empty(core::mem::size_of::<F>() * num_elems),
             };
             register_info_tensor(&tensor, &handle_fusion);
 
             handles.push(handle_fusion.handle.clone());
-            handles_fusion.register_handle(tensor.id, handle_fusion);
+            handle_container.register_handle(tensor.id, handle_fusion);
             outputs.push(binding);
         }
 
@@ -288,11 +286,11 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Execu
         }
 
         // We create the shader codegen type and launch the kernel.
-        let kernel = ShaderCodegen {
+        let kernel = ComputeShader {
             inputs,
             outputs,
             named,
-            workgroup_sizes: WorkgroupSize::default(),
+            workgroup_size: WorkgroupSize::default(),
             body: Body::new(self.operations),
             num_workgroups: true,
             global_invocation_id: true,

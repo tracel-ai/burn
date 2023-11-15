@@ -71,7 +71,7 @@ where
     }
 }
 
-pub fn dyn_strides(shape: &[usize]) -> Vec<usize> {
+pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     let mut strides = vec![0; shape.len()];
 
     let mut current = 1;
@@ -83,7 +83,7 @@ pub fn dyn_strides(shape: &[usize]) -> Vec<usize> {
     strides
 }
 
-pub fn calculate_num_elems(shape: &[usize]) -> usize {
+pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     let mut num_elems = 1;
     for i in shape.iter() {
         num_elems *= i;
