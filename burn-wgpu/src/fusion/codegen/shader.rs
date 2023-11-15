@@ -91,7 +91,7 @@ impl Display for ShaderCodegen {
             Self::format_binding(
                 f,
                 name.as_str(),
-                &binding,
+                binding,
                 self.inputs.len() + self.outputs.len() + i,
             )?;
         }

@@ -18,13 +18,13 @@ pub trait FusionClient: Send + Sync + Clone {
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
     fn register(&self, ops: TensorOpsDescription<Self::FusionBackend>);
-    /// Sync the computation.
+    /// Register all lazy computation.
     fn drain_graph(&self);
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice;
-    /// Create an empty tensor.
+    /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self>;
-    /// Create a float tensor with the given values.
+    /// Create a tensor with the given handle and shape.
     fn register_tensor(
         &self,
         handle: Handle<Self::FusionBackend>,

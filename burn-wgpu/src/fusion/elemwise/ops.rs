@@ -39,23 +39,23 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         match ops.as_ref() {
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float(ops) {
-                    return FusionStatus::Closed(self.properties.clone());
+                    return FusionStatus::Closed(self.properties);
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
-                    return FusionStatus::Closed(self.properties.clone());
+                    return FusionStatus::Closed(self.properties);
                 }
             }
             _ => {
-                return FusionStatus::Closed(self.properties.clone());
+                return FusionStatus::Closed(self.properties);
             }
         };
 
         self.properties.score += 1;
         self.properties.ready = self.operators.len() > 1;
 
-        return FusionStatus::Open(self.properties.clone());
+        FusionStatus::Open(self.properties)
     }
 
     fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
@@ -107,7 +107,7 @@ where
         }
     }
 
-    fn input_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn input_descriptions(&self) -> Vec<&TensorDescription> {
         self.inputs
             .iter()
             .map(|input| {
@@ -117,7 +117,7 @@ where
             .collect::<Vec<_>>()
     }
 
-    fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn output_descriptions(&self) -> Vec<&TensorDescription> {
         let mut outputs = Vec::new();
         let mut tensor_ids_input = Vec::new();
         let mut tensor_ids_output = Vec::new();
@@ -126,20 +126,17 @@ where
         //
         // Only local variables can become outputs.
         let mark = |var: &Variable, list: &mut Vec<TensorId>| {
-            match var {
-                Variable::Local(index) => {
-                    if let Some((id, _)) = self
-                        .locals
-                        .iter()
-                        .find(|(_id, position)| *position == index)
-                    {
-                        if !list.contains(id) {
-                            list.push(id.clone());
-                        }
+            if let Variable::Local(index) = var {
+                if let Some((id, _)) = self
+                    .locals
+                    .iter()
+                    .find(|(_id, position)| *position == index)
+                {
+                    if !list.contains(id) {
+                        list.push(id.clone());
                     }
                 }
-                _ => {}
-            };
+            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
@@ -215,24 +212,23 @@ where
             }
         }
 
-        // All output tensor that is never read by a following operation should be writtent to
+        // All output tensors that are never read by a following operation should be written to
         // since they are essentially the "logical" output of the shader.
         for out in tensor_ids_output {
-            if !tensor_ids_input.contains(&out) {
+            let is_read = tensor_ids_input.contains(&out);
+
+            if !is_read {
                 outputs.push(self.tensors.get(&out).unwrap());
             }
         }
 
-        // All tensor where their latest description is read only should be written to since they
-        // are going to be used after the fused kernel.
+        // All tensors where their latest description is read only should be written to since they
+        // are going to be used after the fused kernel by other operations.
         for tensor in self.tensors.values() {
-            match tensor.status {
-                burn_fusion::TensorStatus::ReadOnly => {
-                    if self.locals.contains_key(&tensor.id) {
-                        outputs.push(tensor);
-                    }
+            if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
+                if self.locals.contains_key(&tensor.id) {
+                    outputs.push(tensor);
                 }
-                _ => (),
             }
         }
 
@@ -323,63 +319,31 @@ where
     ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc, _) => {
-                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Add {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_binary_ops(desc, |lhs, rhs, out| Operator::Add { lhs, rhs, out })
             }
             NumericOpsDescription::AddScalar(desc, _) => {
-                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Add {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Add { lhs, rhs, out })
             }
             NumericOpsDescription::Sub(desc, _) => {
-                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Sub {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_binary_ops(desc, |lhs, rhs, out| Operator::Sub { lhs, rhs, out })
             }
             NumericOpsDescription::SubScalar(desc, _) => {
-                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Sub {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Sub { lhs, rhs, out })
             }
             NumericOpsDescription::Mul(desc, _) => {
-                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Mul {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_binary_ops(desc, |lhs, rhs, out| Operator::Mul { lhs, rhs, out })
             }
             NumericOpsDescription::MulScalar(desc, _) => {
-                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Mul {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Mul { lhs, rhs, out })
             }
             NumericOpsDescription::Div(desc, _) => {
-                return self.register_binary_ops(desc, |lhs, rhs, out| Operator::Div {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_binary_ops(desc, |lhs, rhs, out| Operator::Div { lhs, rhs, out })
             }
             NumericOpsDescription::DivScalar(desc, _) => {
-                return self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Div {
-                    lhs,
-                    rhs,
-                    out,
-                });
+                self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Div { lhs, rhs, out })
             }
             NumericOpsDescription::Abs(desc, _) => {
-                return self.register_unary_ops(desc, |input, out| Operator::Abs { input, out });
+                self.register_unary_ops(desc, |input, out| Operator::Abs { input, out })
             }
             _ => false,
         }
@@ -399,7 +363,7 @@ where
 
         self.operators.push(func(lhs, rhs, out));
 
-        return true;
+        true
     }
 
     fn register_unary_ops<Func>(&mut self, desc: &UnaryOpsDescription, func: Func) -> bool
@@ -415,7 +379,7 @@ where
 
         self.operators.push(func(input, out));
 
-        return true;
+        true
     }
 
     fn register_scalar_ops<Func, E: Element>(
@@ -437,7 +401,7 @@ where
 
         self.operators.push(func(lhs, rhs, out));
 
-        return true;
+        true
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {

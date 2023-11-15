@@ -11,7 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
 version = "0.11.0"
 
 [features]
-default = ["autotune", "fusion"]
+default = ["autotune"]
 autotune = []
 fusion = ["burn-fusion"]
 

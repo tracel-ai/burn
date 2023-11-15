@@ -33,10 +33,9 @@ pub struct ExecutionPhase;
 ///     the fused kernel.
 ///   2. [Body Phase](BodyPhase)
 ///     After the input phase is done, all the operations that happens in the body must be
-///     registered as well as all temporary variables.
+///     registered.
 ///   3. [Output Phase](OutputPhase)
-///     This step focus on registering all tensor descriptions that the kernel needs to write with
-///     their corresponding local variable.
+///     This step focus on registering all tensor descriptions that the kernel needs to write to.
 ///   4. [Execution Phase](ExecutionPhase)
 ///     Now that all other phases are completed, we can actually run the kernel on the given
 ///     [handles](HandleContainer). Note that the actual kernel chosen may vary based on the
@@ -133,7 +132,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
 }
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, BodyPhase> {
-    /// Register the [operations](Operator) that the kernel must execute in the order provided.
+    /// Register the [operators](Operator) that the kernel must execute in the order provided.
     pub fn body(mut self, operators: &[Operator]) -> FusionKernel<G, F, I, OutputPhase> {
         let mut register_function = |function: Function| {
             if !self.functions.contains(&function) {
@@ -186,7 +185,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
     ) -> FusionKernel<G, F, I, ExecutionPhase> {
         let mut num_elems_launch_option = 0;
 
-        for (i, (output, local)) in outputs.into_iter().zip(locals).enumerate() {
+        for (i, (output, local)) in outputs.iter().zip(locals).enumerate() {
             let num_elems_output = calculate_num_elems(&output.shape);
             if num_elems_output > num_elems_launch_option {
                 num_elems_launch_option = num_elems_output;
@@ -314,7 +313,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Execu
                 elem: Elem::U32,
                 visibility: Visibility::Read,
                 location: Location::Storage,
-                size: None, // We avoid putting the lenght here since it will force a new kernel
+                size: None, // We avoid putting the length here since it will force a new kernel
                             // for each tensor rank.
             },
             DataBuffer::U32(info),

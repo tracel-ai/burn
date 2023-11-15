@@ -46,8 +46,7 @@ impl<B: Backend> Benchmark for ElemWiseBenchmark<B> {
         let lhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
         let rhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
 
-        let out = (lhs + 1, rhs + 1);
-        out
+        (lhs, rhs)
     }
 
     fn sync(&self) {

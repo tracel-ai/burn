@@ -77,7 +77,7 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
     output
 }
 
-/// Similar to [build info](build_info) but with dynamic rank.
+/// Similar to [into contiguous](into_contiguous) but with dynamic rank.
 pub fn into_contiguous_dyn<E: WgpuElement>(
     client: WgpuComputeClient,
     input: WgpuHandle,
@@ -212,6 +212,7 @@ pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>])
     info
 }
 
+/// Similar to [build info](build_info) but with dynamic rank.
 pub fn build_info_dyn<E: WgpuElement>(shapes: &[&[usize]], strides: &[&[usize]]) -> Vec<u32> {
     let rank = shapes.get(0).unwrap().len();
     let mut info: Vec<u32> = vec![0; shapes.len() * 2 * rank + 1];

@@ -38,7 +38,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         let (id, handle) = self
             .handles
             .remove_entry(&tensor.id)
-            .expect(&format!("Should have handle for tensor {:?}", tensor.id));
+            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", tensor.id));
 
         match handle {
             Handle::Existing(handle) => match tensor.status {
@@ -49,7 +49,7 @@ impl<B: FusionBackend> HandleContainer<B> {
                 TensorStatus::ReadWrite => handle,
                 TensorStatus::NotInit => panic!("Cannot get uninitialized tensor."),
             },
-            Handle::NotInit => panic!("Uninitialized tensor."),
+            Handle::NotInit => panic!("Cannot get uninitialized handle."),
         }
     }
 
