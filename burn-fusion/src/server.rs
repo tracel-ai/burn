@@ -23,7 +23,7 @@ where
     G: GraphExecution<B>,
 {
     pub fn new(device: B::FusionDevice) -> Self {
-        let optimizations = B::operations()
+        let optimizations = B::operations(&device.clone().into())
             .into_iter()
             .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
             .collect();
@@ -53,7 +53,11 @@ where
         );
     }
 
-    pub fn sync(&mut self) {
+    pub fn drain_graph(&mut self) {
+        if self.graph.is_empty() {
+            return;
+        }
+
         self.execution.maybe_execute(
             &mut self.graph,
             &mut self.handles,
@@ -63,19 +67,7 @@ where
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
-        self.handles.create_tensor_empty()
-    }
-
-    pub fn create_float_handle(&mut self, values: Vec<FloatElem<B>>) -> Arc<TensorId> {
-        self.handles.create_tensor_float(values)
-    }
-
-    pub fn create_int_handle(&mut self, values: Vec<IntElem<B>>) -> Arc<TensorId> {
-        self.handles.create_tensor_int(values)
-    }
-
-    pub fn create_bool_handle(&mut self, values: Vec<bool>) -> Arc<TensorId> {
-        self.handles.create_tensor_bool(values)
+        self.handles.create_tensor_uninit()
     }
 
     pub fn read_float<const D: usize>(
@@ -84,7 +76,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
@@ -96,7 +88,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_int_tensor(&tensor);
         B::int_into_data(tensor)
@@ -108,7 +100,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_bool_tensor(&tensor);
         B::bool_into_data(tensor)
