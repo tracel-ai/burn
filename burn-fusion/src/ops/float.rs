@@ -1394,6 +1394,21 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary_float_ops!(Recip, B::recip);
+
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        out.client
+            .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Recip(
+                UnaryOpsDescription {
+                    input: tensor.into_description(),
+                    out: out.to_description_out(),
+                },
+                Box::new(Recip::<D>),
+            )));
+        out
+    }
+
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(TanhOps, B::erf);
 

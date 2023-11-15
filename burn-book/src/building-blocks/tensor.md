@@ -126,6 +126,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.erf()`                                      | `tensor.erf()`                     |
 | `tensor.powf(value)`                                | `tensor.pow(value)`                |
 | `tensor.sqrt()`                                     | `tensor.sqrt()`                    |
+| `tensor.recip()`                                    | `tensor.reciprocal()`              |
 | `tensor.cos()`                                      | `tensor.cos()`                     |
 | `tensor.sin()`                                      | `tensor.sin()`                     |
 | `tensor.tanh()`                                     | `tensor.tanh()`                    |

@@ -62,3 +62,7 @@ harness = false
 [[bench]]
 name = "fused_elemwise"
 harness = false
+
+[[bench]]
+name = "reduction"
+harness = false

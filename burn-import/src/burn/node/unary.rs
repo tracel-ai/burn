@@ -26,6 +26,7 @@ pub enum UnaryNodeKind {
     LogSoftmax,
     Softmax,
     Relu,
+    Reciprocal,
     Sigmoid,
     Tanh,
     Transpose,
@@ -40,6 +41,7 @@ impl UnaryNodeKind {
             Self::LogSoftmax => "log_softmax",
             Self::Softmax => "softmax",
             Self::Relu => "relu",
+            Self::Reciprocal => "reciprocal",
             Self::Sigmoid => "sigmoid",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
@@ -139,6 +141,11 @@ impl UnaryNode {
     pub(crate) fn transpose(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.transpose() };
         Self::new(input, output, UnaryNodeKind::Transpose, Rc::new(function))
+    }
+
+    pub(crate) fn reciprocal(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.recip() };
+        Self::new(input, output, UnaryNodeKind::Reciprocal, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -325,6 +332,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.transpose();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_reciprocal() {
+        one_node_graph(
+            UnaryNode::reciprocal(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.recip();
 
                     tensor2
                 }
