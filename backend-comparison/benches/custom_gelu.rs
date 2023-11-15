@@ -26,7 +26,6 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
 
     fn execute(&self, args: Self::Args) {
         for _ in 0..self.num_repeats {
-            // Choice of tanh is arbitrary
             if self.custom {
                 gelu(args.clone());
             } else {
