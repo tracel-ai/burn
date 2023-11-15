@@ -49,8 +49,8 @@ where
         self.server.lock().register(ops);
     }
 
-    fn sync(&self) {
-        self.server.lock().sync();
+    fn drain_graph(&self) {
+        self.server.lock().drain_graph();
     }
 
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {

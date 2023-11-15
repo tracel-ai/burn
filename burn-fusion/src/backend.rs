@@ -45,7 +45,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn sync(device: &Self::Device) {
         let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
-        client.sync();
+        client.drain_graph();
         B::sync(device)
     }
 }

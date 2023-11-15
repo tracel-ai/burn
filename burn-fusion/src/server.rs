@@ -53,7 +53,11 @@ where
         );
     }
 
-    pub fn sync(&mut self) {
+    pub fn drain_graph(&mut self) {
+        if self.graph.is_empty() {
+            return;
+        }
+
         self.execution.maybe_execute(
             &mut self.graph,
             &mut self.handles,
@@ -72,7 +76,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
@@ -84,7 +88,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_int_tensor(&tensor);
         B::int_into_data(tensor)
@@ -96,7 +100,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.sync();
+        self.drain_graph();
 
         let tensor = self.handles.get_bool_tensor(&tensor);
         B::bool_into_data(tensor)

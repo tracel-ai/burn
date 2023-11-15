@@ -161,6 +161,5 @@ impl TensorId {
     /// Create a new tensor id.
     pub fn new(value: u64) -> Self {
         Self { value }
- 
     }
 }

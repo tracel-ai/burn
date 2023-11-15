@@ -277,6 +277,6 @@ impl DynamicKernelSource for ElemWiseBody {
         let mut s = DefaultHasher::new();
         self.hash(&mut s);
 
-        s.finish().to_string()
+        s.finish().to_string() + "-fused"
     }
 }

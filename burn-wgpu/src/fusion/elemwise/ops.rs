@@ -1,9 +1,6 @@
 use super::KernelBuilder;
 use crate::{
-    fusion::{
-        calculate_num_elems,
-        codegen::{Elem, Operator, Variable},
-    },
+    fusion::codegen::{Elem, Operator, Variable},
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
@@ -31,7 +28,7 @@ where
     pub(crate) scalars_f32: Vec<f32>,
     pub(crate) operators: Vec<Operator>,
     pub(crate) properties: FusionProperties,
-    pub(crate) num_elems_output: usize,
+    pub(crate) current_shape: Vec<usize>,
     device: Device<Wgpu<G, F, I>>,
 }
 
@@ -83,7 +80,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         self.scalars_f32.clear();
         self.operators.clear();
         self.properties = FusionProperties::default();
-        self.num_elems_output = 0;
+        self.current_shape.clear();
     }
 
     fn len(&self) -> usize {
@@ -104,8 +101,8 @@ where
             tensors: HashMap::new(),
             scalars_f32: Vec::new(),
             operators: Vec::new(),
+            current_shape: Vec::new(),
             properties: FusionProperties::default(),
-            num_elems_output: 0,
             device,
         }
     }
@@ -445,10 +442,9 @@ where
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
-        let num_elems = calculate_num_elems(&out.shape);
-        if self.num_elems_output == 0 {
-            self.num_elems_output = num_elems;
-        } else if num_elems != self.num_elems_output {
+        if self.current_shape.is_empty() {
+            self.current_shape = out.shape.clone();
+        } else if self.current_shape != out.shape {
             return false;
         }
 
