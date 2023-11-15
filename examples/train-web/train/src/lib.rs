@@ -6,6 +6,7 @@ use wasm_bindgen::prelude::*;
 
 mod data;
 mod mnist;
+mod model;
 mod train;
 
 #[wasm_bindgen(start)]
