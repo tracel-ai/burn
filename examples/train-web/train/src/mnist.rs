@@ -73,7 +73,12 @@ impl MNISTDataset {
     pub fn new(labels: &[u8], images: &[u8], lengths: &[u16]) -> Self {
         // Decoding is here.
         // Encoding is done at `examples/train-web/web/src/train.ts`.
-        debug_assert!(labels.len() == lengths.len());
+        assert!(
+            labels.len() == lengths.len(),
+            "`labels` has {} elements and `lengths` has {} elements, but they should be equal in size.",
+            labels.len(),
+            lengths.len(),
+        );
         let mut start = 0 as usize;
         let raws = labels
             .iter()
@@ -81,9 +86,20 @@ impl MNISTDataset {
             .map(|(label, length_ptr)| {
                 let length = *length_ptr as usize;
                 let end = start + length;
+                let image_bytes = images[start..end].to_vec();
+                // Assert that the incoming data is a valid PNG.
+                // Really just here to ensure the decoding process isn't off by one.
+                debug_assert_eq!(
+                    image_bytes[0..8],
+                    vec![137, 80, 78, 71, 13, 10, 26, 10] // Starts with bytes from the spec http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
+                );
+                debug_assert_eq!(
+                    image_bytes[image_bytes.len() - 8..],
+                    vec![73, 69, 78, 68, 174, 66, 96, 130] // Ends with the IEND chunk. I don't think the spec specifies the last 4 bytes, but `mnist.db`'s images all end with it.
+                );
                 let raw = MNISTItemRaw {
                     label: *label,
-                    image_bytes: images[start..end].to_vec(),
+                    image_bytes,
                 };
                 start = end;
                 raw
