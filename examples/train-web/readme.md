@@ -6,7 +6,9 @@ For example, run `cargo install --version 0.2.88 wasm-bindgen-cli --force`. The 
 
 Install [PNPM](https://pnpm.io/).
 
-The [`postinstall.sh`](./web/postinstall.sh) script expects the mnist database to be at `~/.cache/burn-dataset/mnist.db`. Running `guide` will generate this file. Alternatively, you can download it from [Hugging Face](https://huggingface.co/datasets/mnist).
+Install [cargo-watch](https://crates.io/crates/cargo-watch).
+
+The [`postinstall.sh`](./web/postinstall.sh) script expects the mnist database to be at `~/.cache/burn-dataset/mnist.db`. Running `burn/examples/guide` will generate this file. Alternatively, you can download it from [Hugging Face](https://huggingface.co/datasets/mnist).
 
 Then in separate terminals:
 

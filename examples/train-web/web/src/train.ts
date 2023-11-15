@@ -34,6 +34,12 @@ export function setupTrain(element: HTMLInputElement) {
 }
 
 async function loadSqliteAndRun(ab: ArrayBuffer) {
+	// Images are an array of arrays.
+	// We can't send an array of arrays to Wasm.
+	// So instead we merge images into a single large array and
+	// use another array, `lengths`, to keep track of the image size.
+	// Encoding is done here.
+	// Decoding is done at `burn/examples/train-web/train/src/mnist.rs`.
 	const trainImages: Uint8Array[] = []
 	const trainLabels: number[] = []
 	const trainLengths: number[] = []

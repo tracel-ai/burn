@@ -71,6 +71,8 @@ impl Dataset<MNISTItem> for MNISTDataset {
 impl MNISTDataset {
     /// Creates a new dataset.
     pub fn new(labels: &[u8], images: &[u8], lengths: &[u16]) -> Self {
+        // Decoding is here.
+        // Encoding is done at `examples/train-web/web/src/train.ts`.
         debug_assert!(labels.len() == lengths.len());
         let mut start = 0 as usize;
         let raws = labels
