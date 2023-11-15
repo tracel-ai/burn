@@ -86,7 +86,6 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
-        println!("Into data {self:?}");
         self.client
             .clone()
             .read_tensor_float(self.into_description())
@@ -162,5 +161,6 @@ impl TensorId {
     /// Create a new tensor id.
     pub fn new(value: u64) -> Self {
         Self { value }
+ 
     }
 }

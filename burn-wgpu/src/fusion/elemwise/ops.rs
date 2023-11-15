@@ -15,7 +15,7 @@ use burn_fusion::{
     TensorId,
 };
 use burn_tensor::{Device, Element};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use std::sync::Arc;
 
 /// Fused element wise operations that are normally memory bound.
@@ -77,12 +77,12 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     }
 
     fn reset(&mut self) {
-        self.properties = FusionProperties::default();
-        self.tensors.clear();
-        self.locals.drain();
         self.inputs.clear();
+        self.locals.drain();
+        self.tensors.clear();
         self.scalars_f32.clear();
         self.operators.clear();
+        self.properties = FusionProperties::default();
         self.num_elems_output = 0;
     }
 
@@ -123,13 +123,13 @@ where
     /// Create a list of all tensors that should be written to.
     pub fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
         let mut outputs = Vec::new();
-        let mut tensor_ids_input = HashSet::new();
-        let mut tensor_ids_output = HashSet::new();
+        let mut tensor_ids_input = Vec::new();
+        let mut tensor_ids_output = Vec::new();
 
-        // Mask a variable to the provided set of tensor ids using the local variable list.
+        // Mask a variable to the provided list of tensor ids using the local variable list.
         //
         // Only local variables can become outputs.
-        let mark = |var: &Variable, set: &mut HashSet<TensorId>| {
+        let mark = |var: &Variable, list: &mut Vec<TensorId>| {
             match var {
                 Variable::Local(index) => {
                     if let Some((id, _)) = self
@@ -137,7 +137,9 @@ where
                         .iter()
                         .find(|(_id, position)| *position == index)
                     {
-                        set.insert(id.clone());
+                        if !list.contains(id) {
+                            list.push(id.clone());
+                        }
                     }
                 }
                 _ => {}
