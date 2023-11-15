@@ -34,25 +34,45 @@ export function setupTrain(element: HTMLInputElement) {
 }
 
 async function loadSqliteAndRun(ab: ArrayBuffer) {
-	const imageBytes: Uint8Array[] = []
-	const labels: number[] = []
-	const lengths: number[] = []
+	const trainImages: Uint8Array[] = []
+	const trainLabels: number[] = []
+	const trainLengths: number[] = []
+	const testImages: Uint8Array[] = []
+	const testLabels: number[] = []
+	const testLengths: number[] = []
 	const db = await getDb(ab)
 	try {
 		const trainQuery = db.prepare('select label, image_bytes from train')
 		while (trainQuery.step()) {
 			const row = trainQuery.getAsObject()
 			const label = row.label as number
-			labels.push(label)
+			trainLabels.push(label)
 			const bytes = row.image_bytes as Uint8Array
-			imageBytes.push(bytes)
-			lengths.push(bytes.length)
+			trainImages.push(bytes)
+			trainLengths.push(bytes.length)
 		}
 		trainQuery.free()
+		const testQuery = db.prepare('select label, image_bytes from test')
+		while (testQuery.step()) {
+			const row = testQuery.getAsObject()
+			const label = row.label as number
+			testLabels.push(label)
+			const bytes = row.image_bytes as Uint8Array
+			testImages.push(bytes)
+			testLengths.push(bytes.length)
+		}
+		testQuery.free()
 	} finally {
 		db.close()
 	}
-	run(Uint8Array.from(labels), concat(imageBytes), Uint16Array.from(lengths))
+	run(
+		Uint8Array.from(trainLabels),
+		concat(trainImages),
+		Uint16Array.from(trainLengths),
+		Uint8Array.from(testLabels),
+		concat(testImages),
+		Uint16Array.from(testLengths),
+	)
 }
 
 async function getDb(ab: ArrayBuffer): Promise<Database> {

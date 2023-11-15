@@ -82,7 +82,15 @@ impl ModelConfig {
     }
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device, labels: &[u8], images: &[u8], lengths: &[u16]) {
+pub fn run<B: AutodiffBackend>(
+    device: B::Device,
+    train_labels: &[u8],
+    train_images: &[u8],
+    train_lengths: &[u16],
+    test_labels: &[u8],
+    test_images: &[u8],
+    test_lengths: &[u16],
+) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -96,20 +104,20 @@ pub fn run<B: AutodiffBackend>(device: B::Device, labels: &[u8], images: &[u8], 
 
     // Create the batcher.
     let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    // let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::new(labels, images, lengths));
+        .build(MNISTDataset::new(train_labels, train_images, train_lengths));
 
-    // let dataloader_test = DataLoaderBuilder::new(batcher_valid)
-    //     .batch_size(config.batch_size)
-    //     .shuffle(config.seed)
-    //     .num_workers(config.num_workers)
-    //     .build(MNISTDataset::test());
+    let dataloader_test = DataLoaderBuilder::new(batcher_valid)
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(MNISTDataset::new(test_labels, test_images, test_lengths));
 
     // artifact dir does not need to be provided when log_to_file is false
     let builder: LearnerBuilder<
