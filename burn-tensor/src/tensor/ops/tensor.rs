@@ -410,6 +410,9 @@ pub trait TensorOps<B: Backend> {
         Self::mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
     }
 
+    /// Calculates the reciprocals elementwise
+    fn recip<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+
     /// Transposes a tensor.
     ///
     /// # Arguments

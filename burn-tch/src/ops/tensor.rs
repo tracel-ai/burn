@@ -172,6 +172,10 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         Self::mul_scalar(tensor, (-1f32).elem::<E>())
     }
 
+    fn recip<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        TchTensor::new(tensor.tensor.reciprocal())
+    }
+
     fn swap_dims<const D: usize>(
         tensor: TchTensor<E, D>,
         dim1: usize,

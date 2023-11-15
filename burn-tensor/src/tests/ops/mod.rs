@@ -28,6 +28,7 @@ mod neg;
 mod one_hot;
 mod powf;
 mod random;
+mod recip;
 mod repeat;
 mod reshape;
 mod select;
