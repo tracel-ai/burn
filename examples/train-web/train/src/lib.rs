@@ -1,5 +1,7 @@
+use crate::{model::ModelConfig, train::TrainingConfig};
 use burn::{
     backend::{ndarray::NdArrayDevice, Autodiff, NdArray},
+    optim::AdamConfig,
     train::util,
 };
 use wasm_bindgen::prelude::*;
@@ -30,7 +32,10 @@ pub fn run(
     test_lengths: &[u16],
 ) -> Result<(), String> {
     log::info!("Hello from Rust");
-    train::run::<Autodiff<NdArray<f32>>>(
+    let config = TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new());
+    train::train::<Autodiff<NdArray<f32>>>(
+        "",
+        config,
         NdArrayDevice::Cpu,
         train_labels,
         train_images,

@@ -1,16 +1,58 @@
-use crate::{data::MNISTBatcher, mnist::MNISTDataset, model::ModelConfig};
+use crate::{
+    data::{MNISTBatch, MNISTBatcher},
+    mnist::MNISTDataset,
+    model::{Model, ModelConfig},
+};
 use burn::{
+    self,
     config::Config,
     data::dataloader::DataLoaderBuilder,
+    module::Module,
+    nn::loss::CrossEntropyLoss,
     optim::AdamConfig,
-    tensor::backend::AutodiffBackend,
+    record::CompactRecorder,
+    tensor::{
+        backend::{AutodiffBackend, Backend},
+        Int, Tensor,
+    },
     train::{
+        metric::{AccuracyMetric, LossMetric},
         renderer::{MetricState, MetricsRenderer, TrainingProgress},
-        ClassificationOutput, LearnerBuilder,
+        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
+
+impl<B: Backend> Model<B> {
+    pub fn forward_classification(
+        &self,
+        images: Tensor<B, 3>,
+        targets: Tensor<B, 1, Int>,
+    ) -> ClassificationOutput<B> {
+        let output = self.forward(images);
+        let loss = CrossEntropyLoss::default().forward(output.clone(), targets.clone());
+
+        ClassificationOutput::new(loss, output, targets)
+    }
+}
+
+impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+        let item = self.forward_classification(batch.images, batch.targets);
+
+        TrainOutput::new(self, item.loss.backward(), item)
+    }
+}
+
+impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, batch: MNISTBatch<B>) -> ClassificationOutput<B> {
+        self.forward_classification(batch.images, batch.targets)
+    }
+}
+
 #[derive(Config)]
-pub struct MnistTrainingConfig {
+pub struct TrainingConfig {
+    pub model: ModelConfig,
+    pub optimizer: AdamConfig,
     #[config(default = 10)]
     pub num_epochs: usize,
     #[config(default = 64)]
@@ -19,10 +61,8 @@ pub struct MnistTrainingConfig {
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    #[config(default = 1e-4)]
-    pub lr: f64,
-    pub model: ModelConfig,
-    pub optimizer: AdamConfig,
+    #[config(default = 1.0e-4)]
+    pub learning_rate: f64,
 }
 
 struct CustomRenderer {}
@@ -41,7 +81,9 @@ impl MetricsRenderer for CustomRenderer {
     }
 }
 
-pub fn run<B: AutodiffBackend>(
+pub fn train<B: AutodiffBackend>(
+    artifact_dir: &str,
+    config: TrainingConfig,
     device: B::Device,
     train_labels: &[u8],
     train_images: &[u8],
@@ -50,18 +92,13 @@ pub fn run<B: AutodiffBackend>(
     test_images: &[u8],
     test_lengths: &[u16],
 ) {
-    // Create the configuration.
-    let config_model = ModelConfig::new(10, 1024);
-    let config_optimizer = AdamConfig::new();
-    let config = MnistTrainingConfig::new(config_model, config_optimizer);
+    // std::fs::create_dir_all(artifact_dir).ok();
+    // config
+    //     .save(format!("{artifact_dir}/config.json"))
+    //     .expect("Save without error");
 
     B::seed(config.seed);
 
-    // Create the model and optimizer.
-    let model = config.model.init();
-    let optim = config.optimizer.init();
-
-    // Create the batcher.
     let batcher_train = MNISTBatcher::<B>::new(device.clone());
     let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
 
@@ -78,23 +115,26 @@ pub fn run<B: AutodiffBackend>(
         .num_workers(config.num_workers)
         .build(MNISTDataset::new(test_labels, test_images, test_lengths));
 
-    // artifact dir does not need to be provided when log_to_file is false
-    let builder: LearnerBuilder<
-        B,
-        ClassificationOutput<B>,
-        ClassificationOutput<<B>::InnerBackend>,
-        _,
-        _,
-        _,
-    > = LearnerBuilder::new("")
+    let learner = LearnerBuilder::new(artifact_dir)
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        // .with_file_checkpointer(CompactRecorder::new())
+        .log_to_file(false)
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
-        .log_to_file(false);
-    // can be used to interrupt training
-    let _interrupter = builder.interrupter();
+        .num_epochs(config.num_epochs)
+        .build(
+            config.model.init::<B>(),
+            config.optimizer.init(),
+            config.learning_rate,
+        );
 
-    let _learner = builder.build(model, optim, config.lr);
+    let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    // let _model_trained = learner.fit(dataloader_train, dataloader_test);
+    model_trained
+        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .expect("Failed to save trained model");
 }
