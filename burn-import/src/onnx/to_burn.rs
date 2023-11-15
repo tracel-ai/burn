@@ -250,6 +250,7 @@ impl ONNXGraph {
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
@@ -445,6 +446,13 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::sigmoid(input, output)
+    }
+
+    fn reciprocal_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::reciprocal(input, output)
     }
 
     fn log_softmax_conversion(node: Node) -> UnaryNode {
