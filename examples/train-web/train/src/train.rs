@@ -1,5 +1,7 @@
+use crate::{data::MNISTBatcher, mnist::MNISTDataset};
 use burn::{
     config::Config,
+    data::dataloader::DataLoaderBuilder,
     module::Module,
     nn::{
         conv::{Conv2d, Conv2dConfig},
@@ -80,7 +82,7 @@ impl ModelConfig {
     }
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: B::Device, labels: &[u8], images: &[u8], lengths: &[u16]) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -93,16 +95,16 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let optim = config.optimizer.init();
 
     // Create the batcher.
-    // let batcher_train = MNISTBatcher::<B>::new(device.clone());
+    let batcher_train = MNISTBatcher::<B>::new(device.clone());
     // let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
-    // let dataloader_train = DataLoaderBuilder::new(batcher_train)
-    //     .batch_size(config.batch_size)
-    //     .shuffle(config.seed)
-    //     .num_workers(config.num_workers)
-    //     .build(MNISTDataset::train());
-    //
+    let dataloader_train = DataLoaderBuilder::new(batcher_train)
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(MNISTDataset::new(labels, images, lengths));
+
     // let dataloader_test = DataLoaderBuilder::new(batcher_valid)
     //     .batch_size(config.batch_size)
     //     .shuffle(config.seed)

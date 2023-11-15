@@ -4,6 +4,8 @@ use burn::{
 };
 use wasm_bindgen::prelude::*;
 
+mod data;
+mod mnist;
 mod train;
 
 #[wasm_bindgen(start)]
@@ -20,7 +22,7 @@ pub fn init(worker_url: String) -> Result<(), String> {
 #[wasm_bindgen]
 pub fn run(labels: &[u8], images: &[u8], lengths: &[u16]) -> Result<(), String> {
     log::info!("Hello from Rust");
-    train::run::<Autodiff<NdArray<f32>>>(NdArrayDevice::Cpu);
+    train::run::<Autodiff<NdArray<f32>>>(NdArrayDevice::Cpu, labels, images, lengths);
     Ok(())
 }
 

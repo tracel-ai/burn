@@ -19,3 +19,4 @@ burn = { path = "../../../burn", default-features = false, features = [
   "browser",
 ] }
 serde = { workspace = true }
+image = { version = "0.24.7", features = ["png"] }
