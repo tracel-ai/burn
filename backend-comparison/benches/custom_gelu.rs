@@ -3,6 +3,13 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
 use derive_new::new;
 
+#[derive(Debug)]
+enum GeluKind {
+    Reference,
+    WithReferenceErf,
+    WithCustomErf,
+}
+
 /// Benchmark how well a backend executes a custom activation function with a lot of basic tensor
 /// operations.
 #[derive(new)]
@@ -10,27 +17,23 @@ struct CustomGeluBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
     num_repeats: usize,
     device: B::Device,
-    custom: bool,
+    kind: GeluKind,
 }
 
 impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        if self.custom {
-            "Custom Gelu".into()
-        } else {
-            "Reference Gelu".into()
-        }
+        format!("Gelu {:?}", self.kind)
     }
 
     fn execute(&self, args: Self::Args) {
         for _ in 0..self.num_repeats {
-            if self.custom {
-                gelu(args.clone());
-            } else {
-                burn::tensor::activation::gelu(args.clone());
-            }
+            match self.kind {
+                GeluKind::Reference => burn::tensor::activation::gelu(args.clone()),
+                GeluKind::WithReferenceErf => gelu_custom(args.clone(), Tensor::erf),
+                GeluKind::WithCustomErf => gelu_custom(args.clone(), erf_custom),
+            };
         }
     }
 
@@ -43,14 +46,18 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 }
 
-fn gelu<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
+fn gelu_custom<B, const D: usize, Erf>(x: Tensor<B, D>, erf: Erf) -> Tensor<B, D>
+where
+    B: Backend,
+    Erf: Fn(Tensor<B, D>) -> Tensor<B, D>,
+{
     let x = x.clone() * (erf(x / SQRT_2) + 1);
     let result = x / 2;
 
     result
 }
 
-fn erf<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
+fn erf_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
     let x1 = -erf_positive(-x.clone());
     let x2 = erf_positive(x.clone());
     let mask = x.greater_elem(0);
@@ -80,22 +87,28 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 #[allow(dead_code)]
 fn bench<B: Backend>(device: &B::Device) {
     const D: usize = 3;
-    let shape: Shape<D> = [32, 512, 1024].into();
-    let num_repeats = 3;
+    let shape: Shape<D> = [32, 512, 2048].into();
+    let num_repeats = 1;
 
     println!("Backend {}", B::name());
     run_benchmark(CustomGeluBenchmark::<B, D>::new(
         shape.clone(),
         num_repeats,
         device.clone(),
-        true,
+        GeluKind::Reference,
+    ));
+    run_benchmark(CustomGeluBenchmark::<B, D>::new(
+        shape.clone(),
+        num_repeats,
+        device.clone(),
+        GeluKind::WithReferenceErf,
     ));
     run_benchmark(CustomGeluBenchmark::<B, D>::new(
         shape,
         num_repeats,
         device.clone(),
-        false,
-    ))
+        GeluKind::WithCustomErf,
+    ));
 }
 
 fn main() {
