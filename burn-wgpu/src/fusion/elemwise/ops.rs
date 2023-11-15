@@ -1,6 +1,6 @@
-use super::KernelBuilder;
 use crate::{
     fusion::codegen::{Elem, Operator, Variable},
+    fusion::kernel::FusionKernel,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
@@ -61,16 +61,16 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
+        let locals = outputs
+            .iter()
+            .map(|out| *self.locals.get(&out.id).unwrap())
+            .collect::<Vec<_>>();
 
-        let (kernel, handles, client) = KernelBuilder::new(&self.device)
+        FusionKernel::new(&self.device)
             .inputs(&inputs, &self.scalars_f32)
             .body(&self.operators)
-            .outputs(&outputs, &self.locals)
-            .build(handles);
-
-        let handles = handles.iter().collect::<Vec<_>>();
-
-        client.execute(kernel, &handles);
+            .outputs(&outputs, &locals)
+            .execute(handles);
     }
 
     fn reset(&mut self) {
@@ -107,7 +107,7 @@ where
         }
     }
 
-    pub fn input_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn input_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
         self.inputs
             .iter()
             .map(|input| {
@@ -117,8 +117,7 @@ where
             .collect::<Vec<_>>()
     }
 
-    /// Create a list of all tensors that should be written to.
-    pub fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn output_descriptions<'a>(&'a self) -> Vec<&'a TensorDescription> {
         let mut outputs = Vec::new();
         let mut tensor_ids_input = Vec::new();
         let mut tensor_ids_output = Vec::new();
@@ -470,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_fusion_two_elems() {
+    fn test_fusion_same_behavior() {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
 
@@ -482,19 +481,18 @@ mod tests {
         let tensor_1 = Tensor::<Backend, 2>::from_data(data_1.clone());
         let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
         let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3 - tensor_1;
-        // let tensor_5 = tensor_4 + 5.0;
-        // let tensor_6 = tensor_5 + tensor_3;
-        let result_ref = tensor_4.into_data();
-        println!("----------------------------------");
+        let tensor_4 = tensor_3.clone() - tensor_1;
+        let tensor_5 = tensor_4 + 5.0;
+        let tensor_6 = tensor_5 + tensor_3;
+        let result_ref = tensor_6.into_data();
 
         let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
-        let tensor_3 = tensor_1.clone() + tensor_2; // Into contiguous makes it flaky.
-        let tensor_4 = tensor_3 - tensor_1;
-        // let tensor_5 = tensor_4 + 5.0;
-        // let tensor_6 = tensor_5 + tensor_3;
-        let result_fused = tensor_4.into_data();
+        let tensor_3 = tensor_1.clone() + tensor_2;
+        let tensor_4 = tensor_3.clone() - tensor_1;
+        let tensor_5 = tensor_4 + 5.0;
+        let tensor_6 = tensor_5 + tensor_3;
+        let result_fused = tensor_6.into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
     }

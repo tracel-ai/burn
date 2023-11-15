@@ -1,4 +1,4 @@
-use super::Function;
+use super::{Body, Function};
 use crate::kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -59,13 +59,13 @@ pub struct ShaderCodegen {
     pub workgroup_sizes: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
-    pub body: Box<dyn DynamicKernelSource>,
+    pub body: Body,
     pub functions: Vec<Function>,
 }
 
 impl DynamicKernelSource for ShaderCodegen {
     fn source(&self) -> SourceTemplate {
-        SourceTemplate::new(self.to_string()).register("body", self.body.source().complete())
+        SourceTemplate::new(self.to_string())
     }
 
     fn id(&self) -> String {
@@ -76,8 +76,9 @@ impl DynamicKernelSource for ShaderCodegen {
         self.workgroup_sizes.hash(&mut s);
         self.global_invocation_id.hash(&mut s);
         self.num_workgroups.hash(&mut s);
+        self.body.hash(&mut s);
 
-        self.body.id() + &s.finish().to_string()
+        s.finish().to_string()
     }
 }
 
@@ -119,11 +120,12 @@ fn main(
             f.write_str("    @builtin(num_workgroups) num_workgroups: vec3<u32>,\n")?;
         }
 
-        f.write_str(
-            ") {
-    {{ body }}
-}",
-        )?;
+        f.write_fmt(format_args!(
+            ") {{
+    {}
+}}",
+            self.body
+        ))?;
 
         for function in self.functions.iter() {
             f.write_fmt(format_args!("{function}\n\n"))?;

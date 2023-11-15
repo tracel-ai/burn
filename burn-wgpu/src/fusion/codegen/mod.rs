@@ -1,9 +1,11 @@
+mod body;
 mod function;
-mod operation;
+mod operator;
 mod shader;
 mod variable;
 
+pub use body::*;
 pub use function::*;
-pub use operation::*;
+pub use operator::*;
 pub use shader::*;
 pub use variable::*;

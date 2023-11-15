@@ -1,6 +1,7 @@
 use super::Variable;
 use std::fmt::Display;
 
+/// All operators that can be fused in a WGSL compute shader.
 #[derive(Debug, Hash, Clone)]
 pub enum Operator {
     Add {
@@ -125,13 +126,13 @@ impl Display for Operator {
                     "
 var index_{local}: u32 = 0u;
 
-for (var i: u32 = 1u; i <= dim; i++) {{
-    let position = {position}u * (2u * dim);
-    let position_out = {position_out}u * (2u * dim);
+for (var i: u32 = 1u; i <= rank; i++) {{
+    let position = {position}u * (2u * rank);
+    let position_out = {position_out}u * (2u * rank);
 
     let stride = info[position + i];
     let stride_out = info[position_out + i];
-    let shape = info[position + dim + i];
+    let shape = info[position + rank + i];
 
     index_{local} += id / stride_out % shape * stride;
 }}
