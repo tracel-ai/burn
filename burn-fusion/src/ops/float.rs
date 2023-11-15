@@ -26,8 +26,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::from_data(data, device);
+        let shape = B::shape(&tensor);
 
-        client.create_tensor_float(data.value, data.shape.dims.into())
+        client.register_tensor(B::float_tensor_handle(tensor), shape.dims.into())
     }
 
     fn random<const D: usize>(
@@ -54,7 +56,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::FloatOps(FloatOpsDescription::Random(
             (out.to_description_out(), distribution),
@@ -79,7 +81,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Zeros(out.to_description_out(), Box::new(ZerosOps::<D>)),
@@ -103,7 +105,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Ones(out.to_description_out(), Box::new(OnesOps::<D>)),
@@ -131,7 +133,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Full(
@@ -188,7 +190,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::FloatOps(
             FloatOpsDescription::IntoInt(
@@ -205,8 +207,9 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::empty(shape.clone(), device);
 
-        client.create_tensor_empty(shape.dims.into())
+        client.register_tensor(B::float_tensor_handle(tensor), shape.dims.into())
     }
 
     fn add<const D: usize>(
@@ -217,7 +220,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Add(
@@ -239,7 +242,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(AddOps, B::add_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::AddScalar(
@@ -261,7 +264,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(ClampMinOps, B::clamp_min);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ClampMin(
@@ -283,7 +286,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(ClampMaxOps, B::clamp_max);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ClampMax(
@@ -317,7 +320,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Clamp(
@@ -342,7 +345,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Sub(
@@ -364,7 +367,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(SubOps, B::sub_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::SubScalar(
@@ -388,7 +391,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Mul(
@@ -410,7 +413,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(MulOps, B::mul_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MulScalar(
@@ -434,7 +437,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Div(
@@ -456,7 +459,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(DivOps, B::div_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::DivScalar(
@@ -483,7 +486,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         shape[D - 2] = lhs.shape[D - 2];
         shape[D - 1] = rhs.shape[D - 1];
 
-        let out = lhs.client.create_tensor_empty(shape);
+        let out = lhs.client.tensor_uninitialized(shape);
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Matmul(
@@ -519,7 +522,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -556,7 +559,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.create_tensor_empty(shape.clone());
+        let out = tensor.client.tensor_uninitialized(shape.clone());
 
         tensor
             .client
@@ -595,7 +598,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = indices.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -638,7 +641,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -681,7 +684,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape: Vec<usize> = tensor.shape.clone();
         shape[dim] = indices.shape[0];
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -724,7 +727,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -769,7 +772,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             shape.push(tensor.shape[i]);
         }
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -813,7 +816,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -855,7 +858,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -896,7 +899,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -924,7 +927,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::BaseOpsFloat(
             BaseOpsDescription::Equal(
@@ -946,7 +949,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(EqualElemOps, B::equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::EqualElem(
@@ -970,7 +973,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Greater(
@@ -992,7 +995,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(GreaterElemOps, B::greater_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::GreaterElem(
@@ -1016,7 +1019,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::GreaterEqual(
@@ -1038,7 +1041,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(GreaterEqualElemOps, B::greater_equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::GreaterEqualElem(
@@ -1062,7 +1065,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Lower(
@@ -1084,7 +1087,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(LowerElemOps, B::lower_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::LowerElem(
@@ -1108,7 +1111,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::LowerEqual(
@@ -1130,7 +1133,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(LowerEqualElemOps, B::lower_equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::LowerEqualElem(
@@ -1149,7 +1152,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(SumOps, B::sum);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Sum(
@@ -1169,7 +1172,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::SumDim(
@@ -1188,7 +1191,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MeanOps, B::mean);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Mean(
@@ -1208,7 +1211,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MeanDim(
@@ -1239,7 +1242,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(ExpOps, B::exp);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(
@@ -1256,7 +1259,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(LogOps, B::log);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Log(
@@ -1273,7 +1276,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(Log1pOps, B::log1p);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Log1p(
@@ -1290,7 +1293,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
         scalar_float_ops!(PowfOps, B::powf, f32);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Powf(
@@ -1308,7 +1311,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(SqrtOps, B::sqrt);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Sqrt(
@@ -1325,7 +1328,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(AbsOps, B::abs);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Abs(
@@ -1343,7 +1346,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(CosOps, B::cos);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Cos(
@@ -1360,7 +1363,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(SinOps, B::sin);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Sin(
@@ -1377,7 +1380,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(TanhOps, B::tanh);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Tanh(
@@ -1394,7 +1397,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(Recip, B::recip);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Recip(
                 UnaryOpsDescription {
@@ -1409,7 +1412,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(TanhOps, B::erf);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::FloatOps(FloatOpsDescription::Erf(
@@ -1452,7 +1455,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             shape[dim] += tensor.shape[dim];
         }
 
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Cat(
             CatOpsDescription {
@@ -1471,7 +1474,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ArgMax(
@@ -1492,7 +1495,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::ArgMin(
@@ -1511,7 +1514,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn max<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MaxOps, B::max);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Max(
@@ -1531,7 +1534,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MaxDim(
@@ -1568,8 +1571,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_tensor_empty(shape.clone());
-        let out_indices = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape.clone());
+        let out_indices = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MaxDimWithIndices(
@@ -1589,7 +1592,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn min<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MinOps, B::min);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::Min(
@@ -1609,7 +1612,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         out.client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MinDim(
@@ -1646,8 +1649,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_tensor_empty(shape.clone());
-        let out_indices = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape.clone());
+        let out_indices = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::NumericOpsFloat(
             NumericOpsDescription::MinDimWithIndices(

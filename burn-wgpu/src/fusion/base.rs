@@ -1,6 +1,7 @@
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
+    fusion::FloatElementWiseFusionOps,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -32,8 +33,8 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 
-    fn operations() -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
-        Vec::new()
+    fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
+        vec![Box::new(FloatElementWiseFusionOps::new(device.clone()))]
     }
 
     fn float_tensor<const D: usize>(
@@ -70,7 +71,27 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
+    let mut strides = vec![0; shape.len()];
+
+    let mut current = 1;
+    shape.iter().enumerate().rev().for_each(|(index, val)| {
+        strides[index] = current;
+        current *= val;
+    });
+
+    strides
+}
+
+pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
+    let mut num_elems = 1;
+    for i in shape.iter() {
+        num_elems *= i;
+    }
+    num_elems
+}
+
+#[derive(new, Debug, Clone)]
 /// Handle to be used when fusing operations.
 pub struct WgpuFusionHandle {
     /// Compute client for wgpu.

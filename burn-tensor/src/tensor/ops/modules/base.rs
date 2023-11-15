@@ -66,7 +66,7 @@ pub struct Conv1dBackward<B: Backend> {
 }
 
 /// Convolution options.
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, Hash)]
 pub struct ConvOptions<const N: usize> {
     /// Stride.
     pub stride: [usize; N],
@@ -82,7 +82,7 @@ pub struct ConvOptions<const N: usize> {
 }
 
 /// Transposed convolution options.
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, Hash)]
 pub struct ConvTransposeOptions<const N: usize> {
     /// Stride.
     pub stride: [usize; N],

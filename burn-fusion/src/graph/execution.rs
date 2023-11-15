@@ -32,8 +32,13 @@ impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
             }
 
             match find_best_optimization_index(optimizations) {
-                Some(index) => graph.execute_optimization(handles, index, optimizations),
-                None => graph.execute(handles),
+                Some(index) => {
+                    graph.execute_optimization(handles, index, optimizations);
+                }
+                None => {
+                    graph.execute(handles);
+                    optimizations.iter_mut().for_each(|ops| ops.reset());
+                }
             }
 
             if graph.is_empty() {

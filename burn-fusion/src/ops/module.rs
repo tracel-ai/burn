@@ -56,7 +56,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::Conv1d(
@@ -115,7 +115,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::Conv2d(
@@ -168,7 +168,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::ConvTranspose1d(
@@ -229,7 +229,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::ConvTranspose2d(
@@ -275,7 +275,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool1d(
@@ -326,7 +326,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3]);
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool2d(
@@ -374,7 +374,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool1dBackward(
@@ -423,7 +423,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AvgPool2dBackward(
@@ -472,7 +472,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool1d(
@@ -533,7 +533,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2d(
@@ -581,8 +581,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
-        let out = x.client.create_tensor_empty(shape.clone());
-        let out_indices = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape.clone());
+        let out_indices = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool1dWithIndices(
@@ -645,8 +645,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
-        let out = x.client.create_tensor_empty(shape.clone());
-        let out_indices = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape.clone());
+        let out_indices = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2dWithIndices(
@@ -698,7 +698,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool1dWithIndicesBackward(
@@ -751,7 +751,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::MaxPool2dWithIndicesBackward(
@@ -787,7 +787,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], x.shape[1], output_size];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool1d(
@@ -821,7 +821,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         }
 
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
-        let out = x.client.create_tensor_empty(shape);
+        let out = x.client.tensor_uninitialized(shape);
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool2d(
@@ -855,7 +855,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool1dBackward(
@@ -889,7 +889,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         }
 
-        let out = x.client.create_tensor_empty(x.shape.clone());
+        let out = x.client.tensor_uninitialized(x.shape.clone());
 
         x.client.clone().register(TensorOpsDescription::ModuleOps(
             crate::graph::ModuleOpsDescription::AdaptiveAvgPool2dBackward(
