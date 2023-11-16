@@ -390,6 +390,19 @@ The whole deep learning workflow is made easy with Burn, as you can monitor your
   </a>
 </div>
 
+<div class="video-container">
+    <!-- Video Player with Poster -->
+    <video controls poster="/assets/burn-train-tui.png">
+      <source src="https://www.youtube.com/watch?v=N9RM5CQbNQc" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+<video controls poster="/assets/burn-train-tui.png">
+  <source src="movie.mp4" type="video/mp4">
+  <source src="movie.ogg" type="video/ogg">
+  Your browser does not support the video tag.
+</video>
+
 <br />
 
 <details>
