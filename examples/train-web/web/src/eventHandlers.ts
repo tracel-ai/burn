@@ -30,3 +30,21 @@ export function setupTrain(
 		train.postMessage('autotrain')
 	})
 }
+
+export function setupAutotrain(
+	element: HTMLInputElement,
+	trainElement: HTMLButtonElement,
+) {
+	const autotrain = localStorage.getItem('autotrain')
+	element.checked = autotrain != null
+	if (element.checked) {
+		trainElement.click()
+	}
+	element.addEventListener('click', () => {
+		if (element.checked) {
+			localStorage.setItem('autotrain', 'true')
+		} else {
+			localStorage.removeItem('autotrain')
+		}
+	})
+}

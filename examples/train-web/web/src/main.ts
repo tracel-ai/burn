@@ -1,7 +1,7 @@
 import './style.css'
 import typescriptLogo from './typescript.svg'
 import viteLogo from '/vite.svg'
-import { setupCounter, setupTrain } from './eventHandlers.ts'
+import { setupAutotrain, setupCounter, setupTrain } from './eventHandlers.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div>
@@ -21,6 +21,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="card">
       <input id="dbfile" type='file' />
     </div>
+    <input type="checkbox" id="autotrain" />
+    <label for="autotrain">Train on page refresh</label>
     <p class="read-the-docs">
       Click on the Vite and TypeScript logos to learn more
     </p>
@@ -31,4 +33,8 @@ setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
 setupTrain(
 	document.querySelector<HTMLButtonElement>('#train')!,
 	document.querySelector<HTMLInputElement>('#dbfile')!,
+)
+setupAutotrain(
+	document.querySelector<HTMLInputElement>('#autotrain')!,
+	document.querySelector<HTMLButtonElement>('#train')!,
 )
