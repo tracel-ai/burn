@@ -10,7 +10,7 @@
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 ---
 
-__Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibilty, compute efficiency and portability as its primary goals.__
+__Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibility, compute efficiency and portability as its primary goals.__
 
 <br/>
 </div>
@@ -237,7 +237,7 @@ See [this section](https://burn.dev/book/advanced/backend-extension/index.html) 
 <div align="left">
 <img align="right" src="./assets/backend-chip.png" height="96px"/>
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
-We believe this flexibilty is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
+We believe this flexibility is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
 </div>
 
 <br />
