@@ -373,7 +373,8 @@ fn main() {
 
 ```
 
-Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operation, which will compose with the fusion backend so that your code will run even faster when training your model. See [this issue](https://github.com/burn-rs/burn/issues/936).
+Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operations, which will work gracefully with the fusion backend to make your code run even faster during training.
+See [this issue](https://github.com/burn-rs/burn/issues/936).
 
 </details>
 
@@ -382,22 +383,29 @@ Of note, we plan to implement automatic gradient checkpointing based on compute 
 <div align="left">
 <img align="right" src="./assets/illu-flexible-altA-uni_T07.png" height="96px"/>
 
-The whole machine learning operations pipeline is made easy with Burn, as you can monitor your training with an ergonomic dashboard, and run inference everywhere from embedded devices to directly within the browser.
+The whole deep learning workflow is made easy with Burn, as you can monitor your training progress with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU servers.
 
+</div>
+
+<div align="center">
+<video width="480" height="320" controls>
+  <source src="./assets/burn-dashboard-tui.mp4" type="video/mp4">
+Your browser does not support the video tag.
+</video>
 </div>
 
 <br />
 
 <details>
 <summary>
-Training Dashboard
+Training Dashboard 📈
 </summary>
+<br />
 
-As you can see in the following video, a new terminal UI dashboard based on the [Ratatui](https://github.com/ratatui-org/ratatui) crate allows users to follow their training with ease without having to connect to any external application.
+As you can see in the previous video, a new terminal UI dashboard based on the [Ratatui](https://github.com/ratatui-org/ratatui) crate allows users to follow their training with ease without having to connect to any external application.
 
-<iframe width="420" height="315" src="https://www.youtube.com/watch?v=N9RM5CQbNQc"></iframe>
-
-You can visualize your training and validation metrics updating in real-time and analyze the lifelong progression or recent history of any registered metrics using only the arrow keys. Break from the training loop without crashing, allowing potential checkpoints to be fully written or important pieces of code to complete without interruption 🛡
+You can visualize your training and validation metrics updating in real-time and analyze the lifelong progression or recent history of any registered metrics using only the arrow keys.
+Break from the training loop without crashing, allowing potential checkpoints to be fully written or important pieces of code to complete without interruption 🛡
 
 <br />
 
@@ -405,7 +413,7 @@ You can visualize your training and validation metrics updating in real-time and
 
 <details>
 <summary>
-ONNX Support
+ONNX Support 🍬
 </summary>
 <br />
 
@@ -422,11 +430,14 @@ Our ONNX support is further described [this section of the Burn Book 🔥](https
 
 <details>
 <summary>
-Inference in the Browser
+Inference in the Browser 🌐
 </summary>
 <br />
 
 Several of our backends can compile to Web Assembly: Candle and NdArray for CPU, and WGPU for GPU. This means that you can run inference directly within a browser.
+We provide several examples of this:
+   * [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to find which one it is!
+   * [Image Classification](./examples/image-classification-web) where you can upload images and classify them!
 
 </details>
 
@@ -435,9 +446,7 @@ Several of our backends can compile to Web Assembly: Candle and NdArray for CPU,
 <div align="left">
 <img align="right" src="./assets/illu-community_driven-uni_T07.png" height="96px"/>
 
-Just heard of Burn? Join our community by connecting to our [Discord](https://discord.gg/PbjzCPfs)!
-
-Then have a look at our book, simple examples and pre-trained cutting-edge models.
+Just heard of Burn? You are at the right place! Just continue reading this section and we hope you can get on board really quickly.
 
 </div>
 
@@ -447,13 +456,19 @@ The Burn Book 🔥
 </summary>
 <br />
 
-To begin working effectively with Burn, it is crucial to understand its key components and philosophy. For detailed examples and explanations covering every facet of the framework, including building blocks like tensors, modules and learners, please refer to [The Burn Book 🔥](https://burn.dev/book/).
+To begin working effectively with Burn, it is crucial to understand its key components and philosophy.
+This is why we highly recommend new users to read the first sections of [The Burn Book 🔥](https://burn.dev/book/).
+It provides detailed examples and explanations covering every facet of the framework, including building blocks like tensors, modules, and optimizers all the way to advanced usage, like coding your own GPU kernels.
+
+> The project is constantly evolving, and we try as much as possible to keep the book up to date with new additions.
+However, we might miss some details sometimes, so if you see something weird, let us know!
+We also gladly accept Pull Requests 😄
 
 </details>
 
 <details>
 <summary>
-Examples
+Examples 🙏
 </summary>
 <br />
 
@@ -466,10 +481,10 @@ use burn::tensor::backend::Backend;
 
 #[derive(Module, Debug)]
 pub struct PositionWiseFeedForward<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
-    dropout: Dropout,
-    gelu: GELU,
+    linear_inner: nn::Linear<B>,
+    linear_outer: nn::Linear<B>,
+    dropout: nn::Dropout,
+    gelu: nn::GELU,
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {
@@ -483,26 +498,22 @@ impl<B: Backend> PositionWiseFeedForward<B> {
 }
 ```
 
-For more practical insights, you can clone the repository and experiment with the following examples:
-
-- [MNIST](https://github.com/burn-rs/burn/tree/main/examples/mnist) train a model on CPU/GPU using
-  different backends.
-- [MNIST Inference Web](https://github.com/burn-rs/burn/tree/main/examples/mnist-inference-web) run
-  trained model in the browser for inference.
-- [Text Classification](https://github.com/burn-rs/burn/tree/main/examples/text-classification)
-  train a transformer encoder from scratch on GPU.
-- [Text Generation](https://github.com/burn-rs/burn/tree/main/examples/text-generation) train an
-  autoregressive transformer from scratch on GPU.
+We have a somewhat large number of [examples](./examples) in the repository that show how to use the framework in different scenarios.
+For more practical insights, you can clone the repository and run any of them directly on your computer!
 
 </details>
 
 <details>
 <summary>
-Pre-trained Models 
+Pre-trained Models 🤖
 </summary>
 <br />
 
 We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models repository](https://github.com/burn-rs/models) for more details.
+
+Don't see the model you want? Don't hesitate to open an issue, and we may prioritize it.
+Built a model using Burn and want to share it?
+You can also open a Pull Request and add your model under the community ones!
 
 </details>
 
@@ -512,15 +523,22 @@ Why use Rust for Deep Learning? 🦀
 </summary>
 <br />
 
-To us, the main reason to use Rust is when you need to go through multiple abstraction boundaries, without having to pay for performance. A deep learning framework must be easy to use at a high level so its users can concentrate on innovating in the AI field, but since running models relies on heavy computations, performance must be maximized.
+Deep Learning is a special form of software where you need very high level abstractions as well as extremely fast execution time.
+Rust is the perfect candidate for that use case since it provides zero-cost abstractions to easily create neural networks, and fine grain control over memory to optimize every details.
+
+It's important that a deep learning framework must be easy to use at a high level so its users can concentrate on innovating in the AI field.
+However, since running models relies so heavyly on computations, performance can't be neglected.
 
 To this day, the mainstream solution to this problem has been to offer APIs in Python but rely on bindings to low-level languages such as C/C++.
 
-Rust's approach to abstractions makes it versatile enough to tackle this dichotomy. Indeed, thanks to the borrow-checker, which prevents the programmer from using a variable without explicitly stating if it can be changed or just looked at, Rust is able to provide high-level abstractions for concurrent programming and memory safety guarantees without incurring any runtime overhead.An example of the borrow-checker being directly useful is for [intelligent memory management](#performance).
+But we feel like Rust's approach to abstractions makes it versatile enough to tackle this dichotomy.
+Indeed, thanks to the borrow-checker, which prevents the programmer from using a variable without explicitly stating if it can be changed or just looked at, Rust is able to provide high-level abstractions for concurrent programming and memory safety guarantees without incurring any runtime overhead.
+An example of the borrow-checker being directly useful is for [intelligent memory management](#performance).
 
-Rust also comes with the Cargo package manager, which makes it incredibly easy to build, test, and deploy. The latter is usually painstaking in a Python environment.
+Rust also comes with the Cargo package manager, which makes it incredibly easy to build, test, and deploy.
+The latter is usually painstaking in a Python environment.
 
-Although it has the reputation of being a difficult language at first, we strongly believe programming in Rust leads to more reliable, bug-free solutions.
+Although it has the reputation of being a difficult language at first, we strongly believe programming in Rust leads to more reliable, bug-free solutions built faster (after some practice 😅)!
 
 </details>
 
@@ -534,6 +552,10 @@ Before contributing, please take a moment to review our
 [code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md). Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
 </details>
+<br />
+
+If you have additional questions or are just exited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs) !
+We try to be as welcoming as possible to eveybody from any background.
 
 ## Status
 
