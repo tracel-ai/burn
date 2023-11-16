@@ -20,7 +20,7 @@ Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br
 ## Performance
 
 <div align="left">
-<img align="right" src="./assets/illu-fast-uni_T07.png" height="96px"/>
+<img align="right" src="./assets/ember-blazingly-fast.png" height="96px"/>
 Because we believe the goal of a deep learning framework is to convert computation into useful intelligence, we have made performance a core pillar of Burn. 
 We strive to achieve top efficiency by leveraging multiple optimization techniques described below 👇
 </div>
@@ -132,9 +132,8 @@ fn erf(x: f32) -> f32 {
 ```
 
 > As of now, our fusion strategy is only implemented for our own WGPU backend and supports only a subset of operations.
-We plan to add more operations very soon and extend this technique to other future in-house backends.
+> We plan to add more operations very soon and extend this technique to other future in-house backends.
 
-<br />
 </details>
 
 <details>
@@ -166,7 +165,6 @@ This is a very different approach from what PyTorch does, where backpropagation 
 This is not a thread-safe operation and therefore requires lower level synchronization primitives, see [distributed training](https://pytorch.org/docs/stable/distributed.html) for reference.
 Note that this is still very fast, but not compatible across different backends and quite hard to implement.
 
-<br />
 </details>
 
 <details>
@@ -185,7 +183,6 @@ Another very important memory optimization of Burn is that we keep track of when
 Even though it is a rather small memory optimization on its own, it adds up considerably when training or running inference with larger models and contributes to reduce the memory usage even more.
 For more information, see [this blog post about tensor handling](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).
 
-<br />
 </details>
 
 <details>
@@ -204,7 +201,6 @@ With our home-made backends, we run benchmarks automatically and choose the best
 This adds a small overhead by increasing the warmup execution time, but stabilizes quickly after a few forward and backward passes, saving lots of time in the long run.
 Note that this feature isn't mandatory, and can be disabled when cold starts are a priority over optimized throughput.
 
-<br />
 </details>
 
 <details>
@@ -220,7 +216,6 @@ For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI sp
 As of this moment, we support Tensor Cores with our LibTorch and Candle backends, but not other accelerators yet.
 We hope [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets resolved at some point to bring support to our WGPU backend.
 
-<br />
 </details>
 
 <details>
@@ -235,13 +230,14 @@ While it's crucial to maintain compatibility with a wide variety of backends, Bu
 This versatility is advantageous in numerous ways, such as supporting custom operations like flash attention or manually writing your own kernel for a specific backend to enhance performance.
 See [this section](https://burn.dev/book/advanced/backend-extension/index.html) in the Burn Book 🔥 for more details.
 
-<br />
 </details>
+
+<br />
 
 ## Backends
 
 <div align="left">
-<img align="right" src="./assets/illu-backend-uni_T07.png" height="96px"/>
+<img align="right" src="./assets/backend-chip.png" height="96px"/>
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
 We believe this flexibilty is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
 </div>
@@ -292,7 +288,7 @@ LibTorch: Backend using the LibTorch bindings 🎆
 PyTorch doesn't need an introduction in the realm of deep learning.
 This backend leverages [PyTorch Rust bindings](https://github.com/LaurentMazare/tch-rs), enabling you to use LibTorch C++ kernels on CPU, CUDA and Metal.
 
-</details
+</details>
 
 <details>
 <summary>
@@ -376,20 +372,22 @@ Of note, we plan to implement automatic gradient checkpointing based on compute 
 
 </details>
 
+<br />
+
 ## Training & Inference
 
 <div align="left">
-<img align="right" src="./assets/illu-flexible-altA-uni_T07.png" height="96px"/>
+<img align="right" src="./assets/ember-wall.png" height="96px"/>
 
 The whole deep learning workflow is made easy with Burn, as you can monitor your training progress with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU clusters.
 
 </div>
 
 <div align="center">
-<video width="480" height="320" controls>
-  <source src="./assets/burn-dashboard-tui.mp4" type="video/mp4">
-Your browser does not support the video tag.
-</video>
+
+<a href="https://www.youtube.com/watch?v=N9RM5CQbNQc" target="_blank">
+    <img src="./assets/burn-train-tui.png" alt="Burn Train TUI">
+  </a>
 </div>
 
 <br />
@@ -404,8 +402,6 @@ As you can see in the previous video, a new terminal UI dashboard based on the [
 
 You can visualize your training and validation metrics updating in real-time and analyze the lifelong progression or recent history of any registered metrics using only the arrow keys.
 Break from the training loop without crashing, allowing potential checkpoints to be fully written or important pieces of code to complete without interruption 🛡
-
-<br />
 
 </details>
 
@@ -434,10 +430,13 @@ Inference in the Browser 🌐
 
 Several of our backends can compile to Web Assembly: Candle and NdArray for CPU, and WGPU for GPU. This means that you can run inference directly within a browser.
 We provide several examples of this:
-   * [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to find which one it is! 2️⃣ 7️⃣ 😰
-   * [Image Classification](./examples/image-classification-web) where you can upload images and classify them! 🌄
+
+- [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to find which one it is! 2️⃣ 7️⃣ 😰
+- [Image Classification](./examples/image-classification-web) where you can upload images and classify them! 🌄
 
 </details>
+
+<br />
 
 ## Getting Started
 
@@ -459,8 +458,8 @@ This is why we highly recommend new users to read the first sections of [The Bur
 It provides detailed examples and explanations covering every facet of the framework, including building blocks like tensors, modules, and optimizers, all the way to advanced usage, like coding your own GPU kernels.
 
 > The project is constantly evolving, and we try as much as possible to keep the book up to date with new additions.
-However, we might miss some details sometimes, so if you see something weird, let us know!
-We also gladly accept Pull Requests 😄
+> However, we might miss some details sometimes, so if you see something weird, let us know!
+> We also gladly accept Pull Requests 😄
 
 </details>
 
@@ -543,18 +542,21 @@ Although Rust has the reputation of being a difficult language at first, we stro
 ## Community
 
 <div align="left">
-<img align="right" src="./assets/illu-community_driven-uni_T07.png" height="96px"/>
+<img align="right" src="./assets/ember-community.png" height="96px"/>
 
 If you have additional questions or are just excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs) !
 We try to be as welcoming as possible to eveybody from any background.
 Before contributing, please take a moment to review our
 [code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md). Please see more details in our [contributing guide](/CONTRIBUTING.md).
 
+<br />
 
 ## Status
 
 Burn is currently in active development, and there will be breaking changes. While any resulting
 issues are likely to be easy to fix, there are no guarantees at this stage.
+
+<br />
 
 ## License
 
