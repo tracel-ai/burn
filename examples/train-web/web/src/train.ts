@@ -9,22 +9,13 @@ const sqlJs = initSqlJs({
 	locateFile: () => sqliteWasmUrl,
 })
 
-// just load and run mnist on pageload
-fetch('./mnist.db')
-	.then((r) => r.arrayBuffer())
-	.then(loadSqliteAndRun)
-	.catch(console.error)
-
-export function setupTrain(element: HTMLInputElement) {
-	element.onchange = async function () {
-		const files = element.files
-		if (files != null) {
-			const file = files[0]
-			if (file != null) {
-				let ab = await file.arrayBuffer()
-				await loadSqliteAndRun(ab)
-			}
-		}
+self.onmessage = async (event) => {
+	if (event.data === 'autotrain') {
+		let db = await fetch('/mnist.db')
+		let ab = await db.arrayBuffer()
+		loadSqliteAndRun(ab)
+	} else if (event.data instanceof ArrayBuffer) {
+		loadSqliteAndRun(event.data)
 	}
 }
 
