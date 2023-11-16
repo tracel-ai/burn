@@ -386,7 +386,7 @@ The whole deep learning workflow is made easy with Burn, as you can monitor your
 <div align="center">
 
 <a href="https://www.youtube.com/watch?v=N9RM5CQbNQc" target="_blank">
-    <img src="./assets/burn-train-tui.png" alt="Burn Train TUI">
+    <img src="./assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
   </a>
 </div>
 
