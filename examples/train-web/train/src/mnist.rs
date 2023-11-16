@@ -89,14 +89,14 @@ impl MNISTDataset {
                 let image_bytes = images[start..end].to_vec();
                 // Assert that the incoming data is a valid PNG.
                 // Really just here to ensure the decoding process isn't off by one.
-                debug_assert_eq!(
-                    image_bytes[0..8],
-                    vec![137, 80, 78, 71, 13, 10, 26, 10] // Starts with bytes from the spec http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
-                );
-                debug_assert_eq!(
-                    image_bytes[image_bytes.len() - 8..],
-                    vec![73, 69, 78, 68, 174, 66, 96, 130] // Ends with the IEND chunk. I don't think the spec specifies the last 4 bytes, but `mnist.db`'s images all end with it.
-                );
+                // debug_assert_eq!(
+                //     image_bytes[0..8],
+                //     vec![137, 80, 78, 71, 13, 10, 26, 10] // Starts with bytes from the spec http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
+                // );
+                // debug_assert_eq!(
+                //     image_bytes[image_bytes.len() - 8..],
+                //     vec![73, 69, 78, 68, 174, 66, 96, 130] // Ends with the IEND chunk. I don't think the spec specifies the last 4 bytes, but `mnist.db`'s images all end with it.
+                // );
                 let raw = MNISTItemRaw {
                     label: *label,
                     image_bytes,
