@@ -21,6 +21,7 @@ use burn::{
         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
+use log::info;
 
 impl<B: Backend> Model<B> {
     pub fn forward_classification(
@@ -68,16 +69,20 @@ pub struct TrainingConfig {
 struct CustomRenderer {}
 
 impl MetricsRenderer for CustomRenderer {
-    fn update_train(&mut self, _state: MetricState) {}
+    fn update_train(&mut self, state: MetricState) {
+        info!("Updated Training: {:?}", state);
+    }
 
-    fn update_valid(&mut self, _state: MetricState) {}
+    fn update_valid(&mut self, state: MetricState) {
+        info!("Updated Validation: {:?}", state);
+    }
 
     fn render_train(&mut self, item: TrainingProgress) {
-        dbg!(item);
+        info!("Training Progress: {:?}", item);
     }
 
     fn render_valid(&mut self, item: TrainingProgress) {
-        dbg!(item);
+        info!("Validation Progress: {:?}", item);
     }
 }
 
