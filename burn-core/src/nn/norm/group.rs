@@ -89,6 +89,7 @@ impl<B: Backend> GroupNorm<B> {
 
         let batch_size = shape.dims[0];
         let num_channels = shape.dims[1];
+
         if num_channels != self.num_channels {
             panic!(
                 "expected {} channels but got {}",
@@ -96,27 +97,24 @@ impl<B: Backend> GroupNorm<B> {
             );
         }
 
-        let input = input.reshape([
-            batch_size,
-            self.num_groups,
-            shape.num_elements() / (batch_size * self.num_groups),
-        ]);
+        let hidden_size =
+            shape.dims[2..].iter().product::<usize>() * num_channels / self.num_groups;
+        let input = input.reshape([batch_size, self.num_groups, hidden_size]);
 
-        let mean = input.clone().mean_dim(D - 1);
-        let var = (mean.clone() * mean.clone()).mean_dim(D - 1);
-
+        let mean = input.clone().sum_dim(2) / hidden_size as f64;
+        let var = input.clone().sqrt().sum_dim(2) / hidden_size as f64;
         let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
-        let input_normalized = input_normalized.reshape(shape);
 
         if self.affine {
             let mut affine_shape = [1; D];
             affine_shape[1] = num_channels;
 
             input_normalized
+                .reshape(shape)
                 .mul(self.gamma.val().reshape(affine_shape))
                 .add(self.beta.val().reshape(affine_shape))
         } else {
-            input_normalized
+            input_normalized.reshape(shape)
         }
     }
 }
@@ -124,16 +122,58 @@ impl<B: Backend> GroupNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Distribution};
+    use burn_tensor::Data;
 
     #[cfg(feature = "std")]
-    use crate::{TestAutodiffBackend, TestBackend};
+    use crate::TestBackend;
 
     #[cfg(not(feature = "std"))]
     use crate::TestBackend;
 
     #[test]
     fn group_norm_forward() {
-        let module = GroupNormConfig::new(3, 6).init::<TestBackend>();
+        let module = GroupNormConfig::new(2, 6).init::<TestBackend>();
+        let input = Tensor::from_data(Data::from([
+            [
+                [-0.3034f32, 0.2726, -0.9659],
+                [-1.1845, -1.3236, 0.0172],
+                [1.9507, 1.2554, -0.8625],
+                [1.0682, 0.3604, 0.3985],
+                [-0.4957, -0.4461, -0.9721],
+                [1.5157, -0.1546, -0.5596],
+            ],
+            [
+                [-1.6698, -0.4040, -0.7927],
+                [0.3736, -0.0975, -0.1351],
+                [-0.9461, 0.5461, -0.6334],
+                [-1.0919, -0.1158, 0.1213],
+                [-0.9535, 0.1281, 0.4372],
+                [-0.2845, 0.3488, 0.5641],
+            ],
+        ]));
+
+        let output = module.forward(input);
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [
+                    [-0.1653, 0.3748, -0.7866],
+                    [-0.9916, -1.1220, 0.1353],
+                    [1.9485, 1.2965, -0.6896],
+                    [1.2769, 0.3628, 0.4120],
+                    [-0.7427, -0.6786, -1.3578],
+                    [1.8547, -0.3022, -0.8252],
+                ],
+                [
+                    [-1.9342, 0.0211, -0.5793],
+                    [1.2223, 0.4945, 0.4365],
+                    [-0.8163, 1.4887, -0.3333],
+                    [-1.7960, -0.0392, 0.3875],
+                    [-1.5469, 0.3998, 0.9561],
+                    [-0.3428, 0.7970, 1.1845],
+                ],
+            ]),
+            3,
+        );
     }
 }
