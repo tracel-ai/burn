@@ -385,6 +385,8 @@ The whole deep learning workflow is made easy with Burn, as you can monitor your
 
 <div align="center">
 
+<br />
+
 <a href="https://www.youtube.com/watch?v=N9RM5CQbNQc" target="_blank">
     <img src="./assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
   </a>
@@ -544,19 +546,24 @@ Although Rust has the reputation of being a difficult language at first, we stro
 <div align="left">
 <img align="right" src="./assets/ember-community.png" height="96px"/>
 
-If you have additional questions or are just excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs) !
-We try to be as welcoming as possible to eveybody from any background.
-Before contributing, please take a moment to review our
-[code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md). Please see more details in our [contributing guide](/CONTRIBUTING.md).
+If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs)!
+We try to be as welcoming as possible to everybody from any background.
+You can ask your questions and share what you built with the community!
 
-<br />
+<br/>
+
+**Contributing**
+
+Before contributing, please take a moment to review our
+[code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md).
+It's also highly recommended to read our
+[architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains some of our architectural decisions.
+Refer to out [contributing guide](/CONTRIBUTING.md) for more details.
 
 ## Status
 
-Burn is currently in active development, and there will be breaking changes. While any resulting
-issues are likely to be easy to fix, there are no guarantees at this stage.
-
-<br />
+Burn is currently in active development, and there will be breaking changes.
+While any resulting issues are likely to be easy to fix, there are no guarantees at this stage.
 
 ## License
 
