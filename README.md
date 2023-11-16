@@ -1,9 +1,5 @@
 <div align="center">
 <img src="./assets/logo-burn-neutral.webp" width="350px"/>
-<div align="left">
-&nbsp;
-
-<div align="center">
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
@@ -12,8 +8,12 @@
 [![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+---
 
-Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibilty, compute efficiency and portability as its primary goals.
+__Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibilty, compute efficiency and portability as its primary goals.__
+
+<br/>
+</div>
 
 <div align="left">
 
@@ -147,8 +147,6 @@ For [backends developed from scratch by the Burn team](#backends), an asynchrono
 Asynchronous execution also ensures that the normal execution of the framework does not block the model computations, which implies that the framework overhead won't impact the speed of execution significantly.
 Conversely, the intense computations in the model do not interfere with the responsiveness of the framework.
 For more information about our asynchronous backends, see [this blog post](https://burn.dev/blog/creating-high-performance-asynchronous-backends-with-burn-compute).
-
-<br />
 
 </details>
 
@@ -549,6 +547,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs)!
 We try to be as welcoming as possible to everybody from any background.
 You can ask your questions and share what you built with the community!
+</div>
 
 <br/>
 
@@ -570,3 +569,5 @@ While any resulting issues are likely to be easy to fix, there are no guarantees
 Burn is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
 See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for details. Opening a pull
 request is assumed to signal agreement with these licensing terms.
+
+</div>
