@@ -390,19 +390,6 @@ The whole deep learning workflow is made easy with Burn, as you can monitor your
   </a>
 </div>
 
-<div class="video-container">
-    <!-- Video Player with Poster -->
-    <video controls poster="/assets/burn-train-tui.png">
-      <source src="https://www.youtube.com/watch?v=N9RM5CQbNQc" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  </div>
-<video controls poster="/assets/burn-train-tui.png">
-  <source src="movie.mp4" type="video/mp4">
-  <source src="movie.ogg" type="video/ogg">
-  Your browser does not support the video tag.
-</video>
-
 <br />
 
 <details>
@@ -411,7 +398,7 @@ Training Dashboard 📈
 </summary>
 <br />
 
-As you can see in the previous video, a new terminal UI dashboard based on the [Ratatui](https://github.com/ratatui-org/ratatui) crate allows users to follow their training with ease without having to connect to any external application.
+As you can see in the previous video (click on the picture!), a new terminal UI dashboard based on the [Ratatui](https://github.com/ratatui-org/ratatui) crate allows users to follow their training with ease without having to connect to any external application.
 
 You can visualize your training and validation metrics updating in real-time and analyze the lifelong progression or recent history of any registered metrics using only the arrow keys.
 Break from the training loop without crashing, allowing potential checkpoints to be fully written or important pieces of code to complete without interruption 🛡
