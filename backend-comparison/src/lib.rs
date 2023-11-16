@@ -1,3 +1,6 @@
+
+pub mod persistence;
+
 #[macro_export]
 macro_rules! bench_on_backend {
     () => {
