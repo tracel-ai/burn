@@ -118,6 +118,13 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
+      - name: Install Vulkan
+        if: matrix.os == 'windows-latest'
+        uses: humbletim/install-vulkan-sdk@v1.1.1
+        with:
+          version: latest
+          cache: true
+
       - name: run checks & tests
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
