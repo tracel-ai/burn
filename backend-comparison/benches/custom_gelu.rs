@@ -52,9 +52,7 @@ where
     Erf: Fn(Tensor<B, D>) -> Tensor<B, D>,
 {
     let x = x.clone() * (erf(x / SQRT_2) + 1);
-    let result = x / 2;
-
-    result
+    x / 2
 }
 
 fn erf_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
@@ -81,7 +79,7 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
     let t = x1.recip();
     let tmp = (((((t.clone() * a5) + a4) * t.clone()) + a3) * t.clone() + a2) * t.clone() + a1;
 
-    return -(tmp * t * (-x.clone() * x).exp()) + 1.0;
+    -(tmp * t * (-x.clone() * x).exp()) + 1.0
 }
 
 #[allow(dead_code)]
