@@ -16,6 +16,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
     - name: Install valgrind
       run: |
         sudo apt-get install valgrind
@@ -36,6 +43,13 @@ jobs:
       with:
         toolchain: nightly
         components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
     - name: Install cargo-careful
       env:
@@ -61,7 +75,14 @@ jobs:
       uses: dtolnay/rust-toolchain@nightly
       with:
         toolchain: nightly
-        components: rust-src
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
     - name: Run AddressSanitizer
       env:
@@ -81,7 +102,14 @@ jobs:
       uses: dtolnay/rust-toolchain@nightly
       with:
         toolchain: nightly
-        components: rust-src
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
     - name: Run ThreadSanitizer
       env:
