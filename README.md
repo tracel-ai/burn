@@ -8,9 +8,10 @@
 [![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+
 ---
 
-__Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibility, compute efficiency and portability as its primary goals.__
+**Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibility, compute efficiency and portability as its primary goals.**
 
 <br/>
 </div>
@@ -21,8 +22,12 @@ __Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <
 
 <div align="left">
 <img align="right" src="./assets/ember-blazingly-fast.png" height="96px"/>
-Because we believe the goal of a deep learning framework is to convert computation into useful intelligence, we have made performance a core pillar of Burn. 
-We strive to achieve top efficiency by leveraging multiple optimization techniques described below 👇
+
+Because we believe the goal of a deep learning framework is to convert computation into useful intelligence, we have made performance a core pillar of Burn.
+We strive to achieve top efficiency by leveraging multiple optimization techniques described below.
+
+**Click on each section for more details** 👇
+
 </div>
 
 <br />
@@ -37,7 +42,6 @@ Using Burn means having your models optimized on any backend.
 When possible, we provide a way to automatically and dynamically create custom kernels that minimize data relocation between different memory spaces, extremely useful when moving memory is the bottleneck.
 
 As an example, you could write your own GELU activation function with the high level tensor api (see Rust code snippet below).
-Then, at runtime, a custom low-level kernel will be automatically created for your specific implementation (see WGSL kernel below) and will rival a handcrafted GPU implementation.
 
 ```rust
 fn gelu_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
@@ -46,90 +50,7 @@ fn gelu_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 }
 ```
 
-You probably don't want to code your deep learning model with a lower level shader language, since as shown below it is extremely verbose.
-Note that the error function (erf) isn't part of the WGSL specifications (<a href="https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/">WebGPU Shading Language</a>), so we automatically extend the language with our own implementation.
-
-```wgsl
-@group(0)
-@binding(0)
-var<storage, read> input_0_global: array<f32>;
-
-@group(0)
-@binding(1)
-var<storage, read_write> output_0_global: array<f32>;
-
-@group(0)
-@binding(2)
-var<storage, read> scalars_f32: array<f32, 3>;
-
-@group(0)
-@binding(3)
-var<storage, read> info: array<u32>;
-
-const WORKGROUP_SIZE_X = 32u;
-const WORKGROUP_SIZE_Y = 32u;
-const WORKGROUP_SIZE_Z = 1u;
-
-@compute
-@workgroup_size(32, 32, 1)
-fn main(
-    @builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(num_workgroups) num_workgroups: vec3<u32>,
-) {
-    let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
-let rank: u32 = info[0];
-
-
-var index_input_0: u32 = 0u;
-
-for (var i: u32 = 1u; i <= rank; i++) {
-    let position = 0u * (2u * rank);
-    let position_out = 1u * (2u * rank);
-
-    let stride = info[position + i];
-    let stride_out = info[position_out + i];
-    let shape = info[position + rank + i];
-
-    index_input_0 += id / stride_out % shape * stride;
-}
-
-let input_0 = input_0_global[index_input_0];
-
-let local_0 = input_0 / scalars_f32[0];
-let local_1 = erf(local_0);
-let local_2 = local_1 + scalars_f32[1];
-let local_3 = input_0 * local_2;
-let local_4 = local_3 / scalars_f32[2];
-output_0_global[id] = local_4;
-
-}
-
-/// An approximation of the error function: https://en.wikipedia.org/wiki/Error_function#Numerical_approximations
-///
-/// > (maximum error: 1.5×10−7)
-/// > All of these approximations are valid for x ≥ 0. To use these approximations for negative x, use the fact that erf x is an odd function, so erf x = −erf(−x).
-fn erf_positive(x: f32) -> f32 {
-    let p = 0.3275911;
-    let a1 = 0.254829592;
-    let a2 = -0.284496736;
-    let a3 = 1.421413741;
-    let a4 = -1.453152027;
-    let a5 = 1.061405429;
-
-    let t = 1.0 / (1.0 + p * abs(x));
-    let tmp = ((((a5 * t + a4) * t) + a3) * t + a2) * t + a1;
-
-    return 1.0 - (tmp * t * exp(-x * x));
-}
-
-fn erf(x: f32) -> f32 {
-    if (x < 0.0) {
-        return -1.0 * erf_positive(-1.0 * x);
-    }
-
-    return erf_positive(x);
-}
-```
+Then, at runtime, a custom low-level kernel will be automatically created for your specific implementation and will rival a handcrafted GPU implementation. The kernel consists of about 60 lines of WGSL [WebGPU Shading Language]("https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/"), an extremely verbose lower level shader language you probably don't want to program your deep learning models in!
 
 > As of now, our fusion strategy is only implemented for our own WGPU backend and supports only a subset of operations.
 > We plan to add more operations very soon and extend this technique to other future in-house backends.
@@ -138,7 +59,7 @@ fn erf(x: f32) -> f32 {
 
 <details>
 <summary>
-Asynchronous execution 🧨
+Asynchronous execution ❤️‍🔥
 </summary>
 <br />
 
@@ -152,7 +73,7 @@ For more information about our asynchronous backends, see [this blog post](https
 
 <details>
 <summary>
-Thread-safe building blocks ❤️‍🔥
+Thread-safe building blocks 🦞
 </summary>
 <br />
 
@@ -243,10 +164,10 @@ We believe this flexibility is crucial for modern needs where you may train your
 <br />
 
 Compared to other frameworks, Burn has a very different approach to supporting many backends.
-By design, most code is generic over the Backend trait, which allows us to build Burn with backends as plugins.
+By design, most code is generic over the Backend trait, which allows us to build Burn with swappable backends.
 This makes composing backend possible, augmenting them with additional functionalities such as autodifferentiation and automatic kernel fusion.
 
-We already have many backends implemented, all listed below 👇
+**We already have many backends implemented, all listed below 👇**
 
 <details>
 <summary>
@@ -391,6 +312,8 @@ The whole deep learning workflow is made easy with Burn, as you can monitor your
 </div>
 
 <br />
+
+**Click on the following sections to expand 👇**
 
 <details>
 <summary>
@@ -547,6 +470,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs)!
 We try to be as welcoming as possible to everybody from any background.
 You can ask your questions and share what you built with the community!
+
 </div>
 
 <br/>
