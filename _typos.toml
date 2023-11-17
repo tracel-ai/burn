@@ -1,5 +1,5 @@
 [default]
-extend-ignore-identifiers-re = ["ratatui", "NdArray*", "ND"]
+extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
 
 [files]
 extend-exclude = [
