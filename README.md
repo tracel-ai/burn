@@ -8,9 +8,10 @@
 [![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
+
 ---
 
-__Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibility, compute efficiency and portability as its primary goals.__
+**Burn is a new comprehensive dynamic Deep Learning Framework built using Rust <br /> with extreme flexibility, compute efficiency and portability as its primary goals.**
 
 <br/>
 </div>
@@ -47,7 +48,7 @@ fn gelu_custom<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 ```
 
 You probably don't want to code your deep learning model with a lower level shader language, since as shown below it is extremely verbose.
-Note that the error function (erf) isn't part of the WGSL specifications (<a href="https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/">WebGPU Shading Language</a>), so we automatically extend the language with our own implementation.
+Note that the error function (erf) isn't part of the WGSL specifications ([WebGPU Shading Language](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/)), so we automatically extend the language with our own implementation.
 
 ```wgsl
 @group(0)
@@ -256,7 +257,7 @@ WGPU: Cross-Platform GPU Backend 🌐
 
 **The go-to backend for running on any GPU.**
 
-Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU.
+Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/).
 It can also be compiled to Web Assembly to run in the browser while leveraging the GPU, see [this demo](https://antimora.github.io/image-classification/).
 For more information on the benefits of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
 
@@ -547,6 +548,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs)!
 We try to be as welcoming as possible to everybody from any background.
 You can ask your questions and share what you built with the community!
+
 </div>
 
 <br/>
