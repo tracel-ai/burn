@@ -9,11 +9,11 @@ use std::time::Instant;
 
 /// Results of a benchmark run.
 #[derive(new, Debug)]
-pub struct BenchmarkResult {
-    durations: Vec<Duration>,
+pub struct BenchmarkDurations {
+    pub durations: Vec<Duration>,
 }
 
-impl BenchmarkResult {
+impl BenchmarkDurations {
     /// Returns the median duration among all durations
     pub fn median_duration(&self) -> Duration {
         let mut sorted = self.durations.clone();
@@ -25,7 +25,7 @@ impl BenchmarkResult {
     }
 }
 
-impl Display for BenchmarkResult {
+impl Display for BenchmarkDurations {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mean = self.mean_duration();
         let var = self
@@ -87,7 +87,7 @@ pub trait Benchmark {
     /// Wait for computations to be over
     fn sync(&self);
     /// Run the benchmark a number of times.
-    fn run(&self) -> BenchmarkResult {
+    fn run(&self) -> BenchmarkDurations {
         #[cfg(not(feature = "std"))]
         panic!("Attempting to run benchmark in a no-std environment");
 
@@ -114,14 +114,40 @@ pub trait Benchmark {
                 durations.push(end - start);
             }
 
-            BenchmarkResult { durations }
+            BenchmarkDurations { durations }
         }
+    }
+}
+
+pub struct BenchmarkResult {
+    pub durations: BenchmarkDurations,
+    pub timestamp: u128,
+    pub git_hash: String,
+    pub name: String, // TODO name should be struct
+}
+
+impl Display for BenchmarkResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(
+            format!(
+                "
+        Timestamp: {}
+        Git Hash: {}
+        Benchmarking - {}{}
+        ",
+                self.timestamp,
+                str::trim(&self.git_hash),
+                self.name,
+                self.durations
+            )
+            .as_str(),
+        )
     }
 }
 
 #[cfg(feature = "std")]
 /// Runs the given benchmark on the device and prints result and information.
-pub fn run_benchmark<BM>(benchmark: BM)
+pub fn run_benchmark<BM>(benchmark: BM) -> BenchmarkResult
 where
     BM: Benchmark,
 {
@@ -134,8 +160,10 @@ where
         .output()
         .unwrap();
     let git_hash = String::from_utf8(output.stdout).unwrap();
-
-    println!("Timestamp: {}", timestamp);
-    println!("Git Hash: {}", str::trim(&git_hash));
-    println!("Benchmarking - {}{}", benchmark.name(), benchmark.run());
+    BenchmarkResult {
+        timestamp,
+        git_hash,
+        name: benchmark.name(),
+        durations: benchmark.run(),
+    }
 }
