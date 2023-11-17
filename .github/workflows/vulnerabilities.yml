@@ -29,7 +29,7 @@ jobs:
 
     - name: Run cargo-valgrind
       # Looking for vulnerabilities
-      run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind -s --error-exitcode=1" cargo test
+      run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind -s --leak-check=full --error-exitcode=1" cargo test
 
   cargo-careful:
 
@@ -89,7 +89,7 @@ jobs:
         RUSTFLAGS: -Zsanitizer=address -Copt-level=3
         RUSTDOCFLAGS: -Zsanitizer=address
       # Looking for memory vulnerabilities
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
 
   thread-sanitizer:
 
@@ -116,4 +116,4 @@ jobs:
         RUSTFLAGS: -Zsanitizer=thread -Copt-level=3
         RUSTDOCFLAGS: -Zsanitizer=thread
       # Looking for data race among threads
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
