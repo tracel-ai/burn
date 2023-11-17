@@ -22,7 +22,7 @@ jobs:
 
     - name: Run cargo-valgrind
       # Looking for vulnerabilities
-      run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --error-exitcode=1" cargo test
+      run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind -s --error-exitcode=1" cargo test
 
   cargo-careful:
 
