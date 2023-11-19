@@ -10,4 +10,3 @@ pub(crate) mod maxmin;
 
 pub use backward::*;
 pub use base::*;
-pub use int_tensor::*;

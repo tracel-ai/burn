@@ -51,3 +51,6 @@ thiserror = {workspace = true}
 rayon = {workspace = true}
 rstest = {workspace = true}
 fake = {workspace = true}
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["strum", "strum_macros"]
