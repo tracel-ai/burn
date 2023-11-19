@@ -291,7 +291,7 @@ where
     ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
     ///     // Select element 0 of first dimension, elements 1,2 of second dimension
     ///     // and element 1 of third dimension
-    ///     // 
+    ///     //
     ///     // This is the equivalent of this pseudo code
     ///     // let mut v = vec![[[]]];
     ///     // v[0][0][0] = tensor[0][1][1];
