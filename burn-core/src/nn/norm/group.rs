@@ -30,8 +30,8 @@ pub struct GroupNormConfig {
 pub struct GroupNorm<B: Backend> {
     num_groups: usize,
     num_channels: usize,
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
+    gamma: Option<Param<Tensor<B, 1>>>,
+    beta: Option<Param<Tensor<B, 1>>>,
     epsilon: f64,
     affine: bool,
 }
@@ -45,8 +45,14 @@ impl GroupNormConfig {
             "The number of channels must be divisible by the number of groups"
         );
 
-        let gamma = Tensor::ones([self.num_channels]).into();
-        let beta = Tensor::zeros([self.num_channels]).into();
+        let (gamma, beta) = if self.affine {
+            let gamma = Tensor::ones([self.num_channels]).into();
+            let beta = Tensor::zeros([self.num_channels]).into();
+
+            (Some(gamma), Some(beta))
+        } else {
+            (None, None)
+        };
 
         GroupNorm {
             num_groups: self.num_groups,
@@ -111,8 +117,8 @@ impl<B: Backend> GroupNorm<B> {
 
             input_normalized
                 .reshape(shape)
-                .mul(self.gamma.val().reshape(affine_shape))
-                .add(self.beta.val().reshape(affine_shape))
+                .mul(self.gamma.clone().unwrap().val().reshape(affine_shape))
+                .add(self.beta.clone().unwrap().val().reshape(affine_shape))
         } else {
             input_normalized.reshape(shape)
         }
@@ -123,16 +129,17 @@ impl<B: Backend> GroupNorm<B> {
 mod tests {
     use super::*;
     use burn_tensor::Data;
-
-    #[cfg(feature = "std")]
-    use crate::TestBackend;
-
-    #[cfg(not(feature = "std"))]
     use crate::TestBackend;
 
     #[test]
-    fn group_norm_forward() {
-        let module = GroupNormConfig::new(2, 6).init::<TestBackend>();
+    fn group_norm_forward_affine_false() {
+        let module = GroupNormConfig::new(2, 6)
+            .with_affine(false)
+            .init::<TestBackend>();
+
+        assert!(module.gamma.is_none());
+        assert!(module.beta.is_none());
+
         let input = Tensor::from_data(Data::from([
             [
                 [-0.3034f32, 0.2726, -0.9659],
@@ -172,6 +179,72 @@ mod tests {
                     [-1.5469, 0.3998, 0.9561],
                     [-0.3428, 0.7970, 1.1845],
                 ],
+            ]),
+            3,
+        );
+    }
+
+    #[test]
+    fn group_norm_forward_affine_true() {
+        let module = GroupNormConfig::new(3, 6)
+            .with_affine(true)
+            .init::<TestBackend>();
+
+        module
+            .gamma
+            .as_ref()
+            .expect("Gamma is None")
+            .val()
+            .to_data()
+            .assert_approx_eq(&Data::ones([6].into()), 3);
+
+        module
+            .beta
+            .as_ref()
+            .expect("beta is None")
+            .val()
+            .to_data()
+            .assert_approx_eq(&Data::zeros([6]), 3);
+
+        let input = Tensor::from_data(Data::from([
+            [
+                [-0.3034f32, 0.2726, -0.9659],
+                [-1.1845, -1.3236, 0.0172],
+                [1.9507, 1.2554, -0.8625],
+                [1.0682, 0.3604, 0.3985],
+                [-0.4957, -0.4461, -0.9721],
+                [1.5157, -0.1546, -0.5596],
+            ],
+            [
+                [-1.6698, -0.4040, -0.7927],
+                [0.3736, -0.0975, -0.1351],
+                [-0.9461, 0.5461, -0.6334],
+                [-1.0919, -0.1158, 0.1213],
+                [-0.9535, 0.1281, 0.4372],
+                [-0.2845, 0.3488, 0.5641],
+            ],
+        ]));
+
+        let output = module.forward(input);
+
+        output.to_data().assert_approx_eq(
+            &Data::from([
+                [
+                    [0.4560, 1.4014, -0.6313],
+                    [-0.9901, -1.2184, 0.9822],
+                    [1.4254, 0.6360, -1.7682],
+                    [0.4235, -0.3800, -0.3367],
+                    [-0.3890, -0.3268, -0.9862],
+                    [2.1325, 0.0386, -0.4691]
+                ],
+                [
+                    [-1.8797, 0.0777, -0.5234],
+                    [1.2802, 0.5517, 0.4935],
+                    [-1.0102, 1.5327, -0.4773],
+                    [-1.2587, 0.4047, 0.8088],
+                    [-1.9074, 0.1691, 0.7625],
+                    [-0.6230, 0.5928, 1.0061]
+                ]
             ]),
             3,
         );
