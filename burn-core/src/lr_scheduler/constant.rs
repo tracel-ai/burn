@@ -8,39 +8,39 @@ use crate::LearningRate;
 /// You can also use [learning rate](LearningRate) which the same effect.
 #[derive(new, Clone, Debug)]
 pub struct ConstantLr {
-    lr: LearningRate,
+  lr: LearningRate,
 }
 
 impl From<LearningRate> for ConstantLr {
-    fn from(lr: LearningRate) -> Self {
-        Self { lr }
-    }
+  fn from(lr: LearningRate) -> Self {
+    Self { lr }
+  }
 }
 
 impl LrScheduler for ConstantLr {
-    type Record = ();
+  type Record = ();
 
-    fn step(&mut self) -> LearningRate {
-        self.lr
-    }
+  fn step(&mut self) -> LearningRate {
+    self.lr
+  }
 
-    fn to_record(&self) -> Self::Record {}
+  fn to_record(&self) -> Self::Record {}
 
-    fn load_record(self, _record: Self::Record) -> Self {
-        self
-    }
+  fn load_record(self, _record: Self::Record) -> Self {
+    self
+  }
 }
 
 impl LrScheduler for LearningRate {
-    type Record = ();
+  type Record = ();
 
-    fn step(&mut self) -> LearningRate {
-        *self
-    }
+  fn step(&mut self) -> LearningRate {
+    *self
+  }
 
-    fn to_record(&self) -> Self::Record {}
+  fn to_record(&self) -> Self::Record {}
 
-    fn load_record(self, _record: Self::Record) -> Self {
-        self
-    }
+  fn load_record(self, _record: Self::Record) -> Self {
+    self
+  }
 }

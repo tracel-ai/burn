@@ -4,46 +4,46 @@ use derive_new::new;
 
 #[derive(new)]
 struct UnaryBenchmark<B: Backend, const D: usize> {
-    shape: Shape<D>,
-    num_repeats: usize,
-    device: B::Device,
+  shape: Shape<D>,
+  num_repeats: usize,
+  device: B::Device,
 }
 
 impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
-    type Args = Tensor<B, D>;
+  type Args = Tensor<B, D>;
 
-    fn name(&self) -> String {
-        "Unary Ops".into()
-    }
+  fn name(&self) -> String {
+    "Unary Ops".into()
+  }
 
-    fn execute(&self, args: Self::Args) {
-        for _ in 0..self.num_repeats {
-            // Choice of tanh is arbitrary
-            B::tanh(args.clone().into_primitive());
-        }
+  fn execute(&self, args: Self::Args) {
+    for _ in 0..self.num_repeats {
+      // Choice of tanh is arbitrary
+      B::tanh(args.clone().into_primitive());
     }
+  }
 
-    fn prepare(&self) -> Self::Args {
-        Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
-    }
+  fn prepare(&self) -> Self::Args {
+    Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
+  }
 
-    fn sync(&self) {
-        B::sync(&self.device)
-    }
+  fn sync(&self) {
+    B::sync(&self.device)
+  }
 }
 
 #[allow(dead_code)]
 fn bench<B: Backend>(device: &B::Device) {
-    const D: usize = 3;
-    let shape: Shape<D> = [32, 512, 1024].into();
-    let num_repeats = 10;
+  const D: usize = 3;
+  let shape: Shape<D> = [32, 512, 1024].into();
+  let num_repeats = 10;
 
-    let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
+  let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    println!("Backend {}", B::name());
-    run_benchmark(benchmark)
+  println!("Backend {}", B::name());
+  run_benchmark(benchmark)
 }
 
 fn main() {
-    backend_comparison::bench_on_backend!();
+  backend_comparison::bench_on_backend!();
 }

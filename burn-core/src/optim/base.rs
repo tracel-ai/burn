@@ -7,19 +7,19 @@ use crate::LearningRate;
 /// General trait to optimize [module](AutodiffModule).
 pub trait Optimizer<M, B>: Send + Sync
 where
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
+  M: AutodiffModule<B>,
+  B: AutodiffBackend,
 {
-    /// Optimizer associative type to be used when saving and loading the state.
-    type Record: Record;
+  /// Optimizer associative type to be used when saving and loading the state.
+  type Record: Record;
 
-    /// Perform the optimizer step using the given learning rate and gradients.
-    /// The updated module is returned.
-    fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M;
+  /// Perform the optimizer step using the given learning rate and gradients.
+  /// The updated module is returned.
+  fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M;
 
-    /// Get the current state of the optimizer as a [record](Record).
-    fn to_record(&self) -> Self::Record;
+  /// Get the current state of the optimizer as a [record](Record).
+  fn to_record(&self) -> Self::Record;
 
-    /// Load the state of the optimizer as a [record](Record).
-    fn load_record(self, record: Self::Record) -> Self;
+  /// Load the state of the optimizer as a [record](Record).
+  fn load_record(self, record: Self::Record) -> Self;
 }

@@ -32,15 +32,15 @@ mod fusion;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+  use super::*;
 
-    pub type TestBackend = Wgpu;
-    pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
+  pub type TestBackend = Wgpu;
+  pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+  pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+  pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
+  pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+  burn_tensor::testgen_all!();
+  burn_autodiff::testgen_all!();
 }

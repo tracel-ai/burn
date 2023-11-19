@@ -4,22 +4,22 @@ use crate::renderer::{MetricState, MetricsRenderer, TrainingProgress};
 pub struct CliMetricsRenderer;
 
 impl CliMetricsRenderer {
-    /// Create a new instance.
-    pub fn new() -> Self {
-        Self {}
-    }
+  /// Create a new instance.
+  pub fn new() -> Self {
+    Self {}
+  }
 }
 
 impl MetricsRenderer for CliMetricsRenderer {
-    fn update_train(&mut self, _state: MetricState) {}
+  fn update_train(&mut self, _state: MetricState) {}
 
-    fn update_valid(&mut self, _state: MetricState) {}
+  fn update_valid(&mut self, _state: MetricState) {}
 
-    fn render_train(&mut self, item: TrainingProgress) {
-        dbg!(item);
-    }
+  fn render_train(&mut self, item: TrainingProgress) {
+    dbg!(item);
+  }
 
-    fn render_valid(&mut self, item: TrainingProgress) {
-        dbg!(item);
-    }
+  fn render_valid(&mut self, item: TrainingProgress) {
+    dbg!(item);
+  }
 }

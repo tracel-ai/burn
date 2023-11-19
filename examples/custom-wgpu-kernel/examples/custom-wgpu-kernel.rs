@@ -1,76 +1,76 @@
 use burn::tensor::{Distribution, Tensor};
 use custom_wgpu_kernel::{
-    matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
+  matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
 };
 
 fn inference<B: Backend>() {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default);
-    let rhs = Tensor::random([32, 32, 32], Distribution::Default);
-    let bias = Tensor::random([32, 32, 32], Distribution::Default);
+  let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default);
+  let rhs = Tensor::random([32, 32, 32], Distribution::Default);
+  let bias = Tensor::random([32, 32, 32], Distribution::Default);
 
-    let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone())
-        .into_data()
-        .convert::<f32>();
-    let custom = matmul_add_relu_custom(lhs, rhs, bias)
-        .into_data()
-        .convert::<f32>();
+  let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone())
+    .into_data()
+    .convert::<f32>();
+  let custom = matmul_add_relu_custom(lhs, rhs, bias)
+    .into_data()
+    .convert::<f32>();
 
-    reference.assert_approx_eq(&custom, 3);
+  reference.assert_approx_eq(&custom, 3);
 
-    println!("Both reference and the custom fused kernel have the same output");
+  println!("Both reference and the custom fused kernel have the same output");
 }
 
 fn autodiff<B: AutodiffBackend>() {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default).require_grad();
-    let rhs = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
-    let bias = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
+  let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default).require_grad();
+  let rhs = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
+  let bias = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
 
-    let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone());
+  let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone());
 
-    let mut gradients = reference.backward();
+  let mut gradients = reference.backward();
 
-    let lhs_grad_ref = lhs.grad_remove(&mut gradients).unwrap();
-    let rhs_grad_ref = rhs.grad_remove(&mut gradients).unwrap();
-    let bias_grad_ref = bias.grad_remove(&mut gradients).unwrap();
+  let lhs_grad_ref = lhs.grad_remove(&mut gradients).unwrap();
+  let rhs_grad_ref = rhs.grad_remove(&mut gradients).unwrap();
+  let bias_grad_ref = bias.grad_remove(&mut gradients).unwrap();
 
-    let lhs = lhs.detach();
-    let rhs = rhs.detach();
-    let bias = bias.detach();
+  let lhs = lhs.detach();
+  let rhs = rhs.detach();
+  let bias = bias.detach();
 
-    let custom = matmul_add_relu_custom(lhs.clone(), rhs.clone(), bias.clone());
+  let custom = matmul_add_relu_custom(lhs.clone(), rhs.clone(), bias.clone());
 
-    let mut gradients = custom.backward();
+  let mut gradients = custom.backward();
 
-    let lhs_grad_custom = lhs.grad_remove(&mut gradients).unwrap();
-    let rhs_grad_custom = rhs.grad_remove(&mut gradients).unwrap();
-    let bias_grad_custom = bias.grad_remove(&mut gradients).unwrap();
+  let lhs_grad_custom = lhs.grad_remove(&mut gradients).unwrap();
+  let rhs_grad_custom = rhs.grad_remove(&mut gradients).unwrap();
+  let bias_grad_custom = bias.grad_remove(&mut gradients).unwrap();
 
-    lhs_grad_ref
-        .into_data()
-        .convert::<f32>()
-        .assert_approx_eq(&lhs_grad_custom.into_data().convert(), 3);
+  lhs_grad_ref
+    .into_data()
+    .convert::<f32>()
+    .assert_approx_eq(&lhs_grad_custom.into_data().convert(), 3);
 
-    println!("Both reference and the custom fused kernel have the same lhs gradient");
+  println!("Both reference and the custom fused kernel have the same lhs gradient");
 
-    rhs_grad_ref
-        .into_data()
-        .convert::<f32>()
-        .assert_approx_eq(&rhs_grad_custom.into_data().convert(), 3);
+  rhs_grad_ref
+    .into_data()
+    .convert::<f32>()
+    .assert_approx_eq(&rhs_grad_custom.into_data().convert(), 3);
 
-    println!("Both reference and the custom fused kernel have the same rhs gradient");
+  println!("Both reference and the custom fused kernel have the same rhs gradient");
 
-    bias_grad_ref
-        .into_data()
-        .convert::<f32>()
-        .assert_approx_eq(&bias_grad_custom.into_data().convert(), 3);
+  bias_grad_ref
+    .into_data()
+    .convert::<f32>()
+    .assert_approx_eq(&bias_grad_custom.into_data().convert(), 3);
 
-    println!("Both reference and the custom fused kernel have the same bias gradient");
+  println!("Both reference and the custom fused kernel have the same bias gradient");
 }
 
 fn main() {
-    type MyBackend = burn::backend::Wgpu;
-    type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
+  type MyBackend = burn::backend::Wgpu;
+  type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
 
-    inference::<MyBackend>();
-    autodiff::<MyAutodiffBackend>();
+  inference::<MyBackend>();
+  autodiff::<MyAutodiffBackend>();
 }

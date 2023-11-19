@@ -11,17 +11,17 @@ use crate::tensor::Tensor;
 pub struct ReLU {}
 
 impl ReLU {
-    /// Create the module.
-    pub fn new() -> Self {
-        Self {}
-    }
-    /// Applies the forward pass on the input tensor.
-    ///
-    /// # Shapes
-    ///
-    /// - input: `[..., any]`
-    /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        crate::tensor::activation::relu(input)
-    }
+  /// Create the module.
+  pub fn new() -> Self {
+    Self {}
+  }
+  /// Applies the forward pass on the input tensor.
+  ///
+  /// # Shapes
+  ///
+  /// - input: `[..., any]`
+  /// - output: `[..., any]`
+  pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    crate::tensor::activation::relu(input)
+  }
 }

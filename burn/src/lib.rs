@@ -12,5 +12,5 @@ pub use burn_core::*;
 /// Train module
 #[cfg(any(feature = "train", feature = "train-minimal"))]
 pub mod train {
-    pub use burn_train::*;
+  pub use burn_train::*;
 }

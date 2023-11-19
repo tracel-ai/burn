@@ -11,30 +11,30 @@ use alloc::string::{String, ToString};
 /// A benchmark that runs on server handles
 #[derive(new)]
 pub struct TuneBenchmark<S: ComputeServer, C> {
-    operation: Box<dyn AutotuneOperation>,
-    client: ComputeClient<S, C>,
+  operation: Box<dyn AutotuneOperation>,
+  client: ComputeClient<S, C>,
 }
 
 impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
-    type Args = Box<dyn AutotuneOperation>;
+  type Args = Box<dyn AutotuneOperation>;
 
-    fn prepare(&self) -> Self::Args {
-        self.operation.clone()
-    }
+  fn prepare(&self) -> Self::Args {
+    self.operation.clone()
+  }
 
-    fn num_samples(&self) -> usize {
-        10
-    }
+  fn num_samples(&self) -> usize {
+    10
+  }
 
-    fn execute(&self, operation: Self::Args) {
-        AutotuneOperation::execute(operation);
-    }
+  fn execute(&self, operation: Self::Args) {
+    AutotuneOperation::execute(operation);
+  }
 
-    fn name(&self) -> String {
-        "Autotune".to_string()
-    }
+  fn name(&self) -> String {
+    "Autotune".to_string()
+  }
 
-    fn sync(&self) {
-        self.client.sync();
-    }
+  fn sync(&self) {
+    self.client.sync();
+  }
 }

@@ -8,75 +8,75 @@ use core::marker::PhantomData;
 /// backpropagation.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Autodiff<B> {
-    _b: PhantomData<B>,
+  _b: PhantomData<B>,
 }
 
 impl<B: Backend> Backend for Autodiff<B> {
-    type Device = B::Device;
+  type Device = B::Device;
 
-    type FullPrecisionElem = B::FullPrecisionElem;
-    type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
+  type FullPrecisionElem = B::FullPrecisionElem;
+  type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
 
-    type TensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
-    type FloatElem = B::FloatElem;
+  type TensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
+  type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
-    type IntElem = B::IntElem;
+  type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
+  type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
+  type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
 
-    fn ad_enabled() -> bool {
-        true
-    }
+  fn ad_enabled() -> bool {
+    true
+  }
 
-    fn name() -> String {
-        format!("autodiff<{}>", B::name())
-    }
+  fn name() -> String {
+    format!("autodiff<{}>", B::name())
+  }
 
-    fn seed(seed: u64) {
-        B::seed(seed)
-    }
+  fn seed(seed: u64) {
+    B::seed(seed)
+  }
 
-    fn sync(device: &B::Device) {
-        B::sync(device);
-    }
+  fn sync(device: &B::Device) {
+    B::sync(device);
+  }
 }
 
 impl<B: Backend> AutodiffBackend for Autodiff<B> {
-    type InnerBackend = B;
-    type Gradients = Gradients;
+  type InnerBackend = B;
+  type Gradients = Gradients;
 
-    fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
-        backward(tensor)
-    }
+  fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
+    backward(tensor)
+  }
 
-    fn grad<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
-        grads: &Gradients,
-    ) -> Option<B::TensorPrimitive<D>> {
-        grads.get(tensor)
-    }
+  fn grad<const D: usize>(
+    tensor: &AutodiffTensor<B, D>,
+    grads: &Gradients,
+  ) -> Option<B::TensorPrimitive<D>> {
+    grads.get(tensor)
+  }
 
-    fn grad_remove<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
-        grads: &mut Gradients,
-    ) -> Option<B::TensorPrimitive<D>> {
-        grads.remove(tensor)
-    }
-    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::TensorPrimitive<D> {
-        tensor.primitive
-    }
+  fn grad_remove<const D: usize>(
+    tensor: &AutodiffTensor<B, D>,
+    grads: &mut Gradients,
+  ) -> Option<B::TensorPrimitive<D>> {
+    grads.remove(tensor)
+  }
+  fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::TensorPrimitive<D> {
+    tensor.primitive
+  }
 
-    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
-        AutodiffTensor::new(tensor)
-    }
+  fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    AutodiffTensor::new(tensor)
+  }
 
-    fn grad_replace<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
-        grads: &mut Self::Gradients,
-        grad: B::TensorPrimitive<D>,
-    ) {
-        grads.remove(tensor);
-        grads.register::<B, D>(tensor.node.clone(), grad);
-    }
+  fn grad_replace<const D: usize>(
+    tensor: &AutodiffTensor<B, D>,
+    grads: &mut Self::Gradients,
+    grad: B::TensorPrimitive<D>,
+  ) {
+    grads.remove(tensor);
+    grads.register::<B, D>(tensor.node.clone(), grad);
+  }
 }
