@@ -267,7 +267,7 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
-    ///     let tensor = tensor.unsqueeze_dim::<3>(1);
+    ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dim(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [3, 1, 3] }
     /// }

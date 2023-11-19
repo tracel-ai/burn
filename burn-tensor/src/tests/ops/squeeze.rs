@@ -47,18 +47,18 @@ mod tests {
     /// Test if the function can successfully unsqueeze the first size 1 dimension of a 4D tensor.
     #[test]
     fn should_unsqueeze_dim_first() {
-        let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([1, 3, 4, 5]));
+        let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([2, 3, 4, 5]));
         let unsqueezed_tensor: Tensor<TestBackend, 5> = tensor.unsqueeze_dim(0);
-        let expected_shape = Shape::new([1, 1, 3, 4, 5]);
+        let expected_shape = Shape::new([1, 2, 3, 4, 5]);
         assert_eq!(unsqueezed_tensor.shape(), expected_shape);
     }
 
     /// Test if the function can successfully unsqueeze the last size 1 dimension of a 4D tensor.
     #[test]
     fn should_unsqueeze_dim_last() {
-        let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([2, 3, 4, 1]));
+        let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([5, 4, 3, 2]));
         let unsqueezed_tensor: Tensor<TestBackend, 5> = tensor.unsqueeze_dim(4);
-        let expected_shape = Shape::new([2, 3, 4, 1, 1]);
+        let expected_shape = Shape::new([5, 4, 3, 2, 1]);
         assert_eq!(unsqueezed_tensor.shape(), expected_shape);
     }
 
