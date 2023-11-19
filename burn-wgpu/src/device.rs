@@ -12,39 +12,39 @@
 /// ```
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum WgpuDevice {
-  /// Discrete GPU with the given index. The index is the index of the discrete GPU in the list
-  /// of all discrete GPUs found on the system.
-  DiscreteGpu(usize),
+    /// Discrete GPU with the given index. The index is the index of the discrete GPU in the list
+    /// of all discrete GPUs found on the system.
+    DiscreteGpu(usize),
 
-  /// Integrated GPU with the given index. The index is the index of the integrated GPU in the
-  /// list of all integrated GPUs found on the system.
-  IntegratedGpu(usize),
+    /// Integrated GPU with the given index. The index is the index of the integrated GPU in the
+    /// list of all integrated GPUs found on the system.
+    IntegratedGpu(usize),
 
-  /// Virtual GPU with the given index. The index is the index of the virtual GPU in the list of
-  /// all virtual GPUs found on the system.
-  VirtualGpu(usize),
+    /// Virtual GPU with the given index. The index is the index of the virtual GPU in the list of
+    /// all virtual GPUs found on the system.
+    VirtualGpu(usize),
 
-  /// CPU.
-  Cpu,
+    /// CPU.
+    Cpu,
 
-  /// The best available device found with the current [graphics API](crate::GraphicsApi).
-  ///
-  /// Priority
-  ///
-  ///   1. DiscreteGpu
-  ///   2. IntegratedGpu
-  ///   3. VirtualGpu
-  ///   4. Cpu
-  ///
-  /// # Notes
-  ///
-  /// A device might be identified as [Other](wgpu::DeviceType::Other) by [wgpu](wgpu), in this case, we chose this device over
-  /// `IntegratedGpu` since it's often a discrete GPU.
-  BestAvailable,
+    /// The best available device found with the current [graphics API](crate::GraphicsApi).
+    ///
+    /// Priority
+    ///
+    ///   1. DiscreteGpu
+    ///   2. IntegratedGpu
+    ///   3. VirtualGpu
+    ///   4. Cpu
+    ///
+    /// # Notes
+    ///
+    /// A device might be identified as [Other](wgpu::DeviceType::Other) by [wgpu](wgpu), in this case, we chose this device over
+    /// `IntegratedGpu` since it's often a discrete GPU.
+    BestAvailable,
 }
 
 impl Default for WgpuDevice {
-  fn default() -> Self {
-    Self::BestAvailable
-  }
+    fn default() -> Self {
+        Self::BestAvailable
+    }
 }

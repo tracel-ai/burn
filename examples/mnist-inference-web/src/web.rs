@@ -15,63 +15,63 @@ use burn::tensor::Tensor;
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Mnist {
-  model: Option<Model<Backend>>,
+    model: Option<Model<Backend>>,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Mnist {
-  /// Constructor called by JavaScripts with the new keyword.
-  #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
-  pub fn new() -> Self {
-    Self { model: None }
-  }
-
-  /// Returns the inference results.
-  ///
-  /// This method is called from JavaScript via generated wrapper code by wasm-bindgen.
-  ///
-  /// # Arguments
-  ///
-  /// * `input` - A f32 slice of input 28x28 image
-  ///
-  /// See bindgen support types for passing and returning arrays:
-  /// * [number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html)
-  /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
-  ///
-  pub async fn inference(&mut self, input: &[f32]) -> Result<Array, String> {
-    if self.model.is_none() {
-      self.model = Some(build_and_load_model().await);
+    /// Constructor called by JavaScripts with the new keyword.
+    #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
+    pub fn new() -> Self {
+        Self { model: None }
     }
 
-    let model = self.model.as_ref().unwrap();
+    /// Returns the inference results.
+    ///
+    /// This method is called from JavaScript via generated wrapper code by wasm-bindgen.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A f32 slice of input 28x28 image
+    ///
+    /// See bindgen support types for passing and returning arrays:
+    /// * [number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/number-slices.html)
+    /// * [boxed-number-slices](https://rustwasm.github.io/wasm-bindgen/reference/types/boxed-number-slices.html)
+    ///
+    pub async fn inference(&mut self, input: &[f32]) -> Result<Array, String> {
+        if self.model.is_none() {
+            self.model = Some(build_and_load_model().await);
+        }
 
-    // Reshape from the 1D array to 3d tensor [batch, height, width]
-    let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
+        let model = self.model.as_ref().unwrap();
 
-    // Normalize input: make between [0,1] and make the mean=0 and std=1
-    // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
-    // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
+        // Reshape from the 1D array to 3d tensor [batch, height, width]
+        let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
 
-    let input = ((input / 255) - 0.1307) / 0.3081;
+        // Normalize input: make between [0,1] and make the mean=0 and std=1
+        // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
+        // https://github.com/pytorch/examples/blob/54f4572509891883a947411fd7239237dd2a39c3/mnist/main.py#L122
 
-    // Run the tensor input through the model
-    let output: Tensor<Backend, 2> = model.forward(input);
+        let input = ((input / 255) - 0.1307) / 0.3081;
 
-    // Convert the model output into probability distribution using softmax formula
-    let output = burn::tensor::activation::softmax(output, 1);
+        // Run the tensor input through the model
+        let output: Tensor<Backend, 2> = model.forward(input);
 
-    // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
-    #[cfg(not(target_family = "wasm"))]
-    let output = output.into_data().convert::<f32>().value;
+        // Convert the model output into probability distribution using softmax formula
+        let output = burn::tensor::activation::softmax(output, 1);
 
-    #[cfg(target_family = "wasm")]
-    let output = output.into_data().await.convert::<f32>().value;
+        // Flatten output tensor with [1, 10] shape into boxed slice of [f32]
+        #[cfg(not(target_family = "wasm"))]
+        let output = output.into_data().convert::<f32>().value;
 
-    let array = Array::new();
-    for value in output {
-      array.push(&value.into());
+        #[cfg(target_family = "wasm")]
+        let output = output.into_data().await.convert::<f32>().value;
+
+        let array = Array::new();
+        for value in output {
+            array.push(&value.into());
+        }
+
+        Ok(array)
     }
-
-    Ok(array)
-  }
 }

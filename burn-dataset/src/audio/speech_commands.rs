@@ -1,6 +1,6 @@
 use crate::{
-  transform::{Mapper, MapperDataset},
-  Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+    transform::{Mapper, MapperDataset},
+    Dataset, HuggingfaceDatasetLoader, SqliteDataset,
 };
 
 use hound::WavReader;
@@ -17,65 +17,65 @@ type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples,
 #[allow(missing_docs)]
 #[derive(Debug, Display, Clone, Copy, FromRepr, Serialize, Deserialize, EnumCount)]
 pub enum SpeechCommandClass {
-  // Target command words
-  Yes = 0,
-  No = 1,
-  Up = 2,
-  Down = 3,
-  Left = 4,
-  Right = 5,
-  On = 6,
-  Off = 7,
-  Stop = 8,
-  Go = 9,
-  Zero = 10,
-  One = 11,
-  Two = 12,
-  Three = 13,
-  Four = 14,
-  Five = 15,
-  Six = 16,
-  Seven = 17,
-  Eight = 18,
-  Nine = 19,
+    // Target command words
+    Yes = 0,
+    No = 1,
+    Up = 2,
+    Down = 3,
+    Left = 4,
+    Right = 5,
+    On = 6,
+    Off = 7,
+    Stop = 8,
+    Go = 9,
+    Zero = 10,
+    One = 11,
+    Two = 12,
+    Three = 13,
+    Four = 14,
+    Five = 15,
+    Six = 16,
+    Seven = 17,
+    Eight = 18,
+    Nine = 19,
 
-  // Non-target words that can be grouped into "Other"
-  Bed = 20,
-  Bird = 21,
-  Cat = 22,
-  Dog = 23,
-  Happy = 24,
-  House = 25,
-  Marvin = 26,
-  Sheila = 27,
-  Tree = 28,
-  Wow = 29,
+    // Non-target words that can be grouped into "Other"
+    Bed = 20,
+    Bird = 21,
+    Cat = 22,
+    Dog = 23,
+    Happy = 24,
+    House = 25,
+    Marvin = 26,
+    Sheila = 27,
+    Tree = 28,
+    Wow = 29,
 
-  // Commands from v2 dataset, that can be grouped into "Other"
-  Backward = 30,
-  Forward = 31,
-  Follow = 32,
-  Learn = 33,
-  Visual = 34,
+    // Commands from v2 dataset, that can be grouped into "Other"
+    Backward = 30,
+    Forward = 31,
+    Follow = 32,
+    Learn = 33,
+    Visual = 34,
 
-  // Background noise
-  Silence = 35,
+    // Background noise
+    Silence = 35,
 
-  // Other miscellaneous words
-  Other = 36,
+    // Other miscellaneous words
+    Other = 36,
 }
 
 /// Struct containing raw speech data returned from a database.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpeechItemRaw {
-  /// Audio file bytes.
-  pub audio_bytes: Vec<u8>,
+    /// Audio file bytes.
+    pub audio_bytes: Vec<u8>,
 
-  /// Label index.
-  pub label: usize,
+    /// Label index.
+    pub label: usize,
 
-  /// Indicates if the label is unknown.
-  pub is_unknown: bool,
+    /// Indicates if the label is unknown.
+    pub is_unknown: bool,
 }
 
 /// Speech item with audio samples and label.
@@ -88,14 +88,14 @@ pub struct SpeechItemRaw {
 /// The original label is also stored in the `label_original` field for debugging and remapping if needed.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpeechItem {
-  /// Audio samples in the range [-1.0, 1.0].
-  pub audio_samples: Vec<f32>,
+    /// Audio samples in the range [-1.0, 1.0].
+    pub audio_samples: Vec<f32>,
 
-  /// The sample rate of the audio.
-  pub sample_rate: usize,
+    /// The sample rate of the audio.
+    pub sample_rate: usize,
 
-  /// The label of the audio.
-  pub label: SpeechCommandClass,
+    /// The label of the audio.
+    pub label: SpeechCommandClass,
 }
 
 /// Speech Commands dataset from Huggingface v0.02.
@@ -114,95 +114,96 @@ pub struct SpeechItem {
 /// - test: 4,890 audio files
 /// - validation: 9,982 audio files
 pub struct SpeechCommandsDataset {
-  dataset: MappedDataset,
+    dataset: MappedDataset,
 }
 
 impl SpeechCommandsDataset {
-  /// Create a new dataset with the given split.
-  pub fn new(split: &str) -> Self {
-    let dataset: SqliteDataset<SpeechItemRaw> = HuggingfaceDatasetLoader::new("speech_commands")
-      .with_subset("v0.02")
-      .dataset(split)
-      .unwrap();
-    let dataset = MapperDataset::new(dataset, ConvertSamples);
-    Self { dataset }
-  }
+    /// Create a new dataset with the given split.
+    pub fn new(split: &str) -> Self {
+        let dataset: SqliteDataset<SpeechItemRaw> =
+            HuggingfaceDatasetLoader::new("speech_commands")
+                .with_subset("v0.02")
+                .dataset(split)
+                .unwrap();
+        let dataset = MapperDataset::new(dataset, ConvertSamples);
+        Self { dataset }
+    }
 
-  /// Create a new dataset with the train split.
-  pub fn train() -> Self {
-    Self::new("train")
-  }
+    /// Create a new dataset with the train split.
+    pub fn train() -> Self {
+        Self::new("train")
+    }
 
-  /// Create a new dataset with the test split.
-  pub fn test() -> Self {
-    Self::new("test")
-  }
+    /// Create a new dataset with the test split.
+    pub fn test() -> Self {
+        Self::new("test")
+    }
 
-  /// Create a new dataset with the validation split.
-  pub fn validation() -> Self {
-    Self::new("validation")
-  }
+    /// Create a new dataset with the validation split.
+    pub fn validation() -> Self {
+        Self::new("validation")
+    }
 
-  /// Returns the number of classes in the dataset
-  pub fn num_classes() -> usize {
-    SpeechCommandClass::COUNT
-  }
+    /// Returns the number of classes in the dataset
+    pub fn num_classes() -> usize {
+        SpeechCommandClass::COUNT
+    }
 }
 
 impl Dataset<SpeechItem> for SpeechCommandsDataset {
-  fn get(&self, index: usize) -> Option<SpeechItem> {
-    self.dataset.get(index)
-  }
+    fn get(&self, index: usize) -> Option<SpeechItem> {
+        self.dataset.get(index)
+    }
 
-  fn len(&self) -> usize {
-    self.dataset.len()
-  }
+    fn len(&self) -> usize {
+        self.dataset.len()
+    }
 }
 
 /// Mapper converting audio bytes into audio samples and the label to enum class.
 struct ConvertSamples;
 
 impl ConvertSamples {
-  /// Convert label to enum class.
-  fn to_speechcommandclass(label: usize) -> SpeechCommandClass {
-    SpeechCommandClass::from_repr(label).unwrap()
-  }
+    /// Convert label to enum class.
+    fn to_speechcommandclass(label: usize) -> SpeechCommandClass {
+        SpeechCommandClass::from_repr(label).unwrap()
+    }
 
-  /// Convert audio bytes into samples of floats [-1.0, 1.0].
-  fn to_audiosamples(bytes: &Vec<u8>) -> (Vec<f32>, usize) {
-    let reader = WavReader::new(bytes.as_slice()).unwrap();
-    let spec = reader.spec();
+    /// Convert audio bytes into samples of floats [-1.0, 1.0].
+    fn to_audiosamples(bytes: &Vec<u8>) -> (Vec<f32>, usize) {
+        let reader = WavReader::new(bytes.as_slice()).unwrap();
+        let spec = reader.spec();
 
-    // Maximum value of the audio samples (using bit shift to raise 2 to the power of bits per sample).
-    let max_value = (1 << (spec.bits_per_sample - 1)) as f32;
+        // Maximum value of the audio samples (using bit shift to raise 2 to the power of bits per sample).
+        let max_value = (1 << (spec.bits_per_sample - 1)) as f32;
 
-    // The sample rate of the audio.
-    let sample_rate = spec.sample_rate as usize;
+        // The sample rate of the audio.
+        let sample_rate = spec.sample_rate as usize;
 
-    // Convert the audio samples to floats [-1.0, 1.0].
-    let audio_samples: Vec<f32> = reader
-      .into_samples::<i32>()
-      .filter_map(Result::ok)
-      .map(|sample| sample as f32 / max_value)
-      .collect();
+        // Convert the audio samples to floats [-1.0, 1.0].
+        let audio_samples: Vec<f32> = reader
+            .into_samples::<i32>()
+            .filter_map(Result::ok)
+            .map(|sample| sample as f32 / max_value)
+            .collect();
 
-    (audio_samples, sample_rate)
-  }
+        (audio_samples, sample_rate)
+    }
 }
 
 impl Mapper<SpeechItemRaw, SpeechItem> for ConvertSamples {
-  /// Convert audio bytes into samples of floats [-1.0, 1.0]
-  /// and the label to enum class with the target word, other and silence classes.
-  fn map(&self, item: &SpeechItemRaw) -> SpeechItem {
-    let (audio_samples, sample_rate) = Self::to_audiosamples(&item.audio_bytes);
+    /// Convert audio bytes into samples of floats [-1.0, 1.0]
+    /// and the label to enum class with the target word, other and silence classes.
+    fn map(&self, item: &SpeechItemRaw) -> SpeechItem {
+        let (audio_samples, sample_rate) = Self::to_audiosamples(&item.audio_bytes);
 
-    // Convert the label to enum class, with the target words, other and silence classes.
-    let label = Self::to_speechcommandclass(item.label);
+        // Convert the label to enum class, with the target words, other and silence classes.
+        let label = Self::to_speechcommandclass(item.label);
 
-    SpeechItem {
-      audio_samples,
-      sample_rate,
-      label,
+        SpeechItem {
+            audio_samples,
+            sample_rate,
+            label,
+        }
     }
-  }
 }

@@ -4,22 +4,22 @@ use std::fmt::Display;
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum Function {
-  Powf(Elem),
-  Erf(Elem),
+    Powf(Elem),
+    Erf(Elem),
 }
 
 impl Display for Function {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Function::Powf(elem) => format_powf(f, elem),
-      Function::Erf(elem) => format_erf(f, elem),
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Function::Powf(elem) => format_powf(f, elem),
+            Function::Erf(elem) => format_erf(f, elem),
+        }
     }
-  }
 }
 
 fn format_powf(f: &mut core::fmt::Formatter<'_>, elem: &Elem) -> core::fmt::Result {
-  f.write_fmt(format_args!(
-    "
+    f.write_fmt(format_args!(
+        "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     let modulo = rhs % 2.0;
 
@@ -35,11 +35,11 @@ fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     }}
 }}
 "
-  ))
+    ))
 }
 
 fn format_erf(f: &mut core::fmt::Formatter<'_>, elem: &Elem) -> core::fmt::Result {
-  f.write_fmt(format_args!(
+    f.write_fmt(format_args!(
         "
 /// An approximation of the error function: https://en.wikipedia.org/wiki/Error_function#Numerical_approximations
 ///

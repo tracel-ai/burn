@@ -6,70 +6,70 @@ use uuid::{Builder, Bytes};
 pub struct IdGenerator {}
 
 impl IdGenerator {
-  /// Generates a new ID in the form of a UUID.
-  pub fn generate() -> String {
-    let random_bytes: Bytes = gen_random();
+    /// Generates a new ID in the form of a UUID.
+    pub fn generate() -> String {
+        let random_bytes: Bytes = gen_random();
 
-    let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
+        let uuid = Builder::from_random_bytes(random_bytes).into_uuid();
 
-    uuid.as_hyphenated().to_string()
-  }
+        uuid.as_hyphenated().to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  use alloc::{collections::BTreeSet, string::String};
+    use alloc::{collections::BTreeSet, string::String};
 
-  #[cfg(feature = "std")]
-  use dashmap::DashSet; //Concurrent HashMap
-  #[cfg(feature = "std")]
-  use std::{sync::Arc, thread};
+    #[cfg(feature = "std")]
+    use dashmap::DashSet; //Concurrent HashMap
+    #[cfg(feature = "std")]
+    use std::{sync::Arc, thread};
 
-  #[test]
-  fn not_empty_test() {
-    assert!(!IdGenerator::generate().is_empty());
-  }
-
-  #[test]
-  fn uniqueness_test() {
-    const IDS_CNT: usize = 10_000;
-
-    let mut set: BTreeSet<String> = BTreeSet::new();
-
-    for _i in 0..IDS_CNT {
-      assert!(set.insert(IdGenerator::generate()));
+    #[test]
+    fn not_empty_test() {
+        assert!(!IdGenerator::generate().is_empty());
     }
 
-    assert_eq!(set.len(), IDS_CNT);
-  }
+    #[test]
+    fn uniqueness_test() {
+        const IDS_CNT: usize = 10_000;
 
-  #[cfg(feature = "std")]
-  #[test]
-  fn thread_safety_test() {
-    const NUM_THREADS: usize = 10;
-    const NUM_REPEATS: usize = 1_000;
-    const EXPECTED_TOTAL_IDS: usize = NUM_THREADS * NUM_REPEATS;
+        let mut set: BTreeSet<String> = BTreeSet::new();
 
-    let set: Arc<DashSet<String>> = Arc::new(DashSet::new());
-
-    let mut handles = vec![];
-
-    for _ in 0..NUM_THREADS {
-      let set = set.clone();
-
-      let handle = thread::spawn(move || {
-        for _i in 0..NUM_REPEATS {
-          assert!(set.insert(IdGenerator::generate()));
+        for _i in 0..IDS_CNT {
+            assert!(set.insert(IdGenerator::generate()));
         }
-      });
-      handles.push(handle);
+
+        assert_eq!(set.len(), IDS_CNT);
     }
 
-    for handle in handles {
-      handle.join().unwrap();
+    #[cfg(feature = "std")]
+    #[test]
+    fn thread_safety_test() {
+        const NUM_THREADS: usize = 10;
+        const NUM_REPEATS: usize = 1_000;
+        const EXPECTED_TOTAL_IDS: usize = NUM_THREADS * NUM_REPEATS;
+
+        let set: Arc<DashSet<String>> = Arc::new(DashSet::new());
+
+        let mut handles = vec![];
+
+        for _ in 0..NUM_THREADS {
+            let set = set.clone();
+
+            let handle = thread::spawn(move || {
+                for _i in 0..NUM_REPEATS {
+                    assert!(set.insert(IdGenerator::generate()));
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
     }
-    assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
-  }
 }

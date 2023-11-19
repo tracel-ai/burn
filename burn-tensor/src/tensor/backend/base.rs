@@ -50,144 +50,145 @@ use crate::tensor::Element;
 /// Most of the documentation for each function can be found on the user API [tensor struct](crate::Tensor).
 /// For modules, public functions are often created, which can be used by `burn-core` modules.
 pub trait Backend:
-  TensorOps<Self>
-  + BoolTensorOps<Self>
-  + IntTensorOps<Self>
-  + ModuleOps<Self>
-  + ActivationOps<Self>
-  + Clone
-  + Sized
-  + Default
-  + Send
-  + Sync
-  + core::fmt::Debug
-  + 'static
+    TensorOps<Self>
+    + BoolTensorOps<Self>
+    + IntTensorOps<Self>
+    + ModuleOps<Self>
+    + ActivationOps<Self>
+    + Clone
+    + Sized
+    + Default
+    + Send
+    + Sync
+    + core::fmt::Debug
+    + 'static
 {
-  /// Device type.
-  type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
+    /// Device type.
+    type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
-  /// Pointer to another backend that have a full precision float element type
-  type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
-  /// Full precision float element type.
-  type FullPrecisionElem: Element;
+    /// Pointer to another backend that have a full precision float element type
+    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
+    /// Full precision float element type.
+    type FullPrecisionElem: Element;
 
-  /// Tensor primitive to be used for all float operations.
-  type TensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
-  /// Float element type.
-  type FloatElem: Element;
+    /// Tensor primitive to be used for all float operations.
+    type TensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Float element type.
+    type FloatElem: Element;
 
-  /// Tensor primitive to be used for all int operations.
-  type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
-  /// Int element type.
-  type IntElem: Element;
+    /// Tensor primitive to be used for all int operations.
+    type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Int element type.
+    type IntElem: Element;
 
-  /// Tensor primitive to be used for all bool operations.
-  type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Tensor primitive to be used for all bool operations.
+    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
 
-  /// If autodiff is enabled.
-  fn ad_enabled() -> bool {
-    false
-  }
+    /// If autodiff is enabled.
+    fn ad_enabled() -> bool {
+        false
+    }
 
-  /// Name of the backend.
-  fn name() -> String;
+    /// Name of the backend.
+    fn name() -> String;
 
-  /// Seed the backend.
-  fn seed(seed: u64);
+    /// Seed the backend.
+    fn seed(seed: u64);
 
-  /// Sync the backend, ensure that all computation are finished.
-  fn sync(_device: &Self::Device) {}
+    /// Sync the backend, ensure that all computation are finished.
+    fn sync(_device: &Self::Device) {}
 }
 
 /// Trait that allows a backend to support autodiff.
 pub trait AutodiffBackend: Backend {
-  /// The inner backend type.
-  type InnerBackend: Backend<
-    Device = Self::Device,
-    FloatElem = Self::FloatElem,
-    IntElem = Self::IntElem,
-    FullPrecisionElem = Self::FullPrecisionElem,
-  >;
+    /// The inner backend type.
+    type InnerBackend: Backend<
+        Device = Self::Device,
+        FloatElem = Self::FloatElem,
+        IntElem = Self::IntElem,
+        FullPrecisionElem = Self::FullPrecisionElem,
+    >;
 
-  /// Gradients type.
-  type Gradients: Send + Sync;
+    /// Gradients type.
+    type Gradients: Send + Sync;
 
-  /// Backward pass.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The tensor is the last node of computational graph where the gradients are computed.
-  ///
-  /// # Returns
-  ///
-  /// The gradients.
-  fn backward<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Gradients;
+    /// Backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor is the last node of computational graph where the gradients are computed.
+    ///
+    /// # Returns
+    ///
+    /// The gradients.
+    fn backward<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Gradients;
 
-  /// Returns the gradients of a tensor.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The tensor to extract the gradients from.
-  ///
-  /// # Returns
-  ///
-  /// An optional tensor containing the gradient.
-  fn grad<const D: usize>(
-    tensor: &FloatTensor<Self, D>,
-    grads: &Self::Gradients,
-  ) -> Option<FloatTensor<Self::InnerBackend, D>>;
+    /// Returns the gradients of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the gradients from.
+    ///
+    /// # Returns
+    ///
+    /// An optional tensor containing the gradient.
+    fn grad<const D: usize>(
+        tensor: &FloatTensor<Self, D>,
+        grads: &Self::Gradients,
+    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
 
-  /// Pops the gradients of a tensor and returns them.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The tensor to pop the gradients from.
-  /// * `grads` - The gradients.
-  ///
-  /// # Returns
-  ///
-  /// An optional tensor containing the given gradients.
-  fn grad_remove<const D: usize>(
-    tensor: &FloatTensor<Self, D>,
-    grads: &mut Self::Gradients,
-  ) -> Option<FloatTensor<Self::InnerBackend, D>>;
+    /// Pops the gradients of a tensor and returns them.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pop the gradients from.
+    /// * `grads` - The gradients.
+    ///
+    /// # Returns
+    ///
+    /// An optional tensor containing the given gradients.
+    fn grad_remove<const D: usize>(
+        tensor: &FloatTensor<Self, D>,
+        grads: &mut Self::Gradients,
+    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
 
-  /// Replace the gradients of a tensor with the one provided.
-  ///
-  /// If no gradient existed for the provided tensor, register it.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The tensor to pop the gradients from.
-  /// * `grads` - The gradients.
-  /// * `grad` - The updated grad tensor.
-  fn grad_replace<const D: usize>(
-    tensor: &FloatTensor<Self, D>,
-    grads: &mut Self::Gradients,
-    grad: FloatTensor<Self::InnerBackend, D>,
-  );
+    /// Replace the gradients of a tensor with the one provided.
+    ///
+    /// If no gradient existed for the provided tensor, register it.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pop the gradients from.
+    /// * `grads` - The gradients.
+    /// * `grad` - The updated grad tensor.
+    fn grad_replace<const D: usize>(
+        tensor: &FloatTensor<Self, D>,
+        grads: &mut Self::Gradients,
+        grad: FloatTensor<Self::InnerBackend, D>,
+    );
 
-  /// Returns the tensor with inner backend type.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The tensor to get the inner backend tensor for.
-  ///
-  /// # Returns
-  ///
-  /// The inner backend tensor.
-  fn inner<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self::InnerBackend, D>;
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn inner<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self::InnerBackend, D>;
 
-  /// Converts the inner backend tensor to the autodiff backend tensor.
-  ///
-  /// # Arguments
-  ///
-  /// * `tensor` - The inner backend tensor to convert.
-  ///
-  ///
-  /// # Returns
-  ///
-  /// The autodiff backend tensor.
-  fn from_inner<const D: usize>(tensor: FloatTensor<Self::InnerBackend, D>)
-    -> FloatTensor<Self, D>;
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn from_inner<const D: usize>(
+        tensor: FloatTensor<Self::InnerBackend, D>,
+    ) -> FloatTensor<Self, D>;
 }

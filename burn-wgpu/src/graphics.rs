@@ -8,8 +8,8 @@
 ///   - [DirectX 12](Dx12)
 ///   - [WebGpu](WebGpu)
 pub trait GraphicsApi: Send + Sync + core::fmt::Debug + Default + Clone + 'static {
-  /// The wgpu backend.
-  fn backend() -> wgpu::Backend;
+    /// The wgpu backend.
+    fn backend() -> wgpu::Backend;
 }
 
 /// Vulkan graphics API.
@@ -41,46 +41,46 @@ pub struct WebGpu;
 pub struct AutoGraphicsApi;
 
 impl GraphicsApi for Vulkan {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::Vulkan
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::Vulkan
+    }
 }
 
 impl GraphicsApi for Metal {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::Metal
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::Metal
+    }
 }
 
 impl GraphicsApi for OpenGl {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::Gl
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::Gl
+    }
 }
 
 impl GraphicsApi for Dx11 {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::Dx11
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::Dx11
+    }
 }
 
 impl GraphicsApi for Dx12 {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::Dx12
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::Dx12
+    }
 }
 
 impl GraphicsApi for WebGpu {
-  fn backend() -> wgpu::Backend {
-    wgpu::Backend::BrowserWebGpu
-  }
+    fn backend() -> wgpu::Backend {
+        wgpu::Backend::BrowserWebGpu
+    }
 }
 
 impl GraphicsApi for AutoGraphicsApi {
-  fn backend() -> wgpu::Backend {
-    #[cfg(target_os = "macos")]
-    return wgpu::Backend::Metal;
-    #[cfg(not(target_os = "macos"))]
-    wgpu::Backend::Vulkan
-  }
+    fn backend() -> wgpu::Backend {
+        #[cfg(target_os = "macos")]
+        return wgpu::Backend::Metal;
+        #[cfg(not(target_os = "macos"))]
+        wgpu::Backend::Vulkan
+    }
 }

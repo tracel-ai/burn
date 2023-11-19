@@ -7,11 +7,11 @@ use burn_tensor::Tensor;
 // It compiles
 #[derive(Record)]
 pub struct TestWithBackendRecord<B: Backend> {
-  tensor: Tensor<B, 2>,
+    tensor: Tensor<B, 2>,
 }
 
 // It compiles
 #[derive(Record)]
 pub struct TestWithoutBackendRecord {
-  tensor: usize,
+    tensor: usize,
 }

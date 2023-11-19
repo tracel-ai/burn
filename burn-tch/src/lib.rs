@@ -14,12 +14,12 @@ pub use tensor::*;
 
 #[cfg(test)]
 mod tests {
-  extern crate alloc;
+    extern crate alloc;
 
-  type TestBackend = crate::LibTorch<f32>;
-  type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-  type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    type TestBackend = crate::LibTorch<f32>;
+    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
 
-  burn_tensor::testgen_all!();
-  burn_autodiff::testgen_all!();
+    burn_tensor::testgen_all!();
+    burn_autodiff::testgen_all!();
 }

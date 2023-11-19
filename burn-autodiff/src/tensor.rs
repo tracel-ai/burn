@@ -1,106 +1,106 @@
 use burn_tensor::backend::Backend;
 
 use crate::{
-  grads::Gradients,
-  graph::{
-    Node, NodeID, NodeRef, Requirement, {Graph, Step},
-  },
+    grads::Gradients,
+    graph::{
+        Node, NodeID, NodeRef, Requirement, {Graph, Step},
+    },
 };
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend, const D: usize> {
-  pub primitive: B::TensorPrimitive<D>,
-  pub node: NodeRef,
-  pub graph: Graph,
+    pub primitive: B::TensorPrimitive<D>,
+    pub node: NodeRef,
+    pub graph: Graph,
 }
 
 #[derive(new, Debug)]
 struct RootStep {
-  node: NodeRef,
+    node: NodeRef,
 }
 
 impl Step for RootStep {
-  fn step(self: Box<Self>, _grads: &mut Gradients) {
-    // Nothing to do
-  }
+    fn step(self: Box<Self>, _grads: &mut Gradients) {
+        // Nothing to do
+    }
 
-  fn node(&self) -> NodeRef {
-    self.node.clone()
-  }
+    fn node(&self) -> NodeRef {
+        self.node.clone()
+    }
 }
 
 impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
-  /// Create a new leaf tensor.
-  pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
-    let id = NodeID::new();
-    let node = Node::new(vec![], 0, id, Requirement::None);
+    /// Create a new leaf tensor.
+    pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
+        let id = NodeID::new();
+        let node = Node::new(vec![], 0, id, Requirement::None);
 
-    Self {
-      primitive,
-      node: node.into(),
-      graph: Graph::new(),
+        Self {
+            primitive,
+            node: node.into(),
+            graph: Graph::new(),
+        }
     }
-  }
 
-  pub fn is_tracked(&self) -> bool {
-    !self.node.requirement.is_none()
-  }
-
-  /// Mark the tensor as requirering gradients.
-  ///
-  /// # Panics
-  ///
-  /// It panics if the tensor is non a leaf.
-  pub fn require_grad(mut self) -> Self {
-    match self.node.requirement {
-      Requirement::Grad => self,
-      Requirement::GradInBackward => {
-        panic!("Can't convert a non leaf tensor into a tracked tensor")
-      }
-      Requirement::None => {
-        self.node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad).into();
-        let ops = RootStep::new(self.node.clone());
-
-        self.register_step(ops)
-      }
+    pub fn is_tracked(&self) -> bool {
+        !self.node.requirement.is_none()
     }
-  }
 
-  /// Create a tensor from parent infos.
-  pub fn from_parents<I: Iterator<Item = Graph>>(
-    output: B::TensorPrimitive<D>,
-    parent_nodes: &[NodeRef],
-    parent_graphs: I,
-    requirement: Requirement,
-  ) -> Self {
-    let graph = parent_graphs
-      .reduce(|acc, graph| acc.merge(graph))
-      .unwrap_or_else(Graph::new);
+    /// Mark the tensor as requirering gradients.
+    ///
+    /// # Panics
+    ///
+    /// It panics if the tensor is non a leaf.
+    pub fn require_grad(mut self) -> Self {
+        match self.node.requirement {
+            Requirement::Grad => self,
+            Requirement::GradInBackward => {
+                panic!("Can't convert a non leaf tensor into a tracked tensor")
+            }
+            Requirement::None => {
+                self.node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad).into();
+                let ops = RootStep::new(self.node.clone());
 
-    let order = parent_nodes
-      .iter()
-      .map(|node| node.order)
-      .reduce(usize::max)
-      .unwrap_or(0)
-      + 1;
-
-    let node = Node::new(
-      parent_nodes.iter().map(|node| node.id.clone()).collect(),
-      order,
-      NodeID::new(),
-      requirement,
-    );
-
-    Self {
-      primitive: output,
-      node: node.into(),
-      graph,
+                self.register_step(ops)
+            }
+        }
     }
-  }
 
-  /// Register a step into a graph for that tensor.
-  pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
-    self.graph = self.graph.register(&self.node.id, Box::new(ops));
-    self
-  }
+    /// Create a tensor from parent infos.
+    pub fn from_parents<I: Iterator<Item = Graph>>(
+        output: B::TensorPrimitive<D>,
+        parent_nodes: &[NodeRef],
+        parent_graphs: I,
+        requirement: Requirement,
+    ) -> Self {
+        let graph = parent_graphs
+            .reduce(|acc, graph| acc.merge(graph))
+            .unwrap_or_else(Graph::new);
+
+        let order = parent_nodes
+            .iter()
+            .map(|node| node.order)
+            .reduce(usize::max)
+            .unwrap_or(0)
+            + 1;
+
+        let node = Node::new(
+            parent_nodes.iter().map(|node| node.id.clone()).collect(),
+            order,
+            NodeID::new(),
+            requirement,
+        );
+
+        Self {
+            primitive: output,
+            node: node.into(),
+            graph,
+        }
+    }
+
+    /// Register a step into a graph for that tensor.
+    pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
+        self.graph = self.graph.register(&self.node.id, Box::new(ops));
+        self
+    }
 }

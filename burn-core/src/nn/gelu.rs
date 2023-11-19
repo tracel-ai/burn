@@ -9,18 +9,18 @@ use crate::tensor::Tensor;
 pub struct GELU {}
 
 impl GELU {
-  /// Create the module.
-  pub fn new() -> Self {
-    Self {}
-  }
+    /// Create the module.
+    pub fn new() -> Self {
+        Self {}
+    }
 
-  /// Applies the forward pass on the input tensor.
-  ///
-  /// # Shapes
-  ///
-  /// - input: `[..., any]`
-  /// - output: `[..., any]`
-  pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-    crate::tensor::activation::gelu(input)
-  }
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: `[..., any]`
+    /// - output: `[..., any]`
+    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+        crate::tensor::activation::gelu(input)
+    }
 }

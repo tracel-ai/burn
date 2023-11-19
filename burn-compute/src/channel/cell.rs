@@ -15,53 +15,52 @@ use burn_common::reader::Reader;
 /// the [mutex](super::MutexComputeChannel) or the [mpsc](super::MpscComputeChannel) channels.
 #[derive(Debug)]
 pub struct RefCellComputeChannel<Server> {
-  server: Arc<core::cell::RefCell<Server>>,
+    server: Arc<core::cell::RefCell<Server>>,
 }
 
 impl<S> Clone for RefCellComputeChannel<S> {
-  fn clone(&self) -> Self {
-    Self {
-      server: self.server.clone(),
+    fn clone(&self) -> Self {
+        Self {
+            server: self.server.clone(),
+        }
     }
-  }
 }
 
 impl<Server> RefCellComputeChannel<Server>
 where
-  Server: ComputeServer,
+    Server: ComputeServer,
 {
-  /// Create a new cell compute channel.
-  pub fn new(server: Server) -> Self {
-    Self {
-      server: Arc::new(core::cell::RefCell::new(server)),
+    /// Create a new cell compute channel.
+    pub fn new(server: Server) -> Self {
+        Self {
+            server: Arc::new(core::cell::RefCell::new(server)),
+        }
     }
-  }
 }
 
 impl<Server> ComputeChannel<Server> for RefCellComputeChannel<Server>
 where
-  Server: ComputeServer,
+    Server: ComputeServer,
 {
-  fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
-    self.server.borrow_mut().read(handle)
-  }
+    fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>> {
+        self.server.borrow_mut().read(handle)
+    }
 
-  fn create(&self, resource: &[u8]) -> Handle<Server> {
-    self.server.borrow_mut().create(resource)
-  }
+    fn create(&self, resource: &[u8]) -> Handle<Server> {
+        self.server.borrow_mut().create(resource)
+    }
 
-  fn empty(&self, size: usize) -> Handle<Server> {
-    self.server.borrow_mut().empty(size)
-  }
+    fn empty(&self, size: usize) -> Handle<Server> {
+        self.server.borrow_mut().empty(size)
+    }
 
-  fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
-    self
-      .server
-      .borrow_mut()
-      .execute(kernel_description, handles)
-  }
+    fn execute(&self, kernel_description: Server::Kernel, handles: &[&Handle<Server>]) {
+        self.server
+            .borrow_mut()
+            .execute(kernel_description, handles)
+    }
 
-  fn sync(&self) {
-    self.server.borrow_mut().sync()
-  }
+    fn sync(&self) {
+        self.server.borrow_mut().sync()
+    }
 }

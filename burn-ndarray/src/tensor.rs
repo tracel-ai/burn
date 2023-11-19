@@ -5,52 +5,52 @@ use ndarray::{ArcArray, Array, Dim, IxDyn};
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 #[derive(new, Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
-  /// Dynamic array that contains the data of type E.
-  pub array: ArcArray<E, IxDyn>,
+    /// Dynamic array that contains the data of type E.
+    pub array: ArcArray<E, IxDyn>,
 }
 
 impl<E, const D: usize> NdArrayTensor<E, D> {
-  pub(crate) fn shape(&self) -> Shape<D> {
-    Shape::from(self.array.shape().to_vec())
-  }
+    pub(crate) fn shape(&self) -> Shape<D> {
+        Shape::from(self.array.shape().to_vec())
+    }
 }
 
 #[cfg(test)]
 mod utils {
-  use super::*;
-  use crate::element::FloatNdArrayElement;
+    use super::*;
+    use crate::element::FloatNdArrayElement;
 
-  impl<E, const D: usize> NdArrayTensor<E, D>
-  where
-    E: Default + Clone,
-  {
-    pub(crate) fn into_data(self) -> Data<E, D>
+    impl<E, const D: usize> NdArrayTensor<E, D>
     where
-      E: FloatNdArrayElement,
+        E: Default + Clone,
     {
-      let shape = self.shape();
-      let values = self.array.into_iter().collect();
+        pub(crate) fn into_data(self) -> Data<E, D>
+        where
+            E: FloatNdArrayElement,
+        {
+            let shape = self.shape();
+            let values = self.array.into_iter().collect();
 
-      Data::new(values, shape)
+            Data::new(values, shape)
+        }
     }
-  }
 }
 
 /// Converts a slice of usize to a typed dimension.
 #[macro_export(local_inner_macros)]
 macro_rules! to_typed_dims {
-  (
+    (
         $n:expr,
         $dims:expr,
         justdim
     ) => {{
-    let mut dims = [0; $n];
-    for i in 0..$n {
-      dims[i] = $dims[i];
-    }
-    let dim: Dim<[usize; $n]> = Dim(dims);
-    dim
-  }};
+        let mut dims = [0; $n];
+        for i in 0..$n {
+            dims[i] = $dims[i];
+        }
+        let dim: Dim<[usize; $n]> = Dim(dims);
+        dim
+    }};
 }
 
 /// Reshapes an array into a tensor.
@@ -101,82 +101,82 @@ macro_rules! reshape {
 
 impl<E, const D: usize> NdArrayTensor<E, D>
 where
-  E: Default + Clone,
+    E: Default + Clone,
 {
-  /// Create a new [ndarray tensor](NdArrayTensor) from [data](Data).
-  pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
-    let shape = data.shape.clone();
-    let to_array = |data: Data<E, D>| Array::from_iter(data.value).into_shared();
-    let array = to_array(data);
+    /// Create a new [ndarray tensor](NdArrayTensor) from [data](Data).
+    pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
+        let shape = data.shape.clone();
+        let to_array = |data: Data<E, D>| Array::from_iter(data.value).into_shared();
+        let array = to_array(data);
 
-    reshape!(
-        ty E,
-        shape shape,
-        array array,
-        d D
-    )
-  }
+        reshape!(
+            ty E,
+            shape shape,
+            array array,
+            d D
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
-  use burn_common::rand::get_seeded_rng;
-  use burn_tensor::Distribution;
+    use super::*;
+    use burn_common::rand::get_seeded_rng;
+    use burn_tensor::Distribution;
 
-  #[test]
-  fn should_support_into_and_from_data_1d() {
-    let data_expected = Data::<f32, 1>::random(
-      Shape::new([3]),
-      Distribution::Default,
-      &mut get_seeded_rng(),
-    );
-    let tensor = NdArrayTensor::from_data(data_expected.clone());
+    #[test]
+    fn should_support_into_and_from_data_1d() {
+        let data_expected = Data::<f32, 1>::random(
+            Shape::new([3]),
+            Distribution::Default,
+            &mut get_seeded_rng(),
+        );
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
-    let data_actual = tensor.into_data();
+        let data_actual = tensor.into_data();
 
-    assert_eq!(data_expected, data_actual);
-  }
+        assert_eq!(data_expected, data_actual);
+    }
 
-  #[test]
-  fn should_support_into_and_from_data_2d() {
-    let data_expected = Data::<f32, 2>::random(
-      Shape::new([2, 3]),
-      Distribution::Default,
-      &mut get_seeded_rng(),
-    );
-    let tensor = NdArrayTensor::from_data(data_expected.clone());
+    #[test]
+    fn should_support_into_and_from_data_2d() {
+        let data_expected = Data::<f32, 2>::random(
+            Shape::new([2, 3]),
+            Distribution::Default,
+            &mut get_seeded_rng(),
+        );
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
-    let data_actual = tensor.into_data();
+        let data_actual = tensor.into_data();
 
-    assert_eq!(data_expected, data_actual);
-  }
+        assert_eq!(data_expected, data_actual);
+    }
 
-  #[test]
-  fn should_support_into_and_from_data_3d() {
-    let data_expected = Data::<f32, 3>::random(
-      Shape::new([2, 3, 4]),
-      Distribution::Default,
-      &mut get_seeded_rng(),
-    );
-    let tensor = NdArrayTensor::from_data(data_expected.clone());
+    #[test]
+    fn should_support_into_and_from_data_3d() {
+        let data_expected = Data::<f32, 3>::random(
+            Shape::new([2, 3, 4]),
+            Distribution::Default,
+            &mut get_seeded_rng(),
+        );
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
-    let data_actual = tensor.into_data();
+        let data_actual = tensor.into_data();
 
-    assert_eq!(data_expected, data_actual);
-  }
+        assert_eq!(data_expected, data_actual);
+    }
 
-  #[test]
-  fn should_support_into_and_from_data_4d() {
-    let data_expected = Data::<f32, 4>::random(
-      Shape::new([2, 3, 4, 2]),
-      Distribution::Default,
-      &mut get_seeded_rng(),
-    );
-    let tensor = NdArrayTensor::from_data(data_expected.clone());
+    #[test]
+    fn should_support_into_and_from_data_4d() {
+        let data_expected = Data::<f32, 4>::random(
+            Shape::new([2, 3, 4, 2]),
+            Distribution::Default,
+            &mut get_seeded_rng(),
+        );
+        let tensor = NdArrayTensor::from_data(data_expected.clone());
 
-    let data_actual = tensor.into_data();
+        let data_actual = tensor.into_data();
 
-    assert_eq!(data_expected, data_actual);
-  }
+        assert_eq!(data_expected, data_actual);
+    }
 }

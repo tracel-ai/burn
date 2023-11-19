@@ -3,5 +3,5 @@ pub mod dataloader;
 
 /// Dataset module.
 pub mod dataset {
-  pub use burn_dataset::*;
+    pub use burn_dataset::*;
 }
