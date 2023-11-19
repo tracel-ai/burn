@@ -3,7 +3,6 @@ mod key;
 mod mean_dim;
 mod sum_dim;
 
-pub use base::*;
 pub use key::*;
 pub use mean_dim::*;
 pub use sum_dim::*;
