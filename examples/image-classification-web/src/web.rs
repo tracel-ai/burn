@@ -9,13 +9,12 @@ use core::convert::Into;
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
 use burn::{
-    backend::{
-        wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice},
-        NdArray,
-    },
+    backend::NdArray,
     tensor::{activation::softmax, backend::Backend, Tensor},
 };
+
 use burn_candle::Candle;
+use burn_wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;

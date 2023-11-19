@@ -11,25 +11,31 @@ crate-type = ["cdylib"]
 
 [features]
 default = []
+half_precision = []
 
 [dependencies]
-burn = { path = "../../burn", default-features = false, features = [
+burn = { path = "../../burn", version = "0.11.0", default-features = false, features = [
     "ndarray-no-std",
-    "wgpu",
 ] }
-
+burn-wgpu = { path = "../../burn-wgpu", version = "0.11.0", default-features = false }
 burn-candle = { path = "../../burn-candle", version = "0.11.0", default-features = false }
 
-js-sys = "0.3.64"
+js-sys = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde-wasm-bindgen = "0.6.0"
-wasm-bindgen = "0.2.87"
-wasm-bindgen-futures = "0.4.37"
-wasm-logger = "0.2.0"
-wasm-timer = "0.2.5"
+serde-wasm-bindgen = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+wasm-logger = { workspace = true }
+wasm-timer = { workspace = true }
 
 [build-dependencies]
 # Used to generate code from ONNX model
 burn-import = { path = "../../burn-import" }
+
+[profile.dev]
+lto = "fat"
+
+[profile.release]
+lto = "fat"
