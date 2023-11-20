@@ -3,7 +3,7 @@
 ### Checklist
 
 - [ ] Confirmed that `run-checks all` script has been executed.
-- [ ] Made sure the book is up to date for this PR changes.
+- [ ] Made sure the book is up to date with changes in this PR.
 
 ### Related Issues/PRs
 
