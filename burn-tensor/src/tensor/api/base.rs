@@ -279,7 +279,7 @@ where
     ///
     ///     // Create a Tensor with 3 dimensions
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
-    ///     // This slice will select the element 0 on the first dimention,
+    ///     // This slice will select the element 0 on the first dimension,
     ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
     ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
