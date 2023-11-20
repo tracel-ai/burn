@@ -198,6 +198,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn unsqueeze_dim<const D: usize>(dim: usize) -> Self {
+        let mut check = Self::Ok;
+        if dim > D {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
+                    dim, D
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
         let mut check = Self::Ok;
 

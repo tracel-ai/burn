@@ -257,6 +257,40 @@ where
         self.reshape(shape)
     }
 
+    /// Creates a new tensor with a dimension of size one inserted at the specified position.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dim(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [3, 1, 3] }
+    /// }
+    /// ```
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::unsqueeze_dim::<{ D }>(dim));
+
+        let mut dims = [1; D2];
+        let shape = self.shape();
+
+        dims[0..dim].copy_from_slice(&shape.dims[0..dim]);
+
+        if dim < D {
+            dims[dim] = 1;
+            dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
+        } else {
+            dims[dim] = 1;
+        }
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
