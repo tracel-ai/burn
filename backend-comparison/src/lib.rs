@@ -1,6 +1,14 @@
 #[macro_export]
 macro_rules! bench_on_backend {
     () => {
+        #[cfg(feature = "wgpu-fusion")]
+        {
+            use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+            use burn::backend::Fusion;
+
+            bench::<Fusion<Wgpu<AutoGraphicsApi, f32, i32>>>(&WgpuDevice::default());
+        }
+
         #[cfg(feature = "wgpu")]
         {
             use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};

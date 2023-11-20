@@ -136,7 +136,10 @@ where
 
         let mut compute = self
             .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
 
         for task in self.tasks.iter() {
             compute.set_pipeline(&task.pipeline);
@@ -154,7 +157,9 @@ where
             return pipeline.clone();
         }
 
-        let pipeline = self.compile_source(&kernel.source().complete());
+        let source = kernel.source().complete();
+        log::trace!("Compiling kernel {kernel_id}:\n {source}");
+        let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline

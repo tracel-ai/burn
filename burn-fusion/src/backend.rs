@@ -2,7 +2,7 @@ use crate::{
     client::FusionClient, graph::TensorOpsDescription, FusionClientLocator, FusionTensor,
     HandleContainer,
 };
-use burn_tensor::{backend::Backend, Shape};
+use burn_tensor::{backend::Backend, Device, Shape};
 use core::marker::PhantomData;
 use std::sync::Arc;
 
@@ -36,11 +36,17 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
     fn name() -> String {
-        format!("Fusion<{}>", B::name())
+        format!("fusion<{}>", B::name())
     }
 
     fn seed(seed: u64) {
         B::seed(seed);
+    }
+
+    fn sync(device: &Self::Device) {
+        let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
+        client.drain_graph();
+        B::sync(device)
     }
 }
 
@@ -116,14 +122,14 @@ pub trait FusionBackend: Backend {
     /// The device type that can return an ID.
     ///
     /// It can be the same as (Backend::Device), but must implement (FusionDevice).
-    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device>;
+    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device> + core::fmt::Debug;
     /// The type that can be used to point to a tensor of any kind.
     type Handle: Sync + Send + Clone;
     /// What kind of client should be used.
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of operations that will be used to optimize the computational graph.
-    fn operations() -> Vec<Box<dyn FusionOps<Self>>>;
+    fn operations(device: &Device<Self>) -> Vec<Box<dyn FusionOps<Self>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

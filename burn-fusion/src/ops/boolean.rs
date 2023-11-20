@@ -17,8 +17,9 @@ use burn_tensor::{
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::bool_empty(shape.clone(), device);
 
-        client.create_tensor_empty(shape.dims.into())
+        client.register_tensor(B::bool_tensor_handle(tensor), shape.dims.into())
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
@@ -36,8 +37,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::bool_from_data(data, device);
+        let shape = B::bool_shape(&tensor);
 
-        client.create_tensor_bool(data.value, data.shape.dims.into())
+        client.register_tensor(B::bool_tensor_handle(tensor), shape.dims.into())
     }
 
     fn bool_into_int<const D: usize>(
@@ -55,7 +58,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client
             .register(TensorOpsDescription::BoolOps(BoolOpsDescription::IntoInt(
@@ -84,7 +87,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::BoolOps(
             BoolOpsDescription::IntoFloat(
@@ -139,7 +142,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.create_tensor_empty(shape.clone());
+        let out = tensor.client.tensor_uninitialized(shape.clone());
 
         tensor
             .client
@@ -183,7 +186,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             shape.push(tensor.shape[i]);
         }
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -227,7 +230,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client
@@ -279,7 +282,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             shape[dim] += tensor.shape[dim];
         }
 
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
         client.register(TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Cat(
             CatOpsDescription {
@@ -312,7 +315,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
         out.client.register(TensorOpsDescription::BaseOpsBool(
             BaseOpsDescription::Equal(
@@ -341,7 +344,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
         out.client.register(TensorOpsDescription::BoolOps(
             crate::graph::BoolOpsDescription::Not(
@@ -377,7 +380,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
         tensor
             .client

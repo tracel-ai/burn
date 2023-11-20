@@ -57,3 +57,11 @@ serial_test = "2.0.0"
 [[bench]]
 name = "matmul"
 harness = false
+
+[[bench]]
+name = "fused_elemwise"
+harness = false
+
+[[bench]]
+name = "reduction"
+harness = false

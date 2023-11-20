@@ -1,7 +1,8 @@
 use super::SourceTemplate;
 use crate::{
-    compute::{StaticKernel, WorkGroup},
+    compute::{StaticKernel, WgpuComputeClient, WgpuHandle, WorkGroup},
     element::WgpuElement,
+    kernel,
     tensor::WgpuTensor,
 };
 use std::marker::PhantomData;
@@ -74,6 +75,33 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
         .execute(kernel, &[&tensor.handle, &output.handle, &info_handle]);
 
     output
+}
+
+/// Similar to [into contiguous](into_contiguous) but with dynamic rank.
+pub fn into_contiguous_dyn<E: WgpuElement>(
+    client: WgpuComputeClient,
+    input: WgpuHandle,
+    input_shape: &[usize],
+    input_strides: &[usize],
+    output_shape: &[usize],
+    output_strides: &[usize],
+    num_elems: usize,
+) -> WgpuHandle {
+    let handle = client.empty(num_elems * core::mem::size_of::<E>());
+    let info = kernel::build_info_dyn::<E>(
+        &[input_shape, output_shape],
+        &[input_strides, output_strides],
+    );
+
+    let info_handle = client.create(bytemuck::cast_slice(&info));
+
+    let kernel = Box::new(StaticKernel::<
+        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
+
+    client.execute(kernel, &[&input, &handle, &info_handle]);
+
+    handle
 }
 
 /// Generates kernel source code by replacing some information using templating.
@@ -178,6 +206,28 @@ pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>])
     for tensor in tensors.iter() {
         for d in 0..D {
             info[current] = tensor.shape.dims[d] as u32;
+            current += 1;
+        }
+    }
+    info
+}
+
+/// Similar to [build info](build_info) but with dynamic rank.
+pub fn build_info_dyn<E: WgpuElement>(shapes: &[&[usize]], strides: &[&[usize]]) -> Vec<u32> {
+    let rank = shapes.get(0).unwrap().len();
+    let mut info: Vec<u32> = vec![0; shapes.len() * 2 * rank + 1];
+    info[0] = rank as u32;
+
+    let mut current = 1;
+    for stride in strides.iter() {
+        for d in 0..rank {
+            info[current] = stride[d] as u32;
+            current += 1;
+        }
+    }
+    for shape in shapes.iter() {
+        for d in 0..rank {
+            info[current] = shape[d] as u32;
             current += 1;
         }
     }

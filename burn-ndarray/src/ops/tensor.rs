@@ -127,6 +127,10 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         Self::mul_scalar(tensor, (-1f32).elem::<E>())
     }
 
+    fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::recip(tensor)
+    }
+
     fn swap_dims<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim1: usize,
