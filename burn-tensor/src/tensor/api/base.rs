@@ -270,10 +270,35 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
+    ///     // Create a tensor with a single dimension of ints between 0 and 11
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12);
+    ///     // Select elements 0, 1, 2, 3 from the first dimension
+    ///     let tensor_slices = tensor.clone().slice([0..4]);
+    ///     println!("\nexpecting [0,1,2,3] : {:?}", tensor);
+    ///     println!("expecting [4] : {:?}", tensor.dims());
+    ///
+    ///     // Create a Tensor with 3 dimensions
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     // This slice will select the element 0 on the first dimension,
+    ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
-    ///     println!("{:?}", tensor_slices.dims()); // [1, 3, 2]
-    ///     
+    ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
+    ///
+    ///     // Create a tensor of ints from 0 to 11 and reshape it into three dimensions
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12);
+    ///     let tensor = tensor.reshape([1, 3, 4]);
+    ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
+    ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
+    ///     // Select element 0 of first dimension, elements 1,2 of second dimension
+    ///     // and element 1 of third dimension
+    ///     //
+    ///     // This is the equivalent of this pseudo code
+    ///     // let mut v = vec![[[]]];
+    ///     // v[0][0][0] = tensor[0][1][1];
+    ///     // v[0][1][0] = tensor[0][2][1];
+    ///     let tensor_slices = tensor.slice([0..1, 1..3, 1..2]);
+    ///     println!("\nexpecting [1, 2, 1] : {:?}", tensor_slices.dims());
+    ///     println!("expecting [[[5],[9]]] : {:?}", tensor_slices);
     /// }
     /// ```
     pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
