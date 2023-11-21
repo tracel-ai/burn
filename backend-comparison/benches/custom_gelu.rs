@@ -1,6 +1,6 @@
 use backend_comparison::persistence::persist;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::benchmark::{run_benchmark, Benchmark, BenchmarkResult};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
 use derive_new::new;
 
@@ -110,11 +110,14 @@ fn bench<B: Backend>(device: &B::Device) {
         GeluKind::WithCustomErf,
     );
 
-    persist::<B>(vec![
-        run_benchmark(reference_gelu),
-        run_benchmark(reference_erf_gelu),
-        run_benchmark(custom_erf_gelu),
-    ], device)
+    persist::<B>(
+        vec![
+            run_benchmark(reference_gelu),
+            run_benchmark(reference_erf_gelu),
+            run_benchmark(custom_erf_gelu),
+        ],
+        device,
+    )
 }
 
 fn main() {

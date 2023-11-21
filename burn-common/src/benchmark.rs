@@ -10,6 +10,7 @@ use std::time::Instant;
 /// Results of a benchmark run.
 #[derive(new, Debug)]
 pub struct BenchmarkDurations {
+    /// All durations of the run, in the order they were benchmarked
     pub durations: Vec<Duration>,
 }
 
@@ -119,11 +120,16 @@ pub trait Benchmark {
     }
 }
 
+/// Result of a benchmark run, with metadata
 pub struct BenchmarkResult {
+    /// Individual results of the run
     pub durations: BenchmarkDurations,
+    /// Time just before the run
     pub timestamp: u128,
+    /// Git commit hash of the commit in which the run occurred
     pub git_hash: String,
-    pub name: String, // TODO name should be struct
+    /// Name of the benchmark, normally with operation name and shapes
+    pub name: String,
 }
 
 impl Display for BenchmarkResult {

@@ -10,13 +10,9 @@ use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
 
-type OpName = String;
-type GitHash = String;
-type Timestamp = u128;
-
-type BenchmarkOpResults = HashMap<OpName, BenchmarkCommitResults>;
-type BenchmarkCommitResults = HashMap<GitHash, StampedBenchmarks>;
-type StampedBenchmarks = HashMap<Timestamp, Vec<Duration>>;
+type BenchmarkOpResults = HashMap<String, BenchmarkCommitResults>;
+type BenchmarkCommitResults = HashMap<String, StampedBenchmarks>;
+type StampedBenchmarks = HashMap<u128, Vec<Duration>>;
 
 /// Updates the cached backend comparison file with new benchmarks,
 /// following this json structure:
@@ -52,21 +48,25 @@ fn fill_backend_comparison<B: Backend>(
     for bench in benches {
         let mut benchmark_commit_results =
             benchmark_op_results.remove(&bench.name).unwrap_or_default();
+
         let mut stamped_benchmarks = benchmark_commit_results
             .remove(&bench.git_hash)
             .unwrap_or_default();
+
         stamped_benchmarks.insert(bench.timestamp, bench.durations.durations);
         benchmark_commit_results.insert(bench.git_hash, stamped_benchmarks);
         benchmark_op_results.insert(bench.name, benchmark_commit_results);
     }
+
     benchmark_op_results
 }
 
 fn load(path: PathBuf) -> BenchmarkOpResults {
-    if let Ok(file) = File::open(&path) {
-        serde_json::from_reader(file).expect("Should have parsed to BenchmarkOpResults struct")
-    } else {
-        BenchmarkOpResults::new()
+    match File::open(&path) {
+        Ok(file) => {
+            serde_json::from_reader(file).expect("Should have parsed to BenchmarkOpResults struct")
+        }
+        Err(_) => BenchmarkOpResults::new(),
     }
 }
 
@@ -75,6 +75,7 @@ fn save(backend_comparison: BenchmarkOpResults, path: PathBuf) {
         create_dir_all(parent).expect("Unable to create directory");
     }
     let file = File::create(&path).expect("Unable to create backend comparison file");
+
     serde_json::to_writer(file, &backend_comparison)
         .expect("Unable to write to backend comparison file");
 }
