@@ -47,7 +47,7 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+            fn devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
                 #body
 
                 devices

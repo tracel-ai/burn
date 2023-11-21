@@ -1,12 +1,15 @@
-use alloc::vec::Vec;
-
 use super::ParamId;
 use crate::{
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
+use alloc::vec::Vec;
 pub use burn_derive::Module;
 use burn_tensor::Tensor;
+
+/// Type alias to `Vec<B::Device>` which supports `no_std` environements, but automatically using
+/// the `alloc` crate.
+pub type Devices<B> = Vec<<B as Backend>::Device>;
 
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
@@ -79,7 +82,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
 
     /// Collects devices in the given vector and returns it with the devices found in the module
     /// structure without duplicates.
-    fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device>;
+    fn devices(&self, devices: Devices<B>) -> Devices<B>;
 
     /// Fork the module and all of its sub-modules to the given device.
     ///
