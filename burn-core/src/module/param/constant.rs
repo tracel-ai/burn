@@ -1,9 +1,8 @@
 use crate::{
     self as burn,
-    module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor},
+    module::{AutodiffModule, Devices, Module, ModuleMapper, ModuleVisitor},
     record::Record,
 };
-use alloc::vec::Vec;
 use burn::record::PrecisionSettings;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
@@ -76,7 +75,7 @@ macro_rules! constant {
             self
         }
 
-        fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+        fn devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
             devices
         }
     };
@@ -148,7 +147,7 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
         self.to_device(device)
     }
 
-    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn devices(&self, mut devices: Devices<B>) -> Devices<B> {
         let device = self.device();
 
         if !devices.contains(&device) {
@@ -196,7 +195,7 @@ impl<B: Backend> Module<B> for PhantomData<B> {
         self
     }
 
-    fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn devices(&self, devices: Devices<B>) -> Devices<B> {
         devices
     }
 }
