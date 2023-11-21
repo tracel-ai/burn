@@ -1,7 +1,7 @@
-use alloc::sync::Arc;
-
 use super::ParamId;
 use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
@@ -93,6 +93,16 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
     fn fork(self, device: &<B as Backend>::Device) -> Self {
         self.to_device(device) // Same thing here since no grad.
+    }
+
+    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+        let device = self.value.read().unwrap().device();
+
+        if !devices.contains(&device) {
+            devices.push(device)
+        }
+
+        devices
     }
 }
 

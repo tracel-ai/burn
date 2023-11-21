@@ -1,5 +1,6 @@
 // Originally copied from the burn/examples/mnist package
 
+use alloc::vec::Vec;
 use burn::{
     config::Config,
     module::Module,

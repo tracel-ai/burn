@@ -29,6 +29,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let num_params_fn = generator.gen_num_params();
     let visit = generator.gen_visit();
     let map_mut = generator.gen_map();
+    let devices = generator.gen_devices();
     let to_device = generator.gen_to_device();
     let fork = generator.gen_fork();
     let valid_fn = generator.gen_valid();
@@ -53,6 +54,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #visit
             #map_mut
 
+            #devices
             #to_device
             #fork
         }

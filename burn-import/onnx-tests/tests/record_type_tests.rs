@@ -5,6 +5,8 @@
 // For half precision, we use a different tolerance because the output is
 // different.
 
+extern crate alloc;
+
 macro_rules! test_model {
     ($mod_name:ident) => {
         test_model!($mod_name, 1.0e-4); // Default tolerance

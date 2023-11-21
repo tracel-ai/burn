@@ -22,23 +22,6 @@ macro_rules! module {
         let mut mapper = Mapper;
         $module.map(&mut mapper)
     }};
-    (map=$module:ident, ops=$item:expr, capture={$capture:ident: $ty:ty}) => {{
-        struct Mapper<'a, B: Backend> {
-            capture: &'a $ty,
-            backend: core::marker::PhantomData<B>,
-        }
-        impl<'a, B: Backend> ModuleMapper<B> for Mapper<'a, B> {
-            fn map<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
-                let func = $item;
-                func(tensor, self.capture)
-            }
-        }
-        let mut mapper = Mapper {
-            capture: $capture,
-            backend: core::marker::PhantomData,
-        };
-        $module.map(&mut mapper)
-    }};
     (visit=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
         struct Visitor<'a, B: Backend> {
             state: &'a mut $state_ty,
@@ -94,20 +77,9 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     /// Type to save and load the module.
     type Record: Record;
 
-    /// Get the device list of the module and all of its sub-modules.
-    fn devices(&self) -> Vec<B::Device> {
-        module!(
-            visit = self,
-            ops = |tensor: &Tensor<B, D>, state: &mut Vec<B::Device>| {
-                let device = tensor.device();
-                if !state.contains(&device) {
-                    state.push(device);
-                }
-            },
-            state = Vec<B::Device>,
-            init = Vec::new
-        )
-    }
+    /// Collects devices in the given vector and returns it with the devices found in the module
+    /// structure without duplicates.
+    fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device>;
 
     /// Fork the module and all of its sub-modules to the given device.
     ///

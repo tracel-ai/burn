@@ -4,6 +4,7 @@ use crate::tensor::{
     backend::{AutodiffBackend, Backend},
     Tensor,
 };
+use alloc::vec::Vec;
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
     fn from(value: Tensor<B, D>) -> Self {
@@ -57,6 +58,16 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 
             tensor
         })
+    }
+
+    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+        let device = self.device();
+
+        if !devices.contains(&device) {
+            devices.push(device)
+        }
+
+        devices
     }
 }
 

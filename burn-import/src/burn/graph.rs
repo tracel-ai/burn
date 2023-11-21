@@ -193,6 +193,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self
     }
 
+    /// Add alloc::vec::Vec to import if the true.
+    pub fn use_alloc_vec(mut self, use_alloc_vec: bool) -> Self {
+        if use_alloc_vec {
+            self.imports.register("alloc::vec::Vec");
+        }
+        self
+    }
+
     /// Generate tokens reprensenting the graph with Burn modules and tensor operations.
     pub fn codegen(mut self) -> TokenStream {
         self.build_scope();

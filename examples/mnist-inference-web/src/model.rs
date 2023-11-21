@@ -2,6 +2,7 @@
 
 // Originally copied from the burn/examples/mnist package
 
+use alloc::vec::Vec;
 use burn::{
     module::Module,
     nn::{self, BatchNorm, PaddingConfig2d},

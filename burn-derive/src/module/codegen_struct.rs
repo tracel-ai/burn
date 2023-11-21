@@ -39,6 +39,22 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_devices(&self) -> TokenStream {
+        let body = self.gen_fields_fn(|name| {
+            quote! {
+                let devices = burn::module::Module::<B>::devices(&self.#name, devices);
+            }
+        });
+
+        quote! {
+            fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+                #body
+
+                devices
+            }
+        }
+    }
+
     fn gen_to_device(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {

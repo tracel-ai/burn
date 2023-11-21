@@ -4,6 +4,7 @@ use crate::{
     conv::{ConvBlock, ConvBlockConfig},
     mlp::{Mlp, MlpConfig},
 };
+use alloc::vec::Vec;
 
 use burn::{
     config::Config,

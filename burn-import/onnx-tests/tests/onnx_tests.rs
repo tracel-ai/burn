@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
     ($($model:ident),*) => {

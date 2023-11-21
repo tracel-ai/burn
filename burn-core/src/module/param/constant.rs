@@ -1,15 +1,15 @@
-use core::marker::PhantomData;
-
 use crate::{
     self as burn,
     module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor},
     record::Record,
 };
+use alloc::vec::Vec;
 use burn::record::PrecisionSettings;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     BasicAutodiffOps, BasicOps, Tensor,
 };
+use core::marker::PhantomData;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
 #[derive(Debug, Clone, Copy, new)]
@@ -74,6 +74,10 @@ macro_rules! constant {
 
         fn fork(self, _: &B::Device) -> Self {
             self
+        }
+
+        fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+            devices
         }
     };
 
@@ -143,6 +147,16 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
     fn fork(self, device: &B::Device) -> Self {
         self.to_device(device)
     }
+
+    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+        let device = self.device();
+
+        if !devices.contains(&device) {
+            devices.push(device)
+        }
+
+        devices
+    }
 }
 
 impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> AutodiffModule<B>
@@ -180,6 +194,10 @@ impl<B: Backend> Module<B> for PhantomData<B> {
 
     fn fork(self, _: &<B as Backend>::Device) -> Self {
         self
+    }
+
+    fn devices(&self, devices: Vec<B::Device>) -> Vec<B::Device> {
+        devices
     }
 }
 
