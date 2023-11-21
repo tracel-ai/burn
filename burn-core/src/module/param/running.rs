@@ -80,6 +80,20 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
         self
     }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        let mut tensor = self.value.write().unwrap();
+        let tensor_out = tensor.clone().to_device(device);
+
+        *tensor = tensor_out;
+        core::mem::drop(tensor);
+
+        self
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.to_device(device) // Same thing here since no grad.
+    }
 }
 
 impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {

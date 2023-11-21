@@ -67,6 +67,14 @@ macro_rules! constant {
         fn into_record(self) -> Self::Record {
             burn::module::ConstantRecord::new()
         }
+
+        fn to_device(self, _: &B::Device) -> Self {
+            self
+        }
+
+        fn fork(self, _: &B::Device) -> Self {
+            self
+        }
     };
 
     (ad_module, $type:ty) => {
@@ -116,10 +124,6 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
 
     fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {}
 
-    fn to_device(self, device: &<B as Backend>::Device) -> Self {
-        self.to_device(device)
-    }
-
     fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
         self
     }
@@ -130,6 +134,14 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
 
     fn load_record(self, _record: Self::Record) -> Self {
         self
+    }
+
+    fn to_device(self, device: &B::Device) -> Self {
+        self.to_device(device)
+    }
+
+    fn fork(self, device: &B::Device) -> Self {
+        self.to_device(device)
     }
 }
 
@@ -160,6 +172,14 @@ impl<B: Backend> Module<B> for PhantomData<B> {
 
     fn into_record(self) -> Self::Record {
         ConstantRecord::new()
+    }
+
+    fn to_device(self, _: &<B as Backend>::Device) -> Self {
+        self
+    }
+
+    fn fork(self, _: &<B as Backend>::Device) -> Self {
+        self
     }
 }
 

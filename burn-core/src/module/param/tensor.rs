@@ -41,6 +41,23 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
 
         Self::new(record.id, tensor)
     }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|tensor| tensor.to_device(device))
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|tensor| {
+            let is_require_grad = tensor.is_require_grad();
+            let mut tensor = tensor.to_device(device).detach();
+
+            if is_require_grad {
+                tensor = tensor.require_grad();
+            }
+
+            tensor
+        })
+    }
 }
 
 impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D>> {

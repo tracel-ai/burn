@@ -28,6 +28,14 @@ where
     fn into_record(self) -> Self::Record {
         self.map(Module::into_record)
     }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.to_device(device))
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.fork(device))
+    }
 }
 
 impl<T, B> AutodiffModule<B> for Option<T>
@@ -77,6 +85,16 @@ where
             .zip(record)
             .map(|(module, record)| module.load_record(record))
             .collect()
+    }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.into_iter()
+            .map(|module| module.to_device(device))
+            .collect()
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.into_iter().map(|module| module.fork(device)).collect()
     }
 }
 
@@ -138,6 +156,14 @@ where
 
     fn into_record(self) -> Self::Record {
         self.map(Module::into_record)
+    }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.to_device(device))
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.fork(device))
     }
 }
 

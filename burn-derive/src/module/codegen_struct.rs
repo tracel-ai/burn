@@ -39,10 +39,46 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_to_device(&self) -> TokenStream {
+        let (names, body) = self.gen_fields_fn_names(|name| {
+            quote! {
+                let #name = burn::module::Module::<B>::to_device(self.#name, device);
+            }
+        });
+
+        quote! {
+            fn to_device(self, device: &B::Device) -> Self {
+                #body
+
+                Self {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
+    fn gen_fork(&self) -> TokenStream {
+        let (names, body) = self.gen_fields_fn_names(|name| {
+            quote! {
+                let #name = burn::module::Module::<B>::fork(self.#name, device);
+            }
+        });
+
+        quote! {
+            fn fork(self, device: &B::Device) -> Self {
+                #body
+
+                Self {
+                    #(#names),*
+                }
+            }
+        }
+    }
+
     fn gen_map(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name| {
             quote! {
-                let #name = burn::module::Module::map(self.#name, mapper);
+                let #name = burn::module::Module::<B>::map(self.#name, mapper);
             }
         });
 
