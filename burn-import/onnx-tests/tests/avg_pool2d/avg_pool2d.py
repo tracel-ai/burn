@@ -10,14 +10,20 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-        # TODO when https://github.com/burn-rs/burn/issues/636 is resolved, test this with a model 
-        # that uses `count_include_pad=False` and padding=(2, 1) 
-        self.pool2d = nn.AvgPool2d((4, 2), stride=(
-            2, 1), padding=(0, 0), count_include_pad=False)
+        self.pool2d1 = nn.AvgPool2d((4, 2), stride=(
+            2, 1))
 
-    def forward(self, x):
-        x = self.pool2d(x)
-        return x
+        self.pool2d2 = nn.AvgPool2d((4, 2), stride=(
+            2, 1), padding=(2, 1), count_include_pad=True)
+
+        self.pool2d3 = nn.AvgPool2d((4, 2), stride=(
+            2, 1), padding=(2, 1), count_include_pad=False)
+
+    def forward(self, x1, x2, x3):
+        y1 = self.pool2d1(x1)
+        y2 = self.pool2d2(x2)
+        y3 = self.pool2d3(x3)
+        return y1, y2, y3
 
 
 def main():
@@ -33,18 +39,22 @@ def main():
     device = torch.device("cpu")
 
     file_name = "avg_pool2d.onnx"
-    test_input = torch.randn(1, 1, 5, 5, device=device)
-    torch.onnx.export(model, test_input, file_name,
+    input1 = torch.randn(1, 1, 5, 5, device=device)
+    torch.onnx.export(model, (input1, input1, input1), file_name,
                       verbose=False, opset_version=16)
 
     print("Finished exporting model to {}".format(file_name))
 
     # Output some test data for use in the test
-    print("Test input data shape of ones: {}".format(test_input.shape))
-    print("Test input data of ones: {}".format(test_input))
-    output = model.forward(test_input)
-    print("Test output data shape: {}".format(output.shape))
-    print("Test output: {}".format(output))
+    print("Test input data shape: {}".format(input1.shape))
+    print("Test input data: {}".format(input1))
+    output1, output2, output3 = model.forward(input1, input1, input1)
+    print("Test output1 data shape: {}".format(output1.shape))
+    print("Test output2 data shape: {}".format(output2.shape))
+    print("Test output3 data shape: {}".format(output3.shape))
+    print("Test output1: {}".format(output1))
+    print("Test output2: {}".format(output2))
+    print("Test output3: {}".format(output3))
 
 
 if __name__ == '__main__':

@@ -129,6 +129,7 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
     let mut strides = vec![1, 1];
     let mut pads = vec![0, 0, 0, 0];
     let mut count_include_pad: i64 = 0;
+    let mut ceil_mode: i64 = 0;
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
@@ -136,19 +137,21 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "count_include_pad" => count_include_pad = value.clone().into_i64(),
+            "ceil_mode" => ceil_mode = value.clone().into_i64(),
             _ => {}
         }
     }
 
-    let padding = padding_config(&pads);
-
-    if count_include_pad == 1 && padding != PaddingConfig2d::Valid {
-        todo!("AvgPool2d: count_include_pad is not supported. See https://github.com/burn-rs/burn/issues/636");
+    if ceil_mode == 1 {
+        panic!("ceil_mode is not supported");
     }
+
+    let padding = padding_config(&pads);
 
     AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
+        .with_count_include_pad(count_include_pad == 1)
 }
 
 /// Create a FlattenConfig from the attributes of the node
