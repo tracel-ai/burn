@@ -11,7 +11,7 @@ name = "my-first-burn-model"
 version = "0.1.0"
 
 [dependencies]
-burn = { version = "0.9.0", features=["train", "wgpu"]}
+burn = { version = "0.10.0", features=["train", "wgpu"]}
 
 # Serialization
 serde = "1"
