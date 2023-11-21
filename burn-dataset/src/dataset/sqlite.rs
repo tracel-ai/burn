@@ -560,6 +560,13 @@ where
     pub fn set_completed(&mut self) -> Result<()> {
         let mut is_completed = self.is_completed.write().unwrap();
 
+        // Force close the connection pool
+        // This is required on Windows platform where the connection pool prevents
+        // from persisting the db by renaming the temp file.
+        if let Some(pool) = self.conn_pool.take() {
+            std::mem::drop(pool);
+        }
+
         // Rename the database file from tmp to db
         let _file_result = self
             .db_file_tmp
