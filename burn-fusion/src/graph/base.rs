@@ -85,12 +85,12 @@ pub struct Optimization<B: FusionBackend> {
 }
 
 impl<B: FusionBackend> Optimization<B> {
-    pub(crate) fn register(&mut self, ops: &Arc<TensorOpsDescription>) {
+    pub(crate) fn register(&mut self, ops: &TensorOpsDescription) {
         if let FusionStatus::Closed(_) = self.status {
             return;
         }
 
-        self.status = self.ops.register(ops.clone());
+        self.status = self.ops.register(ops);
     }
 
     pub(crate) fn reset(&mut self) {
