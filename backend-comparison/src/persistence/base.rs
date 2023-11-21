@@ -36,12 +36,12 @@ pub fn persist<B: Backend>(benches: Vec<BenchmarkResult>, device: &B::Device) {
 
     println!("Persisting to {:?}", cache_file);
     save(
-        fill_backend_comparison::<B>(load(cache_file.clone()), benches),
+        fill_backend_comparison(load(cache_file.clone()), benches),
         cache_file,
     )
 }
 
-fn fill_backend_comparison<B: Backend>(
+fn fill_backend_comparison(
     mut benchmark_op_results: BenchmarkOpResults,
     benches: Vec<BenchmarkResult>,
 ) -> BenchmarkOpResults {
@@ -62,7 +62,7 @@ fn fill_backend_comparison<B: Backend>(
 }
 
 fn load(path: PathBuf) -> BenchmarkOpResults {
-    match File::open(&path) {
+    match File::open(path) {
         Ok(file) => {
             serde_json::from_reader(file).expect("Should have parsed to BenchmarkOpResults struct")
         }
