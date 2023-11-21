@@ -80,7 +80,7 @@ fn bench<B: Backend>(device: &B::Device) {
     persist::<B>(vec![
         run_benchmark(to_benchmark),
         run_benchmark(from_benchmark),
-    ])
+    ], device)
 }
 
 fn main() {

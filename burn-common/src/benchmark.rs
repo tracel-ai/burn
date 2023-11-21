@@ -135,10 +135,7 @@ impl Display for BenchmarkResult {
         Git Hash: {}
         Benchmarking - {}{}
         ",
-                self.timestamp,
-                str::trim(&self.git_hash),
-                self.name,
-                self.durations
+                self.timestamp, self.git_hash, self.name, self.durations
             )
             .as_str(),
         )
@@ -156,10 +153,10 @@ where
         .unwrap()
         .as_millis();
     let output = std::process::Command::new("git")
-        .args(["rev-porse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .unwrap();
-    let git_hash = String::from_utf8(output.stdout).unwrap();
+    let git_hash = String::from_utf8(output.stdout).unwrap().trim().to_string();
     BenchmarkResult {
         timestamp,
         git_hash,

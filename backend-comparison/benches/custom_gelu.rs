@@ -114,7 +114,7 @@ fn bench<B: Backend>(device: &B::Device) {
         run_benchmark(reference_gelu),
         run_benchmark(reference_erf_gelu),
         run_benchmark(custom_erf_gelu),
-    ])
+    ], device)
 }
 
 fn main() {

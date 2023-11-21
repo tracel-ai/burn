@@ -41,7 +41,8 @@ fn bench<B: Backend>(device: &B::Device) {
         num_repeats: 10,
         device: device.clone(),
     };
-    persist::<B>(vec![run_benchmark(benchmark)])
+
+    persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {

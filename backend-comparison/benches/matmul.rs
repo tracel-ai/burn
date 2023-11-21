@@ -57,7 +57,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape_rhs = [batch_size, k, n].into();
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
-    persist::<B>(vec![run_benchmark(benchmark)])
+    persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {

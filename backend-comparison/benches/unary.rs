@@ -41,7 +41,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    persist::<B>(vec![run_benchmark(benchmark)])
+    persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {
