@@ -164,7 +164,7 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use burn_tensor::Data;
+    use burn_tensor::{Data, ElementConversion};
 
     pub type TB = burn_ndarray::NdArray<f32>;
 

@@ -421,7 +421,7 @@ where
 mod tests {
     use super::*;
     use burn_fusion::graph::Ops;
-    use burn_fusion::Fusion;
+    use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Tensor;
 
     struct FakeAddOps;
