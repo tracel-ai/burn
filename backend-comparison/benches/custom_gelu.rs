@@ -1,4 +1,4 @@
-use backend_comparison::persistence::persist;
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
@@ -108,7 +108,7 @@ fn bench<B: Backend>(device: &B::Device) {
         GeluKind::WithCustomErf,
     );
 
-    persist::<B>(
+    Persistence::persist::<B>(
         vec![
             run_benchmark(reference_gelu),
             run_benchmark(reference_erf_gelu),

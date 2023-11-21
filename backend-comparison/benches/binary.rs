@@ -1,4 +1,4 @@
-use backend_comparison::persistence::persist;
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
@@ -42,7 +42,7 @@ fn bench<B: Backend>(device: &B::Device) {
         device: device.clone(),
     };
 
-    persist::<B>(vec![run_benchmark(benchmark)], device)
+    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {
