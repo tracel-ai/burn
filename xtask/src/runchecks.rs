@@ -120,7 +120,7 @@ fn cargo_clippy() {
     // Run cargo clippy
     run_cargo(
         "clippy",
-        ["--color=always", "--", "-D", "warnings"].into(),
+        ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
         "Failed to run cargo clippy",
     );
 }

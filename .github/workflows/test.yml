@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         rust: [stable, 1.71.0]
@@ -89,7 +89,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # Run clippy for each workspace, targets, and featrues, considering
           # warnings as errors
-          clippy_flags: --workspace --all-targets --all-features -- -D warnings
+          clippy_flags: --all-targets -- -Dwarnings
+          # Do not filter results
+          filter_mode: nofilter
+          # Report clippy annotations as snippets
           reporter: github-pr-check
 
       - name: Install grcov

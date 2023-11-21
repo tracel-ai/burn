@@ -43,3 +43,12 @@ mod tch_cpu {
     }
 }
 ```
+
+### Platform Support
+
+| Option | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :----- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| CPU    | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |
+| CUDA   | No  | Yes |  Yes  |  No   |   Yes   |   No    | No  |  No  |
+| MPS    | No  | Yes |  No   |  Yes  |   No    |   No    | No  |  No  |
+| Vulkan | Yes | Yes |  Yes  |  Yes  |   Yes   |   Yes   | No  |  No  |

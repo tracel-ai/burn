@@ -551,8 +551,11 @@ mod tests {
     fn linear() {
         // Initialize the model with weights (loaded from the exported file)
         let model: linear::Model<Backend> = linear::Model::default();
+        #[allow(clippy::approx_constant)]
         let input1 = Tensor::<Backend, 2>::full([4, 3], 3.14);
+        #[allow(clippy::approx_constant)]
         let input2 = Tensor::<Backend, 2>::full([2, 5], 3.14);
+        #[allow(clippy::approx_constant)]
         let input3 = Tensor::<Backend, 3>::full([3, 2, 7], 3.14);
 
         let (output1, output2, output3) = model.forward(input1, input2, input3);

@@ -53,7 +53,6 @@ where
     Erf: Fn(Tensor<B, D>) -> Tensor<B, D>,
 {
     let x = x.clone() * (erf(x / SQRT_2) + 1);
-
     x / 2
 }
 

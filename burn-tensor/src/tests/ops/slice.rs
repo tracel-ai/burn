@@ -131,6 +131,7 @@ mod tests {
         let data = Data::from([0.0, 1.0, 2.0]);
         let tensor = Tensor::<TestBackend, 1>::from_data(data.clone());
 
+        #[allow(clippy::reversed_empty_ranges)]
         let data_actual = tensor.slice([2..1]).into_data();
 
         assert_eq!(data, data_actual);
