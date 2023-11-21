@@ -22,7 +22,7 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
 {
-    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
+    fn visit_float<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
         if let Some(grad) = tensor.grad_remove(&mut self.grads) {
             self.grads_params
                 .register::<B::InnerBackend, D>(id.clone(), grad);
@@ -35,7 +35,7 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
 {
-    fn visit<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
+    fn visit_float<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
         if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
             self.grads
                 .register::<B::InnerBackend, D>(id.clone(), grad.to_device(self.device));

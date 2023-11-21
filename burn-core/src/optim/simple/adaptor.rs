@@ -115,7 +115,7 @@ where
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         let grad = self.grads.remove(id);
 
         if let Some(grad) = grad {

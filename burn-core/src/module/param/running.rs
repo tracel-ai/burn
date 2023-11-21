@@ -51,12 +51,12 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.read().unwrap();
 
-        visitor.visit(&self.id, &tensor)
+        visitor.visit_float(&self.id, &tensor)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.write().unwrap();
-        let tensor_out = mapper.map(&self.id, tensor.clone());
+        let tensor_out = mapper.map_float(&self.id, tensor.clone());
 
         *tensor = tensor_out;
         core::mem::drop(tensor);
