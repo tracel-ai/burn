@@ -12,7 +12,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         match distribution {

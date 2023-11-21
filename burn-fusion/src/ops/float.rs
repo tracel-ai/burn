@@ -34,16 +34,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<Self>>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
-        struct RandomOps<const D: usize, B: FusionBackend> {
+        struct RandomOps<const D: usize> {
             out: TensorDescription,
-            distribution: Distribution<FloatElem<B>>,
+            distribution: Distribution,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for RandomOps<D, B> {
+        impl<const D: usize, B: FusionBackend> Ops<B> for RandomOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output: B::TensorPrimitive<D> =

@@ -37,9 +37,9 @@ where
         }
     }
 
-    pub fn register(&mut self, ops: TensorOpsDescription, op: Box<dyn Ops<B>>) {
-        let ops = Arc::new(ops);
-        self.graph.add(ops.clone(), ops);
+    pub fn register(&mut self, desc: TensorOpsDescription, op: Box<dyn Ops<B>>) {
+        let ops = Arc::new(desc);
+        self.graph.add(ops.clone(), op);
 
         self.optimizations
             .iter_mut()

@@ -50,7 +50,7 @@ where
         description: TensorOpsDescription,
         ops: O,
     ) {
-        self.server.lock().register(description, ops)
+        self.server.lock().register(description, Box::new(ops))
     }
 
     fn drain_graph(&self) {

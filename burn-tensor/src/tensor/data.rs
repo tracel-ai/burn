@@ -27,7 +27,7 @@ pub struct Data<E, const D: usize> {
 
 /// Distribution for random value of a tensor.
 #[derive(Debug, Clone, Copy)]
-pub enum Distribution<E> {
+pub enum Distribution {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Default,
 
@@ -35,7 +35,7 @@ pub enum Distribution<E> {
     Bernoulli(f64),
 
     /// Uniform distribution. The range is inclusive.
-    Uniform(E, E),
+    Uniform(f64, f64),
 
     /// Normal distribution with the given mean and standard deviation.
     Normal(f64, f64),
@@ -96,11 +96,7 @@ where
     }
 }
 
-impl<E> Distribution<E>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
-{
+impl Distribution {
     /// Creates a new distribution sampler.
     ///
     /// # Arguments
@@ -110,14 +106,18 @@ where
     /// # Returns
     ///
     /// The distribution sampler.
-    pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
+    pub fn sampler<R: RngCore, E: Element>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
+    where
+        E: rand::distributions::uniform::SampleUniform,
+        Standard: rand::distributions::Distribution<E>,
+    {
         let kind = match self {
             Distribution::Default => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
             }
-            Distribution::Uniform(low, high) => {
-                DistributionSamplerKind::Uniform(rand::distributions::Uniform::new(low, high))
-            }
+            Distribution::Uniform(low, high) => DistributionSamplerKind::Uniform(
+                rand::distributions::Uniform::new(low.elem::<E>(), high.elem::<E>()),
+            ),
             Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
                 rand::distributions::Bernoulli::new(prob).unwrap(),
             ),
@@ -127,27 +127,6 @@ where
         };
 
         DistributionSampler::new(kind, rng)
-    }
-}
-
-impl<E> Distribution<E>
-where
-    E: Element,
-{
-    /// Converts the distribution to a different element type.
-    ///
-    /// # Returns
-    ///
-    /// The converted distribution.
-    pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
-        match self {
-            Distribution::Default => Distribution::Default,
-            Distribution::Uniform(a, b) => {
-                Distribution::Uniform(EOther::from_elem(a), EOther::from_elem(b))
-            }
-            Distribution::Bernoulli(prob) => Distribution::Bernoulli(prob),
-            Distribution::Normal(mean, std) => Distribution::Normal(mean, std),
-        }
     }
 }
 
@@ -211,7 +190,7 @@ impl<const D: usize> Data<bool, D> {
 
 impl<E: Element, const D: usize> Data<E, D> {
     /// Populates the data with random values.
-    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
+    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 

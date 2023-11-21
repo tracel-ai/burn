@@ -20,7 +20,7 @@ macro_rules! scalar_float_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs);
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
                 handles.register_float_tensor(&self.desc.out.id, output);
             }
@@ -113,7 +113,7 @@ macro_rules! scalar_float_cmp_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.clone());
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
                 handles.register_bool_tensor(&self.desc.out.id, output);
             }
@@ -136,7 +136,7 @@ macro_rules! scalar_int_cmp_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.clone());
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
                 handles.register_bool_tensor(&self.desc.out.id, output);
             }
@@ -166,7 +166,7 @@ macro_rules! scalar_int_ops {
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.clone());
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
                 handles.register_int_tensor(&self.desc.out.id, output);
             }

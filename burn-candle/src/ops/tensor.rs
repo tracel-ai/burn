@@ -18,7 +18,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<F>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let shape = &shape.dims;

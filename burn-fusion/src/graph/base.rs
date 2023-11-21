@@ -17,7 +17,8 @@ impl<B: FusionBackend> Graph<B> {
         }
     }
     pub(crate) fn add(&mut self, description: Arc<TensorOpsDescription>, ops: Box<dyn Ops<B>>) {
-        self.operations.push(ops);
+        self.operations.push(description);
+        self.ops.push(ops);
     }
 
     /// The size of the graph.
