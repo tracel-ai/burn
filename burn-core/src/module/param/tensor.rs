@@ -9,6 +9,8 @@ use burn_tensor::{Bool, Int};
 
 impl<B: Backend, const D: usize> From<Tensor<B, D>> for Param<Tensor<B, D>> {
     fn from(value: Tensor<B, D>) -> Self {
+        // When creating a parameter from a float tensor, we automatically mark it as requiring
+        // gradients, so that it can be updated by an optimizer.
         Param::new(ParamId::new(), value.require_grad())
     }
 }
