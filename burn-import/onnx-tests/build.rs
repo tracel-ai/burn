@@ -37,7 +37,6 @@ fn main() {
         .input("tests/tanh/tanh.onnx")
         .input("tests/transpose/transpose.onnx")
         .out_dir("model/")
-        .no_std(true)
         .run_from_script();
 
     // The following tests are used to generate the model with different record types.
@@ -48,7 +47,6 @@ fn main() {
         .input("tests/conv1d/conv1d.onnx")
         .out_dir("model/named_mpk/")
         .record_type(RecordType::NamedMpk)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -56,14 +54,12 @@ fn main() {
         .out_dir("model/named_mpk_half/")
         .record_type(RecordType::NamedMpk)
         .half_precision(true)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
         .input("tests/conv1d/conv1d.onnx")
         .out_dir("model/pretty_json/")
         .record_type(RecordType::PrettyJson)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -71,14 +67,12 @@ fn main() {
         .out_dir("model/pretty_json_half/")
         .record_type(RecordType::PrettyJson)
         .half_precision(true)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
         .input("tests/conv1d/conv1d.onnx")
         .out_dir("model/named_mpk_gz/")
         .record_type(RecordType::NamedMpkGz)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -86,14 +80,12 @@ fn main() {
         .out_dir("model/named_mpk_gz_half/")
         .record_type(RecordType::NamedMpkGz)
         .half_precision(true)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
         .input("tests/conv1d/conv1d.onnx")
         .out_dir("model/bincode/")
         .record_type(RecordType::Bincode)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -101,7 +93,6 @@ fn main() {
         .out_dir("model/bincode_half/")
         .record_type(RecordType::Bincode)
         .half_precision(true)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -109,7 +100,6 @@ fn main() {
         .out_dir("model/bincode_embedded/")
         .embed_states(true)
         .record_type(RecordType::Bincode)
-        .no_std(true)
         .run_from_script();
 
     ModelGen::new()
@@ -118,7 +108,6 @@ fn main() {
         .embed_states(true)
         .half_precision(true)
         .record_type(RecordType::Bincode)
-        .no_std(true)
         .run_from_script();
 
     // panic!("Purposefully failing build to output logs.");

@@ -65,7 +65,6 @@ pub struct ModelGen {
     half_precision: bool,
     record_type: RecordType,
     embed_states: bool,
-    no_std: bool,
 }
 
 impl ModelGen {
@@ -141,17 +140,6 @@ impl ModelGen {
         self
     }
 
-    /// Specify if the generated code should comply with `no_std`.
-    /// It will adapt some imports to work with `no_std` environments.
-    ///
-    /// # Important
-    ///
-    /// You will need to add `extern crate alloc;` in your `lib.rs` or `main.rs`.
-    pub fn no_std(&mut self, no_std: bool) -> &mut Self {
-        self.no_std = no_std;
-        self
-    }
-
     /// Run code generation.
     fn run(&self, is_build_script: bool) {
         log::info!("Starting to convert ONNX to Burn");
@@ -213,7 +201,6 @@ impl ModelGen {
                 .with_new_fn(new_fn)
                 .with_blank_space(blank_space)
                 .with_top_comment(top_comment)
-                .use_alloc_vec(self.no_std)
                 .codegen()
         } else {
             graph
@@ -222,7 +209,6 @@ impl ModelGen {
                 .with_new_fn(new_fn)
                 .with_blank_space(blank_space)
                 .with_top_comment(top_comment)
-                .use_alloc_vec(self.no_std)
                 .codegen()
         };
 
