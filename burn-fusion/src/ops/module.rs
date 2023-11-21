@@ -30,6 +30,7 @@ macro_rules! make_ops {
 
         impl<B: FusionBackend> Ops<B> for $name {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                #[allow(clippy::redundant_closure_call)]
                 $fn(self.desc, handles)
             }
         }

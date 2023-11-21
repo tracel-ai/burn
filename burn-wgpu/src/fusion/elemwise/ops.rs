@@ -8,8 +8,7 @@ use burn_fusion::{
         BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, ScalarOpsDescription,
         TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription,
-    TensorId,
+    FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
@@ -37,7 +36,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
     fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
         match ops {
             TensorOpsDescription::FloatOps(ops) => {
-                if !self.register_float::<Wgpu<G, F, I>>(ops) {
+                if !self.register_float(ops) {
                     return FusionStatus::Closed(self.properties);
                 }
             }
@@ -286,7 +285,7 @@ where
         Variable::Local(local_index)
     }
 
-    fn register_float<B: FusionBackend>(&mut self, ops: &FloatOpsDescription) -> bool {
+    fn register_float(&mut self, ops: &FloatOpsDescription) -> bool {
         match ops {
             FloatOpsDescription::Exp(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Exp { input, out })
