@@ -17,7 +17,11 @@ pub trait FusionClient: Send + Sync + Clone {
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
-    fn register<O: Ops<Self::FusionBackend>>(&self, description: TensorOpsDescription, ops: O);
+    fn register<O: Ops<Self::FusionBackend> + 'static>(
+        &self,
+        description: TensorOpsDescription,
+        ops: O,
+    );
     /// Register all lazy computation.
     fn drain_graph(&self);
     /// Get the current device used by all operations handled by this client.

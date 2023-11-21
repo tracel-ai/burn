@@ -151,7 +151,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             shape,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Reshape(desc.clone())),
             ReshapeDimsOps::<D1, D2>::new(desc),
         );
@@ -192,7 +192,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             ranges: ranges.into(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Slice(desc.clone())),
             SliceOps::<D1, D2>::new(desc),
         );
@@ -235,7 +235,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
 
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsBool(BaseOpsDescription::SliceAssign(desc.clone())),
             SliceAssignOps::<D1, D2>::new(desc),
         );
@@ -386,7 +386,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             dim2,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsBool(BaseOpsDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
         );

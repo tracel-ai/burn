@@ -45,7 +45,7 @@ where
         }
     }
 
-    fn register<O: crate::graph::Ops<Self::FusionBackend>>(
+    fn register<O: crate::graph::Ops<Self::FusionBackend> + 'static>(
         &self,
         description: TensorOpsDescription,
         ops: O,

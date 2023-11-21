@@ -94,7 +94,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             shape,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Reshape(desc.clone())),
             ReshapeDimsOps::<D1, D2>::new(desc),
         );
@@ -135,7 +135,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             ranges: ranges.into(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Slice(desc.clone())),
             SliceOps::<D1, D2>::new(desc),
         );
@@ -176,7 +176,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             value: value.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsInt(BaseOpsDescription::SliceAssign(desc.clone())),
             SliceAssignOps::<D1, D2>::new(desc),
         );
@@ -215,7 +215,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaskWhere(desc.clone())),
             MaskWhereOps::<D>::new(desc),
         );
@@ -252,7 +252,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaskFill(desc.clone())),
             MaskFillOps::<D>::new(desc),
         );
@@ -288,7 +288,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Gather(desc.clone())),
             GatherOps::<D>::new(desc),
         );
@@ -328,7 +328,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             value: value.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Scatter(desc.clone())),
             ScatterOps::<D>::new(desc),
         );
@@ -366,7 +366,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Select(desc.clone())),
             SelectOps::<D>::new(desc),
         );
@@ -406,7 +406,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             value: value.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SelectAssign(desc.clone())),
             SelectAssignOps::<D>::new(desc),
         );
@@ -1185,7 +1185,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             dim2,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsInt(BaseOpsDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
         );

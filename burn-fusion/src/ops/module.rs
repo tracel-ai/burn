@@ -10,7 +10,7 @@ use crate::{
         MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription, Ops,
         TensorOpsDescription,
     },
-    Fusion, FusionBackend,
+    Fusion, FusionBackend, HandleContainer,
 };
 use burn_tensor::ops::{
     conv::{
@@ -23,6 +23,7 @@ use burn_tensor::ops::{
 
 macro_rules! make_ops {
     ($name:ident, $desc:ty, $fn:expr) => {
+        #[derive(new)]
         struct $name {
             desc: $desc,
         }
@@ -42,16 +43,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self, 3> {
-        make_ops!(Conv1dOps, Conv1dDescription, |desc, handles| {
-            let x = handles.get_float_tensor(&desc.x);
-            let weight = handles.get_float_tensor(&desc.weight);
-            let bias = desc
-                .bias
-                .as_ref()
-                .map(|bias| handles.get_float_tensor(bias));
-            let output = B::conv1d(x, weight, bias, desc.options);
-            handles.register_float_tensor(&desc.out.id, output);
-        });
+        make_ops!(
+            Conv1dOps,
+            Conv1dDescription,
+            |desc: Conv1dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&desc.x);
+                let weight = handles.get_float_tensor(&desc.weight);
+                let bias = desc
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
+                let output = B::conv1d(x, weight, bias, desc.options);
+                handles.register_float_tensor(&desc.out.id, output);
+            }
+        );
 
         let size = calculate_conv_output_size(
             weight.shape[2],
@@ -71,7 +76,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options,
             out: out.to_description_out(),
         };
-        x.client.clone().register(
+        out.client.clone().register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::Conv1d(
                 description.clone(),
             )),
@@ -87,18 +92,22 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self, 4> {
-        make_ops!(Conv2dOps, Conv2dDescription, |args, handles| {
-            let x = handles.get_float_tensor(&args.x);
-            let weight = handles.get_float_tensor(&args.weight);
-            let bias = args
-                .bias
-                .as_ref()
-                .map(|bias| handles.get_float_tensor(bias));
+        make_ops!(
+            Conv2dOps,
+            Conv2dDescription,
+            |args: Conv2dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let weight = handles.get_float_tensor(&args.weight);
+                let bias = args
+                    .bias
+                    .as_ref()
+                    .map(|bias| handles.get_float_tensor(bias));
 
-            let output = B::conv2d(x, weight, bias, args.options.clone());
+                let output = B::conv2d(x, weight, bias, args.options.clone());
 
-            handles.register_float_tensor(&args.out.id, output);
-        });
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
 
         let size_0 = calculate_conv_output_size(
             weight.shape[2],
@@ -125,11 +134,11 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options,
             out: out.to_description_out(),
         };
-        x.client.clone().register(
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::Conv2d(
                 desc.clone(),
             )),
-            Box::new(Conv2dOps::new(desc)),
+            Conv2dOps::new(desc),
         );
 
         out
@@ -144,7 +153,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             ConvTranspose1dOps,
             ConvTranspose1dDescription,
-            |args, handles| {
+            |args: ConvTranspose1dDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
                 let bias = args
@@ -177,7 +186,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options,
             out: out.to_description_out(),
         };
-        x.client.clone().register(
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::ConvTranspose1d(
                 desc.clone(),
             )),
@@ -196,7 +205,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             ConvTranspose2dOps,
             ConvTranspose2dDescription,
-            |args, handles| {
+            |args: ConvTranspose2dDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let weight = handles.get_float_tensor(&args.weight);
                 let bias = args
@@ -237,7 +246,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options,
             out: out.to_description_out(),
         };
-        x.client.clone().register(
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::ConvTranspose2d(
                 desc.clone(),
             )),
@@ -254,35 +263,40 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: usize,
         count_include_pad: bool,
     ) -> FloatTensor<Self, 3> {
-        make_ops!(AvgPool1dOps, AvgPool1dDescription, |args, handles| {
-            let x = handles.get_float_tensor(&args.x);
-            let output = B::avg_pool1d(
-                x,
-                args.kernel_size,
-                args.stride,
-                args.padding,
-                args.count_include_pad,
-            );
+        make_ops!(
+            AvgPool1dOps,
+            AvgPool1dDescription,
+            |args: AvgPool1dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::avg_pool1d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                );
 
-            handles.register_float_tensor(&args.out.id, output);
-        });
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = AvgPool1dDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AvgPool1d(
-                AvgPool1dDescription {
-                    x: x.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            AvgPool1dOps::new(todo!()),
+            AvgPool1dOps::new(desc),
         );
 
         out
@@ -295,18 +309,22 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: [usize; 2],
         count_include_pad: bool,
     ) -> FloatTensor<Self, 4> {
-        make_ops!(AvgPool2dOps, AvgPool2dDescription, |args, handles| {
-            let x = handles.get_float_tensor(&args.x);
-            let output = B::avg_pool2d(
-                x,
-                args.kernel_size,
-                args.stride,
-                args.padding,
-                args.count_include_pad,
-            );
+        make_ops!(
+            AvgPool2dOps,
+            AvgPool2dDescription,
+            |args: AvgPool2dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::avg_pool2d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.count_include_pad,
+                );
 
-            handles.register_float_tensor(&args.out.id, output);
-        });
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
 
         let size_0 =
             calculate_pool_output_size(kernel_size[0], stride[0], padding[0], 1, x.shape[2]);
@@ -316,18 +334,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = AvgPool2dDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AvgPool2d(
-                AvgPool2dDescription {
-                    x: x.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            AvgPool2dOps::new(desc),
         );
 
         out
@@ -344,7 +363,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool1dBackwardOps,
             AvgPool1dBackwardDescription,
-            |args, handles| {
+            |args: AvgPool1dBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let output = B::avg_pool1d_backward(
@@ -362,19 +381,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
-        x.client.clone().register(
+        let desc = AvgPool1dBackwardDescription {
+            x: x.into_description(),
+            grad: grad.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AvgPool1dBackward(
-                AvgPool1dBackwardDescription {
-                    x: x.into_description(),
-                    grad: grad.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            AvgPool1dBackwardOps::new(desc),
         );
 
         out
@@ -391,7 +411,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AvgPool2dBackwardOps,
             AvgPool2dBackwardDescription,
-            |args, handles| {
+            |args: AvgPool2dBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let output = B::avg_pool2d_backward(
@@ -409,19 +429,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
-        x.client.clone().register(
+        let desc = AvgPool2dBackwardDescription {
+            x: x.into_description(),
+            grad: grad.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AvgPool2dBackward(
-                AvgPool2dBackwardDescription {
-                    x: x.into_description(),
-                    grad: grad.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            AvgPool2dBackwardOps::new(desc),
         );
 
         out
@@ -434,36 +455,41 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: usize,
         dilation: usize,
     ) -> FloatTensor<Self, 3> {
-        make_ops!(MaxPool1dOps, MaxPool1dDescription, |args, handles| {
-            let x = handles.get_float_tensor(&args.x);
-            let output = B::max_pool1d(
-                x,
-                args.kernel_size,
-                args.stride,
-                args.padding,
-                args.dilation,
-            );
+        make_ops!(
+            MaxPool1dOps,
+            MaxPool1dDescription,
+            |args: MaxPool1dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::max_pool1d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                );
 
-            handles.register_float_tensor(&args.out.id, output);
-        });
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = MaxPool1dDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::MaxPool1d(
-                MaxPool1dDescription {
-                    x: x.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            MaxPool1dOps::new(desc),
         );
 
         out
@@ -476,18 +502,22 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> FloatTensor<Self, 4> {
-        make_ops!(MaxPool2dOps, MaxPool2dDescription, |args, handles| {
-            let x = handles.get_float_tensor(&args.x);
-            let output = B::max_pool2d(
-                x,
-                args.kernel_size,
-                args.stride,
-                args.padding,
-                args.dilation,
-            );
+        make_ops!(
+            MaxPool2dOps,
+            MaxPool2dDescription,
+            |args: MaxPool2dDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::max_pool2d(
+                    x,
+                    args.kernel_size,
+                    args.stride,
+                    args.padding,
+                    args.dilation,
+                );
 
-            handles.register_float_tensor(&args.out.id, output);
-        });
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
 
         let size_0 = calculate_pool_output_size(
             kernel_size[0],
@@ -507,18 +537,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = MaxPool2dDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::MaxPool2d(
-                MaxPool2dDescription {
-                    x: x.into_description(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            MaxPool2dOps::new(desc),
         );
 
         out
@@ -534,7 +565,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool1dWithIndicesOps,
             MaxPool1dWithIndicesDescription,
-            |args, handles| {
+            |args: MaxPool1dWithIndicesDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let output = B::max_pool1d_with_indices(
                     x,
@@ -554,21 +585,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let out = x.client.tensor_uninitialized(shape.clone());
         let out_indices = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = MaxPool1dWithIndicesDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+            out_indices: out_indices.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::MaxPool1dWithIndices(
-                    MaxPool1dWithIndicesDescription {
-                        x: x.into_description(),
-                        kernel_size,
-                        stride,
-                        padding,
-                        dilation,
-                        out: out.to_description_out(),
-                        out_indices: out_indices.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::MaxPool1dWithIndices(desc.clone()),
             ),
-            todo!(),
+            MaxPool1dWithIndicesOps::new(desc),
         );
 
         MaxPool1dWithIndices::new(out, out_indices)
@@ -584,7 +614,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool2dWithIndicesOps,
             MaxPool2dWithIndicesDescription,
-            |args, handles| {
+            |args: MaxPool2dWithIndicesDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let output = B::max_pool2d_with_indices(
                     x,
@@ -618,21 +648,20 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let out = x.client.tensor_uninitialized(shape.clone());
         let out_indices = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = MaxPool2dWithIndicesDescription {
+            x: x.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+            out_indices: out_indices.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::MaxPool2dWithIndices(
-                    MaxPool2dWithIndicesDescription {
-                        x: x.into_description(),
-                        kernel_size,
-                        stride,
-                        padding,
-                        dilation,
-                        out: out.to_description_out(),
-                        out_indices: out_indices.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::MaxPool2dWithIndices(desc.clone()),
             ),
-            todo!(),
+            MaxPool2dWithIndicesOps::new(desc),
         );
 
         MaxPool2dWithIndices::new(out, out_indices)
@@ -650,7 +679,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool1dWithIndicesBackwardOps,
             MaxPool1dWithIndicesBackwardDescription,
-            |args, handles| {
+            |args: MaxPool1dWithIndicesBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let indices = handles.get_int_tensor(&args.indices);
@@ -670,22 +699,21 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
-        x.client.clone().register(
+        let desc = MaxPool1dWithIndicesBackwardDescription {
+            x: x.into_description(),
+            grad: output_grad.into_description(),
+            indices: indices.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::MaxPool1dWithIndicesBackward(
-                    MaxPool1dWithIndicesBackwardDescription {
-                        x: x.into_description(),
-                        grad: output_grad.into_description(),
-                        indices: indices.into_description(),
-                        kernel_size,
-                        stride,
-                        padding,
-                        dilation,
-                        out: out.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc.clone()),
             ),
-            todo!(),
+            MaxPool1dWithIndicesBackwardOps::new(desc),
         );
 
         MaxPool1dBackward::new(out)
@@ -703,7 +731,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             MaxPool2dWithIndicesBackwardOps,
             MaxPool2dWithIndicesBackwardDescription,
-            |args, handles| {
+            |args: MaxPool2dWithIndicesBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let indices = handles.get_int_tensor(&args.indices);
@@ -723,22 +751,21 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
-        x.client.clone().register(
+        let desc = MaxPool2dWithIndicesBackwardDescription {
+            x: x.into_description(),
+            grad: output_grad.into_description(),
+            indices: indices.into_description(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::MaxPool2dWithIndicesBackward(
-                    MaxPool2dWithIndicesBackwardDescription {
-                        x: x.into_description(),
-                        grad: output_grad.into_description(),
-                        indices: indices.into_description(),
-                        kernel_size,
-                        stride,
-                        padding,
-                        dilation,
-                        out: out.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc.clone()),
             ),
-            todo!(),
+            MaxPool2dWithIndicesBackwardOps::new(desc),
         );
 
         MaxPool2dBackward::new(out)
@@ -748,7 +775,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool1dOps,
             AdaptiveAvgPool1dDescription,
-            |args, handles| {
+            |args: AdaptiveAvgPool1dDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let output = B::adaptive_avg_pool1d(x, args.output_size);
 
@@ -759,15 +786,16 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], output_size];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = AdaptiveAvgPool1dDescription {
+            x: x.into_description(),
+            output_size,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AdaptiveAvgPool1d(
-                AdaptiveAvgPool1dDescription {
-                    x: x.into_description(),
-                    output_size,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            AdaptiveAvgPool1dOps::new(desc),
         );
 
         out
@@ -780,7 +808,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool2dOps,
             AdaptiveAvgPool2dDescription,
-            |args, handles| {
+            |args: AdaptiveAvgPool2dDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let output = B::adaptive_avg_pool2d(x, args.output_size);
 
@@ -791,15 +819,16 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
         let out = x.client.tensor_uninitialized(shape);
 
-        x.client.clone().register(
+        let desc = AdaptiveAvgPool2dDescription {
+            x: x.into_description(),
+            output_size,
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(crate::graph::ModuleOpsDescription::AdaptiveAvgPool2d(
-                AdaptiveAvgPool2dDescription {
-                    x: x.into_description(),
-                    output_size,
-                    out: out.to_description_out(),
-                },
+                desc.clone(),
             )),
-            todo!(),
+            AdaptiveAvgPool2dOps::new(desc),
         );
 
         out
@@ -812,7 +841,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool1dBackwardOps,
             AdaptiveAvgPool1dBackwardDescription,
-            |args, handles| {
+            |args: AdaptiveAvgPool1dBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let output = B::adaptive_avg_pool1d_backward(x, grad);
@@ -822,18 +851,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
+        let desc = AdaptiveAvgPool1dBackwardDescription {
+            x: x.into_description(),
+            grad: grad.into_description(),
+            out: out.to_description_out(),
+        };
 
-        x.client.clone().register(
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::AdaptiveAvgPool1dBackward(
-                    AdaptiveAvgPool1dBackwardDescription {
-                        x: x.into_description(),
-                        grad: grad.into_description(),
-                        out: out.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc.clone()),
             ),
-            todo!(),
+            AdaptiveAvgPool1dBackwardOps::new(desc),
         );
 
         out
@@ -846,7 +874,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         make_ops!(
             AdaptiveAvgPool2dBackwardOps,
             AdaptiveAvgPool2dBackwardDescription,
-            |args, handles| {
+            |args: AdaptiveAvgPool2dBackwardDescription, handles: &mut HandleContainer<B>| {
                 let x = handles.get_float_tensor(&args.x);
                 let grad = handles.get_float_tensor(&args.grad);
                 let output = B::adaptive_avg_pool2d_backward(x, grad);
@@ -857,17 +885,16 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
-        x.client.clone().register(
+        let desc = AdaptiveAvgPool2dBackwardDescription {
+            x: x.into_description(),
+            grad: grad.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
             TensorOpsDescription::ModuleOps(
-                crate::graph::ModuleOpsDescription::AdaptiveAvgPool2dBackward(
-                    AdaptiveAvgPool2dBackwardDescription {
-                        x: x.into_description(),
-                        grad: grad.into_description(),
-                        out: out.to_description_out(),
-                    },
-                ),
+                crate::graph::ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc.clone()),
             ),
-            todo!(),
+            AdaptiveAvgPool2dBackwardOps::new(desc),
         );
 
         out

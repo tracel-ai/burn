@@ -528,7 +528,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             dim2,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
         );
@@ -561,7 +561,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             shape,
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Reshape(desc.clone())),
             ReshapeDimsOps::<D1, D2>::new(desc),
         );
@@ -598,7 +598,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Gather(desc.clone())),
             GatherOps::<D>::new(desc),
         );
@@ -640,7 +640,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
 
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Scatter(desc.clone())),
             ScatterOps::<D>::new(desc),
         );
@@ -678,7 +678,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Select(desc.clone())),
             SelectOps::<D>::new(desc),
         );
@@ -719,7 +719,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             value: value.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::SelectAssign(
                 desc.clone(),
             )),
@@ -762,7 +762,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             ranges: ranges.into(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Slice(desc.clone())),
             SliceOps::<D1, D2>::new(desc),
         );
@@ -804,7 +804,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             value: value.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::SliceAssign(desc.clone())),
             SliceAssignOps::<D1, D2>::new(desc),
         );
@@ -843,7 +843,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaskWhere(desc.clone())),
             MaskWhereOps::<D>::new(desc),
         );
@@ -880,7 +880,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
-        tensor.client.clone().register(
+        out.client.register(
             TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaskFill(desc.clone())),
             MaskFillOps::<D>::new(desc),
         );

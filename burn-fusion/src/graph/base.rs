@@ -31,8 +31,12 @@ impl<B: FusionBackend> Graph<B> {
         self.operations.len() == 0
     }
 
-    fn remove<R: RangeBounds<usize>>(&mut self, range: R, handles: &mut HandleContainer<B>) {
-        for ops in self.operations.drain(range) {
+    fn remove<R: RangeBounds<usize> + Clone>(
+        &mut self,
+        range: R,
+        handles: &mut HandleContainer<B>,
+    ) {
+        for ops in self.operations.drain(range.clone()) {
             ops.cleanup_tensor(handles)
         }
         self.ops.drain(range);
