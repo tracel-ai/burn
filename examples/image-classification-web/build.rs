@@ -23,7 +23,6 @@ fn main() {
     ModelGen::new()
         .input(INPUT_ONNX_FILE)
         .out_dir(OUT_DIR)
-        .no_std(true)
         .record_type(RecordType::Bincode)
         .embed_states(true)
         .half_precision(half_precision)
