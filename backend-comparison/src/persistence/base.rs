@@ -21,9 +21,9 @@ type StampedBenchmarks = HashMap<u128, Vec<Duration>>;
 ///     {
 ///         BENCHMARK_NAME (OP + SHAPE): {
 ///             GIT_COMMIT_HASH: {
-///                 TIMESTAMP: [
+///                 TIMESTAMP: \[
 ///                     DURATIONS
-///                 ]
+///                 \]
 ///             }
 ///         }
 ///     }
