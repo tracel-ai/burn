@@ -8,12 +8,10 @@ use burn_fusion::{
         BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, ScalarOpsDescription,
         TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription,
-    TensorId,
+    FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
-use std::sync::Arc;
 
 /// Fused element wise operations that are normally memory bound.
 pub struct FloatElementWiseFusionOps<G, F, I>
@@ -35,8 +33,8 @@ where
 impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
     for FloatElementWiseFusionOps<G, F, I>
 {
-    fn register(&mut self, ops: Arc<TensorOpsDescription<Wgpu<G, F, I>>>) -> FusionStatus {
-        match ops.as_ref() {
+    fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
+        match ops {
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float(ops) {
                     return FusionStatus::Closed(self.properties);
@@ -287,69 +285,66 @@ where
         Variable::Local(local_index)
     }
 
-    fn register_float<B: FusionBackend>(&mut self, ops: &FloatOpsDescription<B>) -> bool {
+    fn register_float(&mut self, ops: &FloatOpsDescription) -> bool {
         match ops {
-            FloatOpsDescription::Exp(desc, _) => {
+            FloatOpsDescription::Exp(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Exp { input, out })
             }
-            FloatOpsDescription::Log(desc, _) => {
+            FloatOpsDescription::Log(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Log { input, out })
             }
-            FloatOpsDescription::Log1p(desc, _) => {
+            FloatOpsDescription::Log1p(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Log1p { input, out })
             }
-            FloatOpsDescription::Cos(desc, _) => {
+            FloatOpsDescription::Cos(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Cos { input, out })
             }
-            FloatOpsDescription::Sin(desc, _) => {
+            FloatOpsDescription::Sin(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Sin { input, out })
             }
-            FloatOpsDescription::Powf(desc, _) => {
+            FloatOpsDescription::Powf(desc) => {
                 self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Powf { lhs, rhs, out })
             }
-            FloatOpsDescription::Tanh(desc, _) => {
+            FloatOpsDescription::Tanh(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Tanh { input, out })
             }
-            FloatOpsDescription::Erf(desc, _) => {
+            FloatOpsDescription::Erf(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Erf { input, out })
             }
-            FloatOpsDescription::Recip(desc, _) => {
+            FloatOpsDescription::Recip(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Recip { input, out })
             }
             _ => false,
         }
     }
 
-    fn register_numeric<B: FusionBackend, E: Element>(
-        &mut self,
-        ops: &NumericOpsDescription<B, E>,
-    ) -> bool {
+    fn register_numeric<E: Element>(&mut self, ops: &NumericOpsDescription<E>) -> bool {
         match ops {
-            NumericOpsDescription::Add(desc, _) => {
+            NumericOpsDescription::Add(desc) => {
                 self.register_binary_ops(desc, |lhs, rhs, out| Operator::Add { lhs, rhs, out })
             }
-            NumericOpsDescription::AddScalar(desc, _) => {
+            NumericOpsDescription::AddScalar(desc) => {
                 self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Add { lhs, rhs, out })
             }
-            NumericOpsDescription::Sub(desc, _) => {
+            NumericOpsDescription::Sub(desc) => {
                 self.register_binary_ops(desc, |lhs, rhs, out| Operator::Sub { lhs, rhs, out })
             }
-            NumericOpsDescription::SubScalar(desc, _) => {
+            NumericOpsDescription::SubScalar(desc) => {
                 self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Sub { lhs, rhs, out })
             }
-            NumericOpsDescription::Mul(desc, _) => {
+            NumericOpsDescription::Mul(desc) => {
                 self.register_binary_ops(desc, |lhs, rhs, out| Operator::Mul { lhs, rhs, out })
             }
-            NumericOpsDescription::MulScalar(desc, _) => {
+            NumericOpsDescription::MulScalar(desc) => {
                 self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Mul { lhs, rhs, out })
             }
-            NumericOpsDescription::Div(desc, _) => {
+            NumericOpsDescription::Div(desc) => {
                 self.register_binary_ops(desc, |lhs, rhs, out| Operator::Div { lhs, rhs, out })
             }
-            NumericOpsDescription::DivScalar(desc, _) => {
+            NumericOpsDescription::DivScalar(desc) => {
                 self.register_scalar_ops(desc, |lhs, rhs, out| Operator::Div { lhs, rhs, out })
             }
-            NumericOpsDescription::Abs(desc, _) => {
+            NumericOpsDescription::Abs(desc) => {
                 self.register_unary_ops(desc, |input, out| Operator::Abs { input, out })
             }
             _ => false,
@@ -425,16 +420,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_fusion::graph::{BinaryOpsDescription, Ops};
-    use burn_fusion::Fusion;
+    use burn_fusion::graph::Ops;
+    use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Tensor;
 
     struct FakeAddOps;
 
     impl<B: FusionBackend> Ops<B> for FakeAddOps {
-        type Args = BinaryOpsDescription;
-
-        fn execute(&self, _: &Self::Args, _: &mut HandleContainer<B>) {
+        fn execute(self: Box<Self>, _: &mut HandleContainer<B>) {
             todo!()
         }
     }

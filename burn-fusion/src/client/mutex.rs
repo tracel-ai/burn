@@ -45,8 +45,12 @@ where
         }
     }
 
-    fn register(&self, ops: TensorOpsDescription<B>) {
-        self.server.lock().register(ops);
+    fn register<O: crate::graph::Ops<Self::FusionBackend> + 'static>(
+        &self,
+        description: TensorOpsDescription,
+        ops: O,
+    ) {
+        self.server.lock().register(description, Box::new(ops))
     }
 
     fn drain_graph(&self) {

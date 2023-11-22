@@ -27,7 +27,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution,
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         let mut seed = SEED.lock().unwrap();

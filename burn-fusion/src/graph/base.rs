@@ -1,20 +1,24 @@
+use super::Ops;
 use super::TensorOpsDescription;
 use crate::{FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer};
-use std::{ops::RangeBounds, sync::Arc, vec::Drain};
+use std::{ops::RangeBounds, sync::Arc};
 
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Graph<B: FusionBackend> {
-    operations: Vec<Arc<TensorOpsDescription<B>>>,
+    operations: Vec<Arc<TensorOpsDescription>>,
+    ops: Vec<Box<dyn Ops<B>>>,
 }
 
 impl<B: FusionBackend> Graph<B> {
     pub(crate) fn new() -> Self {
         Self {
             operations: Vec::new(),
+            ops: Vec::new(),
         }
     }
-    pub(crate) fn add(&mut self, ops: Arc<TensorOpsDescription<B>>) {
-        self.operations.push(ops);
+    pub(crate) fn add(&mut self, description: Arc<TensorOpsDescription>, ops: Box<dyn Ops<B>>) {
+        self.operations.push(description);
+        self.ops.push(ops);
     }
 
     /// The size of the graph.
@@ -27,20 +31,18 @@ impl<B: FusionBackend> Graph<B> {
         self.operations.len() == 0
     }
 
-    fn drain<R>(&mut self, range: R) -> Drain<'_, Arc<TensorOpsDescription<B>>>
-    where
-        R: RangeBounds<usize>,
-    {
-        self.operations.drain(range)
-    }
-
-    fn remove<R: RangeBounds<usize>>(&mut self, range: R, handles: &mut HandleContainer<B>) {
-        for ops in self.operations.drain(range) {
+    fn remove<R: RangeBounds<usize> + Clone>(
+        &mut self,
+        range: R,
+        handles: &mut HandleContainer<B>,
+    ) {
+        for ops in self.operations.drain(range.clone()) {
             ops.cleanup_tensor(handles)
         }
+        self.ops.drain(range);
     }
 
-    fn nodes(&self) -> &[Arc<TensorOpsDescription<B>>] {
+    fn nodes(&self) -> &[Arc<TensorOpsDescription>] {
         &self.operations
     }
 
@@ -66,9 +68,9 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     pub(crate) fn execute(&mut self, handles: &mut HandleContainer<B>) {
-        for ops in self.drain(..) {
+        for (description, ops) in self.operations.drain(..).zip(self.ops.drain(..)) {
             ops.execute(handles);
-            ops.cleanup_tensor(handles);
+            description.cleanup_tensor(handles);
         }
     }
 }
@@ -83,12 +85,12 @@ pub struct Optimization<B: FusionBackend> {
 }
 
 impl<B: FusionBackend> Optimization<B> {
-    pub(crate) fn register(&mut self, ops: &Arc<TensorOpsDescription<B>>) {
+    pub(crate) fn register(&mut self, ops: &TensorOpsDescription) {
         if let FusionStatus::Closed(_) = self.status {
             return;
         }
 
-        self.status = self.ops.register(ops.clone());
+        self.status = self.ops.register(ops);
     }
 
     pub(crate) fn reset(&mut self) {

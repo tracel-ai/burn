@@ -138,7 +138,7 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
-    pub fn random_like(&self, distribution: Distribution<B::FloatElem>) -> Self {
+    pub fn random_like(&self, distribution: Distribution) -> Self {
         Tensor::new(B::random(self.shape(), distribution, &self.device()))
     }
 
@@ -206,7 +206,7 @@ where
 
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
     }
@@ -215,7 +215,7 @@ where
     /// sampled from the given distribution.
     pub fn random_device<S: Into<Shape<D>>>(
         shape: S,
-        distribution: Distribution<B::FloatElem>,
+        distribution: Distribution,
         device: &B::Device,
     ) -> Self {
         let tensor = B::random(shape.into(), distribution, device);

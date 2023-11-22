@@ -1,659 +1,415 @@
 use crate::FusionBackend;
 use crate::{HandleContainer, TensorDescription};
-use burn_tensor::ops::FloatElem;
 use burn_tensor::{
     ops::{ConvOptions, ConvTransposeOptions},
     Distribution, Element,
 };
-use core::hash::Hash;
 use std::ops::Range;
 
 /// General trait to abstract how a single operation is executed.
 pub trait Ops<B: FusionBackend>: Send + Sync {
-    /// The argument necessary for the execution to happen.
-    type Args: Send + Sync;
-
     /// Execute the operation.
-    fn execute(&self, args: &Self::Args, handles: &mut HandleContainer<B>);
+    fn execute(self: Box<Self>, handles: &mut HandleContainer<B>);
 }
 
 /// Describe all tensor operations possible.
-pub enum TensorOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum TensorOpsDescription {
     /// Basic operation on a float tensor.
-    BaseOpsFloat(BaseOpsDescription<B>),
+    BaseOpsFloat(BaseOpsDescription),
     /// Basic operation on an int tensor.
-    BaseOpsInt(BaseOpsDescription<B>),
+    BaseOpsInt(BaseOpsDescription),
     /// Basic operation on a bool tensor.
-    BaseOpsBool(BaseOpsDescription<B>),
+    BaseOpsBool(BaseOpsDescription),
     /// Numeric operation on a float tensor.
-    NumericOpsFloat(NumericOpsDescription<B, B::FloatElem>),
+    NumericOpsFloat(NumericOpsDescription<f32>),
     /// Numeric operation on an int tensor.
-    NumericOpsInt(NumericOpsDescription<B, B::IntElem>),
+    NumericOpsInt(NumericOpsDescription<i32>),
     /// Operation specific to a bool tensor.
-    BoolOps(BoolOpsDescription<B>),
+    BoolOps(BoolOpsDescription),
     /// Operation specific to an int tensor.
-    IntOps(IntOpsDescription<B>),
+    IntOps(IntOpsDescription),
     /// Operation specific to a float tensor.
-    FloatOps(FloatOpsDescription<B>),
+    FloatOps(FloatOpsDescription),
     /// Module operation.
-    ModuleOps(ModuleOpsDescription<B>),
+    ModuleOps(ModuleOpsDescription),
 }
 
 /// Operation description specific to a float tensor.
-pub enum FloatOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum FloatOpsDescription {
     /// Operation corresponding to [exp](burn_tensor::ops::TensorOps::exp).
-    Exp(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Exp(UnaryOpsDescription),
     /// Operation corresponding to [log](burn_tensor::ops::TensorOps::log).
-    Log(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Log(UnaryOpsDescription),
     /// Operation corresponding to [log1p](burn_tensor::ops::TensorOps::log1p).
-    Log1p(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Log1p(UnaryOpsDescription),
     /// Operation corresponding to [erf](burn_tensor::ops::TensorOps::erf).
-    Erf(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Erf(UnaryOpsDescription),
     /// Operation corresponding to [powf](burn_tensor::ops::TensorOps::powf).
-    Powf(
-        ScalarOpsDescription<f32>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<f32>>>,
-    ),
+    Powf(ScalarOpsDescription<f32>),
     /// Operation corresponding to [sqrt](burn_tensor::ops::TensorOps::sqrt).
-    Sqrt(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Sqrt(UnaryOpsDescription),
     /// Operation corresponding to [cos](burn_tensor::ops::TensorOps::cos).
-    Cos(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Cos(UnaryOpsDescription),
     /// Operation corresponding to [sin](burn_tensor::ops::TensorOps::sin).
-    Sin(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Sin(UnaryOpsDescription),
     /// Operation corresponding to [tanh](burn_tensor::ops::TensorOps::tanh).
-    Tanh(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Tanh(UnaryOpsDescription),
     /// Operation corresponding to [into_int](burn_tensor::ops::TensorOps::into_int).
-    IntoInt(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    IntoInt(UnaryOpsDescription),
     /// Operation corresponding to [matmul](burn_tensor::ops::TensorOps::matmul).
-    Matmul(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Matmul(BinaryOpsDescription),
     /// Operation corresponding to [random](burn_tensor::ops::TensorOps::random).
-    Random(
-        (TensorDescription, Distribution<FloatElem<B>>),
-        Box<dyn Ops<B, Args = (TensorDescription, Distribution<FloatElem<B>>)>>,
-    ),
+    Random((TensorDescription, Distribution)),
     /// Operation corresponding to [recip](burn_tensor::ops::TensorOps::recip).
-    Recip(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Recip(UnaryOpsDescription),
 }
 
 /// Operation description specific to module.
-pub enum ModuleOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum ModuleOpsDescription {
     /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
-    Embedding(
-        EmbeddingDescription,
-        Box<dyn Ops<B, Args = EmbeddingDescription>>,
-    ),
+    Embedding(EmbeddingDescription),
     /// Operation corresponding to [embedding_backward](burn_tensor::ops::ModuleOps::embedding_backward).
-    EmbeddingBackward(
-        EmbeddingBackwardDescription,
-        Box<dyn Ops<B, Args = EmbeddingBackwardDescription>>,
-    ),
+    EmbeddingBackward(EmbeddingBackwardDescription),
     /// Operation corresponding to [conv1d](burn_tensor::ops::ModuleOps::conv1d).
-    Conv1d(Conv1dDescription, Box<dyn Ops<B, Args = Conv1dDescription>>),
+    Conv1d(Conv1dDescription),
     /// Operation corresponding to [conv2d](burn_tensor::ops::ModuleOps::conv2d).
-    Conv2d(Conv2dDescription, Box<dyn Ops<B, Args = Conv2dDescription>>),
+    Conv2d(Conv2dDescription),
     /// Operation corresponding to [conv transpose 1d](burn_tensor::ops::ModuleOps::conv_transpose1d).
-    ConvTranspose1d(
-        ConvTranspose1dDescription,
-        Box<dyn Ops<B, Args = ConvTranspose1dDescription>>,
-    ),
+    ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](burn_tensor::ops::ModuleOps::conv_transpose2d).
-    ConvTranspose2d(
-        ConvTranspose2dDescription,
-        Box<dyn Ops<B, Args = ConvTranspose2dDescription>>,
-    ),
+    ConvTranspose2d(ConvTranspose2dDescription),
     /// Operation corresponding to [avg pool 1d](burn_tensor::ops::ModuleOps::avg_pool1d).
-    AvgPool1d(
-        AvgPool1dDescription,
-        Box<dyn Ops<B, Args = AvgPool1dDescription>>,
-    ),
+    AvgPool1d(AvgPool1dDescription),
     /// Operation corresponding to [avg pool 2d](burn_tensor::ops::ModuleOps::avg_pool2d).
-    AvgPool2d(
-        AvgPool2dDescription,
-        Box<dyn Ops<B, Args = AvgPool2dDescription>>,
-    ),
+    AvgPool2d(AvgPool2dDescription),
     /// Operation corresponding to
     /// [avg pool 1d backward](burn_tensor::ops::ModuleOps::avg_pool1d_backward).
-    AvgPool1dBackward(
-        AvgPool1dBackwardDescription,
-        Box<dyn Ops<B, Args = AvgPool1dBackwardDescription>>,
-    ),
+    AvgPool1dBackward(AvgPool1dBackwardDescription),
     /// Operation corresponding to
     /// [avg pool 2d backward](burn_tensor::ops::ModuleOps::avg_pool2d_backward).
-    AvgPool2dBackward(
-        AvgPool2dBackwardDescription,
-        Box<dyn Ops<B, Args = AvgPool2dBackwardDescription>>,
-    ),
+    AvgPool2dBackward(AvgPool2dBackwardDescription),
     /// Operation corresponding to
     /// [adaptive avg pool 1d](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d).
-    AdaptiveAvgPool1d(
-        AdaptiveAvgPool1dDescription,
-        Box<dyn Ops<B, Args = AdaptiveAvgPool1dDescription>>,
-    ),
+    AdaptiveAvgPool1d(AdaptiveAvgPool1dDescription),
     /// Operation corresponding to
     /// [adaptive avg pool 2d](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d).
-    AdaptiveAvgPool2d(
-        AdaptiveAvgPool2dDescription,
-        Box<dyn Ops<B, Args = AdaptiveAvgPool2dDescription>>,
-    ),
+    AdaptiveAvgPool2d(AdaptiveAvgPool2dDescription),
     /// Operation corresponding to
     /// [adaptive avg pool 1d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d_backward).
-    AdaptiveAvgPool1dBackward(
-        AdaptiveAvgPool1dBackwardDescription,
-        Box<dyn Ops<B, Args = AdaptiveAvgPool1dBackwardDescription>>,
-    ),
+    AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardDescription),
     /// Operation corresponding to
     /// [adaptive avg pool 2d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d_backward).
-    AdaptiveAvgPool2dBackward(
-        AdaptiveAvgPool2dBackwardDescription,
-        Box<dyn Ops<B, Args = AdaptiveAvgPool2dBackwardDescription>>,
-    ),
+    AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardDescription),
     /// Operation corresponding to
     /// [max pool 1d](burn_tensor::ops::ModuleOps::max_pool1d).
-    MaxPool1d(
-        MaxPool1dDescription,
-        Box<dyn Ops<B, Args = MaxPool1dDescription>>,
-    ),
+    MaxPool1d(MaxPool1dDescription),
     /// Operation corresponding to
     /// [max pool 1d with indices](burn_tensor::ops::ModuleOps::max_pool1d_with_indices).
-    MaxPool1dWithIndices(
-        MaxPool1dWithIndicesDescription,
-        Box<dyn Ops<B, Args = MaxPool1dWithIndicesDescription>>,
-    ),
+    MaxPool1dWithIndices(MaxPool1dWithIndicesDescription),
     /// Operation corresponding to
     /// [max pool 1d with indices backward](burn_tensor::ops::ModuleOps::max_pool1d_with_indices_backward).
-    MaxPool1dWithIndicesBackward(
-        MaxPool1dWithIndicesBackwardDescription,
-        Box<dyn Ops<B, Args = MaxPool1dWithIndicesBackwardDescription>>,
-    ),
+    MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardDescription),
     /// Operation corresponding to
     /// [max pool 2d](burn_tensor::ops::ModuleOps::max_pool1d).
-    MaxPool2d(
-        MaxPool2dDescription,
-        Box<dyn Ops<B, Args = MaxPool2dDescription>>,
-    ),
+    MaxPool2d(MaxPool2dDescription),
     /// Operation corresponding to
     /// [max pool 2d with indices](burn_tensor::ops::ModuleOps::max_pool2d_with_indices).
-    MaxPool2dWithIndices(
-        MaxPool2dWithIndicesDescription,
-        Box<dyn Ops<B, Args = MaxPool2dWithIndicesDescription>>,
-    ),
+    MaxPool2dWithIndices(MaxPool2dWithIndicesDescription),
     /// Operation corresponding to
     /// [max pool 2d with indices backward](burn_tensor::ops::ModuleOps::max_pool2d_with_indices_backward).
-    MaxPool2dWithIndicesBackward(
-        MaxPool2dWithIndicesBackwardDescription,
-        Box<dyn Ops<B, Args = MaxPool2dWithIndicesBackwardDescription>>,
-    ),
+    MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
 }
 
 /// Basic operations that can be done on any tensor type.
-pub enum BaseOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum BaseOpsDescription {
     /// Operation corresponding to:
     ///
     /// Float => [to device](burn_tensor::ops::TensorOps::to_device).
     /// Int => [to device](burn_tensor::ops::IntTensorOps::int_to_device).
     /// Bool => [to device](burn_tensor::ops::BoolTensorOps::bool_to_device).
-    ToDevice(
-        (TensorDescription, B::Device),
-        Box<dyn Ops<B, Args = (TensorDescription, B::Device)>>,
-    ),
+    ToDevice(TensorDescription),
     /// Operation corresponding to:
     ///
     /// Float => [reshape](burn_tensor::ops::TensorOps::reshape).
     /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
-    Reshape(
-        ReshapeDescription,
-        Box<dyn Ops<B, Args = ReshapeDescription>>,
-    ),
+    Reshape(ReshapeDescription),
     /// Operation corresponding to:
     ///
     /// Float => [swap_dims](burn_tensor::ops::TensorOps::swap_dims).
     /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
     /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
-    SwapDims(
-        SwapDimsDescription,
-        Box<dyn Ops<B, Args = SwapDimsDescription>>,
-    ),
+    SwapDims(SwapDimsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::TensorOps::slice).
     /// Int => [slice](burn_tensor::ops::IntTensorOps::int_slice).
     /// Bool => [slice](burn_tensor::ops::BoolTensorOps::bool_slice).
-    Slice(
-        SliceOpsDescription,
-        Box<dyn Ops<B, Args = SliceOpsDescription>>,
-    ),
+    Slice(SliceOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [slice assign](burn_tensor::ops::TensorOps::slice_assign).
     /// Int => [slice assign](burn_tensor::ops::IntTensorOps::int_slice_assign).
     /// Bool => [slice assign](burn_tensor::ops::BoolTensorOps::bool_slice_assign).
-    SliceAssign(
-        SliceAssignOpsDescription,
-        Box<dyn Ops<B, Args = SliceAssignOpsDescription>>,
-    ),
+    SliceAssign(SliceAssignOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [equal](burn_tensor::ops::TensorOps::equal).
     /// Int => [equal](burn_tensor::ops::IntTensorOps::int_equal).
     /// Bool => [equal](burn_tensor::ops::BoolTensorOps::bool_equal).
-    Equal(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Equal(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [repeat](burn_tensor::ops::TensorOps::repeat).
     /// Int => [repeat](burn_tensor::ops::IntTensorOps::int_repeat).
     /// Bool => [repeat](burn_tensor::ops::BoolTensorOps::bool_repeat).
-    Repeat(
-        RepeatOpsDescription,
-        Box<dyn Ops<B, Args = RepeatOpsDescription>>,
-    ),
+    Repeat(RepeatOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [cat](burn_tensor::ops::TensorOps::cat).
     /// Int => [cat](burn_tensor::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_tensor::ops::BoolTensorOps::bool_cat).
-    Cat(CatOpsDescription, Box<dyn Ops<B, Args = CatOpsDescription>>),
+    Cat(CatOpsDescription),
 }
 
 /// Numeric operations on int and float tensors.
-pub enum NumericOpsDescription<B: FusionBackend, E: Element> {
+#[derive(Clone, Debug)]
+pub enum NumericOpsDescription<E: Element> {
     /// Operation corresponding to:
     ///
     /// Float => [add](burn_tensor::ops::TensorOps::add).
     /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
-    Add(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Add(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [add scalar](burn_tensor::ops::TensorOps::add_scalar).
     /// Int => [add scalar](burn_tensor::ops::IntTensorOps::int_add_scalar).
-    AddScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    AddScalar(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [sub](burn_tensor::ops::TensorOps::sub).
     /// Int => [sub](burn_tensor::ops::IntTensorOps::int_sub).
-    Sub(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Sub(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [sub scalar](burn_tensor::ops::TensorOps::sub_scalar).
     /// Int => [sub scalar](burn_tensor::ops::IntTensorOps::int_sub_scalar).
-    SubScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    SubScalar(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [div](burn_tensor::ops::TensorOps::div).
     /// Int => [div](burn_tensor::ops::IntTensorOps::int_div).
-    Div(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Div(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [div scalar](burn_tensor::ops::TensorOps::div_scalar).
     /// Int => [div scalar](burn_tensor::ops::IntTensorOps::int_div_scalar).
-    DivScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    DivScalar(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [mul](burn_tensor::ops::TensorOps::mul).
     /// Int => [mul](burn_tensor::ops::IntTensorOps::int_mul).
-    Mul(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Mul(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [mul scalar](burn_tensor::ops::TensorOps::mul_scalar).
     /// Int => [mul scalar](burn_tensor::ops::IntTensorOps::int_mul_scalar).
-    MulScalar(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    MulScalar(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [abs](burn_tensor::ops::TensorOps::abs).
     /// Int => [abs](burn_tensor::ops::IntTensorOps::int_abs).
-    Abs(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Abs(UnaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [ones](burn_tensor::ops::TensorOps::ones).
     /// Int => [ones](burn_tensor::ops::IntTensorOps::int_ones).
-    Ones(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
+    Ones(TensorDescription),
     /// Operation corresponding to:
     ///
     /// Float => [zeros](burn_tensor::ops::TensorOps::zeros).
     /// Int => [zeros](burn_tensor::ops::IntTensorOps::int_zeros).
-    Zeros(TensorDescription, Box<dyn Ops<B, Args = TensorDescription>>),
+    Zeros(TensorDescription),
     /// Operation corresponding to:
     ///
     /// Float => [full](burn_tensor::ops::TensorOps::full).
     /// Int => [full](burn_tensor::ops::IntTensorOps::int_full).
-    Full(
-        (TensorDescription, E),
-        Box<dyn Ops<B, Args = (TensorDescription, E)>>,
-    ),
+    Full((TensorDescription, E)),
     /// Operation corresponding to:
     ///
     /// Float => [gather](burn_tensor::ops::TensorOps::gather).
     /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
-    Gather(
-        GatherOpsDescription,
-        Box<dyn Ops<B, Args = GatherOpsDescription>>,
-    ),
+    Gather(GatherOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [scatter](burn_tensor::ops::TensorOps::scatter).
     /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter).
-    Scatter(
-        ScatterOpsDescription,
-        Box<dyn Ops<B, Args = ScatterOpsDescription>>,
-    ),
+    Scatter(ScatterOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [select](burn_tensor::ops::TensorOps::select).
     /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
-    Select(
-        SelectOpsDescription,
-        Box<dyn Ops<B, Args = SelectOpsDescription>>,
-    ),
+    Select(SelectOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [select assign](burn_tensor::ops::TensorOps::select_assign).
     /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_assign).
-    SelectAssign(
-        SelectAssignOpsDescription,
-        Box<dyn Ops<B, Args = SelectAssignOpsDescription>>,
-    ),
+    SelectAssign(SelectAssignOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [mask where](burn_tensor::ops::TensorOps::mask_where).
     /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
-    MaskWhere(
-        MaskWhereOpsDescription,
-        Box<dyn Ops<B, Args = MaskWhereOpsDescription>>,
-    ),
+    MaskWhere(MaskWhereOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [mask fill](burn_tensor::ops::TensorOps::mask_fill).
     /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
-    MaskFill(
-        MaskFillOpsDescription<E>,
-        Box<dyn Ops<B, Args = MaskFillOpsDescription<E>>>,
-    ),
+    MaskFill(MaskFillOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [mean dim](burn_tensor::ops::TensorOps::mean_dim).
     /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
-    MeanDim(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    MeanDim(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [mean](burn_tensor::ops::TensorOps::mean).
     /// Int => [mean](burn_tensor::ops::IntTensorOps::int_mean).
-    Mean(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Mean(UnaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [sum](burn_tensor::ops::TensorOps::sum).
     /// Int => [sum](burn_tensor::ops::IntTensorOps::int_sum).
-    Sum(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Sum(UnaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [sum dim](burn_tensor::ops::TensorOps::sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
-    SumDim(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    SumDim(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [equal elem](burn_tensor::ops::TensorOps::equal_elem).
     /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
-    EqualElem(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    EqualElem(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [greater](burn_tensor::ops::TensorOps::greater).
     /// Int => [greater](burn_tensor::ops::IntTensorOps::int_greater).
-    Greater(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Greater(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [greater elem](burn_tensor::ops::TensorOps::greater_elem).
     /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
-    GreaterElem(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    GreaterElem(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [greater equal](burn_tensor::ops::TensorOps::greater_elem).
     /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
-    GreaterEqual(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    GreaterEqual(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [greater equal elem](burn_tensor::ops::TensorOps::greater_equal_elem).
     /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
-    GreaterEqualElem(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    GreaterEqualElem(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [lower](burn_tensor::ops::TensorOps::lower).
     /// Int => [lower](burn_tensor::ops::IntTensorOps::int_lower).
-    Lower(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    Lower(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [lower elem](burn_tensor::ops::TensorOps::lower_elem).
     /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
-    LowerElem(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    LowerElem(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [lower equal](burn_tensor::ops::TensorOps::lower_equal).
     /// Int => [lower equal](burn_tensor::ops::IntTensorOps::int_lower_equal).
-    LowerEqual(
-        BinaryOpsDescription,
-        Box<dyn Ops<B, Args = BinaryOpsDescription>>,
-    ),
+    LowerEqual(BinaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [lower equal elem](burn_tensor::ops::TensorOps::lower_equal_elem).
     /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
-    LowerEqualElem(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    LowerEqualElem(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [argmax](burn_tensor::ops::TensorOps::argmax).
     /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
-    ArgMax(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    ArgMax(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [argmin](burn_tensor::ops::TensorOps::argmin).
     /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
-    ArgMin(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    ArgMin(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [max](burn_tensor::ops::TensorOps::max).
     /// Int => [max](burn_tensor::ops::IntTensorOps::int_max).
-    Max(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Max(UnaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [max dim with indices](burn_tensor::ops::TensorOps::max_dim_with_indices).
     /// Int => [max dim with indices](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
-    MaxDimWithIndices(
-        ReduceDimWithIndicesDescription,
-        Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
-    ),
+    MaxDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
     /// Float => [min dim with indices](burn_tensor::ops::TensorOps::min_dim_with_indices).
     /// Int => [min dim with indices](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
-    MinDimWithIndices(
-        ReduceDimWithIndicesDescription,
-        Box<dyn Ops<B, Args = ReduceDimWithIndicesDescription>>,
-    ),
+    MinDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
     /// Float => [min](burn_tensor::ops::TensorOps::min).
     /// Int => [min](burn_tensor::ops::IntTensorOps::int_min).
-    Min(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Min(UnaryOpsDescription),
     /// Operation corresponding to:
     ///
     /// Float => [max dim](burn_tensor::ops::TensorOps::max_dim).
     /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
-    MaxDim(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    MaxDim(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [min dim](burn_tensor::ops::TensorOps::min_dim).
     /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
-    MinDim(
-        ScalarOpsDescription<usize>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<usize>>>,
-    ),
+    MinDim(ScalarOpsDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
-    Clamp(
-        ClampOpsDescription<E>,
-        Box<dyn Ops<B, Args = ClampOpsDescription<E>>>,
-    ),
+    Clamp(ClampOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [clamp max](burn_tensor::ops::TensorOps::clamp_max).
     /// Int => [clamp max](burn_tensor::ops::IntTensorOps::int_clamp_max).
-    ClampMax(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    ClampMax(ScalarOpsDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [clamp min](burn_tensor::ops::TensorOps::clamp_min).
     /// Int => [cleamp min](burn_tensor::ops::IntTensorOps::int_clamp_min).
-    ClampMin(
-        ScalarOpsDescription<E>,
-        Box<dyn Ops<B, Args = ScalarOpsDescription<E>>>,
-    ),
+    ClampMin(ScalarOpsDescription<E>),
 }
 
 /// Operation description specific to an int tensor.
-pub enum IntOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum IntOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
-    IntoFloat(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    IntoFloat(UnaryOpsDescription),
 }
 
 /// Operation description specific to a bool tensor.
-pub enum BoolOpsDescription<B: FusionBackend> {
+#[derive(Clone, Debug)]
+pub enum BoolOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
-    IntoFloat(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    IntoFloat(UnaryOpsDescription),
     /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
-    IntoInt(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    IntoInt(UnaryOpsDescription),
     /// Operation corresponding to [not](burn_tensor::ops::BoolTensorOps::bool_not).
-    Not(
-        UnaryOpsDescription,
-        Box<dyn Ops<B, Args = UnaryOpsDescription>>,
-    ),
+    Not(UnaryOpsDescription),
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 /// Swap dim operation description.
 pub struct SwapDimsDescription {
     /// Input tensor description.
@@ -666,7 +422,7 @@ pub struct SwapDimsDescription {
     pub dim2: usize,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
     pub input: TensorDescription,
@@ -674,7 +430,7 @@ pub struct ReshapeDescription {
     pub shape: Vec<usize>,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
@@ -682,13 +438,14 @@ pub struct BinaryOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct UnaryOpsDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ScalarOpsDescription<E> {
     pub lhs: TensorDescription,
@@ -696,7 +453,7 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct GatherOpsDescription {
     pub tensor: TensorDescription,
@@ -705,7 +462,7 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ScatterOpsDescription {
     pub tensor: TensorDescription,
@@ -715,7 +472,7 @@ pub struct ScatterOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct SelectOpsDescription {
     pub tensor: TensorDescription,
@@ -724,7 +481,7 @@ pub struct SelectOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct SelectAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -734,7 +491,7 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct SliceOpsDescription {
     pub tensor: TensorDescription,
@@ -742,7 +499,7 @@ pub struct SliceOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct SliceAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -751,7 +508,7 @@ pub struct SliceAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaskWhereOpsDescription {
     pub tensor: TensorDescription,
@@ -760,6 +517,7 @@ pub struct MaskWhereOpsDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaskFillOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -768,6 +526,7 @@ pub struct MaskFillOpsDescription<E> {
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ClampOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -776,6 +535,7 @@ pub struct ClampOpsDescription<E> {
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct RepeatOpsDescription {
     pub tensor: TensorDescription,
@@ -785,7 +545,7 @@ pub struct RepeatOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct CatOpsDescription {
     pub tensors: Vec<TensorDescription>,
@@ -793,7 +553,7 @@ pub struct CatOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ReduceDimWithIndicesDescription {
     pub tensor: TensorDescription,
@@ -802,7 +562,7 @@ pub struct ReduceDimWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct EmbeddingDescription {
     pub weights: TensorDescription,
@@ -810,7 +570,7 @@ pub struct EmbeddingDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct EmbeddingBackwardDescription {
     pub weights: TensorDescription,
@@ -819,7 +579,7 @@ pub struct EmbeddingBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct Conv1dDescription {
     pub x: TensorDescription,
@@ -829,7 +589,7 @@ pub struct Conv1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct Conv2dDescription {
     pub x: TensorDescription,
@@ -839,7 +599,7 @@ pub struct Conv2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
@@ -849,7 +609,7 @@ pub struct ConvTranspose1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct ConvTranspose2dDescription {
     pub x: TensorDescription,
@@ -859,7 +619,7 @@ pub struct ConvTranspose2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AvgPool1dDescription {
     pub x: TensorDescription,
@@ -870,7 +630,7 @@ pub struct AvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AvgPool2dDescription {
     pub x: TensorDescription,
@@ -881,7 +641,7 @@ pub struct AvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -893,7 +653,7 @@ pub struct AvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -905,7 +665,7 @@ pub struct AvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dDescription {
     pub x: TensorDescription,
@@ -913,7 +673,7 @@ pub struct AdaptiveAvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dDescription {
     pub x: TensorDescription,
@@ -921,7 +681,7 @@ pub struct AdaptiveAvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -929,7 +689,7 @@ pub struct AdaptiveAvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -937,7 +697,7 @@ pub struct AdaptiveAvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool1dDescription {
     pub x: TensorDescription,
@@ -948,7 +708,7 @@ pub struct MaxPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesDescription {
     pub x: TensorDescription,
@@ -960,7 +720,7 @@ pub struct MaxPool1dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -973,7 +733,7 @@ pub struct MaxPool1dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool2dDescription {
     pub x: TensorDescription,
@@ -984,7 +744,7 @@ pub struct MaxPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesDescription {
     pub x: TensorDescription,
@@ -996,7 +756,7 @@ pub struct MaxPool2dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Hash)]
+#[derive(Clone, Debug)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -1009,9 +769,9 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
-impl<B: FusionBackend> TensorOpsDescription<B> {
+impl TensorOpsDescription {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub(crate) fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+    pub(crate) fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
             TensorOpsDescription::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
@@ -1027,349 +787,247 @@ impl<B: FusionBackend> TensorOpsDescription<B> {
         // Cleanup tensor handles that were outputted, but ignored.
         handles.cleanup_orphans();
     }
-    /// Execute the operation.
-    pub(crate) fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            TensorOpsDescription::BaseOpsFloat(ops) => ops.execute(handles),
-            TensorOpsDescription::BaseOpsInt(ops) => ops.execute(handles),
-            TensorOpsDescription::BaseOpsBool(ops) => ops.execute(handles),
-            TensorOpsDescription::NumericOpsFloat(ops) => ops.execute(handles),
-            TensorOpsDescription::NumericOpsInt(ops) => ops.execute(handles),
-            TensorOpsDescription::BoolOps(ops) => ops.execute(handles),
-            TensorOpsDescription::IntOps(ops) => ops.execute(handles),
-            TensorOpsDescription::FloatOps(ops) => ops.execute(handles),
-            TensorOpsDescription::ModuleOps(ops) => ops.execute(handles),
-        }
-    }
 }
 
-impl<B: FusionBackend> BaseOpsDescription<B> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl BaseOpsDescription {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            BaseOpsDescription::ToDevice(_, _) => (),
-            BaseOpsDescription::Reshape(desc, _) => {
+            BaseOpsDescription::ToDevice(_) => (),
+            BaseOpsDescription::Reshape(desc) => {
                 handles.cleanup(&desc.input);
             }
-            BaseOpsDescription::SwapDims(desc, _) => {
+            BaseOpsDescription::SwapDims(desc) => {
                 handles.cleanup(&desc.input);
             }
-            BaseOpsDescription::Slice(desc, _) => {
+            BaseOpsDescription::Slice(desc) => {
                 handles.cleanup(&desc.tensor);
             }
-            BaseOpsDescription::SliceAssign(desc, _) => {
+            BaseOpsDescription::SliceAssign(desc) => {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.value);
             }
-            BaseOpsDescription::Equal(desc, _) => {
+            BaseOpsDescription::Equal(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            BaseOpsDescription::Repeat(desc, _) => {
+            BaseOpsDescription::Repeat(desc) => {
                 handles.cleanup(&desc.tensor);
             }
-            BaseOpsDescription::Cat(desc, _) => {
+            BaseOpsDescription::Cat(desc) => {
                 for t in desc.tensors.iter() {
                     handles.cleanup(t);
                 }
             }
         }
     }
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            BaseOpsDescription::ToDevice(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::Reshape(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::SwapDims(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::Slice(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::SliceAssign(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::Equal(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::Repeat(desc, ops) => ops.execute(desc, handles),
-            BaseOpsDescription::Cat(desc, ops) => ops.execute(desc, handles),
-        }
-    }
 }
 
-impl<B: FusionBackend, E: Element> NumericOpsDescription<B, E> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl<E: Element> NumericOpsDescription<E> {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            NumericOpsDescription::Add(desc, _) => {
+            NumericOpsDescription::Add(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::AddScalar(desc, _) => {
+            NumericOpsDescription::AddScalar(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Sub(desc, _) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
-            }
-            NumericOpsDescription::SubScalar(desc, _) => {
-                handles.cleanup(&desc.lhs);
-            }
-            NumericOpsDescription::Mul(desc, _) => {
+            NumericOpsDescription::Sub(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::MulScalar(desc, _) => {
+            NumericOpsDescription::SubScalar(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Div(desc, _) => {
+            NumericOpsDescription::Mul(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::DivScalar(desc, _) => {
+            NumericOpsDescription::MulScalar(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Ones(_, _) => {}
-            NumericOpsDescription::Gather(desc, _) => {
+            NumericOpsDescription::Div(desc) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::DivScalar(desc) => {
+                handles.cleanup(&desc.lhs);
+            }
+            NumericOpsDescription::Ones(_) => {}
+            NumericOpsDescription::Gather(desc) => {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.indices);
             }
-            NumericOpsDescription::Scatter(desc, _) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-                handles.cleanup(&desc.value);
-            }
-            NumericOpsDescription::Select(desc, _) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-            }
-            NumericOpsDescription::SelectAssign(desc, _) => {
+            NumericOpsDescription::Scatter(desc) => {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.indices);
                 handles.cleanup(&desc.value);
             }
-            NumericOpsDescription::MaskWhere(desc, _) => {
+            NumericOpsDescription::Select(desc) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+            }
+            NumericOpsDescription::SelectAssign(desc) => {
+                handles.cleanup(&desc.tensor);
+                handles.cleanup(&desc.indices);
+                handles.cleanup(&desc.value);
+            }
+            NumericOpsDescription::MaskWhere(desc) => {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.value);
                 handles.cleanup(&desc.mask);
             }
-            NumericOpsDescription::MaskFill(desc, _) => {
+            NumericOpsDescription::MaskFill(desc) => {
                 handles.cleanup(&desc.tensor);
                 handles.cleanup(&desc.mask);
             }
-            NumericOpsDescription::EqualElem(desc, _) => {
+            NumericOpsDescription::EqualElem(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::GreaterElem(desc, _) => {
+            NumericOpsDescription::GreaterElem(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::GreaterEqualElem(desc, _) => {
+            NumericOpsDescription::GreaterEqualElem(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::LowerElem(desc, _) => {
+            NumericOpsDescription::LowerElem(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::LowerEqualElem(desc, _) => {
+            NumericOpsDescription::LowerEqualElem(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Greater(desc, _) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
-            }
-            NumericOpsDescription::GreaterEqual(desc, _) => {
+            NumericOpsDescription::Greater(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::Lower(desc, _) => {
+            NumericOpsDescription::GreaterEqual(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::LowerEqual(desc, _) => {
+            NumericOpsDescription::Lower(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            NumericOpsDescription::ArgMax(desc, _) => {
+            NumericOpsDescription::LowerEqual(desc) => {
+                handles.cleanup(&desc.lhs);
+                handles.cleanup(&desc.rhs);
+            }
+            NumericOpsDescription::ArgMax(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::ArgMin(desc, _) => {
+            NumericOpsDescription::ArgMin(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Clamp(desc, _) => {
+            NumericOpsDescription::Clamp(desc) => {
                 handles.cleanup(&desc.tensor);
             }
-            NumericOpsDescription::ClampMin(desc, _) => {
+            NumericOpsDescription::ClampMin(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::ClampMax(desc, _) => {
+            NumericOpsDescription::ClampMax(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Abs(desc, _) => {
+            NumericOpsDescription::Abs(desc) => {
                 handles.cleanup(&desc.input);
             }
-            NumericOpsDescription::Zeros(_, _) => {}
-            NumericOpsDescription::Full(_, _) => {}
-            NumericOpsDescription::MeanDim(desc, _) => {
+            NumericOpsDescription::Zeros(_) => {}
+            NumericOpsDescription::Full(_) => {}
+            NumericOpsDescription::MeanDim(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Mean(desc, _) => {
+            NumericOpsDescription::Mean(desc) => {
                 handles.cleanup(&desc.input);
             }
-            NumericOpsDescription::Sum(desc, _) => {
+            NumericOpsDescription::Sum(desc) => {
                 handles.cleanup(&desc.input);
             }
-            NumericOpsDescription::SumDim(desc, _) => {
+            NumericOpsDescription::SumDim(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::Max(desc, _) => {
+            NumericOpsDescription::Max(desc) => {
                 handles.cleanup(&desc.input);
             }
-            NumericOpsDescription::MaxDimWithIndices(desc, _) => {
+            NumericOpsDescription::MaxDimWithIndices(desc) => {
                 handles.cleanup(&desc.tensor);
             }
-            NumericOpsDescription::MinDimWithIndices(desc, _) => {
+            NumericOpsDescription::MinDimWithIndices(desc) => {
                 handles.cleanup(&desc.tensor);
             }
-            NumericOpsDescription::Min(desc, _) => {
+            NumericOpsDescription::Min(desc) => {
                 handles.cleanup(&desc.input);
             }
-            NumericOpsDescription::MaxDim(desc, _) => {
+            NumericOpsDescription::MaxDim(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-            NumericOpsDescription::MinDim(desc, _) => {
+            NumericOpsDescription::MinDim(desc) => {
                 handles.cleanup(&desc.lhs);
             }
-        }
-    }
-
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            NumericOpsDescription::Add(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::AddScalar(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Sub(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::SubScalar(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Div(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::DivScalar(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Mul(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MulScalar(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Ones(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Gather(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Scatter(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Select(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::SelectAssign(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MaskWhere(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MaskFill(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::EqualElem(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Greater(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::GreaterElem(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::GreaterEqual(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::GreaterEqualElem(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Lower(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::LowerElem(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::LowerEqual(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::LowerEqualElem(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::ArgMax(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::ArgMin(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Clamp(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::ClampMin(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::ClampMax(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Abs(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Zeros(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Full(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MeanDim(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Mean(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Sum(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::SumDim(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Max(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MaxDimWithIndices(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MinDimWithIndices(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::Min(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MaxDim(desc, ops) => ops.execute(desc, handles),
-            NumericOpsDescription::MinDim(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
 
-impl<B: FusionBackend> FloatOpsDescription<B> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl FloatOpsDescription {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            FloatOpsDescription::Matmul(desc, _) => {
+            FloatOpsDescription::Matmul(desc) => {
                 handles.cleanup(&desc.lhs);
                 handles.cleanup(&desc.rhs);
             }
-            FloatOpsDescription::Random(_, _) => {}
-            FloatOpsDescription::Exp(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log1p(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Erf(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Recip(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Powf(desc, _) => handles.cleanup(&desc.lhs),
-            FloatOpsDescription::Sqrt(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Cos(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Sin(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Tanh(desc, _) => handles.cleanup(&desc.input),
-            FloatOpsDescription::IntoInt(desc, _) => handles.cleanup(&desc.input),
-        }
-    }
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            FloatOpsDescription::Matmul(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Random(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Exp(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Log(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Log1p(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Erf(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Recip(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Powf(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Sqrt(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Cos(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Sin(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::Tanh(desc, ops) => ops.execute(desc, handles),
-            FloatOpsDescription::IntoInt(desc, ops) => ops.execute(desc, handles),
+            FloatOpsDescription::Random(_) => {}
+            FloatOpsDescription::Exp(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Log(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Log1p(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Erf(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Recip(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Powf(desc) => handles.cleanup(&desc.lhs),
+            FloatOpsDescription::Sqrt(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Cos(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Sin(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Tanh(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::IntoInt(desc) => handles.cleanup(&desc.input),
         }
     }
 }
 
-impl<B: FusionBackend> IntOpsDescription<B> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl IntOpsDescription {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            IntOpsDescription::IntoFloat(desc, _) => {
+            IntOpsDescription::IntoFloat(desc) => {
                 handles.cleanup(&desc.input);
             }
-        }
-    }
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            IntOpsDescription::IntoFloat(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
 
-impl<B: FusionBackend> BoolOpsDescription<B> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl BoolOpsDescription {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            BoolOpsDescription::IntoFloat(desc, _) => {
+            BoolOpsDescription::IntoFloat(desc) => {
                 handles.cleanup(&desc.input);
             }
-            BoolOpsDescription::IntoInt(desc, _) => {
+            BoolOpsDescription::IntoInt(desc) => {
                 handles.cleanup(&desc.input);
             }
-            BoolOpsDescription::Not(desc, _) => {
+            BoolOpsDescription::Not(desc) => {
                 handles.cleanup(&desc.input);
             }
-        }
-    }
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            BoolOpsDescription::IntoFloat(desc, ops) => ops.execute(desc, handles),
-            BoolOpsDescription::IntoInt(desc, ops) => ops.execute(desc, handles),
-            BoolOpsDescription::Not(desc, ops) => ops.execute(desc, handles),
         }
     }
 }
 
-impl<B: FusionBackend> ModuleOpsDescription<B> {
-    fn cleanup_tensor(&self, handles: &mut HandleContainer<B>) {
+impl ModuleOpsDescription {
+    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
         match self {
-            ModuleOpsDescription::Embedding(desc, _) => {
+            ModuleOpsDescription::Embedding(desc) => {
                 handles.cleanup(&desc.weights);
                 handles.cleanup(&desc.indices);
             }
-            ModuleOpsDescription::EmbeddingBackward(desc, _) => {
+            ModuleOpsDescription::EmbeddingBackward(desc) => {
                 handles.cleanup(&desc.weights);
                 handles.cleanup(&desc.out_grad);
                 handles.cleanup(&desc.indices);
             }
-            ModuleOpsDescription::Conv1d(desc, _) => {
+            ModuleOpsDescription::Conv1d(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.weight);
 
@@ -1377,7 +1035,7 @@ impl<B: FusionBackend> ModuleOpsDescription<B> {
                     handles.cleanup(bias);
                 }
             }
-            ModuleOpsDescription::Conv2d(desc, _) => {
+            ModuleOpsDescription::Conv2d(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.weight);
 
@@ -1385,7 +1043,7 @@ impl<B: FusionBackend> ModuleOpsDescription<B> {
                     handles.cleanup(bias);
                 }
             }
-            ModuleOpsDescription::ConvTranspose1d(desc, _) => {
+            ModuleOpsDescription::ConvTranspose1d(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.weight);
 
@@ -1393,7 +1051,7 @@ impl<B: FusionBackend> ModuleOpsDescription<B> {
                     handles.cleanup(bias);
                 }
             }
-            ModuleOpsDescription::ConvTranspose2d(desc, _) => {
+            ModuleOpsDescription::ConvTranspose2d(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.weight);
 
@@ -1401,87 +1059,55 @@ impl<B: FusionBackend> ModuleOpsDescription<B> {
                     handles.cleanup(bias);
                 }
             }
-            ModuleOpsDescription::AvgPool1d(desc, _) => {
+            ModuleOpsDescription::AvgPool1d(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::AvgPool2d(desc, _) => {
+            ModuleOpsDescription::AvgPool2d(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::AvgPool1dBackward(desc, _) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
-            }
-            ModuleOpsDescription::AvgPool2dBackward(desc, _) => {
+            ModuleOpsDescription::AvgPool1dBackward(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.grad);
             }
-            ModuleOpsDescription::AdaptiveAvgPool1d(desc, _) => {
-                handles.cleanup(&desc.x);
-            }
-            ModuleOpsDescription::AdaptiveAvgPool2d(desc, _) => {
-                handles.cleanup(&desc.x);
-            }
-            ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc, _) => {
+            ModuleOpsDescription::AvgPool2dBackward(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.grad);
             }
-            ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc, _) => {
+            ModuleOpsDescription::AdaptiveAvgPool1d(desc) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool2d(desc) => {
+                handles.cleanup(&desc.x);
+            }
+            ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.grad);
             }
-            ModuleOpsDescription::MaxPool1d(desc, _) => {
+            ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc) => {
+                handles.cleanup(&desc.x);
+                handles.cleanup(&desc.grad);
+            }
+            ModuleOpsDescription::MaxPool1d(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::MaxPool1dWithIndices(desc, _) => {
+            ModuleOpsDescription::MaxPool1dWithIndices(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc, _) => {
+            ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.grad);
                 handles.cleanup(&desc.indices);
             }
-            ModuleOpsDescription::MaxPool2d(desc, _) => {
+            ModuleOpsDescription::MaxPool2d(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::MaxPool2dWithIndices(desc, _) => {
+            ModuleOpsDescription::MaxPool2dWithIndices(desc) => {
                 handles.cleanup(&desc.x);
             }
-            ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc, _) => {
+            ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc) => {
                 handles.cleanup(&desc.x);
                 handles.cleanup(&desc.grad);
                 handles.cleanup(&desc.indices);
-            }
-        }
-    }
-    fn execute(&self, handles: &mut HandleContainer<B>) {
-        match self {
-            ModuleOpsDescription::Embedding(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::EmbeddingBackward(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::Conv1d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::Conv2d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::ConvTranspose1d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::ConvTranspose2d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AvgPool1d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AvgPool2d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AvgPool1dBackward(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AvgPool2dBackward(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AdaptiveAvgPool1d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AdaptiveAvgPool2d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc, ops) => {
-                ops.execute(desc, handles)
-            }
-            ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc, ops) => {
-                ops.execute(desc, handles)
-            }
-            ModuleOpsDescription::MaxPool1d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::MaxPool1dWithIndices(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc, ops) => {
-                ops.execute(desc, handles)
-            }
-            ModuleOpsDescription::MaxPool2d(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::MaxPool2dWithIndices(desc, ops) => ops.execute(desc, handles),
-            ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc, ops) => {
-                ops.execute(desc, handles)
             }
         }
     }

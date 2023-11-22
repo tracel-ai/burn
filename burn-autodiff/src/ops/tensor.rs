@@ -27,7 +27,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: burn_tensor::Distribution<FloatElem<B>>,
+        distribution: burn_tensor::Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::random(shape, distribution, device))
