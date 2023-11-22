@@ -136,7 +136,7 @@ impl UnaryNode {
     }
 
     pub(crate) fn sqrt(input: Type, output: Type) -> Self {
-        let function = move |input| quote! { burn::tensor::activation::sqrt(#input)};
+        let function = move |input| quote! { #input.sqrt()};
         Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
     }
 
