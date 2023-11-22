@@ -65,6 +65,11 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
+    LowerElem {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -109,8 +114,17 @@ impl Display for Operator {
             Operator::Recip { input, out } => {
                 f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
             }
+            Operator::LowerElem { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} < {rhs};"))
+            }
             Operator::AssignGlobal { input, out } => {
-                f.write_fmt(format_args!("{out}_global[id] = {input};"))
+                let elem = match out {
+                    Variable::Input(_, e) => e,
+                    Variable::Scalar(_, e) => e,
+                    Variable::Local(_, e) => e,
+                    Variable::Output(_, e) => e,
+                };
+                f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
             Operator::ReadGlobal {
                 variable,
@@ -118,11 +132,11 @@ impl Display for Operator {
                 position_out,
             } => {
                 let (global, local) = match variable {
-                    Variable::Input(number) => {
+                    Variable::Input(number, _) => {
                         (format!("input_{number}_global"), format!("input_{number}"))
                     }
-                    Variable::Local(_) => panic!("can't read globala local variable."),
-                    Variable::Output(number) => (
+                    Variable::Local(_, _) => panic!("can't read global local variable."),
+                    Variable::Output(number, _) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
                     ),
