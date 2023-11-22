@@ -1,3 +1,4 @@
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
@@ -88,25 +89,33 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape: Shape<D> = [32, 512, 2048].into();
     let num_repeats = 1;
 
-    println!("Backend {}", B::name());
-    run_benchmark(CustomGeluBenchmark::<B, D>::new(
+    let reference_gelu = CustomGeluBenchmark::<B, D>::new(
         shape.clone(),
         num_repeats,
         device.clone(),
         GeluKind::Reference,
-    ));
-    run_benchmark(CustomGeluBenchmark::<B, D>::new(
+    );
+    let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
         shape.clone(),
         num_repeats,
         device.clone(),
         GeluKind::WithReferenceErf,
-    ));
-    run_benchmark(CustomGeluBenchmark::<B, D>::new(
+    );
+    let custom_erf_gelu = CustomGeluBenchmark::<B, D>::new(
         shape,
         num_repeats,
         device.clone(),
         GeluKind::WithCustomErf,
-    ));
+    );
+
+    Persistence::persist::<B>(
+        vec![
+            run_benchmark(reference_gelu),
+            run_benchmark(reference_erf_gelu),
+            run_benchmark(custom_erf_gelu),
+        ],
+        device,
+    )
 }
 
 fn main() {

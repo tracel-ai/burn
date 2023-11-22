@@ -28,6 +28,8 @@ burn = { path = "../burn" }
 derive-new = { workspace = true }
 rand = { workspace = true }
 burn-common = { path = "../burn-common", version = "0.11.0" }
+serde_json = { workspace = true }
+dirs = "5.0.1"
 
 [dev-dependencies]
 
