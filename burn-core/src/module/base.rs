@@ -84,8 +84,8 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     /// Type to save and load the module.
     type Record: Record;
 
-    /// Collects devices in the given vector and returns it with the devices found in the module
-    /// structure without duplicates.
+    /// Return all the devices found in the underneath module tree added to the given vector
+    /// without duplicates.
     fn collect_devices(&self, devices: Devices<B>) -> Devices<B>;
 
     /// Return all the devices found in the underneath module tree without duplicates.
