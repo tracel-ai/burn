@@ -100,6 +100,17 @@ pub trait FusionOps<B: FusionBackend>: Send {
     }
 }
 
+pub trait FusionOpsExe<B: FusionBackend>: Send {
+    /// Execute the operation.
+    fn execute(&self, handles: &mut HandleContainer<B>);
+    /// The size of operations fused.
+    fn len(&self) -> usize;
+    /// If the current operation is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// The device id.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
 pub struct DeviceId {
