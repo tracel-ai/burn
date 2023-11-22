@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 pub(crate) trait ModuleCodegen {
     fn gen_num_params(&self) -> TokenStream;
     fn gen_visit(&self) -> TokenStream;
-    fn gen_devices(&self) -> TokenStream;
+    fn gen_collect_devices(&self) -> TokenStream;
     fn gen_to_device(&self) -> TokenStream;
     fn gen_fork(&self) -> TokenStream;
     fn gen_map(&self) -> TokenStream;

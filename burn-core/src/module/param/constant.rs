@@ -75,7 +75,7 @@ macro_rules! constant {
             self
         }
 
-        fn devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+        fn collect_devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
             devices
         }
     };
@@ -147,7 +147,7 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
         self.to_device(device)
     }
 
-    fn devices(&self, mut devices: Devices<B>) -> Devices<B> {
+    fn collect_devices(&self, mut devices: Devices<B>) -> Devices<B> {
         let device = self.device();
 
         if !devices.contains(&device) {
@@ -195,7 +195,7 @@ impl<B: Backend> Module<B> for PhantomData<B> {
         self
     }
 
-    fn devices(&self, devices: Devices<B>) -> Devices<B> {
+    fn collect_devices(&self, devices: Devices<B>) -> Devices<B> {
         devices
     }
 }

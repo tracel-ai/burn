@@ -39,15 +39,15 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
-    fn gen_devices(&self) -> TokenStream {
+    fn gen_collect_devices(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
-                let devices = burn::module::Module::<B>::devices(&self.#name, devices);
+                let devices = burn::module::Module::<B>::collect_devices(&self.#name, devices);
             }
         });
 
         quote! {
-            fn devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+            fn collect_devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
                 #body
 
                 devices
