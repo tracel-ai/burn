@@ -10,13 +10,14 @@ use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
 
-type BenchmarkOpResults = HashMap<String, BenchmarkCommitResults>;
-type BenchmarkCommitResults = HashMap<String, StampedBenchmarks>;
+type BenchmarkCommitResults = HashMap<String, BenchmarkOpResults>;
+type BenchmarkOpResults = HashMap<String, BenchmarkBackendResults>;
+type BenchmarkBackendResults = HashMap<String, StampedBenchmarks>;
 type StampedBenchmarks = HashMap<u128, Vec<Duration>>;
 
 #[derive(Default)]
 pub struct Persistence {
-    results: HashMap<String, BenchmarkOpResults>,
+    results: BenchmarkCommitResults,
 }
 
 impl Persistence {
@@ -25,10 +26,10 @@ impl Persistence {
     /// The file has the following structure:
     ///
     ///  {
-    ///    "BACKEND_NAME-DEVICE":
+    ///    "GIT_COMMIT_HASH":
     ///      {
     ///        "BENCHMARK_NAME (OP + SHAPE)": {
-    ///          "GIT_COMMIT_HASH": {
+    ///          "BACKEND_NAME-DEVICE": {
     ///            "TIMESTAMP": \[
     ///              DURATIONS
     ///           \]
@@ -56,7 +57,7 @@ impl Persistence {
     fn load(path: &PathBuf) -> Self {
         let results = match File::open(path) {
             Ok(file) => serde_json::from_reader(file)
-                .expect("Should have parsed to BenchmarkOpResults struct"),
+                .expect("Should have parsed to BenchmarkCommitResults struct"),
             Err(_) => HashMap::default(),
         };
 
@@ -68,29 +69,32 @@ impl Persistence {
         if let Some(parent) = path.parent() {
             create_dir_all(parent).expect("Unable to create directory");
         }
-        let file = File::create(&path).expect("Unable to create backend comparison file");
+        let file = File::create(path).expect("Unable to create backend comparison file");
 
         serde_json::to_writer_pretty(file, &self.results)
             .expect("Unable to write to backend comparison file");
     }
 
     /// Update the cache with the given [benchmark results](BenchmarkResult).
+    ///
+    /// Assumes only that benches share the same backend and device.
+    /// It could run faster if we assumed they have the same git hash
     fn update<B: Backend>(&mut self, device: &B::Device, benches: Vec<BenchmarkResult>) {
-        let key = format!("{}-{:?}", B::name(), device);
-        let mut results_ops = self.results.remove(&key).unwrap_or_default();
+        let backend_key = format!("{}-{:?}", B::name(), device);
 
         for bench in benches {
-            let mut benchmark_commit_results = results_ops.remove(&bench.name).unwrap_or_default();
+            let mut benchmark_op_results = self.results.remove(&bench.git_hash).unwrap_or_default();
+            let mut benchmark_backend_results =
+                benchmark_op_results.remove(&bench.name).unwrap_or_default();
 
-            let mut stamped_benchmarks = benchmark_commit_results
-                .remove(&bench.git_hash)
+            let mut stamped_benchmarks = benchmark_backend_results
+                .remove(&backend_key)
                 .unwrap_or_default();
 
             stamped_benchmarks.insert(bench.timestamp, bench.durations.durations);
-            benchmark_commit_results.insert(bench.git_hash, stamped_benchmarks);
-            results_ops.insert(bench.name, benchmark_commit_results);
+            benchmark_backend_results.insert(backend_key.clone(), stamped_benchmarks);
+            benchmark_op_results.insert(bench.name, benchmark_backend_results);
+            self.results.insert(bench.git_hash, benchmark_op_results);
         }
-
-        self.results.insert(key, results_ops);
     }
 }
