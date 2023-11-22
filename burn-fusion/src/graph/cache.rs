@@ -9,7 +9,12 @@ pub struct Cache<T> {
     state: HashMap<u64, Vec<Item<T>>>,
 }
 
-#[derive(Default)]
+pub trait ToBeCached<T> {
+    /// Call only when not seen.
+    fn build(self) -> T;
+}
+
+#[derive(Default, Clone)]
 pub struct CacheKey {
     hasher: DefaultHasher,
 }
@@ -46,6 +51,10 @@ struct Item<T> {
     graph: Vec<TensorOpsDescription>,
 }
 
+// (Log Exp) [Reshape].
+// (Log Exp) Add [Matmul, Reshape].
+//
+// (Log Exp) [Add]
 impl<T> ActionItem<T> {
     pub fn merge(&mut self, other: Self) {
         let (item_new, next_possible_ops_new) = match other {
@@ -90,18 +99,18 @@ pub enum EndCondision<'a> {
 impl<T> Cache<T> {
     pub fn get<'a>(
         &'a self,
-        key: &CacheKey,
+        key_: &CacheKey,
         graph: &[TensorOpsDescription],
         end_consition: EndCondision,
     ) -> Action<'a, T> {
-        let key = key.value();
-        println!("Get {}", key);
+        let key = key_.value();
         let values = match self.state.get(&key) {
             Some(values) => values,
             None => return Action::BuildFusionOps,
         };
 
         let value = if values.len() > 1 {
+            // Hash collision, find with graph.
             values.iter().find(|item| item.graph == graph).unwrap()
         } else {
             values.get(0).unwrap()
@@ -117,7 +126,13 @@ impl<T> Cache<T> {
                     if next_possible_ops.contains(next_ops) {
                         Action::ExecuteFusionOps(&item)
                     } else {
-                        Action::BuildFusionOps
+                        let mut next_key = key_.clone();
+                        next_key.register(next_ops);
+                        if self.state.contains_key(&next_key.value()) {
+                            Action::WaitForFusionOps
+                        } else {
+                            Action::BuildFusionOps
+                        }
                     }
                 }
                 EndCondision::Forced => Action::ExecuteFusionOps(&item),
@@ -241,22 +256,23 @@ mod tests {
             vec![ops1.clone(), ops2.clone()],
             Some(ops3.clone()),
         );
+        // Second run.
         let mut key = CacheKey::default();
         let mut graph = Vec::new();
 
         key.register(&ops1);
         graph.push(ops1);
 
-        let expected = Action::<String>::WaitForFusionOps;
         let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops2));
+        let expected = Action::<String>::WaitForFusionOps;
         assert_eq!(expected, actual);
 
         key.register(&ops2);
         graph.push(ops2);
 
+        let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops3));
         let expected_ops = "Ops1 + Ops2 with end condition Ops3".to_string();
         let expected = Action::<String>::ExecuteFusionOps(&expected_ops);
-        let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops3));
         assert_eq!(expected, actual);
 
         let actual = cache.get(&key, &graph, EndCondision::Forced);
