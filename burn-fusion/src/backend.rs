@@ -4,7 +4,6 @@ use crate::{
 };
 use burn_tensor::{backend::Backend, Device, Shape};
 use core::marker::PhantomData;
-use std::sync::Arc;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
@@ -88,7 +87,7 @@ pub trait FusionOps<B: FusionBackend>: Send {
     /// When [closed](FusionStatus::Closed), it's assumed that no more operation can be added
     /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
     /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
-    fn register(&mut self, ops: Arc<TensorOpsDescription<B>>) -> FusionStatus;
+    fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus;
     /// Execute the operation.
     fn execute(&mut self, handles: &mut HandleContainer<B>);
     /// Reset the state.

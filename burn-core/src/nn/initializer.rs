@@ -3,7 +3,7 @@ use libm::sqrt;
 
 use crate::config::Config;
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, ElementConversion, Tensor};
+use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
 
@@ -147,8 +147,7 @@ fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
     low: f64,
     high: f64,
 ) -> Tensor<B, D> {
-    let distribution =
-        Distribution::Uniform(low.elem::<B::FloatElem>(), high.elem::<B::FloatElem>());
+    let distribution = Distribution::Uniform(low, high);
     Tensor::<B, D>::random(shape, distribution)
 }
 
@@ -165,7 +164,7 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use burn_tensor::Data;
+    use burn_tensor::{Data, ElementConversion};
 
     pub type TB = burn_ndarray::NdArray<f32>;
 

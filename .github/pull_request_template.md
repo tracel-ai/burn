@@ -2,7 +2,8 @@
 
 ### Checklist
 
-- [ ] Confirm that `run-checks` script has been executed.
+- [ ] Confirmed that `run-checks all` script has been executed.
+- [ ] Made sure the book is up to date with changes in this PR.
 
 ### Related Issues/PRs
 

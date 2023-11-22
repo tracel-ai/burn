@@ -136,7 +136,10 @@ where
 
         let mut compute = self
             .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
 
         for task in self.tasks.iter() {
             compute.set_pipeline(&task.pipeline);

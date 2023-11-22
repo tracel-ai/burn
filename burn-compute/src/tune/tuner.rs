@@ -4,7 +4,7 @@ use core::time::Duration;
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use burn_common::benchmark::{Benchmark, BenchmarkResult};
+use burn_common::benchmark::{Benchmark, BenchmarkDurations};
 
 use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
@@ -50,7 +50,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let mut names = Vec::with_capacity(autotunables.len());
 
         // Run all autotune benchmarks
-        let results: Vec<BenchmarkResult> = autotunables
+        let results: Vec<BenchmarkDurations> = autotunables
             .into_iter()
             .map(|op| {
                 names.push(op.name().to_string());
@@ -78,11 +78,11 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         &mut self,
         operation: Box<dyn AutotuneOperation>,
         client: &ComputeClient<S, C>,
-    ) -> BenchmarkResult {
+    ) -> BenchmarkDurations {
         TuneBenchmark::new(operation, client.clone()).run()
     }
 
-    fn find_fastest(&self, results: Vec<BenchmarkResult>) -> usize {
+    fn find_fastest(&self, results: Vec<BenchmarkDurations>) -> usize {
         let mut smallest_duration = Duration::MAX;
         let mut fastest_tunable = None;
 

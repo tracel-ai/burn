@@ -1,5 +1,5 @@
 use crate::{
-    graph::{GraphExecution, TensorOpsDescription},
+    graph::{GraphExecution, Ops, TensorOpsDescription},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{
@@ -17,7 +17,11 @@ pub trait FusionClient: Send + Sync + Clone {
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
-    fn register(&self, ops: TensorOpsDescription<Self::FusionBackend>);
+    fn register<O: Ops<Self::FusionBackend> + 'static>(
+        &self,
+        description: TensorOpsDescription,
+        ops: O,
+    );
     /// Register all lazy computation.
     fn drain_graph(&self);
     /// Get the current device used by all operations handled by this client.
