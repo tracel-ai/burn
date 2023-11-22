@@ -251,6 +251,17 @@ where
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
+                Operator::ConditionalAssign {
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                } => {
+                    mark(cond, &mut local_tensor_ids_input);
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
             }
         }
 
@@ -482,6 +493,44 @@ where
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
             ),
+            NumericOpsDescription::MaskWhere(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                let cond = self.input_to_var(&desc.mask, Elem::Bool);
+                let lhs = self.input_to_var(&desc.value, E::elem_type());
+                let rhs = self.input_to_var(&desc.tensor, E::elem_type());
+                let out = self.output_to_var(&desc.out, E::elem_type());
+
+                self.operators.push(Operator::ConditionalAssign {
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                });
+
+                true
+            }
+            NumericOpsDescription::MaskFill(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                let cond = self.input_to_var(&desc.mask, Elem::Bool);
+                let lhs = self.scalar_to_var(&desc.value, E::elem_type());
+                let rhs = self.input_to_var(&desc.tensor, E::elem_type());
+                let out = self.output_to_var(&desc.out, E::elem_type());
+
+                self.operators.push(Operator::ConditionalAssign {
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                });
+
+                true
+            }
             _ => false,
         }
     }
@@ -543,28 +592,32 @@ where
         }
 
         let lhs = self.input_to_var(&desc.lhs, elem_lhs);
-        let rhs = match elem_rhs {
-            Elem::F32 => {
-                self.scalars_f32.push(desc.rhs.elem());
-                Variable::Scalar(self.scalars_f32.len() as u16 - 1, Elem::F32)
-            }
-            Elem::I32 => {
-                self.scalars_i32.push(desc.rhs.elem());
-                Variable::Scalar(self.scalars_i32.len() as u16 - 1, Elem::I32)
-            }
-            Elem::U32 => {
-                self.scalars_u32.push(desc.rhs.elem());
-                Variable::Scalar(self.scalars_u32.len() as u16 - 1, Elem::U32)
-            }
-            Elem::Bool => {
-                panic!("Bool scalars not supported")
-            }
-        };
+        let rhs = self.scalar_to_var(&desc.rhs, elem_rhs);
         let out = self.output_to_var(&desc.out, elem_out);
 
         self.operators.push(func(lhs, rhs, out));
 
         true
+    }
+
+    fn scalar_to_var<E: Element>(&mut self, value: &E, elem_type: Elem) -> Variable {
+        match elem_type {
+            Elem::F32 => {
+                self.scalars_f32.push(value.elem());
+                Variable::Scalar(self.scalars_f32.len() as u16 - 1, Elem::F32)
+            }
+            Elem::I32 => {
+                self.scalars_i32.push(value.elem());
+                Variable::Scalar(self.scalars_i32.len() as u16 - 1, Elem::I32)
+            }
+            Elem::U32 => {
+                self.scalars_u32.push(value.elem());
+                Variable::Scalar(self.scalars_u32.len() as u16 - 1, Elem::U32)
+            }
+            Elem::Bool => {
+                panic!("Bool scalars not supported")
+            }
+        }
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
@@ -607,17 +660,19 @@ mod tests {
         let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4 + 5.0;
+        let tensor_5 = tensor_4.clone() + 5.0;
         let tensor_6 = tensor_5 + tensor_3.clone();
-        let result_ref = tensor_6.recip().equal(tensor_3).into_data();
+        let mask = tensor_4.lower_equal(tensor_3);
+        let result_ref = tensor_6.mask_fill(mask, 0.3).into_data();
 
         let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4 + 5.0;
+        let tensor_5 = tensor_4.clone() + 5.0;
         let tensor_6 = tensor_5 + tensor_3.clone();
-        let result_fused = tensor_6.recip().equal(tensor_3).into_data();
+        let mask = tensor_4.lower_equal(tensor_3);
+        let result_fused = tensor_6.mask_fill(mask, 0.3).into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
         panic!()

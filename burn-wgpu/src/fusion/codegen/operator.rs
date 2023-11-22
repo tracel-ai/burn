@@ -90,6 +90,12 @@ pub enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    ConditionalAssign {
+        cond: Variable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -163,14 +169,17 @@ impl Display for Operator {
                 position,
                 position_out,
             } => {
-                let (global, local) = match variable {
-                    Variable::Input(number, _) => {
-                        (format!("input_{number}_global"), format!("input_{number}"))
-                    }
+                let (global, local, elem) = match variable {
+                    Variable::Input(number, elem) => (
+                        format!("input_{number}_global"),
+                        format!("input_{number}"),
+                        elem,
+                    ),
                     Variable::Local(_, _) => panic!("can't read global local variable."),
-                    Variable::Output(number, _) => (
+                    Variable::Output(number, elem) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
+                        elem,
                     ),
                     Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
                 };
@@ -190,7 +199,30 @@ for (var i: u32 = 1u; i <= rank; i++) {{
     index_{local} += id / stride_out % shape * stride;
 }}
 
-let {local} = {global}[index_{local}];
+let {local} = {elem}({global}[index_{local}]);
+"
+                ))
+            }
+            Operator::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => {
+                let elem = match out {
+                    Variable::Input(_, e) => e,
+                    Variable::Scalar(_, e) => e,
+                    Variable::Local(_, e) => e,
+                    Variable::Output(_, e) => e,
+                };
+                f.write_fmt(format_args!(
+                    "
+var {out}: {elem};
+if {cond} {{
+    {out} = {lhs};
+}} else {{
+    {out} = {rhs};
+}}
 "
                 ))
             }

@@ -87,21 +87,39 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
         inputs_scalar_f32: &[f32],
     ) -> FusionKernel<G, F, I, BodyPhase> {
         for (i, (input, elem)) in inputs_tensor.iter().enumerate() {
-            self.input_bindings.push((
-                Binding {
-                    elem: *elem,
-                    visibility: Visibility::Read,
-                    location: Location::Storage,
-                    size: None,
-                },
-                (*input).clone(),
-            ));
+            if elem != &Elem::Bool {
+                self.input_bindings.push((
+                    Binding {
+                        elem: *elem,
+                        visibility: Visibility::Read,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*input).clone(),
+                ));
 
-            self.operations.push(Operator::ReadGlobal {
-                variable: Variable::Input(i as u16, *elem),
-                position: i,
-                position_out: inputs_tensor.len(), // First output
-            });
+                self.operations.push(Operator::ReadGlobal {
+                    variable: Variable::Input(i as u16, *elem),
+                    position: i,
+                    position_out: inputs_tensor.len(), // First output
+                });
+            } else {
+                self.input_bindings.push((
+                    Binding {
+                        elem: Elem::I32,
+                        visibility: Visibility::Read,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*input).clone(),
+                ));
+
+                self.operations.push(Operator::ReadGlobal {
+                    variable: Variable::Input(i as u16, *elem),
+                    position: i,
+                    position_out: inputs_tensor.len(), // First output
+                });
+            }
         }
 
         if !inputs_scalar_f32.is_empty() {

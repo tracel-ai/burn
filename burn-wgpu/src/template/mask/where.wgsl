@@ -47,8 +47,9 @@ fn main(
         index_mask += id / stride_output % shape_mask * stride_mask;
     }
 
+    var local_wc;
     if mask[index_mask] != 0u {
-        output[id] = value[index_value];
+        local_wc = value[index_value];
     } else {
         output[id] = input[index_input];
     }
