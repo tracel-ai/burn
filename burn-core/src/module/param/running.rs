@@ -95,7 +95,10 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self.to_device(device) // Same thing here since no grad.
     }
 
-    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+    fn collect_devices(
+        &self,
+        mut devices: Vec<<B as Backend>::Device>,
+    ) -> Vec<<B as Backend>::Device> {
         let device = self.value.read().unwrap().device();
 
         if !devices.contains(&device) {

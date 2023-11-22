@@ -58,7 +58,7 @@ impl<B: Backend> TextGenerationModel<B> {
         item: TrainingTextGenerationBatch<B>,
     ) -> ClassificationOutput<B> {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
-        let device = &self.devices(Vec::new())[0];
+        let device = &self.devices()[0];
 
         let inputs = item.tokens_inputs.to_device(device);
         let targets = item.targets.to_device(device);

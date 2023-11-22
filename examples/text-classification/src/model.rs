@@ -88,7 +88,7 @@ impl<B: Backend> TextClassificationModel<B> {
     pub fn forward(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
-        let device = &self.embedding_token.devices(Vec::new())[0];
+        let device = &self.embedding_token.devices()[0];
 
         // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);
@@ -128,7 +128,7 @@ impl<B: Backend> TextClassificationModel<B> {
     pub fn infer(&self, item: TextClassificationInferenceBatch<B>) -> Tensor<B, 2> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
-        let device = &self.embedding_token.devices(Vec::new())[0];
+        let device = &self.embedding_token.devices()[0];
 
         // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);

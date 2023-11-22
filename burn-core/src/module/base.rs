@@ -86,7 +86,12 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
 
     /// Collects devices in the given vector and returns it with the devices found in the module
     /// structure without duplicates.
-    fn devices(&self, devices: Devices<B>) -> Devices<B>;
+    fn collect_devices(&self, devices: Devices<B>) -> Devices<B>;
+
+    /// Return all the devices found in the underneath module tree without duplicates.
+    fn devices(&self) -> Devices<B> {
+        self.collect_devices(Devices::<B>::new())
+    }
 
     /// Fork the module and all of its sub-modules to the given device.
     ///

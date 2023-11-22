@@ -37,9 +37,9 @@ where
         self.map(|module| module.fork(device))
     }
 
-    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
         if let Some(module) = self.as_ref() {
-            devices = module.devices(devices);
+            devices = module.collect_devices(devices);
         }
 
         devices
@@ -105,9 +105,9 @@ where
         self.into_iter().map(|module| module.fork(device)).collect()
     }
 
-    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
         for module in self.iter() {
-            devices = module.devices(devices);
+            devices = module.collect_devices(devices);
         }
 
         devices
@@ -134,9 +134,9 @@ where
 {
     type Record = [T::Record; N];
 
-    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
         for module in self.iter() {
-            devices = module.devices(devices);
+            devices = module.collect_devices(devices);
         }
 
         devices
