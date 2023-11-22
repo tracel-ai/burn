@@ -331,19 +331,12 @@ mod tests {
     fn sqrt() {
         let model: sqrt::Model<Backend> = sqrt::Model::new();
 
-        let input = Tensor::<Backend, 2>::from_floats([
-            [0.0, 4.0, 9.0],
-            [25.0, 36.0, 49.0],
-        ]);
+        let input = Tensor::<Backend, 2>::from_floats([[0.0, 4.0, 9.0], [25.0, 36.0, 49.0]]);
         let output = model.forward(input);
-        let expected = Data::from([
-            [0.0, 2.0, 3.0],
-            [5.0, 6.0, 7.0],
-        ]);
+        let expected = Data::from([[0.0, 2.0, 3.0], [5.0, 6.0, 7.0]]);
 
         assert_eq!(output.to_data(), expected);
     }
-
 
     #[test]
     fn maxpool2d() {
