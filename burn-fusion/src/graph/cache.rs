@@ -56,7 +56,7 @@ struct Item<T> {
 //
 // (Log Exp) [Add]
 impl<T> ActionItem<T> {
-    pub fn merge(&mut self, other: Self) {
+    pub fn merge<Builder: ToBeCached<T>>(&mut self, other: ActionItem<Builder>) {
         let (item_new, next_possible_ops_new) = match other {
             ActionItem::WaitForFusionOps => return,
             ActionItem::ExecuteFusionOps {
@@ -67,11 +67,11 @@ impl<T> ActionItem<T> {
 
         let updated_action = match self {
             ActionItem::WaitForFusionOps => ActionItem::ExecuteFusionOps {
-                item: item_new,
+                item: item_new.build(),
                 next_possible_ops: next_possible_ops_new,
             },
             ActionItem::ExecuteFusionOps {
-                item: _,
+                item,
                 next_possible_ops,
             } => {
                 let mut ops = next_possible_ops_new;
@@ -81,7 +81,7 @@ impl<T> ActionItem<T> {
                     }
                 }
                 ActionItem::ExecuteFusionOps {
-                    item: item_new,
+                    item: *item,
                     next_possible_ops: ops,
                 }
             }
@@ -140,10 +140,10 @@ impl<T> Cache<T> {
         }
     }
 
-    pub fn insert(
+    pub fn insert<Builder: ToBeCached<T>>(
         &mut self,
         key: &CacheKey,
-        ops: T,
+        builder: Builder,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
     ) {
@@ -161,20 +161,25 @@ impl<T> Cache<T> {
             // Key and graph at this stage.
             let key = hasher.clone().finish();
             let graph = graph_current.clone();
-            self.insert_action(key, ActionItem::WaitForFusionOps, graph);
+            self.insert_action(key, ActionItem::<Builder>::WaitForFusionOps, graph);
         }
 
         self.insert_action(
             key,
             ActionItem::ExecuteFusionOps {
-                item: ops,
+                item: builder,
                 next_possible_ops: next_ops.map(|ops| vec![ops]).unwrap_or_default(),
             },
             graph,
         );
     }
 
-    fn insert_action(&mut self, key: u64, action: ActionItem<T>, graph: Vec<TensorOpsDescription>) {
+    fn insert_action<Builder: ToBeCached<T>>(
+        &mut self,
+        key: u64,
+        action: ActionItem<Builder>,
+        graph: Vec<TensorOpsDescription>,
+    ) {
         let mut values = self.state.remove(&key).unwrap_or_default();
 
         // Remove old entry.
