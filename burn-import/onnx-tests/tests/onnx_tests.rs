@@ -39,6 +39,7 @@ include_models!(
     reshape,
     sigmoid,
     softmax,
+    sqrt,
     sub_int,
     sub,
     tanh,
@@ -322,6 +323,18 @@ mod tests {
             [-0.998_838_9, -1.206_719_9, -1.101_067],
             [-0.651_105_1, -2.004_294_6, -1.067_766_4],
         ]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn sqrt() {
+        let model: sqrt::Model<Backend> = sqrt::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
 
         assert_eq!(output.to_data(), expected);
     }
