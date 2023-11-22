@@ -6,8 +6,8 @@ use crate::{
 };
 use burn_fusion::{
     graph::{
-        BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription, ScalarOpsDescription,
-        TensorOpsDescription, UnaryOpsDescription,
+        BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
+        ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
     FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
 };
@@ -39,6 +39,11 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
 {
     fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
         match ops {
+            TensorOpsDescription::BaseOpsFloat(ops) => {
+                if !self.register_base::<F>(ops) {
+                    return FusionStatus::Closed(self.properties);
+                }
+            }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
                     return FusionStatus::Closed(self.properties);
@@ -221,7 +226,27 @@ where
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::LowerElem { lhs, rhs, out } => {
+                Operator::Lower { lhs, rhs, out } => {
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::Greater { lhs, rhs, out } => {
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::LowerEqual { lhs, rhs, out } => {
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::GreaterEqual { lhs, rhs, out } => {
+                    mark(lhs, &mut local_tensor_ids_input);
+                    mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::Equal { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
@@ -242,7 +267,7 @@ where
         // All tensors where their latest description is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for entry in self.tensors.values() {
-            let (tensor, elem) = &entry;
+            let (tensor, _) = &entry;
             if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
                 if self.locals.contains_key(&tensor.id) {
                     outputs.push(entry);
@@ -301,6 +326,17 @@ where
         let local_index = self.locals.len() as u16;
         self.locals.insert(tensor.id.clone(), local_index);
         Variable::Local(local_index, elem)
+    }
+
+    fn register_base<E: WgpuElement>(&mut self, ops: &BaseOpsDescription) -> bool {
+        match ops {
+            BaseOpsDescription::Equal(desc) => self.register_binary_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
+            ),
+            _ => false,
+        }
     }
 
     fn register_float<E: WgpuElement>(&mut self, ops: &FloatOpsDescription) -> bool {
@@ -401,10 +437,50 @@ where
                     Operator::Abs { input, out }
                 })
             }
+            NumericOpsDescription::Lower(desc) => self.register_binary_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
+            ),
             NumericOpsDescription::LowerElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::LowerElem { lhs, rhs, out },
+                |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
+            ),
+            NumericOpsDescription::Greater(desc) => self.register_binary_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
+            ),
+            NumericOpsDescription::GreaterElem(desc) => self.register_scalar_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
+            ),
+            NumericOpsDescription::LowerEqual(desc) => self.register_binary_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
+            ),
+            NumericOpsDescription::LowerEqualElem(desc) => self.register_scalar_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
+            ),
+            NumericOpsDescription::GreaterEqual(desc) => self.register_binary_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
+            ),
+            NumericOpsDescription::GreaterEqualElem(desc) => self.register_scalar_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
+            ),
+            NumericOpsDescription::EqualElem(desc) => self.register_scalar_ops(
+                desc,
+                (E::elem_type(), E::elem_type(), Elem::Bool),
+                |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
             ),
             _ => false,
         }
@@ -532,16 +608,16 @@ mod tests {
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
         let tensor_5 = tensor_4 + 5.0;
-        let tensor_6 = tensor_5 + tensor_3;
-        let result_ref = tensor_6.recip().lower_elem(0.5).into_data();
+        let tensor_6 = tensor_5 + tensor_3.clone();
+        let result_ref = tensor_6.recip().equal(tensor_3).into_data();
 
         let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
         let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
         let tensor_5 = tensor_4 + 5.0;
-        let tensor_6 = tensor_5 + tensor_3;
-        let result_fused = tensor_6.recip().lower_elem(0.5).into_data();
+        let tensor_6 = tensor_5 + tensor_3.clone();
+        let result_fused = tensor_6.recip().equal(tensor_3).into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
         panic!()

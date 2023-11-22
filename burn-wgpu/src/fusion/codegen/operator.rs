@@ -65,7 +65,27 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
-    LowerElem {
+    Equal {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Lower {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Greater {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    LowerEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    GreaterEqual {
         lhs: Variable,
         rhs: Variable,
         out: Variable,
@@ -114,8 +134,20 @@ impl Display for Operator {
             Operator::Recip { input, out } => {
                 f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
             }
-            Operator::LowerElem { lhs, rhs, out } => {
+            Operator::Equal { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} == {rhs};"))
+            }
+            Operator::Lower { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} < {rhs};"))
+            }
+            Operator::Greater { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} > {rhs};"))
+            }
+            Operator::LowerEqual { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} <= {rhs};"))
+            }
+            Operator::GreaterEqual { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} >= {rhs};"))
             }
             Operator::AssignGlobal { input, out } => {
                 let elem = match out {
