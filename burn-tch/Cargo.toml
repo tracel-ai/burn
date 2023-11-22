@@ -17,7 +17,7 @@ doc = ["tch/doc-only"]
 burn-tensor = {path = "../burn-tensor", version = "0.11.0" }
 
 half = {workspace = true, features = ["std"]}
-libc = "0.2.149"
+libc = "0.2.150"
 rand = {workspace = true, features = ["std"]}
 tch = {version = "0.14.0", features = ["download-libtorch"]}
 

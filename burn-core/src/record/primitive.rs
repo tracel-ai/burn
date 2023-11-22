@@ -2,11 +2,15 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn_tensor::backend::Backend;
+use burn_tensor::Bool;
+use burn_tensor::Int;
 use burn_tensor::Tensor;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::tensor::BoolTensorSerde;
 use super::tensor::FloatTensorSerde;
+use super::tensor::IntTensorSerde;
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 use burn_tensor::{DataSerialize, Element};
@@ -112,6 +116,30 @@ impl<B: Backend, const D: usize> Record for Param<Tensor<B, D>> {
             Tensor::from_item(item.param).require_grad(), // Same behavior as when we create a new
                                                           // Param from a tensor.
         )
+    }
+}
+
+impl<B: Backend, const D: usize> Record for Param<Tensor<B, D, Int>> {
+    type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<S>>;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        ParamSerde::new(self.id.into_string(), self.value.into_item())
+    }
+
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+        Param::new(ParamId::from(item.id), Tensor::from_item(item.param))
+    }
+}
+
+impl<B: Backend, const D: usize> Record for Param<Tensor<B, D, Bool>> {
+    type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde>;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        ParamSerde::new(self.id.into_string(), self.value.into_item::<S>())
+    }
+
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+        Param::new(ParamId::from(item.id), Tensor::from_item::<S>(item.param))
     }
 }
 

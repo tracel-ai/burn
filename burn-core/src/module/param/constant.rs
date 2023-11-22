@@ -1,17 +1,14 @@
-use core::marker::PhantomData;
-
 use crate::{
     self as burn,
-    module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor},
+    module::{AutodiffModule, Devices, Module, ModuleMapper, ModuleVisitor},
     record::Record,
 };
 use burn::record::PrecisionSettings;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
-    Tensor,
+    BasicAutodiffOps, BasicOps, Tensor,
 };
-
-use super::ParamId;
+use core::marker::PhantomData;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
 #[derive(Debug, Clone, Copy, new)]
@@ -69,6 +66,18 @@ macro_rules! constant {
         fn into_record(self) -> Self::Record {
             burn::module::ConstantRecord::new()
         }
+
+        fn to_device(self, _: &B::Device) -> Self {
+            self
+        }
+
+        fn fork(self, _: &B::Device) -> Self {
+            self
+        }
+
+        fn devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+            devices
+        }
     };
 
     (ad_module, $type:ty) => {
@@ -113,27 +122,13 @@ constant!(i32);
 constant!(i16);
 constant!(i8);
 
-impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
+impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
     type Record = ConstantRecord;
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        // Important:
-        // We need to implement visit method for Tensor Module because
-        // to_device will be called during the visit method of the ModuleVisitor
+    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {}
 
-        // We are using a dummy param id because the visit method requires a param id
-        let dummy_param_id = ParamId::new();
-        visitor.visit(&dummy_param_id, self)
-    }
-
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        // Important:
-        // We need to implement visit method for Tensor Module because
-        // to_device will be called during the visit method of the ModuleVisitor
-
-        // We are using a dummy param id because the visit method requires a param id
-        let dummy_param_id = ParamId::new();
-        mapper.map(&dummy_param_id, self)
+    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+        self
     }
 
     fn into_record(self) -> Self::Record {
@@ -143,10 +138,30 @@ impl<const D: usize, B: Backend> Module<B> for Tensor<B, D> {
     fn load_record(self, _record: Self::Record) -> Self {
         self
     }
+
+    fn to_device(self, device: &B::Device) -> Self {
+        self.to_device(device)
+    }
+
+    fn fork(self, device: &B::Device) -> Self {
+        self.to_device(device)
+    }
+
+    fn devices(&self, mut devices: Devices<B>) -> Devices<B> {
+        let device = self.device();
+
+        if !devices.contains(&device) {
+            devices.push(device)
+        }
+
+        devices
+    }
 }
 
-impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Tensor<B, D> {
-    type InnerModule = Tensor<B::InnerBackend, D>;
+impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> AutodiffModule<B>
+    for Tensor<B, D, K>
+{
+    type InnerModule = Tensor<B::InnerBackend, D, K::InnerKind>;
 
     fn valid(&self) -> Self::InnerModule {
         self.clone().inner()
@@ -170,6 +185,18 @@ impl<B: Backend> Module<B> for PhantomData<B> {
 
     fn into_record(self) -> Self::Record {
         ConstantRecord::new()
+    }
+
+    fn to_device(self, _: &<B as Backend>::Device) -> Self {
+        self
+    }
+
+    fn fork(self, _: &<B as Backend>::Device) -> Self {
+        self
+    }
+
+    fn devices(&self, devices: Devices<B>) -> Devices<B> {
+        devices
     }
 }
 
