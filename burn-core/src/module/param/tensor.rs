@@ -75,7 +75,10 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         })
     }
 
-    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+    fn collect_devices(
+        &self,
+        mut devices: Vec<<B as Backend>::Device>,
+    ) -> Vec<<B as Backend>::Device> {
         let device = self.device();
 
         if !devices.contains(&device) {
@@ -122,7 +125,10 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
         self.to_device(device) // Don't support autodiff.
     }
 
-    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+    fn collect_devices(
+        &self,
+        mut devices: Vec<<B as Backend>::Device>,
+    ) -> Vec<<B as Backend>::Device> {
         let device = self.device();
 
         if !devices.contains(&device) {
@@ -169,7 +175,10 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
         self.to_device(device) // Don't support autodiff.
     }
 
-    fn devices(&self, mut devices: Vec<<B as Backend>::Device>) -> Vec<<B as Backend>::Device> {
+    fn collect_devices(
+        &self,
+        mut devices: Vec<<B as Backend>::Device>,
+    ) -> Vec<<B as Backend>::Device> {
         let device = self.device();
 
         if !devices.contains(&device) {

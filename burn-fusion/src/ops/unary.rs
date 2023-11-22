@@ -5,23 +5,44 @@ macro_rules! scalar_float_ops {
         $name:ident,
         $ops:expr
     ) => {
-        scalar_float_ops!($name, $ops, FloatElem<B>);
+        scalar_float_ops!($name, $ops, f32);
     };
     (
         $name:ident,
         $ops:expr,
         $elem:ty
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<$elem>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = ScalarOpsDescription<$elem>;
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let lhs = handles.get_float_tensor::<D>(&args.lhs);
-                let output = $ops(lhs, args.rhs.clone());
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+    };
+    (
+        $name:ident,
+        $ops:expr,
+        $elem:ty,
+        noconvert
+    ) => {
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<$elem>,
+        }
 
-                handles.register_float_tensor(&args.out.id, output);
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, self.desc.rhs);
+
+                handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -35,16 +56,17 @@ macro_rules! scalar_float2int_ops {
         $ops:expr,
         $elem:ty
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<$elem>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = ScalarOpsDescription<$elem>;
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, self.desc.rhs.clone());
 
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let lhs = handles.get_float_tensor::<D>(&args.lhs);
-                let output = $ops(lhs, args.rhs.clone());
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -57,16 +79,17 @@ macro_rules! unary_float_ops {
         $name:ident,
         $ops:expr
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
                 let output = $ops(input);
 
-                handles.register_float_tensor(&args.out.id, output);
+                handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -79,16 +102,17 @@ macro_rules! unary_int_ops {
         $name:ident,
         $ops:expr
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let input = handles.get_int_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let output = $ops(input);
 
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -101,16 +125,17 @@ macro_rules! scalar_float_cmp_ops {
         $name:ident,
         $ops:expr
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<f32>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = ScalarOpsDescription<FloatElem<B>>;
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let lhs = handles.get_float_tensor::<D>(&args.lhs);
-                let output = $ops(lhs, args.rhs.clone());
-
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -123,16 +148,17 @@ macro_rules! scalar_int_cmp_ops {
         $name:ident,
         $ops:expr
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<i32>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = ScalarOpsDescription<IntElem<B>>;
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let lhs = handles.get_int_tensor::<D>(&args.lhs);
-                let output = $ops(lhs, args.rhs.clone());
-
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
     };
@@ -145,23 +171,44 @@ macro_rules! scalar_int_ops {
         $name:ident,
         $ops:expr
     ) => {
-        scalar_int_ops!($name, $ops, IntElem<B>);
+        scalar_int_ops!($name, $ops, i32);
     };
     (
         $name:ident,
         $ops:expr,
         $elem:ty
     ) => {
-        struct $name<const D: usize>;
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<$elem>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
-            type Args = ScalarOpsDescription<$elem>;
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, burn_tensor::ElementConversion::elem(self.desc.rhs));
 
-            fn execute(&self, args: &Self::Args, handles: &mut $crate::HandleContainer<B>) {
-                let lhs = handles.get_int_tensor::<D>(&args.lhs);
-                let output = $ops(lhs, args.rhs.clone());
+                handles.register_int_tensor(&self.desc.out.id, output);
+            }
+        }
+    };
+    (
+        $name:ident,
+        $ops:expr,
+        $elem:ty,
+        noconvert
+    ) => {
+        #[derive(new)]
+        struct $name<const D: usize> {
+            desc: ScalarOpsDescription<$elem>,
+        }
 
-                handles.register_int_tensor(&args.out.id, output);
+        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+            fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
+                let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
+                let output = $ops(lhs, self.desc.rhs);
+
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
     };

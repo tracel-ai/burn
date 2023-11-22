@@ -37,12 +37,14 @@ where
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<Self>>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
             Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
-            Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            Distribution::Uniform(low, high) => {
+                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+            }
             Distribution::Bernoulli(prob) => {
                 random_bernoulli::<G, F, D>(shape, device, prob.elem())
             }

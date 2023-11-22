@@ -46,28 +46,29 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_into_int<const D: usize>(
         tensor: BoolTensor<Self, D>,
     ) -> burn_tensor::ops::IntTensor<Self, D> {
-        struct IntoIntOps<const D: usize>;
+        #[derive(new)]
+        struct IntoIntOps<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for IntoIntOps<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
                 let output = B::bool_into_int(input);
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client
-            .register(TensorOpsDescription::BoolOps(BoolOpsDescription::IntoInt(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(IntoIntOps::<D>),
-            )));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BoolOps(BoolOpsDescription::IntoInt(desc.clone())),
+            IntoIntOps::<D>::new(desc),
+        );
 
         out
     }
@@ -75,29 +76,29 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_into_float<const D: usize>(
         tensor: BoolTensor<Self, D>,
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
-        struct IntoFloatOps<const D: usize>;
+        #[derive(new)]
+        struct IntoFloatOps<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for IntoFloatOps<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
                 let output = B::bool_into_float(input);
-                handles.register_float_tensor(&args.out.id, output);
+                handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
 
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client.register(TensorOpsDescription::BoolOps(
-            BoolOpsDescription::IntoFloat(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(IntoFloatOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BoolOps(BoolOpsDescription::IntoFloat(desc.clone())),
+            IntoFloatOps::<D>::new(desc),
+        );
 
         out
     }
@@ -129,34 +130,31 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensor: BoolTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> BoolTensor<Self, D2> {
-        struct ReshapeDimsOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct ReshapeDimsOps<const D1: usize, const D2: usize> {
+            desc: ReshapeDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
-            type Args = ReshapeDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D1>(&args.input);
-                let output = B::bool_reshape::<D1, D2>(input, Shape::from(&args.shape));
-                handles.register_bool_tensor(&args.out.id, output);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D1>(&self.desc.input);
+                let output = B::bool_reshape::<D1, D2>(input, Shape::from(&self.desc.shape));
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
         let out = tensor.client.tensor_uninitialized(shape.clone());
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsBool(
-                BaseOpsDescription::Reshape(
-                    ReshapeDescription {
-                        input: tensor.into_description(),
-                        shape,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(ReshapeDimsOps::<D1, D2>),
-                ),
-            ));
+        let desc = ReshapeDescription {
+            input: tensor.into_description(),
+            shape,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Reshape(desc.clone())),
+            ReshapeDimsOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -165,18 +163,19 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensor: BoolTensor<Self, D1>,
         ranges: [std::ops::Range<usize>; D2],
     ) -> BoolTensor<Self, D1> {
-        struct SliceOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct SliceOps<const D1: usize, const D2: usize> {
+            desc: SliceOpsDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceOps<D1, D2> {
-            type Args = SliceOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_bool_tensor::<D1>(&args.tensor);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_bool_tensor::<D1>(&self.desc.tensor);
 
                 let output =
-                    B::bool_slice::<D1, D2>(tensor, args.ranges.clone().try_into().unwrap());
+                    B::bool_slice::<D1, D2>(tensor, self.desc.ranges.clone().try_into().unwrap());
 
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -188,19 +187,15 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsBool(
-                BaseOpsDescription::Slice(
-                    SliceOpsDescription {
-                        tensor: tensor.into_description(),
-                        ranges: ranges.into(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SliceOps::<D1, D2>),
-                ),
-            ));
+        let desc = SliceOpsDescription {
+            tensor: tensor.into_description(),
+            ranges: ranges.into(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Slice(desc.clone())),
+            SliceOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -210,42 +205,40 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         ranges: [std::ops::Range<usize>; D2],
         value: BoolTensor<Self, D1>,
     ) -> BoolTensor<Self, D1> {
-        struct SliceAssignOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct SliceAssignOps<const D1: usize, const D2: usize> {
+            desc: SliceAssignOpsDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceAssignOps<D1, D2> {
-            type Args = SliceAssignOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_bool_tensor::<D1>(&args.tensor);
-                let value = handles.get_bool_tensor::<D1>(&args.value);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_bool_tensor::<D1>(&self.desc.tensor);
+                let value = handles.get_bool_tensor::<D1>(&self.desc.value);
 
                 let output = B::bool_slice_assign::<D1, D2>(
                     tensor,
-                    args.ranges.clone().try_into().unwrap(),
+                    self.desc.ranges.clone().try_into().unwrap(),
                     value,
                 );
 
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsBool(
-                BaseOpsDescription::SliceAssign(
-                    SliceAssignOpsDescription {
-                        tensor: tensor.into_description(),
-                        ranges: ranges.into(),
-                        value: value.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SliceAssignOps::<D1, D2>),
-                ),
-            ));
+        let desc = SliceAssignOpsDescription {
+            tensor: tensor.into_description(),
+            ranges: ranges.into(),
+            value: value.into_description(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::SliceAssign(desc.clone())),
+            SliceAssignOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -254,21 +247,23 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensors: Vec<BoolTensor<Self, D>>,
         dim: usize,
     ) -> BoolTensor<Self, D> {
-        struct CatOps<const D: usize>;
+        #[derive(new)]
+        struct CatOps<const D: usize> {
+            desc: CatOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for CatOps<D> {
-            type Args = CatOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensors = args
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensors = self
+                    .desc
                     .tensors
                     .iter()
                     .map(|tensor| handles.get_bool_tensor(tensor))
                     .collect();
 
-                let output = B::bool_cat::<D>(tensors, args.dim);
+                let output = B::bool_cat::<D>(tensors, self.desc.dim);
 
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -284,14 +279,15 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = client.tensor_uninitialized(shape);
 
-        client.register(TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Cat(
-            CatOpsDescription {
-                tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
-                dim,
-                out: out.to_description_out(),
-            },
-            Box::new(CatOps::<D>),
-        )));
+        let desc = CatOpsDescription {
+            tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
+            dim,
+            out: out.to_description_out(),
+        };
+        client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Cat(desc.clone())),
+            CatOps::<D>::new(desc),
+        );
 
         out
     }
@@ -300,16 +296,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        struct EqualOps<const D: usize>;
+        #[derive(new)]
+        struct EqualOps<const D: usize> {
+            desc: BinaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for EqualOps<D> {
-            type Args = BinaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let lhs = handles.get_bool_tensor::<D>(&args.lhs);
-                let rhs = handles.get_bool_tensor(&args.rhs);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let lhs = handles.get_bool_tensor::<D>(&self.desc.lhs);
+                let rhs = handles.get_bool_tensor(&self.desc.rhs);
                 let output = B::bool_equal(lhs, rhs);
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -317,44 +314,44 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(TensorOpsDescription::BaseOpsBool(
-            BaseOpsDescription::Equal(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(EqualOps::<D>),
-            ),
-        ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::Equal(desc.clone())),
+            EqualOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
-        struct NotOps<const D: usize>;
+        #[derive(new)]
+        struct NotOps<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for NotOps<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
                 let output = B::bool_not(input);
-                handles.register_bool_tensor(&args.out.id, output);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client.register(TensorOpsDescription::BoolOps(
-            crate::graph::BoolOpsDescription::Not(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(NotOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            TensorOpsDescription::BoolOps(crate::graph::BoolOpsDescription::Not(desc.clone())),
+            NotOps::<D>::new(desc),
+        );
 
         out
     }
@@ -364,15 +361,16 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         dim1: usize,
         dim2: usize,
     ) -> BoolTensor<Self, D> {
-        struct SwapDimsOps<const D: usize>;
+        #[derive(new)]
+        struct SwapDimsOps<const D: usize> {
+            desc: SwapDimsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for SwapDimsOps<D> {
-            type Args = SwapDimsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_bool_tensor::<D>(&args.input);
-                let output = B::bool_swap_dims(input, args.dim1, args.dim2);
-                handles.register_bool_tensor(&args.out.id, output);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let output = B::bool_swap_dims(input, self.desc.dim1, self.desc.dim2);
+                handles.register_bool_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -382,20 +380,16 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsBool(
-                BaseOpsDescription::SwapDims(
-                    SwapDimsDescription {
-                        input: tensor.into_description(),
-                        dim1,
-                        dim2,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SwapDimsOps::<D>),
-                ),
-            ));
+        let desc = SwapDimsDescription {
+            input: tensor.into_description(),
+            dim1,
+            dim2,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsBool(BaseOpsDescription::SwapDims(desc.clone())),
+            SwapDimsOps::<D>::new(desc),
+        );
 
         out
     }

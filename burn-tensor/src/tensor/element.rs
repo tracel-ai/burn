@@ -48,7 +48,7 @@ pub trait ElementRandom {
     /// # Returns
     ///
     /// The random value.
-    fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self
+    fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self
     where
         Self: Sized;
 }
@@ -103,7 +103,7 @@ macro_rules! make_element {
         }
 
         impl ElementRandom for $type {
-            fn random<R: RngCore>(distribution: Distribution<Self>, rng: &mut R) -> Self {
+            fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self {
                 #[allow(clippy::redundant_closure_call)]
                 $random(distribution, rng)
             }
@@ -114,66 +114,64 @@ macro_rules! make_element {
 make_element!(
     ty f64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_f64().unwrap(),
-    random |distribution: Distribution<f64>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty f32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_f32().unwrap(),
-    random |distribution: Distribution<f32>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty i64 Precision::Double,
     convert |elem: &dyn ToPrimitive| elem.to_i64().unwrap(),
-    random |distribution: Distribution<i64>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty i32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_i32().unwrap(),
-    random |distribution: Distribution<i32>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty u32 Precision::Full,
     convert |elem: &dyn ToPrimitive| elem.to_u32().unwrap(),
-    random |distribution: Distribution<u32>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty i16 Precision::Half,
     convert |elem: &dyn ToPrimitive| elem.to_i16().unwrap(),
-    random |distribution: Distribution<i16>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty i8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_i8().unwrap(),
-    random |distribution: Distribution<i8>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty u8 Precision::Other,
     convert |elem: &dyn ToPrimitive| elem.to_u8().unwrap(),
-    random |distribution: Distribution<u8>, rng: &mut R| distribution.sampler(rng).sample()
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample()
 );
 
 make_element!(
     ty f16 Precision::Half,
     convert |elem: &dyn ToPrimitive| f16::from_f32(elem.to_f32().unwrap()),
-    random |distribution: Distribution<f16>, rng: &mut R| {
-        let distribution: Distribution<f32> = distribution.convert();
-        let sample = distribution.sampler(rng).sample();
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: f32 = distribution.sampler(rng).sample();
         f16::from_elem(sample)
     }
 );
 make_element!(
     ty bf16 Precision::Half,
     convert |elem: &dyn ToPrimitive| bf16::from_f32(elem.to_f32().unwrap()),
-    random |distribution: Distribution<bf16>, rng: &mut R| {
-        let distribution: Distribution<f32> = distribution.convert();
-        let sample = distribution.sampler(rng).sample();
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: f32 = distribution.sampler(rng).sample();
         bf16::from_elem(sample)
     }
 );

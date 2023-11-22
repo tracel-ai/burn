@@ -18,20 +18,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<F>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let shape = &shape.dims;
         let device = &(*device).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
-                candle_core::Tensor::rand(0., 1., shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap(),
             ),
             Distribution::Bernoulli(prob) => CandleTensor::new(
-                candle_core::Tensor::rand(0., 1., shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap()
@@ -40,12 +40,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
                     .to_dtype(F::DTYPE)
                     .unwrap(),
             ),
-            Distribution::Uniform(from, to) => {
-                CandleTensor::new(candle_core::Tensor::rand(from, to, shape, device).unwrap())
-            }
-            Distribution::Normal(mean, std) => {
-                CandleTensor::new(candle_core::Tensor::randn(mean, std, shape, device).unwrap())
-            }
+            Distribution::Uniform(from, to) => CandleTensor::new(
+                candle_core::Tensor::rand(from.elem::<F>(), to.elem::<F>(), shape, device).unwrap(),
+            ),
+            Distribution::Normal(mean, std) => CandleTensor::new(
+                candle_core::Tensor::randn(mean.elem::<F>(), std.elem::<F>(), shape, device)
+                    .unwrap(),
+            ),
         }
     }
 

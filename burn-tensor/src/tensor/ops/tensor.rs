@@ -34,7 +34,7 @@ pub trait TensorOps<B: Backend> {
     /// The tensor with the given shape and random values.
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<B>>,
+        distribution: Distribution,
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
