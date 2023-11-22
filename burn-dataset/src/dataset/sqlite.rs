@@ -274,9 +274,7 @@ fn create_conn_pool<P: AsRef<Path>>(
         OpenFlags::SQLITE_OPEN_READ_ONLY
     };
 
-    // Create a connection pool and make sure the connections are read only
     let manager = SqliteConnectionManager::file(db_file).with_flags(sqlite_flags);
-
     Pool::new(manager).map_err(SqliteDatasetError::ConnectionPool)
 }
 
