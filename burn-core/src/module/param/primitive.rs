@@ -28,6 +28,22 @@ where
     fn into_record(self) -> Self::Record {
         self.map(Module::into_record)
     }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.to_device(device))
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.fork(device))
+    }
+
+    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+        if let Some(module) = self.as_ref() {
+            devices = module.devices(devices);
+        }
+
+        devices
+    }
 }
 
 impl<T, B> AutodiffModule<B> for Option<T>
@@ -78,6 +94,24 @@ where
             .map(|(module, record)| module.load_record(record))
             .collect()
     }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.into_iter()
+            .map(|module| module.to_device(device))
+            .collect()
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.into_iter().map(|module| module.fork(device)).collect()
+    }
+
+    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+        for module in self.iter() {
+            devices = module.devices(devices);
+        }
+
+        devices
+    }
 }
 
 impl<T, B> AutodiffModule<B> for Vec<T>
@@ -100,11 +134,11 @@ where
 {
     type Record = [T::Record; N];
 
-    fn devices(&self) -> Vec<<B as burn_tensor::backend::Backend>::Device> {
-        let mut devices = Vec::new();
+    fn devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
         for module in self.iter() {
-            devices.append(&mut module.devices());
+            devices = module.devices(devices);
         }
+
         devices
     }
 
@@ -138,6 +172,14 @@ where
 
     fn into_record(self) -> Self::Record {
         self.map(Module::into_record)
+    }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.to_device(device))
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.map(|module| module.fork(device))
     }
 }
 

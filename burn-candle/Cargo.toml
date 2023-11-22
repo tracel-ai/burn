@@ -18,8 +18,8 @@ derive-new = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = false }
 half = { workspace = true }
 
-# TODO remove pinned version ("=") once candle-core is updated to 0.3.1
-candle-core = { version = "=0.3.0" }
+candle-core = { version = "0.3.1" }
+
 
 [dev-dependencies]
 burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", default-features = false, features = [

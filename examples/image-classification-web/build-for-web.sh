@@ -10,9 +10,9 @@ fi
 mkdir -p pkg
 
 echo "Building SIMD version of wasm for web ..."
-export RUSTFLAGS="-C lto=fat -C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 -Ctarget-feature=+simd128 --cfg web_sys_unstable_apis"
+export RUSTFLAGS="-C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 -Ctarget-feature=+simd128 --cfg web_sys_unstable_apis"
 wasm-pack build --dev --out-dir pkg/simd --target web --no-typescript
 
 echo "Building Non-SIMD version of wasm for web ..."
-export RUSTFLAGS="-C lto=fat -C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 --cfg web_sys_unstable_apis"
+export RUSTFLAGS="-C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 --cfg web_sys_unstable_apis"
 wasm-pack build --dev --out-dir pkg/no_simd --target web --no-typescript

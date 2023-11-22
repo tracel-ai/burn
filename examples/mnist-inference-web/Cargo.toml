@@ -18,8 +18,9 @@ wgpu = ["burn/wgpu"]
 [dependencies]
 burn = { path = "../../burn", default-features = false }
 serde = { workspace = true }
-wasm-bindgen = { version = "0.2.87" }
-js-sys = "0.3.64"
+wasm-bindgen = { version = "0.2.88" }
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3.65"
 
 [dev-dependencies]
 pollster = { workspace = true }

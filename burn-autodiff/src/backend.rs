@@ -79,4 +79,28 @@ impl<B: Backend> AutodiffBackend for Autodiff<B> {
         grads.remove(tensor);
         grads.register::<B, D>(tensor.node.clone(), grad);
     }
+
+    fn int_inner<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+    ) -> burn_tensor::ops::IntTensor<Self::InnerBackend, D> {
+        tensor
+    }
+
+    fn bool_inner<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self::InnerBackend, D> {
+        tensor
+    }
+
+    fn int_from_inner<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self::InnerBackend, D>,
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
+        tensor
+    }
+
+    fn bool_from_inner<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self::InnerBackend, D>,
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        tensor
+    }
 }
