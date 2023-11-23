@@ -65,6 +65,37 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
+    Equal {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Lower {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Greater {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    LowerEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    GreaterEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    ConditionalAssign {
+        cond: Variable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     AssignGlobal {
         input: Variable,
         out: Variable,
@@ -109,22 +140,41 @@ impl Display for Operator {
             Operator::Recip { input, out } => {
                 f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
             }
+            Operator::Equal { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} == {rhs};"))
+            }
+            Operator::Lower { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} < {rhs};"))
+            }
+            Operator::Greater { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} > {rhs};"))
+            }
+            Operator::LowerEqual { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} <= {rhs};"))
+            }
+            Operator::GreaterEqual { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} >= {rhs};"))
+            }
             Operator::AssignGlobal { input, out } => {
-                f.write_fmt(format_args!("{out}_global[id] = {input};"))
+                let elem = out.elem();
+                f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
             Operator::ReadGlobal {
                 variable,
                 position,
                 position_out,
             } => {
-                let (global, local) = match variable {
-                    Variable::Input(number) => {
-                        (format!("input_{number}_global"), format!("input_{number}"))
-                    }
-                    Variable::Local(_) => panic!("can't read globala local variable."),
-                    Variable::Output(number) => (
+                let (global, local, elem) = match variable {
+                    Variable::Input(number, elem) => (
+                        format!("input_{number}_global"),
+                        format!("input_{number}"),
+                        elem,
+                    ),
+                    Variable::Local(_, _) => panic!("can't read global local variable."),
+                    Variable::Output(number, elem) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
+                        elem,
                     ),
                     Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
                 };
@@ -144,7 +194,25 @@ for (var i: u32 = 1u; i <= rank; i++) {{
     index_{local} += id / stride_out % shape * stride;
 }}
 
-let {local} = {global}[index_{local}];
+let {local} = {elem}({global}[index_{local}]);
+"
+                ))
+            }
+            Operator::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => {
+                let elem = out.elem();
+                f.write_fmt(format_args!(
+                    "
+var {out}: {elem};
+if {cond} {{
+    {out} = {lhs};
+}} else {{
+    {out} = {rhs};
+}}
 "
                 ))
             }

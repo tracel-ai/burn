@@ -83,25 +83,43 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
     /// Register the inputs used by the kernel.
     pub fn inputs(
         mut self,
-        inputs_tensor: &[&TensorDescription],
+        inputs_tensor: &[&(TensorDescription, Elem)],
         inputs_scalar_f32: &[f32],
     ) -> FusionKernel<G, F, I, BodyPhase> {
-        for (i, input) in inputs_tensor.iter().enumerate() {
-            self.input_bindings.push((
-                Binding {
-                    elem: Elem::F32,
-                    visibility: Visibility::Read,
-                    location: Location::Storage,
-                    size: None,
-                },
-                (*input).clone(),
-            ));
+        for (i, (input, elem)) in inputs_tensor.iter().enumerate() {
+            if elem != &Elem::Bool {
+                self.input_bindings.push((
+                    Binding {
+                        elem: *elem,
+                        visibility: Visibility::Read,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*input).clone(),
+                ));
 
-            self.operations.push(Operator::ReadGlobal {
-                variable: Variable::Input(i as u16),
-                position: i,
-                position_out: inputs_tensor.len(), // First output
-            });
+                self.operations.push(Operator::ReadGlobal {
+                    variable: Variable::Input(i as u16, *elem),
+                    position: i,
+                    position_out: inputs_tensor.len(), // First output
+                });
+            } else {
+                self.input_bindings.push((
+                    Binding {
+                        elem: Elem::I32,
+                        visibility: Visibility::Read,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*input).clone(),
+                ));
+
+                self.operations.push(Operator::ReadGlobal {
+                    variable: Variable::Input(i as u16, *elem),
+                    position: i,
+                    position_out: inputs_tensor.len(), // First output
+                });
+            }
         }
 
         if !inputs_scalar_f32.is_empty() {
@@ -180,31 +198,48 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(
         mut self,
-        outputs: &[&TensorDescription],
+        outputs: &[&(TensorDescription, Elem)],
         locals: &[u16],
     ) -> FusionKernel<G, F, I, ExecutionPhase> {
         let mut num_elems_launch_option = 0;
 
-        for (i, (output, local)) in outputs.iter().zip(locals).enumerate() {
+        for (i, ((output, elem), local)) in outputs.iter().zip(locals).enumerate() {
             let num_elems_output = calculate_num_elems_dyn_rank(&output.shape);
             if num_elems_output > num_elems_launch_option {
                 num_elems_launch_option = num_elems_output;
             }
 
-            self.output_bindings.push((
-                Binding {
-                    elem: Elem::F32,
-                    visibility: Visibility::ReadWrite,
-                    location: Location::Storage,
-                    size: None,
-                },
-                (*output).clone(),
-            ));
+            if elem != &Elem::Bool {
+                self.output_bindings.push((
+                    Binding {
+                        elem: *elem,
+                        visibility: Visibility::ReadWrite,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*output).clone(),
+                ));
 
-            self.operations.push(Operator::AssignGlobal {
-                input: Variable::Local(*local),
-                out: Variable::Output(i as u16),
-            });
+                self.operations.push(Operator::AssignGlobal {
+                    input: Variable::Local(*local, *elem),
+                    out: Variable::Output(i as u16, *elem),
+                });
+            } else {
+                self.output_bindings.push((
+                    Binding {
+                        elem: Elem::I32, // I32 are used for bool tensors
+                        visibility: Visibility::ReadWrite,
+                        location: Location::Storage,
+                        size: None,
+                    },
+                    (*output).clone(),
+                ));
+
+                self.operations.push(Operator::AssignGlobal {
+                    input: Variable::Local(*local, *elem),
+                    out: Variable::Output(i as u16, Elem::I32),
+                });
+            }
         }
 
         self.num_elems_output = num_elems_launch_option;
