@@ -1,0 +1,6 @@
+- id: ban-wildcard-imports
+  languages:
+    - rust
+  message: "Wildcard imports make it unclear which items are being used. Avoid using `use ...::*;` except in sub-modules of a file such as `use super::*;` in a test module."
+  pattern-regex: '^use .*::\*;$'
+  severity: WARNING

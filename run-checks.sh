@@ -5,6 +5,8 @@ set -e
 
 # This script runs all `burn` checks locally. It may take around 15 minutes
 # on the first run.
+#!/usr/bin/env bash
+
 #
 # Run `run-checks` using this command:
 #

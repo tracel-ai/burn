@@ -54,7 +54,7 @@
             ] else
               [ pkgs.pkg-config ]);
 
-          packages = [ ];
+          packages = [ pkgs.typos pkgs.just ];
           shellHook = ''
             cargo build
           '';

@@ -33,9 +33,3 @@ wasm-timer = { workspace = true }
 [build-dependencies]
 # Used to generate code from ONNX model
 burn-import = { path = "../../burn-import" }
-
-[profile.dev]
-lto = "fat"
-
-[profile.release]
-lto = "fat"

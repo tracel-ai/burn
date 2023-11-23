@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Opening index.html file directly by a browser does not work because of
 # the security restrictions by the browser.
 
