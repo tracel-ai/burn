@@ -675,6 +675,5 @@ mod tests {
         let result_fused = tensor_6.mask_fill(mask, 0.3).into_data();
 
         result_fused.assert_approx_eq(&result_ref, 3);
-        panic!()
     }
 }
