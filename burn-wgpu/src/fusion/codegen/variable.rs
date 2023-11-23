@@ -9,6 +9,17 @@ pub enum Variable {
     Output(u16, Elem),
 }
 
+impl Variable {
+    pub fn elem(&self) -> &Elem {
+        match self {
+            Variable::Input(_, e) => e,
+            Variable::Scalar(_, e) => e,
+            Variable::Local(_, e) => e,
+            Variable::Output(_, e) => e,
+        }
+    }
+}
+
 impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

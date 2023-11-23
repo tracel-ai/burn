@@ -156,12 +156,7 @@ impl Display for Operator {
                 f.write_fmt(format_args!("let {out} = {lhs} >= {rhs};"))
             }
             Operator::AssignGlobal { input, out } => {
-                let elem = match out {
-                    Variable::Input(_, e) => e,
-                    Variable::Scalar(_, e) => e,
-                    Variable::Local(_, e) => e,
-                    Variable::Output(_, e) => e,
-                };
+                let elem = out.elem();
                 f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
             Operator::ReadGlobal {
@@ -209,12 +204,7 @@ let {local} = {elem}({global}[index_{local}]);
                 rhs,
                 out,
             } => {
-                let elem = match out {
-                    Variable::Input(_, e) => e,
-                    Variable::Scalar(_, e) => e,
-                    Variable::Local(_, e) => e,
-                    Variable::Output(_, e) => e,
-                };
+                let elem = out.elem();
                 f.write_fmt(format_args!(
                     "
 var {out}: {elem};
