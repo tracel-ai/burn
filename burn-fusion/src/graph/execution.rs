@@ -1,5 +1,5 @@
-use super::{Graph, Optimization};
-use crate::{FusionBackend, FusionStatus, HandleContainer};
+use super::{Graph, Optimization, Policy};
+use crate::{FusionBackend, FusionOps, FusionStatus, HandleContainer};
 
 /// The graph execution trait abstracts the way the graph is executing optimizations.
 pub trait GraphExecution<B: FusionBackend>: Default + Send {
@@ -10,6 +10,7 @@ pub trait GraphExecution<B: FusionBackend>: Default + Send {
         graph: &mut Graph<B>,
         handles: &mut HandleContainer<B>,
         optimizations: &mut [Optimization<B>],
+        policy: &mut Policy<Box<dyn FusionOps<B>>>,
         force: bool,
     );
 }
@@ -24,6 +25,7 @@ impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
         graph: &mut Graph<B>,
         handles: &mut HandleContainer<B>,
         optimizations: &mut [Optimization<B>],
+        policy: &mut Policy<Box<dyn FusionOps<B>>>,
         force: bool,
     ) {
         loop {
@@ -33,7 +35,7 @@ impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
 
             match find_best_optimization_index(optimizations) {
                 Some(index) => {
-                    graph.execute_optimization(handles, index, optimizations);
+                    graph.execute_optimization(handles, index, optimizations, policy);
                 }
                 None => {
                     graph.execute(handles);

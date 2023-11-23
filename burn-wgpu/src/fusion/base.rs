@@ -33,7 +33,7 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
 
-    fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
+    fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOpsBuilder<Self>>> {
         vec![Box::new(FloatElementWiseFusionOps::new(device.clone()))]
     }
 

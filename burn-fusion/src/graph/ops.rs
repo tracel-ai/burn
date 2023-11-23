@@ -434,7 +434,6 @@ pub struct RandomOpsDescription {
 pub struct ReshapeDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
-    pub shape: Vec<usize>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq)]
@@ -548,7 +547,6 @@ pub struct RepeatOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
     pub times: usize,
-    pub shape: Vec<usize>,
     pub out: TensorDescription,
 }
 

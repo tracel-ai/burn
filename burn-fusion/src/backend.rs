@@ -1,9 +1,10 @@
 use crate::{
-    client::FusionClient, graph::TensorOpsDescription, FusionClientLocator, FusionTensor,
-    HandleContainer,
+    client::FusionClient,
+    graph::{Context, TensorOpsDescription, ToBeCached},
+    FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
-use core::marker::PhantomData;
+use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
@@ -49,7 +50,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 }
 
-/// The status of a [fusion ops](FusionOps).
+/// The status of a [fusion ops](FusionOpsBuilder).
 pub enum FusionStatus {
     /// No more operations can be fused.
     Closed(FusionProperties),
@@ -57,7 +58,7 @@ pub enum FusionStatus {
     Open(FusionProperties),
 }
 
-/// The properties of a [fusion ops](FusionOps).
+/// The properties of a [fusion ops](FusionOpsBuilder).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FusionProperties {
     /// The score of the optimization, higher is better.
@@ -78,7 +79,7 @@ pub struct FusionProperties {
 ///
 /// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait FusionOps<B: FusionBackend>: Send {
+pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     ///
     /// The return value should be either [closed](FusionStatus::Closed) or
@@ -89,7 +90,7 @@ pub trait FusionOps<B: FusionBackend>: Send {
     /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
     fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus;
     /// Execute the operation.
-    fn execute(&mut self, handles: &mut HandleContainer<B>);
+    fn build(&self) -> Box<dyn FusionOps<B>>;
     /// Reset the state.
     fn reset(&mut self);
     /// The size of operations fused.
@@ -100,9 +101,15 @@ pub trait FusionOps<B: FusionBackend>: Send {
     }
 }
 
-pub trait FusionOpsExe<B: FusionBackend>: Send {
+impl<B: FusionBackend> ToBeCached<Box<dyn FusionOps<B>>> for Box<dyn FusionOpsBuilder<B>> {
+    fn build(&self) -> Box<dyn FusionOps<B>> {
+        FusionOpsBuilder::build(self.as_ref())
+    }
+}
+
+pub trait FusionOps<B: FusionBackend>: Send {
     /// Execute the operation.
-    fn execute(&self, handles: &mut HandleContainer<B>);
+    fn execute(&self, context: &mut Context<'_, '_, B>);
     /// The size of operations fused.
     fn len(&self) -> usize;
     /// If the current operation is empty.
@@ -127,7 +134,7 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [fusion operation](crate::FusionOps).
+/// [fusion operation](crate::FusionOpsBuilder).
 pub trait FusionBackend: Backend {
     /// The device type that can return an ID.
     ///
@@ -139,7 +146,7 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of operations that will be used to optimize the computational graph.
-    fn operations(device: &Device<Self>) -> Vec<Box<dyn FusionOps<Self>>>;
+    fn operations(device: &Device<Self>) -> Vec<Box<dyn FusionOpsBuilder<Self>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

@@ -4,24 +4,29 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
 
-#[derive(Default)]
-pub struct Cache<T> {
-    state: HashMap<u64, Vec<Item<T>>>,
+pub struct Policy<O> {
+    cache: HashMap<u64, Vec<CachedItem<O>>>,
 }
 
-pub trait ToBeCached<T> {
+pub(crate) trait ToBeCached<T> {
     /// Call only when not seen.
-    fn build(self) -> T;
+    fn build(&self) -> T;
 }
 
+/// The graph key keeps an upadted hash that represent the current graph.
 #[derive(Default, Clone)]
-pub struct CacheKey {
+pub struct GraphKey {
     hasher: DefaultHasher,
 }
 
-impl CacheKey {
+impl GraphKey {
+    /// Register a new [ops](TensorOpsDescription) into the graph key.
     pub fn register(&mut self, desc: &TensorOpsDescription) {
         desc.hash(&mut self.hasher);
+    }
+
+    pub fn clear(&mut self) {
+        self.hasher = DefaultHasher::default();
     }
 
     fn value(&self) -> u64 {
@@ -29,50 +34,72 @@ impl CacheKey {
     }
 }
 
+/// Action to be made depending on the graph.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action<'a, T> {
-    BuildFusionOps,
+    /// Continue exploring optimizations but using the [fusion ops builder](crate::FusionOps).
+    Build,
     WaitForFusionOps,
     ExecuteFusionOps(&'a T),
 }
 
+impl<Builder> CachedAction<&Builder> {
+    pub fn build<T>(self) -> CachedAction<T>
+    where
+        Builder: ToBeCached<T>,
+    {
+        match self {
+            CachedAction::Wait => CachedAction::Wait,
+            CachedAction::Execute {
+                optimization: item,
+                next_possible_ops,
+            } => CachedAction::Execute {
+                optimization: item.build(),
+                next_possible_ops,
+            },
+        }
+    }
+}
+
+// Cached Item
+#[derive(new)]
+struct CachedItem<O> {
+    action: CachedAction<O>,
+    graph: Vec<TensorOpsDescription>,
+}
+
+/// Cached action.
 #[derive(Debug, PartialEq)]
-enum ActionItem<T> {
-    WaitForFusionOps,
-    ExecuteFusionOps {
-        item: T,
+enum CachedAction<O> {
+    // In the path of finding an optimization that was already built.
+    Wait,
+    Execute {
+        // Optimization to execute.
+        optimization: O,
+        // What are the possible next tensor operation that would indicate that we can't continue
+        // fusing and that we should actually execute this optimization.
         next_possible_ops: Vec<TensorOpsDescription>,
     },
 }
 
-#[derive(new)]
-struct Item<T> {
-    action: ActionItem<T>,
-    graph: Vec<TensorOpsDescription>,
-}
-
-// (Log Exp) [Reshape].
-// (Log Exp) Add [Matmul, Reshape].
-//
-// (Log Exp) [Add]
-impl<T> ActionItem<T> {
-    pub fn merge<Builder: ToBeCached<T>>(&mut self, other: ActionItem<Builder>) {
+impl<T> CachedAction<T> {
+    pub fn merge<Builder: ToBeCached<T>>(mut self, other: CachedAction<&Builder>) -> Self {
         let (item_new, next_possible_ops_new) = match other {
-            ActionItem::WaitForFusionOps => return,
-            ActionItem::ExecuteFusionOps {
-                item,
+            CachedAction::Wait => return self,
+            CachedAction::Execute {
+                optimization: item,
                 next_possible_ops,
             } => (item, next_possible_ops),
         };
 
-        let updated_action = match self {
-            ActionItem::WaitForFusionOps => ActionItem::ExecuteFusionOps {
-                item: item_new.build(),
+        match self {
+            CachedAction::Wait => CachedAction::Execute {
+                optimization: item_new.build(),
                 next_possible_ops: next_possible_ops_new,
             },
-            ActionItem::ExecuteFusionOps {
-                item,
-                next_possible_ops,
+            CachedAction::Execute {
+                optimization: item,
+                mut next_possible_ops,
             } => {
                 let mut ops = next_possible_ops_new;
                 for o in next_possible_ops.drain(..) {
@@ -80,14 +107,12 @@ impl<T> ActionItem<T> {
                         ops.push(o);
                     }
                 }
-                ActionItem::ExecuteFusionOps {
-                    item: *item,
+                CachedAction::Execute {
+                    optimization: item,
                     next_possible_ops: ops,
                 }
             }
-        };
-
-        *self = updated_action;
+        }
     }
 }
 
@@ -96,17 +121,22 @@ pub enum EndCondision<'a> {
     Forced,
 }
 
-impl<T> Cache<T> {
+impl<T> Policy<T> {
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
     pub fn get<'a>(
         &'a self,
-        key_: &CacheKey,
+        key_: &GraphKey,
         graph: &[TensorOpsDescription],
         end_consition: EndCondision,
     ) -> Action<'a, T> {
         let key = key_.value();
-        let values = match self.state.get(&key) {
+        let values = match self.cache.get(&key) {
             Some(values) => values,
-            None => return Action::BuildFusionOps,
+            None => return Action::Build,
         };
 
         let value = if values.len() > 1 {
@@ -117,9 +147,9 @@ impl<T> Cache<T> {
         };
 
         match &value.action {
-            ActionItem::WaitForFusionOps => Action::WaitForFusionOps,
-            ActionItem::ExecuteFusionOps {
-                item,
+            CachedAction::Wait => Action::WaitForFusionOps,
+            CachedAction::Execute {
+                optimization: item,
                 next_possible_ops,
             } => match end_consition {
                 EndCondision::NextOps(next_ops) => {
@@ -128,10 +158,10 @@ impl<T> Cache<T> {
                     } else {
                         let mut next_key = key_.clone();
                         next_key.register(next_ops);
-                        if self.state.contains_key(&next_key.value()) {
+                        if self.cache.contains_key(&next_key.value()) {
                             Action::WaitForFusionOps
                         } else {
-                            Action::BuildFusionOps
+                            Action::Build
                         }
                     }
                 }
@@ -140,13 +170,13 @@ impl<T> Cache<T> {
         }
     }
 
-    pub fn insert<Builder: ToBeCached<T>>(
-        &mut self,
-        key: &CacheKey,
-        builder: Builder,
+    pub fn insert<'a, Builder: ToBeCached<T>>(
+        &'a mut self,
+        key: &GraphKey,
+        builder: &Builder,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
-    ) {
+    ) -> &'a T {
         let key = key.value();
         let mut hasher = DefaultHasher::new();
         let mut graph_current = Vec::new();
@@ -161,42 +191,63 @@ impl<T> Cache<T> {
             // Key and graph at this stage.
             let key = hasher.clone().finish();
             let graph = graph_current.clone();
-            self.insert_action(key, ActionItem::<Builder>::WaitForFusionOps, graph);
+            self.insert_action(key, CachedAction::<&Builder>::Wait, graph, false);
         }
 
-        self.insert_action(
-            key,
-            ActionItem::ExecuteFusionOps {
-                item: builder,
-                next_possible_ops: next_ops.map(|ops| vec![ops]).unwrap_or_default(),
-            },
-            graph,
-        );
+        let (key, index) = self
+            .insert_action(
+                key,
+                CachedAction::Execute {
+                    optimization: builder,
+                    next_possible_ops: next_ops.map(|ops| vec![ops]).unwrap_or_default(),
+                },
+                graph,
+                true,
+            )
+            .unwrap();
+
+        match &self.cache.get(&key).unwrap().get(index).unwrap().action {
+            CachedAction::Wait => panic!("Should have saved an operation"),
+            CachedAction::Execute {
+                optimization,
+                next_possible_ops: _,
+            } => optimization,
+        }
     }
 
     fn insert_action<Builder: ToBeCached<T>>(
         &mut self,
         key: u64,
-        action: ActionItem<Builder>,
+        action: CachedAction<&Builder>,
         graph: Vec<TensorOpsDescription>,
-    ) {
-        let mut values = self.state.remove(&key).unwrap_or_default();
+        index: bool,
+    ) -> Option<(u64, usize)> {
+        let mut values = self.cache.remove(&key).unwrap_or_default();
 
         // Remove old entry.
         if !values.is_empty() {
             if let Some(existing) = values.iter_mut().find(|item| item.graph == graph) {
                 // Update the action if the same graph, which probably mean a new end condition.
-                existing.action.merge(action);
+                let mut action_tmp = CachedAction::Wait;
+                core::mem::swap(&mut action_tmp, &mut existing.action);
+                existing.action = action_tmp.merge(action);
             } else {
                 // Hash collision, new action with same Hash.
-                values.push(Item::new(action, graph));
+                values.push(CachedItem::new(action.build(), graph));
             }
         } else {
             // New action.
-            values.push(Item::new(action, graph));
+            values.push(CachedItem::new(action.build(), graph));
         }
 
-        self.state.insert(key, values);
+        if !index {
+            self.cache.insert(key, values);
+            None
+        } else {
+            let returned = (key, values.len() - 1);
+            self.cache.insert(key, values);
+            Some(returned)
+        }
     }
 }
 
@@ -209,10 +260,17 @@ mod tests {
 
     use super::*;
 
+    struct Action1;
+    impl ToBeCached<String> for Action1 {
+        fn build(&self) -> String {
+            "Action1".to_string()
+        }
+    }
+
     #[test]
     fn can_register_ops_for_a_graph() {
-        let mut cache = Cache::<String>::default();
-        let mut key = CacheKey::default();
+        let mut cache = Policy::<String>::new();
+        let mut key = GraphKey::default();
 
         let ops1 = TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(UnaryOpsDescription {
             input: TensorDescription {
@@ -250,19 +308,18 @@ mod tests {
                     shape: vec![32, 2, 32],
                     status: TensorStatus::ReadOnly,
                 },
-                shape: vec![32, 2, 32],
             }));
 
         key.register(&ops1);
         key.register(&ops2);
         cache.insert(
             &key,
-            "Ops1 + Ops2 with end condition Ops3".to_string(),
+            &Action1,
             vec![ops1.clone(), ops2.clone()],
             Some(ops3.clone()),
         );
         // Second run.
-        let mut key = CacheKey::default();
+        let mut key = GraphKey::default();
         let mut graph = Vec::new();
 
         key.register(&ops1);
@@ -276,7 +333,7 @@ mod tests {
         graph.push(ops2);
 
         let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops3));
-        let expected_ops = "Ops1 + Ops2 with end condition Ops3".to_string();
+        let expected_ops = "Action1".to_string();
         let expected = Action::<String>::ExecuteFusionOps(&expected_ops);
         assert_eq!(expected, actual);
 

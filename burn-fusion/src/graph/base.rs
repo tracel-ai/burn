@@ -1,34 +1,52 @@
+use super::GraphKey;
+use super::LocalGraphConverter;
 use super::Ops;
+use super::Policy;
 use super::TensorOpsDescription;
-use crate::{FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer};
-use std::{ops::RangeBounds, sync::Arc};
+use crate::FusionOps;
+use crate::{FusionBackend, FusionOpsBuilder, FusionProperties, FusionStatus, HandleContainer};
+use std::ops::RangeBounds;
 
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Graph<B: FusionBackend> {
-    operations: Vec<Arc<TensorOpsDescription>>,
+    pub(crate) global: Vec<TensorOpsDescription>,
+    pub(crate) local: Vec<TensorOpsDescription>,
+    pub(crate) key: GraphKey,
+    converter: LocalGraphConverter,
     ops: Vec<Box<dyn Ops<B>>>,
 }
 
 impl<B: FusionBackend> Graph<B> {
     pub(crate) fn new() -> Self {
         Self {
-            operations: Vec::new(),
+            global: Vec::new(),
+            local: Vec::new(),
+            key: GraphKey::default(),
+            converter: LocalGraphConverter::default(),
             ops: Vec::new(),
         }
     }
-    pub(crate) fn add(&mut self, description: Arc<TensorOpsDescription>, ops: Box<dyn Ops<B>>) {
-        self.operations.push(description);
+
+    pub(crate) fn key(&self) -> &GraphKey {
+        &self.key
+    }
+
+    pub(crate) fn add(&mut self, description: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+        let local = description.to_local(&mut self.converter);
+        self.key.register(&local);
+        self.local.push(local);
+        self.global.push(description);
         self.ops.push(ops);
     }
 
     /// The size of the graph.
     pub fn len(&self) -> usize {
-        self.operations.len()
+        self.global.len()
     }
 
     /// If the graph is empty.
     pub fn is_empty(&self) -> bool {
-        self.operations.len() == 0
+        self.global.len() == 0
     }
 
     fn remove<R: RangeBounds<usize> + Clone>(
@@ -36,25 +54,63 @@ impl<B: FusionBackend> Graph<B> {
         range: R,
         handles: &mut HandleContainer<B>,
     ) {
-        for ops in self.operations.drain(range.clone()) {
+        for ops in self.global.drain(range.clone()) {
             ops.cleanup_tensor(handles)
         }
         self.ops.drain(range);
+
+        // Rebuilt the local graph when removing partially the global graph.
+        self.local.clear();
+        self.key.clear();
+        self.converter.clear();
+
+        for node in self.global.iter() {
+            let local = node.to_local(&mut self.converter);
+            self.key.register(&local);
+            self.local.push(local);
+        }
     }
 
-    fn nodes(&self) -> &[Arc<TensorOpsDescription>] {
-        &self.operations
+    fn nodes(&self) -> &[TensorOpsDescription] {
+        &self.global
     }
 
+    pub(crate) fn execute_ops(
+        &mut self,
+        handles: &mut HandleContainer<B>,
+        optimizations: &mut [Optimization<B>],
+        ops: &Box<dyn FusionOps<B>>,
+    ) {
+        let num_keep = ops.len();
+        let mut context = self.converter.context(handles);
+        ops.execute(&mut context);
+
+        self.remove(0..num_keep, handles);
+
+        for optimization in optimizations.iter_mut() {
+            optimization.reset();
+
+            for node in self.nodes() {
+                optimization.register(node);
+            }
+        }
+    }
     pub(crate) fn execute_optimization(
         &mut self,
         handles: &mut HandleContainer<B>,
         index: usize,
         optimizations: &mut [Optimization<B>],
+        policy: &mut Policy<Box<dyn FusionOps<B>>>,
     ) {
         let optimization = optimizations.get_mut(index).unwrap();
         let num_keep = optimization.ops.len();
-        optimization.ops.execute(handles);
+
+        let mut context = self.converter.context(handles);
+        let mut local = Vec::new();
+        core::mem::swap(&mut local, &mut self.local);
+
+        let ops = policy.insert(&self.key, &optimization.ops, local, None);
+        ops.execute(&mut context);
 
         self.remove(0..num_keep, handles);
 
@@ -68,7 +124,7 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     pub(crate) fn execute(&mut self, handles: &mut HandleContainer<B>) {
-        for (description, ops) in self.operations.drain(..).zip(self.ops.drain(..)) {
+        for (description, ops) in self.global.drain(..).zip(self.ops.drain(..)) {
             ops.execute(handles);
             description.cleanup_tensor(handles);
         }
@@ -79,7 +135,7 @@ impl<B: FusionBackend> Graph<B> {
 #[derive(new)]
 pub struct Optimization<B: FusionBackend> {
     /// The [fusion operation](FusionOps) to potentially be executed.
-    pub ops: Box<dyn FusionOps<B>>,
+    pub ops: Box<dyn FusionOpsBuilder<B>>,
     /// The current status of the optimization.
     pub status: FusionStatus,
 }

@@ -1,6 +1,9 @@
 use crate::{
-    graph::{Graph, GraphExecution, Ops, Optimization, TensorOpsDescription},
-    FusionBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
+    graph::{
+        Action, EndCondision, Graph, GraphExecution, Ops, Optimization, Policy,
+        TensorOpsDescription,
+    },
+    FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
@@ -14,7 +17,9 @@ where
     graph: Graph<B>,
     pub(crate) handles: HandleContainer<B>,
     execution: G,
+    policy: Policy<Box<dyn FusionOps<B>>>,
     pub device: B::FusionDevice,
+    pub not_registered: usize,
 }
 
 impl<B, G> FusionServer<B, G>
@@ -33,24 +38,56 @@ where
             graph: Graph::new(),
             handles: HandleContainer::new(device.clone()),
             execution: G::default(),
+            policy: Policy::new(),
+            not_registered: 0,
             device,
         }
     }
 
-    pub fn register(&mut self, desc: TensorOpsDescription, op: Box<dyn Ops<B>>) {
-        let ops = Arc::new(desc);
-        self.graph.add(ops.clone(), op);
-
-        self.optimizations
-            .iter_mut()
-            .for_each(|optimization| optimization.register(&ops));
-
-        self.execution.maybe_execute(
-            &mut self.graph,
-            &mut self.handles,
-            &mut self.optimizations,
-            false,
+    pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+        let action = self.policy.get(
+            &self.graph.key,
+            &self.graph.local,
+            EndCondision::NextOps(&ops_desc),
         );
+
+        match action {
+            Action::Build => {
+                if self.not_registered > 0 {
+                    let start = self.graph.global.len() - self.not_registered;
+                    for i in start..self.graph.global.len() {
+                        let desc = self.graph.global.get(i).unwrap();
+                        self.optimizations
+                            .iter_mut()
+                            .for_each(|optimization| optimization.register(&desc));
+                    }
+                    self.not_registered = 0;
+                }
+
+                self.optimizations
+                    .iter_mut()
+                    .for_each(|optimization| optimization.register(&ops_desc));
+
+                self.graph.add(ops_desc, ops);
+
+                self.execution.maybe_execute(
+                    &mut self.graph,
+                    &mut self.handles,
+                    &mut self.optimizations,
+                    &mut self.policy,
+                    false,
+                );
+            }
+            Action::WaitForFusionOps => {
+                self.not_registered += 1;
+                self.graph.add(ops_desc, ops);
+            }
+            Action::ExecuteFusionOps(exe) => {
+                self.graph
+                    .execute_ops(&mut self.handles, &mut self.optimizations, exe);
+                self.graph.add(ops_desc, ops);
+            }
+        };
     }
 
     pub fn drain_graph(&mut self) {
@@ -62,6 +99,7 @@ where
             &mut self.graph,
             &mut self.handles,
             &mut self.optimizations,
+            &mut self.policy,
             true,
         );
     }

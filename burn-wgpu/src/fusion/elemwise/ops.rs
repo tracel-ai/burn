@@ -9,7 +9,7 @@ use burn_fusion::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
+    FusionOpsBuilder, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
@@ -34,7 +34,7 @@ where
     device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
+impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<Wgpu<G, F, I>>
     for FloatElementWiseFusionOps<G, F, I>
 {
     fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
