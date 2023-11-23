@@ -112,4 +112,15 @@ serde_json = { version = "1.0.108", default-features = false }
 uuid = { version = "1.5.0", default-features = false }
 
 [profile.dev]
-debug = 0 # Speed up compilation time and not necessary.
+debug = 0   # Speed up compilation time and not necessary.
+lto = 'fat'
+
+[profile.ci]
+inherits = "dev"
+debug = "line-tables-only"
+incremental = false
+
+
+[profile.release]
+debug = "line-tables-only"
+lto = 'fat'
