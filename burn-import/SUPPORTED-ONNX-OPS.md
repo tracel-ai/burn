@@ -178,7 +178,7 @@ represent the corresponding Burn Op.
 | [SpaceToDepth][172]              |       ❌       |      ❌      |
 | [Split][173]                     |       ❌       |      ❌      |
 | [SplitToSequence][174]           |       ❌       |      ❌      |
-| [Sqrt][175]                      |       ❌       |      ✅      |
+| [Sqrt][175]                      |       ✅       |      ✅      |
 | [Squeeze][176]                   |       ❌       |      ✅      |
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
