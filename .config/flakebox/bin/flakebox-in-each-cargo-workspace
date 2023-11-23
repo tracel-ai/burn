@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Run a given command in every directory that contains cargo workspace
+# Right now it just scans for `Cargo.lock`
+
+set -euo pipefail
+
+find . -name Cargo.lock | while read -r path ; do
+  (
+    cd "$(dirname "$path")"
+    "$@"
+  )
+done

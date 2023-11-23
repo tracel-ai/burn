@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+set +e
+git diff-files --quiet
+is_unclean=$?
+set -e
+
+# Revert `git stash` on exit
+function revert_git_stash {
+  >&2 echo "Unstashing uncommitted changes..."
+  git stash pop -q
+}
+
+# Stash pending changes and revert them when script ends
+if [ -z "${NO_STASH:-}" ] && [ $is_unclean -ne 0 ]; then
+  >&2 echo "Stashing uncommitted changes..."
+  GIT_LITERAL_PATHSPECS=0 git stash -q --keep-index
+  trap revert_git_stash EXIT
+fi
+
+export FLAKEBOX_GIT_LS
+FLAKEBOX_GIT_LS="$(git ls-files)"
+export FLAKEBOX_GIT_LS_TEXT
+FLAKEBOX_GIT_LS_TEXT="$(echo "$FLAKEBOX_GIT_LS" | grep -v -E "\.(png|ods|jpg|jpeg|woff2|keystore|wasm|ttf|jar|ico|gif)\$")"
+
+
+function check_nothing() {
+  true
+}
+export -f check_nothing
+
+function check_cargo_fmt() {
+    set -euo pipefail
+
+    flakebox-in-each-cargo-workspace cargo fmt --all --check
+
+}
+export -f check_cargo_fmt
+
+function check_cargo_lock() {
+    set -euo pipefail
+
+    # https://users.rust-lang.org/t/check-if-the-cargo-lock-is-up-to-date-without-building-anything/91048/5
+    flakebox-in-each-cargo-workspace cargo update --workspace --locked
+
+}
+export -f check_cargo_lock
+
+function check_leftover_dbg() {
+    set -euo pipefail
+
+    errors=""
+    for path in $(echo "$FLAKEBOX_GIT_LS_TEXT" | grep '.*\.rs'); do
+      if grep 'dbg!(' "$path" > /dev/null; then
+        >&2 echo "$path contains dbg! macro"
+        errors="true"
+      fi
+    done
+
+    if [ -n "$errors" ]; then
+      >&2 echo "Fix the problems above or use --no-verify" 1>&2
+      return 1
+    fi
+
+}
+export -f check_leftover_dbg
+
+function check_semgrep() {
+    set -euo pipefail
+
+    # semgrep is not available on MacOS
+    if ! command -v semgrep > /dev/null ; then
+      >&2 echo "Skipping semgrep check: not available"
+      return 0
+    fi
+
+    if [ ! -f .config/semgrep.yaml ] ; then
+      >&2 echo "Skipping semgrep check: .config/semgrep.yaml doesn't exist"
+      return 0
+    fi
+
+    if [ ! -s .config/semgrep.yaml ] ; then
+      >&2 echo "Skipping semgrep check: .config/semgrep.yaml empty"
+      return 0
+    fi
+
+    env SEMGREP_ENABLE_VERSION_CHECK=0 \
+      semgrep -q --error --no-rewrite-rule-ids --config .config/semgrep.yaml
+
+}
+export -f check_semgrep
+
+function check_shellcheck() {
+    set -euo pipefail
+
+    for path in $(echo "$FLAKEBOX_GIT_LS_TEXT" | grep -E '.*\.sh$'); do
+      shellcheck --severity=warning "$path"
+    done
+
+}
+export -f check_shellcheck
+
+function check_trailing_newline() {
+    set -euo pipefail
+
+    errors=""
+    for path in $(echo "$FLAKEBOX_GIT_LS_TEXT"); do
+
+      # extra branches for clarity
+      if [ ! -s "$path" ]; then
+         # echo "$path is empty"
+         true
+      elif [ -z "$(tail -c 1 < "$path")" ]; then
+         # echo "$path ends with a newline or with a null byte"
+         true
+      else
+        >&2 echo "$path doesn't end with a newline" 1>&2
+        errors="true"
+      fi
+    done
+
+    if [ -n "$errors" ]; then
+      >&2 echo "Fix the problems above or use --no-verify" 1>&2
+      return 1
+    fi
+
+}
+export -f check_trailing_newline
+
+function check_trailing_whitespace() {
+    set -euo pipefail
+
+    if ! git diff --check HEAD ; then
+      echo "Trailing whitespace detected. Please remove them before committing."
+      return 1
+    fi
+
+}
+export -f check_trailing_whitespace
+
+function check_typos() {
+    set -euo pipefail
+
+    if ! echo "$FLAKEBOX_GIT_LS_TEXT" | typos --file-list - --force-exclude ; then
+      >&2 echo "Typos found: Valid new words can be added to '.typos.toml'"
+      return 1
+    fi
+
+}
+export -f check_typos
+
+parallel \
+  --nonotice \
+::: \
+    check_cargo_fmt \
+    check_cargo_lock \
+    check_leftover_dbg \
+    check_semgrep \
+    check_shellcheck \
+    check_trailing_newline \
+    check_trailing_whitespace \
+    check_typos \
+  check_nothing
