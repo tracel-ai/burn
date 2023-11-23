@@ -31,6 +31,26 @@ the steps:
    GitHub website and copying the URL. Then open a terminal on your local machine and type
    `git clone [the URL you copied]`.
 
+#### Step 5. Setting up your development environment
+
+Burn is written in Rust, so you'll need to have the Rust toolchain installed on your local machine. We also have a nix flake that can deterministically build the development environment. To build and enter the development environment with Nix, run the following command:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+Which will install Nix and add it to your shell's PATH. Then, simply run the following command to install the correct rust toolchain and other software Burn needs and enter the development environment:
+
+```bash
+nix develop
+```
+
+If you don't want to use Nix, you can install the Rust toolchain using [rustup](https://rustup.rs/), however rust can be a bit finicky depending on the operating system, so we recommend using Nix if you can. To install rustup, run the following command:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 ### Step 4: Create a New Branch
 
 It's a good practice to create a new branch for each contribution you make. This keeps your changes
@@ -63,10 +83,10 @@ the issue or issues that your changes address.
 
 1. Install the following extensions:
 
-* [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-* [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-* [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
-* [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
+- [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
+- [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
+- [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
 2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
 
@@ -121,7 +141,7 @@ where `crate_name` is the name of the crate to publish
 
 ## Others
 
-To bump for the next version, use this command: 
+To bump for the next version, use this command:
 
 ```
 cargo set-version --bump minor
