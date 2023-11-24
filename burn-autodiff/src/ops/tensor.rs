@@ -1516,6 +1516,15 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::into_int(tensor.primitive)
     }
+
+    fn narrow<const D: usize>(
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> FloatTensor<Self, D> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone)]

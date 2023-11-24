@@ -393,4 +393,13 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn bool_narrow<const D: usize>(
+        _tensor: BoolTensor<Self, D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> BoolTensor<Self, D> {
+        unimplemented!()
+    }
 }

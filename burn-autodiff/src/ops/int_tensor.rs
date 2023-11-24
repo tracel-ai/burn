@@ -316,4 +316,13 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::int_swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        _tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+        unimplemented!()
+    }
 }

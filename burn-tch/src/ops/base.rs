@@ -409,4 +409,16 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
         TchTensor::new(tensor)
     }
+
+    pub fn narrow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<E, D> {
+        tensor.unary_ops(
+            |tensor| tensor.narrow(dim as i64, start as i64, length as i64),
+            |tensor| tensor.narrow(dim as i64, start as i64, length as i64),
+        )
+    }
 }

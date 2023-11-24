@@ -388,4 +388,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::narrow(tensor, dim, start, length)
+    }
 }

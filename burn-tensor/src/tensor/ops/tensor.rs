@@ -1075,4 +1075,24 @@ pub trait TensorOps<B: Backend> {
 
         (values, index)
     }
+
+    /// Narrows a tensor along a dimension.
+    /// The dimension `dim` ranges from `start` to `start + length`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to narrow.
+    /// * `dim` - The dimension along which to narrow.
+    /// * `start` - The start index.
+    /// * `length` - The length of the narrowed dimension.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the narrowed dimension.
+    fn narrow<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> FloatTensor<B, D>;
 }

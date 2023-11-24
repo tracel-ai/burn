@@ -525,4 +525,13 @@ where
 
         unary_default::<Recip, F, D>(tensor)
     }
+
+    fn narrow<const D: usize>(
+        _tensor: FloatTensor<Wgpu<G, F, I>, D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        unimplemented!()
+    }
 }

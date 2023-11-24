@@ -123,4 +123,13 @@ where
 
         tensor
     }
+
+    fn bool_narrow<const D: usize>(
+        _tensor: BoolTensor<Wgpu<G, F, I>, D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> BoolTensor<Wgpu<G, F, I>, D> {
+        unimplemented!()
+    }
 }

@@ -1628,4 +1628,13 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         (out, out_indices)
     }
+
+    fn narrow<const D: usize>(
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> FloatTensor<Self, D> {
+        unimplemented!()
+    }
 }

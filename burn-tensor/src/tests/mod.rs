@@ -56,6 +56,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_matmul!();
         burn_tensor::testgen_maxmin!();
         burn_tensor::testgen_mul!();
+        burn_tensor::testgen_narrow!();
         burn_tensor::testgen_neg!();
         burn_tensor::testgen_one_hot!();
         burn_tensor::testgen_powf!();

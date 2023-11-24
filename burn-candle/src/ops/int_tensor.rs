@@ -359,4 +359,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     ) -> <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
+        CandleTensor::new(tensor.tensor.narrow(dim, start, length).unwrap())
+    }
 }

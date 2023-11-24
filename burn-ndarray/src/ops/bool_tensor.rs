@@ -128,4 +128,13 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
+
+    fn bool_narrow<const D: usize>(
+        _tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+        _dim: usize,
+        _start: usize,
+        _length: usize,
+    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+        unimplemented!()
+    }
 }
