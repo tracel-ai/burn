@@ -6,16 +6,17 @@ use crate::{
 };
 use burn_fusion::{
     graph::{
-        BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
-        ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
+        BaseOpsDescription, BinaryOpsDescription, Context, FloatOpsDescription,
+        NumericOpsDescription, ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionOpsBuilder, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
+    FusionOps, FusionOpsBuilder, FusionProperties, FusionStatus, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-pub struct FloatElementWiseFusionOps<G, F, I>
+#[derive(Clone)]
+pub struct FloatElementWiseFusionOpsBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -34,8 +35,52 @@ where
     device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<Wgpu<G, F, I>>
+#[derive(Clone)]
+pub struct FloatElementWiseFusionOps<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
+    pub inputs: Vec<(TensorDescription, Elem)>,
+    pub outputs: Vec<(TensorDescription, Elem)>,
+    pub locals: Vec<u16>,
+    pub operators: Vec<Operator>,
+    device: Device<Wgpu<G, F, I>>,
+}
+
+impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
     for FloatElementWiseFusionOps<G, F, I>
+{
+    fn execute(&self, context: &mut Context<'_, '_, Wgpu<G, F, I>>) {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
+            .collect::<Vec<_>>();
+
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
+            .collect::<Vec<_>>();
+
+        println!("Local inputs : {:?}", self.inputs);
+        println!("Global inputs : {:?}", inputs);
+
+        FusionKernel::new(&self.device)
+            .inputs(&inputs, &context.scalar_floats)
+            .body(&self.operators)
+            .outputs(&outputs, &self.locals)
+            .execute(context.handles);
+    }
+
+    fn len(&self) -> usize {
+        self.operators.len()
+    }
+}
+impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<Wgpu<G, F, I>>
+    for FloatElementWiseFusionOpsBuilder<G, F, I>
 {
     fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
         match ops {
@@ -65,7 +110,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
         FusionStatus::Open(self.properties)
     }
 
-    fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
+    fn build(&self) -> Box<dyn FusionOps<Wgpu<G, F, I>>> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -73,11 +118,13 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        FusionKernel::new(&self.device)
-            .inputs(&inputs, &self.scalars_f32)
-            .body(&self.operators)
-            .outputs(&outputs, &locals)
-            .execute(handles);
+        Box::new(FloatElementWiseFusionOps {
+            inputs,
+            outputs,
+            locals,
+            operators: self.operators.clone(),
+            device: self.device.clone(),
+        })
     }
 
     fn reset(&mut self) {
@@ -98,7 +145,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
     }
 }
 
-impl<G, F, I> FloatElementWiseFusionOps<G, F, I>
+impl<G, F, I> FloatElementWiseFusionOpsBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -120,17 +167,17 @@ where
         }
     }
 
-    fn input_descriptions(&self) -> Vec<&(TensorDescription, Elem)> {
+    fn input_descriptions(&self) -> Vec<(TensorDescription, Elem)> {
         self.inputs
             .iter()
             .map(|input| {
                 let updated_tensor = self.tensors.get(&input.id).unwrap();
-                updated_tensor
+                updated_tensor.clone()
             })
             .collect::<Vec<_>>()
     }
 
-    fn output_descriptions(&self) -> Vec<&(TensorDescription, Elem)> {
+    fn output_descriptions(&self) -> Vec<(TensorDescription, Elem)> {
         let mut outputs = Vec::new();
         let mut local_tensor_ids_input = Vec::new();
         let mut local_tensor_ids_output = Vec::new();
@@ -271,7 +318,7 @@ where
             let is_read = local_tensor_ids_input.contains(&out);
 
             if !is_read {
-                outputs.push(self.tensors.get(&out).unwrap());
+                outputs.push(self.tensors.get(&out).unwrap().clone());
             }
         }
 
@@ -281,7 +328,7 @@ where
             let (tensor, _) = &entry;
             if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
                 if self.locals.contains_key(&tensor.id) {
-                    outputs.push(entry);
+                    outputs.push(entry.clone());
                 }
             }
         }
@@ -636,14 +683,25 @@ mod tests {
     use super::*;
     use burn_fusion::graph::Ops;
     use burn_fusion::{Fusion, FusionBackend};
-    use burn_tensor::Tensor;
+    use burn_tensor::{backend::Backend, Data, Tensor};
 
     struct FakeAddOps;
 
     impl<B: FusionBackend> Ops<B> for FakeAddOps {
-        fn execute(self: Box<Self>, _: &mut HandleContainer<B>) {
+        fn execute(self: Box<Self>, handles: &mut burn_fusion::HandleContainer<B>) {
             todo!()
         }
+    }
+
+    fn execute<B: Backend>(data_1: Data<f32, 2>, data_2: Data<f32, 2>) -> Data<f32, 2> {
+        let tensor_1 = Tensor::<B, 2>::from_data(data_1.convert());
+        let tensor_2 = Tensor::<B, 2>::from_data(data_2.convert());
+        let tensor_3 = tensor_1.clone() + tensor_2;
+        let tensor_4 = tensor_3.clone() - tensor_1;
+        let tensor_5 = tensor_4.clone() + 5.0;
+        let tensor_6 = burn_tensor::activation::gelu(tensor_5 + tensor_3.clone());
+        let mask = tensor_4.lower_equal(tensor_3);
+        tensor_6.mask_fill(mask, 0.3).into_data().convert()
     }
 
     #[test]
@@ -651,29 +709,16 @@ mod tests {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
 
-        let data_1 =
-            Tensor::<Backend, 2>::random([1, 32], burn_tensor::Distribution::Default).into_data();
+        let data_1 = Tensor::<FusedBackend, 2>::random([1, 32], burn_tensor::Distribution::Default)
+            .into_data();
         let data_2 =
             Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
 
-        let tensor_1 = Tensor::<Backend, 2>::from_data(data_1.clone());
-        let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
-        let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4.clone() + 5.0;
-        let tensor_6 = tensor_5 + tensor_3.clone();
-        let mask = tensor_4.lower_equal(tensor_3);
-        let result_ref = tensor_6.mask_fill(mask, 0.3).into_data();
-
-        let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
-        let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4.clone() + 5.0;
-        let tensor_6 = tensor_5 + tensor_3.clone();
-        let mask = tensor_4.lower_equal(tensor_3);
-        let result_fused = tensor_6.mask_fill(mask, 0.3).into_data();
+        let result_ref = execute::<Backend>(data_1.clone(), data_2.clone());
+        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone());
+        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone());
 
         result_fused.assert_approx_eq(&result_ref, 3);
+        panic!("Allo");
     }
 }

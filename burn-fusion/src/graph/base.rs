@@ -90,7 +90,7 @@ impl<B: FusionBackend> Graph<B> {
         for optimization in optimizations.iter_mut() {
             optimization.reset();
 
-            for node in self.nodes() {
+            for node in self.local.iter() {
                 optimization.register(node);
             }
         }

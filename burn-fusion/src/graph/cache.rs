@@ -35,12 +35,22 @@ impl GraphKey {
 }
 
 /// Action to be made depending on the graph.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum Action<'a, T> {
     /// Continue exploring optimizations but using the [fusion ops builder](crate::FusionOps).
     Build,
-    WaitForFusionOps,
-    ExecuteFusionOps(&'a T),
+    Wait,
+    Execute(&'a T),
+}
+
+impl<'a, T> core::fmt::Debug for Action<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Action::Build => f.write_str("Action::Build"),
+            Action::Wait => f.write_str("Action::Wait"),
+            Action::Execute(_) => f.write_str("Action::Execute"),
+        }
+    }
 }
 
 impl<Builder> CachedAction<&Builder> {
@@ -147,25 +157,25 @@ impl<T> Policy<T> {
         };
 
         match &value.action {
-            CachedAction::Wait => Action::WaitForFusionOps,
+            CachedAction::Wait => Action::Wait,
             CachedAction::Execute {
                 optimization: item,
                 next_possible_ops,
             } => match end_consition {
                 EndCondision::NextOps(next_ops) => {
                     if next_possible_ops.contains(next_ops) {
-                        Action::ExecuteFusionOps(&item)
+                        Action::Execute(&item)
                     } else {
                         let mut next_key = key_.clone();
                         next_key.register(next_ops);
                         if self.cache.contains_key(&next_key.value()) {
-                            Action::WaitForFusionOps
+                            Action::Wait
                         } else {
                             Action::Build
                         }
                     }
                 }
-                EndCondision::Forced => Action::ExecuteFusionOps(&item),
+                EndCondision::Forced => Action::Execute(&item),
             },
         }
     }
@@ -326,7 +336,7 @@ mod tests {
         graph.push(ops1);
 
         let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops2));
-        let expected = Action::<String>::WaitForFusionOps;
+        let expected = Action::<String>::Wait;
         assert_eq!(expected, actual);
 
         key.register(&ops2);
@@ -334,7 +344,7 @@ mod tests {
 
         let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops3));
         let expected_ops = "Action1".to_string();
-        let expected = Action::<String>::ExecuteFusionOps(&expected_ops);
+        let expected = Action::<String>::Execute(&expected_ops);
         assert_eq!(expected, actual);
 
         let actual = cache.get(&key, &graph, EndCondision::Forced);

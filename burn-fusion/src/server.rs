@@ -19,7 +19,7 @@ where
     execution: G,
     policy: Policy<Box<dyn FusionOps<B>>>,
     pub device: B::FusionDevice,
-    pub not_registered: usize,
+    pub num_skipped: usize,
 }
 
 impl<B, G> FusionServer<B, G>
@@ -39,7 +39,7 @@ where
             handles: HandleContainer::new(device.clone()),
             execution: G::default(),
             policy: Policy::new(),
-            not_registered: 0,
+            num_skipped: 0,
             device,
         }
     }
@@ -50,26 +50,37 @@ where
             &self.graph.local,
             EndCondision::NextOps(&ops_desc),
         );
+        println!("Register {:?}", action);
 
         match action {
             Action::Build => {
-                if self.not_registered > 0 {
-                    let start = self.graph.global.len() - self.not_registered;
-                    for i in start..self.graph.global.len() {
-                        let desc = self.graph.global.get(i).unwrap();
+                if self.num_skipped > 0 {
+                    // We register operations that were skipped.
+                    let graph_size = self.graph.global.len();
+                    let start = graph_size - self.num_skipped;
+                    let end = graph_size;
+
+                    for i in start..end {
+                        let desc_skipped = self.graph.local.get(i).unwrap();
+
                         self.optimizations
                             .iter_mut()
-                            .for_each(|optimization| optimization.register(&desc));
+                            .for_each(|optimization| optimization.register(&desc_skipped));
                     }
-                    self.not_registered = 0;
+
+                    // All updated.
+                    self.num_skipped = 0;
                 }
+
+                // Now we can register the current operation.
+                self.graph.add(ops_desc, ops);
+                let last = self.graph.local.last().unwrap();
 
                 self.optimizations
                     .iter_mut()
-                    .for_each(|optimization| optimization.register(&ops_desc));
+                    .for_each(|optimization| optimization.register(last));
 
-                self.graph.add(ops_desc, ops);
-
+                // Check if we can execute.
                 self.execution.maybe_execute(
                     &mut self.graph,
                     &mut self.handles,
@@ -78,30 +89,59 @@ where
                     false,
                 );
             }
-            Action::WaitForFusionOps => {
-                self.not_registered += 1;
+            Action::Wait => {
+                // Skip one more.
+                self.num_skipped += 1;
                 self.graph.add(ops_desc, ops);
             }
-            Action::ExecuteFusionOps(exe) => {
+            Action::Execute(exe) => {
                 self.graph
                     .execute_ops(&mut self.handles, &mut self.optimizations, exe);
+
+                // The current operation is skipped in this case, so we reset to num_skipped to 1.
+                self.num_skipped = 1;
                 self.graph.add(ops_desc, ops);
             }
         };
     }
 
     pub fn drain_graph(&mut self) {
-        if self.graph.is_empty() {
+        if self.graph.is_empty() && self.num_skipped == 0 {
             return;
         }
 
-        self.execution.maybe_execute(
-            &mut self.graph,
-            &mut self.handles,
-            &mut self.optimizations,
-            &mut self.policy,
-            true,
-        );
+        let action = self
+            .policy
+            .get(&self.graph.key, &self.graph.local, EndCondision::Forced);
+
+        println!("Drain graph: {:?}", action);
+        match action {
+            Action::Execute(exe) => {
+                self.graph
+                    .execute_ops(&mut self.handles, &mut self.optimizations, exe);
+            }
+            _ => {
+                if self.num_skipped > 0 {
+                    let start = self.graph.global.len() - self.num_skipped;
+                    for i in start..self.graph.local.len() {
+                        let desc = self.graph.local.get(i).unwrap();
+                        self.optimizations
+                            .iter_mut()
+                            .for_each(|optimization| optimization.register(&desc));
+                    }
+                    // All updated.
+                    self.num_skipped = 0;
+                }
+
+                self.execution.maybe_execute(
+                    &mut self.graph,
+                    &mut self.handles,
+                    &mut self.optimizations,
+                    &mut self.policy,
+                    true,
+                );
+            }
+        };
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
