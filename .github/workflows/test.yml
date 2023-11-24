@@ -135,7 +135,7 @@ jobs:
           files: lcov.info
 
   check-typos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: checkout
         uses: actions/checkout@v4
