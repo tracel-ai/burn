@@ -204,7 +204,7 @@ mod tests {
         BinFileRecorder::<FullPrecisionSettings>::default()
             .record(
                 optimizer.to_record(),
-                std::env::temp_dir().as_path().join("test_optim").into(),
+                std::env::temp_dir().as_path().join("test_optim"),
             )
             .unwrap();
 

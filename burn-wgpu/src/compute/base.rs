@@ -219,6 +219,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                 });
 
             if let Some(adapter) = most_performant_adapter {
+                println!("{:?}", adapter.get_info());
                 adapter
             } else {
                 panic!("No adapter found for graphics API {:?}", G::default());

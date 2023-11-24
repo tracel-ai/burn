@@ -95,6 +95,7 @@ mod tests {
             [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]],
         ]);
         let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> = Tensor::from_data(data);
+        println!("{:?}", tensor);
 
         let output = format!("{}", tensor);
         let expected = format!(
