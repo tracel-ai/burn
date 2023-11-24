@@ -80,6 +80,57 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn narrow<B: Backend, const D: usize, K: BasicOps<B>>(
+        tensor: &Tensor<B, D, K>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        if dim >= D {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
+                    dim, D
+                )),
+            );
+        }
+
+        if length == 0 {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, length must be greater than 0",
+                    dim
+                )),
+            );
+        }
+
+        if start >= tensor.shape().dims[dim] {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, start exceeds tensor dimensions (D={})",
+                    dim, D
+                )),
+            );
+        }
+
+        if start + length > tensor.shape().dims[dim] {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, start + length exceeds tensor dimensions (D={})",
+                    dim, D
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,

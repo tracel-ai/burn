@@ -470,6 +470,34 @@ where
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
     }
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
+        check!(TensorCheck::narrow(&self, dim, start, length));
+
+        let ranges: Vec<_> = (0..D)
+            .map(|i| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..self.shape().dims[i]
+                }
+            })
+            .collect();
+
+        let ranges_array: [_; D] = ranges.try_into().unwrap();
+
+        self.slice(ranges_array)
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
