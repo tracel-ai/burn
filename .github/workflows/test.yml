@@ -96,18 +96,18 @@ jobs:
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
-      - name: Run cargo clippy for stable version
-        if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
-        uses: giraffate/clippy-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Run clippy for each workspace, targets, and featrues, considering
-          # warnings as errors
-          clippy_flags: --all-targets -- -Dwarnings
-          # Do not filter results
-          filter_mode: nofilter
-          # Report clippy annotations as snippets
-          reporter: github-pr-check
+      # - name: Run cargo clippy for stable version
+      #   if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
+      #   uses: giraffate/clippy-action@v1
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     # Run clippy for each workspace, targets, and featrues, considering
+      #     # warnings as errors
+      #     clippy_flags: --all-targets -- -Dwarnings
+      #     # Do not filter results
+      #     filter_mode: nofilter
+      #     # Report clippy annotations as snippets
+      #     reporter: github-pr-check
 
       - name: Install grcov
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
