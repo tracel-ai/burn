@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(chunk)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
     use burn_tensor::{Data, Int, Shape, Tensor};
 
     fn test_chunk_evenly_divisible() {
