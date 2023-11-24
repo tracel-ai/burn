@@ -6,6 +6,7 @@ mod arange_step;
 mod arg;
 mod cast;
 mod cat;
+mod chunk;
 mod clamp;
 mod cos;
 mod create_like;
