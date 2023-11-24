@@ -98,7 +98,17 @@ impl TensorCheck {
             );
         }
 
-        if start > tensor.shape().dims[dim] {
+        if length == 0 {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, length must be greater than 0",
+                    dim
+                )),
+            );
+        }
+
+        if start >= tensor.shape().dims[dim] {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
