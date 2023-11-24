@@ -18,8 +18,8 @@ pub fn start() {
 }
 
 #[wasm_bindgen]
-pub fn init(worker_url: String) -> Result<(), String> {
-    util::init(worker_url)
+pub fn init(worker_url: String, worker_count: usize) -> Result<(), JsValue> {
+    util::init(worker_url, worker_count)
 }
 
 #[wasm_bindgen]
@@ -45,10 +45,4 @@ pub fn run(
         test_lengths,
     );
     Ok(())
-}
-
-#[wasm_bindgen]
-pub fn child_entry_point(ptr: u32) {
-    let work = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce()>) };
-    (*work)();
 }

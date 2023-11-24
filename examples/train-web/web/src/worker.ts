@@ -32,9 +32,9 @@ self.onmessage = async (event) => {
 	// usual native way (where you spin one up to do some work until it finisheds) then
 	// you'll want to clean up the thread's resources.
 
-	// @ts-ignore -- can take 0 args, the typescript is incorrect https://github.com/rustwasm/wasm-bindgen/blob/962f580d6f5def2df4223588de96feeb30ce7572/crates/threads-xform/src/lib.rs#L394-L395
-	// Free memory (stack, thread-locals) held (in the wasm linear memory) by the thread.
-	init.__wbindgen_thread_destroy()
-	// Tell the browser to stop the thread.
-	close()
+	// // @ts-ignore -- can take 0 args, the typescript is incorrect https://github.com/rustwasm/wasm-bindgen/blob/962f580d6f5def2df4223588de96feeb30ce7572/crates/threads-xform/src/lib.rs#L394-L395
+	// // Free memory (stack, thread-locals) held (in the wasm linear memory) by the thread.
+	// init.__wbindgen_thread_destroy()
+	// // Tell the browser to stop the thread.
+	// close()
 }

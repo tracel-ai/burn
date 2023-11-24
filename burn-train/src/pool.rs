@@ -1,19 +1,31 @@
-// Silences warnings from the compiler about Work.func and child_entry_point
-// being unused when the target is not wasm.
-#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-
 //! A small module that's intended to provide an example of creating a pool of
 //! web workers which can be used to execute `rayon`-style work.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::util::WORKER_URL;
+use log::info;
+use std::borrow::BorrowMut;
+use std::{cell::RefCell, sync::Arc};
 use wasm_bindgen::prelude::*;
-use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
-use web_sys::{ErrorEvent, Event, Worker};
+use web_sys::{ErrorEvent, Event, MessageEvent, Worker};
+
+// "This is only safe because wasm is currently single-threaded." https://github.com/rustwasm/wasm-bindgen/issues/1505#issuecomment-489300331
+unsafe impl Send for PoolState {}
+unsafe impl Sync for PoolState {}
+
+lazy_static! {
+    pub static ref WORKER_POOL: WorkerPool = WorkerPool {
+        state: Arc::new(PoolState {
+            workers: RefCell::new(vec!()),
+            callback: Closure::new(|event: Event| {
+                info!("unhandled event: {:?}", &event);
+            })
+        })
+    };
+}
 
 #[wasm_bindgen]
 pub struct WorkerPool {
-    state: Rc<PoolState>,
+    state: Arc<PoolState>,
 }
 
 struct PoolState {
@@ -21,41 +33,33 @@ struct PoolState {
     callback: Closure<dyn FnMut(Event)>,
 }
 
-struct Work {
-    func: Box<dyn FnOnce() + Send>,
+/// Creates a new `WorkerPool` which immediately creates `initial` workers.
+///
+/// The pool created here can be used over a long period of time, and it
+/// will be initially primed with `initial` workers. Currently workers are
+/// never released or gc'd until the whole pool is destroyed.
+///
+/// # Errors
+///
+/// Returns any error that may happen while a JS web worker is created and a
+/// message is sent to it.
+pub fn init(initial: usize) -> Result<(), JsValue> {
+    let pool = WorkerPool {
+        state: Arc::new(PoolState {
+            workers: RefCell::new(Vec::with_capacity(initial)),
+            callback: Closure::new(|event: Event| {
+                info!("unhandled event: {:?}", &event);
+            }),
+        }),
+    };
+
+    let workers: Result<_, _> = [0..initial].map(|_| pool.spawn()).into_iter().collect();
+    WORKER_POOL.state.workers.replace(workers?);
+    Ok(())
 }
 
 #[wasm_bindgen]
 impl WorkerPool {
-    /// Creates a new `WorkerPool` which immediately creates `initial` workers.
-    ///
-    /// The pool created here can be used over a long period of time, and it
-    /// will be initially primed with `initial` workers. Currently workers are
-    /// never released or gc'd until the whole pool is destroyed.
-    ///
-    /// # Errors
-    ///
-    /// Returns any error that may happen while a JS web worker is created and a
-    /// message is sent to it.
-    #[wasm_bindgen(constructor)]
-    pub fn new(initial: usize) -> Result<WorkerPool, JsValue> {
-        let pool = WorkerPool {
-            state: Rc::new(PoolState {
-                workers: RefCell::new(Vec::with_capacity(initial)),
-                callback: Closure::new(|event: Event| {
-                    console_log!("unhandled event: {}", event.type_());
-                    crate::logv(&event);
-                }),
-            }),
-        };
-        for _ in 0..initial {
-            let worker = pool.spawn()?;
-            pool.state.push(worker);
-        }
-
-        Ok(pool)
-    }
-
     /// Unconditionally spawns a new worker
     ///
     /// The worker isn't registered with this `WorkerPool` but is capable of
@@ -66,24 +70,14 @@ impl WorkerPool {
     /// Returns any error that may happen while a JS web worker is created and a
     /// message is sent to it.
     fn spawn(&self) -> Result<Worker, JsValue> {
-        console_log!("spawning new worker");
-        // TODO: what do do about `./worker.js`:
-        //
-        // * the path is only known by the bundler. How can we, as a
-        //   library, know what's going on?
-        // * How do we not fetch a script N times? It internally then
-        //   causes another script to get fetched N times...
-        let worker = Worker::new("./worker.js")?;
-
-        // With a worker spun up send it the module/memory so it can start
-        // instantiating the wasm module. Later it might receive further
-        // messages about code to run on the wasm module.
-        let array = js_sys::Array::new();
-        array.push(&wasm_bindgen::module());
-        array.push(&wasm_bindgen::memory());
-        worker.post_message(&array)?;
-
-        Ok(worker)
+        let mut worker_options = web_sys::WorkerOptions::new();
+        worker_options.type_(web_sys::WorkerType::Module);
+        web_sys::Worker::new_with_options(
+            WORKER_URL
+                .get()
+                .expect("You must first call `init` with the worker's url."),
+            &worker_options,
+        )
     }
 
     /// Fetches a worker from this pool, spawning one if necessary.
@@ -117,16 +111,26 @@ impl WorkerPool {
     /// message is sent to it.
     fn execute(&self, f: impl FnOnce() + Send + 'static) -> Result<Worker, JsValue> {
         let worker = self.worker()?;
-        let work = Box::new(Work { func: Box::new(f) });
-        let ptr = Box::into_raw(work);
-        match worker.post_message(&JsValue::from(ptr as u32)) {
-            Ok(()) => Ok(worker),
-            Err(e) => {
-                unsafe {
-                    drop(Box::from_raw(ptr));
-                }
-                Err(e)
-            }
+
+        // Double-boxing because `dyn FnOnce` is unsized and so `Box<dyn FnOnce()>` has
+        // an undefined layout (although I think in practice its a pointer and a length?).
+        let ptr = Box::into_raw(Box::new(Box::new(f) as Box<dyn FnOnce()>));
+
+        // See `worker.ts` for the format of this message.
+        let msg: js_sys::Array = [
+            &wasm_bindgen::module(),
+            &wasm_bindgen::memory(),
+            &JsValue::from(ptr as u32),
+        ]
+        .into_iter()
+        .collect();
+        if let Err(e) = worker.post_message(&msg) {
+            // We expect the worker to deallocate the box, but if there was an error then
+            // we'll do it ourselves.
+            let _ = unsafe { Box::from_raw(ptr) };
+            Err(format!("Error initializing worker during post_message: {:?}", e).into())
+        } else {
+            Ok(worker)
         }
     }
 
@@ -140,13 +144,13 @@ impl WorkerPool {
     /// used for all spawned workers to ensure that when the work is finished
     /// the worker is reclaimed back into this pool.
     fn reclaim_on_message(&self, worker: Worker) {
-        let state = Rc::downgrade(&self.state);
+        let state = Arc::downgrade(&self.state);
         let worker2 = worker.clone();
-        let reclaim_slot = Rc::new(RefCell::new(None));
-        let slot2 = reclaim_slot.clone();
+        let mut reclaim_slot = Arc::new(RefCell::new(None));
+        let mut slot2 = reclaim_slot.clone();
         let reclaim = Closure::<dyn FnMut(_)>::new(move |event: Event| {
             if let Some(error) = event.dyn_ref::<ErrorEvent>() {
-                console_log!("error in worker: {}", error.message());
+                info!("error in worker: {}", error.message());
                 // TODO: this probably leaks memory somehow? It's sort of
                 // unclear what to do about errors in workers right now.
                 return;
@@ -158,16 +162,15 @@ impl WorkerPool {
                 if let Some(state) = state.upgrade() {
                     state.push(worker2.clone());
                 }
-                *slot2.borrow_mut() = None;
+                *slot2.borrow_mut() = Arc::new(RefCell::new(None));
                 return;
             }
 
-            console_log!("unhandled event: {}", event.type_());
-            crate::logv(&event);
+            info!("unhandled event: {:?}", &event);
             // TODO: like above, maybe a memory leak here?
         });
         worker.set_onmessage(Some(reclaim.as_ref().unchecked_ref()));
-        *reclaim_slot.borrow_mut() = Some(reclaim);
+        *reclaim_slot.borrow_mut() = Arc::new(RefCell::new(Some(reclaim)));
     }
 }
 
@@ -207,13 +210,9 @@ impl PoolState {
     }
 }
 
-/// Entry point invoked by `worker.js`, a bit of a hack but see the "TODO" above
-/// about `worker.js` in general.
+/// Entry point invoked by `worker.js`
 #[wasm_bindgen]
-pub fn child_entry_point(ptr: u32) -> Result<(), JsValue> {
-    let ptr = unsafe { Box::from_raw(ptr as *mut Work) };
-    let global = js_sys::global().unchecked_into::<DedicatedWorkerGlobalScope>();
-    (ptr.func)();
-    global.post_message(&JsValue::undefined())?;
-    Ok(())
+pub fn child_entry_point(ptr: u32) {
+    let work = unsafe { Box::from_raw(ptr as *mut Box<dyn FnOnce()>) };
+    (*work)();
 }

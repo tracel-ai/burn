@@ -6,10 +6,6 @@ import sqliteWasmUrl from './assets/sql-wasm.wasm?url'
 // @ts-ignore https://github.com/rustwasm/console_error_panic_hook#errorstacktracelimit
 Error.stackTraceLimit = 30
 
-wasm()
-	.then(() => init(workerUrl))
-	.catch(console.error)
-
 const sqlJs = initSqlJs({
 	locateFile: () => sqliteWasmUrl,
 })
@@ -34,6 +30,9 @@ export function setupTrain(element: HTMLInputElement) {
 }
 
 async function loadSqliteAndRun(ab: ArrayBuffer) {
+	await wasm()
+	await init(workerUrl, navigator.hardwareConcurrency)
+	await sleep(1000) // the workers need time to spin up. TODO, post an init message and await a response. Also maybe move worker construction to Javascript.
 	// Images are an array of arrays.
 	// We can't send an array of arrays to Wasm.
 	// So instead we merge images into a single large array and
@@ -96,4 +95,8 @@ function concat(arrays: Uint8Array[]) {
 		length += array.length
 	}
 	return result
+}
+
+async function sleep(ms: number): Promise<unknown> {
+	return await new Promise((resolve) => setTimeout(resolve, ms))
 }

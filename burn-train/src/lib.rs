@@ -2,6 +2,7 @@
 
 //! A library for training neural networks using the burn crate.
 
+pub mod pool;
 pub mod util;
 
 #[macro_use]
@@ -27,3 +28,6 @@ pub use learner::*;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
+
+#[macro_use]
+extern crate lazy_static;
