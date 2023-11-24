@@ -27,7 +27,7 @@ mod tests {
         let tensor: Tensor<TestBackend, 2> =
             Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
 
-        let output = tensor.narrow(0, 3, 2);
+        let output = tensor.narrow(0, 4, 2);
     }
 
     #[test]
