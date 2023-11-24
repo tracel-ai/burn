@@ -40,9 +40,11 @@ jobs:
         rust: [stable]
         # test: ['std', 'no-std', 'examples']
         test: ['std']
-        # include:
-        #   - cache: stable
-        #     rust: stable
+        include:
+          - cache: stable
+            rust: stable
+          - os: windows-2022
+            wgpu_backend: dx12
         #   - cache: 1-71-0
         #     rust: 1.71.0
         #   - coverage-flags: COVERAGE=1
@@ -121,12 +123,9 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
-      - name: Install Vulkan
+      - name: (windows) install dxc
         if: matrix.os == 'windows-2022'
-        uses: humbletim/install-vulkan-sdk@v1.1.1
-        with:
-          version: latest
-          cache: true
+        uses: napokue/setup-dxc@v1.1.0
 
       - name: run checks & tests
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
