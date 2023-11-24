@@ -88,16 +88,6 @@ impl TensorCheck {
     ) -> Self {
         let mut check = Self::Ok;
 
-        if dim >= D {
-            check = check.register(
-                "Unsqueeze",
-                TensorError::new(format!(
-                    "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
-                    dim, D
-                )),
-            );
-        }
-
         if length == 0 {
             check = check.register(
                 "Narrow",
@@ -112,8 +102,8 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start exceeds tensor dimensions (D={})",
-                    dim, D
+                    "Can't narrow at dimension {}, start exceeds the size of the tensor along this dimension (Size={})",
+                    dim, tensor.shape().dims[dim]
                 )),
             );
         }
@@ -122,8 +112,8 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start + length exceeds tensor dimensions (D={})",
-                    dim, D
+                    "Can't narrow at dimension {}, start + length exceeds the size of the tensor along this dimension (Size={})",
+                    dim, tensor.shape().dims[dim]
                 )),
             );
         }
