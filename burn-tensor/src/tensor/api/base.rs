@@ -482,6 +482,7 @@ where
     ///
     /// A new tensor with the given dimension narrowed to the given range.
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
+        check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
 
         let ranges: Vec<_> = (0..D)
