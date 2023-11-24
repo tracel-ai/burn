@@ -49,6 +49,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.unsqueeze_dim(dim)`              | `tensor.unsqueeze(dim)`              |
 | `tensor.slice(ranges)`                   | `tensor[(*ranges,)]`                 |
 | `tensor.slice_assign(ranges, values)`    | `tensor[(*ranges,)] = values`        |
+| `tensor.narrow(dim, start, length)`      | `tensor.narrow(dim, start, length)`  |
 | `tensor.device()`                        | `tensor.device`                      |
 | `tensor.to_device(device)`               | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                    | `tensor.repeat([1, 1, 4])`           |
