@@ -43,8 +43,6 @@ jobs:
         include:
           - cache: stable
             rust: stable
-          - os: windows-2022
-            wgpu_backend: dx12
         #   - cache: 1-71-0
         #     rust: 1.71.0
         #   - coverage-flags: COVERAGE=1
@@ -123,10 +121,6 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
-      - name: (windows) install dxc
-        if: matrix.os == 'windows-2022'
-        uses: napokue/setup-dxc@v1.1.0
-
       - name: (windows) install warp
         if: matrix.os == 'windows-2022'
         shell: bash
@@ -155,15 +149,24 @@ jobs:
 
           echo "VK_DRIVER_FILES=$PWD/mesa/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
           echo "GALLIUM_DRIVER=llvmpipe" >> "$GITHUB_ENV"
+
+      - name: run wgpu-info
+        shell: bash
+        run: |
+          echo "$PATH"
+          export RUST_LOG=trace
+          cargo install wgpu-info
+          wgpu-info
+
       # - name: run checks & tests
       #   run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
       - name: (temp) run burn_wgpu tests
         env:
           CI_RUN: 1
-          WGPU_DX12_COMPILER: dxc
-          WGPU_BACKEND: matrix.wgpu_backend
         run: |
+          pwd
+          ls target
           cd burn-wgpu
           cargo test
 
