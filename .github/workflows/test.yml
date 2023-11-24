@@ -35,7 +35,7 @@ jobs:
     strategy:
       matrix:
         # os: [macos-13, ubuntu-22.04, windows-latest]
-        os: [windows-latest]
+        os: [windows-2022]
         # rust: [stable, 1.71.0]
         rust: [stable]
         # test: ['std', 'no-std', 'examples']
@@ -61,7 +61,7 @@ jobs:
         #   - os: macos-13
         #     test: 'no-std'
         #   # Do not run no-std tests on Windows
-        #   - os: windows-latest
+        #   - os: windows-2022
         #     test: 'no-std'
 
     steps:
@@ -122,7 +122,7 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: Install Vulkan
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: humbletim/install-vulkan-sdk@v1.1.1
         with:
           version: latest
