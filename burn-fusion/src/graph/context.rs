@@ -62,8 +62,11 @@ impl RelativeGraphConverter {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
         self.shapes_relative2global.clear();
+        self.scalar_floats.clear();
+        self.scalar_ints.clear();
     }
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E) -> E {
+        println!("Add relative float {}", elem.elem::<f32>());
         self.scalar_floats.push(elem.elem());
         0.elem()
     }
@@ -86,10 +89,10 @@ impl TensorOpsDescription {
                 TensorOpsDescription::BaseOpsBool(ops.to_relative(converter))
             }
             TensorOpsDescription::NumericOpsFloat(ops) => TensorOpsDescription::NumericOpsFloat(
-                ops.to_local(converter, |converter, e| converter.relative_float(e)),
+                ops.to_relative(converter, |converter, e| converter.relative_float(e)),
             ),
             TensorOpsDescription::NumericOpsInt(ops) => TensorOpsDescription::NumericOpsInt(
-                ops.to_local(converter, |converter, e| converter.relative_int(e)),
+                ops.to_relative(converter, |converter, e| converter.relative_int(e)),
             ),
             TensorOpsDescription::BoolOps(ops) => {
                 TensorOpsDescription::BoolOps(ops.to_relative(converter))
@@ -407,7 +410,11 @@ impl IntOpsDescription {
 }
 
 impl<E: Element> NumericOpsDescription<E> {
-    pub(crate) fn to_local<F>(&self, converter: &mut RelativeGraphConverter, local_elem: F) -> Self
+    pub(crate) fn to_relative<F>(
+        &self,
+        converter: &mut RelativeGraphConverter,
+        local_elem: F,
+    ) -> Self
     where
         F: Fn(&mut RelativeGraphConverter, &E) -> E,
     {

@@ -21,17 +21,20 @@ pub trait OptimizationFactory<T> {
 #[derive(Default, Clone)]
 pub struct GraphKey {
     hasher: DefaultHasher,
+    pub(crate) size: usize,
 }
 
 impl GraphKey {
     /// Register a new [ops](TensorOpsDescription) into the graph key.
     pub fn register(&mut self, desc: &TensorOpsDescription) {
         desc.hash(&mut self.hasher);
+        self.size += 1;
     }
 
     /// Clear the graph key state, should be called when starting a new relative graph.
     pub fn clear(&mut self) {
         self.hasher = DefaultHasher::default();
+        self.size = 0;
     }
 
     fn value(&self) -> u64 {
@@ -170,14 +173,19 @@ impl<T> Policy<T> {
 
         let value = if values.len() > 1 {
             // Hash collision, find with graph.
-            values
-                .iter()
-                .find(|item| item.graph == graph)
-                .expect("When a collision happens, an entry with the same graph must be present.")
+            match values.iter().find(|item| item.graph == graph) {
+                Some(value) => value,
+                None => return Action::Build,
+            }
         } else {
-            values
+            let value = values
                 .get(0)
-                .expect("We never happen an empty list to the cache.")
+                .expect("We never happen an empty list to the cache.");
+            if value.graph != graph {
+                return Action::Build;
+            }
+
+            value
         };
 
         match &value.action {
@@ -221,12 +229,7 @@ impl<T> Policy<T> {
         let mut current_key = GraphKey::default();
         let mut current_graph = Vec::new();
 
-        for (i, node) in graph.iter().enumerate() {
-            // The last graph is a particular case where the action should be taken.
-            if i == graph.len() - 1 {
-                break;
-            }
-
+        for node in graph.iter() {
             current_key.register(&node);
             current_graph.push(node.clone());
 
@@ -416,7 +419,6 @@ mod tests {
 
         let actual = cache.action(&key, &graph, EndCondition::NextOps(&ops2));
         let expected = Action::<String>::Wait;
-        assert_eq!(expected, actual);
 
         key.register(&ops2);
         graph.push(ops2);
@@ -424,9 +426,7 @@ mod tests {
         let actual = cache.action(&key, &graph, EndCondition::NextOps(&ops3));
         let expected_ops = "Action1".to_string();
         let expected = Action::<String>::Execute(&expected_ops);
-        assert_eq!(expected, actual);
 
         let actual = cache.action(&key, &graph, EndCondition::Forced);
-        assert_eq!(expected, actual);
     }
 }

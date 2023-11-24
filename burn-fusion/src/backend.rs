@@ -93,6 +93,12 @@ pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     fn build(&self) -> Box<dyn FusionOps<B>>;
     /// Reset the state.
     fn reset(&mut self);
+    /// The size of operations fused.
+    fn len(&self) -> usize;
+    /// If the current operation is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl<B: FusionBackend> OptimizationFactory<Box<dyn FusionOps<B>>> for Box<dyn FusionOpsBuilder<B>> {

@@ -25,10 +25,10 @@ where
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
-    pub(crate) scalars_f32: Vec<f32>,
-    pub(crate) scalars_i32: Vec<i32>,
-    pub(crate) scalars_u32: Vec<u32>,
-    pub(crate) booleans: Vec<bool>,
+    pub(crate) scalars_f32: usize,
+    pub(crate) scalars_i32: usize,
+    pub(crate) scalars_u32: usize,
+    pub(crate) booleans: usize,
     pub(crate) operators: Vec<Operator>,
     pub(crate) properties: FusionProperties,
     pub(crate) current_output_shape: Vec<usize>,
@@ -65,8 +65,13 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
             .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
             .collect::<Vec<_>>();
 
-        println!("Local inputs : {:?}", self.inputs);
-        println!("Global inputs : {:?}", inputs);
+        println!("Num Execute {}", self.operators.len());
+        // println!("Local inputs : {:?}", self.inputs);
+        // println!("Global inputs : {:?}", inputs);
+
+        println!("Scalars_floats : {:?}", context.scalar_floats);
+        // println!("Local outputs : {:?}", self.outputs);
+        // println!("Global outputs : {:?}", outputs);
 
         FusionKernel::new(&self.device)
             .inputs(&inputs, &context.scalar_floats)
@@ -110,6 +115,10 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
         FusionStatus::Open(self.properties)
     }
 
+    fn len(&self) -> usize {
+        self.operators.len()
+    }
+
     fn build(&self) -> Box<dyn FusionOps<Wgpu<G, F, I>>> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
@@ -118,6 +127,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
+        println!("Num Build {}", self.len());
         Box::new(FloatElementWiseFusionOps {
             inputs,
             outputs,
@@ -131,17 +141,13 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
         self.inputs.clear();
         self.locals.drain();
         self.tensors.clear();
-        self.scalars_f32.clear();
-        self.scalars_i32.clear();
-        self.scalars_u32.clear();
-        self.booleans.clear();
+        self.scalars_f32 = 0;
+        self.scalars_i32 = 0;
+        self.scalars_u32 = 0;
+        self.booleans = 0;
         self.operators.clear();
         self.properties = FusionProperties::default();
         self.current_output_shape.clear();
-    }
-
-    fn len(&self) -> usize {
-        self.operators.len()
     }
 }
 
@@ -156,10 +162,10 @@ where
             inputs: Vec::new(),
             locals: HashMap::new(),
             tensors: HashMap::new(),
-            scalars_f32: Vec::new(),
-            scalars_i32: Vec::new(),
-            scalars_u32: Vec::new(),
-            booleans: Vec::new(),
+            scalars_f32: 0,
+            scalars_i32: 0,
+            scalars_u32: 0,
+            booleans: 0,
             operators: Vec::new(),
             current_output_shape: Vec::new(),
             properties: FusionProperties::default(),
@@ -647,19 +653,19 @@ where
         true
     }
 
-    fn scalar_to_var<E: Element>(&mut self, value: &E, elem_type: Elem) -> Variable {
+    fn scalar_to_var<E: Element>(&mut self, _value: &E, elem_type: Elem) -> Variable {
         match elem_type {
             Elem::F32 => {
-                self.scalars_f32.push(value.elem());
-                Variable::Scalar(self.scalars_f32.len() as u16 - 1, Elem::F32)
+                self.scalars_f32 += 1;
+                Variable::Scalar(self.scalars_f32 as u16 - 1, Elem::F32)
             }
             Elem::I32 => {
-                self.scalars_i32.push(value.elem());
-                Variable::Scalar(self.scalars_i32.len() as u16 - 1, Elem::I32)
+                self.scalars_i32 += 1;
+                Variable::Scalar(self.scalars_i32 as u16 - 1, Elem::I32)
             }
             Elem::U32 => {
-                self.scalars_u32.push(value.elem());
-                Variable::Scalar(self.scalars_u32.len() as u16 - 1, Elem::U32)
+                self.scalars_u32 += 1;
+                Variable::Scalar(self.scalars_u32 as u16 - 1, Elem::U32)
             }
             Elem::Bool => {
                 panic!("Bool scalars not supported")

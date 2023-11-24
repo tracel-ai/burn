@@ -50,12 +50,13 @@ where
             &self.graph.relative,
             EndCondition::NextOps(&ops_desc),
         );
-        println!("Register {:?}", action);
+        println!("Register - Action {action:?}");
 
         match action {
             Action::Build => {
                 if self.num_skipped > 0 {
                     // We register operations that were skipped.
+
                     let graph_size = self.graph.global.len();
                     let start = graph_size - self.num_skipped;
                     let end = graph_size;
@@ -114,7 +115,8 @@ where
             self.policy
                 .action(&self.graph.key, &self.graph.relative, EndCondition::Forced);
 
-        println!("Drain graph: {:?}", action);
+        println!("Drain Graph - Action {action:?}");
+
         match action {
             Action::Execute(exe) => {
                 self.graph

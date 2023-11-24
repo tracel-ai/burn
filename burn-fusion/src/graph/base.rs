@@ -28,9 +28,9 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     pub(crate) fn add(&mut self, description: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        let local = description.to_relative(&mut self.converter);
-        self.key.register(&local);
-        self.relative.push(local);
+        let relative = description.to_relative(&mut self.converter);
+        self.key.register(&relative);
+        self.relative.push(relative);
         self.global.push(description);
         self.ops.push(ops);
     }
@@ -56,19 +56,19 @@ impl<B: FusionBackend> Graph<B> {
         self.ops.drain(range);
 
         // Rebuilt the local graph when removing partially the global graph.
-        self.relative.clear();
-        self.key.clear();
-        self.converter.clear();
+        self.cleanup_relative_graph();
 
         for node in self.global.iter() {
-            let local = node.to_relative(&mut self.converter);
-            self.key.register(&local);
-            self.relative.push(local);
+            let relative = node.to_relative(&mut self.converter);
+            self.key.register(&relative);
+            self.relative.push(relative);
         }
     }
 
-    fn nodes(&self) -> &[TensorOpsDescription] {
-        &self.global
+    fn cleanup_relative_graph(&mut self) {
+        self.relative.clear();
+        self.key.clear();
+        self.converter.clear();
     }
 
     pub(crate) fn execute_ops(
@@ -91,6 +91,7 @@ impl<B: FusionBackend> Graph<B> {
             }
         }
     }
+
     pub(crate) fn execute_optimization(
         &mut self,
         handles: &mut HandleContainer<B>,
@@ -99,13 +100,18 @@ impl<B: FusionBackend> Graph<B> {
         policy: &mut Policy<Box<dyn FusionOps<B>>>,
     ) {
         let optimization = optimizations.get_mut(index).unwrap();
+        let num_keep = optimization.ops.len();
 
         let mut context = self.converter.context(handles);
-        let mut local = Vec::new();
-        core::mem::swap(&mut local, &mut self.relative);
+        let mut relative = Vec::new();
+        core::mem::swap(&mut relative, &mut self.relative);
+        let mut next_ops = relative.split_off(num_keep);
+        let next_ops = match next_ops.is_empty() {
+            true => None,
+            false => Some(next_ops.remove(0)),
+        };
 
-        let ops = policy.register(&self.key, &optimization.ops, local, None);
-        let num_keep = ops.len();
+        let ops = policy.register(&self.key, &optimization.ops, relative, next_ops);
         ops.execute(&mut context);
 
         self.remove(0..num_keep, handles);
@@ -113,7 +119,7 @@ impl<B: FusionBackend> Graph<B> {
         for optimization in optimizations.iter_mut() {
             optimization.reset();
 
-            for node in self.nodes() {
+            for node in self.relative.iter() {
                 optimization.register(node);
             }
         }
@@ -124,6 +130,7 @@ impl<B: FusionBackend> Graph<B> {
             ops.execute(handles);
             description.cleanup_tensor(handles);
         }
+        self.cleanup_relative_graph();
     }
 }
 
