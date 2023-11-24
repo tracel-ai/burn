@@ -4,13 +4,17 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
 
+/// Guides what [action](Action) to take based on previously seems version of a graph.
+///
+/// It works by computing a [graph key](GraphKey) based on a relative version of a captured graph.
 pub struct Policy<O> {
     cache: HashMap<u64, Vec<CachedItem<O>>>,
 }
 
-pub(crate) trait ToBeCached<T> {
-    /// Call only when not seen.
-    fn build(&self) -> T;
+/// Create an optimization.
+pub trait OptimizationFactory<T> {
+    /// Call only when a new optimization is found.
+    fn create(&self) -> T;
 }
 
 /// The graph key keeps an upadted hash that represent the current graph.
@@ -25,6 +29,7 @@ impl GraphKey {
         desc.hash(&mut self.hasher);
     }
 
+    /// Clear the graph key state, should be called when starting a new relative graph.
     pub fn clear(&mut self) {
         self.hasher = DefaultHasher::default();
     }
@@ -37,38 +42,17 @@ impl GraphKey {
 /// Action to be made depending on the graph.
 #[derive(PartialEq, Eq)]
 pub enum Action<'a, T> {
-    /// Continue exploring optimizations but using the [fusion ops builder](crate::FusionOps).
+    /// Continue exploring optimizations but using the [fusion ops builder](crate::FusionOpsBuilder).
     Build,
+    /// The current graph indicates that some optimization maybe possible in the future, so the
+    /// best action is to wait for the optimization to become available.
+    ///
+    /// Sometime, if can be a false positive and a new opitmization should be built from scratch,
+    /// therefore it is important to keep the previous operations to rebuilt the state if it
+    /// happens.
     Wait,
+    /// An optimization has been found, and the best action is to execute it!
     Execute(&'a T),
-}
-
-impl<'a, T> core::fmt::Debug for Action<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Action::Build => f.write_str("Action::Build"),
-            Action::Wait => f.write_str("Action::Wait"),
-            Action::Execute(_) => f.write_str("Action::Execute"),
-        }
-    }
-}
-
-impl<Builder> CachedAction<&Builder> {
-    pub fn build<T>(self) -> CachedAction<T>
-    where
-        Builder: ToBeCached<T>,
-    {
-        match self {
-            CachedAction::Wait => CachedAction::Wait,
-            CachedAction::Execute {
-                optimization: item,
-                next_possible_ops,
-            } => CachedAction::Execute {
-                optimization: item.build(),
-                next_possible_ops,
-            },
-        }
-    }
 }
 
 // Cached Item
@@ -93,8 +77,13 @@ enum CachedAction<O> {
 }
 
 impl<T> CachedAction<T> {
-    pub fn merge<Builder: ToBeCached<T>>(mut self, other: CachedAction<&Builder>) -> Self {
-        let (item_new, next_possible_ops_new) = match other {
+    /// Multiple actions can be registered for the same graph, when multiple trajectories can lead
+    /// to different optimizations.
+    ///
+    /// In this case, we have to keep the most relevant action or update the current one.
+    fn merge<Factory: OptimizationFactory<T>>(self, other: CachedAction<&Factory>) -> Self {
+        let (item_other, next_possible_ops_other) = match other {
+            // The less informed action is to wait, so we discard it right away.
             CachedAction::Wait => return self,
             CachedAction::Execute {
                 optimization: item,
@@ -103,15 +92,23 @@ impl<T> CachedAction<T> {
         };
 
         match self {
+            // When the current action is to wait, we create a new Execute action with the data
+            // provided by the other cached action.
             CachedAction::Wait => CachedAction::Execute {
-                optimization: item_new.build(),
-                next_possible_ops: next_possible_ops_new,
+                optimization: item_other.create(),
+                next_possible_ops: next_possible_ops_other,
             },
+            // When both actions have opitmizations, it means that the same optimization should be
+            // taken when followed by different operations, so we simply merge the two
+            // `next_possible_ops` together without duplicates.
+            //
+            // We keep the old optimization and avoid `creating` a new one, which is more
+            // efficient (avoid potential many compilation steps).
             CachedAction::Execute {
                 optimization: item,
                 mut next_possible_ops,
             } => {
-                let mut ops = next_possible_ops_new;
+                let mut ops = next_possible_ops_other;
                 for o in next_possible_ops.drain(..) {
                     if !ops.contains(&o) {
                         ops.push(o);
@@ -126,34 +123,61 @@ impl<T> CachedAction<T> {
     }
 }
 
-pub enum EndCondision<'a> {
+/// When checking if an optimization is possible, a end condition assure that this optimization is
+/// always optimal.
+///
+/// # Example
+///
+/// For the same beginning of a graph, an opitmization might be optimal only when followed by
+/// another operation.
+///
+/// Graph: [Add - Accepted] - [Div - Accepted]
+///
+/// 1. Optimal
+///     [Add - Accepted] - [Div - Accepted] - [Matmul - Refused]
+///     In this case we should execute a fused kernel for [Add] and [Div]
+///
+/// 2. Non-Optimal
+///     [Add - Accepted] - [Div - Accepted] - [Exp - Accepted] - [Matmul - Refused]
+///     In this case we should not execute the fused kernel [Add] and [div], but wait to execute
+///     the fused kernel [Add] - [Div] - [Exp].
+pub enum EndCondition<'a> {
+    /// The next operation that signal the end of the operation.
     NextOps(&'a TensorOpsDescription),
+    /// When forced, we should execute the optimization if found no matter what comes next.
     Forced,
 }
 
 impl<T> Policy<T> {
+    /// Create a new empty policy.
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
         }
     }
-    pub fn get<'a>(
+
+    /// Compute the next [action](Action) to be taken.
+    pub fn action<'a>(
         &'a self,
-        key_: &GraphKey,
+        key: &GraphKey,
         graph: &[TensorOpsDescription],
-        end_consition: EndCondision,
+        end_condition: EndCondition,
     ) -> Action<'a, T> {
-        let key = key_.value();
-        let values = match self.cache.get(&key) {
+        let values = match self.cache.get(&key.value()) {
             Some(values) => values,
             None => return Action::Build,
         };
 
         let value = if values.len() > 1 {
             // Hash collision, find with graph.
-            values.iter().find(|item| item.graph == graph).unwrap()
+            values
+                .iter()
+                .find(|item| item.graph == graph)
+                .expect("When a collision happens, an entry with the same graph must be present.")
         } else {
-            values.get(0).unwrap()
+            values
+                .get(0)
+                .expect("We never happen an empty list to the cache.")
         };
 
         match &value.action {
@@ -161,54 +185,67 @@ impl<T> Policy<T> {
             CachedAction::Execute {
                 optimization: item,
                 next_possible_ops,
-            } => match end_consition {
-                EndCondision::NextOps(next_ops) => {
+            } => match end_condition {
+                EndCondition::NextOps(next_ops) => {
                     if next_possible_ops.contains(next_ops) {
+                        // When the end condition is validated, we execute the action.
                         Action::Execute(&item)
                     } else {
-                        let mut next_key = key_.clone();
+                        // Otherwise we check if the next operation is registered in the graph, so
+                        // that we can wait for a following better optimization.
+                        let mut next_key = key.clone();
                         next_key.register(next_ops);
                         if self.cache.contains_key(&next_key.value()) {
                             Action::Wait
                         } else {
+                            // If not found, we have to create a new set of actions for this graph.
                             Action::Build
                         }
                     }
                 }
-                EndCondision::Forced => Action::Execute(&item),
+                EndCondition::Forced => Action::Execute(&item),
             },
         }
     }
 
-    pub fn insert<'a, Builder: ToBeCached<T>>(
+    /// Register a new optimization for the given graph and next operation.
+    pub fn register<'a, Factory: OptimizationFactory<T>>(
         &'a mut self,
         key: &GraphKey,
-        builder: &Builder,
+        factory: &Factory,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
     ) -> &'a T {
-        let key = key.value();
-        let mut hasher = DefaultHasher::new();
-        let mut graph_current = Vec::new();
+        // First we have to determine each action to be taken when a fraction of the graph is seen.
+        // So we simulate a graph traversal with the correct hash key.
+        let mut current_key = GraphKey::default();
+        let mut current_graph = Vec::new();
 
         for (i, node) in graph.iter().enumerate() {
-            if i >= graph.len() + 1 {
-                continue;
+            // The last graph is a particular case where the action should be taken.
+            if i == graph.len() - 1 {
+                break;
             }
-            node.hash(&mut hasher);
-            graph_current.push(node.clone());
 
-            // Key and graph at this stage.
-            let key = hasher.clone().finish();
-            let graph = graph_current.clone();
-            self.insert_action(key, CachedAction::<&Builder>::Wait, graph, false);
+            current_key.register(&node);
+            current_graph.push(node.clone());
+
+            // We insert a cache action to the corresponding key where we wait for the potential
+            // optimization to be executed.
+            self.insert_action(
+                current_key.value(),
+                CachedAction::<&Factory>::Wait,
+                current_graph.clone(),
+                false, // We don't need to return the optimization.
+            );
         }
 
+        // We finally insert the given optimization to the graph.
         let (key, index) = self
             .insert_action(
-                key,
+                key.value(),
                 CachedAction::Execute {
-                    optimization: builder,
+                    optimization: factory,
                     next_possible_ops: next_ops.map(|ops| vec![ops]).unwrap_or_default(),
                 },
                 graph,
@@ -216,7 +253,15 @@ impl<T> Policy<T> {
             )
             .unwrap();
 
-        match &self.cache.get(&key).unwrap().get(index).unwrap().action {
+        // We retrieve the optimization from the cache so that it can be executed right away.
+        match &self
+            .cache
+            .get(&key)
+            .expect("Just saved the action")
+            .get(index)
+            .expect("The index given should be valid")
+            .action
+        {
             CachedAction::Wait => panic!("Should have saved an operation"),
             CachedAction::Execute {
                 optimization,
@@ -225,10 +270,10 @@ impl<T> Policy<T> {
         }
     }
 
-    fn insert_action<Builder: ToBeCached<T>>(
+    fn insert_action<Factory: OptimizationFactory<T>>(
         &mut self,
         key: u64,
-        action: CachedAction<&Builder>,
+        action: CachedAction<&Factory>,
         graph: Vec<TensorOpsDescription>,
         index: bool,
     ) -> Option<(u64, usize)> {
@@ -237,7 +282,7 @@ impl<T> Policy<T> {
         // Remove old entry.
         if !values.is_empty() {
             if let Some(existing) = values.iter_mut().find(|item| item.graph == graph) {
-                // Update the action if the same graph, which probably mean a new end condition.
+                // When a graph already exist, it means that we should merge the two action.
                 let mut action_tmp = CachedAction::Wait;
                 core::mem::swap(&mut action_tmp, &mut existing.action);
                 existing.action = action_tmp.merge(action);
@@ -261,6 +306,40 @@ impl<T> Policy<T> {
     }
 }
 
+impl<'a, T> core::fmt::Debug for Action<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Action::Build => f.write_str("Action::Build"),
+            Action::Wait => f.write_str("Action::Wait"),
+            Action::Execute(_) => f.write_str("Action::Execute"),
+        }
+    }
+}
+
+impl<Factory> CachedAction<&Factory> {
+    fn build<T>(self) -> CachedAction<T>
+    where
+        Factory: OptimizationFactory<T>,
+    {
+        match self {
+            CachedAction::Wait => CachedAction::Wait,
+            CachedAction::Execute {
+                optimization: item,
+                next_possible_ops,
+            } => CachedAction::Execute {
+                optimization: item.create(),
+                next_possible_ops,
+            },
+        }
+    }
+}
+
+impl<T> Default for Policy<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
@@ -271,8 +350,8 @@ mod tests {
     use super::*;
 
     struct Action1;
-    impl ToBeCached<String> for Action1 {
-        fn build(&self) -> String {
+    impl OptimizationFactory<String> for Action1 {
+        fn create(&self) -> String {
             "Action1".to_string()
         }
     }
@@ -322,7 +401,7 @@ mod tests {
 
         key.register(&ops1);
         key.register(&ops2);
-        cache.insert(
+        cache.register(
             &key,
             &Action1,
             vec![ops1.clone(), ops2.clone()],
@@ -335,19 +414,19 @@ mod tests {
         key.register(&ops1);
         graph.push(ops1);
 
-        let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops2));
+        let actual = cache.action(&key, &graph, EndCondition::NextOps(&ops2));
         let expected = Action::<String>::Wait;
         assert_eq!(expected, actual);
 
         key.register(&ops2);
         graph.push(ops2);
 
-        let actual = cache.get(&key, &graph, EndCondision::NextOps(&ops3));
+        let actual = cache.action(&key, &graph, EndCondition::NextOps(&ops3));
         let expected_ops = "Action1".to_string();
         let expected = Action::<String>::Execute(&expected_ops);
         assert_eq!(expected, actual);
 
-        let actual = cache.get(&key, &graph, EndCondision::Forced);
+        let actual = cache.action(&key, &graph, EndCondition::Forced);
         assert_eq!(expected, actual);
     }
 }

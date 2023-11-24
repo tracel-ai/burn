@@ -1,7 +1,7 @@
 use super::GraphKey;
-use super::LocalGraphConverter;
 use super::Ops;
 use super::Policy;
+use super::RelativeGraphConverter;
 use super::TensorOpsDescription;
 use crate::FusionOps;
 use crate::{FusionBackend, FusionOpsBuilder, FusionProperties, FusionStatus, HandleContainer};
@@ -10,9 +10,9 @@ use std::ops::RangeBounds;
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Graph<B: FusionBackend> {
     pub(crate) global: Vec<TensorOpsDescription>,
-    pub(crate) local: Vec<TensorOpsDescription>,
+    pub(crate) relative: Vec<TensorOpsDescription>,
     pub(crate) key: GraphKey,
-    converter: LocalGraphConverter,
+    converter: RelativeGraphConverter,
     ops: Vec<Box<dyn Ops<B>>>,
 }
 
@@ -20,21 +20,17 @@ impl<B: FusionBackend> Graph<B> {
     pub(crate) fn new() -> Self {
         Self {
             global: Vec::new(),
-            local: Vec::new(),
+            relative: Vec::new(),
             key: GraphKey::default(),
-            converter: LocalGraphConverter::default(),
+            converter: RelativeGraphConverter::default(),
             ops: Vec::new(),
         }
     }
 
-    pub(crate) fn key(&self) -> &GraphKey {
-        &self.key
-    }
-
     pub(crate) fn add(&mut self, description: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        let local = description.to_local(&mut self.converter);
+        let local = description.to_relative(&mut self.converter);
         self.key.register(&local);
-        self.local.push(local);
+        self.relative.push(local);
         self.global.push(description);
         self.ops.push(ops);
     }
@@ -60,14 +56,14 @@ impl<B: FusionBackend> Graph<B> {
         self.ops.drain(range);
 
         // Rebuilt the local graph when removing partially the global graph.
-        self.local.clear();
+        self.relative.clear();
         self.key.clear();
         self.converter.clear();
 
         for node in self.global.iter() {
-            let local = node.to_local(&mut self.converter);
+            let local = node.to_relative(&mut self.converter);
             self.key.register(&local);
-            self.local.push(local);
+            self.relative.push(local);
         }
     }
 
@@ -90,7 +86,7 @@ impl<B: FusionBackend> Graph<B> {
         for optimization in optimizations.iter_mut() {
             optimization.reset();
 
-            for node in self.local.iter() {
+            for node in self.relative.iter() {
                 optimization.register(node);
             }
         }
@@ -103,13 +99,13 @@ impl<B: FusionBackend> Graph<B> {
         policy: &mut Policy<Box<dyn FusionOps<B>>>,
     ) {
         let optimization = optimizations.get_mut(index).unwrap();
-        let num_keep = optimization.ops.len();
 
         let mut context = self.converter.context(handles);
         let mut local = Vec::new();
-        core::mem::swap(&mut local, &mut self.local);
+        core::mem::swap(&mut local, &mut self.relative);
 
-        let ops = policy.insert(&self.key, &optimization.ops, local, None);
+        let ops = policy.register(&self.key, &optimization.ops, local, None);
+        let num_keep = ops.len();
         ops.execute(&mut context);
 
         self.remove(0..num_keep, handles);

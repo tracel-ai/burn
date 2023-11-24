@@ -1,6 +1,6 @@
 use crate::{
     graph::{
-        Action, EndCondision, Graph, GraphExecution, Ops, Optimization, Policy,
+        Action, EndCondition, Graph, GraphExecution, Ops, Optimization, Policy,
         TensorOpsDescription,
     },
     FusionBackend, FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorId,
@@ -45,10 +45,10 @@ where
     }
 
     pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        let action = self.policy.get(
+        let action = self.policy.action(
             &self.graph.key,
-            &self.graph.local,
-            EndCondision::NextOps(&ops_desc),
+            &self.graph.relative,
+            EndCondition::NextOps(&ops_desc),
         );
         println!("Register {:?}", action);
 
@@ -61,7 +61,7 @@ where
                     let end = graph_size;
 
                     for i in start..end {
-                        let desc_skipped = self.graph.local.get(i).unwrap();
+                        let desc_skipped = self.graph.relative.get(i).unwrap();
 
                         self.optimizations
                             .iter_mut()
@@ -74,7 +74,7 @@ where
 
                 // Now we can register the current operation.
                 self.graph.add(ops_desc, ops);
-                let last = self.graph.local.last().unwrap();
+                let last = self.graph.relative.last().unwrap();
 
                 self.optimizations
                     .iter_mut()
@@ -110,9 +110,9 @@ where
             return;
         }
 
-        let action = self
-            .policy
-            .get(&self.graph.key, &self.graph.local, EndCondision::Forced);
+        let action =
+            self.policy
+                .action(&self.graph.key, &self.graph.relative, EndCondition::Forced);
 
         println!("Drain graph: {:?}", action);
         match action {
@@ -123,8 +123,8 @@ where
             _ => {
                 if self.num_skipped > 0 {
                     let start = self.graph.global.len() - self.num_skipped;
-                    for i in start..self.graph.local.len() {
-                        let desc = self.graph.local.get(i).unwrap();
+                    for i in start..self.graph.relative.len() {
+                        let desc = self.graph.relative.get(i).unwrap();
                         self.optimizations
                             .iter_mut()
                             .for_each(|optimization| optimization.register(&desc));

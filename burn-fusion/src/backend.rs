@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    graph::{Context, TensorOpsDescription, ToBeCached},
+    graph::{Context, OptimizationFactory, TensorOpsDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -93,20 +93,15 @@ pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     fn build(&self) -> Box<dyn FusionOps<B>>;
     /// Reset the state.
     fn reset(&mut self);
-    /// The size of operations fused.
-    fn len(&self) -> usize;
-    /// If the current operation is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
-impl<B: FusionBackend> ToBeCached<Box<dyn FusionOps<B>>> for Box<dyn FusionOpsBuilder<B>> {
-    fn build(&self) -> Box<dyn FusionOps<B>> {
+impl<B: FusionBackend> OptimizationFactory<Box<dyn FusionOps<B>>> for Box<dyn FusionOpsBuilder<B>> {
+    fn create(&self) -> Box<dyn FusionOps<B>> {
         FusionOpsBuilder::build(self.as_ref())
     }
 }
 
+/// The operation created from the [builder](FusionOpsBuilder).
 pub trait FusionOps<B: FusionBackend>: Send {
     /// Execute the operation.
     fn execute(&self, context: &mut Context<'_, '_, B>);
