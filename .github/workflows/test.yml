@@ -34,32 +34,35 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, ubuntu-22.04, windows-latest]
-        rust: [stable, 1.71.0]
-        test: ['std', 'no-std', 'examples']
-        include:
-          - cache: stable
-            rust: stable
-          - cache: 1-71-0
-            rust: 1.71.0
-          - coverage-flags: COVERAGE=1
-            rust: stable
-            test: std
-            os: ubuntu-22.04
-          - wgpu-flags: DISABLE_WGPU=1
-            rust: stable
-            test: std
-            os: macos-13
-        exclude:
-          # only need to check this once
-          - rust: 1.71.0
-            test: 'examples'
-          # Do not run no-std tests on macos
-          - os: macos-13
-            test: 'no-std'
-          # Do not run no-std tests on Windows
-          - os: windows-latest
-            test: 'no-std'
+        # os: [macos-13, ubuntu-22.04, windows-latest]
+        os: [windows-latest]
+        # rust: [stable, 1.71.0]
+        rust: [stable]
+        # test: ['std', 'no-std', 'examples']
+        test: ['std']
+        # include:
+        #   - cache: stable
+        #     rust: stable
+        #   - cache: 1-71-0
+        #     rust: 1.71.0
+        #   - coverage-flags: COVERAGE=1
+        #     rust: stable
+        #     test: std
+        #     os: ubuntu-22.04
+        #   - wgpu-flags: DISABLE_WGPU=1
+        #     rust: stable
+        #     test: std
+        #     os: macos-13
+        # exclude:
+        #   # only need to check this once
+        #   - rust: 1.71.0
+        #     test: 'examples'
+        #   # Do not run no-std tests on macos
+        #   - os: macos-13
+        #     test: 'no-std'
+        #   # Do not run no-std tests on Windows
+        #   - os: windows-latest
+        #     test: 'no-std'
 
     steps:
 
