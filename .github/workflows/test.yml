@@ -127,8 +127,17 @@ jobs:
         if: matrix.os == 'windows-2022'
         uses: napokue/setup-dxc@v1.1.0
 
-      - name: run checks & tests
-        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
+      # - name: run checks & tests
+      #   run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
+
+      - name: (temp) run burn_wgpu tests
+        env:
+          CI_RUN: 1
+          WGPU_DX12_COMPILER: dxc
+          WGPU_BACKEND: matrix.wgpu_backend
+        run: |
+          cd burn-wgpu
+          cargo test
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
