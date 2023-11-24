@@ -114,13 +114,4 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::BoolTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
-
-    fn bool_narrow<const D: usize>(
-        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> <LibTorch<E> as Backend>::BoolTensorPrimitive<D> {
-        TchOps::narrow(tensor, dim, start, length)
-    }
 }

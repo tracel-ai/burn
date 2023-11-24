@@ -440,13 +440,4 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
         TchTensor::new(tensor)
     }
-
-    fn narrow<const D: usize>(
-        tensor: TchTensor<E, D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> TchTensor<E, D> {
-        TchOps::narrow(tensor, dim, start, length)
-    }
 }

@@ -850,13 +850,4 @@ pub trait IntTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> IntTensor<B, D>;
-
-    /// Returns a new tensor that is a narrowed version of the given tensor.
-    /// The dimension `dim` ranges from `start` to `start + length`.
-    fn int_narrow<const D: usize>(
-        tensor: IntTensor<B, D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> IntTensor<B, D>;
 }

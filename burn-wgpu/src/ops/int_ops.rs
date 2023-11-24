@@ -327,13 +327,4 @@ where
 
         tensor
     }
-
-    fn int_narrow<const D: usize>(
-        _tensor: IntTensor<Wgpu<G, F, I>, D>,
-        _dim: usize,
-        _start: usize,
-        _length: usize,
-    ) -> IntTensor<Wgpu<G, F, I>, D> {
-        unimplemented!()
-    }
 }

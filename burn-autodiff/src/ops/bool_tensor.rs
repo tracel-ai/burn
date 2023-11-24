@@ -92,13 +92,4 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::BoolTensorPrimitive<D> {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
-
-    fn bool_narrow<const D: usize>(
-        _tensor: <Autodiff<B> as Backend>::BoolTensorPrimitive<D>,
-        _dim: usize,
-        _start: usize,
-        _length: usize,
-    ) -> <Autodiff<B> as Backend>::BoolTensorPrimitive<D> {
-        unimplemented!()
-    }
 }

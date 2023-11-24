@@ -457,12 +457,6 @@ where
         ))
     }
 
-    /// Returns a new tensor with the given dimension narrowed to the given range.
-    pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
-        check!(TensorCheck::narrow(&self, dim, start, length));
-        Self::new(K::narrow(self.primitive, dim, start, length))
-    }
-
     /// Iterate over slices of tensors alongside a given dimension.
     ///
     /// # Panics
@@ -1038,26 +1032,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
 
-    /// Narrows a tensor along a dimension.
-    /// The dimension `dim` ranges from `start` to `start + length`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to narrow.
-    /// * `dim` - The dimension along which to narrow.
-    /// * `start` - The start index.
-    /// * `length` - The length of the narrowed dimension.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the narrowed dimension.
-    fn narrow<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> Self::Primitive<D>;
-
     /// Equates the given tensors.
     ///
     /// # Arguments
@@ -1167,15 +1141,6 @@ impl<B: Backend> BasicOps<B> for Float {
         B::cat(vectors, dim)
     }
 
-    fn narrow<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> Self::Primitive<D> {
-        B::narrow(tensor, dim, start, length)
-    }
-
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
@@ -1269,15 +1234,6 @@ impl<B: Backend> BasicOps<B> for Int {
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::int_cat(vectors, dim)
     }
-
-    fn narrow<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> Self::Primitive<D> {
-        B::int_narrow(tensor, dim, start, length)
-    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1364,15 +1320,6 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
-    }
-
-    fn narrow<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> Self::Primitive<D> {
-        B::bool_narrow(tensor, dim, start, length)
     }
 }
 

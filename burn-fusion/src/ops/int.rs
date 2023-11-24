@@ -1346,13 +1346,4 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         (out, out_indices)
     }
-
-    fn int_narrow<const D: usize>(
-        _tensor: IntTensor<Self, D>,
-        _dim: usize,
-        _start: usize,
-        _length: usize,
-    ) -> IntTensor<Self, D> {
-        unimplemented!()
-    }
 }

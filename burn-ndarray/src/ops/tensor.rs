@@ -16,7 +16,6 @@ use burn_tensor::{Distribution, Reader};
 // External crates
 use libm::{cos, erf, sin, tanh};
 
-use burn_tensor::ops::FloatTensor;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
@@ -439,14 +438,5 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
-    }
-
-    fn narrow<const D: usize>(
-        _tensor: FloatTensor<Self, D>,
-        _dim: usize,
-        _start: usize,
-        _length: usize,
-    ) -> FloatTensor<Self, D> {
-        unimplemented!()
     }
 }

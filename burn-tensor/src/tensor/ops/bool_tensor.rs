@@ -258,13 +258,4 @@ pub trait BoolTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> BoolTensor<B, D>;
-
-    /// Returns a new tensor that is a narrowed version of the given tensor.
-    /// The dimension `dim` ranges from `start` to `start + length`.
-    fn bool_narrow<const D: usize>(
-        tensor: BoolTensor<B, D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> BoolTensor<B, D>;
 }

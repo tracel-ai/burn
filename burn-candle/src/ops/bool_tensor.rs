@@ -109,13 +109,4 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
-
-    fn bool_narrow<const D: usize>(
-        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        dim: usize,
-        start: usize,
-        length: usize,
-    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
-        CandleTensor::new(tensor.tensor.narrow(dim, start, length).unwrap())
-    }
 }

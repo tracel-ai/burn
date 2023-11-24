@@ -1,7 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::{IntTensor, IntTensorOps};
+use burn_tensor::ops::IntTensorOps;
 use burn_tensor::Reader;
 
 use burn_tensor::ElementConversion;
@@ -376,14 +376,5 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         dim2: usize,
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
-    }
-
-    fn int_narrow<const D: usize>(
-        _tensor: IntTensor<Self, D>,
-        _dim: usize,
-        _start: usize,
-        _length: usize,
-    ) -> IntTensor<Self, D> {
-        unimplemented!()
     }
 }
