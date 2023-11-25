@@ -45,12 +45,13 @@ where
     }
 
     pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+        let next_ops = self.graph.to_relative(&ops_desc);
+
         let action = self.policy.action(
-            &self.graph.key,
+            &mut self.graph.key,
             &self.graph.relative,
-            EndCondition::NextOps(&ops_desc),
+            EndCondition::NextOps(&next_ops),
         );
-        println!("Register - Action {action:?}");
 
         match action {
             Action::Build => {
@@ -74,7 +75,7 @@ where
                 }
 
                 // Now we can register the current operation.
-                self.graph.add(ops_desc, ops);
+                self.graph.add(ops_desc, next_ops, ops);
                 let last = self.graph.relative.last().unwrap();
 
                 self.optimizations
@@ -93,15 +94,14 @@ where
             Action::Wait => {
                 // Skip one more.
                 self.num_skipped += 1;
-                self.graph.add(ops_desc, ops);
+                self.graph.add(ops_desc, next_ops, ops);
             }
             Action::Execute(exe) => {
+                self.num_skipped = self.graph.len() - exe.len();
                 self.graph
                     .execute_ops(&mut self.handles, &mut self.optimizations, exe);
 
-                // The current operation is skipped in this case, so we reset to num_skipped to 1.
-                self.num_skipped = 1;
-                self.graph.add(ops_desc, ops);
+                self.graph.add(ops_desc, next_ops, ops);
             }
         };
     }
@@ -111,16 +111,18 @@ where
             return;
         }
 
-        let action =
-            self.policy
-                .action(&self.graph.key, &self.graph.relative, EndCondition::Forced);
-        println!("Drain - Action {action:?}");
-
+        let action = self.policy.action(
+            &mut self.graph.key,
+            &self.graph.relative,
+            EndCondition::Forced,
+        );
 
         match action {
             Action::Execute(exe) => {
+                self.num_skipped = self.graph.len() - exe.len();
                 self.graph
                     .execute_ops(&mut self.handles, &mut self.optimizations, exe);
+                // TODO: Fix update path key.
             }
             _ => {
                 if self.num_skipped > 0 {

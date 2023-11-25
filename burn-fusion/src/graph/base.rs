@@ -1,5 +1,6 @@
-use super::GraphKey;
+use super::EndCondition;
 use super::Ops;
+use super::OptimizationPath;
 use super::Policy;
 use super::RelativeGraphConverter;
 use super::TensorOpsDescription;
@@ -11,7 +12,7 @@ use std::ops::RangeBounds;
 pub struct Graph<B: FusionBackend> {
     pub(crate) global: Vec<TensorOpsDescription>,
     pub(crate) relative: Vec<TensorOpsDescription>,
-    pub(crate) key: GraphKey,
+    pub(crate) key: OptimizationPath,
     converter: RelativeGraphConverter,
     ops: Vec<Box<dyn Ops<B>>>,
 }
@@ -21,17 +22,24 @@ impl<B: FusionBackend> Graph<B> {
         Self {
             global: Vec::new(),
             relative: Vec::new(),
-            key: GraphKey::default(),
+            key: OptimizationPath::default(),
             converter: RelativeGraphConverter::default(),
             ops: Vec::new(),
         }
     }
 
-    pub(crate) fn add(&mut self, description: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        let relative = description.to_relative(&mut self.converter);
-        self.key.register(&relative);
+    pub(crate) fn to_relative(&mut self, global: &TensorOpsDescription) -> TensorOpsDescription {
+        global.to_relative(&mut self.converter)
+    }
+
+    pub(crate) fn add(
+        &mut self,
+        global: TensorOpsDescription,
+        relative: TensorOpsDescription,
+        ops: Box<dyn Ops<B>>,
+    ) {
         self.relative.push(relative);
-        self.global.push(description);
+        self.global.push(global);
         self.ops.push(ops);
     }
 
@@ -49,6 +57,7 @@ impl<B: FusionBackend> Graph<B> {
         &mut self,
         range: R,
         handles: &mut HandleContainer<B>,
+        policy: Option<&mut Policy<Box<dyn FusionOps<B>>>>,
     ) {
         for ops in self.global.drain(range.clone()) {
             ops.cleanup_tensor(handles)
@@ -58,10 +67,13 @@ impl<B: FusionBackend> Graph<B> {
         // Rebuilt the local graph when removing partially the global graph.
         self.cleanup_relative_graph();
 
-        for node in self.global.iter() {
-            let relative = node.to_relative(&mut self.converter);
-            self.key.register(&relative);
-            self.relative.push(relative);
+        if let Some(policy) = policy {
+            println!("Rebuilt the state");
+            for node in self.global.iter() {
+                let relative = node.to_relative(&mut self.converter);
+                self.relative.push(relative);
+                policy.action(&mut self.key, &self.relative, EndCondition::Forced);
+            }
         }
     }
 
@@ -81,14 +93,10 @@ impl<B: FusionBackend> Graph<B> {
         let mut context = self.converter.context(handles);
         ops.execute(&mut context);
 
-        self.remove(0..num_keep, handles);
+        self.remove(0..num_keep, handles, None);
 
         for optimization in optimizations.iter_mut() {
             optimization.reset();
-
-            for node in self.relative.iter() {
-                optimization.register(node);
-            }
         }
     }
 
@@ -111,10 +119,10 @@ impl<B: FusionBackend> Graph<B> {
             false => Some(next_ops.remove(0)),
         };
 
-        let ops = policy.register(&self.key, &optimization.ops, relative, next_ops);
+        let ops = policy.register_new(&mut self.key, &optimization.ops, relative, next_ops);
         ops.execute(&mut context);
 
-        self.remove(0..num_keep, handles);
+        self.remove(0..num_keep, handles, Some(policy));
 
         for optimization in optimizations.iter_mut() {
             optimization.reset();
