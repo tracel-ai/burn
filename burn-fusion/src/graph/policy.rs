@@ -181,9 +181,11 @@ impl<T> Policy<T> {
             let value = values
                 .get(0)
                 .expect("We never happen an empty list to the cache.");
-            if value.graph != graph {
-                return Action::Build;
-            }
+
+            // But it has bug
+            // if value.graph != graph {
+            //     return Action::Build;
+            // }
 
             value
         };

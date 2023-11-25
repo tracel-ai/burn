@@ -114,8 +114,8 @@ where
         let action =
             self.policy
                 .action(&self.graph.key, &self.graph.relative, EndCondition::Forced);
+        println!("Drain - Action {action:?}");
 
-        println!("Drain Graph - Action {action:?}");
 
         match action {
             Action::Execute(exe) => {

@@ -65,14 +65,6 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
             .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
             .collect::<Vec<_>>();
 
-        println!("Num Execute {}", self.operators.len());
-        // println!("Local inputs : {:?}", self.inputs);
-        // println!("Global inputs : {:?}", inputs);
-
-        println!("Scalars_floats : {:?}", context.scalar_floats);
-        // println!("Local outputs : {:?}", self.outputs);
-        // println!("Global outputs : {:?}", outputs);
-
         FusionKernel::new(&self.device)
             .inputs(&inputs, &context.scalar_floats)
             .body(&self.operators)
@@ -127,7 +119,6 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        println!("Num Build {}", self.len());
         Box::new(FloatElementWiseFusionOps {
             inputs,
             outputs,

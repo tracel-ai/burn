@@ -66,7 +66,6 @@ impl RelativeGraphConverter {
         self.scalar_ints.clear();
     }
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E) -> E {
-        println!("Add relative float {}", elem.elem::<f32>());
         self.scalar_floats.push(elem.elem());
         0.elem()
     }
