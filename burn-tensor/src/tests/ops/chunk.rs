@@ -50,6 +50,8 @@ mod tests {
             Data::from([1]),
             Data::from([2]),
             Data::from([3]),
+            Data::from([4]),
+            Data::from([5]),
         ];
 
         for (index, tensor) in tensors.iter().enumerate() {
