@@ -10,7 +10,7 @@ use std::marker::PhantomData;
 #[cfg(target_family = "wasm")]
 pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) const WORKGROUP_DEFAULT: usize = 32;
+pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 
 /// Static wgpu kernel to create a [source template](SourceTemplate).
 pub trait StaticKernelSource: Send + 'static + Sync {
