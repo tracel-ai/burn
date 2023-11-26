@@ -172,20 +172,16 @@ jobs:
           CI_RUN: 1
         run: |
           cd burn-common
-          env
-          ls target/debug
           cargo test
-          pwd
-          ls ../target
 
-      - name: run wgpu-info
-        shell: bash
-        run: |
-          echo "$PATH"
-          cargo install wgpu-info
-          which wgpu-info
-          export RUST_LOG=trace
-          wgpu-info
+      # - name: run wgpu-info
+      #   shell: bash
+      #   run: |
+      #     echo "$PATH"
+      #     cargo install wgpu-info
+      #     which wgpu-info
+      #     export RUST_LOG=trace
+      #     wgpu-info
 
       - name: (temp) run burn_wgpu tests
         shell: bash
@@ -193,8 +189,6 @@ jobs:
           CI_RUN: 1
         run: |
           cd burn-wgpu
-          ls target/debug
-          env
           cargo test
 
       - name: Codecov upload
