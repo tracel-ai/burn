@@ -18,7 +18,7 @@ derive-new = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = false }
 half = { workspace = true }
 
-candle-core = { version = "0.3.1" }
+candle-core = { git = "https://github.com/huggingface/candle", rev = "481c45d" }
 
 
 [dev-dependencies]
