@@ -513,9 +513,10 @@ where
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
+    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
-    /// Otherwise the n first chunks (where n is the remainder) will be larger by one. 
+    /// Otherwise all chunks will be of equal size except for the last one.
     ///
     /// # Panics
     ///
@@ -531,20 +532,22 @@ where
             return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
         }
 
-        let chunk_size = size / chunks;
-        let cnt_additional = size % chunks;
         let mut tensors = Vec::with_capacity(chunks);
-
         let mut sum_chunk_size = 0;
-        for i in 0..chunks {
-            let chunk_size = if i < cnt_additional {
-                chunk_size + 1
-            } else {
-                chunk_size
-            };
-
-            tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-            sum_chunk_size += chunk_size;
+        if size % chunks == 0 {
+            let chunk_size = size / chunks;
+            for _ in 0..chunks {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+        } else {
+            let chunk_size = (size / chunks) + 1; // assumes not divisible
+            for _ in 0..chunks - 1 {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+            let remainder = size % chunk_size;
+            tensors.push(self.clone().narrow(dim, sum_chunk_size, remainder));
         }
 
         tensors
