@@ -480,7 +480,7 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let x = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
-    ///     let y = x.tril_or_triu(1, Tensor::<B, D, Int>::greater_elem);
+    ///     let y = x.tri_compare(1, Tensor::greater_elem);
     /// }
     /// ```
     pub fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
