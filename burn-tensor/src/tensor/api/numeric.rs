@@ -479,11 +479,13 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///     let x = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
-    ///     let y = x.tri_compare(1, Tensor::greater_elem);
+    ///     let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///     let tensor = tensor.tri_compare(1, Tensor::greater_elem);
+    ///     println!("{}", tensor);
+    ///     // Tensor { data: [[0, 2, 3], [0, 0, 6], [0, 0, 0]], ... }
     /// }
     /// ```
-    pub fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
+    pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
     where
         F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
     {
@@ -518,8 +520,10 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let x = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
-    ///   let y = x.triu(1);
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///    let tensor = tensor.triu(1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [[0, 2, 3], [0, 0, 6], [0, 0, 0]], ... }
     /// }
     /// ```
     pub fn triu(self, diagonal: i64) -> Self {
@@ -535,8 +539,10 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let x = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
-    ///    let y = x.tril(1);
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///    let tensor = tensor.tril(-1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [[0, 0, 0], [4, 0, 0], [7, 8, 0]], ... }
     /// }
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
