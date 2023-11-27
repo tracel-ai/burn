@@ -172,7 +172,7 @@ impl TensorCheck {
 
         if D < 2 {
             check = check.register(
-                "Triu",
+                "Tri",
                 TensorError::new(format!(
                     "The input tensor must have at least 2 dimensions, got {D}"
                 )),
