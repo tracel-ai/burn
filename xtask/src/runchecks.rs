@@ -5,6 +5,7 @@
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
 use std::env;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
@@ -29,7 +30,7 @@ fn handle_child_process(mut child: Child, error: &str) {
 // Run a command
 fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &str) {
     // Format command
-    println!("{command} {}\n\n", args.join(" "));
+    log::info!("{command} {}\n\n", args.join(" "));
 
     // Run command as child process
     let command = Command::new(command)
@@ -43,20 +44,10 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
     handle_child_process(command, child_error);
 }
 
-// Define and run rustup command
-fn rustup(command: &str, target: &str) {
-    run_command(
-        "rustup",
-        &[command, "add", target],
-        "Failed to run rustup",
-        "Failed to wait for rustup child process",
-    )
-}
-
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str) {
     // Print cargo command
-    println!("\ncargo {} {}\n", command, params);
+    log::info!("\ncargo {} {}\n", command, params);
 
     // Run cargo
     let cargo = Command::new("cargo")
@@ -79,16 +70,6 @@ fn cargo_build(params: Params) {
         "build",
         params + "--color=always",
         "Failed to run cargo build",
-    );
-}
-
-// Run cargo install command
-fn cargo_install(params: Params) {
-    // Run cargo install
-    run_cargo(
-        "install",
-        params + "--color=always",
-        "Failed to run cargo install",
     );
 }
 
@@ -133,7 +114,7 @@ fn cargo_doc(params: Params) {
 
 // Build and test a crate in a no_std environment
 fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
-    println!("\nRun checks for `{}` crate", crate_name);
+    log::info!("\nRun checks for `{}` crate", crate_name);
 
     // Run cargo build --no-default-features
     cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -201,7 +182,7 @@ fn run_grcov() {
 
 // Run no_std checks
 fn no_std_checks() {
-    println!("Checks for no_std environment...\n\n");
+    log::info!("Checks for no_std environment...\n\n");
 
     // Install wasm32 target
     rustup("target", WASM32_TARGET);
@@ -224,7 +205,7 @@ fn no_std_checks() {
 
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
-    println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
+    log::info!("\n\nRun checks for burn-core crate with tch and wgpu backend");
 
     // Run cargo test --features test-tch
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
@@ -235,7 +216,7 @@ fn burn_core_std() {
 
 // Test burn-dataset features
 fn burn_dataset_features_std() {
-    println!("\n\nRun checks for burn-dataset features");
+    log::info!("\n\nRun checks for burn-dataset features");
 
     // Run cargo build --all-features
     cargo_build(["-p", "burn-dataset", "--all-features"].into());
@@ -255,7 +236,7 @@ fn std_checks() {
     // Check if COVERAGE environment variable is set
     let is_coverage = std::env::var("COVERAGE").is_ok();
 
-    println!("Running std checks");
+    log::info!("Running std checks");
 
     // Check format
     cargo_fmt();
@@ -290,20 +271,14 @@ fn std_checks() {
 }
 
 fn check_typos() {
-    // This path defines where typos-cl is installed on different
-    // operating systems.
-    let typos_cli_path = std::env::var("CARGO_HOME")
-        .map(|v| std::path::Path::new(&v).join("bin/typos-cli"))
-        .unwrap();
-
     // Do not run cargo install on CI to speed up the computation.
     // Check whether the file has been installed on
-    if std::env::var("CI_RUN").is_err() && !typos_cli_path.exists() {
+    if std::env::var("CI_RUN").is_err() && !is_binary_installed("typos-cli") {
         // Install typos-cli
         cargo_install(["typos-cli", "--version", "1.16.5"].into());
     }
 
-    println!("Running typos check \n\n");
+    log::info!("Running typos check \n\n");
 
     // Run typos command as child process
     let typos = Command::new("typos")
@@ -317,7 +292,7 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    println!("Checking examples compile \n\n");
+    log::info!("Checking examples compile \n\n");
 
     std::fs::read_dir("examples").unwrap().for_each(|dir| {
         let dir = dir.unwrap();
@@ -331,7 +306,7 @@ fn check_examples() {
             return;
         }
         let path = path.to_str().unwrap();
-        println!("Checking {path} \n\n");
+        log::info!("Checking {path} \n\n");
 
         let child = Command::new("cargo")
             .arg("check")
@@ -347,8 +322,14 @@ fn check_examples() {
     });
 }
 
+#[derive(clap::Parser)]
+pub(crate) struct Options {
+    /// The environment to run checks against
+    env: CheckType,
+}
+
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub enum CheckType {
+pub(crate) enum CheckType {
     /// Run all checks.
     #[default]
     All,
@@ -362,7 +343,7 @@ pub enum CheckType {
     Examples,
 }
 
-pub fn run(env: CheckType) -> anyhow::Result<()> {
+pub(crate) fn run(opts: Options) -> anyhow::Result<()> {
     // Start time measurement
     let start = Instant::now();
 
@@ -373,7 +354,7 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     // are run.
     //
     // If no environment has been passed, run all checks.
-    match env {
+    match opts.env {
         CheckType::Std => std_checks(),
         CheckType::NoStd => no_std_checks(),
         CheckType::Typos => check_typos(),
@@ -393,12 +374,45 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     let duration = start.elapsed();
 
     // Print duration
-    println!("Time elapsed for the current execution: {:?}", duration);
+    log::info!("Time elapsed for the current execution: {:?}", duration);
 
     Ok(())
 }
 
-struct Params {
+// Check if a cargo binary is installed in the correct directory
+#[inline]
+pub(crate) fn is_binary_installed(binary_name: &str) -> bool {
+    // This path defines where a cargo binary is installed on different
+    // operating systems.
+    let binary_path = std::env::var("CARGO_HOME")
+        .map(|v| Path::new(&v).join("bin").join(binary_name))
+        .unwrap();
+
+    // Check if the binary path exists
+    binary_path.exists()
+}
+
+// Define and run rustup command
+pub(crate) fn rustup(command: &str, target: &str) {
+    run_command(
+        "rustup",
+        &[command, "add", target],
+        "Failed to run rustup",
+        "Failed to wait for rustup child process",
+    )
+}
+
+// Run cargo install command
+pub(crate) fn cargo_install(params: Params) {
+    // Run cargo install
+    run_cargo(
+        "install",
+        params + "--color=always",
+        "Failed to run cargo install",
+    );
+}
+
+pub(crate) struct Params {
     params: Vec<String>,
 }
 
