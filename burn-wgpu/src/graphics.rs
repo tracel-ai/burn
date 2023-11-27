@@ -78,9 +78,27 @@ impl GraphicsApi for WebGpu {
 
 impl GraphicsApi for AutoGraphicsApi {
     fn backend() -> wgpu::Backend {
+        // Allow overriding AutoGraphicsApi backend with ENV var in std test environments
+        #[cfg(not(no_std))]
+        #[cfg(test)]
+        if let Ok(backend_str) = std::env::var("AUTO_GRAPHICS_BACKEND") {
+            match backend_str.to_lowercase().as_str() {
+                "metal" => return wgpu::Backend::Metal,
+                "vulkan" => return wgpu::Backend::Vulkan,
+                "dx12" => return wgpu::Backend::Dx12,
+                "opengl" => return wgpu::Backend::Gl,
+                "webgpu" => return wgpu::Backend::BrowserWebGpu,
+                _ => {
+                    eprintln!("Invalid graphics backend specified in GRAPHICS_BACKEND environment variable");
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        // In a no_std environment or if the environment variable is not set
         #[cfg(target_os = "macos")]
         return wgpu::Backend::Metal;
         #[cfg(not(target_os = "macos"))]
-        wgpu::Backend::Vulkan
+        return wgpu::Backend::Vulkan;
     }
 }
