@@ -233,6 +233,7 @@ impl ONNXGraph {
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
+                NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
@@ -606,6 +607,13 @@ impl ONNXGraph {
         let name = &node.name;
 
         GlobalAvgPoolNode::new(name, input, output)
+    }
+
+    fn cos_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::cos(input, output)
     }
 }
 

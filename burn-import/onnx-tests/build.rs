@@ -12,6 +12,7 @@ fn main() {
         .input("tests/batch_norm/batch_norm.onnx")
         .input("tests/clip/clip_opset16.onnx")
         .input("tests/clip/clip_opset7.onnx")
+        .input("tests/cos/cos.onnx")
         .input("tests/concat/concat.onnx")
         .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")

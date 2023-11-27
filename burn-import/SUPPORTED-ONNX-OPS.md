@@ -43,7 +43,7 @@ represent the corresponding Burn Op.
 | [Conv2d][34]                     |       ✅       |      ✅      |
 | [ConvInteger][37]                |       ❌       |      ❌      |
 | [ConvTranspose][38]              |       ❌       |      ✅      |
-| [Cos][39]                        |       ❌       |      ✅      |
+| [Cos][39]                        |       ✅       |      ✅      |
 | [Cosh][40]                       |       ❌       |      ❌      |
 | [CumSum][41]                     |       ❌       |      ❌      |
 | [DepthToSpace][42]               |       ❌       |      ❌      |

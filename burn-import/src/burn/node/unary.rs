@@ -21,13 +21,14 @@ pub struct UnaryNode {
 #[derive(Clone)]
 pub enum UnaryNodeKind {
     Cast,
+    Cos,
     Erf,
     Flatten,
     LogSoftmax,
-    Softmax,
-    Relu,
     Reciprocal,
+    Relu,
     Sigmoid,
+    Softmax,
     Sqrt,
     Tanh,
     Transpose,
@@ -37,13 +38,14 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast => "cast",
+            Self::Cos => "cos",
             Self::Erf => "erf",
             Self::Flatten => "flatten",
             Self::LogSoftmax => "log_softmax",
-            Self::Softmax => "softmax",
-            Self::Relu => "relu",
             Self::Reciprocal => "reciprocal",
+            Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
+            Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
@@ -153,6 +155,11 @@ impl UnaryNode {
     pub(crate) fn reciprocal(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.recip() };
         Self::new(input, output, UnaryNodeKind::Reciprocal, Rc::new(function))
+    }
+
+    pub(crate) fn cos(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.cos()};
+        Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -398,6 +405,25 @@ mod tests {
             },
             vec!["scalar1".to_string()],
             vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_cos() {
+        one_node_graph(
+            UnaryNode::cos(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.cos();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 }

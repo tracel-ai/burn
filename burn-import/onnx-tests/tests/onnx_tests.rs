@@ -20,6 +20,7 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    cos,
     conv1d,
     conv2d,
     div,
@@ -639,6 +640,18 @@ mod tests {
         let output = model.forward(input);
         // data from pyTorch
         let expected = Data::from([[[[1.0000, 0.5000, 0.3333, 0.2500]]]]);
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn cos() {
+        let model: cos::Model<Backend> = cos::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.5403, -0.6536, -0.9111, 0.9912]]]]);
+
         output.to_data().assert_approx_eq(&expected, 4);
     }
 }
