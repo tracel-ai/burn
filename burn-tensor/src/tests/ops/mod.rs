@@ -39,4 +39,4 @@ mod squeeze;
 mod sub;
 mod tanh;
 mod transpose;
-mod triu;
+mod tri;

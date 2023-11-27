@@ -167,7 +167,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn triu<const D: usize>() -> Self {
+    pub(crate) fn tri<const D: usize>() -> Self {
         let mut check = Self::Ok;
 
         if D < 2 {
