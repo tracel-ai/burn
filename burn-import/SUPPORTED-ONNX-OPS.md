@@ -57,7 +57,7 @@ represent the corresponding Burn Op.
 | [Elu][50]                        |       ❌       |      ❌      |
 | [Equal][51]                      |       ✅       |      ✅      |
 | [Erf][52]                        |       ✅       |      ✅      |
-| [Exp][53]                        |       ❌       |      ✅      |
+| [Exp][53]                        |       ✅       |      ✅      |
 | [Expand][54]                     |       ❌       |      ❌      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |

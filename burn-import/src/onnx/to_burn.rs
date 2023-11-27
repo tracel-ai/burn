@@ -232,6 +232,7 @@ impl ONNXGraph {
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
+                NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -614,6 +615,13 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::cos(input, output)
+    }
+
+    fn exp_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::exp(input, output)
     }
 }
 

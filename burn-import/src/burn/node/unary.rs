@@ -23,6 +23,7 @@ pub enum UnaryNodeKind {
     Cast,
     Cos,
     Erf,
+    Exp,
     Flatten,
     LogSoftmax,
     Reciprocal,
@@ -40,6 +41,7 @@ impl UnaryNodeKind {
             Self::Cast => "cast",
             Self::Cos => "cos",
             Self::Erf => "erf",
+            Self::Exp => "exp",
             Self::Flatten => "flatten",
             Self::LogSoftmax => "log_softmax",
             Self::Reciprocal => "reciprocal",
@@ -160,6 +162,11 @@ impl UnaryNode {
     pub(crate) fn cos(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.cos()};
         Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
+    }
+
+    pub(crate) fn exp(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.exp()};
+        Self::new(input, output, UnaryNodeKind::Exp, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -418,6 +425,25 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.cos();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_exp() {
+        one_node_graph(
+            UnaryNode::exp(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.exp();
 
                     tensor2
                 }

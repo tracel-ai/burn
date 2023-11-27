@@ -28,6 +28,7 @@ include_models!(
     dropout_opset7,
     equal,
     erf,
+    exp,
     flatten,
     gather,
     global_avr_pool,
@@ -653,5 +654,17 @@ mod tests {
         let expected = Data::from([[[[0.5403, -0.6536, -0.9111, 0.9912]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn exp() {
+        let model: exp::Model<Backend> = exp::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[0.0000, 0.6931]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[1., 2.]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 2);
     }
 }
