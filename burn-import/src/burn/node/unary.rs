@@ -28,6 +28,7 @@ pub enum UnaryNodeKind {
     Relu,
     Reciprocal,
     Sigmoid,
+    Sqrt,
     Tanh,
     Transpose,
 }
@@ -43,6 +44,7 @@ impl UnaryNodeKind {
             Self::Relu => "relu",
             Self::Reciprocal => "reciprocal",
             Self::Sigmoid => "sigmoid",
+            Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
         }
@@ -131,6 +133,11 @@ impl UnaryNode {
         let dim = dim.to_tokens();
         let function = move |input| quote! { burn::tensor::activation::softmax(#input, #dim) };
         Self::new(input, output, UnaryNodeKind::Softmax, Rc::new(function))
+    }
+
+    pub(crate) fn sqrt(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.sqrt()};
+        Self::new(input, output, UnaryNodeKind::Sqrt, Rc::new(function))
     }
 
     pub(crate) fn tanh(input: Type, output: Type) -> Self {

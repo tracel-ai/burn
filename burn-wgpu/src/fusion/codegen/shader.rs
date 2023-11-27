@@ -19,12 +19,13 @@ pub enum Visibility {
     ReadWrite,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
     #[allow(dead_code)]
     I32,
     U32,
+    Bool,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -187,6 +188,7 @@ impl Display for Elem {
             Elem::F32 => f.write_str("f32"),
             Elem::I32 => f.write_str("i32"),
             Elem::U32 => f.write_str("u32"),
+            Elem::Bool => f.write_str("bool"),
         }
     }
 }

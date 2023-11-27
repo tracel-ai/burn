@@ -457,6 +457,18 @@ where
         ))
     }
 
+    /// Concatenates all tensors into a new one along a new dimension.
+    ///
+    /// # Panics
+    ///
+    /// If all tensors don't have the same shape.
+    /// Given dimension is not with range of 0..=D2
+    pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::stack(&tensors, dim));
+        let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
+        Tensor::<B, D2, K>::cat(tensors, dim)
+    }
+
     /// Iterate over slices of tensors alongside a given dimension.
     ///
     /// # Panics
@@ -469,6 +481,74 @@ where
     pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K> {
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
+    }
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
+        check!(TensorCheck::dim_ops::<D>("narrow", dim));
+        check!(TensorCheck::narrow(&self, dim, start, length));
+
+        let ranges: Vec<_> = (0..D)
+            .map(|i| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..self.shape().dims[i]
+                }
+            })
+            .collect();
+
+        let ranges_array: [_; D] = ranges.try_into().unwrap();
+
+        self.slice(ranges_array)
+    }
+
+    /// Attempts to split the tensor along the given dimension into chunks.
+    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
+    ///
+    /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
+    /// Otherwise all chunks will be of equal size except for the last one.
+    ///
+    /// # Panics
+    ///
+    ///  If the dimension is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    /// A vector of tensors.
+    pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::dim_ops::<D>("chunk", dim));
+
+        let size = self.shape().dims[dim];
+        if size < chunks {
+            return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
+        }
+
+        let chunk_size = size / chunks;
+        let cnt_additional = size % chunks;
+        let mut tensors = Vec::with_capacity(chunks);
+
+        let mut sum_chunk_size = 0;
+        for i in 0..chunks {
+            let chunk_size = if i < cnt_additional {
+                chunk_size + 1
+            } else {
+                chunk_size
+            };
+
+            tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+            sum_chunk_size += chunk_size;
+        }
+
+        tensors
     }
 }
 

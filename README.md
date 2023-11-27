@@ -493,7 +493,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 <div align="left">
 <img align="right" src="./assets/ember-community.png" height="96px"/>
 
-If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/PbjzCPfs)!
+If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/uPEBbYYDB6)!
 We try to be as welcoming as possible to everybody from any background.
 You can ask your questions and share what you built with the community!
 

@@ -49,6 +49,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.unsqueeze_dim(dim)`              | `tensor.unsqueeze(dim)`              |
 | `tensor.slice(ranges)`                   | `tensor[(*ranges,)]`                 |
 | `tensor.slice_assign(ranges, values)`    | `tensor[(*ranges,)] = values`        |
+| `tensor.narrow(dim, start, length)`      | `tensor.narrow(dim, start, length)`  |
+| `tensor.chunk(num_chunks, dim)`          | `tensor.chunk(num_chunks, dim)`      |
 | `tensor.device()`                        | `tensor.device`                      |
 | `tensor.to_device(device)`               | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                    | `tensor.repeat([1, 1, 4])`           |
@@ -60,6 +62,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::from_data_device(data, device)` | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
+| `Tensor::stack(tensors, dim)`            | torch.stack(tensors, dim)`           |
 
 ### Numeric Operations
 
