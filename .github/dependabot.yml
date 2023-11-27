@@ -1,12 +1,26 @@
 version: 2
 
 updates:
-  - package-ecosystem: cargo
-    directory: /
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
 
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "cargo"
+    directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
+    groups:
+      wgpu-dependencies:
+        patterns:
+        - "futures-intrusive"
+        - "pollster"
+        - "text_placeholder"
+        - "wgpu"
+      wasm-bindgen-dependencies:
+        patterns:
+        - "js-sys"
+        - "wasm-bindgen"
+        - "wasm-bindgen-futures"
+        - "wasm-logger"
+        - "wasm-timer"
