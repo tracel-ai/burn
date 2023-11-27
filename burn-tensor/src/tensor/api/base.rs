@@ -513,10 +513,9 @@ where
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
-    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
-    /// Otherwise all chunks will be of equal size except for the last one.
+    /// Otherwise the n first chunks (where n is the remainder) will be larger by one. 
     ///
     /// # Panics
     ///
