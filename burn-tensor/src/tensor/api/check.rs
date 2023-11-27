@@ -304,6 +304,51 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn stack<B: Backend, const D: usize, K: BasicOps<B>>(
+        tensors: &[Tensor<B, D, K>],
+        dim: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        if dim > D {
+            check = check.register(
+                "Stack",
+                TensorError::new(
+                    "Can't stack tensors on a dim that exceeds the tensors dimension (inclusive)",
+                )
+                .details(format!(
+                    "Trying to concatenate tensors with {D} dimensions on axis {dim}."
+                )),
+            );
+        }
+
+        if tensors.is_empty() {
+            return check.register(
+                "Stack",
+                TensorError::new("Can't stack an empty list of tensors."),
+            );
+        }
+
+        let shape_reference = tensors.get(0).unwrap().shape();
+
+        for tensor in tensors {
+            let shape = tensor.shape();
+
+            if shape_reference != shape {
+                return check.register(
+                    "Stack",
+                    TensorError::new("Can't stack tensors with different shapes").details(format!(
+                        "Provided dimension ({}), tensors shapes: {:?}",
+                        dim,
+                        tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
     pub(crate) fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
         tensors: &[Tensor<B, D, K>],
         dim: usize,
