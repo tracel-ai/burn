@@ -479,10 +479,19 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///     let tensor = Tensor::<B, 2, Int>::from_ints([
+    ///       [1, 2, 3],
+    ///       [4, 5, 6],
+    ///       [7, 8, 9]
+    ///     ]);
+    ///
     ///     let tensor = tensor.tri_compare(1, Tensor::greater_elem);
     ///     println!("{}", tensor);
-    ///     // Tensor { data: [[0, 2, 3], [0, 0, 6], [0, 0, 0]], ... }
+    ///     // Tensor { data: [
+    ///     //   [0, 2, 3],
+    ///     //   [0, 0, 6],
+    ///     //   [0, 0, 0]
+    ///     // ], ... }
     /// }
     /// ```
     pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
@@ -520,10 +529,18 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
     ///    let tensor = tensor.triu(1);
     ///    println!("{}", tensor);
-    ///    // Tensor { data: [[0, 2, 3], [0, 0, 6], [0, 0, 0]], ... }
+    ///    // Tensor { data: [
+    ///    //   [0, 2, 3],
+    ///    //   [0, 0, 6],
+    ///    //   [0, 0, 0]
+    ///    // ], ... }
     /// }
     /// ```
     pub fn triu(self, diagonal: i64) -> Self {
@@ -539,10 +556,19 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
+    ///
     ///    let tensor = tensor.tril(-1);
     ///    println!("{}", tensor);
-    ///    // Tensor { data: [[0, 0, 0], [4, 0, 0], [7, 8, 0]], ... }
+    ///    // Tensor { data: [
+    ///    //   [0, 0, 0],
+    ///    //   [4, 0, 0],
+    ///    //   [7, 8, 0]
+    ///    // ], ... }
     /// }
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
