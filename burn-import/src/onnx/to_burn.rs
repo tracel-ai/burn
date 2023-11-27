@@ -248,6 +248,7 @@ impl ONNXGraph {
                 NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
+                NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
                 NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
@@ -403,6 +404,13 @@ impl ONNXGraph {
         let output = node.outputs.get(0).unwrap().to_type();
 
         UnaryNode::gelu(input, output)
+    }
+
+    fn log_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::log(input, output)
     }
 
     fn flatten_conversion(node: Node) -> UnaryNode {

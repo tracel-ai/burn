@@ -27,6 +27,7 @@ fn main() {
         .input("tests/gather/gather.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/linear/linear.onnx")
+        .input("tests/log/log.onnx")
         .input("tests/log_softmax/log_softmax.onnx")
         .input("tests/maxpool2d/maxpool2d.onnx")
         .input("tests/mul/mul.onnx")

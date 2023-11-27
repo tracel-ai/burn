@@ -34,6 +34,7 @@ include_models!(
     gather,
     global_avr_pool,
     linear,
+    log,
     log_softmax,
     maxpool2d,
     mul,
@@ -676,8 +677,20 @@ mod tests {
         let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
 
         let output = model.forward(input);
-        let expected = Data::from([[[[ 0.8413,  3.9999,  9.0000, 25.0000]]]]);
+        let expected = Data::from([[[[0.8413, 3.9999, 9.0000, 25.0000]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
-    }    
+    }
+
+    #[test]
+    fn log() {
+        let model: log::Model<Backend> = log::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.0000, 1.3863, 2.1972, 3.2189]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
 }

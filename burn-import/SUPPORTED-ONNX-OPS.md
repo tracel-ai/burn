@@ -91,7 +91,7 @@ represent the corresponding Burn Op.
 | [Less][84]                       |       ❌       |      ✅      |
 | [LessOrEqual][85]                |       ❌       |      ✅      |
 | Linear                           |       ✅       |      ✅      |
-| [Log][87]                        |       ❌       |      ✅      |
+| [Log][87]                        |       ✅       |      ✅      |
 | [LogSoftmax][88]                 |       ✅       |      ✅      |
 | [Loop][89]                       |       ❌       |      ❌      |
 | [LpNormalization][90]            |       ❌       |      ❌      |

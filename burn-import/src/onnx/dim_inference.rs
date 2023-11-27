@@ -82,6 +82,7 @@ pub fn dim_inference(
             NodeType::GatherElements => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
             NodeType::Linear => linear_update_outputs(node),
+            NodeType::Log => same_as_input(node),
             NodeType::LogSoftmax => same_as_input(node),
             NodeType::MaxPool2d => same_as_input(node),
             NodeType::Mul => same_as_input(node),
