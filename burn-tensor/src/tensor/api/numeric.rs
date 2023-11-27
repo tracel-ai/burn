@@ -462,6 +462,44 @@ where
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
+
+    /// Returns the upper triangular part of a matrix (2-D tensor) or batch of matrices input,
+    /// the other elements of the result tensor out are set to 0.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let x = Tensor::<B, 2, Int>::from_ints([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+    ///   let y = x.triu(1);
+    /// }
+    /// ```
+    pub fn triu(self, diagonal: i64) -> Self {
+        check!(TensorCheck::triu::<{ D }>());
+
+        let shape = self.shape();
+        let height = shape.dims[D - 2];
+        let width = shape.dims[D - 1];
+
+        let row_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..height, &self.device());
+        let col_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..width, &self.device());
+
+        let mut row_shape = [1; D];
+        row_shape[D - 2] = height;
+        let mut col_shape = [1; D];
+        col_shape[D - 1] = width;
+
+        let row_broadcast = row_indices.reshape(Shape::new(row_shape));
+        let col_broadcast = col_indices.reshape(Shape::new(col_shape));
+
+        let mask = (row_broadcast - (col_broadcast - diagonal))
+            .greater_elem(0)
+            .unsqueeze();
+
+        self.mask_fill(mask, 0)
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>

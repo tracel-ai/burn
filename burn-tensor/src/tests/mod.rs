@@ -72,6 +72,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
+        burn_tensor::testgen_triu!();
 
         // test stats
         burn_tensor::testgen_var!();
