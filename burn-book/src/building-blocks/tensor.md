@@ -114,6 +114,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_min(min)`                          | `torch.clamp(tensor, min=min)`                 |
 | `tensor.clamp_max(max)`                          | `torch.clamp(tensor, max=max)`                 |
 | `tensor.abs()`                                   | `torch.abs(tensor)`                            |
+| `tensor.triu(diagonal)                           | `torch.triu(tensor, diagonal)`                 |
+| `tensor.tril(diagonal)                           | `torch.triu(tensor, diagonal)`                 |
+| `tensor.tri_compare(diagonal, comparator)        | N/A                                            |
 
 ### Float Operations
 
