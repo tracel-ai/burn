@@ -41,6 +41,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn test_chunk_not_divisible() {
         let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..6).chunk(7, 0);
         assert_eq!(tensors.len(), 6);
@@ -59,6 +60,7 @@ mod tests {
         }
     }
 
+    #[test]
     fn test_chunk_multi_dimension() {
         let tensors: Vec<Tensor<TestBackend, 2, Int>> =
             Tensor::from_data(Data::from([[0, 1, 2, 3]])).chunk(2, 1);
