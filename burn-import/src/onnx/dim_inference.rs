@@ -78,6 +78,7 @@ pub fn dim_inference(
             NodeType::Erf => same_as_input(node),
             NodeType::Exp => same_as_input(node),
             NodeType::Flatten => flatten_update_outputs(node),
+            NodeType::Gelu => same_as_input(node),
             NodeType::GatherElements => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
             NodeType::Linear => linear_update_outputs(node),

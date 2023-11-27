@@ -30,6 +30,7 @@ include_models!(
     erf,
     exp,
     flatten,
+    gelu,
     gather,
     global_avr_pool,
     linear,
@@ -667,4 +668,16 @@ mod tests {
 
         output.to_data().assert_approx_eq(&expected, 2);
     }
+
+    #[test]
+    fn gelu() {
+        let model: gelu::Model<Backend> = gelu::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[ 0.8413,  3.9999,  9.0000, 25.0000]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }    
 }

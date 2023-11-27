@@ -65,7 +65,7 @@ represent the corresponding Burn Op.
 | [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ❌       |      ❌      |
 | [GatherND][60]                   |       ❌       |      ❌      |
-| [Gelu][61]                       |       ❌       |      ✅      |
+| [Gelu][61]                       |       ✅       |      ✅      |
 | [Gemm][62]                       |       ❌       |      ❌      |
 | [GlobalAveragePool][63]          |       ✅       |      ✅      |
 | [GlobalLpPool][64]               |       ❌       |      ❌      |

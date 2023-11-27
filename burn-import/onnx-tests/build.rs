@@ -23,6 +23,7 @@ fn main() {
         .input("tests/erf/erf.onnx")
         .input("tests/exp/exp.onnx")
         .input("tests/flatten/flatten.onnx")
+        .input("tests/gelu/gelu.onnx")
         .input("tests/gather/gather.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/linear/linear.onnx")
