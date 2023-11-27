@@ -329,10 +329,10 @@ impl TensorCheck {
             );
         }
 
-        let mut shape_reference = tensors.get(0).unwrap().shape();
+        let shape_reference = tensors.get(0).unwrap().shape();
 
         for tensor in tensors {
-            let mut shape = tensor.shape();
+            let shape = tensor.shape();
 
             if shape_reference != shape {
                 return check.register(
