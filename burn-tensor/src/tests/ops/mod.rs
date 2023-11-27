@@ -37,6 +37,7 @@ mod sin;
 mod slice;
 mod sqrt;
 mod squeeze;
+mod stack;
 mod sub;
 mod tanh;
 mod transpose;
