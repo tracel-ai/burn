@@ -473,27 +473,6 @@ where
     ///              Use `Tensor::<B, D, Int>::greater_elem` for upper triangular
     ///              and `Tensor::<B, D, Int>::lower_elem` for lower triangular.
     ///
-    /// # Example
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Int, Tensor};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2, Int>::from_ints([
-    ///       [1, 2, 3],
-    ///       [4, 5, 6],
-    ///       [7, 8, 9]
-    ///     ]);
-    ///
-    ///     let tensor = tensor.tri_compare(1, Tensor::greater_elem);
-    ///     println!("{}", tensor);
-    ///     // Tensor { data: [
-    ///     //   [0, 2, 3],
-    ///     //   [0, 0, 6],
-    ///     //   [0, 0, 0]
-    ///     // ], ... }
-    /// }
-    /// ```
     pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
     where
         F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
