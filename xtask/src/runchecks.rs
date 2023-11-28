@@ -231,7 +231,7 @@ fn burn_core_std() {
 
     // Run cargo test --features test-wgpu
     // Disabled for macOS in CI due to unavailable Metal device
-    if std::env::var("CI_RUN").is_err() && !cfg!(target_os = "macos") {
+    if !(std::env::var("CI_RUN").is_ok() && cfg!(target_os = "macos")) {
         cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
     }
 }
@@ -267,7 +267,12 @@ fn std_checks() {
     cargo_clippy();
 
     // Build each workspace
-    cargo_build(["--workspace", "--exclude=xtask"].into());
+    // Disabled burn-wgpu for macOS in CI due to unavailable Metal device
+    if std::env::var("CI_RUN").is_ok() && cfg!(target_os = "macos") {
+        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
+    } else {
+        cargo_build(["--workspace", "--exclude=xtask"].into());
+    }
 
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
