@@ -23,6 +23,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "accelerate"))]
     fn should_diff_swap_dims() {
         let tensor_1 =
             TestAutodiffTensor::from_floats([[[0.0, 1.0], [3.0, 4.0]], [[6.0, 7.0], [9.0, 10.0]]])
