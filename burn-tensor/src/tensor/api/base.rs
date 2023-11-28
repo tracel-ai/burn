@@ -496,20 +496,7 @@ where
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
-
-        let ranges: Vec<_> = (0..D)
-            .map(|i| {
-                if i == dim {
-                    start..(start + length)
-                } else {
-                    0..self.shape().dims[i]
-                }
-            })
-            .collect();
-
-        let ranges_array: [_; D] = ranges.try_into().unwrap();
-
-        self.slice(ranges_array)
+        Self::new(K::narrow(self.primitive, dim, start, length))
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
@@ -526,31 +513,10 @@ where
     /// A vector of tensors.
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-
-        let size = self.shape().dims[dim];
-        if size < chunks {
-            return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
-        }
-
-        let mut tensors = Vec::with_capacity(chunks);
-        let mut sum_chunk_size = 0;
-        if size % chunks == 0 {
-            let chunk_size = size / chunks;
-            for _ in 0..chunks {
-                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-        } else {
-            let chunk_size = (size / chunks) + 1; // assumes not divisible
-            for _ in 0..chunks - 1 {
-                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-            let remainder = size % chunk_size;
-            tensors.push(self.clone().narrow(dim, sum_chunk_size, remainder));
-        }
-
-        tensors
+        K::chunk(self.primitive, chunks, dim)
+            .into_iter()
+            .map(|v| Self::new(v))
+            .collect()
     }
 }
 
@@ -1159,6 +1125,94 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
     }
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    fn narrow<const D: usize>(
+        tensor: Self::Primitive<D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> Self::Primitive<D> {
+        let ranges: Vec<_> = (0..D)
+            .map(|i| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..Self::shape(&tensor).dims[i]
+                }
+            })
+            .collect();
+
+        let ranges_array: [_; D] = ranges.try_into().unwrap();
+
+        Self::slice(tensor, ranges_array)
+    }
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    /// # Remarks
+    ///
+    /// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
+    /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
+    /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For splitting a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
+    /// which is more high-level and designed for public use.
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        let size = Self::shape(&tensor).dims[dim];
+
+        if size < chunks {
+            return (0..size)
+                .map(|i| Self::narrow(tensor.clone(), dim, i, 1))
+                .collect();
+        }
+
+        let chunk_size = size / chunks;
+        let cnt_additional = size % chunks;
+        let mut tensors = Vec::with_capacity(chunks);
+
+        let mut sum_chunk_size = 0;
+        for i in 0..chunks {
+            let chunk_size = if i < cnt_additional {
+                chunk_size + 1
+            } else {
+                chunk_size
+            };
+
+            tensors.push(Self::narrow(
+                tensor.clone(),
+                dim,
+                sum_chunk_size,
+                chunk_size,
+            ));
+            sum_chunk_size += chunk_size;
+        }
+        tensors
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -1246,6 +1300,14 @@ impl<B: Backend> BasicOps<B> for Float {
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::equal(lhs, rhs))
     }
+
+    // fn chunk<const D: usize>(
+    //     tensor: Self::Primitive<D>,
+    //     chunks: usize,
+    //     dim: usize,
+    // ) -> Vec<Self::Primitive<D>> {
+    //     B::chunk(tensor, chunks, dim)
+    // }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -1333,6 +1395,14 @@ impl<B: Backend> BasicOps<B> for Int {
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::int_cat(vectors, dim)
     }
+
+    // fn chunk<const D: usize>(
+    //     tensor: Self::Primitive<D>,
+    //     chunks: usize,
+    //     dim: usize,
+    // ) -> Vec<Self::Primitive<D>> {
+    //     B::int_chunk(tensor, chunks, dim);
+    // }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1420,6 +1490,14 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
     }
+
+    // fn chunk<const D: usize>(
+    //     tensor: Self::Primitive<D>,
+    //     chunks: usize,
+    //     dim: usize,
+    // ) -> Vec<Self::Primitive<D>> {
+    //     B::bool_chunk(tensor, chunks, dim);
+    // }
 }
 
 /// Trait used for reshape arguments.

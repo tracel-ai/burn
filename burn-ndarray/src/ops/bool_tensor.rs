@@ -128,4 +128,12 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
+
+    // fn bool_chunk<const D: usize>(
+    //     tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    //     chunks: usize,
+    //     dim: usize,
+    // ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    //     NdArrayOps::chunk(tensor, chunks, dim)
+    // }
 }
