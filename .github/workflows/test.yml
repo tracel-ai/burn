@@ -34,7 +34,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-22.04]
+        os: [macos-13, ubuntu-22.04]
         rust: [stable, 1.71.0]
         test: ['std', 'no-std', 'examples']
         include:
@@ -46,6 +46,10 @@ jobs:
             rust: stable
             test: std
             os: ubuntu-22.04
+          - wgpu-flags: DISABLE_WGPU=1
+            rust: stable
+            test: std
+            os: macos-13
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -109,7 +113,7 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: run checks & tests
-        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
