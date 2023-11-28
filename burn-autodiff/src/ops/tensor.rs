@@ -1085,7 +1085,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             phantom: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> Backward<B::FullPrecisionBackend, D, 1> for ToFullPrecision<B> {
+        #[rustfmt::skip]
+        impl<B: Backend, const D: usize> Backward<B::FullPrecisionBackend, D, 1>
+            for ToFullPrecision<B> {
             type State = ();
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
@@ -1113,7 +1115,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             phantom: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<B::FullPrecisionBackend> {
+        #[rustfmt::skip]
+        impl<B: Backend, const D: usize> Backward<B, D, 1>
+            for FromFullPrecision<B::FullPrecisionBackend> {
             type State = ();
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {

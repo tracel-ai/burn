@@ -75,7 +75,9 @@ impl ConfigEnumAnalyzer {
             let variant_name = &variant.ident;
             let (variant_input, variant_output) = self.gen_variant_field(variant);
 
-            quote! { Self::#variant_name #variant_input => #enum_name::#variant_name #variant_output }
+            quote! {
+                Self::#variant_name #variant_input => #enum_name::#variant_name #variant_output
+            }
         });
         let name = &self.name;
 
@@ -100,7 +102,9 @@ impl ConfigEnumAnalyzer {
             let variant_name = &variant.ident;
             let (variant_input, variant_output) = self.gen_variant_field(variant);
 
-            quote! { #enum_name::#variant_name #variant_input => Self::#variant_name #variant_output }
+            quote! {
+                #enum_name::#variant_name #variant_input => Self::#variant_name #variant_output
+            }
         });
         let name = &self.name;
 

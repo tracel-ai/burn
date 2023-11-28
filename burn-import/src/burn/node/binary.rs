@@ -175,7 +175,11 @@ mod tests {
                     Type::Tensor(TensorType::new_float("tensor3", 4)),
                 ),
                 quote! {
-                    pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                    pub fn forward(
+                        &self,
+                        tensor1: Tensor<B, 4>,
+                        tensor2: Tensor<B, 4>
+                    ) -> Tensor<B, 4> {
                         let tensor3 = tensor1.$operator(tensor2);
 
                         tensor3
@@ -326,7 +330,11 @@ mod tests {
                 }
 
                 #[allow(clippy::let_and_return)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4, Bool> {
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>
+                ) -> Tensor<B, 4, Bool> {
                     let tensor3 = tensor1.equal(tensor2);
 
                     tensor3
