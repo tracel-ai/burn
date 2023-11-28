@@ -107,8 +107,16 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
+      - name: Set OS-specific flags
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-22.04" ]; then
+            echo "COVERAGE_FLAGS=${{ matrix.coverage_flags }}" >> $GITHUB_ENV
+          else
+            echo "COVERAGE_FLAGS=" >> $GITHUB_ENV
+          fi
+
       - name: run checks & tests
-        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ env.COVERAGE_FLAGS }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
