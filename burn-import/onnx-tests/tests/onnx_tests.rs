@@ -659,6 +659,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn exp() {
         let model: exp::Model<Backend> = exp::Model::new();
 

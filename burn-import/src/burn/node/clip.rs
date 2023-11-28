@@ -87,7 +87,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.clamp(0f64, 1f64);
 
@@ -130,7 +130,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.clamp_min(0f64);
 
@@ -173,7 +173,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.clamp_max(1f64);
 
