@@ -109,7 +109,7 @@ jobs:
 
       - name: Set OS-specific flags
         run: |
-          if [ "${{ matrix.os }}" = "ubuntu-22.04" ]; then
+          if [ "${{ runner.os }}" = "Linux" ]; then
             echo "COVERAGE_FLAGS=${{ matrix.coverage_flags }}" >> $GITHUB_ENV
           else
             echo "COVERAGE_FLAGS=" >> $GITHUB_ENV
