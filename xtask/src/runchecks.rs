@@ -249,6 +249,12 @@ fn burn_dataset_features_std() {
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 }
 
+// Test burn-candle with accelerate (macOS)
+#[cfg(target_os = "macos")]
+fn burn_candle_accelerate() {
+    cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+}
+
 fn std_checks() {
     // Set RUSTDOCFLAGS environment variable to treat warnings as errors
     // for the documentation build
@@ -283,6 +289,10 @@ fn std_checks() {
 
     // Test each workspace
     cargo_test(["--workspace"].into());
+
+    // Test burn-candle with accelerate (macOS)
+    #[cfg(target_os = "macos")]
+    burn_candle_accelerate();
 
     // Test burn-dataset features
     burn_dataset_features_std();
