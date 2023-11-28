@@ -1,54 +1,175 @@
-use super::{Graph, Optimization, Policy};
+use super::{Action, EndCondition, Graph, Optimization, Policy};
 use crate::{FusionBackend, FusionOps, FusionStatus, HandleContainer};
 
-/// The graph execution trait abstracts the way the graph is executing optimizations.
-pub trait GraphExecution<B: FusionBackend>: Default + Send {
-    /// Execute the given graph using the list of potential [optimizations](Optimization).
-    /// May do nothing if empty or not ready
-    fn maybe_execute(
-        &mut self,
-        graph: &mut Graph<B>,
-        handles: &mut HandleContainer<B>,
-        optimizations: &mut [Optimization<B>],
-        policy: &mut Policy<Box<dyn FusionOps<B>>>,
-        force: bool,
-    );
+/// Execute an optimization following a greedy algorithm.
+pub struct GreedyGraphExecution<B: FusionBackend> {
+    policy: Policy<Box<dyn FusionOps<B>>>,
+    optimizations: Vec<Optimization<B>>,
+    num_skipped: usize,
 }
 
-/// Execute an optimization following a greedy algorithm.
-#[derive(Default)]
-pub struct GreedyGraphExecution;
+#[derive(Clone, Copy, Debug)]
+pub enum ExecutionMode {
+    NewOps,
+    Sync,
+}
 
-impl<B: FusionBackend> GraphExecution<B> for GreedyGraphExecution {
-    fn maybe_execute(
+impl<B: FusionBackend> GreedyGraphExecution<B> {
+    pub fn new(optimizations: Vec<Optimization<B>>) -> Self {
+        Self {
+            policy: Policy::default(),
+            optimizations,
+            num_skipped: 0,
+        }
+    }
+
+    pub fn maybe_execute(
         &mut self,
         graph: &mut Graph<B>,
         handles: &mut HandleContainer<B>,
-        optimizations: &mut [Optimization<B>],
-        policy: &mut Policy<Box<dyn FusionOps<B>>>,
-        force: bool,
+        mode: ExecutionMode,
     ) {
         loop {
-            if !force && still_optimizing(optimizations) {
+            if graph.is_empty() {
                 break;
             }
 
-            match find_best_optimization_index(optimizations) {
-                Some(index) => {
-                    graph.execute_optimization(handles, index, optimizations, policy);
-                }
-                None => {
-                    graph.execute(handles);
-                    optimizations.iter_mut().for_each(|ops| ops.reset());
-                }
-            }
+            let action = self.action(graph, mode);
+            println!("force {mode:?}, {:?}", action);
 
-            if graph.is_empty() {
-                // No more ops to fuse.
+            match action {
+                Action::Build => {
+                    let build_action = self.build(graph, mode);
+
+                    match build_action {
+                        BuildAction::ExecuteOptimization(ops) => {
+                            graph.execute_ops(handles, ops);
+                            self.reset(graph);
+                        }
+                        BuildAction::ExecuteOperations => {
+                            graph.execute(handles);
+                            self.reset(graph);
+                        }
+                        BuildAction::ContinueBuilding => {}
+                    };
+                    if self.num_skipped == 0 {
+                        break;
+                    }
+                }
+                Action::Wait => {
+                    self.num_skipped += 1;
+
+                    match mode {
+                        ExecutionMode::NewOps => break,
+                        ExecutionMode::Sync => panic!("Can't wait while sync"),
+                    };
+                }
+                Action::Execute(ops) => {
+                    graph.execute_ops(handles, ops);
+                    self.reset(graph);
+                }
+            };
+
+            if let ExecutionMode::NewOps = mode {
                 break;
             }
         }
     }
+
+    fn build(&mut self, graph: &mut Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
+        let offset = match mode {
+            ExecutionMode::NewOps => 1,
+            ExecutionMode::Sync => 0,
+        };
+        for i in (0..self.num_skipped + offset).rev() {
+            let index = graph.relative.len() - 1 - i;
+            println!(
+                "Register node {index} based on {}; num skiped {} - i {}",
+                graph.relative.len(),
+                self.num_skipped,
+                i
+            );
+            let relative = &graph.relative[index];
+
+            for ops in self.optimizations.iter_mut() {
+                ops.register(relative);
+            }
+        }
+        self.num_skipped = 0;
+
+        if let ExecutionMode::NewOps = mode {
+            if still_optimizing(&self.optimizations) {
+                println!("Continue optimizing");
+                return BuildAction::ContinueBuilding;
+            }
+        }
+
+        match find_best_optimization_index(&self.optimizations) {
+            Some(index) => {
+                println!("Execute optimization {index}");
+                let optimization = &self.optimizations[index];
+                let (relative, next_ops) = graph.lazy_format_relative();
+
+                let ops =
+                    self.policy
+                        .register(&optimization.ops, relative.to_vec(), next_ops.cloned());
+                BuildAction::ExecuteOptimization(ops)
+            }
+            None => {
+                println!("Execute operation");
+                BuildAction::ExecuteOperations
+            }
+        }
+    }
+
+    fn reset(&mut self, graph: &mut Graph<B>) {
+        for ops in self.optimizations.iter_mut() {
+            ops.reset();
+        }
+        self.num_skipped = graph.relative.len();
+
+        println!("RESET: with num_skipped = {}", self.num_skipped);
+        // Reset the policy state.
+        for i in 0..self.num_skipped {
+            let relative = &graph.relative[0..i];
+            let next_ops = &graph.relative[i];
+
+            let _ = self
+                .policy
+                .action(relative, EndCondition::NextOps(next_ops));
+        }
+    }
+
+    fn action<'a>(
+        &'a mut self,
+        graph: &mut Graph<B>,
+        mode: ExecutionMode,
+    ) -> Action<'a, Box<dyn FusionOps<B>>> {
+        let (graph, next_ops) = match mode {
+            ExecutionMode::NewOps => graph.lazy_format_relative(),
+            ExecutionMode::Sync => (graph.relative.as_slice(), None),
+        };
+        let end_condition = next_ops
+            .map(|ops| EndCondition::NextOps(ops))
+            .unwrap_or(EndCondition::Forced);
+
+        let action = self.policy.action(graph, end_condition);
+
+        match mode {
+            ExecutionMode::NewOps => action,
+            ExecutionMode::Sync => match action {
+                Action::Build => Action::Build,
+                Action::Wait => Action::Build,
+                Action::Execute(ops) => Action::Execute(ops),
+            },
+        }
+    }
+}
+
+enum BuildAction<'a, B: FusionBackend> {
+    ExecuteOptimization(&'a Box<dyn FusionOps<B>>),
+    ExecuteOperations,
+    ContinueBuilding,
 }
 
 fn still_optimizing<B: FusionBackend>(optimizations: &[Optimization<B>]) -> bool {

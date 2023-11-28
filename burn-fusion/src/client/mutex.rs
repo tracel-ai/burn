@@ -1,26 +1,21 @@
 use super::FusionClient;
-use crate::{
-    graph::{GraphExecution, TensorOpsDescription},
-    FusionBackend, FusionServer, FusionTensor, Handle,
-};
+use crate::{graph::TensorOpsDescription, FusionBackend, FusionServer, FusionTensor, Handle};
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
-pub struct MutexFusionClient<B, G>
+pub struct MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
-    server: Arc<Mutex<FusionServer<B, G>>>,
+    server: Arc<Mutex<FusionServer<B>>>,
     device: B::FusionDevice,
 }
 
-impl<B, G> Clone for MutexFusionClient<B, G>
+impl<B> Clone for MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
     fn clone(&self) -> Self {
         Self {
@@ -30,13 +25,11 @@ where
     }
 }
 
-impl<B, G> FusionClient for MutexFusionClient<B, G>
+impl<B> FusionClient for MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
     type FusionBackend = B;
-    type GraphExecution = G;
 
     fn new(device: B::FusionDevice) -> Self {
         Self {

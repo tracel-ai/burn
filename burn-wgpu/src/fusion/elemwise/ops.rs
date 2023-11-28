@@ -690,15 +690,21 @@ mod tests {
         }
     }
 
-    fn execute<B: Backend>(data_1: Data<f32, 2>, data_2: Data<f32, 2>) -> Data<f32, 2> {
+    fn execute<B: Backend>(data_1: Data<f32, 2>, data_2: Data<f32, 2>, a: bool) -> Data<f32, 2> {
         let tensor_1 = Tensor::<B, 2>::from_data(data_1.convert());
         let tensor_2 = Tensor::<B, 2>::from_data(data_2.convert());
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4.clone() + 5.0;
+        let mut tensor_5 = tensor_4.clone() + 5.0;
+        if a {
+            tensor_5 = tensor_5 + 1;
+            tensor_5 = tensor_5 - 1;
+        }
         let tensor_6 = burn_tensor::activation::gelu(tensor_5 + tensor_3.clone());
         let mask = tensor_4.lower_equal(tensor_3);
-        tensor_6.mask_fill(mask, 0.3).into_data().convert()
+        let tmp = tensor_6.mask_fill(mask, 0.3);
+
+        tmp.into_data().convert()
     }
 
     #[test]
@@ -711,9 +717,9 @@ mod tests {
         let data_2 =
             Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
 
-        let result_ref = execute::<Backend>(data_1.clone(), data_2.clone());
-        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone());
-        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone());
+        let result_ref = execute::<Backend>(data_1.clone(), data_2.clone(), false);
+        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone(), true);
+        let result_fused = execute::<FusedBackend>(data_1.clone(), data_2.clone(), true);
 
         result_fused.assert_approx_eq(&result_ref, 3);
         panic!("Allo");

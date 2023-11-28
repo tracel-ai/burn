@@ -5,9 +5,7 @@ use crate::{
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
-use burn_fusion::{
-    client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
-};
+use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
 
@@ -31,7 +29,7 @@ where
 {
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
-    type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
+    type FusionClient = MutexFusionClient<Self>;
 
     fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOpsBuilder<Self>>> {
         vec![Box::new(FloatElementWiseFusionOpsBuilder::new(

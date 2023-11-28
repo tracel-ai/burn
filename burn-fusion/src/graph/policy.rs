@@ -10,16 +10,17 @@ use std::hash::Hasher;
 pub struct Policy<O> {
     starters: Starters,
     optimizations: Vec<OptimizationItem<O>>,
+    current_path: OptimizationPath,
 }
 
 #[derive(Default)]
-pub struct Starters {
+struct Starters {
     starter_indices: HashMap<u64, Vec<(TensorOpsDescription, usize)>>,
     starters: Vec<Vec<OptimizationId>>,
 }
 
 impl Starters {
-    pub fn get(&self, ops: &TensorOpsDescription) -> Vec<OptimizationId> {
+    fn get(&self, ops: &TensorOpsDescription) -> Vec<OptimizationId> {
         let key = self.graph_key(ops);
         let values = match self.starter_indices.get(&key) {
             Some(val) => val,
@@ -43,7 +44,7 @@ impl Starters {
         val
     }
 
-    pub fn insert(&mut self, ops: &TensorOpsDescription, new_id: OptimizationId) {
+    fn insert(&mut self, ops: &TensorOpsDescription, new_id: OptimizationId) {
         let key = self.graph_key(ops);
         let values = match self.starter_indices.get_mut(&key) {
             Some(val) => val,
@@ -89,21 +90,21 @@ pub trait OptimizationFactory<T> {
 
 type OptimizationId = usize;
 
-pub struct OptimizationItem<O> {
+struct OptimizationItem<O> {
     graph: Vec<TensorOpsDescription>,
     end_condition: Vec<TensorOpsDescription>,
     ops: O,
 }
 
 #[derive(Default, Clone)]
-pub struct OptimizationPath {
+struct OptimizationPath {
     candidates: Vec<OptimizationId>,
     availables: Vec<(OptimizationId, usize)>,
     perfect: Option<OptimizationId>,
 }
 
 impl OptimizationPath {
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.candidates.clear();
         self.availables.clear();
         self.perfect = None;
@@ -144,6 +145,7 @@ pub enum Action<'a, T> {
 ///     [Add - Accepted] - [Div - Accepted] - [Exp - Accepted] - [Matmul - Refused]
 ///     In this case we should not execute the fused kernel [Add] and [div], but wait to execute
 ///     the fused kernel [Add] - [Div] - [Exp].
+#[derive(Clone)]
 pub enum EndCondition<'a> {
     /// The next operation that signal the end of the operation.
     NextOps(&'a TensorOpsDescription),
@@ -157,21 +159,22 @@ impl<T> Policy<T> {
         Self {
             starters: Starters::default(),
             optimizations: Vec::new(),
+            current_path: OptimizationPath::default(),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.current_path.clear();
     }
 
     /// Compute the next [action](Action) to be taken.
     pub fn action<'a>(
-        &'a self,
-        path: &mut OptimizationPath,
+        &'a mut self,
         graph: &[TensorOpsDescription],
         end_condition: EndCondition,
     ) -> Action<'a, T> {
-        if let Some(candidate) = path.perfect {
-            return Action::Execute(&self.optimizations.get(candidate).unwrap().ops);
-        };
-
-        if graph.is_empty() && path.candidates.is_empty() {
+        if graph.is_empty() {
+            self.current_path.clear();
             // Starter
             let ops = match end_condition {
                 EndCondition::NextOps(ops) => ops,
@@ -181,13 +184,17 @@ impl<T> Policy<T> {
             if candidates.is_empty() {
                 return Action::Build;
             }
-            path.candidates = candidates;
+            self.current_path.candidates = candidates;
             return Action::Wait;
         }
 
+        if let Some(candidate) = self.current_path.perfect {
+            return Action::Execute(&self.optimizations.get(candidate).unwrap().ops);
+        };
+
         // Invalidate candidates.
         let mut invalidated_candidate = Vec::new();
-        for candidate in path.candidates.iter() {
+        for candidate in self.current_path.candidates.iter() {
             let graph_candidate = match self.optimizations.get(*candidate) {
                 Some(val) => val,
                 None => panic!("Should have candidate"),
@@ -211,30 +218,30 @@ impl<T> Policy<T> {
                 let ops = match end_condition {
                     EndCondition::NextOps(ops) => ops,
                     EndCondition::Forced => {
-                        path.perfect = Some(*candidate);
+                        self.current_path.perfect = Some(*candidate);
                         return Action::Execute(&graph_candidate.ops);
                     }
                 };
 
                 if graph_candidate.end_condition.contains(ops) {
-                    path.perfect = Some(*candidate);
+                    self.current_path.perfect = Some(*candidate);
                     return Action::Execute(&graph_candidate.ops);
                 } else {
-                    path.availables.push((*candidate, graph.len()));
+                    self.current_path.availables.push((*candidate, graph.len()));
                     invalidated_candidate.push(*candidate);
                 }
             }
         }
 
         let mut updated_candidates = Vec::new();
-        core::mem::swap(&mut updated_candidates, &mut path.candidates);
+        core::mem::swap(&mut updated_candidates, &mut self.current_path.candidates);
 
-        path.candidates = updated_candidates
+        self.current_path.candidates = updated_candidates
             .into_iter()
             .filter(|candidate| !invalidated_candidate.contains(candidate))
             .collect();
 
-        if path.candidates.is_empty() {
+        if self.current_path.candidates.is_empty() {
             return Action::Build;
         } else {
             return Action::Wait;
@@ -242,14 +249,14 @@ impl<T> Policy<T> {
     }
 
     /// Register a new optimization for the given graph and next operation.
-    pub fn register_new<'a, Factory: OptimizationFactory<T>>(
+    pub fn register<'a, Factory: OptimizationFactory<T>>(
         &'a mut self,
-        path: &mut OptimizationPath,
         factory: &Factory,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
     ) -> &'a T {
-        let existing_optim = path
+        let existing_optim = self
+            .current_path
             .availables
             .iter()
             .find(|(_candidate, len)| *len == graph.len());
@@ -319,7 +326,6 @@ mod tests {
     #[test]
     fn can_register_ops_for_a_graph() {
         let mut cache = Policy::<String>::new();
-        let mut key = OptimizationPath::default();
 
         let ops1 = TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(UnaryOpsDescription {
             input: TensorDescription {
@@ -359,27 +365,25 @@ mod tests {
                 },
             }));
 
-        cache.register_new(
-            &mut key,
+        cache.register(
             &Action1,
             vec![ops1.clone(), ops2.clone()],
             Some(ops3.clone()),
         );
         // Second run.
-        let mut key = OptimizationPath::default();
         let mut graph = Vec::new();
 
         graph.push(ops1);
 
-        let actual = cache.action(&mut key, &graph, EndCondition::NextOps(&ops2));
+        let actual = cache.action(&graph, EndCondition::NextOps(&ops2));
         let expected = Action::<String>::Wait;
 
         graph.push(ops2);
 
-        let actual = cache.action(&mut key, &graph, EndCondition::NextOps(&ops3));
+        let actual = cache.action(&graph, EndCondition::NextOps(&ops3));
         let expected_ops = "Action1".to_string();
         let expected = Action::<String>::Execute(&expected_ops);
 
-        let actual = cache.action(&mut key, &graph, EndCondition::Forced);
+        let actual = cache.action(&graph, EndCondition::Forced);
     }
 }
