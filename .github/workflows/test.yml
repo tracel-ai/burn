@@ -45,6 +45,7 @@ jobs:
           - coverage-flags: COVERAGE=1
             rust: stable
             test: std
+            os: ubuntu-22.04
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -107,16 +108,8 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
-      - name: Set OS-specific flags
-        run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            echo "COVERAGE_FLAGS=${{ matrix.coverage_flags }}" >> $GITHUB_ENV
-          else
-            echo "COVERAGE_FLAGS=" >> $GITHUB_ENV
-          fi
-
       - name: run checks & tests
-        run: ${{ env.COVERAGE_FLAGS }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
