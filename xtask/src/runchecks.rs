@@ -230,7 +230,10 @@ fn burn_core_std() {
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
 
     // Run cargo test --features test-wgpu
-    cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    // Disabled for macOS in CI due to unavailable Metal device
+    if std::env::var("CI_RUN").is_err() && !cfg!(target_os = "macos") {
+        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    }
 }
 
 // Test burn-dataset features
