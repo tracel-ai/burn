@@ -1,14 +1,14 @@
 # Model
 
-The first step is to create a project and add the different Burn dependencies. In a `Cargo.toml`
-file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-train`. Note that the
-`serde` dependency is necessary for serialization and is mandatory for the time being.
+The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml` file,
+add the `burn` dependency with `train` and `wgpu` features. Note that the `serde` dependency is also mandatory
+for the time being, as it is needed for serialization.
 
 ```toml
 [package]
-edition = "2021"
 name = "my-first-burn-model"
 version = "0.1.0"
+edition = "2021"
 
 [dependencies]
 burn = { version = "0.10.0", features=["train", "wgpu"]}
@@ -24,7 +24,6 @@ pooling and ReLU activations. We will also use dropout to improve training perfo
 Let us start by creating a model in a file `model.rs`.
 
 ```rust , ignore
-// Import required for the model.rs file
 use burn::{
     config::Config,
     module::Module,
