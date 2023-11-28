@@ -1,9 +1,9 @@
-use super::{Action, EndCondition, Graph, Optimization, Policy};
+use super::{CacheResult, EndCondition, Graph, Optimization, OptimizationPath};
 use crate::{FusionBackend, FusionOps, FusionStatus, HandleContainer};
 
 /// Execute an optimization following a greedy algorithm.
 pub struct GreedyGraphExecution<B: FusionBackend> {
-    policy: Policy<Box<dyn FusionOps<B>>>,
+    optimization_path: OptimizationPath<Box<dyn FusionOps<B>>>,
     optimizations: Vec<Optimization<B>>,
     num_skipped: usize,
 }
@@ -17,7 +17,7 @@ pub enum ExecutionMode {
 impl<B: FusionBackend> GreedyGraphExecution<B> {
     pub fn new(optimizations: Vec<Optimization<B>>) -> Self {
         Self {
-            policy: Policy::default(),
+            optimization_path: OptimizationPath::new(),
             optimizations,
             num_skipped: 0,
         }
@@ -38,7 +38,7 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
             println!("force {mode:?}, {:?}", action);
 
             match action {
-                Action::Build => {
+                CacheResult::Miss => {
                     let build_action = self.build(graph, mode);
 
                     match build_action {
@@ -56,7 +56,7 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
                         break;
                     }
                 }
-                Action::Wait => {
+                CacheResult::OnPath => {
                     self.num_skipped += 1;
 
                     match mode {
@@ -64,7 +64,7 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                Action::Execute(ops) => {
+                CacheResult::Found(ops) => {
                     graph.execute_ops(handles, ops);
                     self.reset(graph);
                 }
@@ -110,9 +110,11 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
                 let optimization = &self.optimizations[index];
                 let (relative, next_ops) = graph.lazy_format_relative();
 
-                let ops =
-                    self.policy
-                        .register(&optimization.ops, relative.to_vec(), next_ops.cloned());
+                let ops = self.optimization_path.complete(
+                    &optimization.ops,
+                    relative.to_vec(),
+                    next_ops.cloned(),
+                );
                 BuildAction::ExecuteOptimization(ops)
             }
             None => {
@@ -135,8 +137,8 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
             let next_ops = &graph.relative[i];
 
             let _ = self
-                .policy
-                .action(relative, EndCondition::NextOps(next_ops));
+                .optimization_path
+                .follow(relative, EndCondition::NextOps(next_ops));
         }
     }
 
@@ -144,7 +146,7 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
         &'a mut self,
         graph: &mut Graph<B>,
         mode: ExecutionMode,
-    ) -> Action<'a, Box<dyn FusionOps<B>>> {
+    ) -> CacheResult<'a, Box<dyn FusionOps<B>>> {
         let (graph, next_ops) = match mode {
             ExecutionMode::NewOps => graph.lazy_format_relative(),
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
@@ -153,14 +155,14 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
             .map(|ops| EndCondition::NextOps(ops))
             .unwrap_or(EndCondition::Forced);
 
-        let action = self.policy.action(graph, end_condition);
+        let action = self.optimization_path.follow(graph, end_condition);
 
         match mode {
             ExecutionMode::NewOps => action,
             ExecutionMode::Sync => match action {
-                Action::Build => Action::Build,
-                Action::Wait => Action::Build,
-                Action::Execute(ops) => Action::Execute(ops),
+                CacheResult::Miss => CacheResult::Miss,
+                CacheResult::OnPath => CacheResult::Miss,
+                CacheResult::Found(ops) => CacheResult::Found(ops),
             },
         }
     }
