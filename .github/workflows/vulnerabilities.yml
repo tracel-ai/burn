@@ -1,9 +1,11 @@
 name: vulnerabilities
 
 on:
+  schedule:
+    - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
   pull_request:
     types: [opened, synchronize]
 
@@ -28,8 +30,11 @@ jobs:
         sudo apt-get install valgrind
 
     - name: Run cargo-valgrind
+      env:
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
       # Looking for vulnerabilities
-      run: CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind -s --leak-check=full --error-exitcode=1" cargo test
+      run: |
+        cargo test
 
   cargo-careful:
 
