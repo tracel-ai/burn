@@ -673,6 +673,7 @@ mod tests {
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 
+    #[test]
     fn cos() {
         let model: cos::Model<Backend> = cos::Model::new();
 
