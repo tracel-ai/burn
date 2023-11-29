@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        rust: [stable, 1.71.0, nightly]
+        rust: [stable, 1.71.0]
         test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
@@ -53,6 +53,12 @@ jobs:
 
       - name: checkout
         uses: actions/checkout@v4
+
+      - name: install rust nightly
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt
+          toolchain: nightly
 
       - name: install rust
         uses: dtolnay/rust-toolchain@master
