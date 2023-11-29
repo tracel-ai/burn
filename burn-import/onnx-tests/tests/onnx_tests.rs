@@ -336,12 +336,15 @@ mod tests {
     fn sqrt() {
         let model: sqrt::Model<Backend> = sqrt::Model::new();
 
-        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input2 = 36f64;
 
-        let output = model.forward(input);
-        let expected = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+        let expected2 = 6.0;
 
-        assert_eq!(output.to_data(), expected);
+        assert_eq!(output1.to_data(), expected1);
+        assert_eq!(output2, expected2);
     }
 
     #[test]

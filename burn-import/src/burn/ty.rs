@@ -20,7 +20,7 @@ pub enum TensorKind {
     Bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScalarKind {
     Int32,
     Int64,
@@ -29,7 +29,7 @@ pub enum ScalarKind {
     Bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarType {
     pub name: Ident,
     pub kind: ScalarKind,

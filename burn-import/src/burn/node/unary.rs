@@ -211,12 +211,23 @@ impl UnaryNode {
     /// 4) tensor -> scalar
     /// 5) scalar -> tensor
     pub(crate) fn cast(input: Type, output: Type) -> Self {
-        let function = match output.clone() {
-            Type::Scalar(scalar) => {
-                let ty = scalar.ty();
-                move |input| quote! { #input as #ty }
+        match (input.clone(), output.clone()) {
+            (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
+                if input_scalar.kind == output_scalar.kind {
+                    // If the input and output types are the same, we don't need to cast.
+                    Self::new(input, output, UnaryNodeKind::Cast, Rc::new(|input| input))
+                } else {
+                    // If the input and output types are different, we need to cast.
+                    let ty = output_scalar.ty();
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::Cast,
+                        Rc::new(move |input| quote! { #input as #ty }),
+                    )
+                }
             }
-            Type::Tensor(_tensor) => {
+            (Type::Tensor(_input_tensor), Type::Tensor(_output_tensor)) => {
                 // TODO: Implement this after tensor Int is implemented (@antimora 8/2/2023)
                 // TODO: If the input is scalar and the output type is a tensor,
                 // we should generate another code block. (@antimora 8/4/2023)
@@ -225,9 +236,7 @@ impl UnaryNode {
             }
 
             _ => panic!("output must be a tensor"),
-        };
-
-        Self::new(input, output, UnaryNodeKind::Cast, Rc::new(function))
+        }
     }
 }
 
