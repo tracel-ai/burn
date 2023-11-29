@@ -24,7 +24,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
                 pub #name: <#ty as burn::record::Record>::Item<S>,
             });
             bounds.extend(quote! {
-                <#ty as Record>::Item<S>:
+                <#ty as burn::record::Record>::Item<S>:
                     serde::Serialize + serde::de::DeserializeOwned,
             });
         }
