@@ -1,4 +1,4 @@
-# Example audit config file
+# Audit config file
 #
 # It may be located in the user home (`~/.cargo/audit.toml`) or in the project
 # root (`.cargo/audit.toml`).
