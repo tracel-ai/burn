@@ -31,9 +31,10 @@ concurrency:
 
 jobs:
   tests:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [macos-13, ubuntu-22.04]
         rust: [stable, 1.71.0]
         test: ['std', 'no-std', 'examples']
         include:
@@ -44,10 +45,18 @@ jobs:
           - coverage-flags: COVERAGE=1
             rust: stable
             test: std
+            os: ubuntu-22.04
+          - wgpu-flags: DISABLE_WGPU=1
+            rust: stable
+            test: std
+            os: macos-13
         exclude:
           # only need to check this once
           - rust: 1.71.0
             test: 'examples'
+          # only need to check this once
+          - os: macos-13
+            test: 'no-std'
 
     steps:
 
@@ -67,6 +76,7 @@ jobs:
           prefix-key: "v5-rust"
 
       - name: free disk space
+        if: runner.os == 'Linux'
         run: |
           df -h
           sudo swapoff -a
@@ -76,6 +86,7 @@ jobs:
           cargo clean --package burn-tch
 
       - name: install llvmpipe and lavapipe
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -y -qq
           sudo add-apt-repository ppa:kisak/kisak-mesa -y
@@ -83,7 +94,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: Run cargo clippy for stable version
-        if: matrix.rust == 'stable' && matrix.test == 'std'
+        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
         uses: giraffate/clippy-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -96,7 +107,7 @@ jobs:
           reporter: github-pr-check
 
       - name: Install grcov
-        if: matrix.rust == 'stable' && matrix.test == 'std'
+        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
         env:
           GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
           GRCOV_VERSION: v0.8.18
@@ -105,10 +116,10 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: run checks & tests
-        run: ${{ matrix.coverage-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
-        if: matrix.rust == 'stable' && matrix.test == 'std'
+        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
         uses: codecov/codecov-action@v3
         with:
           files: lcov.info
