@@ -208,6 +208,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn tri<const D: usize>() -> Self {
+        let mut check = Self::Ok;
+
+        if D < 2 {
+            check = check.register(
+                "Tri",
+                TensorError::new(format!(
+                    "The input tensor must have at least 2 dimensions, got {D}"
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn squeeze<const D2: usize>(dim: usize, tensor_dims: &[usize]) -> Self {
         let mut check = Self::Ok;
         // This should actually be to check that the dimension to squeeze
