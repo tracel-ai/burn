@@ -3,6 +3,9 @@ name: dependencies
 on:
   schedule:
     - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
+  push:
+    tags:
+      - 'v*.*.*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
