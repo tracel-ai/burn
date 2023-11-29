@@ -55,12 +55,29 @@ fn rustup(command: &str, target: &str) {
 
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str) {
+    _run_cargo(command, params, error, false)
+}
+
+// Define and run a nightly cargo command
+fn run_cargo_nightly(command: &str, params: Params, error: &str) {
+    _run_cargo(command, params, error, true)
+}
+
+fn _run_cargo(command: &str, params: Params, error: &str, nightly: bool) {
     // Print cargo command
-    println!("\ncargo {} {}\n", command, params);
+    println!(
+        "\ncargo{} {} {}\n",
+        if nightly { " +nightly" } else { "" },
+        command,
+        params
+    );
+
+    let nightly = if nightly { vec!["+nightly"] } else { vec![] };
 
     // Run cargo
     let cargo = Command::new("cargo")
         .env("CARGO_INCREMENTAL", "0")
+        .args(nightly)
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
@@ -105,7 +122,7 @@ fn cargo_test(params: Params) {
 // Run cargo fmt command
 fn cargo_fmt() {
     // Run cargo fmt
-    run_cargo(
+    run_cargo_nightly(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
