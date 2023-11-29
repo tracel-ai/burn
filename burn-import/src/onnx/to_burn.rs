@@ -591,19 +591,20 @@ impl ONNXGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
-    fn conv_transpose2d_conversion(node: Node) -> ConvTranspose2dNode {
+    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
-        let weight = node
-            .inputs
-            .get(1)
-            .unwrap()
-            .to_owned()
-            .into_tensor()
-            .unwrap();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
         let config = conv_transpose2d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
         let name = &node.name;
-        ConvTranspose2dNode::new(name.to_owned(), input, weight, output, config)
+        ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
     }
 
     fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {

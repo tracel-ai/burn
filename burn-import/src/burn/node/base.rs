@@ -81,7 +81,7 @@ pub enum Node<PS: PrecisionSettings> {
     Constant(ConstantNode<PS>),
     Conv1d(Conv1dNode<PS>),
     Conv2d(Conv2dNode<PS>),
-    ConvTranspose2d(ConvTranspose2dNode),
+    ConvTranspose2d(ConvTranspose2dNode<PS>),
     Dropout(DropoutNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),

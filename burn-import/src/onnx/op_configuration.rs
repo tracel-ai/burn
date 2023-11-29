@@ -121,14 +121,28 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
 
-#[rustfmt::skip]
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut attrs = curr.attrs.clone();
-    let kernel_shape = attrs.remove("kernel_shape").map(AttributeValue::into_i64s).unwrap_or_default();
-    let stride = attrs.remove("strides").map(AttributeValue::into_i64s).unwrap_or_else(|| vec![1, 1]);
-    let pads = attrs.remove("pads").map(AttributeValue::into_i64s).unwrap_or_else(|| vec![0, 0]);
-    let dilations = attrs.remove("dilations").map(AttributeValue::into_i64s).unwrap_or_else(|| vec![1, 1]);
-    let group = attrs.remove("group").map(AttributeValue::into_i64).unwrap_or(1);
+    let kernel_shape = attrs
+        .remove("kernel_shape")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_default();
+    let stride = attrs
+        .remove("strides")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let pads = attrs
+        .remove("pads")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
+    let dilations = attrs
+        .remove("dilations")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let group = attrs
+        .remove("group")
+        .map(AttributeValue::into_i64)
+        .unwrap_or(1);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -149,12 +163,15 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let shape = weight.shape.clone().unwrap();
     let channels: [usize; 2] = [shape[1], shape[0]];
 
-    ConvTranspose2dConfig::new(channels, [kernel_shape[0] as usize, kernel_shape[1] as usize])
-        .with_stride([stride[0] as usize, stride[1] as usize])
-        .with_padding([pads[0] as usize, pads[1] as usize])
-        .with_dilation([dilations[0] as usize, dilations[1] as usize])
-        .with_groups(group as usize)
-        .with_bias(bias)
+    ConvTranspose2dConfig::new(
+        channels,
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+    )
+    .with_stride([stride[0] as usize, stride[1] as usize])
+    .with_padding([pads[0] as usize, pads[1] as usize])
+    .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_groups(group as usize)
+    .with_bias(bias)
 }
 
 /// Create a AvgPool2dConfig from the attributes of the node
