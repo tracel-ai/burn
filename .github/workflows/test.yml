@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        rust: [stable, 1.71.0]
+        rust: [stable, 1.71.0, nightly]
         test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
