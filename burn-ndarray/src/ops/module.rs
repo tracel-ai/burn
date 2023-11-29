@@ -3,12 +3,11 @@ use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
-    unfold::unfold4d,
 };
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArrayBackend};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
 use burn_tensor::ops::*;
 
-impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
     fn conv2d(
         x: NdArrayTensor<E, 4>,
         weight: NdArrayTensor<E, 4>,
@@ -25,14 +24,6 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         options: ConvTransposeOptions<2>,
     ) -> NdArrayTensor<E, 4> {
         conv_transpose2d(x, weight, bias, options)
-    }
-
-    fn unfold4d(
-        x: NdArrayTensor<E, 4>,
-        kernel_size: [usize; 2],
-        options: UnfoldOptions,
-    ) -> NdArrayTensor<E, 3> {
-        unfold4d(x, kernel_size, options)
     }
 
     fn avg_pool2d(
@@ -72,7 +63,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<NdArrayBackend<E>> {
+    ) -> MaxPool2dWithIndices<NdArray<E>> {
         let (output, indices) = max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
         MaxPool2dWithIndices::new(output, indices)
@@ -86,7 +77,7 @@ impl<E: FloatNdArrayElement> ModuleOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         dilation: [usize; 2],
         output_grad: NdArrayTensor<E, 4>,
         indices: NdArrayTensor<i64, 4>,
-    ) -> MaxPool2dBackward<NdArrayBackend<E>> {
+    ) -> MaxPool2dBackward<NdArray<E>> {
         MaxPool2dBackward::new(max_pool2d_backward(
             x,
             kernel_size,

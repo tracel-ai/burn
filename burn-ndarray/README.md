@@ -19,3 +19,12 @@ The following flags support various BLAS options:
 
 Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not
 initialized by by `Backend::seed` method.
+
+### Platform Support
+
+| Option     | CPU | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
+| :--------- | :-: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
+| Pure Rust  | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes | Yes  |
+| Accelerate | Yes | No  |  No   |  Yes  |   No    |   No    | Yes |  No  |
+| Netlib     | Yes | No  |  Yes  |  Yes  |   Yes   |   No    | No  |  No  |
+| Openblas   | Yes | No  |  Yes  |  Yes  |   Yes   |   Yes   | Yes |  No  |

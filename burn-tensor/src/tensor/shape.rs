@@ -55,6 +55,16 @@ impl<const D: usize> From<Vec<usize>> for Shape<D> {
     }
 }
 
+impl<const D: usize> From<&Vec<usize>> for Shape<D> {
+    fn from(shape: &Vec<usize>) -> Self {
+        let mut dims = [1; D];
+        for (i, dim) in shape.iter().enumerate() {
+            dims[i] = *dim;
+        }
+        Self::new(dims)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

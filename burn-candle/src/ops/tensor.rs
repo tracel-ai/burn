@@ -1,38 +1,37 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape};
+use burn_tensor::{
+    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    Data, Device, Distribution, ElementConversion, Reader, Shape,
+};
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-use super::base::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I> {
     fn from_data<const D: usize>(data: Data<F, D>, device: &Device<Self>) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<F>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let shape = &shape.dims;
         let device = &(*device).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
-                candle_core::Tensor::rand(0., 1., shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap(),
             ),
             Distribution::Bernoulli(prob) => CandleTensor::new(
-                candle_core::Tensor::rand(0., 1., shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
                     .unwrap()
                     .to_dtype(F::DTYPE)
                     .unwrap()
@@ -41,12 +40,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
                     .to_dtype(F::DTYPE)
                     .unwrap(),
             ),
-            Distribution::Uniform(from, to) => {
-                CandleTensor::new(candle_core::Tensor::rand(from, to, shape, device).unwrap())
-            }
-            Distribution::Normal(mean, std) => {
-                CandleTensor::new(candle_core::Tensor::randn(mean, std, shape, device).unwrap())
-            }
+            Distribution::Uniform(from, to) => CandleTensor::new(
+                candle_core::Tensor::rand(from.elem::<F>(), to.elem::<F>(), shape, device).unwrap(),
+            ),
+            Distribution::Normal(mean, std) => CandleTensor::new(
+                candle_core::Tensor::randn(mean.elem::<F>(), std.elem::<F>(), shape, device)
+                    .unwrap(),
+            ),
         }
     }
 
@@ -420,5 +420,31 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<CandleBackend<F, I>>
                 .to_dtype(I::DTYPE)
                 .unwrap(),
         )
+    }
+
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.minimum(max).unwrap())
+    }
+
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.maximum(min).unwrap())
+    }
+
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
+    }
+
+    fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.recip().unwrap())
     }
 }

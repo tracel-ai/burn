@@ -1,16 +1,20 @@
 use crate::{
     channel::ComputeChannel,
     server::{ComputeServer, Handle},
+    tune::{AutotuneOperationSet, Tuner},
 };
 use alloc::vec::Vec;
+use alloc::{boxed::Box, sync::Arc};
 use burn_common::reader::Reader;
 use core::marker::PhantomData;
+use spin::Mutex;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
 #[derive(Debug)]
-pub struct ComputeClient<Server, Channel> {
+pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
+    tuner: Arc<Mutex<Tuner<Server, Channel>>>,
     _server: PhantomData<Server>,
 }
 
@@ -22,6 +26,7 @@ where
     fn clone(&self) -> Self {
         Self {
             channel: self.channel.clone(),
+            tuner: self.tuner.clone(),
             _server: PhantomData,
         }
     }
@@ -33,9 +38,10 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel) -> Self {
+    pub fn new(channel: Channel, tuner: Arc<Mutex<Tuner<Server, Channel>>>) -> Self {
         Self {
             channel,
+            tuner,
             _server: PhantomData,
         }
     }
@@ -63,5 +69,15 @@ where
     /// Wait for the completion of every task in the server.
     pub fn sync(&self) {
         self.channel.sync()
+    }
+
+    /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
+    pub fn execute_autotune(
+        &self,
+        autotune_operation_set: Box<dyn AutotuneOperationSet<Server::AutotuneKey>>,
+    ) {
+        self.tuner
+            .lock()
+            .execute_autotune(autotune_operation_set, self);
     }
 }

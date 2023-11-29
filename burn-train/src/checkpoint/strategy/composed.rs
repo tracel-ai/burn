@@ -62,13 +62,19 @@ impl CheckpointingStrategy for ComposedCheckpointingStrategy {
             // We assume that the strategy would not want the current epoch to be saved.
             // So we flag it as deleted.
             if actions.is_empty() {
-                self.deleted.get_mut(i).unwrap().insert(epoch);
+                self.deleted
+                    .get_mut(i)
+                    .expect("As many 'deleted' as 'strategies'.")
+                    .insert(epoch);
             }
 
             for action in actions {
                 match action {
                     CheckpointingAction::Delete(epoch) => {
-                        self.deleted.get_mut(i).unwrap().insert(epoch);
+                        self.deleted
+                            .get_mut(i)
+                            .expect("As many 'deleted' as 'strategies'.")
+                            .insert(epoch);
                         epochs_to_check.push(epoch);
                     }
                     CheckpointingAction::Save => saved = true,
@@ -83,7 +89,12 @@ impl CheckpointingStrategy for ComposedCheckpointingStrategy {
         for epoch in epochs_to_check.into_iter() {
             let mut num_true = 0;
             for i in 0..self.strategies.len() {
-                if self.deleted.get(i).unwrap().contains(&epoch) {
+                if self
+                    .deleted
+                    .get(i)
+                    .expect("Ad many 'deleted' as 'strategies'.")
+                    .contains(&epoch)
+                {
                     num_true += 1;
                 }
             }
@@ -92,7 +103,10 @@ impl CheckpointingStrategy for ComposedCheckpointingStrategy {
                 actions.push(CheckpointingAction::Delete(epoch));
 
                 for i in 0..self.strategies.len() {
-                    self.deleted.get_mut(i).unwrap().remove(&epoch);
+                    self.deleted
+                        .get_mut(i)
+                        .expect("As many 'deleted' as 'strategies'.")
+                        .remove(&epoch);
                 }
             }
         }

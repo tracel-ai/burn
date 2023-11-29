@@ -62,7 +62,7 @@ represent the corresponding Burn Op.
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
 | [Floor][57]                      |       ❌       |      ❌      |
-| [Gather][58]                     |       ❌       |      ✅      |
+| [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ❌       |      ❌      |
 | [GatherND][60]                   |       ❌       |      ❌      |
 | [Gelu][61]                       |       ❌       |      ✅      |
@@ -134,7 +134,7 @@ represent the corresponding Burn Op.
 | [RandomUniform][128]             |       ❌       |      ✅      |
 | [RandomUniformLike][129]         |       ❌       |      ✅      |
 | [Range][130]                     |       ❌       |      ✅      |
-| [Reciprocal][131]                |       ❌       |      ❌      |
+| [Reciprocal][131]                |       ✅       |      ✅      |
 | [ReduceL][132]                   |       ❌       |      ❌      |
 | [ReduceLogSum][133]              |       ❌       |      ❌      |
 | [ReduceLogSumExp][134]           |       ❌       |      ❌      |
@@ -178,7 +178,7 @@ represent the corresponding Burn Op.
 | [SpaceToDepth][172]              |       ❌       |      ❌      |
 | [Split][173]                     |       ❌       |      ❌      |
 | [SplitToSequence][174]           |       ❌       |      ❌      |
-| [Sqrt][175]                      |       ❌       |      ✅      |
+| [Sqrt][175]                      |       ✅       |      ✅      |
 | [Squeeze][176]                   |       ❌       |      ✅      |
 | [STFT][177]                      |       ❌       |      ❌      |
 | [StringNormalizer][178]          |       ❌       |      ❌      |
@@ -191,7 +191,7 @@ represent the corresponding Burn Op.
 | [Tile][185]                      |       ❌       |      ❌      |
 | [TopK][186]                      |       ❌       |      ❌      |
 | [Transpose][187]                 |       ✅       |      ✅      |
-| [Trilu][188]                     |       ❌       |      ❌      |
+| [Trilu][188]                     |       ❌       |      ✅      |
 | [Unique][189]                    |       ❌       |      ❌      |
 | [Upsample][190]                  |       ❌       |      ❌      |
 | [Where][191]                     |       ❌       |      ✅      |

@@ -2,8 +2,10 @@ use burn_tensor::{Data, Shape};
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
+/// Tensor primitive used by the [ndarray backend](crate::NdArray).
 #[derive(new, Debug, Clone)]
 pub struct NdArrayTensor<E, const D: usize> {
+    /// Dynamic array that contains the data of type E.
     pub array: ArcArray<E, IxDyn>,
 }
 
@@ -101,6 +103,7 @@ impl<E, const D: usize> NdArrayTensor<E, D>
 where
     E: Default + Clone,
 {
+    /// Create a new [ndarray tensor](NdArrayTensor) from [data](Data).
     pub fn from_data(data: Data<E, D>) -> NdArrayTensor<E, D> {
         let shape = data.shape.clone();
         let to_array = |data: Data<E, D>| Array::from_iter(data.value).into_shared();

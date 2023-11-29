@@ -24,4 +24,4 @@ mod learner;
 pub use learner::*;
 
 #[cfg(test)]
-pub(crate) type TestBackend = burn_ndarray::NdArrayBackend<f32>;
+pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

@@ -1,5 +1,3 @@
-use burn_tensor::Shape;
-
 use crate::{
     compute::{compute_client, StaticKernel},
     element::WgpuElement,
@@ -11,6 +9,7 @@ use crate::{
     tensor::WgpuTensor,
     GraphicsApi, WgpuDevice,
 };
+use burn_tensor::Shape;
 
 use super::base::Prng;
 

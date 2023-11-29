@@ -26,8 +26,8 @@ pub struct Data<E, const D: usize> {
 }
 
 /// Distribution for random value of a tensor.
-#[derive(Clone, Copy)]
-pub enum Distribution<E> {
+#[derive(Debug, Clone, Copy)]
+pub enum Distribution {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Default,
 
@@ -35,7 +35,7 @@ pub enum Distribution<E> {
     Bernoulli(f64),
 
     /// Uniform distribution. The range is inclusive.
-    Uniform(E, E),
+    Uniform(f64, f64),
 
     /// Normal distribution with the given mean and standard deviation.
     Normal(f64, f64),
@@ -96,11 +96,7 @@ where
     }
 }
 
-impl<E> Distribution<E>
-where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
-{
+impl Distribution {
     /// Creates a new distribution sampler.
     ///
     /// # Arguments
@@ -110,14 +106,18 @@ where
     /// # Returns
     ///
     /// The distribution sampler.
-    pub fn sampler<R: RngCore>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R> {
+    pub fn sampler<R: RngCore, E: Element>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
+    where
+        E: rand::distributions::uniform::SampleUniform,
+        Standard: rand::distributions::Distribution<E>,
+    {
         let kind = match self {
             Distribution::Default => {
                 DistributionSamplerKind::Standard(rand::distributions::Standard {})
             }
-            Distribution::Uniform(low, high) => {
-                DistributionSamplerKind::Uniform(rand::distributions::Uniform::new(low, high))
-            }
+            Distribution::Uniform(low, high) => DistributionSamplerKind::Uniform(
+                rand::distributions::Uniform::new(low.elem::<E>(), high.elem::<E>()),
+            ),
             Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
                 rand::distributions::Bernoulli::new(prob).unwrap(),
             ),
@@ -127,27 +127,6 @@ where
         };
 
         DistributionSampler::new(kind, rng)
-    }
-}
-
-impl<E> Distribution<E>
-where
-    E: Element,
-{
-    /// Converts the distribution to a different element type.
-    ///
-    /// # Returns
-    ///
-    /// The converted distribution.
-    pub fn convert<EOther: Element>(self) -> Distribution<EOther> {
-        match self {
-            Distribution::Default => Distribution::Default,
-            Distribution::Uniform(a, b) => {
-                Distribution::Uniform(EOther::from_elem(a), EOther::from_elem(b))
-            }
-            Distribution::Bernoulli(prob) => Distribution::Bernoulli(prob),
-            Distribution::Normal(mean, std) => Distribution::Normal(mean, std),
-        }
     }
 }
 
@@ -211,7 +190,7 @@ impl<const D: usize> Data<bool, D> {
 
 impl<E: Element, const D: usize> Data<E, D> {
     /// Populates the data with random values.
-    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution<E>, rng: &mut R) -> Self {
+    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
@@ -301,6 +280,23 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
     /// Panics if the data is not approximately equal.
     #[track_caller]
     pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
+        let tolerance = libm::pow(0.1, precision as f64);
+
+        self.assert_approx_eq_diff(other, tolerance)
+    }
+
+    /// Asserts the data is approximately equal to another data.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other data.
+    /// * `tolerance` - The tolerance of the comparison.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the data is not approximately equal.
+    #[track_caller]
+    pub fn assert_approx_eq_diff(&self, other: &Self, tolerance: f64) {
         let mut message = String::new();
         if self.shape != other.shape {
             message += format!(
@@ -320,7 +316,6 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let b: f64 = b.into();
 
             let err = libm::sqrt(libm::pow(a - b, 2.0));
-            let tolerance = libm::pow(0.1, precision as f64);
 
             if err > tolerance {
                 // Only print the first 5 different values.

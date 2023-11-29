@@ -11,14 +11,14 @@ use core::ops::Range;
 use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
 use crate::NdArrayDevice;
-use crate::{tensor::NdArrayTensor, NdArrayBackend};
+use crate::{tensor::NdArrayTensor, NdArray};
 
 // Workspace crates
 use burn_tensor::{backend::Backend, Data, Shape};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
     fn int_from_data<const D: usize>(
         data: Data<i64, D>,
         _device: &NdArrayDevice,
@@ -60,13 +60,13 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
 
     fn int_device<const D: usize>(
         _tensor: &NdArrayTensor<i64, D>,
-    ) -> <NdArrayBackend<E> as Backend>::Device {
+    ) -> <NdArray<E> as Backend>::Device {
         NdArrayDevice::Cpu
     }
 
     fn int_empty<const D: usize>(
         shape: Shape<D>,
-        _device: &<NdArrayBackend<E> as Backend>::Device,
+        _device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
         let values = vec![0; shape.num_elements()];
         NdArrayTensor::from_data(Data::new(values, shape))
@@ -246,14 +246,14 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
 
     fn int_zeros<const D: usize>(
         shape: Shape<D>,
-        device: &<NdArrayBackend<E> as Backend>::Device,
+        device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
         Self::int_from_data(Data::zeros(shape), device)
     }
 
     fn int_ones<const D: usize>(
         shape: Shape<D>,
-        device: &<NdArrayBackend<E> as Backend>::Device,
+        device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
         Self::int_from_data(Data::ones(shape), device)
     }
@@ -261,7 +261,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     fn int_full<const D: usize>(
         shape: Shape<D>,
         fill_value: i64,
-        device: &<NdArrayBackend<E> as Backend>::Device,
+        device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<i64, D> {
         Self::int_from_data(Data::full(shape, fill_value), device)
     }
@@ -364,17 +364,17 @@ impl<E: FloatNdArrayElement> IntTensorOps<NdArrayBackend<E>> for NdArrayBackend<
     }
 
     fn int_into_float<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::TensorPrimitive<D> {
+        tensor: <NdArray<E> as Backend>::IntTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::TensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }
 
     fn int_swap_dims<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D>,
+        tensor: <NdArray<E> as Backend>::IntTensorPrimitive<D>,
         dim1: usize,
         dim2: usize,
-    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 }

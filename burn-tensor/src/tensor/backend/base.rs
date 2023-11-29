@@ -99,13 +99,15 @@ pub trait Backend:
     fn sync(_device: &Self::Device) {}
 }
 
-pub(crate) type ADBackendTensorPrimitive<const D: usize, B> =
-    <<B as ADBackend>::InnerBackend as Backend>::TensorPrimitive<D>;
-
 /// Trait that allows a backend to support autodiff.
-pub trait ADBackend: Backend {
+pub trait AutodiffBackend: Backend {
     /// The inner backend type.
-    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem>;
+    type InnerBackend: Backend<
+        Device = Self::Device,
+        FloatElem = Self::FloatElem,
+        IntElem = Self::IntElem,
+        FullPrecisionElem = Self::FullPrecisionElem,
+    >;
 
     /// Gradients type.
     type Gradients: Send + Sync;
@@ -119,7 +121,7 @@ pub trait ADBackend: Backend {
     /// # Returns
     ///
     /// The gradients.
-    fn backward<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Gradients;
+    fn backward<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Gradients;
 
     /// Returns the gradients of a tensor.
     ///
@@ -131,9 +133,9 @@ pub trait ADBackend: Backend {
     ///
     /// An optional tensor containing the gradient.
     fn grad<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
+        tensor: &FloatTensor<Self, D>,
         grads: &Self::Gradients,
-    ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
 
     /// Pops the gradients of a tensor and returns them.
     ///
@@ -146,9 +148,9 @@ pub trait ADBackend: Backend {
     ///
     /// An optional tensor containing the given gradients.
     fn grad_remove<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
+        tensor: &FloatTensor<Self, D>,
         grads: &mut Self::Gradients,
-    ) -> Option<ADBackendTensorPrimitive<D, Self>>;
+    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
 
     /// Replace the gradients of a tensor with the one provided.
     ///
@@ -160,9 +162,9 @@ pub trait ADBackend: Backend {
     /// * `grads` - The gradients.
     /// * `grad` - The updated grad tensor.
     fn grad_replace<const D: usize>(
-        tensor: &Self::TensorPrimitive<D>,
+        tensor: &FloatTensor<Self, D>,
         grads: &mut Self::Gradients,
-        grad: ADBackendTensorPrimitive<D, Self>,
+        grad: FloatTensor<Self::InnerBackend, D>,
     );
 
     /// Returns the tensor with inner backend type.
@@ -174,9 +176,30 @@ pub trait ADBackend: Backend {
     /// # Returns
     ///
     /// The inner backend tensor.
-    fn inner<const D: usize>(
-        tensor: Self::TensorPrimitive<D>,
-    ) -> <Self::InnerBackend as Backend>::TensorPrimitive<D>;
+    fn inner<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self::InnerBackend, D>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn int_inner<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self::InnerBackend, D>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn bool_inner<const D: usize>(tensor: BoolTensor<Self, D>)
+        -> BoolTensor<Self::InnerBackend, D>;
 
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
@@ -189,6 +212,34 @@ pub trait ADBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn from_inner<const D: usize>(
-        tensor: <Self::InnerBackend as Backend>::TensorPrimitive<D>,
-    ) -> Self::TensorPrimitive<D>;
+        tensor: FloatTensor<Self::InnerBackend, D>,
+    ) -> FloatTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn int_from_inner<const D: usize>(
+        tensor: IntTensor<Self::InnerBackend, D>,
+    ) -> IntTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn bool_from_inner<const D: usize>(
+        tensor: BoolTensor<Self::InnerBackend, D>,
+    ) -> BoolTensor<Self, D>;
 }

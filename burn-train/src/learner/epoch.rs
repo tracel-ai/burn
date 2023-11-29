@@ -1,5 +1,5 @@
 use burn_core::{
-    data::dataloader::DataLoader, lr_scheduler::LrScheduler, module::ADModule,
+    data::dataloader::DataLoader, lr_scheduler::LrScheduler, module::AutodiffModule,
     optim::GradientsAccumulator, tensor::backend::Backend,
 };
 use std::sync::Arc;
@@ -39,7 +39,7 @@ impl<VI> ValidEpoch<VI> {
         interrupter: &TrainingInterrupter,
     ) where
         LC::EventProcessor: EventProcessor<ItemValid = VO>,
-        <LC::Model as ADModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
+        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<VI, VO>,
     {
         log::info!("Executing validation step for epoch {}", self.epoch);
         let model = model.valid();
@@ -192,7 +192,7 @@ impl<TI> TrainEpoch<TI> {
         let step = MultiDevicesTrainStep::new(&devices);
 
         // The main device is always the first in the list.
-        let device_main = devices.get(0).unwrap().clone();
+        let device_main = devices.get(0).expect("A minimum of one device.").clone();
         let mut interrupted = false;
 
         loop {

@@ -1,9 +1,9 @@
-use alloc::sync::Arc;
-
 use super::ParamId;
-use crate::module::{ADModule, Module, ModuleMapper, ModuleVisitor, Param};
+use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 use burn_tensor::{
-    backend::{ADBackend, Backend},
+    backend::{AutodiffBackend, Backend},
     Tensor,
 };
 
@@ -51,12 +51,12 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.read().unwrap();
 
-        visitor.visit(&self.id, &tensor)
+        visitor.visit_float(&self.id, &tensor)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.write().unwrap();
-        let tensor_out = mapper.map(&self.id, tensor.clone());
+        let tensor_out = mapper.map_float(&self.id, tensor.clone());
 
         *tensor = tensor_out;
         core::mem::drop(tensor);
@@ -79,6 +79,33 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         core::mem::drop(tensor);
 
         self
+    }
+
+    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+        let mut tensor = self.value.write().unwrap();
+        let tensor_out = tensor.clone().to_device(device);
+
+        *tensor = tensor_out;
+        core::mem::drop(tensor);
+
+        self
+    }
+
+    fn fork(self, device: &<B as Backend>::Device) -> Self {
+        self.to_device(device) // Same thing here since no grad.
+    }
+
+    fn collect_devices(
+        &self,
+        mut devices: Vec<<B as Backend>::Device>,
+    ) -> Vec<<B as Backend>::Device> {
+        let device = self.value.read().unwrap().device();
+
+        if !devices.contains(&device) {
+            devices.push(device)
+        }
+
+        devices
     }
 }
 
@@ -179,7 +206,7 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: ADBackend> ADModule<B> for RunningState<Tensor<B, D>> {
+impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for RunningState<Tensor<B, D>> {
     type InnerModule = RunningState<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {

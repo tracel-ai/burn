@@ -8,7 +8,7 @@ set -e
 #
 # Run `run-checks` using this command:
 #
-# ./scripts/run-checks environment
+# ./run-checks.sh environment
 #
 # where `environment` can assume **ONLY** the following values:
 #

@@ -1,5 +1,5 @@
 use crate::grad_clipping::GradientClippingConfig;
-use crate::module::ADModule;
+use crate::module::AutodiffModule;
 use crate::{self as burn, LearningRate};
 
 use super::decay::{WeightDecay, WeightDecayConfig};
@@ -9,7 +9,7 @@ use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::record::Record;
 use crate::tensor::Tensor;
-use burn_tensor::backend::{ADBackend, Backend};
+use burn_tensor::backend::{AutodiffBackend, Backend};
 
 /// Configuration to create the [Sgd](Sgd) optimizer.
 #[derive(Config)]
@@ -38,7 +38,7 @@ pub struct SgdState<B: Backend, const D: usize> {
 
 impl SgdConfig {
     /// Creates a new [SgdConfig](SgdConfig) with default values.
-    pub fn init<B: ADBackend, M: ADModule<B>>(
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
         let momentum = self.momentum.as_ref().map(Momentum::new);
@@ -101,7 +101,7 @@ mod tests {
         nn::{Linear, LinearConfig},
         optim::{GradientsParams, Optimizer},
         tensor::{Distribution, Shape},
-        TestADBackend, TestBackend,
+        TestAutodiffBackend, TestBackend,
     };
 
     const LEARNING_RATE: LearningRate = 0.02;
@@ -152,15 +152,16 @@ mod tests {
         assert_eq!(record.len(), state_restored.len());
     }
 
-    fn random_tensor() -> Tensor<TestADBackend, 2> {
-        Tensor::<TestADBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
+    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
+        Tensor::<TestAutodiffBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
     }
 
-    fn layer() -> Linear<TestADBackend> {
+    fn layer() -> Linear<TestAutodiffBackend> {
         LinearConfig::new(20, 20).with_bias(true).init()
     }
 
-    fn sgd_with_all() -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestADBackend>, TestADBackend> {
+    fn sgd_with_all(
+    ) -> OptimizerAdaptor<Sgd<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         SgdConfig {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {

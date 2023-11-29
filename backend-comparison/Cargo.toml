@@ -7,11 +7,13 @@ license = "MIT OR Apache-2.0"
 name = "backend-comparison"
 readme = "README.md"
 repository = "https://github.com/burn-rs/burn/tree/main/backend-comparison"
-version = "0.10.0"
+version = "0.11.0"
 
 [features]
 default = ["std"]
 std = []
+candle-cpu = ["burn/candle"]
+candle-cuda = ["burn/candle-cuda"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
 ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
@@ -19,14 +21,15 @@ ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+wgpu-fusion = ["burn/wgpu", "burn/fusion"]
 
 [dependencies]
 burn = { path = "../burn" }
 derive-new = { workspace = true }
 rand = { workspace = true }
-burn-tensor = { path = "../burn-tensor", version = "0.10.0", features = [
-    "benchmark",
-] }
+burn-common = { path = "../burn-common", version = "0.11.0" }
+serde_json = { workspace = true }
+dirs = "5.0.1"
 
 [dev-dependencies]
 
@@ -45,4 +48,8 @@ harness = false
 
 [[bench]]
 name = "data"
+harness = false
+
+[[bench]]
+name = "custom_gelu"
 harness = false

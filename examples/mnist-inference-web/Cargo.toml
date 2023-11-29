@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "mnist-inference-web"
 publish = false
-version = "0.10.0"
+version = "0.11.0"
 
 [lib]
 crate-type = ["cdylib"]
@@ -16,11 +16,11 @@ ndarray = ["burn/ndarray-no-std"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn", default-features = false}
-serde = {workspace = true}
-wasm-bindgen = { version = "0.2.87" } 
+burn = { path = "../../burn", default-features = false }
+serde = { workspace = true }
+wasm-bindgen = { version = "0.2.88" }
 wasm-bindgen-futures = "0.4"
-js-sys = "0.3.64"
+js-sys = "0.3.65"
 
 [dev-dependencies]
 pollster = { workspace = true }

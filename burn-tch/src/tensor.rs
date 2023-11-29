@@ -1,4 +1,4 @@
-use crate::{element::TchElement, TchBackend, TchDevice};
+use crate::{element::TchElement, LibTorch, LibTorchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, rc::Rc};
@@ -56,7 +56,7 @@ impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        TchBackend::add(self, rhs)
+        LibTorch::add(self, rhs)
     }
 }
 
@@ -193,14 +193,14 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
 #[cfg(test)]
 mod utils {
     use super::*;
-    use crate::{backend::TchBackend, element::TchElement};
+    use crate::{backend::LibTorch, element::TchElement};
 
     impl<P: TchElement, const D: usize> TchTensor<P, D> {
         pub(crate) fn into_data(self) -> Data<P, D>
         where
             P: tch::kind::Element,
         {
-            <TchBackend<P> as TensorOps<TchBackend<P>>>::into_data(self).read()
+            <LibTorch<P> as TensorOps<LibTorch<P>>>::into_data(self).read()
         }
     }
 }
@@ -216,7 +216,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty(shape: Shape<D>, device: TchDevice) -> Self {
+    pub fn empty(shape: Shape<D>, device: LibTorchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
 
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<TchBackend<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0]);
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<TchBackend<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0]);
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);

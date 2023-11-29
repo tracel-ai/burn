@@ -1,18 +1,18 @@
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode,
+    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
     global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
     max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
-use burn_ndarray::NdArrayBackend;
+use burn_ndarray::NdArray;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
 /// Backend used for serialization.
-pub type SerializationBackend = NdArrayBackend<f32>;
+pub type SerializationBackend = NdArray<f32>;
 
 /// Codegen trait that should be implemented by all [node](Node) entries.
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
@@ -83,6 +83,7 @@ pub enum Node<PS: PrecisionSettings> {
     Conv2d(Conv2dNode<PS>),
     ConvTranspose2d(ConvTranspose2dNode),
     Dropout(DropoutNode),
+    Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
     Linear(LinearNode<PS>),
     Matmul(MatmulNode),
@@ -105,6 +106,7 @@ macro_rules! match_all {
             Node::Conv2d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
@@ -137,6 +139,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Conv2d(_) => "conv2d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::Dropout(_) => "dropout",
+            Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",

@@ -1,7 +1,7 @@
 use burn_tensor::Shape;
 
 use crate::{
-    compute::{compute_client, StaticKernel},
+    compute::{compute_client, StaticKernel, WgpuComputeClient},
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
@@ -32,9 +32,35 @@ pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
     low: E,
     high: E,
 ) -> WgpuTensor<E, D> {
+    let client = compute_client::<G>(device);
+    uniform_kernel(client, device, &shape, low, high)
+}
+
+/// Pseudo-random generator for uniform distribution, based on
+/// another tensor's client, device and shape
+pub fn random_like_uniform<E: WgpuElement, const D: usize>(
+    tensor: &WgpuTensor<E, D>,
+    low: E,
+    high: E,
+) -> WgpuTensor<E, D> {
+    uniform_kernel(
+        tensor.client.clone(),
+        &tensor.device,
+        &tensor.shape,
+        low,
+        high,
+    )
+}
+
+fn uniform_kernel<E: WgpuElement, const D: usize>(
+    client: WgpuComputeClient,
+    device: &WgpuDevice,
+    shape: &Shape<D>,
+    low: E,
+    high: E,
+) -> WgpuTensor<E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
-    let client = compute_client::<G>(device);
     let output = empty_device(client.clone(), device.clone(), shape.clone());
     let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
     let args_handle = make_args_buffer(client.clone(), &[low, high]);

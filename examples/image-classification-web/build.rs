@@ -36,7 +36,7 @@ fn main() {
 fn generate_labels_from_txt_file() -> std::io::Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join(LABEL_DEST_FILE);
-    let mut f = File::create(&dest_path)?;
+    let mut f = File::create(dest_path)?;
 
     let file = File::open(LABEL_SOURCE_FILE)?;
     let reader = BufReader::new(file);

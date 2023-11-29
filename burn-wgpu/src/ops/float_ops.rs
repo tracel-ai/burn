@@ -1,20 +1,28 @@
-use super::{numeric, BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor};
+use super::numeric;
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::matmul::init_matmul_output;
+#[cfg(feature = "autotune")]
+use crate::kernel::matmul::matmul_autotune;
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{
-    self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
+    self, reduce, unary_default, unary_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
-
-use crate::{
-    element::{FloatElement, IntElement},
-    unary, unary_inplace, unary_scalar, GraphicsApi, WgpuBackend,
-};
+use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
+use burn_tensor::ops::{
+    BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
+};
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 
 use std::ops::Range;
 
-impl<G, F, I> TensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, F, I> TensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -29,12 +37,14 @@ where
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<Self>>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
             Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
-            Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            Distribution::Uniform(low, high) => {
+                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+            }
             Distribution::Bernoulli(prob) => {
                 random_bernoulli::<G, F, D>(shape, device, prob.elem())
             }
@@ -143,7 +153,16 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::matmul::contiguous::matmul_tiling_2d_default(lhs, rhs)
+        #[cfg(feature = "autotune")]
+        {
+            matmul_autotune(lhs, rhs)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let out = init_matmul_output(&lhs, &rhs);
+            matmul_tiling_2d_vec4(lhs, rhs, out)
+        }
     }
 
     fn swap_dims<const D: usize>(
@@ -297,15 +316,33 @@ where
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        kernel::sum(tensor)
+        reduce::sum(tensor)
     }
 
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        kernel::sum_dim(tensor, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::sum_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::sum_dim(tensor, output, dim)
+        }
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        kernel::mean_dim(tensor, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::mean_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::mean_dim(tensor, output, dim)
+        }
     }
 
     fn to_full_precision<const D: usize>(
@@ -443,37 +480,49 @@ where
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmax(tensor, dim)
+        reduce::argmax(tensor, dim)
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmin(tensor, dim)
+        reduce::argmin(tensor, dim)
     }
 
     fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
         kernel::cast(tensor)
     }
 
-    // TODO implement clamp kernels (see https://github.com/burn-rs/burn/issues/549)
-    // fn clamp_min<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_min(tensor, min)
-    // }
+    fn clamp_min<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_min(tensor, min)
+    }
 
-    // fn clamp_max<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp_max(tensor, max)
-    // }
+    fn clamp_max<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp_max(tensor, max)
+    }
 
-    // fn clamp<const D: usize>(
-    //     tensor: FloatTensor<Self, D>,
-    //     min: FloatElem<Self>,
-    //     max: FloatElem<Self>,
-    // ) -> FloatTensor<Self, D> {
-    //     kernel::clamp(tensor, min, max)
-    // }
+    fn clamp<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        min: FloatElem<Self>,
+        max: FloatElem<Self>,
+    ) -> FloatTensor<Self, D> {
+        kernel::clamp(tensor, min, max)
+    }
+
+    fn recip<const D: usize>(
+        tensor: FloatTensor<Wgpu<G, F, I>, D>,
+    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        unary!(Recip, func "1.0 /");
+        unary_inplace!(RecipInplace, func "1.0 /");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<RecipInplace, F, D>(tensor);
+        }
+
+        unary_default::<Recip, F, D>(tensor)
+    }
 }

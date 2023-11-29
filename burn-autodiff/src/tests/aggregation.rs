@@ -8,8 +8,8 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.mean().unsqueeze());
@@ -31,8 +31,8 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.sum().unsqueeze());
@@ -54,8 +54,8 @@ mod tests {
         let data_1 = Data::from([[0.0, 1.0], [3.0, 4.0]]);
         let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.clone().sum_dim(1);
@@ -78,8 +78,8 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.mean_dim(1).unsqueeze());
@@ -101,8 +101,8 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestADTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestADTensor::from_data(data_2).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.sum_dim(1).unsqueeze());

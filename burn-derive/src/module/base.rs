@@ -29,6 +29,9 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let num_params_fn = generator.gen_num_params();
     let visit = generator.gen_visit();
     let map_mut = generator.gen_map();
+    let collect_devices = generator.gen_collect_devices();
+    let to_device = generator.gen_to_device();
+    let fork = generator.gen_fork();
     let valid_fn = generator.gen_valid();
     let into_record_fn = generator.gen_into_record();
     let load_record_fn = generator.gen_load_record();
@@ -50,12 +53,16 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
             #visit
             #map_mut
+
+            #collect_devices
+            #to_device
+            #fork
         }
 
-        impl #generics burn::module::ADModule<B> for #name #generics_ty
+        impl #generics burn::module::AutodiffModule<B> for #name #generics_ty
         where
-            B: burn::tensor::backend::ADBackend,
-            <B as burn::tensor::backend::ADBackend>::InnerBackend: #backend_trait,
+            B: burn::tensor::backend::AutodiffBackend,
+            <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait,
         {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
@@ -82,7 +89,7 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
     let (_, generics_ty, generics_where) = ast.generics.split_for_impl();
 
     let backend: syn::Generics = parse_quote! { <B: burn::tensor::backend::Backend >};
-    let backend_ad: syn::Generics = parse_quote! { <B: burn::tensor::backend::ADBackend >};
+    let backend_ad: syn::Generics = parse_quote! { <B: burn::tensor::backend::AutodiffBackend >};
 
     let mut generics_module = ast.generics.clone();
     let mut generics_module_ad = ast.generics.clone();
@@ -101,7 +108,7 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
             burn::constant!(module);
         }
 
-        impl #generics_module_ad burn::module::ADModule<B> for #name #generics_ty #generics_where {
+        impl #generics_module_ad burn::module::AutodiffModule<B> for #name #generics_ty #generics_where {
             burn::constant!(ad_module, #name #generics_ty);
         }
     };

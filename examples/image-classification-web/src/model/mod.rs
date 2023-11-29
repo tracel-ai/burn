@@ -1,3 +1,3 @@
 pub mod label;
 pub mod normalizer;
-pub mod squeezenet1;
+pub mod squeezenet;

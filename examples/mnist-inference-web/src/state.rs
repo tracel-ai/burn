@@ -5,13 +5,13 @@ use burn::record::FullPrecisionSettings;
 use burn::record::Recorder;
 
 #[cfg(feature = "wgpu")]
-use burn::backend::wgpu::{compute::init_async, AutoGraphicsApi, WgpuBackend, WgpuDevice};
+use burn::backend::wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 
 #[cfg(feature = "wgpu")]
-pub type Backend = WgpuBackend<AutoGraphicsApi, f32, i32>;
+pub type Backend = Wgpu<AutoGraphicsApi, f32, i32>;
 
 #[cfg(feature = "ndarray")]
-pub type Backend = burn::backend::ndarray::NdArrayBackend<f32>;
+pub type Backend = burn::backend::ndarray::NdArray<f32>;
 
 static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");
 

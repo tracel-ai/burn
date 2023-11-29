@@ -5,8 +5,8 @@ mod tests {
 
     #[test]
     fn should_diff_cat() {
-        let tensor_1 = TestADTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
-        let tensor_2 = TestADTensor::from_data([[5.0, 4.0], [-1.0, 4.0]]).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0]]).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let grads = tensor_3.backward();
@@ -22,8 +22,8 @@ mod tests {
             tensor_2_list.push(tensor_2.clone().slice([i..i + 1]));
         }
 
-        let tensor_1_cat = TestADTensor::cat(tensor_1_list.clone(), 0);
-        let tensor_2_cat = TestADTensor::cat(tensor_2_list.clone(), 0);
+        let tensor_1_cat = TestAutodiffTensor::cat(tensor_1_list.clone(), 0);
+        let tensor_2_cat = TestAutodiffTensor::cat(tensor_2_list.clone(), 0);
 
         let tensor_3_cat = tensor_1_cat.clone().matmul(tensor_2_cat.clone());
         let grads = tensor_3_cat.backward();
@@ -57,13 +57,13 @@ mod tests {
 
     #[test]
     fn should_diff_cat_more_than_1_dim() {
-        let tensor_1 = TestADTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
+        let tensor_1 = TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
         let tensor_2 =
-            TestADTensor::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]]).require_grad();
+            TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]]).require_grad();
 
         // Concat a tensor [2, 2] with another tensor [3, 2] along dim 0.
         // The resulting tensor should be [5, 2]
-        let tensor_3 = TestADTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 0);
+        let tensor_3 = TestAutodiffTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 0);
         assert_eq!(tensor_3.dims(), [5, 2]);
         let grads = tensor_3.backward();
 

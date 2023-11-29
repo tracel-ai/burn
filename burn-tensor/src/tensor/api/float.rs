@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use crate::backend::ADBackend;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::backend::Backend;
@@ -65,6 +64,11 @@ where
     /// `y = x^a`
     pub fn powf(self, value: f32) -> Self {
         Self::new(B::powf(self.primitive, value))
+    }
+
+    /// Applies element wise reciprocal operation.
+    pub fn recip(self) -> Self {
+        Self::new(B::recip(self.primitive))
     }
 
     /// Applies element wise root square operation.
@@ -134,7 +138,7 @@ where
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
-    pub fn random_like(&self, distribution: Distribution<B::FloatElem>) -> Self {
+    pub fn random_like(&self, distribution: Distribution) -> Self {
         Tensor::new(B::random(self.shape(), distribution, &self.device()))
     }
 
@@ -202,7 +206,7 @@ where
 
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
+    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
     }
@@ -211,7 +215,7 @@ where
     /// sampled from the given distribution.
     pub fn random_device<S: Into<Shape<D>>>(
         shape: S,
-        distribution: Distribution<B::FloatElem>,
+        distribution: Distribution,
         device: &B::Device,
     ) -> Self {
         let tensor = B::random(shape.into(), distribution, device);
@@ -228,6 +232,7 @@ where
     }
 
     /// Detach the current tensor from the autodiff graph.
+    ///
     /// This function does nothing when autodiff is not enabled.
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
@@ -236,6 +241,7 @@ where
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
+    ///
     /// This function does nothing when autodiff is not enabled.
     pub fn require_grad(self) -> Self {
         self.set_require_grad(true)
@@ -273,50 +279,5 @@ where
             .transpose()
             .matmul(centered)
             .div_scalar(n as f32 - correction_factor as f32)
-    }
-}
-
-impl<const D: usize, B: ADBackend> Tensor<B, D> {
-    /// Backward pass of the tensor.
-    pub fn backward(&self) -> B::Gradients {
-        B::backward::<D>(self.primitive.clone())
-    }
-
-    /// Get the gradients of a tensor if it exist.
-    ///
-    /// Returns a new reference to the same tensor. Therefore the same grad tensor can
-    /// be accessed multiple times. If you only need to get the gradients one time,
-    /// consider using [grad_remove](Tensor::grad_remove) for better performance.
-    pub fn grad(&self, grads: &B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
-        B::grad(&self.primitive, grads).map(Tensor::new)
-    }
-
-    /// Remove the grad tensor from the [grads](ADBackend::Gradients) struct returning the result.
-    pub fn grad_remove(&self, grads: &mut B::Gradients) -> Option<Tensor<B::InnerBackend, D>> {
-        B::grad_remove(&self.primitive, grads).map(Tensor::new)
-    }
-
-    /// Replace the grad tensor from the [grads](ADBackend::Gradients) struct with the provided
-    /// gradient.
-    pub fn grad_replace(&self, grads: &mut B::Gradients, grad: Tensor<B::InnerBackend, D>) {
-        B::grad_replace(&self.primitive, grads, grad.primitive);
-    }
-
-    /// Returns the inner tensor without the autodiff information.
-    pub fn inner(self) -> Tensor<B::InnerBackend, D> {
-        Tensor::new(B::inner(self.primitive))
-    }
-
-    /// Convert a tensor to the autodiff backend.
-    ///
-    /// # Arguments
-    ///
-    /// * `inner` - The tensor to convert.
-    ///
-    /// # Returns
-    ///
-    /// The tensor converted to the autodiff backend.
-    pub fn from_inner(inner: Tensor<B::InnerBackend, D>) -> Self {
-        Self::new(B::from_inner(inner.primitive))
     }
 }

@@ -12,7 +12,7 @@ use burn::{
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{ADBackend, Backend},
+    tensor::backend::{AutodiffBackend, Backend},
     tensor::{activation::softmax, Tensor},
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
@@ -156,7 +156,7 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: ADBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
+impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
     for TextClassificationModel<B>
 {
     fn step(

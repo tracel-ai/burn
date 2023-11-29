@@ -274,9 +274,7 @@ fn create_conn_pool<P: AsRef<Path>>(
         OpenFlags::SQLITE_OPEN_READ_ONLY
     };
 
-    // Create a connection pool and make sure the connections are read only
     let manager = SqliteConnectionManager::file(db_file).with_flags(sqlite_flags);
-
     Pool::new(manager).map_err(SqliteDatasetError::ConnectionPool)
 }
 
@@ -559,6 +557,13 @@ where
     /// Marks the dataset as completed and persists the temporary database file.
     pub fn set_completed(&mut self) -> Result<()> {
         let mut is_completed = self.is_completed.write().unwrap();
+
+        // Force close the connection pool
+        // This is required on Windows platform where the connection pool prevents
+        // from persisting the db by renaming the temp file.
+        if let Some(pool) = self.conn_pool.take() {
+            std::mem::drop(pool);
+        }
 
         // Rename the database file from tmp to db
         let _file_result = self

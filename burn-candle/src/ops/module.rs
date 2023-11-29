@@ -1,7 +1,7 @@
 use burn_tensor::{
     ops::{
-        ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-        UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
+        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
     },
     Shape,
 };
@@ -10,14 +10,10 @@ use candle_core::ToUsize2;
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
     ops::base::reshape,
-    CandleBackend, CandleTensor,
+    Candle, CandleTensor,
 };
 
-use super::base::{FloatTensor, IntTensor};
-
-impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
-    for CandleBackend<F, I>
-{
+impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,
@@ -87,7 +83,26 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvTransposeOptions<1>,
     ) -> FloatTensor<Self, 3> {
-        panic!("Candle does not support conv_transpose1d")
+        assert!(
+            options.groups == 1,
+            "Candle does not support groups in transposed convolutions"
+        );
+        let conv_transpose = x
+            .tensor
+            .conv_transpose1d(
+                &weight.tensor,
+                options.padding[0],
+                options.padding_out[0],
+                options.stride[0],
+                options.dilation[0],
+            )
+            .unwrap();
+        CandleTensor::new(match bias {
+            Some(bias) => conv_transpose
+                .broadcast_add(&bias.tensor.unsqueeze(0).unwrap().unsqueeze(2).unwrap())
+                .unwrap(),
+            None => conv_transpose,
+        })
     }
 
     fn conv_transpose2d(
@@ -132,14 +147,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
                 .unwrap(),
             None => conv_transpose,
         })
-    }
-
-    fn unfold4d(
-        x: FloatTensor<Self, 4>,
-        kernel_size: [usize; 2],
-        option: UnfoldOptions,
-    ) -> FloatTensor<Self, 3> {
-        panic!("Candle does not support unfold")
     }
 
     fn avg_pool2d(
@@ -203,7 +210,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<CandleBackend<F, I>> {
+    ) -> MaxPool2dWithIndices<Candle<F, I>> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
 
@@ -215,7 +222,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<CandleBackend<F, I>>
         dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<CandleBackend<F, I>> {
+    ) -> MaxPool2dBackward<Candle<F, I>> {
         panic!("max_pool2d_with_indices_backward is not supported by Candle")
     }
 

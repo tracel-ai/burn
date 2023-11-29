@@ -8,7 +8,7 @@ use burn::backend::wgpu::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
-    FloatElement, GraphicsApi, IntElement, WgpuBackend,
+    FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn::tensor::Shape;
 use derive_new::new;
@@ -27,7 +27,7 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 
 // Implement the dynamic kernel trait for our kernel type.
 impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
-    fn source(self) -> SourceTemplate {
+    fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with workgroup size information using the
         // `SourceTemplate` trait.
         FusedMatmulAddReluRaw::source()
@@ -43,7 +43,7 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,

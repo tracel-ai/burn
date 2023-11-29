@@ -66,8 +66,8 @@ These methods are available for all modules.
 | `module.save_file(file_path, recorder)` | N/A                                      |
 | `module.load_file(file_path, recorder)` | N/A                                      |
 
-Similar to the backend trait, there is also the `ADModule` trait to signify a module with autodiff
-support.
+Similar to the backend trait, there is also the `AutodiffModule` trait to signify a module with
+autodiff support.
 
 | Burn API         | PyTorch Equivalent |
 | ---------------- | ------------------ |
@@ -111,6 +111,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | ----------- | --------------------------------------- |
 | `BatchNorm` | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc. |
 | `LayerNorm` | `nn.LayerNorm`                          |
+| `GroupNorm` | `nn.GroupNorm`                          |
 | `Dropout`   | `nn.Dropout`                            |
 | `GELU`      | `nn.GELU`                               |
 | `Linear`    | `nn.Linear`                             |

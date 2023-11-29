@@ -2,7 +2,7 @@ use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
 
 use crate::{
     graph::{NodeRef, Requirement},
-    tensor::ADTensor,
+    tensor::AutodiffTensor,
 };
 
 /// Gradient identifier.
@@ -54,7 +54,7 @@ impl Gradients {
     /// Removes a grad tensor from the container.
     pub fn remove<B: Backend, const D: usize>(
         &mut self,
-        tensor: &ADTensor<B, D>,
+        tensor: &AutodiffTensor<B, D>,
     ) -> Option<TensorPrimitive<B, D>> {
         self.container
             .remove::<B, D>(&tensor.node.id.value)
@@ -64,7 +64,7 @@ impl Gradients {
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend, const D: usize>(
         &self,
-        tensor: &ADTensor<B, D>,
+        tensor: &AutodiffTensor<B, D>,
     ) -> Option<TensorPrimitive<B, D>> {
         self.container
             .get::<B, D>(&tensor.node.id.value)

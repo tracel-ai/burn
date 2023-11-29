@@ -1,17 +1,16 @@
-use std::marker::PhantomData;
-
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_tensor::benchmark::{run_benchmark, Benchmark};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
 #[derive(new)]
 struct UnaryBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
     num_repeats: usize,
-    backend: PhantomData<B>,
+    device: B::Device,
 }
 
-impl<B: Backend, const D: usize> Benchmark<B> for UnaryBenchmark<B, D> {
+impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
@@ -25,8 +24,12 @@ impl<B: Backend, const D: usize> Benchmark<B> for UnaryBenchmark<B, D> {
         }
     }
 
-    fn prepare(&self, device: &B::Device) -> Self::Args {
-        Tensor::random_device(self.shape.clone(), Distribution::Default, device)
+    fn prepare(&self) -> Self::Args {
+        Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
+    }
+
+    fn sync(&self) {
+        B::sync(&self.device)
     }
 }
 
@@ -36,9 +39,9 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape: Shape<D> = [32, 512, 1024].into();
     let num_repeats = 10;
 
-    let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats);
+    let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    run_benchmark(benchmark, device)
+    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {

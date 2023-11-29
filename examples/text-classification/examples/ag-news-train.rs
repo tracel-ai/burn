@@ -1,6 +1,6 @@
 use burn::nn::transformer::TransformerEncoderConfig;
 use burn::optim::{decay::WeightDecayConfig, AdamConfig};
-use burn::tensor::backend::ADBackend;
+use burn::tensor::backend::AutodiffBackend;
 
 use text_classification::training::ExperimentConfig;
 use text_classification::AgNewsDataset;
@@ -11,14 +11,14 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: ADBackend>(device: B::Device) {
+pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
     );
 
     text_classification::training::train::<B, AgNewsDataset>(
-        device,
+        devices,
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,
@@ -33,56 +33,55 @@ pub fn launch<B: ADBackend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::autodiff::ADBackendDecorator;
-    use burn::backend::ndarray::{NdArrayBackend, NdArrayDevice};
+    use burn::backend::ndarray::{NdArray, NdArrayDevice};
+    use burn::backend::Autodiff;
 
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<ADBackendDecorator<NdArrayBackend<ElemType>>>(NdArrayDevice::Cpu);
+        launch::<Autodiff<NdArray<ElemType>>>(vec![NdArrayDevice::Cpu]);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::autodiff::ADBackendDecorator;
-    use burn::backend::tch::{TchBackend, TchDevice};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::backend::Autodiff;
 
     use crate::{launch, ElemType};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = TchDevice::Cuda(0);
+        let device = LibTorchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
-        let device = TchDevice::Mps;
+        let device = LibTorchDevice::Mps;
 
-        launch::<ADBackendDecorator<TchBackend<ElemType>>>(device);
+        launch::<Autodiff<LibTorch<ElemType>>>(vec![device]);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::autodiff::ADBackendDecorator;
-    use burn::backend::tch::{TchBackend, TchDevice};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::backend::Autodiff;
 
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<ADBackendDecorator<TchBackend<ElemType>>>(TchDevice::Cpu);
+        launch::<Autodiff<LibTorch<ElemType>>>(vec![LibTorchDevice::Cpu]);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::autodiff::ADBackendDecorator;
-    use burn::backend::wgpu::{AutoGraphicsApi, WgpuBackend, WgpuDevice};
-
     use crate::{launch, ElemType};
+    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+    use burn::backend::{Autodiff, Fusion};
 
     pub fn run() {
-        launch::<ADBackendDecorator<WgpuBackend<AutoGraphicsApi, ElemType, i32>>>(
+        launch::<Autodiff<Fusion<Wgpu<AutoGraphicsApi, ElemType, i32>>>>(vec![
             WgpuDevice::default(),
-        );
+        ]);
     }
 }
 

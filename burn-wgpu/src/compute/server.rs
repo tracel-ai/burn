@@ -1,4 +1,4 @@
-use super::{WgpuStorage, WorkGroup};
+use super::{WgpuAutotuneKey, WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
@@ -37,9 +37,9 @@ struct ComputeTask {
 /// provided id.
 ///
 /// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send {
+pub trait Kernel: 'static + Send + Sync {
     /// Source template for the kernel.
-    fn source(self: Box<Self>) -> SourceTemplate;
+    fn source(&self) -> SourceTemplate;
     /// Identifier for the kernel, used for caching kernel compilation.
     fn id(&self) -> String;
     /// Launch information.
@@ -136,7 +136,10 @@ where
 
         let mut compute = self
             .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            .begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
 
         for task in self.tasks.iter() {
             compute.set_pipeline(&task.pipeline);
@@ -154,7 +157,9 @@ where
             return pipeline.clone();
         }
 
-        let pipeline = self.compile_source(&kernel.source().complete());
+        let source = kernel.source().complete();
+        log::trace!("Compiling kernel {kernel_id}:\n {source}");
+        let pipeline = self.compile_source(&source);
         self.pipelines.insert(kernel_id.clone(), pipeline.clone());
 
         pipeline
@@ -254,6 +259,7 @@ where
     type Kernel = Box<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
+    type AutotuneKey = WgpuAutotuneKey;
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]

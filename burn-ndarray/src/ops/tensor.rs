@@ -5,7 +5,7 @@ use core::ops::Range;
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 use crate::element::FloatNdArrayElement;
-use crate::{tensor::NdArrayTensor, NdArrayBackend};
+use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
@@ -20,14 +20,14 @@ use libm::{cos, erf, sin, tanh};
 #[allow(unused_imports)]
 use num_traits::Float;
 
-impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> {
+impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution,
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         let mut seed = SEED.lock().unwrap();
@@ -47,7 +47,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn into_data<const D: usize>(
         tensor: NdArrayTensor<E, D>,
-    ) -> Reader<Data<<NdArrayBackend<E> as Backend>::FloatElem, D>> {
+    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
 
@@ -67,9 +67,9 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn empty<const D: usize>(
         shape: Shape<D>,
-        device: &<NdArrayBackend<E> as Backend>::Device,
+        device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<E, D> {
-        NdArrayBackend::<E>::zeros(shape, device)
+        NdArray::<E>::zeros(shape, device)
     }
 
     fn add<const D: usize>(
@@ -125,6 +125,10 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
 
     fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         Self::mul_scalar(tensor, (-1f32).elem::<E>())
+    }
+
+    fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::recip(tensor)
     }
 
     fn swap_dims<const D: usize>(
@@ -211,7 +215,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::sub(lhs, rhs);
         let zero = 0.elem();
 
         Self::equal_elem(tensor, zero)
@@ -227,7 +231,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::sub(lhs, rhs);
         let zero = 0.elem();
         Self::greater_elem(tensor, zero)
     }
@@ -242,7 +246,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::sub(lhs, rhs);
         let zero = 0.elem();
         Self::greater_equal_elem(tensor, zero)
     }
@@ -260,7 +264,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::sub(lhs, rhs);
         let zero = 0.elem();
         Self::lower_elem(tensor, zero)
     }
@@ -275,7 +279,7 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArrayBackend::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::sub(lhs, rhs);
         let zero = 0.elem();
         Self::lower_equal_elem(tensor, zero)
     }
@@ -430,8 +434,8 @@ impl<E: FloatNdArrayElement> TensorOps<NdArrayBackend<E>> for NdArrayBackend<E> 
     }
 
     fn into_int<const D: usize>(
-        tensor: <NdArrayBackend<E> as Backend>::TensorPrimitive<D>,
-    ) -> <NdArrayBackend<E> as Backend>::IntTensorPrimitive<D> {
+        tensor: <NdArray<E> as Backend>::TensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }

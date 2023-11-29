@@ -18,6 +18,9 @@ pub mod rand;
 /// Stub module contains types for stubs for non-std environments and for std environments.
 pub mod stub;
 
+/// Module for benchmarking any executable part
+pub mod benchmark;
+
 /// Useful when you need to read async data without having to decorate each function with async
 /// notation.
 pub mod reader;
