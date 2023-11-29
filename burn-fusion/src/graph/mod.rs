@@ -1,11 +1,11 @@
 mod base;
-mod cache;
 mod context;
 mod execution;
 mod ops;
+mod path;
 
 pub use base::*;
-pub use cache::*;
 pub use context::*;
 pub use execution::*;
 pub use ops::*;
+pub use path::*;
