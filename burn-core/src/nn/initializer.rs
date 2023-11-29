@@ -133,10 +133,12 @@ impl Initializer {
 
     fn xavier_std(&self, fan_in: Option<usize>, fan_out: Option<usize>) -> f64 {
         let fan_in = fan_in.expect(
-            "Can't use Xavier initialization without specifying fan in. Use init_with method and provide fan_in.",
+            "Can't use Xavier initialization without specifying fan in. Use init_with method and \
+             provide fan_in.",
         );
         let fan_out = fan_out.expect(
-            "Can't use Xavier initialization without specifying fan out. Use init_with method and provide fan_out.",
+            "Can't use Xavier initialization without specifying fan out. Use init_with method and \
+             provide fan_out.",
         );
         sqrt(2.0 / (fan_in + fan_out) as f64)
     }

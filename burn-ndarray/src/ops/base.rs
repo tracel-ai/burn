@@ -285,7 +285,8 @@ where
 
         if shape_value != shape_indices {
             panic!(
-                "Invalid dimension: the shape of the index tensor should be the same as the value tensor: Index {:?} value {:?}",
+                "Invalid dimension: the shape of the index tensor should be the same as the value \
+                 tensor: Index {:?} value {:?}",
                 shape_indices.dims, shape_value.dims
             );
         }
@@ -358,7 +359,8 @@ where
         for i in 0..D - 1 {
             if shape_tensor.dims[i] != shape_indices.dims[i] {
                 panic!(
-                    "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}",
+                    "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
+                     {:?}",
                     shape_tensor.dims, shape_indices.dims
                 );
             }

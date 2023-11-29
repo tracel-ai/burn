@@ -79,7 +79,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         // validation. https://github.com/rust-lang/rust/issues/76560
         if D + 2 != DI {
             panic!(
-                "BatchNorm{}D can only be applied on tensors of size {} with the following shape [batch_size, channels, ...], received {}D tensor",
+                "BatchNorm{}D can only be applied on tensors of size {} with the following shape \
+                 [batch_size, channels, ...], received {}D tensor",
                 D,
                 D + 2,
                 DI

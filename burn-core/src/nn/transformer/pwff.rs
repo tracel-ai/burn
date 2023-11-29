@@ -19,9 +19,7 @@ pub struct PositionWiseFeedForwardConfig {
     #[config(default = 0.1)]
     pub dropout: f64,
     /// The type of function used to initialize neural network parameters
-    #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
-    )]
+    #[config(default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}")]
     pub initializer: Initializer,
 }
 

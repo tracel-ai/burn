@@ -321,7 +321,8 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
-                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"
+                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
                     )
                     .as_str();
                 }
