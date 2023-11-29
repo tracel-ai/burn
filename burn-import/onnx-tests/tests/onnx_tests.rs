@@ -20,9 +20,9 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
-    cos,
     conv1d,
     conv2d,
+    cos,
     div,
     dropout_opset16,
     dropout_opset7,
@@ -30,14 +30,15 @@ include_models!(
     erf,
     exp,
     flatten,
-    gelu,
     gather,
+    gelu,
     global_avr_pool,
     linear,
-    log,
     log_softmax,
+    log,
     maxpool2d,
     mul,
+    neg,
     recip,
     relu,
     reshape,
@@ -693,5 +694,21 @@ mod tests {
         let expected = Data::from([[[[0.0000, 1.3863, 2.1972, 3.2189]]]]);
 
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn neg() {
+        let model: neg::Model<Backend> = neg::Model::new();
+
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input2 = 99f64;
+
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[-1.0, -4.0, -9.0, -25.0]]]]);
+        let expected2 = -99f64;
+
+        output1.to_data().assert_approx_eq(&expected1, 4);
+
+        assert_eq!(output2, expected2);
     }
 }

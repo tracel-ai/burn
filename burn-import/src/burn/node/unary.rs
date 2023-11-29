@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, ToTokens, Type};
+use crate::burn::{BurnImports, Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -28,6 +28,7 @@ pub enum UnaryNodeKind {
     Gelu,
     Log,
     LogSoftmax,
+    Neg,
     Reciprocal,
     Relu,
     Sigmoid,
@@ -48,6 +49,7 @@ impl UnaryNodeKind {
             Self::Gelu => "gelu",
             Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
+            Self::Neg => "neg",
             Self::Reciprocal => "reciprocal",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
@@ -104,6 +106,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Unary(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Register the imports depending on the kind of the node.
+        match self.kind {
+            UnaryNodeKind::Neg => {
+                imports.register("core::ops::Neg");
+            }
+            _ => {}
+        }
     }
 }
 
@@ -181,6 +193,11 @@ impl UnaryNode {
     pub(crate) fn log(input: Type, output: Type) -> Self {
         let function = move |input| quote! { #input.log()};
         Self::new(input, output, UnaryNodeKind::Log, Rc::new(function))
+    }
+
+    pub(crate) fn neg(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.neg()};
+        Self::new(input, output, UnaryNodeKind::Neg, Rc::new(function))
     }
 
     /// Casts the input to the output type.
@@ -496,6 +513,44 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = tensor1.log();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_neg_scalar() {
+        one_node_graph(
+            UnaryNode::neg(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f64) -> f64 {
+                    let scalar2 = scalar1.neg();
+
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_neg_tensor() {
+        one_node_graph(
+            UnaryNode::neg(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.neg();
 
                     tensor2
                 }
