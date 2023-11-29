@@ -54,6 +54,9 @@ jobs:
           # only need to check this once
           - rust: 1.71.0
             test: 'examples'
+          # only need to check this once
+          - os: macos-13
+            test: 'no-std'
 
     steps:
 
