@@ -22,18 +22,23 @@ include_models!(
     concat,
     conv1d,
     conv2d,
+    cos,
     div,
     dropout_opset16,
     dropout_opset7,
     equal,
     erf,
+    exp,
     flatten,
     gather,
+    gelu,
     global_avr_pool,
     linear,
     log_softmax,
+    log,
     maxpool2d,
     mul,
+    neg,
     recip,
     relu,
     reshape,
@@ -331,12 +336,15 @@ mod tests {
     fn sqrt() {
         let model: sqrt::Model<Backend> = sqrt::Model::new();
 
-        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input2 = 36f64;
 
-        let output = model.forward(input);
-        let expected = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+        let expected2 = 6.0;
 
-        assert_eq!(output.to_data(), expected);
+        assert_eq!(output1.to_data(), expected1);
+        assert_eq!(output2, expected2);
     }
 
     #[test]
@@ -640,5 +648,70 @@ mod tests {
         // data from pyTorch
         let expected = Data::from([[[[1.0000, 0.5000, 0.3333, 0.2500]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn cos() {
+        let model: cos::Model<Backend> = cos::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.5403, -0.6536, -0.9111, 0.9912]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    #[allow(clippy::approx_constant)]
+    fn exp() {
+        let model: exp::Model<Backend> = exp::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[0.0000, 0.6931]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[1., 2.]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 2);
+    }
+
+    #[test]
+    fn gelu() {
+        let model: gelu::Model<Backend> = gelu::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.8413, 3.9999, 9.0000, 25.0000]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn log() {
+        let model: log::Model<Backend> = log::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.0000, 1.3863, 2.1972, 3.2189]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn neg() {
+        let model: neg::Model<Backend> = neg::Model::new();
+
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input2 = 99f64;
+
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[-1.0, -4.0, -9.0, -25.0]]]]);
+        let expected2 = -99f64;
+
+        output1.to_data().assert_approx_eq(&expected1, 4);
+
+        assert_eq!(output2, expected2);
     }
 }

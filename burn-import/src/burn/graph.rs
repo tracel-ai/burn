@@ -542,7 +542,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         // otherwise let_and_return error will be triggered by clippy.
         // For now, we just disable the warning.
         quote! {
-            #[allow(clippy::let_and_return)]
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
             pub fn forward(&self, #input_def) -> #output_type_def {
                 #body
 

@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, ToTokens, Type};
+use crate::burn::{BurnImports, Scope, ToTokens, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -21,13 +21,18 @@ pub struct UnaryNode {
 #[derive(Clone)]
 pub enum UnaryNodeKind {
     Cast,
+    Cos,
     Erf,
+    Exp,
     Flatten,
+    Gelu,
+    Log,
     LogSoftmax,
-    Softmax,
-    Relu,
+    Neg,
     Reciprocal,
+    Relu,
     Sigmoid,
+    Softmax,
     Sqrt,
     Tanh,
     Transpose,
@@ -37,13 +42,18 @@ impl UnaryNodeKind {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Cast => "cast",
+            Self::Cos => "cos",
             Self::Erf => "erf",
+            Self::Exp => "exp",
             Self::Flatten => "flatten",
+            Self::Gelu => "gelu",
+            Self::Log => "log",
             Self::LogSoftmax => "log_softmax",
-            Self::Softmax => "softmax",
-            Self::Relu => "relu",
+            Self::Neg => "neg",
             Self::Reciprocal => "reciprocal",
+            Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
+            Self::Softmax => "softmax",
             Self::Sqrt => "sqrt",
             Self::Tanh => "tanh",
             Self::Transpose => "transpose",
@@ -96,6 +106,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnaryNode {
 
     fn into_node(self) -> Node<PS> {
         Node::Unary(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        // Register the imports depending on the kind of the node.
+        match self.kind {
+            UnaryNodeKind::Neg => {
+                imports.register("core::ops::Neg");
+            }
+            _ => {}
+        }
     }
 }
 
@@ -155,6 +175,31 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Reciprocal, Rc::new(function))
     }
 
+    pub(crate) fn cos(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.cos()};
+        Self::new(input, output, UnaryNodeKind::Cos, Rc::new(function))
+    }
+
+    pub(crate) fn exp(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.exp()};
+        Self::new(input, output, UnaryNodeKind::Exp, Rc::new(function))
+    }
+
+    pub(crate) fn gelu(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.gelu()};
+        Self::new(input, output, UnaryNodeKind::Gelu, Rc::new(function))
+    }
+
+    pub(crate) fn log(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.log()};
+        Self::new(input, output, UnaryNodeKind::Log, Rc::new(function))
+    }
+
+    pub(crate) fn neg(input: Type, output: Type) -> Self {
+        let function = move |input| quote! { #input.neg()};
+        Self::new(input, output, UnaryNodeKind::Neg, Rc::new(function))
+    }
+
     /// Casts the input to the output type.
     ///
     /// Currently this function only supports the following conversions:
@@ -166,12 +211,23 @@ impl UnaryNode {
     /// 4) tensor -> scalar
     /// 5) scalar -> tensor
     pub(crate) fn cast(input: Type, output: Type) -> Self {
-        let function = match output.clone() {
-            Type::Scalar(scalar) => {
-                let ty = scalar.ty();
-                move |input| quote! { #input as #ty }
+        match (input.clone(), output.clone()) {
+            (Type::Scalar(input_scalar), Type::Scalar(output_scalar)) => {
+                if input_scalar.kind == output_scalar.kind {
+                    // If the input and output types are the same, we don't need to cast.
+                    Self::new(input, output, UnaryNodeKind::Cast, Rc::new(|input| input))
+                } else {
+                    // If the input and output types are different, we need to cast.
+                    let ty = output_scalar.ty();
+                    Self::new(
+                        input,
+                        output,
+                        UnaryNodeKind::Cast,
+                        Rc::new(move |input| quote! { #input as #ty }),
+                    )
+                }
             }
-            Type::Tensor(_tensor) => {
+            (Type::Tensor(_input_tensor), Type::Tensor(_output_tensor)) => {
                 // TODO: Implement this after tensor Int is implemented (@antimora 8/2/2023)
                 // TODO: If the input is scalar and the output type is a tensor,
                 // we should generate another code block. (@antimora 8/4/2023)
@@ -180,9 +236,7 @@ impl UnaryNode {
             }
 
             _ => panic!("output must be a tensor"),
-        };
-
-        Self::new(input, output, UnaryNodeKind::Cast, Rc::new(function))
+        }
     }
 }
 
@@ -398,6 +452,120 @@ mod tests {
             },
             vec!["scalar1".to_string()],
             vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_cos() {
+        one_node_graph(
+            UnaryNode::cos(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.cos();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_exp() {
+        one_node_graph(
+            UnaryNode::exp(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.exp();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_gelu() {
+        one_node_graph(
+            UnaryNode::gelu(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.gelu();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_codegen_log() {
+        one_node_graph(
+            UnaryNode::log(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.log();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_neg_scalar() {
+        one_node_graph(
+            UnaryNode::neg(
+                Type::Scalar(ScalarType::new("scalar1", ScalarKind::Float64)),
+                Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
+            ),
+            quote! {
+                pub fn forward(&self, scalar1: f64) -> f64 {
+                    let scalar2 = scalar1.neg();
+
+                    scalar2
+                }
+            },
+            vec!["scalar1".to_string()],
+            vec!["scalar2".to_string()],
+        );
+    }
+
+    #[test]
+    fn test_unary_neg_tensor() {
+        one_node_graph(
+            UnaryNode::neg(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = tensor1.neg();
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
         );
     }
 }
