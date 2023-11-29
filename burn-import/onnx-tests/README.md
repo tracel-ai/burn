@@ -16,6 +16,10 @@ Here is the directory structure of this crate:
 - `build.rs`: This build script generates the ONNX models and is executed by `cargo test` before
   running the actual tests.
 
+## Setting up your python environment
+
+You need to install `onnx==1.15.0` and `torch-2.1.1` in your python environment to add a new test
+
 ## Adding new tests
 
 Here are the steps to add a new test:

@@ -115,7 +115,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(
@@ -135,7 +135,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under the this directory. We then initialize our dataloaders using our previously created batcher.
+under this directory. We then initialize our dataloaders using our previously created batcher.
 Since no automatic differentiation is needed during the validation phase, the backend used for the
 corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
 are available through a type system, making it nearly impossible to forget to deactivate gradient

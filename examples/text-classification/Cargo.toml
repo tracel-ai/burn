@@ -22,7 +22,7 @@ wgpu = ["burn/wgpu"]
 burn = {path = "../../burn", features=["train", "ndarray", "fusion"]}
 
 # Tokenizer
-tokenizers = { version = "0.13.4", default-features = false, features = [
+tokenizers = { version = "0.15.0", default-features = false, features = [
   "onig",
   "http",
 ] }

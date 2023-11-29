@@ -1,3 +1,4 @@
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
@@ -56,8 +57,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape_rhs = [batch_size, k, n].into();
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
-    println!("Backend {}", B::name());
-    run_benchmark(benchmark);
+    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {

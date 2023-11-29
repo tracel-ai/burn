@@ -15,15 +15,16 @@ use crate::{
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    Data, Device, Reader, Shape,
+    Data, Device, ElementConversion, Reader, Shape,
 };
 use core::ops::Range;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::int_empty(shape.clone(), device);
 
-        client.create_tensor_empty(shape.dims.into())
+        client.register_tensor(B::int_tensor_handle(tensor), shape.dims.into())
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
@@ -39,8 +40,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let tensor = B::int_from_data(data, device);
+        let shape = B::int_shape(&tensor);
 
-        client.create_tensor_int(data.value, data.shape.dims.into())
+        client.register_tensor(B::int_tensor_handle(tensor), shape.dims.into())
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -70,34 +73,31 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D1>,
         shape: Shape<D2>,
     ) -> IntTensor<Self, D2> {
-        struct ReshapeDimsOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct ReshapeDimsOps<const D1: usize, const D2: usize> {
+            desc: ReshapeDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
-            type Args = ReshapeDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_int_tensor::<D1>(&args.input);
-                let output = B::int_reshape::<D1, D2>(input, Shape::from(&args.shape));
-                handles.register_int_tensor(&args.out.id, output);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D1>(&self.desc.input);
+                let output = B::int_reshape::<D1, D2>(input, Shape::from(&self.desc.shape));
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.create_tensor_empty(shape.clone());
+        let out = tensor.client.tensor_uninitialized(shape.clone());
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsInt(
-                BaseOpsDescription::Reshape(
-                    ReshapeDescription {
-                        input: tensor.into_description(),
-                        shape,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(ReshapeDimsOps::<D1, D2>),
-                ),
-            ));
+        let desc = ReshapeDescription {
+            input: tensor.into_description(),
+            shape,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Reshape(desc.clone())),
+            ReshapeDimsOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -106,18 +106,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D1>,
         ranges: [Range<usize>; D2],
     ) -> IntTensor<Self, D1> {
-        struct SliceOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct SliceOps<const D1: usize, const D2: usize> {
+            desc: SliceOpsDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceOps<D1, D2> {
-            type Args = SliceOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D1>(&args.tensor);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D1>(&self.desc.tensor);
 
                 let output =
-                    B::int_slice::<D1, D2>(tensor, args.ranges.clone().try_into().unwrap());
+                    B::int_slice::<D1, D2>(tensor, self.desc.ranges.clone().try_into().unwrap());
 
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -127,19 +128,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             shape.push(tensor.shape[i]);
         }
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Slice(
-                SliceOpsDescription {
-                    tensor: tensor.into_description(),
-                    ranges: ranges.into(),
-                    out: out.to_description_out(),
-                },
-                Box::new(SliceOps::<D1, D2>),
-            )));
+        let desc = SliceOpsDescription {
+            tensor: tensor.into_description(),
+            ranges: ranges.into(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Slice(desc.clone())),
+            SliceOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -149,42 +148,38 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         ranges: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        struct SliceAssignOps<const D1: usize, const D2: usize>;
+        #[derive(new)]
+        struct SliceAssignOps<const D1: usize, const D2: usize> {
+            desc: SliceAssignOpsDescription,
+        }
 
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceAssignOps<D1, D2> {
-            type Args = SliceAssignOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D1>(&args.tensor);
-                let value = handles.get_int_tensor::<D1>(&args.value);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D1>(&self.desc.tensor);
+                let value = handles.get_int_tensor::<D1>(&self.desc.value);
 
                 let output = B::int_slice_assign::<D1, D2>(
                     tensor,
-                    args.ranges.clone().try_into().unwrap(),
+                    self.desc.ranges.clone().try_into().unwrap(),
                     value,
                 );
 
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsInt(
-                BaseOpsDescription::SliceAssign(
-                    SliceAssignOpsDescription {
-                        tensor: tensor.into_description(),
-                        ranges: ranges.into(),
-                        value: value.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SliceAssignOps::<D1, D2>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = SliceAssignOpsDescription {
+            tensor: tensor.into_description(),
+            ranges: ranges.into(),
+            value: value.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::SliceAssign(desc.clone())),
+            SliceAssignOps::<D1, D2>::new(desc),
+        );
 
         out
     }
@@ -194,39 +189,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        struct MaskWhereOps<const D: usize>;
+        #[derive(new)]
+        struct MaskWhereOps<const D: usize> {
+            desc: MaskWhereOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for MaskWhereOps<D> {
-            type Args = MaskWhereOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let value = handles.get_int_tensor(&args.value);
-                let mask = handles.get_bool_tensor(&args.mask);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let value = handles.get_int_tensor(&self.desc.value);
+                let mask = handles.get_bool_tensor(&self.desc.mask);
 
                 let output = B::int_mask_where(tensor, mask, value);
 
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::MaskWhere(
-                    MaskWhereOpsDescription {
-                        tensor: tensor.into_description(),
-                        value: value.into_description(),
-                        mask: mask.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(MaskWhereOps::<D>),
-                ),
-            ));
+        let desc = MaskWhereOpsDescription {
+            tensor: tensor.into_description(),
+            value: value.into_description(),
+            mask: mask.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaskWhere(desc.clone())),
+            MaskWhereOps::<D>::new(desc),
+        );
 
         out
     }
@@ -236,38 +228,34 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         mask: BoolTensor<Self, D>,
         value: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        struct MaskFillOps<const D: usize>;
+        #[derive(new)]
+        struct MaskFillOps<const D: usize> {
+            desc: MaskFillOpsDescription<i32>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for MaskFillOps<D> {
-            type Args = MaskFillOpsDescription<IntElem<B>>;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let mask = handles.get_bool_tensor(&self.desc.mask);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let mask = handles.get_bool_tensor(&args.mask);
+                let output = B::int_mask_fill(tensor, mask, self.desc.value.elem());
 
-                let output = B::int_mask_fill(tensor, mask, args.value);
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::MaskFill(
-                    MaskFillOpsDescription {
-                        tensor: tensor.into_description(),
-                        value,
-                        mask: mask.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(MaskFillOps::<D>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = MaskFillOpsDescription {
+            tensor: tensor.into_description(),
+            value: value.elem(),
+            mask: mask.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaskFill(desc.clone())),
+            MaskFillOps::<D>::new(desc),
+        );
 
         out
     }
@@ -277,37 +265,33 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D>,
         indices: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        struct GatherOps<const D: usize>;
+        #[derive(new)]
+        struct GatherOps<const D: usize> {
+            desc: GatherOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for GatherOps<D> {
-            type Args = GatherOpsDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor(&self.desc.indices);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let indices = handles.get_int_tensor(&args.indices);
-
-                let output = B::int_gather(args.dim, tensor, indices);
-                handles.register_int_tensor(&args.out.id, output);
+                let output = B::int_gather(self.desc.dim, tensor, indices);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = indices.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Gather(
-                    GatherOpsDescription {
-                        tensor: tensor.into_description(),
-                        dim,
-                        indices: indices.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(GatherOps::<D>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = GatherOpsDescription {
+            tensor: tensor.into_description(),
+            dim,
+            indices: indices.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Gather(desc.clone())),
+            GatherOps::<D>::new(desc),
+        );
 
         out
     }
@@ -318,40 +302,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        struct ScatterOps<const D: usize>;
+        #[derive(new)]
+        struct ScatterOps<const D: usize> {
+            desc: ScatterOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for ScatterOps<D> {
-            type Args = ScatterOpsDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor(&self.desc.indices);
+                let value = handles.get_int_tensor(&self.desc.value);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let indices = handles.get_int_tensor(&args.indices);
-                let value = handles.get_int_tensor(&args.value);
+                let output = B::int_scatter(self.desc.dim, tensor, indices, value);
 
-                let output = B::int_scatter(args.dim, tensor, indices, value);
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Scatter(
-                    ScatterOpsDescription {
-                        tensor: tensor.into_description(),
-                        dim,
-                        indices: indices.into_description(),
-                        value: value.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(ScatterOps::<D>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = ScatterOpsDescription {
+            tensor: tensor.into_description(),
+            dim,
+            indices: indices.into_description(),
+            value: value.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Scatter(desc.clone())),
+            ScatterOps::<D>::new(desc),
+        );
 
         out
     }
@@ -361,39 +341,35 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         dim: usize,
         indices: IntTensor<Self, 1>,
     ) -> IntTensor<Self, D> {
-        struct SelectOps<const D: usize>;
+        #[derive(new)]
+        struct SelectOps<const D: usize> {
+            desc: SelectOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for SelectOps<D> {
-            type Args = SelectOpsDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor(&self.desc.indices);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let indices = handles.get_int_tensor(&args.indices);
+                let output = B::int_select(tensor, self.desc.dim, indices);
 
-                let output = B::int_select(tensor, args.dim, indices);
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let mut shape: Vec<usize> = tensor.shape.clone();
         shape[dim] = indices.shape[0];
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Select(
-                    SelectOpsDescription {
-                        tensor: tensor.into_description(),
-                        dim,
-                        indices: indices.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SelectOps::<D>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = SelectOpsDescription {
+            tensor: tensor.into_description(),
+            dim,
+            indices: indices.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Select(desc.clone())),
+            SelectOps::<D>::new(desc),
+        );
 
         out
     }
@@ -404,60 +380,58 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         indices: IntTensor<Self, 1>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        struct SelectAssignOps<const D: usize>;
+        #[derive(new)]
+        struct SelectAssignOps<const D: usize> {
+            desc: SelectAssignOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for SelectAssignOps<D> {
-            type Args = SelectAssignOpsDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let indices = handles.get_int_tensor(&self.desc.indices);
+                let value = handles.get_int_tensor(&self.desc.value);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let indices = handles.get_int_tensor(&args.indices);
-                let value = handles.get_int_tensor(&args.value);
+                let output = B::int_select_assign(tensor, self.desc.dim, indices, value);
 
-                let output = B::int_select_assign(tensor, args.dim, indices, value);
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        let out = tensor.client.create_tensor_empty(shape);
-
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::SelectAssign(
-                    SelectAssignOpsDescription {
-                        tensor: tensor.into_description(),
-                        dim,
-                        indices: indices.into_description(),
-                        value: value.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SelectAssignOps::<D>),
-                ),
-            ));
+        let out = tensor.client.tensor_uninitialized(shape);
+        let desc = SelectAssignOpsDescription {
+            tensor: tensor.into_description(),
+            dim,
+            indices: indices.into_description(),
+            value: value.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SelectAssign(desc.clone())),
+            SelectAssignOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
-        struct CatOps<const D: usize>;
+        #[derive(new)]
+        struct CatOps<const D: usize> {
+            desc: CatOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for CatOps<D> {
-            type Args = CatOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensors = args
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensors = self
+                    .desc
                     .tensors
                     .iter()
                     .map(|tensor| handles.get_int_tensor(tensor))
                     .collect();
 
-                let output = B::int_cat::<D>(tensors, args.dim);
+                let output = B::int_cat::<D>(tensors, self.desc.dim);
 
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -471,16 +445,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             shape[dim] += tensor.shape[dim];
         }
 
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
-        client.register(TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Cat(
-            CatOpsDescription {
-                tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
-                dim,
-                out: out.to_description_out(),
-            },
-            Box::new(CatOps::<D>),
-        )));
+        let desc = CatOpsDescription {
+            tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
+            dim,
+            out: out.to_description_out(),
+        };
+        client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Cat(desc.clone())),
+            CatOps::<D>::new(desc),
+        );
 
         out
     }
@@ -493,17 +468,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client
-            .register(TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Equal(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(EqualOps::<D>),
-            )));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::Equal(desc.clone())),
+            EqualOps::<D>::new(desc),
+        );
 
         out
     }
@@ -514,18 +489,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_int_cmp_ops!(EqualElemOps, B::int_equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::EqualElem(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.to_description_out(),
-                },
-                Box::new(EqualElemOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::EqualElem(desc.clone())),
+            EqualElemOps::<D>::new(desc),
+        );
 
         out
     }
@@ -538,18 +512,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Greater(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(GreaterOps::<D>),
-            ),
-        ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Greater(desc.clone())),
+            GreaterOps::<D>::new(desc),
+        );
 
         out
     }
@@ -560,18 +533,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_int_cmp_ops!(GreaterElemOps, B::int_greater_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::GreaterElem(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.to_description_out(),
-                },
-                Box::new(GreaterElemOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::GreaterElem(desc.clone())),
+            GreaterElemOps::<D>::new(desc),
+        );
 
         out
     }
@@ -584,18 +556,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::GreaterEqual(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(GreaterEqualOps::<D>),
-            ),
-        ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::GreaterEqual(desc.clone())),
+            GreaterEqualOps::<D>::new(desc),
+        );
 
         out
     }
@@ -606,18 +577,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_int_cmp_ops!(GreaterEqualElemOps, B::int_greater_equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::GreaterEqualElem(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.to_description_out(),
-                },
-                Box::new(GreaterEqualElemOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::GreaterEqualElem(
+                desc.clone(),
+            )),
+            GreaterEqualElemOps::<D>::new(desc),
+        );
 
         out
     }
@@ -630,18 +602,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Lower(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(LowerOps::<D>),
-            ),
-        ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Lower(desc.clone())),
+            LowerOps::<D>::new(desc),
+        );
 
         out
     }
@@ -652,18 +623,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_int_cmp_ops!(LowerElemOps, B::int_lower_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::LowerElem(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.to_description_out(),
-                },
-                Box::new(LowerElemOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::LowerElem(desc.clone())),
+            LowerElemOps::<D>::new(desc),
+        );
 
         out
     }
@@ -676,18 +646,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::LowerEqual(
-                BinaryOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs: rhs.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(LowerEqualOps::<D>),
-            ),
-        ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::LowerEqual(desc.clone())),
+            LowerEqualOps::<D>::new(desc),
+        );
 
         out
     }
@@ -698,18 +667,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_int_cmp_ops!(LowerEqualElemOps, B::int_lower_equal_elem);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::LowerEqualElem(
-                ScalarOpsDescription {
-                    lhs: lhs.into_description(),
-                    rhs,
-                    out: out.to_description_out(),
-                },
-                Box::new(LowerEqualElemOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::LowerEqualElem(
+                desc.clone(),
+            )),
+            LowerEqualElemOps::<D>::new(desc),
+        );
 
         out
     }
@@ -722,19 +692,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Add(
-                    BinaryOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs: rhs.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(AddOps::<D>),
-                ),
-            ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Add(desc.clone())),
+            AddOps::<D>::new(desc),
+        );
 
         out
     }
@@ -745,19 +713,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(AddOps, B::int_add_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::AddScalar(
-                    ScalarOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(AddOps::<D>),
-                ),
-            ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::AddScalar(
+                desc.clone(),
+            )),
+            AddOps::<D>::new(desc),
+        );
 
         out
     }
@@ -770,19 +738,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Sub(
-                    BinaryOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs: rhs.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SubOps::<D>),
-                ),
-            ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Sub(desc.clone())),
+            SubOps::<D>::new(desc),
+        );
 
         out
     }
@@ -793,19 +759,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(SubOps, B::int_sub_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::SubScalar(
-                    ScalarOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SubOps::<D>),
-                ),
-            ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SubScalar(
+                desc.clone(),
+            )),
+            SubOps::<D>::new(desc),
+        );
 
         out
     }
@@ -818,19 +784,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Mul(
-                    BinaryOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs: rhs.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(MulOps::<D>),
-                ),
-            ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Mul(desc.clone())),
+            MulOps::<D>::new(desc),
+        );
 
         out
     }
@@ -841,19 +805,19 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(MulOps, B::int_mul_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::MulScalar(
-                    ScalarOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(MulOps::<D>),
-                ),
-            ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MulScalar(
+                desc.clone(),
+            )),
+            MulOps::<D>::new(desc),
+        );
 
         out
     }
@@ -866,19 +830,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let out = lhs
             .client
-            .create_tensor_empty(binary_ops_shape(&lhs.shape, &rhs.shape));
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::Div(
-                    BinaryOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs: rhs.into_description(),
-                        out: out.to_description_out(),
-                    },
-                    Box::new(DivOps::<D>),
-                ),
-            ));
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Div(desc.clone())),
+            DivOps::<D>::new(desc),
+        );
 
         out
     }
@@ -889,67 +851,72 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(DivOps, B::int_div_scalar);
 
-        let out = lhs.client.create_tensor_empty(lhs.shape.clone());
+        let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        out.client
-            .register(graph::TensorOpsDescription::NumericOpsInt(
-                NumericOpsDescription::DivScalar(
-                    ScalarOpsDescription {
-                        lhs: lhs.into_description(),
-                        rhs,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(DivOps::<D>),
-                ),
-            ));
+        let desc = ScalarOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::DivScalar(
+                desc.clone(),
+            )),
+            DivOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        struct ZerosOps<const D: usize>;
+        #[derive(new)]
+        struct ZerosOps<const D: usize> {
+            desc: TensorDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for ZerosOps<D> {
-            type Args = TensorDescription;
-
-            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(out.shape.clone());
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_zeros::<D>(shape, &handles.device);
-                handles.register_int_tensor(&out.id, output);
+                handles.register_int_tensor(&self.desc.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
-
-        client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Zeros(out.to_description_out(), Box::new(ZerosOps::<D>)),
-        ));
+        let out = client.tensor_uninitialized(shape);
+        let desc = out.to_description_out();
+        client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Zeros(desc.clone())),
+            ZerosOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        struct OnesOps<const D: usize>;
+        #[derive(new)]
+        struct OnesOps<const D: usize> {
+            desc: TensorDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for OnesOps<D> {
-            type Args = TensorDescription;
-
-            fn execute(&self, out: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(out.shape.clone());
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(self.desc.shape.clone());
                 let output = B::int_ones::<D>(shape, &handles.device);
-                handles.register_int_tensor(&out.id, output);
+                handles.register_int_tensor(&self.desc.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
-        let out = client.create_tensor_empty(shape);
+        let out = client.tensor_uninitialized(shape);
 
-        client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Ones(out.to_description_out(), Box::new(OnesOps::<D>)),
-        ));
+        let desc = out.to_description_out();
+        client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Ones(desc.clone())),
+            OnesOps::<D>::new(desc),
+        );
 
         out
     }
@@ -957,38 +924,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(SumOps, B::int_sum);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Sum(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(SumOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Sum(desc.clone())),
+            SumOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(SumDimOps, B::int_sum_dim, usize);
+        scalar_int_ops!(SumDimOps, B::int_sum_dim, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::SumDim(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(SumDimOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SumDim(desc.clone())),
+            SumDimOps::<D>::new(desc),
+        );
 
         out
     }
@@ -996,80 +961,76 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_mean<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(MeanOps, B::int_mean);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Mean(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(MeanOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Mean(desc.clone())),
+            MeanOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(MeanDimOps, B::int_mean_dim, usize);
+        scalar_int_ops!(MeanDimOps, B::int_mean_dim, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::MeanDim(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(MeanDimOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MeanDim(desc.clone())),
+            MeanDimOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(ArgMaxOps, B::int_argmax, usize);
+        scalar_int_ops!(ArgMaxOps, B::int_argmax, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::ArgMax(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(ArgMaxOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ArgMax(desc.clone())),
+            ArgMaxOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(ArgMinOps, B::int_argmin, usize);
+        scalar_int_ops!(ArgMinOps, B::int_argmin, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::ArgMin(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(ArgMinOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ArgMin(desc.clone())),
+            ArgMinOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1080,18 +1041,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(ClampMinOps, B::int_clamp_min);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::ClampMin(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: min,
-                    out: out.to_description_out(),
-                },
-                Box::new(ClampMinOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: min.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ClampMin(desc.clone())),
+            ClampMinOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1102,18 +1062,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         scalar_int_ops!(ClampMaxOps, B::int_clamp_max);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::ClampMax(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: max,
-                    out: out.to_description_out(),
-                },
-                Box::new(ClampMaxOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: max.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ClampMax(desc.clone())),
+            ClampMaxOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1123,32 +1082,31 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        struct ClampOps<const D: usize>;
+        #[derive(new)]
+        struct ClampOps<const D: usize> {
+            desc: ClampOpsDescription<i32>,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for ClampOps<D> {
-            type Args = ClampOpsDescription<IntElem<B>>;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let output = B::int_clamp(input, self.desc.min.elem(), self.desc.max.elem());
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_int_tensor::<D>(&args.tensor);
-                let output = B::int_clamp(input, args.min, args.max);
-
-                handles.register_int_tensor(&args.out.id, output);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
-
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Clamp(
-                ClampOpsDescription {
-                    tensor: tensor.into_description(),
-                    min,
-                    max,
-                    out: out.to_description_out(),
-                },
-                Box::new(ClampOps::<D>),
-            ),
-        ));
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let desc = ClampOpsDescription {
+            tensor: tensor.into_description(),
+            min: min.elem(),
+            max: max.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Clamp(desc.clone())),
+            ClampOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1156,45 +1114,43 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary_int_ops!(AbsOps, B::int_abs);
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Abs(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(AbsOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Abs(desc.clone())),
+            AbsOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
-        struct IntoFloatOps<const D: usize>;
+        #[derive(new)]
+        struct IntoFloatOps<const D: usize> {
+            desc: UnaryOpsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for IntoFloatOps<D> {
-            type Args = UnaryOpsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_int_tensor::<D>(&args.input);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&self.desc.input);
                 let output = B::int_into_float(input);
-                handles.register_float_tensor(&args.out.id, output);
+                handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
 
-        let out = tensor.client.create_tensor_empty(tensor.shape.clone());
-
-        out.client.register(TensorOpsDescription::IntOps(
-            graph::IntOpsDescription::IntoFloat(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(IntoFloatOps::<D>),
-            ),
-        ));
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::IntOps(graph::IntOpsDescription::IntoFloat(desc.clone())),
+            IntoFloatOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1204,15 +1160,16 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         dim1: usize,
         dim2: usize,
     ) -> IntTensor<Self, D> {
-        struct SwapDimsOps<const D: usize>;
+        #[derive(new)]
+        struct SwapDimsOps<const D: usize> {
+            desc: SwapDimsDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for SwapDimsOps<D> {
-            type Args = SwapDimsDescription;
-
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_int_tensor::<D>(&args.input);
-                let output = B::int_swap_dims(input, args.dim1, args.dim2);
-                handles.register_int_tensor(&args.out.id, output);
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_int_tensor::<D>(&self.desc.input);
+                let output = B::int_swap_dims(input, self.desc.dim1, self.desc.dim2);
+                handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -1220,22 +1177,18 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        tensor
-            .client
-            .clone()
-            .register(TensorOpsDescription::BaseOpsInt(
-                BaseOpsDescription::SwapDims(
-                    SwapDimsDescription {
-                        input: tensor.into_description(),
-                        dim1,
-                        dim2,
-                        out: out.to_description_out(),
-                    },
-                    Box::new(SwapDimsOps::<D>),
-                ),
-            ));
+        let desc = SwapDimsDescription {
+            input: tensor.into_description(),
+            dim1,
+            dim2,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::BaseOpsInt(BaseOpsDescription::SwapDims(desc.clone())),
+            SwapDimsOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1243,38 +1196,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_max<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(MaxOps, B::int_max);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Max(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(MaxOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Max(desc.clone())),
+            MaxOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_max_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(MaxDimOps, B::int_max_dim, usize);
+        scalar_int_ops!(MaxDimOps, B::int_max_dim, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::MaxDim(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(MaxDimOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaxDim(desc.clone())),
+            MaxDimOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1283,37 +1234,38 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D>,
         dim: usize,
     ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
-        struct MaxDimWithIndicesOps<const D: usize>;
+        #[derive(new)]
+        struct MaxDimWithIndicesOps<const D: usize> {
+            desc: ReduceDimWithIndicesDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for MaxDimWithIndicesOps<D> {
-            type Args = ReduceDimWithIndicesDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let (output, indices) = B::int_max_dim_with_indices(tensor, self.desc.dim);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let (output, indices) = B::int_max_dim_with_indices(tensor, args.dim);
-
-                handles.register_int_tensor(&args.out.id, output);
-                handles.register_int_tensor(&args.out_indices.id, indices);
+                handles.register_int_tensor(&self.desc.out.id, output);
+                handles.register_int_tensor(&self.desc.out_indices.id, indices);
             }
         }
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_tensor_empty(shape.clone());
-        let out_indices = client.create_tensor_empty(shape);
-
-        client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::MaxDimWithIndices(
-                ReduceDimWithIndicesDescription {
-                    tensor: tensor.into_description(),
-                    dim,
-                    out: out.to_description_out(),
-                    out_indices: out_indices.to_description_out(),
-                },
-                Box::new(MaxDimWithIndicesOps::<D>),
-            ),
-        ));
+        let out = client.tensor_uninitialized(shape.clone());
+        let out_indices = client.tensor_uninitialized(shape);
+        let desc = ReduceDimWithIndicesDescription {
+            tensor: tensor.into_description(),
+            dim,
+            out: out.to_description_out(),
+            out_indices: out_indices.to_description_out(),
+        };
+        client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MaxDimWithIndices(
+                desc.clone(),
+            )),
+            MaxDimWithIndicesOps::<D>::new(desc),
+        );
 
         (out, out_indices)
     }
@@ -1321,38 +1273,36 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_min<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         unary_int_ops!(MinOps, B::int_min);
 
-        let out = tensor.client.create_tensor_empty(vec![1]);
+        let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::Min(
-                UnaryOpsDescription {
-                    input: tensor.into_description(),
-                    out: out.to_description_out(),
-                },
-                Box::new(MinOps::<D>),
-            ),
-        ));
+        let desc = UnaryOpsDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Min(desc.clone())),
+            MinOps::<D>::new(desc),
+        );
 
         out
     }
 
     fn int_min_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        scalar_int_ops!(MinDimOps, B::int_min_dim, usize);
+        scalar_int_ops!(MinDimOps, B::int_min_dim, usize, noconvert);
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
-        let out = tensor.client.create_tensor_empty(shape);
+        let out = tensor.client.tensor_uninitialized(shape);
 
-        out.client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::MinDim(
-                ScalarOpsDescription {
-                    lhs: tensor.into_description(),
-                    rhs: dim,
-                    out: out.to_description_out(),
-                },
-                Box::new(MinDimOps::<D>),
-            ),
-        ));
+        let desc = ScalarOpsDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MinDim(desc.clone())),
+            MinDimOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1361,37 +1311,38 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor: IntTensor<Self, D>,
         dim: usize,
     ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
-        struct MinDimWithIndicesOps<const D: usize>;
+        #[derive(new)]
+        struct MinDimWithIndicesOps<const D: usize> {
+            desc: ReduceDimWithIndicesDescription,
+        }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for MinDimWithIndicesOps<D> {
-            type Args = ReduceDimWithIndicesDescription;
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let tensor = handles.get_int_tensor::<D>(&self.desc.tensor);
+                let (output, indices) = B::int_min_dim_with_indices(tensor, self.desc.dim);
 
-            fn execute(&self, args: &Self::Args, handles: &mut crate::HandleContainer<B>) {
-                let tensor = handles.get_int_tensor::<D>(&args.tensor);
-                let (output, indices) = B::int_min_dim_with_indices(tensor, args.dim);
-
-                handles.register_int_tensor(&args.out.id, output);
-                handles.register_int_tensor(&args.out_indices.id, indices);
+                handles.register_int_tensor(&self.desc.out.id, output);
+                handles.register_int_tensor(&self.desc.out_indices.id, indices);
             }
         }
 
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
-        let out = client.create_tensor_empty(shape.clone());
-        let out_indices = client.create_tensor_empty(shape);
-
-        client.register(TensorOpsDescription::NumericOpsInt(
-            NumericOpsDescription::MinDimWithIndices(
-                ReduceDimWithIndicesDescription {
-                    tensor: tensor.into_description(),
-                    dim,
-                    out: out.to_description_out(),
-                    out_indices: out_indices.to_description_out(),
-                },
-                Box::new(MinDimWithIndicesOps::<D>),
-            ),
-        ));
+        let out = client.tensor_uninitialized(shape.clone());
+        let out_indices = client.tensor_uninitialized(shape);
+        let desc = ReduceDimWithIndicesDescription {
+            tensor: tensor.into_description(),
+            dim,
+            out: out.to_description_out(),
+            out_indices: out_indices.to_description_out(),
+        };
+        client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MinDimWithIndices(
+                desc.clone(),
+            )),
+            MinDimWithIndicesOps::<D>::new(desc),
+        );
 
         (out, out_indices)
     }

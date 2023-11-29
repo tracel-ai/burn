@@ -80,6 +80,47 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn narrow<B: Backend, const D: usize, K: BasicOps<B>>(
+        tensor: &Tensor<B, D, K>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        if length == 0 {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, length must be greater than 0",
+                    dim
+                )),
+            );
+        }
+
+        if start >= tensor.shape().dims[dim] {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, start exceeds the size of the tensor along this dimension (Size={})",
+                    dim, tensor.shape().dims[dim]
+                )),
+            );
+        }
+
+        if start + length > tensor.shape().dims[dim] {
+            check = check.register(
+                "Narrow",
+                TensorError::new(format!(
+                    "Can't narrow at dimension {}, start + length exceeds the size of the tensor along this dimension (Size={})",
+                    dim, tensor.shape().dims[dim]
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
         original: &Shape<D1>,
         target: &Shape<D2>,
@@ -167,6 +208,21 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn tri<const D: usize>() -> Self {
+        let mut check = Self::Ok;
+
+        if D < 2 {
+            check = check.register(
+                "Tri",
+                TensorError::new(format!(
+                    "The input tensor must have at least 2 dimensions, got {D}"
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn squeeze<const D2: usize>(dim: usize, tensor_dims: &[usize]) -> Self {
         let mut check = Self::Ok;
         // This should actually be to check that the dimension to squeeze
@@ -191,6 +247,21 @@ impl TensorCheck {
                 "Unsqueeze",
                 TensorError::new(format!(
                     "Can't unsqueeze smaller tensor, got dim {D2}, expected > {D1}"
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn unsqueeze_dim<const D: usize>(dim: usize) -> Self {
+        let mut check = Self::Ok;
+        if dim > D {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
+                    dim, D
                 )),
             );
         }
@@ -243,6 +314,51 @@ impl TensorCheck {
                     shape_lhs.dims, shape_rhs.dims
                 )),
             );
+        }
+
+        check
+    }
+
+    pub(crate) fn stack<B: Backend, const D: usize, K: BasicOps<B>>(
+        tensors: &[Tensor<B, D, K>],
+        dim: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        if dim > D {
+            check = check.register(
+                "Stack",
+                TensorError::new(
+                    "Can't stack tensors on a dim that exceeds the tensors dimension (inclusive)",
+                )
+                .details(format!(
+                    "Trying to concatenate tensors with {D} dimensions on axis {dim}."
+                )),
+            );
+        }
+
+        if tensors.is_empty() {
+            return check.register(
+                "Stack",
+                TensorError::new("Can't stack an empty list of tensors."),
+            );
+        }
+
+        let shape_reference = tensors.get(0).unwrap().shape();
+
+        for tensor in tensors {
+            let shape = tensor.shape();
+
+            if shape_reference != shape {
+                return check.register(
+                    "Stack",
+                    TensorError::new("Can't stack tensors with different shapes").details(format!(
+                        "Provided dimension ({}), tensors shapes: {:?}",
+                        dim,
+                        tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
+                    )),
+                );
+            }
         }
 
         check

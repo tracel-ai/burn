@@ -6,8 +6,11 @@ use crate::kernel::matmul::matmul_autotune;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+#[cfg(not(feature = "autotune"))]
+use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{
-    self, unary_default, unary_inplace_default, unary_scalar_default, unary_scalar_inplace_default,
+    self, reduce, unary_default, unary_inplace_default, unary_scalar_default,
+    unary_scalar_inplace_default,
 };
 use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
@@ -34,12 +37,14 @@ where
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<Self>>,
+        distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
             Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
-            Distribution::Uniform(low, high) => random_uniform::<G, F, D>(shape, device, low, high),
+            Distribution::Uniform(low, high) => {
+                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+            }
             Distribution::Bernoulli(prob) => {
                 random_bernoulli::<G, F, D>(shape, device, prob.elem())
             }
@@ -311,15 +316,33 @@ where
     }
 
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        kernel::sum(tensor)
+        reduce::sum(tensor)
     }
 
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        kernel::sum_dim(tensor, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::sum_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::sum_dim(tensor, output, dim)
+        }
     }
 
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
-        kernel::mean_dim(tensor, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::mean_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::mean_dim(tensor, output, dim)
+        }
     }
 
     fn to_full_precision<const D: usize>(
@@ -457,11 +480,11 @@ where
     }
 
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmax(tensor, dim)
+        reduce::argmax(tensor, dim)
     }
 
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmin(tensor, dim)
+        reduce::argmin(tensor, dim)
     }
 
     fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
@@ -488,5 +511,18 @@ where
         max: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
         kernel::clamp(tensor, min, max)
+    }
+
+    fn recip<const D: usize>(
+        tensor: FloatTensor<Wgpu<G, F, I>, D>,
+    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        unary!(Recip, func "1.0 /");
+        unary_inplace!(RecipInplace, func "1.0 /");
+
+        if tensor.can_mut() {
+            return unary_inplace_default::<RecipInplace, F, D>(tensor);
+        }
+
+        unary_default::<Recip, F, D>(tensor)
     }
 }

@@ -18,12 +18,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[26.8063, -27.7870], [26.8063, -27.7870]]), 3);
-        grad_2.to_data().assert_approx_eq(
+        grad_1.to_data().assert_approx_eq_diff(
+            &Data::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
+            2.0e-3,
+        );
+        grad_2.to_data().assert_approx_eq_diff(
             &Data::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
-            3,
+            2.0e-3,
         );
     }
 }

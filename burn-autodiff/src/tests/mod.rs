@@ -34,6 +34,7 @@ mod mul;
 mod multithread;
 mod neg;
 mod pow;
+mod recip;
 mod relu;
 mod reshape;
 mod select;
@@ -94,6 +95,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_mul!();
         burn_autodiff::testgen_ad_neg!();
         burn_autodiff::testgen_ad_powf!();
+        burn_autodiff::testgen_ad_recip!();
         burn_autodiff::testgen_ad_reshape!();
         burn_autodiff::testgen_ad_sin!();
         burn_autodiff::testgen_ad_softmax!();

@@ -56,6 +56,7 @@ mod tests {
     burn_tensor::testgen_arg!();
     burn_tensor::testgen_cast!();
     burn_tensor::testgen_cat!();
+    burn_tensor::testgen_recip!();
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
     // burn_tensor::testgen_div!();
@@ -133,6 +134,7 @@ mod tests {
     burn_autodiff::testgen_ad_mul!();
     burn_autodiff::testgen_ad_neg!();
     burn_autodiff::testgen_ad_powf!();
+    burn_autodiff::testgen_ad_recip!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_sin!();
     burn_autodiff::testgen_ad_softmax!();

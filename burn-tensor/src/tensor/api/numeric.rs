@@ -462,6 +462,97 @@ where
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
+
+    /// Returns the triangular part of a matrix (2-D tensor) or batch of matrices,
+    /// based on the specified comparison method, zeroing out the other elements.
+    ///
+    /// # Parameters
+    ///
+    /// - `diagonal`: The diagonal from which the triangular part is computed.
+    /// - `compare`: A comparison function determining which part of the triangle to zero out.
+    ///              Use `Tensor::<B, D, Int>::greater_elem` for upper triangular
+    ///              and `Tensor::<B, D, Int>::lower_elem` for lower triangular.
+    ///
+    pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
+    where
+        F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
+    {
+        check!(TensorCheck::tri::<{ D }>());
+
+        let shape = self.shape();
+        let height = shape.dims[D - 2];
+        let width = shape.dims[D - 1];
+
+        let row_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..height, &self.device());
+        let col_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..width, &self.device());
+
+        let mut row_shape = [1; D];
+        row_shape[D - 2] = height;
+        let mut col_shape = [1; D];
+        col_shape[D - 1] = width;
+
+        let row_broadcast = row_indices.reshape(Shape::new(row_shape));
+        let col_broadcast = col_indices.reshape(Shape::new(col_shape));
+
+        let mask = compare(row_broadcast - (col_broadcast - diagonal), 0).unsqueeze();
+
+        self.mask_fill(mask, 0)
+    }
+
+    /// Returns the upper triangular part of a matrix (2-D tensor) or batch of matrices input,
+    /// the other elements of the result tensor out are set to 0.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
+    ///    let tensor = tensor.triu(1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [
+    ///    //   [0, 2, 3],
+    ///    //   [0, 0, 6],
+    ///    //   [0, 0, 0]
+    ///    // ], ... }
+    /// }
+    /// ```
+    pub fn triu(self, diagonal: i64) -> Self {
+        self.tri_compare(diagonal, Tensor::greater_elem)
+    }
+
+    /// Returns the lower triangular part of a matrix (2-D tensor) or batch of matrices input,
+    /// the other elements of the result tensor out are set to 0.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
+    ///
+    ///    let tensor = tensor.tril(-1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [
+    ///    //   [0, 0, 0],
+    ///    //   [4, 0, 0],
+    ///    //   [7, 8, 0]
+    ///    // ], ... }
+    /// }
+    /// ```
+    pub fn tril(self, diagonal: i64) -> Self {
+        self.tri_compare(diagonal, Tensor::lower_elem)
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>

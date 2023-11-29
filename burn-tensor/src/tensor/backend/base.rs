@@ -178,6 +178,29 @@ pub trait AutodiffBackend: Backend {
     /// The inner backend tensor.
     fn inner<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self::InnerBackend, D>;
 
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn int_inner<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self::InnerBackend, D>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn bool_inner<const D: usize>(tensor: BoolTensor<Self, D>)
+        -> BoolTensor<Self::InnerBackend, D>;
+
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
     /// # Arguments
@@ -191,4 +214,32 @@ pub trait AutodiffBackend: Backend {
     fn from_inner<const D: usize>(
         tensor: FloatTensor<Self::InnerBackend, D>,
     ) -> FloatTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn int_from_inner<const D: usize>(
+        tensor: IntTensor<Self::InnerBackend, D>,
+    ) -> IntTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn bool_from_inner<const D: usize>(
+        tensor: BoolTensor<Self::InnerBackend, D>,
+    ) -> BoolTensor<Self, D>;
 }
