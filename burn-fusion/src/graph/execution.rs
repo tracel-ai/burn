@@ -1,4 +1,4 @@
-use super::{CacheResult, EndCondition, Graph, OptimizationCache};
+use super::{CacheResult, Condition, Graph, OptimizationCache};
 use crate::{
     FusionBackend, HandleContainer, Optimization, OptimizationBuilder, OptimizationStatus,
 };
@@ -12,13 +12,14 @@ pub(crate) struct GraphExecution<B: FusionBackend> {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ExecutionMode {
-    // Signal that we execute the graph after a new ops was added to the graph.
+    // Signal that we execute the graph after a new ops is added to the graph.
     NewOps,
     // Signal that we execute the graph because of a sync without any new ops added to the graph.
     Sync,
 }
 
 impl<B: FusionBackend> GraphExecution<B> {
+    /// Create a new graph execution with the given optimization builders.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
             optimization_cache: OptimizationCache::new(),
@@ -27,6 +28,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
+    /// Execute the graph with the provided mode.
     pub fn execute(
         &mut self,
         graph: &mut Graph<B>,
@@ -138,7 +140,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         for i in 0..self.num_skipped {
             let _ = self.optimization_cache.follow(
                 &graph.relative[0..i],
-                EndCondition::NextOps(&graph.relative[i]),
+                Condition::NextOps(&graph.relative[i]),
             );
         }
     }
@@ -152,9 +154,7 @@ impl<B: FusionBackend> GraphExecution<B> {
             ExecutionMode::NewOps => graph.split_graph(),
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
         };
-        let end_condition = next_ops
-            .map(EndCondition::NextOps)
-            .unwrap_or(EndCondition::Sync);
+        let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
 
         let action = self.optimization_cache.follow(graph, end_condition);
 

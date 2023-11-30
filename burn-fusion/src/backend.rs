@@ -50,7 +50,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 }
 
-/// The status of a [fusion ops builder](FusionOpsBuilder).
+/// The status of a [builder](OptimizationBuilder).
 #[derive(Clone, Debug, Copy)]
 pub enum OptimizationStatus {
     /// No more operations can be fused.
@@ -59,7 +59,7 @@ pub enum OptimizationStatus {
     Open,
 }
 
-/// The properties of a [fusion ops builder](FusionOpsBuilder).
+/// The properties of a [builder](OptimizationProperties).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OptimizationProperties {
     /// The score of the optimization, higher is better.
@@ -106,7 +106,7 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
     }
 }
 
-/// The operation created from the [builder](FusionOpsBuilder).
+/// The operation created from the [builder](OptimizationBuilder).
 pub trait Optimization<B: FusionBackend>: Send {
     /// Execute the operation.
     fn execute(&self, context: &mut Context<'_, B>);
@@ -118,6 +118,9 @@ pub trait Optimization<B: FusionBackend>: Send {
     }
 }
 
+// We implement the OptimizationFactory for all boxed optimization to be used with the Optimization
+// Cache. The factory is only used to simplify types and allows better testing. It isn't a public
+// crate.
 impl<B: FusionBackend> OptimizationFactory<Box<dyn Optimization<B>>>
     for Box<dyn OptimizationBuilder<B>>
 {

@@ -10,7 +10,7 @@ use crate::graph::TensorOpsDescription;
 /// Instead, we keep track of each new edge added to the graph and invalidate potential optimizations
 /// when we see a different edge is added while keeping track of the current graph path.
 ///
-/// Therefore, the overhead is really minimal, since the time-complexity of checking the cache
+/// Therefore, the overhead is very minimal, since the time-complexity of checking the cache
 /// scales with the number of concurrent potential optimizations for the current path, which isn't
 /// supposed to be big at any time.
 pub(crate) struct OptimizationCache<O> {
@@ -32,7 +32,7 @@ impl<O> OptimizationCache<O> {
         }
     }
 
-    /// Follow the current path on the provided graph with the end_condition.
+    /// Follow the current path on the provided graph with the start/end condition.
     ///
     /// # Notes
     ///
@@ -41,13 +41,15 @@ impl<O> OptimizationCache<O> {
     pub(crate) fn follow<'a>(
         &'a mut self,
         graph: &[TensorOpsDescription],
-        end_condition: EndCondition,
+        condition: Condition,
     ) -> CacheResult<'a, O> {
         if graph.is_empty() {
-            // Starter
-            let ops = match end_condition {
-                EndCondition::NextOps(ops) => ops,
-                EndCondition::Sync => return CacheResult::Miss, // Sync an empty graph...
+            // When the graph is empty, we use the condition as the first operation to determine
+            // the new possible opitmizations.
+            let ops = match condition {
+                Condition::NextOps(ops) => ops,
+                Condition::Sync => return CacheResult::Miss, // Sync an empty graph doesn't make
+                                                             // sense.
             };
             let candidates = self.starters.get(ops);
             if candidates.is_empty() {
@@ -73,21 +75,23 @@ impl<O> OptimizationCache<O> {
             let next_ops_candidate = match item.graph.get(next_ops_index) {
                 Some(val) => val,
                 None => {
+                    // Graph of different size, invalidated.
                     invalidated_candidate.push(*id);
                     continue;
                 }
             };
 
             if next_ops_candidate != next_ops {
+                // Graph with different node at the current position, invalidated.
                 invalidated_candidate.push(*id);
                 continue;
             }
 
             // Is it optimal?
             if item.graph.len() == graph.len() {
-                let ops = match end_condition {
-                    EndCondition::NextOps(ops) => ops,
-                    EndCondition::Sync => {
+                let ops = match condition {
+                    Condition::NextOps(ops) => ops,
+                    Condition::Sync => {
                         self.found = Some(*id);
                         return CacheResult::Found(&item.value);
                     }
@@ -174,24 +178,24 @@ impl<O> OptimizationCache<O> {
 /// Action to be made depending on the graph.
 #[derive(PartialEq, Eq)]
 pub enum CacheResult<'a, T> {
-    /// Continue exploring optimizations but using the [fusion ops builder](crate::FusionOpsBuilder).
+    /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
     Miss,
-    /// The current graph indicates that some optimization maybe possible in the future, so the
+    /// The current graph indicates that an optimization maybe possible in the future, so the
     /// best action is to wait for the optimization to become available.
     ///
-    /// Sometime, if can be a false positive and a new opitmization should be built from scratch,
-    /// therefore it is important to keep the previous operations to rebuilt the state if it
+    /// Sometime, it can be a false positive and a new opitmization should be built from scratch.
+    /// Therefore it's important to keep the previous operations to rebuilt the state if it
     /// happens.
     OnPath,
     /// An optimization has been found, and the best action is to execute it!
     Found(&'a T),
 }
 
-/// When checking if an optimization is possible, a end condition assure that this optimization is
+/// When checking if an optimization is possible, a start or an end condition assure that this optimization is
 /// always optimal.
 #[derive(Clone)]
-pub enum EndCondition<'a> {
-    /// The next operation that signal the end of the operation.
+pub enum Condition<'a> {
+    /// The next operation that signal the start or end of the operation.
     NextOps(&'a TensorOpsDescription),
     /// When sync, we should execute the optimization if found no matter what comes next.
     Sync,
@@ -208,7 +212,7 @@ impl<'a, T> core::fmt::Debug for CacheResult<'a, T> {
 }
 
 /// Create an optimization.
-pub trait OptimizationFactory<T> {
+pub(crate) trait OptimizationFactory<T> {
     /// Call only when a new optimization is found.
     fn create(&self) -> T;
 }
@@ -245,13 +249,13 @@ mod tests {
 
         // Second following on the same ops.
         path.reset();
-        let result1 = path.follow(&[], EndCondition::NextOps(&graph.edges[0]));
+        let result1 = path.follow(&[], Condition::NextOps(&graph.edges[0]));
         assert_eq!(result1, CacheResult::OnPath);
 
-        let result2 = path.follow(&graph.edges[0..1], EndCondition::NextOps(&graph.edges[1]));
+        let result2 = path.follow(&graph.edges[0..1], Condition::NextOps(&graph.edges[1]));
         assert_eq!(result2, CacheResult::OnPath);
 
-        let result3 = path.follow(&graph.edges[0..2], EndCondition::Sync);
+        let result3 = path.follow(&graph.edges[0..2], Condition::Sync);
         match result3 {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
@@ -275,16 +279,16 @@ mod tests {
         graph.new_ops();
         graph.new_ops();
 
-        let result = path.follow(&[], EndCondition::NextOps(&graph.edges[0]));
+        let result = path.follow(&[], Condition::NextOps(&graph.edges[0]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph.edges[0..1], EndCondition::NextOps(&graph.edges[1]));
+        let result = path.follow(&graph.edges[0..1], Condition::NextOps(&graph.edges[1]));
         match result {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         }
 
-        let result = path.follow(&graph.edges[0..2], EndCondition::NextOps(&graph.edges[2]));
+        let result = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
@@ -311,13 +315,13 @@ mod tests {
 
         // Second following on the same ops.
         path.reset();
-        let result1 = path.follow(&[], EndCondition::NextOps(&graph.edges[0]));
+        let result1 = path.follow(&[], Condition::NextOps(&graph.edges[0]));
         assert_eq!(result1, CacheResult::OnPath);
 
-        let result2 = path.follow(&graph.edges[0..1], EndCondition::NextOps(&graph.edges[1]));
+        let result2 = path.follow(&graph.edges[0..1], Condition::NextOps(&graph.edges[1]));
         assert_eq!(result2, CacheResult::OnPath);
 
-        let result3 = path.follow(&graph.edges[0..2], EndCondition::NextOps(&graph.edges[2]));
+        let result3 = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result3 {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
@@ -344,13 +348,13 @@ mod tests {
         );
 
         // Follow graph 2.
-        let result = path.follow(&[], EndCondition::NextOps(&graph2.edges[0]));
+        let result = path.follow(&[], Condition::NextOps(&graph2.edges[0]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..1], EndCondition::NextOps(&graph2.edges[1]));
+        let result = path.follow(&graph2.edges[0..1], Condition::NextOps(&graph2.edges[1]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..2], EndCondition::NextOps(&graph2.edges[2]));
+        let result = path.follow(&graph2.edges[0..2], Condition::NextOps(&graph2.edges[2]));
         assert_eq!(result, CacheResult::Miss);
 
         let optimization = path.complete(
@@ -392,13 +396,13 @@ mod tests {
         // Follow graph 2 and register a new optimization.
         path.reset();
 
-        let result = path.follow(&[], EndCondition::NextOps(&graph2.edges[0]));
+        let result = path.follow(&[], Condition::NextOps(&graph2.edges[0]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..1], EndCondition::NextOps(&graph2.edges[1]));
+        let result = path.follow(&graph2.edges[0..1], Condition::NextOps(&graph2.edges[1]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..2], EndCondition::NextOps(&graph2.edges[2]));
+        let result = path.follow(&graph2.edges[0..2], Condition::NextOps(&graph2.edges[2]));
         assert_eq!(
             result,
             CacheResult::Miss,
@@ -417,13 +421,13 @@ mod tests {
         // New path instance on graph 1.
         path.reset();
 
-        let result = path.follow(&[], EndCondition::NextOps(&graph1.edges[0]));
+        let result = path.follow(&[], Condition::NextOps(&graph1.edges[0]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph1.edges[0..1], EndCondition::NextOps(&graph1.edges[1]));
+        let result = path.follow(&graph1.edges[0..1], Condition::NextOps(&graph1.edges[1]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph1.edges[0..2], EndCondition::NextOps(&graph1.edges[2]));
+        let result = path.follow(&graph1.edges[0..2], Condition::NextOps(&graph1.edges[2]));
         match result {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
@@ -432,13 +436,13 @@ mod tests {
         // New path instance on graph 2.
         path.reset();
 
-        let result = path.follow(&[], EndCondition::NextOps(&graph2.edges[0]));
+        let result = path.follow(&[], Condition::NextOps(&graph2.edges[0]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..1], EndCondition::NextOps(&graph2.edges[1]));
+        let result = path.follow(&graph2.edges[0..1], Condition::NextOps(&graph2.edges[1]));
         assert_eq!(result, CacheResult::OnPath);
 
-        let result = path.follow(&graph2.edges[0..2], EndCondition::NextOps(&graph2.edges[2]));
+        let result = path.follow(&graph2.edges[0..2], Condition::NextOps(&graph2.edges[2]));
         match result {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization2.create()),
             _ => panic!("Should have found the cached operation"),
@@ -465,7 +469,7 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn follow_misses(&self, path: &mut OptimizationCache<String>) {
             for i in 0..self.edges.len() {
-                let result = path.follow(&self.edges[0..i], EndCondition::NextOps(&self.edges[i]));
+                let result = path.follow(&self.edges[0..i], Condition::NextOps(&self.edges[i]));
                 assert_eq!(result, CacheResult::Miss);
             }
         }
