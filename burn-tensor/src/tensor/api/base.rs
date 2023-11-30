@@ -580,7 +580,7 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
 
         let slice = self.tensor.clone().slice(ranges);
         self.start += 1;
-        
+
         Some(slice)
     }
 }
@@ -590,13 +590,13 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter
         if self.start >= self.end {
             return None;
         }
-        
+
         let mut ranges = self.ranges.clone();
         ranges[self.dim] = (self.end - 1)..self.end;
-        
+
         let slice = self.tensor.clone().slice(ranges);
-        self.end -= 1;
-        
+        self.end = self.end.saturating_sub(1);
+
         Some(slice)
     }
 }
