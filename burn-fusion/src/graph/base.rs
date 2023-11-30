@@ -1,7 +1,7 @@
 use super::Ops;
 use super::RelativeGraphConverter;
 use super::TensorOpsDescription;
-use crate::FusionOps;
+use crate::Optimization;
 use crate::{FusionBackend, HandleContainer};
 use std::ops::RangeBounds;
 
@@ -75,7 +75,11 @@ impl<B: FusionBackend> Graph<B> {
         self.converter.clear();
     }
 
-    pub(crate) fn execute_ops(&mut self, handles: &mut HandleContainer<B>, ops: &dyn FusionOps<B>) {
+    pub(crate) fn execute_ops(
+        &mut self,
+        handles: &mut HandleContainer<B>,
+        ops: &dyn Optimization<B>,
+    ) {
         let num_keep = ops.len();
         let mut context = self.converter.context(handles);
         ops.execute(&mut context);

@@ -9,13 +9,14 @@ use burn_fusion::{
         BaseOpsDescription, BinaryOpsDescription, Context, FloatOpsDescription,
         NumericOpsDescription, ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionOps, FusionOpsBuilder, FusionProperties, FusionStatus, TensorDescription, TensorId,
+    Optimization, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-pub struct FloatElementWiseFusionOpsBuilder<G, F, I>
+pub struct FloatElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -29,14 +30,13 @@ where
     pub(crate) scalars_u32: usize,
     pub(crate) booleans: usize,
     pub(crate) operators: Vec<Operator>,
-    pub(crate) properties: FusionProperties,
     pub(crate) current_output_shape: Vec<usize>,
-    pub(crate) status: FusionStatus,
+    pub(crate) status: OptimizationStatus,
     device: Device<Wgpu<G, F, I>>,
 }
 
 #[derive(Clone)]
-pub struct FloatElementWiseFusionOps<G, F, I>
+pub struct FloatElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -50,8 +50,11 @@ where
     device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
-    for FloatElementWiseFusionOps<G, F, I>
+impl<G, F, I> Optimization<Wgpu<G, F, I>> for FloatElementWise<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
 {
     fn execute(&self, context: &mut Context<'_, '_, Wgpu<G, F, I>>) {
         let inputs = self
@@ -80,49 +83,47 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
         self.operators.len()
     }
 }
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<Wgpu<G, F, I>>
-    for FloatElementWiseFusionOpsBuilder<G, F, I>
+
+impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for FloatElementWiseBuilder<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
 {
     fn register(&mut self, ops: &TensorOpsDescription) {
-        if let FusionStatus::Closed = self.status {
+        if let OptimizationStatus::Closed = self.status {
             return;
         }
 
         match ops {
             TensorOpsDescription::BaseOpsFloat(ops) => {
                 if !self.register_base::<F>(ops) {
-                    self.status = FusionStatus::Closed;
+                    self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
-                    self.status = FusionStatus::Closed;
+                    self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
-                    self.status = FusionStatus::Closed;
+                    self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             _ => {
-                self.status = FusionStatus::Closed;
+                self.status = OptimizationStatus::Closed;
                 return;
             }
         };
 
-        self.properties.score += 1;
-        self.properties.ready = self.operators.len() > 1;
-        self.status = FusionStatus::Open;
+        self.status = OptimizationStatus::Open;
     }
 
-    fn len(&self) -> usize {
-        self.operators.len()
-    }
-
-    fn build(&self) -> Box<dyn FusionOps<Wgpu<G, F, I>>> {
+    fn build(&self) -> Box<dyn Optimization<Wgpu<G, F, I>>> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -130,7 +131,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(FloatElementWiseFusionOps {
+        Box::new(FloatElementWise {
             inputs,
             outputs,
             locals,
@@ -149,21 +150,32 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
         self.scalars_u32 = 0;
         self.booleans = 0;
         self.operators.clear();
-        self.properties = FusionProperties::default();
-        self.status = FusionStatus::Open;
+        self.status = OptimizationStatus::Open;
         self.current_output_shape.clear();
     }
 
-    fn status(&self) -> FusionStatus {
+    fn status(&self) -> OptimizationStatus {
         self.status
     }
 
-    fn properties(&self) -> FusionProperties {
-        self.properties
+    fn properties(&self) -> OptimizationProperties {
+        let ready = match self.status {
+            OptimizationStatus::Closed => false,
+            OptimizationStatus::Open => self.operators.len() > 1,
+        };
+
+        OptimizationProperties {
+            ready,
+            score: self.operators.len() as u64,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.operators.len()
     }
 }
 
-impl<G, F, I> FloatElementWiseFusionOpsBuilder<G, F, I>
+impl<G, F, I> FloatElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -180,8 +192,7 @@ where
             booleans: 0,
             operators: Vec::new(),
             current_output_shape: Vec::new(),
-            properties: FusionProperties::default(),
-            status: FusionStatus::Open,
+            status: OptimizationStatus::Open,
             device,
         }
     }

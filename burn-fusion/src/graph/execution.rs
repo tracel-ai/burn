@@ -1,10 +1,12 @@
 use super::{CacheResult, EndCondition, Graph, OptimizationCache};
-use crate::{FusionBackend, FusionOps, FusionOpsBuilder, FusionStatus, HandleContainer};
+use crate::{
+    FusionBackend, HandleContainer, Optimization, OptimizationBuilder, OptimizationStatus,
+};
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct GraphExecution<B: FusionBackend> {
-    optimization_path: OptimizationCache<Box<dyn FusionOps<B>>>,
-    optimizations: Vec<Box<dyn FusionOpsBuilder<B>>>,
+    optimization_path: OptimizationCache<Box<dyn Optimization<B>>>,
+    optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
 
@@ -17,7 +19,7 @@ pub(crate) enum ExecutionMode {
 }
 
 impl<B: FusionBackend> GraphExecution<B> {
-    pub fn new(optimizations: Vec<Box<dyn FusionOpsBuilder<B>>>) -> Self {
+    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
             optimization_path: OptimizationCache::new(),
             optimizations,
@@ -141,7 +143,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         &'a mut self,
         graph: &mut Graph<B>,
         mode: ExecutionMode,
-    ) -> CacheResult<'a, Box<dyn FusionOps<B>>> {
+    ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
         let (graph, next_ops) = match mode {
             ExecutionMode::NewOps => graph.lazy_format_relative(),
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
@@ -164,16 +166,16 @@ impl<B: FusionBackend> GraphExecution<B> {
 }
 
 enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a dyn FusionOps<B>),
+    ExecuteOptimization(&'a dyn Optimization<B>),
     ExecuteOperations,
     ContinueBuilding,
 }
 
-fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn FusionOpsBuilder<B>>]) -> bool {
+fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuilder<B>>]) -> bool {
     let mut num_stopped = 0;
 
     for optimization in optimizations.iter() {
-        if let FusionStatus::Closed = optimization.status() {
+        if let OptimizationStatus::Closed = optimization.status() {
             num_stopped += 1
         }
     }
@@ -182,7 +184,7 @@ fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn FusionOpsBuilder<
 }
 
 fn find_best_optimization_index<B: FusionBackend>(
-    optimizations: &[Box<dyn FusionOpsBuilder<B>>],
+    optimizations: &[Box<dyn OptimizationBuilder<B>>],
 ) -> Option<usize> {
     let mut best_index = None;
     let mut best_score = 0;

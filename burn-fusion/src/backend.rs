@@ -52,7 +52,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
 /// The status of a [fusion ops builder](FusionOpsBuilder).
 #[derive(Clone, Debug, Copy)]
-pub enum FusionStatus {
+pub enum OptimizationStatus {
     /// No more operations can be fused.
     Closed,
     /// More operations can be fused.
@@ -61,7 +61,7 @@ pub enum FusionStatus {
 
 /// The properties of a [fusion ops builder](FusionOpsBuilder).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct FusionProperties {
+pub struct OptimizationProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,
     /// If the operation is ready to be executed.
@@ -80,7 +80,7 @@ pub struct FusionProperties {
 ///
 /// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait FusionOpsBuilder<B: FusionBackend>: Send {
+pub trait OptimizationBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     ///
     /// The return value should be either [closed](FusionStatus::Closed) or
@@ -90,14 +90,14 @@ pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
     /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
     fn register(&mut self, ops: &TensorOpsDescription);
-    /// Execute the operation.
-    fn build(&self) -> Box<dyn FusionOps<B>>;
+    /// Finish the optimization and create a fusion operation.
+    fn build(&self) -> Box<dyn Optimization<B>>;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](FusionStatus).
-    fn status(&self) -> FusionStatus;
+    fn status(&self) -> OptimizationStatus;
     /// Return the builder [properties](FusionProperties).
-    fn properties(&self) -> FusionProperties;
+    fn properties(&self) -> OptimizationProperties;
     /// The size of operations fused.
     fn len(&self) -> usize;
     /// If the current operation is empty.
@@ -106,14 +106,8 @@ pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     }
 }
 
-impl<B: FusionBackend> OptimizationFactory<Box<dyn FusionOps<B>>> for Box<dyn FusionOpsBuilder<B>> {
-    fn create(&self) -> Box<dyn FusionOps<B>> {
-        FusionOpsBuilder::build(self.as_ref())
-    }
-}
-
 /// The operation created from the [builder](FusionOpsBuilder).
-pub trait FusionOps<B: FusionBackend>: Send {
+pub trait Optimization<B: FusionBackend>: Send {
     /// Execute the operation.
     fn execute(&self, context: &mut Context<'_, '_, B>);
     /// The size of operations fused.
@@ -121,6 +115,14 @@ pub trait FusionOps<B: FusionBackend>: Send {
     /// If the current operation is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+impl<B: FusionBackend> OptimizationFactory<Box<dyn Optimization<B>>>
+    for Box<dyn OptimizationBuilder<B>>
+{
+    fn create(&self) -> Box<dyn Optimization<B>> {
+        OptimizationBuilder::build(self.as_ref())
     }
 }
 
@@ -151,8 +153,8 @@ pub trait FusionBackend: Backend {
     /// What kind of client should be used.
     type FusionClient: FusionClient<FusionBackend = Self>;
 
-    /// The list of operations that will be used to optimize the computational graph.
-    fn operations(device: &Device<Self>) -> Vec<Box<dyn FusionOpsBuilder<Self>>>;
+    /// The list of optimizations that will be used to optimize the computational graph.
+    fn optimizations(device: &Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

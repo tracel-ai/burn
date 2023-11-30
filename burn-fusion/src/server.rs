@@ -25,7 +25,7 @@ where
 {
     pub fn new(device: B::FusionDevice) -> Self {
         Self {
-            execution: GraphExecution::new(B::operations(&device.clone().into())),
+            execution: GraphExecution::new(B::optimizations(&device.clone().into())),
             graph: Graph::new(),
             handles: HandleContainer::new(device.clone()),
             num_skipped: 0,
