@@ -29,10 +29,10 @@ cd my_burn_app
 then add the dependency with
 
 ```console
-cargo add burn --features wgpu
+cargo add burn burn-wgpu
 ```
 
-add `burn-wgpu = "0.10.0"` in Cargo.toml, and compile it by executing
+and compile it by executing
 
 ```console
 cargo build
