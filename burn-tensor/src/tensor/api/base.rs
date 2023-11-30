@@ -14,7 +14,8 @@ use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind, DataSerialize
+    backend::Backend, check, check::TensorCheck, Bool, Data, DataSerialize, Float, Int, Shape,
+    TensorKind,
 };
 
 /// A tensor with a given backend, shape and data type.
