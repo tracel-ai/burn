@@ -47,10 +47,10 @@ Now open `src/main.rs` and replace its content with
 
 ```rust, ignore
 use burn::tensor::Tensor;
-use burn::backend::Wgpu;
+use burn::backend::WgpuBackend;
 
 // Type alias for the backend to use.
-type Backend = Wgpu;
+type Backend = WgpuBackend;
 
 fn main() {
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first
