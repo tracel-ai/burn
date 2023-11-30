@@ -383,6 +383,7 @@ fn check_examples() {
             Some(workspace.path),
             "Failed to check example",
         );
+        end_log_group();
     }
 }
 
