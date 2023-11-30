@@ -32,7 +32,7 @@ then add the dependency with
 cargo add burn --features wgpu
 ```
 
-and compile it by executing
+add `burn-wgpu = "0.10.0"` in Cargo.toml, and compile it by executing
 
 ```console
 cargo build
@@ -47,10 +47,10 @@ Now open `src/main.rs` and replace its content with
 
 ```rust, ignore
 use burn::tensor::Tensor;
-use burn::backend::Wgpu;
+use burn_wgpu::{WgpuBackend, AutoGraphicsApi};
 
 // Type alias for the backend to use.
-type Backend = Wgpu;
+type Backend = WgpuBackend<AutoGraphicsApi, f32, i32>;
 
 fn main() {
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first
