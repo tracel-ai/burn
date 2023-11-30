@@ -1,12 +1,30 @@
 version: 2
 
 updates:
-  - package-ecosystem: cargo
-    directory: /
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
 
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "cargo"
+    directory: "/"
     schedule:
-      interval: daily
+      interval: "weekly"
+    # For each dependencies group, dependabot will open a PR containing
+    # the new versions available for that group.
+    groups:
+      # wgpu dependencies group
+      wgpu-dependencies:
+        patterns:
+        - "futures-intrusive"
+        - "pollster"
+        - "text_placeholder"
+        - "wgpu"
+      # wasm dependencies group
+      wasm-bindgen-dependencies:
+        patterns:
+        - "js-sys"
+        - "wasm-bindgen"
+        - "wasm-bindgen-futures"
+        - "wasm-logger"
+        - "wasm-timer"

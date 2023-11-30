@@ -21,11 +21,14 @@ pub enum RecordType {
     /// Pretty JSON format (useful for debugging).
     PrettyJson,
 
-    #[default]
     /// Compressed Named MessagePack.
+    ///
+    /// Note: This may cause infinite build.
+    ///       See [#952 bug](https://github.com/Tracel-AI/burn/issues/952).
     NamedMpkGz,
 
     /// Uncompressed Named MessagePack.
+    #[default]
     NamedMpk,
 
     /// Bincode format (useful for embedding and for no-std support).
@@ -542,7 +545,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         // otherwise let_and_return error will be triggered by clippy.
         // For now, we just disable the warning.
         quote! {
-            #[allow(clippy::let_and_return)]
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
             pub fn forward(&self, #input_def) -> #output_type_def {
                 #body
 

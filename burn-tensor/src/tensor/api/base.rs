@@ -532,20 +532,22 @@ where
             return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
         }
 
-        let chunk_size = size / chunks;
-        let cnt_additional = size % chunks;
         let mut tensors = Vec::with_capacity(chunks);
-
         let mut sum_chunk_size = 0;
-        for i in 0..chunks {
-            let chunk_size = if i < cnt_additional {
-                chunk_size + 1
-            } else {
-                chunk_size
-            };
-
-            tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-            sum_chunk_size += chunk_size;
+        if size % chunks == 0 {
+            let chunk_size = size / chunks;
+            for _ in 0..chunks {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+        } else {
+            let chunk_size = (size / chunks) + 1; // assumes not divisible
+            for _ in 0..chunks - 1 {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+            let remainder = size % chunk_size;
+            tensors.push(self.clone().narrow(dim, sum_chunk_size, remainder));
         }
 
         tensors
@@ -558,9 +560,9 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
-    counter: usize,
+    start: usize,
+    end: usize,
     dim: usize,
-    end_idx: usize,
     ranges: [Range<usize>; D],
     tensor: Tensor<B, D, K>,
 }
@@ -569,16 +571,33 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
     type Item = Tensor<B, D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = if self.counter < self.end_idx {
-            let mut ranges = self.ranges.clone();
-            ranges[self.dim] = self.counter..(self.counter + 1);
-            let slice = self.tensor.clone().slice(ranges);
-            Some(slice)
-        } else {
-            None
-        };
-        self.counter += 1;
-        res
+        if self.start >= self.end {
+            return None;
+        }
+
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = self.start..(self.start + 1);
+
+        let slice = self.tensor.clone().slice(ranges);
+        self.start += 1;
+
+        Some(slice)
+    }
+}
+
+impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter<B, D, K> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start >= self.end {
+            return None;
+        }
+
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = (self.end - 1)..self.end;
+
+        let slice = self.tensor.clone().slice(ranges);
+        self.end = self.end.saturating_sub(1);
+
+        Some(slice)
     }
 }
 
@@ -591,9 +610,9 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
             .collect::<Vec<Range<usize>>>();
         let ranges: [Range<usize>; D] = ranges.try_into().unwrap();
         Self {
-            end_idx: dims[dim],
+            end: dims[dim],
             ranges,
-            counter: 0,
+            start: 0,
             dim,
             tensor,
         }

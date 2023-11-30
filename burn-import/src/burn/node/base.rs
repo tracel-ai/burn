@@ -1,9 +1,9 @@
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    dropout::DropoutNode, gather::GatherNode, global_avg_pool::GlobalAvgPoolNode,
-    linear::LinearNode, matmul::MatmulNode, max_pool2d::MaxPool2dNode, reshape::ReshapeNode,
-    unary::UnaryNode,
+    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
+    global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
+    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -81,6 +81,7 @@ pub enum Node<PS: PrecisionSettings> {
     Constant(ConstantNode<PS>),
     Conv1d(Conv1dNode<PS>),
     Conv2d(Conv2dNode<PS>),
+    ConvTranspose2d(ConvTranspose2dNode<PS>),
     Dropout(DropoutNode),
     Gather(GatherNode),
     GlobalAvgPool(GlobalAvgPoolNode),
@@ -103,6 +104,7 @@ macro_rules! match_all {
             Node::Constant(node) => $func(node),
             Node::Conv1d(node) => $func(node),
             Node::Conv2d(node) => $func(node),
+            Node::ConvTranspose2d(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
@@ -135,6 +137,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Constant(_) => "constant",
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",
+            Node::ConvTranspose2d(_) => "conv_transpose2d",
             Node::Dropout(_) => "dropout",
             Node::Gather(_) => "gather",
             Node::GlobalAvgPool(_) => "global_avg_pool",
@@ -197,7 +200,7 @@ pub(crate) mod tests {
     use crate::burn::{
         graph::BurnGraph,
         node::{conv2d::Conv2dNode, matmul::MatmulNode, test::assert_tokens, NodeCodegen},
-        TensorType,
+        BurnImports, TensorType,
     };
     use burn::{
         nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
@@ -205,7 +208,8 @@ pub(crate) mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
 
-    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + 'static>(
+    #[track_caller]
+    pub(crate) fn one_node_graph<T: NodeCodegen<FullPrecisionSettings> + Clone + 'static>(
         node_gen: T,
         forward: TokenStream,
         input_names: Vec<String>,
@@ -213,15 +217,16 @@ pub(crate) mod tests {
     ) {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        graph.register(node_gen);
+        graph.register(node_gen.clone());
 
         graph.register_input_output(input_names, output_names);
 
+        let mut imports = BurnImports::default();
+        node_gen.register_imports(&mut imports);
+        let imports = imports.codegen();
+
         let expected = quote! {
-            use burn::{
-                module::Module,
-                tensor::{backend::Backend, Tensor},
-            };
+            #imports
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
@@ -236,7 +241,7 @@ pub(crate) mod tests {
                     }
                 }
 
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 #forward
             }
         };
@@ -298,7 +303,7 @@ pub(crate) mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);
                     let tensor4 = self.conv2d.forward(tensor3);
@@ -370,7 +375,7 @@ pub(crate) mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2.clone());
                     let tensor4 = self.conv2d.forward(tensor2);

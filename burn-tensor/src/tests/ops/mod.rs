@@ -42,3 +42,4 @@ mod stack;
 mod sub;
 mod tanh;
 mod transpose;
+mod tri;

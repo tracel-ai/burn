@@ -10,9 +10,9 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def forward(self, x):
-        return torch.sqrt(x)
-
+    def forward(self, x, y):
+        y_tensor = torch.tensor(y)  # Convert y to a PyTorch tensor
+        return torch.sqrt(x), torch.sqrt(y_tensor)
 
 def main():
     # Set random seed for reproducibility
@@ -23,19 +23,20 @@ def main():
     model.eval()
     device = torch.device("cpu")
     onnx_name = "sqrt.onnx"
-    dummy_input = torch.randn(1, 4, 9, 25, device=device)
-
-    torch.onnx.export(model, (dummy_input), onnx_name,
+    test_input1 = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]])
+    test_input2 = 36.0
+    torch.onnx.export(model, (test_input1, test_input2), onnx_name,
                       verbose=False, opset_version=16)
 
     print("Finished exporting model to {}".format(onnx_name))
 
     # Output some test data for use in the test
-    test_input = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]])
+    test_input1 = torch.tensor([[[[1.0, 4.0, 9.0, 25.0]]]])
+    test_input2 = 36.0
 
-    print("Test input data: {}".format(test_input))
-    output = model.forward(test_input)
-    print("Test output data: {}".format(output))
+    print("Test input data: {}, {}".format(test_input1, test_input2))
+    output1, output2 = model.forward(test_input1, test_input2)
+    print("Test output data: {}, {}".format(output1, output2))
 
 
 if __name__ == '__main__':

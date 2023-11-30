@@ -42,6 +42,18 @@ mod tests {
     }
 
     #[test]
+    fn test_chunk_not_evenly_divisible_remains_several() {
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..100).chunk(8, 0);
+        assert_eq!(tensors.len(), 8);
+
+        let expected = [13, 13, 13, 13, 13, 13, 13, 9];
+
+        for (index, tensor) in tensors.iter().enumerate() {
+            assert_eq!(tensor.shape().dims[0], expected[index]);
+        }
+    }
+
+    #[test]
     fn test_chunk_not_divisible() {
         let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..6).chunk(7, 0);
         assert_eq!(tensors.len(), 6);

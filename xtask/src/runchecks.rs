@@ -211,7 +211,9 @@ fn burn_core_std() {
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
 
     // Run cargo test --features test-wgpu
-    cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    if std::env::var("DISABLE_WGPU").is_err() {
+        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    }
 }
 
 // Test burn-dataset features
@@ -228,6 +230,13 @@ fn burn_dataset_features_std() {
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 }
 
+// Test burn-candle with accelerate (macOS only)
+// Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
+#[cfg(target_os = "macos")]
+fn burn_candle_accelerate() {
+    cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+}
+
 fn std_checks() {
     // Set RUSTDOCFLAGS environment variable to treat warnings as errors
     // for the documentation build
@@ -235,6 +244,7 @@ fn std_checks() {
 
     // Check if COVERAGE environment variable is set
     let is_coverage = std::env::var("COVERAGE").is_ok();
+    let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     log::info!("Running std checks");
 
@@ -245,7 +255,11 @@ fn std_checks() {
     cargo_clippy();
 
     // Build each workspace
-    cargo_build(["--workspace", "--exclude=xtask"].into());
+    if disable_wgpu {
+        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
+    } else {
+        cargo_build(["--workspace", "--exclude=xtask"].into());
+    }
 
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
@@ -257,6 +271,10 @@ fn std_checks() {
 
     // Test each workspace
     cargo_test(["--workspace"].into());
+
+    // Test burn-candle with accelerate (macOS only)
+    #[cfg(target_os = "macos")]
+    burn_candle_accelerate();
 
     // Test burn-dataset features
     burn_dataset_features_std();
