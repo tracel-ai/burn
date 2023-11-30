@@ -11,10 +11,9 @@ use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
-};
+use crate::{backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind, DataSerialize};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1488,5 +1487,36 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
 
         Shape::from(new_shape)
+    }
+}
+
+impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Debug + Copy + Serialize,
+{
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let data = self.to_data();
+        // manually construct instead of calling `serialize` to move instead of clone value
+        let serialized: DataSerialize<K::Elem> = DataSerialize {
+            value: data.value,
+            shape: data.shape.dims.to_vec(),
+        };
+        serialized.serialize(serializer)
+    }
+}
+
+impl<'de, B, const D: usize, K> Deserialize<'de> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Debug + Copy + Deserialize<'de>,
+{
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let data_res: Result<DataSerialize<K::Elem>, De::Error> =
+            DataSerialize::deserialize(deserializer);
+        let tensor = Tensor::from_data(data_res?);
+        Ok(tensor)
     }
 }
