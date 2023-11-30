@@ -119,19 +119,25 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor, &tch::Tensor) -> tch::Tensor,
     {
-        let lhs_num_elems = lhs.shape().num_elements();
-        let rhs_num_elems = rhs.shape().num_elements();
+        let lhs_shape = lhs.shape();
+        let rhs_shape = rhs.shape();
+        let mut out_shape = Shape::new([1; D_OUT]);
 
-        let safe_mut_lhs = lhs_num_elems > rhs_num_elems;
-        let safe_mut_rhs = rhs_num_elems > lhs_num_elems;
+        for i in 0..D_OUT {
+            out_shape.dims[i] = usize::max(lhs_shape.dims[i], rhs_shape.dims[i]);
+        }
 
-        if safe_mut_lhs {
+        let num_elements_out = out_shape.num_elements();
+
+        // Safe to mut lhs tensor.
+        if lhs_shape.num_elements() == num_elements_out {
             if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
                 return output;
             }
         }
 
-        if safe_mut_rhs {
+        // Safe to mut rhs tensor.
+        if rhs_shape.num_elements() == num_elements_out {
             if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
                 return output;
             }
@@ -155,6 +161,7 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
 }
 
 /// A shape that can be used by LibTorch.
+#[derive(Debug)]
 pub struct TchShape<const D: usize> {
     /// The shape's dimensions.
     pub dims: [i64; D],
