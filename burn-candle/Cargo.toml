@@ -12,6 +12,7 @@ version = "0.11.0"
 
 [features]
 cuda = ["candle-core/cuda"]
+accelerate = ["candle-core/accelerate"]
 
 [dependencies]
 derive-new = { workspace = true }

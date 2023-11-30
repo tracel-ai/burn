@@ -137,7 +137,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        CandleTensor::new(lhs.tensor.broadcast_matmul(&rhs.tensor).unwrap())
+        let rhs_contiguous = rhs.tensor.contiguous().unwrap();
+        CandleTensor::new(lhs.tensor.broadcast_matmul(&rhs_contiguous).unwrap())
     }
 
     fn swap_dims<const D: usize>(

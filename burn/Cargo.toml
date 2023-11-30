@@ -51,6 +51,7 @@ wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
 candle-cuda = ["burn-core/candle-cuda"]
+candle-accelerate = ["burn-core/candle-accelerate"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
