@@ -92,12 +92,8 @@ mod tests {
                     }
                 }
 
-                #[allow(clippy::let_and_return)]
-                pub fn forward(
-                    &self,
-                    tensor1: Tensor<B, 2>,
-                    tensor2: Tensor<B, 2, Int>
-                ) -> Tensor<B, 2> {
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, tensor1: Tensor<B, 2>, tensor2: Tensor<B, 2, Int>) -> Tensor<B, 2> {
                     let tensor3 = tensor1.gather(1, tensor2);
 
                     tensor3
