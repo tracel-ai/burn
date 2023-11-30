@@ -53,10 +53,11 @@ impl CrossEntropyLossConfig {
     fn assertions(&self) {
         if let Some(alpha) = self.smoothing {
             assert!(
-        (0.0..=1.).contains(&alpha),
-        "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {}",
-        alpha
-      );
+                (0.0..=1.).contains(&alpha),
+                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. \
+                 Got {}",
+                alpha
+            );
         };
         if let Some(weights) = self.weights.as_ref() {
             assert!(
