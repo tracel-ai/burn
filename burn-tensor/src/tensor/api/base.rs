@@ -13,7 +13,9 @@ use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind, DataSerialize};
+use crate::{
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind, DataSerialize
+};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
