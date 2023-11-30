@@ -1,10 +1,12 @@
 use crate::{element::TchElement, LibTorch, LibTorchDevice};
 use burn_tensor::{ops::TensorOps, Data, Shape};
 use libc::c_void;
-use std::{marker::PhantomData, rc::Rc};
+use std::{marker::PhantomData, sync::Arc};
 
 /// A reference to a tensor storage.
-pub type StorageRef = Rc<*mut c_void>;
+///
+/// We manually implement `Sync` and `Send` unsafely, so even if we could use `Rc`, it isn't safe.
+pub type StorageRef = Arc<*mut c_void>;
 
 /// A tensor that uses the tch backend.
 #[derive(Debug, PartialEq)]
@@ -23,7 +25,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     /// storage as the parent, you should use [from_existing](TchTensor::from_existing)
     /// instead.
     pub fn new(tensor: tch::Tensor) -> Self {
-        let data = Rc::new(tensor.data_ptr());
+        let data = Arc::new(tensor.data_ptr());
 
         Self {
             tensor,
@@ -41,7 +43,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
         let storage = match storage_child == *storage_parent {
             true => storage_parent.clone(),
-            false => Rc::new(storage_child),
+            false => Arc::new(storage_child),
         };
 
         Self {
@@ -82,7 +84,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if Rc::strong_count(&self.storage) > 1 {
+        if Arc::strong_count(&self.storage) > 1 {
             return None;
         }
 
@@ -99,7 +101,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if Rc::strong_count(&self.storage) > 1 {
+        if Arc::strong_count(&self.storage) > 1 {
             return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 
