@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 
 mod publish;
 mod runchecks;
+pub(crate) mod utils;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

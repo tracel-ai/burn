@@ -4,12 +4,12 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
+use crate::utils::{get_workspaces, WorkspaceMemberType};
 use std::env;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
-
-use serde_json::Value;
 
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
@@ -45,38 +45,6 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
     handle_child_process(command, child_error);
 }
 
-// Get the workspaces available
-fn get_workspaces() -> Vec<String> {
-    // Run `cargo metadata` command to get project metadata
-    let output = Command::new("cargo")
-        .arg("metadata")
-        .output()
-        .expect("Failed to execute command");
-
-    // Parse the JSON output
-    let metadata: Value = serde_json::from_slice(&output.stdout).expect("Failed to parse JSON");
-
-    // Extract workspaces from the metadata, excluding examples/ and xtask
-    let workspaces = metadata["workspace_members"]
-        .as_array()
-        .expect("Expected an array of workspace members")
-        .iter()
-        .filter_map(|member| {
-            let mut parts = member.as_str()?.split_whitespace();
-            let workspace_name = parts.next()?.to_string();
-            let workspace_path = parts.last()?.to_string();
-
-            if !workspace_path.contains("examples/") && workspace_name != "xtask" {
-                Some(workspace_name)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    workspaces
-}
-
 // Start section print in CI
 fn start_group(title: String) {
     if std::env::var("CI").is_ok() {
@@ -106,21 +74,36 @@ fn rustup(command: &str, target: &str) {
 
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str) {
+    run_cargo_with_path::<String>(command, params, None, error)
+}
+
+// Define and run a cargo command with curr dir
+fn run_cargo_with_path<P: AsRef<Path>>(
+    command: &str,
+    params: Params,
+    path: Option<P>,
+    error: &str,
+) {
     // Print cargo command
     println!("\ncargo {} {}\n", command, params);
 
-    // Run cargo
-    let cargo = Command::new("cargo")
+    let mut cargo = Command::new("cargo");
+    cargo
         .env("CARGO_INCREMENTAL", "0")
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
-        .stderr(Stdio::inherit()) // Send stderr directly to terminal
-        .spawn()
-        .expect(error);
+        .stderr(Stdio::inherit()); // Send stderr directly to terminal
+
+    // Run cargo
+    if let Some(path) = path {
+        cargo.current_dir(path);
+    }
+
+    let cargo_process = cargo.spawn().expect(error);
 
     // Handle cargo child process
-    handle_child_process(cargo, "Failed to wait for cargo child process");
+    handle_child_process(cargo_process, "Failed to wait for cargo child process");
 }
 
 // Run cargo build command
@@ -340,15 +323,15 @@ fn std_checks() {
     }
 
     // Build & test each workspace
-    let workspaces = get_workspaces();
+    let workspaces = get_workspaces(WorkspaceMemberType::Crate);
     for workspace in workspaces {
-        if disable_wgpu && workspace == "burn-wgpu" {
+        if disable_wgpu && workspace.name == "burn-wgpu" {
             continue;
         }
 
-        start_group(format!("Checks: {}", workspace));
-        cargo_build(Params::from(["-p", &workspace]));
-        cargo_test(Params::from(["-p", &workspace]));
+        start_group(format!("Checks: {}", workspace.name));
+        cargo_build(Params::from(["-p", &workspace.name]));
+        cargo_test(Params::from(["-p", &workspace.name]));
         end_group();
     }
 
@@ -377,7 +360,7 @@ fn check_typos() {
 
     // Do not run cargo install on CI to speed up the computation.
     // Check whether the file has been installed on
-    if std::env::var("CI_RUN").is_err() && !typos_cli_path.exists() {
+    if std::env::var("CI").is_err() && !typos_cli_path.exists() {
         // Install typos-cli
         cargo_install(["typos-cli", "--version", "1.16.5"].into());
     }
@@ -396,34 +379,20 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    println!("Checking examples compile \n\n");
-
-    std::fs::read_dir("examples").unwrap().for_each(|dir| {
-        let dir = dir.unwrap();
-        let path = dir.path();
-        // Skip if not a directory
-        if !path.is_dir() {
-            return;
+    let workspaces = get_workspaces(WorkspaceMemberType::Example);
+    for workspace in workspaces {
+        if workspace.name == "notebook" {
+            continue;
         }
-        if path.file_name().unwrap().to_str().unwrap() == "notebook" {
-            // not a crate
-            return;
-        }
-        let path = path.to_str().unwrap();
-        println!("Checking {path} \n\n");
 
-        let child = Command::new("cargo")
-            .arg("check")
-            .arg("--examples")
-            .current_dir(dir.path())
-            .stdout(Stdio::inherit()) // Send stdout directly to terminal
-            .stderr(Stdio::inherit()) // Send stderr directly to terminal
-            .spawn()
-            .expect("Failed to check examples");
-
-        // Handle typos child process
-        handle_child_process(child, "Failed to wait for examples child process");
-    });
+        start_group(format!("Checks: Example - {}", workspace.name));
+        run_cargo_with_path(
+            "check",
+            ["--examples"].into(),
+            Some(workspace.path),
+            "Failed to check example",
+        );
+    }
 }
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
