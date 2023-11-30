@@ -83,20 +83,20 @@ pub struct OptimizationProperties {
 pub trait OptimizationBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     ///
-    /// The return value should be either [closed](FusionStatus::Closed) or
-    /// [open](FusionStatus::Open).
+    /// The return value should be either [closed](OptimizationStatus::Closed) or
+    /// [open](OptimizationStatus::Open).
     ///
-    /// When [closed](FusionStatus::Closed), it's assumed that no more operation can be added
+    /// When [closed](OptimizationStatus::Closed), it's assumed that no more operation can be added
     /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
-    /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
+    /// ignored, they are either accepted or rejected, and the [status](OptimizationStatus) describes it.
     fn register(&mut self, ops: &TensorOpsDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> Box<dyn Optimization<B>>;
     /// Reset the state.
     fn reset(&mut self);
-    /// Return the builder [status](FusionStatus).
+    /// Return the builder [status](OptimizationStatus).
     fn status(&self) -> OptimizationStatus;
-    /// Return the builder [properties](FusionProperties).
+    /// Return the builder [properties](OptimizationProperties).
     fn properties(&self) -> OptimizationProperties;
     /// The size of operations fused.
     fn len(&self) -> usize;
@@ -145,7 +145,7 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [fusion operation builder](crate::FusionOpsBuilder).
+/// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend: Backend {
     /// The device type that can return an ID.
     ///
