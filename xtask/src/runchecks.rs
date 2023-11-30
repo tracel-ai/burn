@@ -230,7 +230,9 @@ fn burn_core_std() {
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
 
     // Run cargo test --features test-wgpu
-    cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    if std::env::var("DISABLE_WGPU").is_err() {
+        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+    }
 }
 
 // Test burn-dataset features
@@ -254,6 +256,7 @@ fn std_checks() {
 
     // Check if COVERAGE environment variable is set
     let is_coverage = std::env::var("COVERAGE").is_ok();
+    let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     println!("Running std checks");
 
@@ -264,7 +267,11 @@ fn std_checks() {
     cargo_clippy();
 
     // Build each workspace
-    cargo_build(["--workspace", "--exclude=xtask"].into());
+    if disable_wgpu {
+        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
+    } else {
+        cargo_build(["--workspace", "--exclude=xtask"].into());
+    }
 
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
