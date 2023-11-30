@@ -1,9 +1,9 @@
 use crate::{
     graph::{
         execution::{ExecutionMode, GraphExecution},
-        Graph, Ops, Optimization, TensorOpsDescription,
+        Graph, Ops, TensorOpsDescription,
     },
-    FusionBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
+    FusionBackend, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
@@ -24,13 +24,8 @@ where
     B: FusionBackend,
 {
     pub fn new(device: B::FusionDevice) -> Self {
-        let optimizations = B::operations(&device.clone().into())
-            .into_iter()
-            .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
-            .collect();
-
         Self {
-            execution: GraphExecution::new(optimizations),
+            execution: GraphExecution::new(B::operations(&device.clone().into())),
             graph: Graph::new(),
             handles: HandleContainer::new(device.clone()),
             num_skipped: 0,

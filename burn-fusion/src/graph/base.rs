@@ -2,7 +2,7 @@ use super::Ops;
 use super::RelativeGraphConverter;
 use super::TensorOpsDescription;
 use crate::FusionOps;
-use crate::{FusionBackend, FusionOpsBuilder, FusionProperties, FusionStatus, HandleContainer};
+use crate::{FusionBackend, HandleContainer};
 use std::ops::RangeBounds;
 
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
@@ -89,29 +89,5 @@ impl<B: FusionBackend> Graph<B> {
             description.cleanup_tensor(handles);
         }
         self.cleanup_relative_graph();
-    }
-}
-
-/// An optimization that can be executed.
-#[derive(new)]
-pub struct Optimization<B: FusionBackend> {
-    /// The [fusion operation](FusionOps) to potentially be executed.
-    pub ops: Box<dyn FusionOpsBuilder<B>>,
-    /// The current status of the optimization.
-    pub status: FusionStatus,
-}
-
-impl<B: FusionBackend> Optimization<B> {
-    pub(crate) fn register(&mut self, ops: &TensorOpsDescription) {
-        if let FusionStatus::Closed(_) = self.status {
-            return;
-        }
-
-        self.status = self.ops.register(ops);
-    }
-
-    pub(crate) fn reset(&mut self) {
-        self.ops.reset();
-        self.status = FusionStatus::Open(FusionProperties::default());
     }
 }

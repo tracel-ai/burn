@@ -189,22 +189,6 @@ pub enum CacheResult<'a, T> {
 
 /// When checking if an optimization is possible, a end condition assure that this optimization is
 /// always optimal.
-///
-/// # Example
-///
-/// For the same beginning of a graph, an opitmization might be optimal only when followed by
-/// another operation.
-///
-/// Graph: [Add - Accepted] - [Div - Accepted]
-///
-/// 1. Optimal
-///     [Add - Accepted] - [Div - Accepted] - [Matmul - Refused]
-///     In this case we should execute a fused kernel for [Add] and [Div]
-///
-/// 2. Non-Optimal
-///     [Add - Accepted] - [Div - Accepted] - [Exp - Accepted] - [Matmul - Refused]
-///     In this case we should not execute the fused kernel [Add] and [div], but wait to execute
-///     the fused kernel [Add] - [Div] - [Exp].
 #[derive(Clone)]
 pub enum EndCondition<'a> {
     /// The next operation that signal the end of the operation.
@@ -468,6 +452,7 @@ mod tests {
     }
 
     impl TestGraph {
+        /// Create a new test graph with `num_ops` operations registered.
         pub fn new(num_ops: usize) -> Self {
             let mut graph = Self::default();
             for _ in 0..num_ops {
@@ -485,6 +470,7 @@ mod tests {
             }
         }
 
+        /// Register a unary operation in the graph.
         pub fn register_ops<F>(&mut self, func: F)
         where
             F: Fn(UnaryOpsDescription) -> TensorOpsDescription,
@@ -494,6 +480,7 @@ mod tests {
             self.edges.push(func(desc));
         }
 
+        /// Add a simple operation to the graph.
         pub fn new_ops(&mut self) {
             if self.nodes.is_empty() {
                 // Root node.

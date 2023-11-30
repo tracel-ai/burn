@@ -15,7 +15,6 @@ use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-#[derive(Clone)]
 pub struct FloatElementWiseFusionOpsBuilder<G, F, I>
 where
     G: GraphicsApi,
@@ -32,6 +31,7 @@ where
     pub(crate) operators: Vec<Operator>,
     pub(crate) properties: FusionProperties,
     pub(crate) current_output_shape: Vec<usize>,
+    pub(crate) status: FusionStatus,
     device: Device<Wgpu<G, F, I>>,
 }
 
@@ -83,32 +83,39 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
 impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<Wgpu<G, F, I>>
     for FloatElementWiseFusionOpsBuilder<G, F, I>
 {
-    fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
+    fn register(&mut self, ops: &TensorOpsDescription) {
+        if let FusionStatus::Closed = self.status {
+            return;
+        }
+
         match ops {
             TensorOpsDescription::BaseOpsFloat(ops) => {
                 if !self.register_base::<F>(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = FusionStatus::Closed;
+                    return;
                 }
             }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = FusionStatus::Closed;
+                    return;
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = FusionStatus::Closed;
+                    return;
                 }
             }
             _ => {
-                return FusionStatus::Closed(self.properties);
+                self.status = FusionStatus::Closed;
+                return;
             }
         };
 
         self.properties.score += 1;
         self.properties.ready = self.operators.len() > 1;
-
-        FusionStatus::Open(self.properties)
+        self.status = FusionStatus::Open;
     }
 
     fn len(&self) -> usize {
@@ -143,7 +150,16 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOpsBuilder<
         self.booleans = 0;
         self.operators.clear();
         self.properties = FusionProperties::default();
+        self.status = FusionStatus::Open;
         self.current_output_shape.clear();
+    }
+
+    fn status(&self) -> FusionStatus {
+        self.status
+    }
+
+    fn properties(&self) -> FusionProperties {
+        self.properties
     }
 }
 
@@ -165,6 +181,7 @@ where
             operators: Vec::new(),
             current_output_shape: Vec::new(),
             properties: FusionProperties::default(),
+            status: FusionStatus::Open,
             device,
         }
     }

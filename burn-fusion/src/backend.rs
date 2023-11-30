@@ -50,15 +50,16 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     }
 }
 
-/// The status of a [fusion ops](FusionOpsBuilder).
+/// The status of a [fusion ops builder](FusionOpsBuilder).
+#[derive(Clone, Debug, Copy)]
 pub enum FusionStatus {
     /// No more operations can be fused.
-    Closed(FusionProperties),
+    Closed,
     /// More operations can be fused.
-    Open(FusionProperties),
+    Open,
 }
 
-/// The properties of a [fusion ops](FusionOpsBuilder).
+/// The properties of a [fusion ops builder](FusionOpsBuilder).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FusionProperties {
     /// The score of the optimization, higher is better.
@@ -88,11 +89,15 @@ pub trait FusionOpsBuilder<B: FusionBackend>: Send {
     /// When [closed](FusionStatus::Closed), it's assumed that no more operation can be added
     /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
     /// ignored, they are either accepted or rejected, and the [status](FusionStatus) describes it.
-    fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus;
+    fn register(&mut self, ops: &TensorOpsDescription);
     /// Execute the operation.
     fn build(&self) -> Box<dyn FusionOps<B>>;
     /// Reset the state.
     fn reset(&mut self);
+    /// Return the builder [status](FusionStatus).
+    fn status(&self) -> FusionStatus;
+    /// Return the builder [properties](FusionProperties).
+    fn properties(&self) -> FusionProperties;
     /// The size of operations fused.
     fn len(&self) -> usize;
     /// If the current operation is empty.
@@ -135,7 +140,7 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 }
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [fusion operation](crate::FusionOpsBuilder).
+/// [fusion operation builder](crate::FusionOpsBuilder).
 pub trait FusionBackend: Backend {
     /// The device type that can return an ID.
     ///
