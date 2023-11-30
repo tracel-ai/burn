@@ -24,7 +24,7 @@ pub enum RecordType {
     /// Compressed Named MessagePack.
     ///
     /// Note: This may cause infinite build.
-    ///       See https://github.com/Tracel-AI/burn/issues/952 bug.
+    ///       See [#952 bug](https://github.com/Tracel-AI/burn/issues/952).
     NamedMpkGz,
 
     /// Uncompressed Named MessagePack.
