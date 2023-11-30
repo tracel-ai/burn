@@ -42,6 +42,7 @@ fn main() {
         .input("tests/sub/sub.onnx")
         .input("tests/tanh/tanh.onnx")
         .input("tests/transpose/transpose.onnx")
+        .input("tests/conv_transpose2d/conv_transpose2d.onnx")
         .out_dir("model/")
         .run_from_script();
 

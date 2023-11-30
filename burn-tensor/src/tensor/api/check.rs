@@ -128,13 +128,16 @@ impl TensorCheck {
         let mut check = Self::Ok;
 
         if original.num_elements() != target.num_elements() {
-            check = check.register("Reshape", TensorError::new(
-                "The given shape doesn't have the same number of elements as the current tensor.",
-            )
-            .details(format!(
-                "Current shape: {:?}, target shape: {:?}.",
-                original.dims, target.dims
-            )));
+            check = check.register(
+        "Reshape",
+        TensorError::new(
+          "The given shape doesn't have the same number of elements as the current tensor.",
+        )
+        .details(format!(
+          "Current shape: {:?}, target shape: {:?}.",
+          original.dims, target.dims
+        )),
+      );
         }
 
         check
@@ -307,8 +310,8 @@ impl TensorCheck {
             check = check.register(
                 "Matmul",
                 TensorError::new(format!(
-                    "The inner dimension of matmul should be the same, but got {dim_lhs} and {dim_rhs}."
-                ))
+          "The inner dimension of matmul should be the same, but got {dim_lhs} and {dim_rhs}."
+        ))
                 .details(format!(
                     "Lhs shape {:?}, rhs shape {:?}.",
                     shape_lhs.dims, shape_rhs.dims
@@ -399,15 +402,16 @@ impl TensorCheck {
 
             if shape_reference != shape {
                 return check.register(
-                    "Cat",
-                    TensorError::new("Can't concatenate tensors with different shapes, except for the provided dimension").details(
-                        format!(
-                            "Provided dimension ({}), tensors shapes: {:?}",
-                            dim,
-                            tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
-                        ),
-                    ),
-                );
+          "Cat",
+          TensorError::new(
+            "Can't concatenate tensors with different shapes, except for the provided dimension",
+          )
+          .details(format!(
+            "Provided dimension ({}), tensors shapes: {:?}",
+            dim,
+            tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
+          )),
+        );
             }
         }
 
@@ -438,18 +442,16 @@ impl TensorCheck {
 
             if range.end > d_tensor {
                 check = check.register(
-                    "Slice",
-                    TensorError::new("The provided ranges array has a range that exceeds the current tensor size.")
-                    .details(format!(
-                        "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
+          "Slice",
+          TensorError::new(
+            "The provided ranges array has a range that exceeds the current tensor size.",
+          )
+          .details(format!(
+            "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                         Tensor shape {:?}, provided ranges {:?}.",
-                        range.start,
-                        range.end,
-                        d_tensor,
-                        i,
-                        shape.dims,
-                        ranges,
-                    )));
+            range.start, range.end, d_tensor, i, shape.dims, ranges,
+          )),
+        );
             }
 
             if range.start >= range.end {
@@ -479,13 +481,16 @@ impl TensorCheck {
         let mut check = Self::Ok;
 
         if D1 < D2 {
-            check = check.register("Slice Assign",
-                TensorError::new ("The provided ranges array has a higher number of dimensions than the current tensor.")
-                .details(
-                    format!(
-                    "The ranges array must be smaller or equal to the tensor number of dimensions. \
+            check = check.register(
+        "Slice Assign",
+        TensorError::new(
+          "The provided ranges array has a higher number of dimensions than the current tensor.",
+        )
+        .details(format!(
+          "The ranges array must be smaller or equal to the tensor number of dimensions. \
                     Tensor number of dimensions: {D1}, ranges array length {D2}."
-                )));
+        )),
+      );
         }
 
         for i in 0..usize::min(D1, D2) {
@@ -495,19 +500,16 @@ impl TensorCheck {
 
             if range.end > d_tensor {
                 check = check.register(
-                    "Range Assign",
-                    TensorError::new("The provided ranges array has a range that exceeds the current tensor size.")
-                    .details(format!(
-                        "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
+          "Range Assign",
+          TensorError::new(
+            "The provided ranges array has a range that exceeds the current tensor size.",
+          )
+          .details(format!(
+            "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                         Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
-                        range.start,
-                        range.end,
-                        d_tensor,
-                        i,
-                        shape.dims,
-                        shape_value.dims,
-                        ranges,
-                    )));
+            range.start, range.end, d_tensor, i, shape.dims, shape_value.dims, ranges,
+          )),
+        );
             }
 
             if range.end - range.start != d_tensor_value {
@@ -697,17 +699,16 @@ impl TensorCheck {
                     continue;
                 }
 
-                check = check.register(ops,
-                    TensorError::new("The provided tensors have incompatible shapes.")
-                    .details(format!(
-                    "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
+                check = check.register(
+                    ops,
+                    TensorError::new("The provided tensors have incompatible shapes.").details(
+                        format!(
+            "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
                     Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
-                    i,
-                    d_lhs,
-                    d_rhs,
-                    lhs.dims,
-                    rhs.dims,
-                 )));
+            i, d_lhs, d_rhs, lhs.dims, rhs.dims,
+          ),
+                    ),
+                );
             }
         }
 

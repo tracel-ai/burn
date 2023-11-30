@@ -34,6 +34,14 @@ pub struct TransformerDecoderConfig {
     /// Layer norm will be applied first instead of after the other modules.
     #[config(default = false)]
     pub norm_first: bool,
+    /// Use "quiet softmax" instead of regular softmax.
+    ///
+    /// - Usage may improve performance by allowing attention heads to deposit no information (if the sequence contains no information relevant to that head).
+    /// - Usage may reduce the entropy of weights in the model, enhancing quantization and compression.
+    ///
+    /// Reference: <https://www.evanmiller.org/attention-is-off-by-one.html>
+    #[config(default = false)]
+    pub quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
         default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
@@ -186,11 +194,13 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_quiet_softmax(config.quiet_softmax)
             .init();
 
         let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_quiet_softmax(config.quiet_softmax)
             .init();
         let norm_1 = LayerNormConfig::new(config.d_model).init();
         let norm_2 = LayerNormConfig::new(config.d_model).init();
@@ -219,10 +229,12 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_quiet_softmax(config.quiet_softmax)
             .init_with(record.self_attn);
         let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_quiet_softmax(config.quiet_softmax)
             .init_with(record.cross_attn);
         let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
         let norm_2 = LayerNormConfig::new(config.d_model).init_with(record.norm_2);

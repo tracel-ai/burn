@@ -20,6 +20,11 @@ pub fn remap_node_type(node: &mut Node) {
             2 => NodeType::Conv2d,
             _ => panic!("Only conv 1d and 2d are supported"),
         }),
+        NodeType::ConvTranspose => remap_node_with_kernel_shape(node, |ints| match ints.len() {
+            1 => NodeType::ConvTranspose1d,
+            2 => NodeType::ConvTranspose2d,
+            _ => panic!("Only conv_transpose 1d and 2d are supported"),
+        }),
         NodeType::MaxPool => remap_node_with_kernel_shape(node, |ints| match ints.len() {
             1 => NodeType::MaxPool1d,
             2 => NodeType::MaxPool2d,

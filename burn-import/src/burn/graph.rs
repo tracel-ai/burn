@@ -21,11 +21,14 @@ pub enum RecordType {
     /// Pretty JSON format (useful for debugging).
     PrettyJson,
 
-    #[default]
     /// Compressed Named MessagePack.
+    ///
+    /// Note: This may cause infinite build.
+    ///       See [#952 bug](https://github.com/Tracel-AI/burn/issues/952).
     NamedMpkGz,
 
     /// Uncompressed Named MessagePack.
+    #[default]
     NamedMpk,
 
     /// Bincode format (useful for embedding and for no-std support).
