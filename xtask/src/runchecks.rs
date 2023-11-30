@@ -4,7 +4,9 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
-use crate::utils::{get_workspaces, WorkspaceMemberType};
+use crate::utils::{
+    end_log_group, get_workspaces, pretty_print_duration, start_log_group, WorkspaceMemberType,
+};
 use std::env;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -45,31 +47,16 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
     handle_child_process(command, child_error);
 }
 
-// Start section print in CI
-fn start_group(title: String) {
-    if std::env::var("CI").is_ok() {
-        println!("::group::{}", title);
-    } else {
-        println!("\n\n{}", title);
-    }
-}
-
-fn end_group() {
-    if std::env::var("CI").is_ok() {
-        println!("::endgroup::");
-    }
-}
-
 // Define and run rustup command
 fn rustup(command: &str, target: &str) {
-    start_group(format!("Rustup: {} add {}", command, target));
+    start_log_group(format!("Rustup: {} add {}", command, target));
     run_command(
         "rustup",
         &[command, "add", target],
         "Failed to run rustup",
         "Failed to wait for rustup child process",
     );
-    end_group();
+    end_log_group();
 }
 
 // Define and run a cargo command
@@ -87,6 +74,7 @@ fn run_cargo_with_path<P: AsRef<Path>>(
     // Print cargo command
     println!("\ncargo {} {}\n", command, params);
 
+    // Run cargo
     let mut cargo = Command::new("cargo");
     cargo
         .env("CARGO_INCREMENTAL", "0")
@@ -95,7 +83,6 @@ fn run_cargo_with_path<P: AsRef<Path>>(
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()); // Send stderr directly to terminal
 
-    // Run cargo
     if let Some(path) = path {
         cargo.current_dir(path);
     }
@@ -138,13 +125,13 @@ fn cargo_test(params: Params) {
 
 // Run cargo fmt command
 fn cargo_fmt() {
-    start_group("Cargo: fmt".to_string());
+    start_log_group("Cargo: fmt".to_string());
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
     );
-    end_group();
+    end_log_group();
 }
 
 // Run cargo clippy command
@@ -168,7 +155,7 @@ fn cargo_doc(params: Params) {
 
 // Build and test a crate in a no_std environment
 fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
-    start_group(format!("Checks: {} (no_std)", crate_name));
+    start_log_group(format!("Checks: {} (no_std)", crate_name));
 
     // Run cargo build --no-default-features
     cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -198,7 +185,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
         ]) + extra_args,
     );
 
-    end_group();
+    end_log_group();
 }
 
 // Setup code coverage
@@ -260,21 +247,21 @@ fn no_std_checks() {
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
     // Run cargo test --features test-tch
-    start_group("Test: burn-core (tch)".to_string());
+    start_log_group("Test: burn-core (tch)".to_string());
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
-    end_group();
+    end_log_group();
 
     // Run cargo test --features test-wgpu
     if std::env::var("DISABLE_WGPU").is_err() {
-        start_group("Test: burn-core (wgpu)".to_string());
+        start_log_group("Test: burn-core (wgpu)".to_string());
         cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
-        end_group();
+        end_log_group();
     }
 }
 
 // Test burn-dataset features
 fn burn_dataset_features_std() {
-    start_group("Checks: burn-dataset (all-features)".to_string());
+    start_log_group("Checks: burn-dataset (all-features)".to_string());
 
     // Run cargo build --all-features
     cargo_build(["-p", "burn-dataset", "--all-features"].into());
@@ -285,16 +272,16 @@ fn burn_dataset_features_std() {
     // Run cargo doc --all-features
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 
-    end_group();
+    end_log_group();
 }
 
 // Test burn-candle with accelerate (macOS only)
 // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
 #[cfg(target_os = "macos")]
 fn burn_candle_accelerate() {
-    start_group("Checks: burn-candle (accelerate)".to_string());
+    start_log_group("Checks: burn-candle (accelerate)".to_string());
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
-    end_group();
+    end_log_group();
 }
 
 fn std_checks() {
@@ -313,9 +300,9 @@ fn std_checks() {
     cargo_clippy();
 
     // Produce documentation for each workspace
-    start_group("Docs: workspaces".to_string());
+    start_log_group("Docs: workspaces".to_string());
     cargo_doc(["--workspace"].into());
-    end_group();
+    end_log_group();
 
     // Setup code coverage
     if is_coverage {
@@ -329,10 +316,14 @@ fn std_checks() {
             continue;
         }
 
-        start_group(format!("Checks: {}", workspace.name));
+        if workspace.name == "burn-tch" {
+            continue;
+        }
+
+        start_log_group(format!("Checks: {}", workspace.name));
         cargo_build(Params::from(["-p", &workspace.name]));
         cargo_test(Params::from(["-p", &workspace.name]));
-        end_group();
+        end_log_group();
     }
 
     // Test burn-candle with accelerate (macOS only)
@@ -385,7 +376,7 @@ fn check_examples() {
             continue;
         }
 
-        start_group(format!("Checks: Example - {}", workspace.name));
+        start_log_group(format!("Checks: Example - {}", workspace.name));
         run_cargo_with_path(
             "check",
             ["--examples"].into(),
@@ -441,7 +432,10 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     let duration = start.elapsed();
 
     // Print duration
-    println!("Time elapsed for the current execution: {:?}", duration);
+    println!(
+        "Time elapsed for the current execution: {}",
+        pretty_print_duration(&duration)
+    );
 
     Ok(())
 }

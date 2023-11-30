@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::process::Command;
+use std::{process::Command, time::Duration};
 
 pub(crate) enum WorkspaceMemberType {
     Crate,
@@ -18,7 +18,7 @@ impl WorkspaceMember {
     }
 }
 
-// Get project workspaces
+/// Get project workspaces
 pub(crate) fn get_workspaces(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember> {
     // Run `cargo metadata` command to get project metadata
     let output = Command::new("cargo")
@@ -64,4 +64,36 @@ pub(crate) fn get_workspaces(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember
         .collect();
 
     workspaces
+}
+
+/// Start log group
+pub(crate) fn start_log_group(title: String) {
+    // When running on CI, uses special grouping log
+    if std::env::var("CI").is_ok() {
+        println!("::group::{}", title);
+    } else {
+        println!("\n\n{}", title);
+    }
+}
+
+/// End log group
+pub(crate) fn end_log_group() {
+    // When running on CI, uses special grouping log
+    if std::env::var("CI").is_ok() {
+        println!("::endgroup::");
+    }
+}
+
+/// Print duration as HH:MM:SS format
+pub(crate) fn pretty_print_duration(duration: &Duration) -> String {
+    let seconds = duration.as_secs();
+    let minutes = seconds / 60;
+    let hours = minutes / 60;
+    let remaining_minutes = minutes % 60;
+    let remaining_seconds = seconds % 60;
+
+    format!(
+        "{:02}:{:02}:{:02}",
+        hours, remaining_minutes, remaining_seconds
+    )
 }
