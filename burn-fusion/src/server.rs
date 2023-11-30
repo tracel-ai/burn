@@ -1,5 +1,8 @@
 use crate::{
-    graph::{ExecutionMode, Graph, GreedyGraphExecution, Ops, Optimization, TensorOpsDescription},
+    graph::{
+        execution::{ExecutionMode, GraphExecution},
+        Graph, Ops, Optimization, TensorOpsDescription,
+    },
     FusionBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
@@ -9,7 +12,7 @@ pub struct FusionServer<B>
 where
     B: FusionBackend,
 {
-    execution: GreedyGraphExecution<B>,
+    execution: GraphExecution<B>,
     graph: Graph<B>,
     pub(crate) handles: HandleContainer<B>,
     pub device: B::FusionDevice,
@@ -27,7 +30,7 @@ where
             .collect();
 
         Self {
-            execution: GreedyGraphExecution::new(optimizations),
+            execution: GraphExecution::new(optimizations),
             graph: Graph::new(),
             handles: HandleContainer::new(device.clone()),
             num_skipped: 0,

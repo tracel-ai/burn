@@ -1,23 +1,25 @@
-use super::{CacheResult, EndCondition, Graph, Optimization, OptimizationPath};
+use super::{CacheResult, EndCondition, Graph, Optimization, OptimizationCache};
 use crate::{FusionBackend, FusionOps, FusionStatus, HandleContainer};
 
 /// Execute an optimization following a greedy algorithm.
-pub struct GreedyGraphExecution<B: FusionBackend> {
-    optimization_path: OptimizationPath<Box<dyn FusionOps<B>>>,
+pub(crate) struct GraphExecution<B: FusionBackend> {
+    optimization_path: OptimizationCache<Box<dyn FusionOps<B>>>,
     optimizations: Vec<Optimization<B>>,
     num_skipped: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum ExecutionMode {
+pub(crate) enum ExecutionMode {
+    // Signal that we execute the graph after a new ops was added to the graph.
     NewOps,
+    // Signal that we execute the graph because of a sync without any new ops added to the graph.
     Sync,
 }
 
-impl<B: FusionBackend> GreedyGraphExecution<B> {
+impl<B: FusionBackend> GraphExecution<B> {
     pub fn new(optimizations: Vec<Optimization<B>>) -> Self {
         Self {
-            optimization_path: OptimizationPath::new(),
+            optimization_path: OptimizationCache::new(),
             optimizations,
             num_skipped: 0,
         }
@@ -34,10 +36,7 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
                 break;
             }
 
-            let action = self.action(graph, mode);
-            println!("force {mode:?}, {:?}", action);
-
-            match action {
+            match self.cache(graph, mode) {
                 CacheResult::Miss => {
                     let build_action = self.build(graph, mode);
 
@@ -50,8 +49,13 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
                             graph.execute(handles);
                             self.reset(graph);
                         }
-                        BuildAction::ContinueBuilding => {}
+                        BuildAction::ContinueBuilding => {
+                            if let ExecutionMode::Sync = mode {
+                                panic!("Can't continue building when sync is called.")
+                            }
+                        }
                     };
+
                     if self.num_skipped == 0 {
                         break;
                     }
@@ -81,14 +85,9 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
             ExecutionMode::NewOps => 1,
             ExecutionMode::Sync => 0,
         };
+
         for i in (0..self.num_skipped + offset).rev() {
             let index = graph.relative.len() - 1 - i;
-            println!(
-                "Register node {index} based on {}; num skiped {} - i {}",
-                graph.relative.len(),
-                self.num_skipped,
-                i
-            );
             let relative = &graph.relative[index];
 
             for ops in self.optimizations.iter_mut() {
@@ -99,28 +98,27 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
 
         if let ExecutionMode::NewOps = mode {
             if still_optimizing(&self.optimizations) {
-                println!("Continue optimizing");
                 return BuildAction::ContinueBuilding;
             }
         }
 
         match find_best_optimization_index(&self.optimizations) {
             Some(index) => {
-                println!("Execute optimization {index}");
-                let optimization = &self.optimizations[index];
-                let (relative, next_ops) = graph.lazy_format_relative();
+                let (relative, next_ops) = match mode {
+                    ExecutionMode::NewOps => {
+                        let graph = graph.lazy_format_relative();
+                        (graph.0.to_vec(), graph.1.cloned())
+                    }
+                    ExecutionMode::Sync => (graph.relative.clone(), None),
+                };
 
-                let ops = self.optimization_path.complete(
-                    &optimization.ops,
-                    relative.to_vec(),
-                    next_ops.cloned(),
-                );
+                let optimization = &self.optimizations[index];
+                let ops = self
+                    .optimization_path
+                    .complete(&optimization.ops, relative, next_ops);
                 BuildAction::ExecuteOptimization(ops)
             }
-            None => {
-                println!("Execute operation");
-                BuildAction::ExecuteOperations
-            }
+            None => BuildAction::ExecuteOperations,
         }
     }
 
@@ -130,19 +128,18 @@ impl<B: FusionBackend> GreedyGraphExecution<B> {
         }
         self.num_skipped = graph.relative.len();
 
-        println!("RESET: with num_skipped = {}", self.num_skipped);
+        self.optimization_path.reset();
+
         // Reset the policy state.
         for i in 0..self.num_skipped {
-            let relative = &graph.relative[0..i];
-            let next_ops = &graph.relative[i];
-
-            let _ = self
-                .optimization_path
-                .follow(relative, EndCondition::NextOps(next_ops));
+            let _ = self.optimization_path.follow(
+                &graph.relative[0..i],
+                EndCondition::NextOps(&graph.relative[i]),
+            );
         }
     }
 
-    fn action<'a>(
+    fn cache<'a>(
         &'a mut self,
         graph: &mut Graph<B>,
         mode: ExecutionMode,

@@ -21,7 +21,6 @@ mod server;
 mod tensor;
 
 pub(crate) use server::*;
-pub(crate) mod processor;
 
 pub use backend::*;
 pub use fusion::*;
