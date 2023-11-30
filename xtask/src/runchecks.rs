@@ -55,33 +55,12 @@ fn rustup(command: &str, target: &str) {
 
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str) {
-    _run_cargo(command, params, error, false)
-}
-
-// Define and run a nightly cargo command
-fn run_cargo_nightly(command: &str, params: Params, error: &str) {
-    _run_cargo(command, params, error, true)
-}
-
-fn _run_cargo(command: &str, params: Params, error: &str, nightly: bool) {
     // Print cargo command
-    println!(
-        "\ncargo{} {} {}\n",
-        if nightly { " +nightly-2023-11-05" } else { "" },
-        command,
-        params
-    );
-
-    let nightly = if nightly {
-        vec!["+nightly-2023-11-05"]
-    } else {
-        vec![]
-    };
+    println!("\ncargo {} {}\n", command, params);
 
     // Run cargo
     let cargo = Command::new("cargo")
         .env("CARGO_INCREMENTAL", "0")
-        .args(nightly)
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
@@ -126,7 +105,7 @@ fn cargo_test(params: Params) {
 // Run cargo fmt command
 fn cargo_fmt() {
     // Run cargo fmt
-    run_cargo_nightly(
+    run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
@@ -251,9 +230,7 @@ fn burn_core_std() {
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
 
     // Run cargo test --features test-wgpu
-    if std::env::var("DISABLE_WGPU").is_err() {
-        cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
-    }
+    cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
 }
 
 // Test burn-dataset features
@@ -270,13 +247,6 @@ fn burn_dataset_features_std() {
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 }
 
-// Test burn-candle with accelerate (macOS only)
-// Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
-#[cfg(target_os = "macos")]
-fn burn_candle_accelerate() {
-    cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
-}
-
 fn std_checks() {
     // Set RUSTDOCFLAGS environment variable to treat warnings as errors
     // for the documentation build
@@ -284,7 +254,6 @@ fn std_checks() {
 
     // Check if COVERAGE environment variable is set
     let is_coverage = std::env::var("COVERAGE").is_ok();
-    let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     println!("Running std checks");
 
@@ -295,11 +264,7 @@ fn std_checks() {
     cargo_clippy();
 
     // Build each workspace
-    if disable_wgpu {
-        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
-    } else {
-        cargo_build(["--workspace", "--exclude=xtask"].into());
-    }
+    cargo_build(["--workspace", "--exclude=xtask"].into());
 
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
@@ -311,10 +276,6 @@ fn std_checks() {
 
     // Test each workspace
     cargo_test(["--workspace"].into());
-
-    // Test burn-candle with accelerate (macOS only)
-    #[cfg(target_os = "macos")]
-    burn_candle_accelerate();
 
     // Test burn-dataset features
     burn_dataset_features_std();
