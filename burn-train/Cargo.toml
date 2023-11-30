@@ -39,7 +39,7 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 js-sys = { version = "0.3.64", optional = true }
-web-sys = { version = "0.3.65", optional = true, features = [
+web-sys = { version = "0.3.64", optional = true, features = [
   "Worker",
   "WorkerOptions",
   "WorkerType",
