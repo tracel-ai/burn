@@ -38,9 +38,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 
             match self.cache(graph, mode) {
                 CacheResult::Miss => {
-                    let build_action = self.build(graph, mode);
-
-                    match build_action {
+                    match self.build(graph, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
                             graph.execute_ops(handles, ops);
                             self.reset(graph);
@@ -69,7 +67,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                     };
                 }
                 CacheResult::Found(ops) => {
-                    graph.execute_ops(handles, ops);
+                    graph.execute_ops(handles, ops.as_ref());
                     self.reset(graph);
                 }
             };
@@ -116,7 +114,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                 let ops = self
                     .optimization_path
                     .complete(&optimization.ops, relative, next_ops);
-                BuildAction::ExecuteOptimization(ops)
+                BuildAction::ExecuteOptimization(ops.as_ref())
             }
             None => BuildAction::ExecuteOperations,
         }
@@ -149,7 +147,7 @@ impl<B: FusionBackend> GraphExecution<B> {
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
         };
         let end_condition = next_ops
-            .map(|ops| EndCondition::NextOps(ops))
+            .map(EndCondition::NextOps)
             .unwrap_or(EndCondition::Forced);
 
         let action = self.optimization_path.follow(graph, end_condition);
@@ -166,7 +164,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 }
 
 enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a Box<dyn FusionOps<B>>),
+    ExecuteOptimization(&'a dyn FusionOps<B>),
     ExecuteOperations,
     ContinueBuilding,
 }

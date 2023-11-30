@@ -763,7 +763,7 @@ impl TensorDescription {
             TensorId::new(converter.tensors_relative2global.len() as u64)
         };
 
-        // We can create relative shapes by mapping each shape found to an ID, wich is a `usize`.
+        // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
         let mut relative_shape = Vec::with_capacity(self.shape.len());
         for dim in self.shape.iter() {
             if let Some(dim) = converter.shapes_relative2global.get(dim) {

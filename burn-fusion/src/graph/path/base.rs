@@ -11,7 +11,7 @@ use crate::graph::TensorOpsDescription;
 /// when we see a different edge is added while keeping track of the current graph path.
 ///
 /// Therefore, the overhead is really minimal, since the time-complexity of checking the cache
-/// scales with the number of concurent potential optimizations for the current path, which isn't
+/// scales with the number of concurrent potential optimizations for the current path, which isn't
 /// supposed to be big at any time.
 pub(crate) struct OptimizationCache<O> {
     candidates: Vec<OptimizationId>,
@@ -49,7 +49,7 @@ impl<O> OptimizationCache<O> {
                 EndCondition::NextOps(ops) => ops,
                 EndCondition::Forced => return CacheResult::Miss, // Force en empty graph...
             };
-            let candidates = self.starters.get(&ops);
+            let candidates = self.starters.get(ops);
             if candidates.is_empty() {
                 return CacheResult::Miss;
             }
@@ -111,9 +111,9 @@ impl<O> OptimizationCache<O> {
             .collect();
 
         if self.candidates.is_empty() {
-            return CacheResult::Miss;
+            CacheResult::Miss
         } else {
-            return CacheResult::OnPath;
+            CacheResult::OnPath
         }
     }
 
@@ -137,17 +137,14 @@ impl<O> OptimizationCache<O> {
             .iter()
             .find(|(_candidate, len)| *len == graph.len());
 
-        match existing_optim {
-            Some((id, _)) => {
-                let optimization = self.optimizations.get_mut(*id).unwrap();
-                match next_ops {
-                    Some(ops) => optimization.end_condition.push(ops),
-                    None => {}
-                };
+        if let Some((id, _)) = existing_optim {
+            let optimization = self.optimizations.get_mut(*id).unwrap();
 
-                return &optimization.ops;
-            }
-            None => {}
+            if let Some(ops) = next_ops {
+                optimization.end_condition.push(ops)
+            };
+
+            return &optimization.ops;
         };
 
         self.starters
@@ -385,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_multiple_concurent_paths() {
+    fn should_support_multiple_concurrent_paths() {
         // Two different graphs with a different second ops, but the same last ops.
         let mut graph1 = TestGraph::new(1);
         graph1.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc)));

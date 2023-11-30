@@ -23,9 +23,9 @@ impl<B: FusionBackend> Graph<B> {
         }
     }
 
-    pub(crate) fn lazy_format_relative<'a>(
-        &'a self,
-    ) -> (&'a [TensorOpsDescription], Option<&TensorOpsDescription>) {
+    pub(crate) fn lazy_format_relative(
+        &self,
+    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         let len = self.relative.len();
         if len < 1 {
             return (&self.relative, None);
@@ -75,11 +75,7 @@ impl<B: FusionBackend> Graph<B> {
         self.converter.clear();
     }
 
-    pub(crate) fn execute_ops(
-        &mut self,
-        handles: &mut HandleContainer<B>,
-        ops: &Box<dyn FusionOps<B>>,
-    ) {
+    pub(crate) fn execute_ops(&mut self, handles: &mut HandleContainer<B>, ops: &dyn FusionOps<B>) {
         let num_keep = ops.len();
         let mut context = self.converter.context(handles);
         ops.execute(&mut context);
