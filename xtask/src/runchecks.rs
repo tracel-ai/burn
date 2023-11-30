@@ -9,6 +9,8 @@ use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
 
+use serde_json::Value;
+
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
@@ -43,14 +45,63 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
     handle_child_process(command, child_error);
 }
 
+// Get the workspaces available
+fn get_workspaces() -> Vec<String> {
+    // Run `cargo metadata` command to get project metadata
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .output()
+        .expect("Failed to execute command");
+
+    // Parse the JSON output
+    let metadata: Value = serde_json::from_slice(&output.stdout).expect("Failed to parse JSON");
+
+    // Extract workspaces from the metadata, excluding examples/ and xtask
+    let workspaces = metadata["workspace_members"]
+        .as_array()
+        .expect("Expected an array of workspace members")
+        .iter()
+        .filter_map(|member| {
+            let mut parts = member.as_str()?.split_whitespace();
+            let workspace_name = parts.next()?.to_string();
+            let workspace_path = parts.last()?.to_string();
+
+            if !workspace_path.contains("examples/") && workspace_name != "xtask" {
+                Some(workspace_name)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    workspaces
+}
+
+// Start section print in CI
+fn start_group(title: String) {
+    if std::env::var("CI").is_ok() {
+        println!("::group::{}", title);
+    } else {
+        println!("\n\n{}", title);
+    }
+}
+
+fn end_group() {
+    if std::env::var("CI").is_ok() {
+        println!("::endgroup::");
+    }
+}
+
 // Define and run rustup command
 fn rustup(command: &str, target: &str) {
+    start_group(format!("Rustup: {} add {}", command, target));
     run_command(
         "rustup",
         &[command, "add", target],
         "Failed to run rustup",
         "Failed to wait for rustup child process",
-    )
+    );
+    end_group();
 }
 
 // Define and run a cargo command
@@ -104,17 +155,18 @@ fn cargo_test(params: Params) {
 
 // Run cargo fmt command
 fn cargo_fmt() {
-    // Run cargo fmt
+    start_group("Cargo: fmt".to_string());
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
     );
+    end_group();
 }
 
 // Run cargo clippy command
 fn cargo_clippy() {
-    if std::env::var("CI_RUN").is_ok() {
+    if std::env::var("CI").is_ok() {
         return;
     }
     // Run cargo clippy
@@ -133,7 +185,7 @@ fn cargo_doc(params: Params) {
 
 // Build and test a crate in a no_std environment
 fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
-    println!("\nRun checks for `{}` crate", crate_name);
+    start_group(format!("Checks: {} (no_std)", crate_name));
 
     // Run cargo build --no-default-features
     cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -162,6 +214,8 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             ARM_TARGET,
         ]) + extra_args,
     );
+
+    end_group();
 }
 
 // Setup code coverage
@@ -201,8 +255,6 @@ fn run_grcov() {
 
 // Run no_std checks
 fn no_std_checks() {
-    println!("Checks for no_std environment...\n\n");
-
     // Install wasm32 target
     rustup("target", WASM32_TARGET);
 
@@ -224,20 +276,22 @@ fn no_std_checks() {
 
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
-    println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
-
     // Run cargo test --features test-tch
+    start_group("Test: burn-core (tch)".to_string());
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
+    end_group();
 
     // Run cargo test --features test-wgpu
     if std::env::var("DISABLE_WGPU").is_err() {
+        start_group("Test: burn-core (wgpu)".to_string());
         cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+        end_group();
     }
 }
 
 // Test burn-dataset features
 fn burn_dataset_features_std() {
-    println!("\n\nRun checks for burn-dataset features");
+    start_group("Checks: burn-dataset (all-features)".to_string());
 
     // Run cargo build --all-features
     cargo_build(["-p", "burn-dataset", "--all-features"].into());
@@ -247,13 +301,17 @@ fn burn_dataset_features_std() {
 
     // Run cargo doc --all-features
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
+
+    end_group();
 }
 
 // Test burn-candle with accelerate (macOS only)
 // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
 #[cfg(target_os = "macos")]
 fn burn_candle_accelerate() {
+    start_group("Checks: burn-candle (accelerate)".to_string());
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+    end_group();
 }
 
 fn std_checks() {
@@ -265,31 +323,34 @@ fn std_checks() {
     let is_coverage = std::env::var("COVERAGE").is_ok();
     let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
-    println!("Running std checks");
-
     // Check format
     cargo_fmt();
 
     // Check clippy lints
     cargo_clippy();
 
-    // Build each workspace
-    if disable_wgpu {
-        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
-    } else {
-        cargo_build(["--workspace", "--exclude=xtask"].into());
-    }
-
     // Produce documentation for each workspace
+    start_group("Docs: workspaces".to_string());
     cargo_doc(["--workspace"].into());
+    end_group();
 
     // Setup code coverage
     if is_coverage {
         setup_coverage();
     }
 
-    // Test each workspace
-    cargo_test(["--workspace"].into());
+    // Build & test each workspace
+    let workspaces = get_workspaces();
+    for workspace in workspaces {
+        if disable_wgpu && workspace == "burn-wgpu" {
+            continue;
+        }
+
+        start_group(format!("Checks: {}", workspace));
+        cargo_build(Params::from(["-p", &workspace]));
+        cargo_test(Params::from(["-p", &workspace]));
+        end_group();
+    }
 
     // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
