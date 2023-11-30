@@ -249,7 +249,8 @@ fn burn_dataset_features_std() {
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 }
 
-// Test burn-candle with accelerate (macOS)
+// Test burn-candle with accelerate (macOS only)
+// Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
 #[cfg(target_os = "macos")]
 fn burn_candle_accelerate() {
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
@@ -290,7 +291,7 @@ fn std_checks() {
     // Test each workspace
     cargo_test(["--workspace"].into());
 
-    // Test burn-candle with accelerate (macOS)
+    // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
     burn_candle_accelerate();
 
