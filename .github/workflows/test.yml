@@ -67,7 +67,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt
-          toolchain: nightly
+          toolchain: nightly-2023-11-05
 
       - name: install rust
         uses: dtolnay/rust-toolchain@master

@@ -67,12 +67,16 @@ fn _run_cargo(command: &str, params: Params, error: &str, nightly: bool) {
     // Print cargo command
     println!(
         "\ncargo{} {} {}\n",
-        if nightly { " +nightly" } else { "" },
+        if nightly { " +nightly-2023-11-05" } else { "" },
         command,
         params
     );
 
-    let nightly = if nightly { vec!["+nightly"] } else { vec![] };
+    let nightly = if nightly {
+        vec!["+nightly-2023-11-05"]
+    } else {
+        vec![]
+    };
 
     // Run cargo
     let cargo = Command::new("cargo")
