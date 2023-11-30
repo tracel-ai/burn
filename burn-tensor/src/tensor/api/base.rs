@@ -571,31 +571,33 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
     type Item = Tensor<B, D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = if self.start < self.end {
-            let mut ranges = self.ranges.clone();
-            ranges[self.dim] = self.start..(self.start + 1);
-            let slice = self.tensor.clone().slice(ranges);
-            Some(slice)
-        } else {
-            None
-        };
+        if self.start >= self.end {
+            return None;
+        }
+
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = self.start..(self.start + 1);
+
+        let slice = self.tensor.clone().slice(ranges);
         self.start += 1;
-        res
+        
+        Some(slice)
     }
 }
 
 impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter<B, D, K> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        let res = if self.start < self.end {
-            let mut ranges = self.ranges.clone();
-            ranges[self.dim] = (self.end - 1)..self.end;
-            let slice = self.tensor.clone().slice(ranges);
-            Some(slice)
-        } else {
-            None
-        };
-        self.end = self.end.saturating_sub(1);
-        res
+        if self.start >= self.end {
+            return None;
+        }
+        
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = (self.end - 1)..self.end;
+        
+        let slice = self.tensor.clone().slice(ranges);
+        self.end -= 1;
+        
+        Some(slice)
     }
 }
 
