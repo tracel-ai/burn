@@ -22,7 +22,7 @@ pub enum RecordType {
     PrettyJson,
 
     /// Compressed Named MessagePack.
-    /// 
+    ///
     /// Note: This may cause infinite build.
     ///       See https://github.com/Tracel-AI/burn/issues/952 bug.
     NamedMpkGz,
