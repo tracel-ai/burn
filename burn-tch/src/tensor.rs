@@ -6,6 +6,7 @@ use std::{marker::PhantomData, sync::Arc};
 /// A reference to a tensor storage.
 ///
 /// We manually implement `Sync` and `Send` unsafely, so even if we could use `Rc`, it isn't safe.
+#[allow(clippy::arc_with_non_send_sync)]
 pub type StorageRef = Arc<*mut c_void>;
 
 /// A tensor that uses the tch backend.
@@ -25,6 +26,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     /// storage as the parent, you should use [from_existing](TchTensor::from_existing)
     /// instead.
     pub fn new(tensor: tch::Tensor) -> Self {
+        #[allow(clippy::arc_with_non_send_sync)]
         let data = Arc::new(tensor.data_ptr());
 
         Self {
@@ -41,6 +43,7 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     pub fn from_existing(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
         let storage_child = tensor.data_ptr();
 
+        #[allow(clippy::arc_with_non_send_sync)]
         let storage = match storage_child == *storage_parent {
             true => storage_parent.clone(),
             false => Arc::new(storage_child),
