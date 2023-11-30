@@ -11,6 +11,8 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-fusion"
 version = "0.11.0"
 
 [features]
+default = ["std"]
+std = []
 
 [dependencies]
 burn-tensor = {path = "../burn-tensor", version = "0.11.0", default-features = false }

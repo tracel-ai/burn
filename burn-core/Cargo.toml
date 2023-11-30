@@ -11,10 +11,19 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
 version = "0.11.0"
 
 [features]
-default = ["std", "dataset-minimal"]
+default = [
+    "std",
+    "dataset",
+    "burn-ndarray?/default",
+    "burn-candle?/default",
+    "burn-wgpu?/default",
+    "burn-fusion?/default",
+    "burn-tch?/default",
+    "burn-dataset?/default",
+    "burn-common/default",
+    "burn-tensor/default",
+]
 std = [
-    "burn-common/std",
-    "burn-tensor/std",
     "flate2",
     "log",
     "rand/std",
@@ -23,11 +32,16 @@ std = [
     "serde_json/std",
     "bincode/std",
     "half/std",
+    "burn-ndarray?/std",
+    "burn-candle?/std",
+    "burn-wgpu?/std",
+    "burn-fusion?/std",
+    "burn-common/std",
+    "burn-tensor/std",
 ]
-dataset = ["burn-dataset/default"]
-dataset-minimal = ["burn-dataset"]
-dataset-sqlite = ["burn-dataset/sqlite"]
-dataset-sqlite-bundled = ["burn-dataset/sqlite-bundled"]
+dataset = ["burn-dataset"]
+sqlite = ["burn-dataset?/sqlite"]
+sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 
 wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 
@@ -35,27 +49,17 @@ wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 autodiff = ["burn-autodiff"]
 fusion = ["burn-fusion", "burn-wgpu?/fusion"]
 
-ndarray = ["__ndarray", "burn-ndarray/default"]
-ndarray-no-std = ["__ndarray", "burn-ndarray"]
-ndarray-blas-accelerate = [
-    "__ndarray",
-    "ndarray",
-    "burn-ndarray/blas-accelerate",
-]
-ndarray-blas-netlib = ["__ndarray", "ndarray", "burn-ndarray/blas-netlib"]
-ndarray-blas-openblas = ["__ndarray", "ndarray", "burn-ndarray/blas-openblas"]
-ndarray-blas-openblas-system = [
-    "__ndarray",
-    "ndarray",
-    "burn-ndarray/blas-openblas-system",
-]
-__ndarray = [] # Internal flag to know when one ndarray feature is enabled.
+## Backend features
+cuda = ["burn-candle?/cuda"]
+accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
+openblas = ["burn-ndarray?/blas-openblas"]
+openblas-system = ["burn-ndarray?/blas-openblas-system"]
+blas-netlib = ["burn-ndarray?/blas-netlib"]
 
+ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
-
 candle = ["burn-candle"]
-candle-cuda = ["candle", "burn-candle/cuda"]
-candle-accelerate = ["candle", "burn-candle/accelerate"]
+wgpu = ["burn-wgpu"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
@@ -63,7 +67,6 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 test-tch = ["tch"]   # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
 
-wgpu = ["burn-wgpu/default"]
 
 [dependencies]
 

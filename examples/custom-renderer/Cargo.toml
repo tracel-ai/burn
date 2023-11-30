@@ -8,8 +8,8 @@ publish = false
 version = "0.11.0"
 
 [dependencies]
-burn = {path = "../../burn", features=["autodiff", "wgpu", "train-minimal", "dataset"]}
-guide = {path = "../guide", default-features=false, features=["train-minimal"]}
+burn = {path = "../../burn", features=["autodiff", "wgpu", "train", "dataset"], default-features=false}
+guide = {path = "../guide", default-features=false}
 
 # Serialization
 log = {workspace = true}
