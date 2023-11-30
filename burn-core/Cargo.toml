@@ -55,6 +55,7 @@ tch = ["burn-tch"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
+candle-accelerate = ["candle", "burn-candle/accelerate"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]

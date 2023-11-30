@@ -25,6 +25,14 @@ pub struct MultiHeadAttentionConfig {
     /// A value too low might result in NaN.
     #[config(default = -1.0e4)]
     min_float: f64,
+    /// Use "quiet softmax" instead of regular softmax.
+    ///
+    /// - Usage may improve performance by allowing attention heads to deposit no information (if the sequence contains no information relevant to that head).
+    /// - Usage may reduce the entropy of weights in the model, enhancing quantization and compression.
+    ///
+    /// Reference: <https://www.evanmiller.org/attention-is-off-by-one.html>
+    #[config(default = false)]
+    quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}")]
     pub initializer: Initializer,
@@ -49,6 +57,7 @@ pub struct MultiHeadAttention<B: Backend> {
     n_heads: usize,
     d_k: usize,
     min_float: f64,
+    quiet_softmax: bool,
 }
 
 /// [Multihead attention](MultiHeadAttention) forward pass input argument.
@@ -80,6 +89,7 @@ impl MultiHeadAttentionConfig {
             n_heads: self.n_heads,
             d_k: self.d_model / self.n_heads,
             min_float: self.min_float,
+            quiet_softmax: self.quiet_softmax,
         }
     }
 
@@ -103,6 +113,7 @@ impl MultiHeadAttentionConfig {
             n_heads: self.n_heads,
             d_k: self.d_model / self.n_heads,
             min_float: self.min_float,
+            quiet_softmax: self.quiet_softmax,
         }
     }
 }
@@ -247,7 +258,11 @@ impl<B: Backend> MultiHeadAttention<B> {
             );
         }
 
-        activation::softmax(attn_scores, 3)
+        if self.quiet_softmax {
+            activation::quiet_softmax(attn_scores, 3)
+        } else {
+            activation::softmax(attn_scores, 3)
+        }
     }
 
     fn attention_linear(&self, x: Tensor<B, 3>, linear: &nn::Linear<B>) -> Tensor<B, 4> {

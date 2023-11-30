@@ -1,0 +1,122 @@
+name: vulnerabilities
+
+on:
+  schedule:
+    - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+
+  valgrind:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Install valgrind
+      run: |
+        sudo apt-get install valgrind
+
+    - name: Run cargo-valgrind
+      env:
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
+      # Looking for vulnerabilities
+      run: |
+        cargo test
+
+  cargo-careful:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Install cargo-careful
+      env:
+        CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
+        CAREFUL_VERSION: 0.4.0
+      run: |
+        curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
+        --output $HOME/.cargo/bin/cargo-careful
+        chmod +x $HOME/.cargo/bin/cargo-careful
+
+    - name: Run cargo-careful
+      # Looking for undefined behaviours
+      run: cargo +nightly careful test
+
+  address-sanitizer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run AddressSanitizer
+      env:
+        RUSTFLAGS: -Zsanitizer=address -Copt-level=3
+        RUSTDOCFLAGS: -Zsanitizer=address
+      # Looking for memory vulnerabilities
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+
+  thread-sanitizer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run ThreadSanitizer
+      env:
+        RUSTFLAGS: -Zsanitizer=thread -Copt-level=3
+        RUSTDOCFLAGS: -Zsanitizer=thread
+      # Looking for data race among threads
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture

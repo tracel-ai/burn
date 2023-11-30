@@ -359,10 +359,9 @@ where
         for i in 0..D - 1 {
             if shape_tensor.dims[i] != shape_indices.dims[i] {
                 panic!(
-                    "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
-                     {:?}",
-                    shape_tensor.dims, shape_indices.dims
-                );
+          "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}",
+          shape_tensor.dims, shape_indices.dims
+        );
             }
             batch_size *= shape_indices.dims[i];
         }

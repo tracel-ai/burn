@@ -8,6 +8,7 @@ pub(crate) mod concat;
 pub(crate) mod constant;
 pub(crate) mod conv1d;
 pub(crate) mod conv2d;
+pub(crate) mod conv_transpose_2d;
 pub(crate) mod dropout;
 pub(crate) mod gather;
 pub(crate) mod global_avg_pool;
