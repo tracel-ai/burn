@@ -5,7 +5,7 @@ use crate::{
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct GraphExecution<B: FusionBackend> {
-    optimization_path: OptimizationCache<Box<dyn Optimization<B>>>,
+    optimization_cache: OptimizationCache<Box<dyn Optimization<B>>>,
     optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
@@ -21,13 +21,13 @@ pub(crate) enum ExecutionMode {
 impl<B: FusionBackend> GraphExecution<B> {
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
-            optimization_path: OptimizationCache::new(),
+            optimization_cache: OptimizationCache::new(),
             optimizations,
             num_skipped: 0,
         }
     }
 
-    pub fn maybe_execute(
+    pub fn execute(
         &mut self,
         graph: &mut Graph<B>,
         handles: &mut HandleContainer<B>,
@@ -42,11 +42,11 @@ impl<B: FusionBackend> GraphExecution<B> {
                 CacheResult::Miss => {
                     match self.build(graph, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
-                            graph.execute_ops(handles, ops);
+                            graph.execute_optimization(handles, ops);
                             self.reset(graph);
                         }
                         BuildAction::ExecuteOperations => {
-                            graph.execute(handles);
+                            graph.execute_operations(handles);
                             self.reset(graph);
                         }
                         BuildAction::ContinueBuilding => {
@@ -69,7 +69,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                     };
                 }
                 CacheResult::Found(ops) => {
-                    graph.execute_ops(handles, ops.as_ref());
+                    graph.execute_optimization(handles, ops.as_ref());
                     self.reset(graph);
                 }
             };
@@ -96,6 +96,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
         self.num_skipped = 0;
 
+        // Can only be lazy when not sync.
         if let ExecutionMode::NewOps = mode {
             if still_optimizing(&self.optimizations) {
                 return BuildAction::ContinueBuilding;
@@ -106,7 +107,7 @@ impl<B: FusionBackend> GraphExecution<B> {
             Some(index) => {
                 let (relative, next_ops) = match mode {
                     ExecutionMode::NewOps => {
-                        let graph = graph.lazy_format_relative();
+                        let graph = graph.split_graph();
                         (graph.0.to_vec(), graph.1.cloned())
                     }
                     ExecutionMode::Sync => (graph.relative.clone(), None),
@@ -114,11 +115,14 @@ impl<B: FusionBackend> GraphExecution<B> {
 
                 let optimization = &self.optimizations[index];
                 let ops = self
-                    .optimization_path
+                    .optimization_cache
                     .complete(optimization, relative, next_ops);
                 BuildAction::ExecuteOptimization(ops.as_ref())
             }
-            None => BuildAction::ExecuteOperations,
+            None => {
+                // TODO: Cache this result too.
+                BuildAction::ExecuteOperations
+            }
         }
     }
 
@@ -128,11 +132,11 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
         self.num_skipped = graph.relative.len();
 
-        self.optimization_path.reset();
+        self.optimization_cache.reset();
 
         // Reset the policy state.
         for i in 0..self.num_skipped {
-            let _ = self.optimization_path.follow(
+            let _ = self.optimization_cache.follow(
                 &graph.relative[0..i],
                 EndCondition::NextOps(&graph.relative[i]),
             );
@@ -145,14 +149,14 @@ impl<B: FusionBackend> GraphExecution<B> {
         mode: ExecutionMode,
     ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
         let (graph, next_ops) = match mode {
-            ExecutionMode::NewOps => graph.lazy_format_relative(),
+            ExecutionMode::NewOps => graph.split_graph(),
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
         };
         let end_condition = next_ops
             .map(EndCondition::NextOps)
-            .unwrap_or(EndCondition::Forced);
+            .unwrap_or(EndCondition::Sync);
 
-        let action = self.optimization_path.follow(graph, end_condition);
+        let action = self.optimization_cache.follow(graph, end_condition);
 
         match mode {
             ExecutionMode::NewOps => action,

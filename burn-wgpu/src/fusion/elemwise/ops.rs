@@ -56,7 +56,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn execute(&self, context: &mut Context<'_, '_, Wgpu<G, F, I>>) {
+    fn execute(&self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         let inputs = self
             .inputs
             .iter()

@@ -36,13 +36,13 @@ where
     pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
         self.graph.add(ops_desc, ops);
         self.execution
-            .maybe_execute(&mut self.graph, &mut self.handles, ExecutionMode::NewOps);
+            .execute(&mut self.graph, &mut self.handles, ExecutionMode::NewOps);
     }
 
     pub fn drain_graph(&mut self) {
         // Check if we can execute.
         self.execution
-            .maybe_execute(&mut self.graph, &mut self.handles, ExecutionMode::Sync);
+            .execute(&mut self.graph, &mut self.handles, ExecutionMode::Sync);
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {

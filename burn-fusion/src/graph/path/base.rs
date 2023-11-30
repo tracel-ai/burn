@@ -47,7 +47,7 @@ impl<O> OptimizationCache<O> {
             // Starter
             let ops = match end_condition {
                 EndCondition::NextOps(ops) => ops,
-                EndCondition::Forced => return CacheResult::Miss, // Force en empty graph...
+                EndCondition::Sync => return CacheResult::Miss, // Sync an empty graph...
             };
             let candidates = self.starters.get(ops);
             if candidates.is_empty() {
@@ -58,46 +58,47 @@ impl<O> OptimizationCache<O> {
         }
 
         if let Some(candidate) = self.found {
-            return CacheResult::Found(&self.optimizations.get(candidate).unwrap().ops);
-        };
+            return CacheResult::Found(&self.optimizations.get(candidate).unwrap().value);
+        }
 
         // Invalidate candidates.
         let mut invalidated_candidate = Vec::new();
-        for candidate in self.candidates.iter() {
-            let graph_candidate = match self.optimizations.get(*candidate) {
-                Some(val) => val,
-                None => panic!("Should have candidate"),
+        for id in self.candidates.iter() {
+            let item = match self.optimizations.get(*id) {
+                Some(item) => item,
+                None => panic!("Should have an optimization"),
             };
             let next_ops = graph.last().expect("Validated earlier");
             let next_ops_index = graph.len() - 1;
-            let next_ops_candidate = match graph_candidate.graph.get(next_ops_index) {
+            let next_ops_candidate = match item.graph.get(next_ops_index) {
                 Some(val) => val,
                 None => {
-                    invalidated_candidate.push(*candidate);
+                    invalidated_candidate.push(*id);
                     continue;
                 }
             };
 
             if next_ops_candidate != next_ops {
-                invalidated_candidate.push(*candidate);
+                invalidated_candidate.push(*id);
                 continue;
             }
 
-            if graph_candidate.graph.len() == graph.len() {
+            // Is it optimal?
+            if item.graph.len() == graph.len() {
                 let ops = match end_condition {
                     EndCondition::NextOps(ops) => ops,
-                    EndCondition::Forced => {
-                        self.found = Some(*candidate);
-                        return CacheResult::Found(&graph_candidate.ops);
+                    EndCondition::Sync => {
+                        self.found = Some(*id);
+                        return CacheResult::Found(&item.value);
                     }
                 };
 
-                if graph_candidate.end_condition.contains(ops) {
-                    self.found = Some(*candidate);
-                    return CacheResult::Found(&graph_candidate.ops);
+                if item.end_conditions.contains(ops) {
+                    self.found = Some(*id);
+                    return CacheResult::Found(&item.value);
                 } else {
-                    self.availables.push((*candidate, graph.len()));
-                    invalidated_candidate.push(*candidate);
+                    self.availables.push((*id, graph.len()));
+                    invalidated_candidate.push(*id);
                 }
             }
         }
@@ -141,26 +142,25 @@ impl<O> OptimizationCache<O> {
             let optimization = self.optimizations.get_mut(*id).unwrap();
 
             if let Some(ops) = next_ops {
-                optimization.end_condition.push(ops)
+                optimization.end_conditions.push(ops)
             };
 
-            return &optimization.ops;
+            return &optimization.value;
         };
 
         self.starters
             .insert(graph.first().unwrap(), self.optimizations.len());
-        let ops = factory.create();
         let optimization = OptimizationItem {
             graph,
-            end_condition: match next_ops {
+            end_conditions: match next_ops {
                 Some(val) => vec![val],
                 None => Vec::new(),
             },
-            ops,
+            value: factory.create(),
         };
 
         self.optimizations.push(optimization);
-        &self.optimizations.last().unwrap().ops
+        &self.optimizations.last().unwrap().value
     }
 
     // Signal that a new path will begin.
@@ -193,8 +193,8 @@ pub enum CacheResult<'a, T> {
 pub enum EndCondition<'a> {
     /// The next operation that signal the end of the operation.
     NextOps(&'a TensorOpsDescription),
-    /// When forced, we should execute the optimization if found no matter what comes next.
-    Forced,
+    /// When sync, we should execute the optimization if found no matter what comes next.
+    Sync,
 }
 
 impl<'a, T> core::fmt::Debug for CacheResult<'a, T> {
@@ -217,8 +217,8 @@ pub(super) type OptimizationId = usize;
 
 struct OptimizationItem<O> {
     graph: Vec<TensorOpsDescription>,
-    end_condition: Vec<TensorOpsDescription>,
-    ops: O,
+    end_conditions: Vec<TensorOpsDescription>,
+    value: O,
 }
 
 #[cfg(test)]
@@ -251,7 +251,7 @@ mod tests {
         let result2 = path.follow(&graph.edges[0..1], EndCondition::NextOps(&graph.edges[1]));
         assert_eq!(result2, CacheResult::OnPath);
 
-        let result3 = path.follow(&graph.edges[0..2], EndCondition::Forced);
+        let result3 = path.follow(&graph.edges[0..2], EndCondition::Sync);
         match result3 {
             CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),

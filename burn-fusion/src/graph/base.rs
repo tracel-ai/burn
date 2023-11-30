@@ -23,9 +23,7 @@ impl<B: FusionBackend> Graph<B> {
         }
     }
 
-    pub(crate) fn lazy_format_relative(
-        &self,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
+    pub(crate) fn split_graph(&self) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         let len = self.relative.len();
         if len < 1 {
             return (&self.relative, None);
@@ -75,7 +73,7 @@ impl<B: FusionBackend> Graph<B> {
         self.converter.clear();
     }
 
-    pub(crate) fn execute_ops(
+    pub(crate) fn execute_optimization(
         &mut self,
         handles: &mut HandleContainer<B>,
         ops: &dyn Optimization<B>,
@@ -87,7 +85,7 @@ impl<B: FusionBackend> Graph<B> {
         self.remove(0..num_keep, handles);
     }
 
-    pub(crate) fn execute(&mut self, handles: &mut HandleContainer<B>) {
+    pub(crate) fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
         for (description, ops) in self.global.drain(..).zip(self.ops.drain(..)) {
             ops.execute(handles);
             description.cleanup_tensor(handles);

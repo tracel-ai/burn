@@ -24,11 +24,11 @@ use hashbrown::HashMap;
 /// It also contains all scalar values, which can changed even for the same graph. They are sorted
 /// in the order in which they appears in the graph.
 #[derive(new)]
-pub struct Context<'a, 'b, B: FusionBackend> {
+pub struct Context<'a, B: FusionBackend> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
     pub tensors: &'a HashMap<TensorId, TensorDescription>,
     /// Handle contained to retrieve tensors based on their description.
-    pub handles: &'b mut HandleContainer<B>,
+    pub handles: &'a mut HandleContainer<B>,
     /// Float scalars found in the graph in the order they appeared.
     pub scalar_floats: &'a Vec<f32>,
     /// Int scalars found in the graph in the order they appeared.
@@ -41,16 +41,16 @@ pub(crate) struct RelativeGraphConverter {
     tensors_global2relative: HashMap<TensorId, TensorDescription>,
     /// Only useful to create new shape ID.
     /// You should use tensor descriptions to retrieve the proper shape.
-    shapes_relative2global: HashMap<usize, usize>,
+    shapes_global2relative: HashMap<usize, usize>,
     scalar_floats: Vec<f32>,
     scalar_ints: Vec<i32>,
 }
 
 impl RelativeGraphConverter {
-    pub(crate) fn context<'a, 'b, B: FusionBackend>(
+    pub(crate) fn context<'a, B: FusionBackend>(
         &'a self,
-        handles: &'b mut HandleContainer<B>,
-    ) -> Context<'a, 'b, B> {
+        handles: &'a mut HandleContainer<B>,
+    ) -> Context<'a, B> {
         Context {
             handles,
             tensors: &self.tensors_relative2global,
@@ -58,17 +58,20 @@ impl RelativeGraphConverter {
             scalar_ints: &self.scalar_ints,
         }
     }
+
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
-        self.shapes_relative2global.clear();
+        self.shapes_global2relative.clear();
         self.scalar_floats.clear();
         self.scalar_ints.clear();
     }
+
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E) -> E {
         self.scalar_floats.push(elem.elem());
         0.elem()
     }
+
     pub(crate) fn relative_int<E: Element>(&mut self, elem: &E) -> E {
         self.scalar_floats.push(elem.elem());
         0.elem()
@@ -766,14 +769,14 @@ impl TensorDescription {
         // We can create relative shapes by mapping each shape found to an ID, which is a `usize`.
         let mut relative_shape = Vec::with_capacity(self.shape.len());
         for dim in self.shape.iter() {
-            if let Some(dim) = converter.shapes_relative2global.get(dim) {
+            if let Some(dim_id) = converter.shapes_global2relative.get(dim) {
                 // We already saw that dim value before, so we retrieve its ID.
-                relative_shape.push(*dim);
+                relative_shape.push(*dim_id);
             } else {
                 // We never saw this dim value before, therefore we create a new ID.
-                let dim_new = converter.shapes_relative2global.len();
-                relative_shape.push(dim_new);
-                converter.shapes_relative2global.insert(*dim, dim_new);
+                let dim_id = converter.shapes_global2relative.len();
+                relative_shape.push(dim_id);
+                converter.shapes_global2relative.insert(*dim, dim_id);
             }
         }
 
