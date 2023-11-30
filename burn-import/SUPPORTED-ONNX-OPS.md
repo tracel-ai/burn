@@ -44,7 +44,7 @@ represent the corresponding Burn Op.
 | [ConvInteger][37]                |       ❌       |      ❌      |
 | [ConvTranspose1d][38]            |       ❌       |      ✅      |
 | [ConvTranspose2d][38]            |       ✅       |      ✅      |
-| [Cos][39]                        |       ❌       |      ✅      |
+| [Cos][39]                        |       ✅       |      ✅      |
 | [Cosh][40]                       |       ❌       |      ❌      |
 | [CumSum][41]                     |       ❌       |      ❌      |
 | [DepthToSpace][42]               |       ❌       |      ❌      |
