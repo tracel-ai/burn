@@ -1,5 +1,8 @@
 # Image Classification Web Demo Using Burn and WebAssembly
 
+[![Live Demo](https://img.shields.io/badge/live-demo-brightgreen)](https://antimora.github.io/image-classification/)
+
+
 ## Overview
 
 This demo showcases how to execute an image classification task in a web browser using a model
