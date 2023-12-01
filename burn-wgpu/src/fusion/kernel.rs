@@ -83,7 +83,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
     /// Register the inputs used by the kernel.
     pub fn inputs(
         mut self,
-        inputs_tensor: &[&(TensorDescription, Elem)],
+        inputs_tensor: &[(&TensorDescription, Elem)],
         inputs_scalar_f32: &[f32],
     ) -> FusionKernel<G, F, I, BodyPhase> {
         for (i, (input, elem)) in inputs_tensor.iter().enumerate() {
@@ -198,7 +198,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(
         mut self,
-        outputs: &[&(TensorDescription, Elem)],
+        outputs: &[(&TensorDescription, Elem)],
         locals: &[u16],
     ) -> FusionKernel<G, F, I, ExecutionPhase> {
         let mut num_elems_launch_option = 0;

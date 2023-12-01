@@ -1,7 +1,6 @@
 use crate::{
     element::WgpuElement,
     fusion::codegen::{Elem, Operator, Variable},
-    fusion::kernel::FusionKernel,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
@@ -9,13 +8,16 @@ use burn_fusion::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    FusionOps, FusionProperties, FusionStatus, HandleContainer, TensorDescription, TensorId,
+    Optimization, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
+use super::optimization::FloatElementWise;
+
 /// Fused element wise operations that are normally memory bound.
-pub struct FloatElementWiseFusionOps<G, F, I>
+pub(crate) struct FloatElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -24,48 +26,56 @@ where
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
-    pub(crate) scalars_f32: Vec<f32>,
-    pub(crate) scalars_i32: Vec<i32>,
-    pub(crate) scalars_u32: Vec<u32>,
-    pub(crate) booleans: Vec<bool>,
+    pub(crate) scalars_f32: usize,
+    pub(crate) scalars_i32: usize,
+    pub(crate) scalars_u32: usize,
+    pub(crate) booleans: usize,
     pub(crate) operators: Vec<Operator>,
-    pub(crate) properties: FusionProperties,
     pub(crate) current_output_shape: Vec<usize>,
-    device: Device<Wgpu<G, F, I>>,
+    pub(crate) status: OptimizationStatus,
+    pub(crate) device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G, F, I>>
-    for FloatElementWiseFusionOps<G, F, I>
+impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for FloatElementWiseBuilder<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
 {
-    fn register(&mut self, ops: &TensorOpsDescription) -> FusionStatus {
+    fn register(&mut self, ops: &TensorOpsDescription) {
+        if let OptimizationStatus::Closed = self.status {
+            return;
+        }
+
         match ops {
             TensorOpsDescription::BaseOpsFloat(ops) => {
                 if !self.register_base::<F>(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = OptimizationStatus::Closed;
+                    return;
                 }
             }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = OptimizationStatus::Closed;
+                    return;
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
                 if !self.register_numeric(ops) {
-                    return FusionStatus::Closed(self.properties);
+                    self.status = OptimizationStatus::Closed;
+                    return;
                 }
             }
             _ => {
-                return FusionStatus::Closed(self.properties);
+                self.status = OptimizationStatus::Closed;
+                return;
             }
         };
 
-        self.properties.score += 1;
-        self.properties.ready = self.operators.len() > 1;
-
-        FusionStatus::Open(self.properties)
+        self.status = OptimizationStatus::Open;
     }
 
-    fn execute(&mut self, handles: &mut HandleContainer<Wgpu<G, F, I>>) {
+    fn build(&self) -> Box<dyn Optimization<Wgpu<G, F, I>>> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -73,32 +83,47 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> FusionOps<Wgpu<G,
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        FusionKernel::new(&self.device)
-            .inputs(&inputs, &self.scalars_f32)
-            .body(&self.operators)
-            .outputs(&outputs, &locals)
-            .execute(handles);
+        Box::new(FloatElementWise {
+            inputs,
+            outputs,
+            locals,
+            operators: self.operators.clone(),
+            scalars_f32: self.scalars_f32,
+            device: self.device.clone(),
+        })
     }
 
     fn reset(&mut self) {
         self.inputs.clear();
         self.locals.drain();
         self.tensors.clear();
-        self.scalars_f32.clear();
-        self.scalars_i32.clear();
-        self.scalars_u32.clear();
-        self.booleans.clear();
+        self.scalars_f32 = 0;
+        self.scalars_i32 = 0;
+        self.scalars_u32 = 0;
+        self.booleans = 0;
         self.operators.clear();
-        self.properties = FusionProperties::default();
+        self.status = OptimizationStatus::Open;
         self.current_output_shape.clear();
     }
 
-    fn len(&self) -> usize {
-        self.operators.len()
+    fn status(&self) -> OptimizationStatus {
+        self.status
+    }
+
+    fn properties(&self) -> OptimizationProperties {
+        let ready = match self.status {
+            OptimizationStatus::Closed => false,
+            OptimizationStatus::Open => self.operators.len() > 1,
+        };
+
+        OptimizationProperties {
+            ready,
+            score: self.operators.len() as u64,
+        }
     }
 }
 
-impl<G, F, I> FloatElementWiseFusionOps<G, F, I>
+impl<G, F, I> FloatElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -109,28 +134,28 @@ where
             inputs: Vec::new(),
             locals: HashMap::new(),
             tensors: HashMap::new(),
-            scalars_f32: Vec::new(),
-            scalars_i32: Vec::new(),
-            scalars_u32: Vec::new(),
-            booleans: Vec::new(),
+            scalars_f32: 0,
+            scalars_i32: 0,
+            scalars_u32: 0,
+            booleans: 0,
             operators: Vec::new(),
             current_output_shape: Vec::new(),
-            properties: FusionProperties::default(),
+            status: OptimizationStatus::Open,
             device,
         }
     }
 
-    fn input_descriptions(&self) -> Vec<&(TensorDescription, Elem)> {
+    fn input_descriptions(&self) -> Vec<(TensorDescription, Elem)> {
         self.inputs
             .iter()
             .map(|input| {
                 let updated_tensor = self.tensors.get(&input.id).unwrap();
-                updated_tensor
+                updated_tensor.clone()
             })
             .collect::<Vec<_>>()
     }
 
-    fn output_descriptions(&self) -> Vec<&(TensorDescription, Elem)> {
+    fn output_descriptions(&self) -> Vec<(TensorDescription, Elem)> {
         let mut outputs = Vec::new();
         let mut local_tensor_ids_input = Vec::new();
         let mut local_tensor_ids_output = Vec::new();
@@ -271,7 +296,7 @@ where
             let is_read = local_tensor_ids_input.contains(&out);
 
             if !is_read {
-                outputs.push(self.tensors.get(&out).unwrap());
+                outputs.push(self.tensors.get(&out).unwrap().clone());
             }
         }
 
@@ -281,7 +306,7 @@ where
             let (tensor, _) = &entry;
             if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
                 if self.locals.contains_key(&tensor.id) {
-                    outputs.push(entry);
+                    outputs.push(entry.clone());
                 }
             }
         }
@@ -503,12 +528,13 @@ where
                 let rhs = self.input_to_var(&desc.tensor, E::elem_type());
                 let out = self.output_to_var(&desc.out, E::elem_type());
 
-                self.operators.push(Operator::ConditionalAssign {
+                let ops = Operator::ConditionalAssign {
                     cond,
                     lhs,
                     rhs,
                     out,
-                });
+                };
+                self.operators.push(ops);
 
                 true
             }
@@ -600,19 +626,19 @@ where
         true
     }
 
-    fn scalar_to_var<E: Element>(&mut self, value: &E, elem_type: Elem) -> Variable {
+    fn scalar_to_var<E: Element>(&mut self, _value: &E, elem_type: Elem) -> Variable {
         match elem_type {
             Elem::F32 => {
-                self.scalars_f32.push(value.elem());
-                Variable::Scalar(self.scalars_f32.len() as u16 - 1, Elem::F32)
+                self.scalars_f32 += 1;
+                Variable::Scalar(self.scalars_f32 as u16 - 1, Elem::F32)
             }
             Elem::I32 => {
-                self.scalars_i32.push(value.elem());
-                Variable::Scalar(self.scalars_i32.len() as u16 - 1, Elem::I32)
+                self.scalars_i32 += 1;
+                Variable::Scalar(self.scalars_i32 as u16 - 1, Elem::I32)
             }
             Elem::U32 => {
-                self.scalars_u32.push(value.elem());
-                Variable::Scalar(self.scalars_u32.len() as u16 - 1, Elem::U32)
+                self.scalars_u32 += 1;
+                Variable::Scalar(self.scalars_u32 as u16 - 1, Elem::U32)
             }
             Elem::Bool => {
                 panic!("Bool scalars not supported")
@@ -628,52 +654,5 @@ where
         }
 
         true
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use burn_fusion::graph::Ops;
-    use burn_fusion::{Fusion, FusionBackend};
-    use burn_tensor::Tensor;
-
-    struct FakeAddOps;
-
-    impl<B: FusionBackend> Ops<B> for FakeAddOps {
-        fn execute(self: Box<Self>, _: &mut HandleContainer<B>) {
-            todo!()
-        }
-    }
-
-    #[test]
-    fn test_fusion_same_behavior() {
-        type Backend = Wgpu;
-        type FusedBackend = Fusion<Wgpu>;
-
-        let data_1 =
-            Tensor::<Backend, 2>::random([1, 32], burn_tensor::Distribution::Default).into_data();
-        let data_2 =
-            Tensor::<Backend, 2>::random([32, 32], burn_tensor::Distribution::Default).into_data();
-
-        let tensor_1 = Tensor::<Backend, 2>::from_data(data_1.clone());
-        let tensor_2 = Tensor::<Backend, 2>::from_data(data_2.clone());
-        let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4.clone() + 5.0;
-        let tensor_6 = tensor_5 + tensor_3.clone();
-        let mask = tensor_4.lower_equal(tensor_3);
-        let result_ref = tensor_6.mask_fill(mask, 0.3).into_data();
-
-        let tensor_1 = Tensor::<FusedBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<FusedBackend, 2>::from_data(data_2);
-        let tensor_3 = tensor_1.clone() + tensor_2;
-        let tensor_4 = tensor_3.clone() - tensor_1;
-        let tensor_5 = tensor_4.clone() + 5.0;
-        let tensor_6 = tensor_5 + tensor_3.clone();
-        let mask = tensor_4.lower_equal(tensor_3);
-        let result_fused = tensor_6.mask_fill(mask, 0.3).into_data();
-
-        result_fused.assert_approx_eq(&result_ref, 3);
     }
 }

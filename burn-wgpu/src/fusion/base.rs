@@ -1,13 +1,11 @@
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
-    fusion::FloatElementWiseFusionOps,
+    fusion::FloatElementWiseBuilder,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
-use burn_fusion::{
-    client::MutexFusionClient, graph::GreedyGraphExecution, DeviceId, FusionBackend, FusionDevice,
-};
+use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
 
@@ -31,10 +29,10 @@ where
 {
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
-    type FusionClient = MutexFusionClient<Self, GreedyGraphExecution>;
+    type FusionClient = MutexFusionClient<Self>;
 
-    fn operations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::FusionOps<Self>>> {
-        vec![Box::new(FloatElementWiseFusionOps::new(device.clone()))]
+    fn optimizations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
+        vec![Box::new(FloatElementWiseBuilder::new(device.clone()))]
     }
 
     fn float_tensor<const D: usize>(
