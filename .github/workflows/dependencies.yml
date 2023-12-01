@@ -5,7 +5,7 @@ on:
     - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*' # Run when a new version is being published
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
