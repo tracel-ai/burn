@@ -53,7 +53,7 @@
 //! By default, the feature `std` is activated.
 //!
 //! - Training
-//!   - `train`: Enables features `dataset` and `autodiff` and provides a training environement
+//!   - `train`: Enables features `dataset` and `autodiff` and provides a training environment
 //!   - `tui`: Includes Text UI with progress bar and plots
 //!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.)
 //! - Dataset
