@@ -14,6 +14,7 @@ version = "0.11.0"
 default = ["metrics", "tui"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
+browser = ["js-sys", "web-sys", "wasm-bindgen"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.11.0" }
