@@ -2,7 +2,7 @@ name: vulnerabilities
 
 on:
   schedule:
-    - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
+    - cron: '0 21 * * WED' # Run every Wednesday at 21:00 (UTC)
   push:
     tags:
       - 'v*.*.*' # Run when a new version is being published
