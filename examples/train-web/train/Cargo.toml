@@ -13,8 +13,8 @@ console_error_panic_hook = "0.1.7"
 console_log = { version = "1", features = ["color"] }
 burn = { path = "../../../burn", default-features = false, features = [
   "autodiff",
-  "ndarray-no-std",
-  "train-minimal",
+  "train",
+  "ndarray",
   "wasm-sync",
   "browser",
 ] }

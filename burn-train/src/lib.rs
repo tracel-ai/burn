@@ -27,6 +27,3 @@ pub use learner::*;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
-
-#[macro_use]
-extern crate lazy_static;
