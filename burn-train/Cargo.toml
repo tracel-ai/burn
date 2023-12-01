@@ -14,7 +14,7 @@ version = "0.11.0"
 default = ["metrics", "tui"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
-browser = ["js-sys", "web-sys", "wasm-bindgen"]
+browser = ["js-sys", "web-sys", "wasm-bindgen", "wasm-bindgen-rayon", "rayon"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.11.0", default-features = false, features = [
@@ -48,8 +48,8 @@ web-sys = { version = "0.3.64", optional = true, features = [
   "ErrorEvent",
 ] }
 wasm-bindgen = { workspace = true, optional = true }
-wasm-bindgen-rayon = "1.0.3"
-rayon = { workspace = true }
+wasm-bindgen-rayon = { version = "1.0.3", optional = true }
+rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.11.0" }
