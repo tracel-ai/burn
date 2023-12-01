@@ -5,10 +5,10 @@ use crate::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         FloatOpsDescription, GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
-        NumericOpsDescription, Ops, ReduceDimWithIndicesDescription, ReshapeDescription,
-        ScalarOpsDescription, ScatterOpsDescription, SelectAssignOpsDescription,
-        SelectOpsDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
-        TensorOpsDescription, UnaryOpsDescription,
+        NumericOpsDescription, Ops, RandomOpsDescription, ReduceDimWithIndicesDescription,
+        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
+        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
+        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, Fusion,
@@ -39,16 +39,15 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct RandomOps<const D: usize> {
-            out: TensorDescription,
-            distribution: Distribution,
+            desc: RandomOpsDescription,
         }
 
         impl<const D: usize, B: FusionBackend> Ops<B> for RandomOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
-                let shape = Shape::from(self.out.shape.clone());
+                let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::TensorPrimitive<D> =
-                    B::random(shape, self.distribution, &handles.device);
-                handles.register_float_tensor(&self.out.id, output);
+                    B::random(shape, self.desc.distribution, &handles.device);
+                handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
 
@@ -56,10 +55,13 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
-        let desc = (out.to_description_out(), distribution);
+        let desc = RandomOpsDescription {
+            out: out.to_description_out(),
+            distribution,
+        };
         client.register(
             TensorOpsDescription::FloatOps(FloatOpsDescription::Random(desc.clone())),
-            RandomOps::<D>::new(desc.0, desc.1),
+            RandomOps::<D>::new(desc),
         );
 
         out
@@ -548,17 +550,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D1>(&self.desc.input);
-                let output = B::reshape::<D1, D2>(input, Shape::from(&self.desc.shape));
+                let output = B::reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
                 handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.tensor_uninitialized(shape.clone());
+        let out = tensor.client.tensor_uninitialized(shape);
 
         let desc = ReshapeDescription {
             input: tensor.into_description(),
-            shape,
             out: out.to_description_out(),
         };
         out.client.register(
