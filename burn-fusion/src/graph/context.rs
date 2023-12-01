@@ -18,16 +18,16 @@ use burn_tensor::{Element, ElementConversion};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
-/// mapped to an existing tensor that can be fetch and updated with the
+/// mapped to an existing tensor that can be fetched and updated with the
 /// [handle container](HandleContainer).
 ///
-/// It also contains all scalar values, which can changed even for the same graph. They are sorted
-/// in the order in which they appears in the graph.
+/// It also contains all scalar values, which can change even for the same graph. They are sorted
+/// in the order in which they appear in the graph.
 #[derive(new)]
 pub struct Context<'a, B: FusionBackend> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
     pub tensors: &'a HashMap<TensorId, TensorDescription>,
-    /// Handle contained to retrieve tensors based on their description.
+    /// Handle container to retrieve tensors based on their description.
     pub handles: &'a mut HandleContainer<B>,
     /// Float scalars found in the graph in the order they appeared.
     pub scalar_floats: &'a Vec<f32>,
@@ -69,11 +69,15 @@ impl RelativeGraphConverter {
 
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E) -> E {
         self.scalar_floats.push(elem.elem());
+        // We return 0 so that the id from a scalar operation is the same no matter its scalar
+        // value.
         0.elem()
     }
 
     pub(crate) fn relative_int<E: Element>(&mut self, elem: &E) -> E {
-        self.scalar_floats.push(elem.elem());
+        self.scalar_ints.push(elem.elem());
+        // We return 0 so that the id from a scalar operation is the same no matter its scalar
+        // value.
         0.elem()
     }
 }
@@ -673,8 +677,8 @@ impl<E: Element> NumericOpsDescription<E> {
             NumericOpsDescription::Clamp(desc) => {
                 NumericOpsDescription::Clamp(ClampOpsDescription {
                     tensor: desc.tensor.to_relative(converter),
-                    min: desc.min,
-                    max: desc.max,
+                    min: local_elem(converter, &desc.min),
+                    max: local_elem(converter, &desc.max),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -787,7 +791,7 @@ impl TensorDescription {
             status: self.status.clone(),
         };
 
-        // We update both our mapping.
+        // We update both mappings.
         converter
             .tensors_relative2global
             .insert(relative_id, self.clone());

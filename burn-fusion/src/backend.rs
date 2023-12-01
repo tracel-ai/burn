@@ -82,13 +82,6 @@ pub struct OptimizationProperties {
 /// improve the performance.
 pub trait OptimizationBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
-    ///
-    /// The return value should be either [closed](OptimizationStatus::Closed) or
-    /// [open](OptimizationStatus::Open).
-    ///
-    /// When [closed](OptimizationStatus::Closed), it's assumed that no more operation can be added
-    /// to the current fusion operation. No [tensor operation](TensorOpsDescription) can be
-    /// ignored, they are either accepted or rejected, and the [status](OptimizationStatus) describes it.
     fn register(&mut self, ops: &TensorOpsDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> Box<dyn Optimization<B>>;
@@ -98,21 +91,15 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
     fn status(&self) -> OptimizationStatus;
     /// Return the builder [properties](OptimizationProperties).
     fn properties(&self) -> OptimizationProperties;
-    /// The size of operations fused.
-    fn len(&self) -> usize;
-    /// If the current operation is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
 pub trait Optimization<B: FusionBackend>: Send {
     /// Execute the operation.
     fn execute(&self, context: &mut Context<'_, B>);
-    /// The size of operations fused.
+    /// The number of registered operations in this optimization.
     fn len(&self) -> usize;
-    /// If the current operation is empty.
+    /// If the current optimization is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }

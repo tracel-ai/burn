@@ -121,10 +121,6 @@ where
             score: self.operators.len() as u64,
         }
     }
-
-    fn len(&self) -> usize {
-        self.operators.len()
-    }
 }
 
 impl<G, F, I> FloatElementWiseBuilder<G, F, I>

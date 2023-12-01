@@ -37,7 +37,7 @@ impl<O> OptimizationCache<O> {
     /// # Notes
     ///
     /// It is assumed that this function will be called for each new edge added to the graph (for
-    /// each new operation). Only one graph can be cache at a time.
+    /// each new operation). Only one graph can be cached at a time.
     pub(crate) fn follow<'a>(
         &'a mut self,
         graph: &[TensorOpsDescription],
@@ -126,10 +126,10 @@ impl<O> OptimizationCache<O> {
     ///
     /// # Notes
     ///
-    /// The optimization factory will only be call if the optimization is on a new graph.
-    /// When the optimization already exist, but with a different end condition, a new end
+    /// The optimization factory will only be called if the optimization is on a new graph.
+    /// When the optimization already exists, but with a different end condition, a new end
     /// condition will be registered, but the old optimization will be used in following call. This
-    /// is indented since we want to factory to be call only once per graph, but reused as much as
+    /// is intented since we want to factory to be called only once per graph, but reused as much as
     /// possible.
     pub fn complete<'a, Factory: OptimizationFactory<O>>(
         &'a mut self,
@@ -180,22 +180,22 @@ impl<O> OptimizationCache<O> {
 pub enum CacheResult<'a, T> {
     /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
     Miss,
-    /// The current graph indicates that an optimization maybe possible in the future, so the
+    /// The current graph indicates that an optimization may be possible in the future, so the
     /// best action is to wait for the optimization to become available.
     ///
-    /// Sometime, it can be a false positive and a new opitmization should be built from scratch.
-    /// Therefore it's important to keep the previous operations to rebuilt the state if it
+    /// Sometimes, it can be a false positive and a new optimization should be built from scratch.
+    /// Therefore it's important to keep the previous operations to rebuild the state if it
     /// happens.
     OnPath,
     /// An optimization has been found, and the best action is to execute it!
     Found(&'a T),
 }
 
-/// When checking if an optimization is possible, a start or an end condition assure that this optimization is
+/// When checking if an optimization is possible, a start or an end condition ensures that this optimization is
 /// always optimal.
 #[derive(Clone)]
 pub enum Condition<'a> {
-    /// The next operation that signal the start or end of the operation.
+    /// The next operation that signals the start or end of the operation.
     NextOps(&'a TensorOpsDescription),
     /// When sync, we should execute the optimization if found no matter what comes next.
     Sync,

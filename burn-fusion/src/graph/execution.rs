@@ -1,4 +1,4 @@
-use super::{CacheResult, Condition, Graph, OptimizationCache};
+use super::{CacheResult, Condition, Graph, OptimizationCache, TensorOpsDescription};
 use crate::{
     FusionBackend, HandleContainer, Optimization, OptimizationBuilder, OptimizationStatus,
 };
@@ -83,6 +83,8 @@ impl<B: FusionBackend> GraphExecution<B> {
     }
 
     fn build(&mut self, graph: &mut Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
+        // When we are executing with the new ops mode, we need to register the last ops of the
+        // graph even when there is no skipped operation.
         let offset = match mode {
             ExecutionMode::NewOps => 1,
             ExecutionMode::Sync => 0,
@@ -107,14 +109,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 
         match find_best_optimization_index(&self.optimizations) {
             Some(index) => {
-                let (relative, next_ops) = match mode {
-                    ExecutionMode::NewOps => {
-                        let graph = graph.split_graph();
-                        (graph.0.to_vec(), graph.1.cloned())
-                    }
-                    ExecutionMode::Sync => (graph.relative.clone(), None),
-                };
-
+                let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let optimization = &self.optimizations[index];
                 let ops = self
                     .optimization_cache
@@ -150,12 +145,8 @@ impl<B: FusionBackend> GraphExecution<B> {
         graph: &mut Graph<B>,
         mode: ExecutionMode,
     ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
-        let (graph, next_ops) = match mode {
-            ExecutionMode::NewOps => graph.split_graph(),
-            ExecutionMode::Sync => (graph.relative.as_slice(), None),
-        };
+        let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
-
         let action = self.optimization_cache.follow(graph, end_condition);
 
         match mode {
@@ -165,6 +156,29 @@ impl<B: FusionBackend> GraphExecution<B> {
                 CacheResult::OnPath => CacheResult::Miss,
                 CacheResult::Found(ops) => CacheResult::Found(ops),
             },
+        }
+    }
+
+    fn split_relative_graph_owned(
+        graph: &Graph<B>,
+        mode: ExecutionMode,
+    ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
+        match mode {
+            ExecutionMode::NewOps => {
+                let graph = graph.split_relative_graph();
+                (graph.0.to_vec(), graph.1.cloned())
+            }
+            ExecutionMode::Sync => (graph.relative.clone(), None),
+        }
+    }
+
+    fn split_relative_graph_ref<'a>(
+        graph: &'a Graph<B>,
+        mode: ExecutionMode,
+    ) -> (&'a [TensorOpsDescription], Option<&'a TensorOpsDescription>) {
+        match mode {
+            ExecutionMode::NewOps => graph.split_relative_graph(),
+            ExecutionMode::Sync => (graph.relative.as_slice(), None),
         }
     }
 }
