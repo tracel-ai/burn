@@ -19,6 +19,7 @@ wgpu = ["burn/wgpu"]
 burn = { path = "../../burn", default-features = false }
 serde = { workspace = true }
 wasm-bindgen = { version = "0.2.88" }
+wasm-bindgen-futures = { version = "0.4.39" }
 js-sys = "0.3.65"
 
 [dev-dependencies]
