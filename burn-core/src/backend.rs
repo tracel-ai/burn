@@ -1,7 +1,7 @@
-#[cfg(feature = "__ndarray")]
+#[cfg(feature = "ndarray")]
 pub use burn_ndarray as ndarray;
 
-#[cfg(feature = "__ndarray")]
+#[cfg(feature = "ndarray")]
 pub use ndarray::NdArray;
 
 #[cfg(feature = "autodiff")]

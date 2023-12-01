@@ -7,12 +7,12 @@ publish = false
 version = "0.11.0"
 
 [features]
-default = ["burn/dataset-sqlite-bundled"]
+default = ["burn/dataset", "burn/sqlite-bundled"]
 f16 = []
 ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
-ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]

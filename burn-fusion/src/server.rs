@@ -1,69 +1,48 @@
 use crate::{
-    graph::{Graph, GraphExecution, Ops, Optimization, TensorOpsDescription},
-    FusionBackend, FusionProperties, FusionStatus, HandleContainer, TensorId,
+    graph::{
+        execution::{ExecutionMode, GraphExecution},
+        Graph, Ops, TensorOpsDescription,
+    },
+    FusionBackend, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
 use std::sync::Arc;
 
-pub struct FusionServer<B, G>
+pub struct FusionServer<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
-    optimizations: Vec<Optimization<B>>,
+    execution: GraphExecution<B>,
     graph: Graph<B>,
     pub(crate) handles: HandleContainer<B>,
-    execution: G,
     pub device: B::FusionDevice,
+    pub num_skipped: usize,
 }
 
-impl<B, G> FusionServer<B, G>
+impl<B> FusionServer<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
     pub fn new(device: B::FusionDevice) -> Self {
-        let optimizations = B::operations(&device.clone().into())
-            .into_iter()
-            .map(|ops| Optimization::new(ops, FusionStatus::Open(FusionProperties::default())))
-            .collect();
-
         Self {
-            optimizations,
+            execution: GraphExecution::new(B::optimizations(&device.clone().into())),
             graph: Graph::new(),
             handles: HandleContainer::new(device.clone()),
-            execution: G::default(),
+            num_skipped: 0,
             device,
         }
     }
 
-    pub fn register(&mut self, desc: TensorOpsDescription, op: Box<dyn Ops<B>>) {
-        let ops = Arc::new(desc);
-        self.graph.add(ops.clone(), op);
-
-        self.optimizations
-            .iter_mut()
-            .for_each(|optimization| optimization.register(&ops));
-
-        self.execution.maybe_execute(
-            &mut self.graph,
-            &mut self.handles,
-            &mut self.optimizations,
-            false,
-        );
+    pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+        self.graph.add(ops_desc, ops);
+        self.execution
+            .execute(&mut self.graph, &mut self.handles, ExecutionMode::NewOps);
     }
 
     pub fn drain_graph(&mut self) {
-        if self.graph.is_empty() {
-            return;
-        }
-
-        self.execution.maybe_execute(
-            &mut self.graph,
-            &mut self.handles,
-            &mut self.optimizations,
-            true,
-        );
+        // Check if we can execute.
+        self.execution
+            .execute(&mut self.graph, &mut self.handles, ExecutionMode::Sync);
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
