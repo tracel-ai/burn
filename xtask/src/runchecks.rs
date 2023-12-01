@@ -275,10 +275,19 @@ fn std_checks() {
 
     // Build each workspace
     if disable_wgpu {
-        cargo_build(["--workspace", "--exclude=xtask", "--exclude=burn-wgpu"].into());
+        cargo_build(
+            [
+                "--workspace",
+                "--exclude=burn-train",
+                "--exclude=xtask",
+                "--exclude=burn-wgpu",
+            ]
+            .into(),
+        );
     } else {
-        cargo_build(["--workspace", "--exclude=xtask"].into());
+        cargo_build(["--workspace", "--exclude=burn-train", "--exclude=xtask"].into());
     }
+    cargo_build(["-p", "burn-train", "--lib"].into());
 
     // Produce documentation for each workspace
     cargo_doc(["--workspace"].into());
