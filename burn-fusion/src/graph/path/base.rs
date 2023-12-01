@@ -129,7 +129,7 @@ impl<O> OptimizationCache<O> {
     /// The optimization factory will only be called if the optimization is on a new graph.
     /// When the optimization already exists, but with a different end condition, a new end
     /// condition will be registered, but the old optimization will be used in following call. This
-    /// is intented since we want to factory to be called only once per graph, but reused as much as
+    /// is intended since we want to factory to be called only once per graph, but reused as much as
     /// possible.
     pub fn complete<'a, Factory: OptimizationFactory<O>>(
         &'a mut self,
