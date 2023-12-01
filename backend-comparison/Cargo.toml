@@ -6,7 +6,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "backend-comparison"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/backend-comparison"
+repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
 version = "0.11.0"
 
 [features]

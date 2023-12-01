@@ -1,6 +1,6 @@
 # Learner
 
-The [burn-train](https://github.com/burn-rs/burn/tree/main/burn-train) crate encapsulates multiple
+The [burn-train](https://github.com/tracel-ai/burn/tree/main/burn-train) crate encapsulates multiple
 utilities for training deep learning models. The goal of the crate is to provide users with a
 well-crafted and flexible training loop, so that projects do not have to write such components from
 the ground up. Most of the interactions with `burn-train` will be with the `LearnerBuilder` struct,

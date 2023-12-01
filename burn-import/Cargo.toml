@@ -8,7 +8,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "burn-import"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-import"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-import"
 
 version = "0.11.0"
 
@@ -17,27 +17,27 @@ default = ["onnx"]
 onnx = []
 
 [dependencies]
-burn = {path = "../burn", version = "0.11.0" }
-burn-ndarray = {path = "../burn-ndarray", version = "0.11.0" }
+burn = { path = "../burn", version = "0.11.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.11.0" }
 
-bytemuck = {workspace = true}
-derive-new = {workspace = true}
-half = {workspace = true}
-log = {workspace = true}
-proc-macro2 = {workspace = true}
-protobuf = {version = "3.3", features = ["with-bytes"]}
-quote = {workspace = true}
-rust-format = {version = "0.3", features = ["token_stream", "post_process"]}
-serde = {workspace = true}
-serde_json = {workspace = true, features = ["std"]}
-strum = {workspace = true}
-strum_macros = {workspace = true}
-syn = {workspace = true, features = ["parsing"]}
+bytemuck = { workspace = true }
+derive-new = { workspace = true }
+half = { workspace = true }
+log = { workspace = true }
+proc-macro2 = { workspace = true }
+protobuf = { version = "3.3", features = ["with-bytes"] }
+quote = { workspace = true }
+rust-format = { version = "0.3", features = ["token_stream", "post_process"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+syn = { workspace = true, features = ["parsing"] }
 tracing-subscriber.workspace = true
 tracing-core.workspace = true
 
 [build-dependencies]
-protobuf-codegen = {workspace = true}
+protobuf-codegen = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = {workspace = true}
+pretty_assertions = { workspace = true }

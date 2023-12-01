@@ -4,8 +4,8 @@
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
-[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
-[![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
+[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
+[![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
@@ -379,7 +379,7 @@ fn main() {
 
 ```
 
-Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operations, which will work gracefully with the fusion backend to make your code run even faster during training, see [this issue](https://github.com/burn-rs/burn/issues/936).
+Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operations, which will work gracefully with the fusion backend to make your code run even faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
 
 See the [Fusion Backend README](./burn-fusion/README.md) for more details.
 
@@ -456,7 +456,7 @@ Pre-trained Models 🤖
 </summary>
 <br />
 
-We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models repository](https://github.com/burn-rs/models) for more details.
+We keep an updated and curated list of models and examples built with Burn, see the [tracel-ai/models repository](https://github.com/tracel-ai/models) for more details.
 
 Don't see the model you want? Don't hesitate to open an issue, and we may prioritize it.
 Built a model using Burn and want to share it?
@@ -504,9 +504,9 @@ You can ask your questions and share what you built with the community!
 **Contributing**
 
 Before contributing, please take a moment to review our
-[code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md).
+[code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md).
 It's also highly recommended to read our
-[architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains some of our architectural decisions.
+[architecture document](https://github.com/tracel-ai/burn/tree/main/ARCHITECTURE.md), which explains some of our architectural decisions.
 Refer to out [contributing guide](/CONTRIBUTING.md) for more details.
 
 ## Status

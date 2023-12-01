@@ -3,29 +3,29 @@ name: publish
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   publish-burn-derive:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-derive
     secrets: inherit
 
   publish-burn-dataset:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-dataset
     secrets: inherit
 
   publish-burn-common:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-common
     secrets: inherit
 
   publish-burn-compute:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-common
     with:
@@ -33,13 +33,13 @@ jobs:
     secrets: inherit
 
   publish-burn-tensor-testgen:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-tensor-testgen
     secrets: inherit
 
   publish-burn-tensor:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor-testgen
       - publish-burn-common
@@ -48,7 +48,7 @@ jobs:
     secrets: inherit
 
   publish-burn-fusion:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-common
@@ -57,7 +57,7 @@ jobs:
     secrets: inherit
 
   publish-burn-autodiff:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-tensor-testgen
@@ -67,7 +67,7 @@ jobs:
     secrets: inherit
 
   publish-burn-tch:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -76,7 +76,7 @@ jobs:
     secrets: inherit
 
   publish-burn-ndarray:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -86,7 +86,7 @@ jobs:
     secrets: inherit
 
   publish-burn-wgpu:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-compute
@@ -98,7 +98,7 @@ jobs:
     secrets: inherit
 
   publish-burn-candle:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
@@ -108,7 +108,7 @@ jobs:
     secrets: inherit
 
   publish-burn-core:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-dataset
       - publish-burn-common
@@ -124,7 +124,7 @@ jobs:
     secrets: inherit
 
   publish-burn-train:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-core
     with:
@@ -132,7 +132,7 @@ jobs:
     secrets: inherit
 
   publish-burn:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-core
       - publish-burn-train
@@ -141,7 +141,7 @@ jobs:
     secrets: inherit
 
   publish-burn-import:
-    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn
     with:

@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "gpu", "wgpu", "webgpu"]
 license = "MIT OR Apache-2.0"
 name = "burn-wgpu"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-wgpu"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu"
 version = "0.11.0"
 
 [features]
