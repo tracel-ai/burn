@@ -12,7 +12,7 @@ crate-type = ["cdylib"]
 [features]
 default = ["ndarray"]
 
-ndarray = ["burn/ndarray-no-std"]
+ndarray = ["burn/ndarray"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]

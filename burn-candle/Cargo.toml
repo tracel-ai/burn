@@ -11,6 +11,8 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-candle"
 version = "0.11.0"
 
 [features]
+default = ["std"]
+std = []
 cuda = ["candle-core/cuda"]
 accelerate = ["candle-core/accelerate"]
 

@@ -12,46 +12,42 @@ version = "0.11.0"
 rust-version = "1.71"
 
 [features]
-default = ["burn-core/default"]
+default = ["burn-core/default", "burn-train?/default"]
 std = ["burn-core/std"]
 
 # Training with full features
-train = ["burn-train/default", "autodiff", "dataset"]
+train = ["burn-train", "autodiff", "dataset"]
+
+## Includes the Text UI (progress bars, metric plots)
+tui = ["burn-train?/tui"]
+
+##  Includes system info metrics (CPU/GPU usage, etc)
+metrics = ["burn-train?/metrics"]
 
 # Useful when targeting WASM and not using WGPU.
 wasm-sync = ["burn-core/wasm-sync"]
 
-## Include nothing
-train-minimal = ["burn-train"]
-
-## Includes the Text UI (progress bars, metric plots)
-train-tui = ["burn-train/tui"]
-
-##  Includes system info metrics (CPU/GPU usage, etc)
-train-metrics = ["burn-train/metrics"]
-
 # Datasets
 dataset = ["burn-core/dataset"]
-dataset-minimal = ["burn-core/dataset-minimal"]
-dataset-sqlite = ["burn-core/dataset-sqlite"]
-dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
+
+sqlite = ["burn-core/sqlite"]
+sqlite-bundled = ["burn-core/sqlite-bundled"]
 
 # Backends
 autodiff = ["burn-core/autodiff"]
 fusion = ["burn-core/fusion"]
 
-ndarray = ["burn-core/ndarray"]
-ndarray-no-std = ["burn-core/ndarray-no-std"]
-ndarray-blas-accelerate = ["burn-core/ndarray-blas-accelerate"]
-ndarray-blas-netlib = ["burn-core/ndarray-blas-netlib"]
-ndarray-blas-openblas = ["burn-core/ndarray-blas-openblas"]
-ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
+## Backend features
+cuda = ["burn-core/cuda"]
+accelerate = ["burn-core/accelerate"]
+openblas = ["burn-core/openblas"]
+openblas-system = ["burn-core/openblas-system"]
+blas-netlib = ["burn-core/blas-netlib"]
 
+ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
-candle-cuda = ["burn-core/candle-cuda"]
-candle-accelerate = ["burn-core/candle-accelerate"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
