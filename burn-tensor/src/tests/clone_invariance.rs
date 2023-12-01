@@ -345,7 +345,7 @@ mod tests {
             }
         );
         clone_invariance_test!(
-            unary: Gatter,
+            unary: Gather,
             ops_float: |tensor: TestTensor<2>| {
                 let shape = tensor.shape();
                 let indices = TestTensorInt::ones(shape);
@@ -617,7 +617,7 @@ mod tests {
             }
         );
         clone_invariance_test!(
-            unary: Gatter,
+            unary: Gather,
             ops_int: |tensor: TestTensorInt<2>| {
                 let shape = tensor.shape();
                 let indices = TestTensorInt::ones(shape);
