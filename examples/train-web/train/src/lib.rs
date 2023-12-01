@@ -18,11 +18,6 @@ pub fn start() {
 }
 
 #[wasm_bindgen]
-pub fn init(worker_url: String, worker_count: usize) -> Result<(), JsValue> {
-    util::init(worker_url, worker_count)
-}
-
-#[wasm_bindgen]
 pub fn run(
     train_labels: &[u8],
     train_images: &[u8],

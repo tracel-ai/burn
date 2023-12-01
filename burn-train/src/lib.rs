@@ -2,7 +2,6 @@
 
 //! A library for training neural networks using the burn crate.
 
-pub mod pool;
 pub mod util;
 
 #[macro_use]

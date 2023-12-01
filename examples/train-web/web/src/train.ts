@@ -1,5 +1,4 @@
-import wasm, { init, run } from 'train'
-import workerUrl from './worker.ts?url'
+import wasm, { run, initThreadPool } from 'train'
 import initSqlJs, { type Database } from 'sql.js'
 import sqliteWasmUrl from './assets/sql-wasm.wasm?url'
 
@@ -31,7 +30,7 @@ export function setupTrain(element: HTMLInputElement) {
 
 async function loadSqliteAndRun(ab: ArrayBuffer) {
 	await wasm()
-	await init(workerUrl, navigator.hardwareConcurrency)
+	await initThreadPool(navigator.hardwareConcurrency)
 	await sleep(1000) // the workers need time to spin up. TODO, post an init message and await a response. Also maybe move worker construction to Javascript.
 	// Images are an array of arrays.
 	// We can't send an array of arrays to Wasm.
