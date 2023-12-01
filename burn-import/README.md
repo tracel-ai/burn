@@ -12,8 +12,8 @@ compatibility.
 
 For practical examples, please refer to:
 
-1. [ONNX Inference Example](https://github.com/burn-rs/burn/tree/main/examples/onnx-inference)
-2. [SqueezeNet Image Classification](https://github.com/burn-rs/models/tree/main/squeezenet-burn)
+1. [ONNX Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
+2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
 
 ## Usage
 

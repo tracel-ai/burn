@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license = "MIT OR Apache-2.0"
 name = "burn-tch"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-tch"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-tch"
 version = "0.11.0"
 
 [features]
@@ -15,17 +15,17 @@ default = []
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = {path = "../burn-tensor", version = "0.11.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.11.0" }
 
-half = {workspace = true, features = ["std"]}
+half = { workspace = true, features = ["std"] }
 libc = "0.2.150"
-rand = {workspace = true, features = ["std"]}
-tch = {version = "0.14.0", features = ["download-libtorch"]}
+rand = { workspace = true, features = ["std"] }
+tch = { version = "0.14.0", features = ["download-libtorch"] }
 
 [dev-dependencies]
-burn-autodiff = {path = "../burn-autodiff", version = "0.11.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.11.0", default-features = false, features = [
   "export_tests",
-]}
-burn-tensor = {path = "../burn-tensor", version = "0.11.0", default-features = false, features = [
+] }
+burn-tensor = { path = "../burn-tensor", version = "0.11.0", default-features = false, features = [
   "export_tests",
-]}
+] }

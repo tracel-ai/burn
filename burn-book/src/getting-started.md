@@ -66,7 +66,9 @@ By running `cargo run`, you should now see the result of the addition:
 
 ```console
 Tensor {
-  data: [[3.0, 4.0], [5.0, 6.0]],
+  data:
+[[3.0, 4.0],
+ [5.0, 6.0]],
   shape:  [2, 2],
   device:  BestAvailable,
   backend:  "wgpu",
@@ -81,7 +83,12 @@ example for deep learning applications.
 
 ## Running examples
 
-Burn uses HuggingFace's [datasets](https://huggingface.co/docs/datasets/index) library to load
-datasets. `datasets` is a Python library, and therefore, in order to run examples, you will need to
-install Python. Follow the instructions on the [official website](https://www.python.org/downloads/)
-to install Python on your computer.
+Burn uses a [Python library by HuggingFace](https://huggingface.co/docs/datasets/index) to download
+datasets. Therefore, in order to run examples, you will need to install Python. Follow the
+instructions on the [official website](https://www.python.org/downloads/) to install Python on your
+computer.
+
+Many Burn examples are available in the [examples](https://github.com/tracel-ai/burn/tree/main/examples)
+directory. 
+To run one, please refer to the example's README.md for the specific command to
+execute.

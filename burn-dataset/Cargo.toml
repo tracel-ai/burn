@@ -7,15 +7,13 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license = "MIT OR Apache-2.0"
 name = "burn-dataset"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-dataset"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-dataset"
 version = "0.11.0"
 
 [features]
 default = ["sqlite-bundled"]
 
-audio = [
-  "hound",
-]
+audio = ["hound"]
 
 fake = ["dep:fake"]
 
@@ -23,34 +21,40 @@ sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
 # internal
-__sqlite-shared = ["dep:r2d2", "dep:r2d2_sqlite", "dep:serde_rusqlite", "dep:image", "dep:gix-tempfile"]
+__sqlite-shared = [
+  "dep:r2d2",
+  "dep:r2d2_sqlite",
+  "dep:serde_rusqlite",
+  "dep:image",
+  "dep:gix-tempfile",
+]
 
 [dependencies]
-csv = {workspace = true}
-derive-new = {workspace = true}
-dirs = {workspace = true}
-fake = {workspace = true, optional = true}
-gix-tempfile = {workspace = true, optional = true}
-hound = {version = "3.5.1", optional = true}
-image = {version = "0.24.7", features = ["png"], optional = true}
-r2d2 = {workspace = true, optional = true}
-r2d2_sqlite = {workspace = true, optional = true}
-rand = {workspace = true, features = ["std"]}
-rmp-serde = {workspace = true}
-rusqlite = {workspace = true, optional = true}
-sanitize-filename = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
-serde_json = {workspace = true, features = ["std"]}
-serde_rusqlite = {workspace = true, optional = true}
-strum = {workspace = true}
-strum_macros = {workspace = true}
-tempfile = {workspace = true}
-thiserror = {workspace = true}
+csv = { workspace = true }
+derive-new = { workspace = true }
+dirs = { workspace = true }
+fake = { workspace = true, optional = true }
+gix-tempfile = { workspace = true, optional = true }
+hound = { version = "3.5.1", optional = true }
+image = { version = "0.24.7", features = ["png"], optional = true }
+r2d2 = { workspace = true, optional = true }
+r2d2_sqlite = { workspace = true, optional = true }
+rand = { workspace = true, features = ["std"] }
+rmp-serde = { workspace = true }
+rusqlite = { workspace = true, optional = true }
+sanitize-filename = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }
+serde_json = { workspace = true, features = ["std"] }
+serde_rusqlite = { workspace = true, optional = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-rayon = {workspace = true}
-rstest = {workspace = true}
-fake = {workspace = true}
+rayon = { workspace = true }
+rstest = { workspace = true }
+fake = { workspace = true }
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["strum", "strum_macros"]

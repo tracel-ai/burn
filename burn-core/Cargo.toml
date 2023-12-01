@@ -7,13 +7,13 @@ keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license = "MIT OR Apache-2.0"
 name = "burn-core"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-core"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-core"
 version = "0.11.0"
 
 [features]
 default = [
     "std",
-    "dataset",
+    "burn-dataset?/default",
     "burn-ndarray?/default",
     "burn-candle?/default",
     "burn-wgpu?/default",

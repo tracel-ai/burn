@@ -36,7 +36,7 @@ pub struct AvgPool2dConfig {
 /// `torch.nn.AvgPool2d` with `count_include_pad=True`.
 ///
 /// TODO: Add support for `count_include_pad=False`, see
-/// [Issue 636](https://github.com/burn-rs/burn/issues/636)
+/// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool2d {
     stride: [usize; 2],

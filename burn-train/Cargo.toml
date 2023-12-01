@@ -7,19 +7,17 @@ keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license = "MIT OR Apache-2.0"
 name = "burn-train"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-train"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-train"
 version = "0.11.0"
 
 [features]
 default = ["metrics", "tui"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
-browser = ["js-sys", "web-sys", "wasm-bindgen"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "0.11.0" }
 
-lazy_static = "1.4.0"
 log = { workspace = true }
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true

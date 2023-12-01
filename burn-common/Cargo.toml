@@ -7,7 +7,7 @@ keywords = []
 license = "MIT OR Apache-2.0"
 name = "burn-common"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/burn-common"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-common"
 version = "0.11.0"
 
 [features]
@@ -25,7 +25,7 @@ getrandom = { workspace = true, features = ["js"] }
 # ** Please make sure all dependencies support no_std when std is disabled **
 
 rand = { workspace = true }
-spin = { workspace = true }         # using in place of use std::sync::Mutex;          
+spin = { workspace = true }       # using in place of use std::sync::Mutex;          
 uuid = { workspace = true }
 derive-new = { workspace = true }
 
