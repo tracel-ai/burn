@@ -42,7 +42,8 @@ represent the corresponding Burn Op.
 | [Conv1d][34]                     |       ✅       |      ✅      |
 | [Conv2d][34]                     |       ✅       |      ✅      |
 | [ConvInteger][37]                |       ❌       |      ❌      |
-| [ConvTranspose][38]              |       ❌       |      ✅      |
+| [ConvTranspose1d][38]            |       ❌       |      ✅      |
+| [ConvTranspose2d][38]            |       ✅       |      ✅      |
 | [Cos][39]                        |       ✅       |      ✅      |
 | [Cosh][40]                       |       ❌       |      ❌      |
 | [CumSum][41]                     |       ❌       |      ❌      |

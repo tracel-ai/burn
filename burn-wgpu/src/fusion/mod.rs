@@ -5,4 +5,4 @@ pub(crate) mod codegen;
 pub(crate) mod kernel;
 
 pub use base::*;
-pub use elemwise::*;
+pub(crate) use elemwise::*;

@@ -167,25 +167,25 @@ mod tests {
     use crate::burn::{ScalarKind, ScalarType, TensorType};
 
     macro_rules! test_binary_operator_on_tensors {
-        ($operator:ident) => {{
-            one_node_graph(
-                BinaryNode::$operator(
-                    Type::Tensor(TensorType::new_float("tensor1", 4)),
-                    Type::Tensor(TensorType::new_float("tensor2", 4)),
-                    Type::Tensor(TensorType::new_float("tensor3", 4)),
-                ),
-                quote! {
-                    pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
-                        let tensor3 = tensor1.$operator(tensor2);
+    ($operator:ident) => {{
+      one_node_graph(
+        BinaryNode::$operator(
+          Type::Tensor(TensorType::new_float("tensor1", 4)),
+          Type::Tensor(TensorType::new_float("tensor2", 4)),
+          Type::Tensor(TensorType::new_float("tensor3", 4)),
+        ),
+        quote! {
+            pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                let tensor3 = tensor1.$operator(tensor2);
 
-                        tensor3
-                    }
-                },
-                vec!["tensor1".to_string(), "tensor2".to_string()],
-                vec!["tensor3".to_string()],
-            );
-        }};
-    }
+                tensor3
+            }
+        },
+        vec!["tensor1".to_string(), "tensor2".to_string()],
+        vec!["tensor3".to_string()],
+      );
+    }};
+  }
 
     macro_rules! test_binary_operator_on_tensor_and_scalar {
         ($operator:ident, $burn_operator:ident) => {{

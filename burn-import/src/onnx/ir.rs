@@ -242,6 +242,8 @@ pub enum NodeType {
     Conv2d,
     ConvInteger,
     ConvTranspose,
+    ConvTranspose1d,
+    ConvTranspose2d,
     Cos,
     Cosh,
     CumSum,

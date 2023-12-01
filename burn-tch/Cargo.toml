@@ -11,6 +11,7 @@ repository = "https://github.com/burn-rs/burn/tree/main/burn-tch"
 version = "0.11.0"
 
 [features]
+default = []
 doc = ["tch/doc-only"]
 
 [dependencies]

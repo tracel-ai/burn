@@ -72,11 +72,11 @@ impl ConfigEnumAnalyzer {
     fn gen_serialize_fn(&self) -> TokenStream {
         let enum_name = self.serde_enum_ident();
         let variants = self.data.variants.iter().map(|variant| {
-            let variant_name = &variant.ident;
-            let (variant_input, variant_output) = self.gen_variant_field(variant);
+      let variant_name = &variant.ident;
+      let (variant_input, variant_output) = self.gen_variant_field(variant);
 
-            quote! { Self::#variant_name #variant_input => #enum_name::#variant_name #variant_output }
-        });
+      quote! { Self::#variant_name #variant_input => #enum_name::#variant_name #variant_output }
+    });
         let name = &self.name;
 
         quote! {
@@ -97,11 +97,11 @@ impl ConfigEnumAnalyzer {
     fn gen_deserialize_fn(&self) -> TokenStream {
         let enum_name = self.serde_enum_ident();
         let variants = self.data.variants.iter().map(|variant| {
-            let variant_name = &variant.ident;
-            let (variant_input, variant_output) = self.gen_variant_field(variant);
+      let variant_name = &variant.ident;
+      let (variant_input, variant_output) = self.gen_variant_field(variant);
 
-            quote! { #enum_name::#variant_name #variant_input => Self::#variant_name #variant_output }
-        });
+      quote! { #enum_name::#variant_name #variant_input => Self::#variant_name #variant_output }
+    });
         let name = &self.name;
 
         quote! {

@@ -1,6 +1,6 @@
 # MNIST Inference on Web
 
-[![Demo up](https://img.shields.io/badge/demo-up-brightgreen)](https://burn-rs.github.io/demo)
+[![Live Demo](https://img.shields.io/badge/live-demo-brightgreen)](https://burn.dev/demo)
 
 This crate demonstrates how to run an MNIST-trained model in the browser for inference.
 

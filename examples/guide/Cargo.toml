@@ -7,12 +7,10 @@ publish = false
 version = "0.11.0"
 
 [features]
-default = ["train"]
-train = ["burn/train"]
-train-minimal = ["burn/train-minimal"]
+default = ["burn/default"]
 
 [dependencies]
-burn = {path = "../../burn", features = ["wgpu"]}
+burn = {path = "../../burn", features = ["wgpu", "train"]}
 
 # Serialization
 log = {workspace = true}

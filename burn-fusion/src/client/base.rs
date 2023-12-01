@@ -1,5 +1,5 @@
 use crate::{
-    graph::{GraphExecution, Ops, TensorOpsDescription},
+    graph::{Ops, TensorOpsDescription},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{
@@ -11,8 +11,6 @@ use burn_tensor::{
 pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion backend](FusionBackend) associated type.
     type FusionBackend: FusionBackend;
-    /// The [graph execution](GraphExecution) associated type.
-    type GraphExecution: GraphExecution<Self::FusionBackend>;
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;

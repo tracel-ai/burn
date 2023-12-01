@@ -7,7 +7,7 @@ publish = false
 version = "0.11.0"
 
 [features]
-default = ["burn/dataset-sqlite-bundled"]
+default = ["burn/dataset", "burn/sqlite-bundled"]
 f16 = []
 
 [dependencies]
