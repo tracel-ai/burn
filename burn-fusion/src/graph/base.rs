@@ -61,6 +61,9 @@ impl<B: FusionBackend> Graph<B> {
         optimization.execute(&mut context);
 
         self.cleanup_partial(0..num_keep, handles);
+
+        // Cleanup tensor handles that were outputted, but ignored.
+        handles.cleanup_orphans();
     }
 
     pub(crate) fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
@@ -69,6 +72,9 @@ impl<B: FusionBackend> Graph<B> {
             description.cleanup_tensor(handles);
         }
         self.cleanup_relative_graph();
+
+        // Cleanup tensor handles that were outputted, but ignored.
+        handles.cleanup_orphans();
     }
 
     fn cleanup_partial<R: RangeBounds<usize> + Clone>(

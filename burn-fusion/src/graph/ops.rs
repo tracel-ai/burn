@@ -788,9 +788,6 @@ impl TensorOpsDescription {
             TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
             TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
         }
-
-        // Cleanup tensor handles that were outputted, but ignored.
-        handles.cleanup_orphans();
     }
 }
 
