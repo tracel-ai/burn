@@ -47,6 +47,15 @@ jobs:
       crate: burn-tensor
     secrets: inherit
 
+  publish-burn-fusion:
+    uses: burn-rs/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-common
+    with:
+      crate: burn-fusion
+    secrets: inherit
+
   publish-burn-autodiff:
     uses: burn-rs/burn/.github/workflows/publish-template.yml@main
     needs:
