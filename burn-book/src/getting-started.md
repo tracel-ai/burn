@@ -66,7 +66,9 @@ By running `cargo run`, you should now see the result of the addition:
 
 ```console
 Tensor {
-  data: [[3.0, 4.0], [5.0, 6.0]],
+  data:
+[[3.0, 4.0],
+ [5.0, 6.0]],
   shape:  [2, 2],
   device:  BestAvailable,
   backend:  "wgpu",

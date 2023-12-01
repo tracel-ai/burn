@@ -17,7 +17,7 @@ The following flags support various BLAS options:
 - `blas-openblas` - OpenBLAS static linked
 - `blas-openblas-system` - OpenBLAS from the system
 
-Note, under the `no_std` mode, a random seed is generated during the build time if the seed is not
+Note: under the `no_std` mode, the seed is fixed if the seed is not
 initialized by by `Backend::seed` method.
 
 ### Platform Support
