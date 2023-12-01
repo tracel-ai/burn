@@ -2,10 +2,12 @@
 #![warn(missing_docs)]
 
 //! # Burn
+//!
 //! Burn is a new comprehensive dynamic Deep Learning Framework built using Rust
 //! with extreme flexibility, compute efficiency and portability as its primary goals.
 //!
 //! ## Performance
+//!
 //! Because we believe the goal of a deep learning framework is to convert computation
 //! into useful intelligence, we have made performance a core pillar of Burn.
 //! We strive to achieve top efficiency by leveraging multiple optimization techniques:
@@ -45,38 +47,37 @@
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
-//!
 //! ## Feature Flags
 //!
 //! The following feature flags are available.
+//! By default, the feature `std` is activated.
 //!
-//! - Enabled by default
-//!   - `std`: Activates the standard library (deactivate for no_std)
-//!   - `dataset`: Includes datasets
-//!   - `sqlite`: Stores datasets in SQLite database
 //! - Training
-//!   - `train`: For training on datasets
+//!   - `train`: Enables features `dataset` and `autodiff` and provides a training environement
 //!   - `tui`: Includes Text UI with progress bar and plots
 //!   - `metrics`: Includes system info metrics (CPU/GPU usage, etc.)
 //! - Dataset
-//!   - `audio`: enables audio dataset (SpeechCommandsDataset)
+//!   - `dataset`: Includes a datasets library
+//!   - `audio`: Enables audio datasets (SpeechCommandsDataset)
+//!   - `sqlite`: Stores datasets in SQLite database
 //!   - `sqlite_bundled`: Use bundled version of SQLite
 //! - Backends
-//!   - `wgpu`: Use the WGPU backend
-//!   - `candle`: Use the Candle backend
-//!   - `tch`: Use the LibTorch backend
-//!   - `ndarray`: Use the NdArray backend
+//!   - `wgpu`: Makes available the WGPU backend
+//!   - `candle`: Makes available the Candle backend
+//!   - `tch`: Makes available the LibTorch backend
+//!   - `ndarray`: Makes available the NdArray backend
 //! - Backend specifications
-//!   - `cuda`: If backend and platform allow it, will run on CUDA GPU
-//!   - `accelerate`: If backend and platform allow it, will run with Accelerate
-//!   - `blas-netlib`: Netlib (NdArray only)
-//!   - `openblas`: OpenBLAS static linked (NdArray only)
-//!   - `openblas-system`: OpenBLAS from the system (NdArray only)
-//!   - `wasm-sync`: When targetting wasm (except with WGPU)
+//!   - `cuda`: If supported, CUDA will be used
+//!   - `accelerate`: If supported, Accelerate will be used
+//!   - `blas-netlib`: If supported, Blas Netlib will be use
+//!   - `openblas`: If supported, Openblas will be use
+//!   - `openblas-system`: If supported, Openblas installed on the system will be use
+//!   - `wasm-sync`: When targeting wasm, but want a sync API (won't work with WGPU)
 //! - Backend decorators
-//!   - `autodiff`: Activates autodifferentiation
-//!   - `fusion`: Activates kernel fusion
+//!   - `autodiff`: Makes available the Autodiff backend
+//!   - `fusion`: Makes available the Fusion backend
 //! - Others:
+//!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
 pub use burn_core::*;

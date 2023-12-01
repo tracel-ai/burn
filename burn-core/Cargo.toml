@@ -12,8 +12,7 @@ version = "0.11.0"
 
 [features]
 default = [
-    "std",
-    "dataset",
+    "burn-dataset?/default",
     "burn-ndarray?/default",
     "burn-candle?/default",
     "burn-wgpu?/default",
