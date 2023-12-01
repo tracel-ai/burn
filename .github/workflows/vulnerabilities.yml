@@ -98,3 +98,87 @@ jobs:
         RUSTDOCFLAGS: -Zsanitizer=thread
       # Looking for data race among threads
       run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+
+  control-flow-integrity-sanitizer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run ControlFlowIntegrity
+      env:
+        RUSTFLAGS: -Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld -Zsanitizer=cfi
+      # Forward-edge control flow protection for both Rust-compiled code only
+      # and for C or C++ and Rust -compiled code mixed-language binaries
+      #
+      # Checks certain forms of undefined behaviours that can potentially allow
+      # attackers to subvert the program’s control flow.
+      run: cargo test -Zbuild-std -Zbuild-std-features --release --target x86_64-unknown-linux-gnu -- --nocapture
+
+  memory-sanitizer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run MemorySanitizer
+      env:
+        RUSTFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins
+        RUSTDOCFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins
+      # Looking for unitialized memory.
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+
+  safe-stack:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run SafeStack
+      env:
+        RUSTFLAGS: -Zsanitizer=safestack -Copt-level=3
+        RUSTDOCFLAGS: -Zsanitizer=safestack -Copt-level=3
+      # Provides backward edge control flow protection
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
