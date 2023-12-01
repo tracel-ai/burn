@@ -60,6 +60,8 @@ macro_rules! group {
 macro_rules! endgroup {
     // endgroup!()
     () => {
-        log!(log::Level::Info, "::endgroup::")
+        if std::env::var("CI").is_ok() {
+            log!(log::Level::Info, "::endgroup::")
+        }
     };
 }

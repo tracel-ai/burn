@@ -437,7 +437,7 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
 
     // Print duration
     info!(
-        "Time elapsed for the current execution: {}",
+        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
         format_duration(&duration)
     );
 
