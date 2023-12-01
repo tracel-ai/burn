@@ -16,7 +16,7 @@ metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.11.0" }
+burn-core = { path = "../burn-core", version = "0.11.0", features = ["dataset"] }
 
 log = { workspace = true }
 tracing-subscriber.workspace = true
