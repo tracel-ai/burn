@@ -1493,6 +1493,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
     }
 }
 
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
 where
     B: Backend,
@@ -1510,6 +1511,7 @@ where
     }
 }
 
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 impl<'de, B, const D: usize, K> Deserialize<'de> for Tensor<B, D, K>
 where
     B: Backend,
