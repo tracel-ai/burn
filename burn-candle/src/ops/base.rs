@@ -88,3 +88,18 @@ pub fn slice_assign<E: CandleElement, const D1: usize, const D2: usize>(
 ) -> CandleTensor<E, D1> {
     panic!("slice_assign not supported by Candle")
 }
+
+pub fn chunk<E: CandleElement, const D: usize>(
+    tensor: CandleTensor<E, D>,
+    chunks: usize,
+    dim: usize,
+) -> Vec<CandleTensor<E, D>> {
+    let tensors = tensor.tensor.chunk(chunks, dim);
+    match tensors {
+        Ok(tensors) => tensors
+            .into_iter()
+            .map(|tensor| CandleTensor::new(tensor))
+            .collect(),
+        Err(e) => panic!("error chunk from Candle"),
+    }
+}

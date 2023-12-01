@@ -110,17 +110,17 @@ where
         NdArrayTensor::new(array)
     }
 
-    // pub fn chunk<const D: usize>(
-    //     tensor: NdArrayTensor<E, D>,
-    //     chunks: usize,
-    //     dim: usize,
-    // ) -> Vec<NdArrayTensor<E, D>> {
-    //     tensor
-    //         .array
-    //         .axis_chunks_iter(Axis(dim), chunks)
-    //         .map(|chunk_view| NdArrayTensor::new(chunk_view.to_owned().into_shared()))
-    //         .collect()
-    // }
+    pub fn chunk<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<NdArrayTensor<E, D>> {
+        tensor
+            .array
+            .axis_chunks_iter(Axis(dim), chunks)
+            .map(|chunk_view| NdArrayTensor::new(chunk_view.to_owned().into_shared()))
+            .collect()
+    }
 }
 
 impl<E> NdArrayMathOps<E>

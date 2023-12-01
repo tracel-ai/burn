@@ -114,4 +114,12 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::BoolTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
+
+    fn bool_chunk<const D: usize>(
+        tensor: TchTensor<bool, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<TchTensor<bool, D>> {
+        TchOps::chunk(tensor, chunks, dim)
+    }
 }

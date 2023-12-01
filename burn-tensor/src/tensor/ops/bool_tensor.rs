@@ -258,4 +258,22 @@ pub trait BoolTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> BoolTensor<B, D>;
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    fn bool_chunk<const D: usize>(
+        tensor: BoolTensor<B, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<BoolTensor<B, D>>;
 }
