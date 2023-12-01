@@ -172,10 +172,10 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn split_relative_graph_ref<'a>(
-        graph: &'a Graph<B>,
+    fn split_relative_graph_ref(
+        graph: &Graph<B>,
         mode: ExecutionMode,
-    ) -> (&'a [TensorOpsDescription], Option<&'a TensorOpsDescription>) {
+    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         match mode {
             ExecutionMode::NewOps => graph.split_relative_graph(),
             ExecutionMode::Sync => (graph.relative.as_slice(), None),
