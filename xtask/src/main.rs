@@ -1,8 +1,12 @@
 use clap::{Parser, Subcommand};
 
+mod logging;
 mod publish;
 mod runchecks;
-pub(crate) mod utils;
+mod utils;
+
+#[macro_use]
+extern crate log;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

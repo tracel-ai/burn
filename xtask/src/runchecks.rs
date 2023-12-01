@@ -4,9 +4,9 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
-use crate::utils::{
-    end_log_group, get_workspaces, pretty_print_duration, start_log_group, WorkspaceMemberType,
-};
+use crate::logging::init_logger;
+use crate::utils::{format_duration, get_workspaces, WorkspaceMemberType};
+use crate::{endgroup, group};
 use std::env;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -33,7 +33,7 @@ fn handle_child_process(mut child: Child, error: &str) {
 // Run a command
 fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &str) {
     // Format command
-    println!("{command} {}\n\n", args.join(" "));
+    info!("{command} {}\n\n", args.join(" "));
 
     // Run command as child process
     let command = Command::new(command)
@@ -49,14 +49,14 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
 
 // Define and run rustup command
 fn rustup(command: &str, target: &str) {
-    start_log_group(format!("Rustup: {} add {}", command, target));
+    group!("Rustup: {} add {}", command, target);
     run_command(
         "rustup",
         &[command, "add", target],
         "Failed to run rustup",
         "Failed to wait for rustup child process",
     );
-    end_log_group();
+    endgroup!();
 }
 
 // Define and run a cargo command
@@ -72,7 +72,7 @@ fn run_cargo_with_path<P: AsRef<Path>>(
     error: &str,
 ) {
     // Print cargo command
-    println!("\ncargo {} {}\n", command, params);
+    info!("cargo {} {}\n", command, params);
 
     // Run cargo
     let mut cargo = Command::new("cargo");
@@ -125,13 +125,13 @@ fn cargo_test(params: Params) {
 
 // Run cargo fmt command
 fn cargo_fmt() {
-    start_log_group("Cargo: fmt".to_string());
+    group!("Cargo: fmt");
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
     );
-    end_log_group();
+    endgroup!();
 }
 
 // Run cargo clippy command
@@ -155,7 +155,7 @@ fn cargo_doc(params: Params) {
 
 // Build and test a crate in a no_std environment
 fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
-    start_log_group(format!("Checks: {} (no_std)", crate_name));
+    group!("Checks: {} (no-std)", crate_name);
 
     // Run cargo build --no-default-features
     cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -185,7 +185,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
         ]) + extra_args,
     );
 
-    end_log_group();
+    endgroup!();
 }
 
 // Setup code coverage
@@ -247,21 +247,21 @@ fn no_std_checks() {
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
     // Run cargo test --features test-tch
-    start_log_group("Test: burn-core (tch)".to_string());
+    group!("Test: burn-core (tch)");
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
-    end_log_group();
+    endgroup!();
 
     // Run cargo test --features test-wgpu
     if std::env::var("DISABLE_WGPU").is_err() {
-        start_log_group("Test: burn-core (wgpu)".to_string());
+        group!("Test: burn-core (wgpu)");
         cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
-        end_log_group();
+        endgroup!();
     }
 }
 
 // Test burn-dataset features
 fn burn_dataset_features_std() {
-    start_log_group("Checks: burn-dataset (all-features)".to_string());
+    group!("Checks: burn-dataset (all-features)");
 
     // Run cargo build --all-features
     cargo_build(["-p", "burn-dataset", "--all-features"].into());
@@ -272,16 +272,16 @@ fn burn_dataset_features_std() {
     // Run cargo doc --all-features
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
 
-    end_log_group();
+    endgroup!();
 }
 
 // Test burn-candle with accelerate (macOS only)
 // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
 #[cfg(target_os = "macos")]
 fn burn_candle_accelerate() {
-    start_log_group("Checks: burn-candle (accelerate)".to_string());
+    group!("Checks: burn-candle (accelerate)");
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
-    end_log_group();
+    endgroup!();
 }
 
 fn std_checks() {
@@ -300,9 +300,9 @@ fn std_checks() {
     cargo_clippy();
 
     // Produce documentation for each workspace
-    start_log_group("Docs: workspaces".to_string());
+    group!("Docs: workspaces");
     cargo_doc(["--workspace"].into());
-    end_log_group();
+    endgroup!();
 
     // Setup code coverage
     if is_coverage {
@@ -320,10 +320,10 @@ fn std_checks() {
             continue;
         }
 
-        start_log_group(format!("Checks: {}", workspace.name));
+        group!("Checks: {}", workspace.name);
         cargo_build(Params::from(["-p", &workspace.name]));
         cargo_test(Params::from(["-p", &workspace.name]));
-        end_log_group();
+        endgroup!();
     }
 
     // Test burn-candle with accelerate (macOS only)
@@ -356,7 +356,7 @@ fn check_typos() {
         cargo_install(["typos-cli", "--version", "1.16.5"].into());
     }
 
-    println!("Running typos check \n\n");
+    info!("Running typos check \n\n");
 
     // Run typos command as child process
     let typos = Command::new("typos")
@@ -376,14 +376,14 @@ fn check_examples() {
             continue;
         }
 
-        start_log_group(format!("Checks: Example - {}", workspace.name));
+        group!("Checks: Example - {}", workspace.name);
         run_cargo_with_path(
             "check",
             ["--examples"].into(),
             Some(workspace.path),
             "Failed to check example",
         );
-        end_log_group();
+        endgroup!();
     }
 }
 
@@ -403,6 +403,9 @@ pub enum CheckType {
 }
 
 pub fn run(env: CheckType) -> anyhow::Result<()> {
+    // Setup logger
+    init_logger().init();
+
     // Start time measurement
     let start = Instant::now();
 
@@ -433,9 +436,9 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     let duration = start.elapsed();
 
     // Print duration
-    println!(
+    info!(
         "Time elapsed for the current execution: {}",
-        pretty_print_duration(&duration)
+        format_duration(&duration)
     );
 
     Ok(())
