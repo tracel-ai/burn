@@ -33,8 +33,8 @@ serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 syn = { workspace = true, features = ["parsing"] }
-tracing-subscriber.workspace = true
-tracing-core.workspace = true
+tracing-subscriber = { workspace = true }
+tracing-core = { workspace = true }
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }
