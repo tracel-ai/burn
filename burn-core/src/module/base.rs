@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Int, Tensor};
 
-/// Type alias to `Vec<B::Device>` which supports `no_std` environements, but automatically using
+/// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
 pub type Devices<B> = Vec<<B as Backend>::Device>;
 

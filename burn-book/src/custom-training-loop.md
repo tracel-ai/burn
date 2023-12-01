@@ -7,8 +7,8 @@ training loop instead of using a pre-built one in general.
 
 Burn's got you covered!
 
-We will start from the same example shown in the [basic workflow](./basic-workflow)
-section, but without using the `Learner` struct.
+We will start from the same example shown in the [basic workflow](./basic-workflow) section, but
+without using the `Learner` struct.
 
 ```rust, ignore
 #[derive(Config)]
@@ -144,7 +144,8 @@ specifically `MNISTBatcher<B::InnerBackend>`; not using `model.valid()` will res
 error.
 
 You can find the code above available as an
-[example](https://github.com/burn-rs/burn/tree/main/examples/custom-training-loop) for you to test.
+[example](https://github.com/tracel-ai/burn/tree/main/examples/custom-training-loop) for you to
+test.
 
 ## Custom Type
 

@@ -5,7 +5,7 @@ with the WGPU backend. We will take the example of a common workflow in the deep
 where we create a kernel to fuse multiple operations together. We will fuse a matmul kernel followed
 by an addition and the ReLU activation function, which is commonly found in various models. All the
 code can be found under the
-[examples directory](https://github.com/burn-rs/burn/tree/main/examples/custom-wgpu-kernel).
+[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-wgpu-kernel).
 
 ## Custom Backend Trait
 

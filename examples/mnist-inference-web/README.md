@@ -30,7 +30,7 @@ special system library, such as [WASI](https://wasi.dev/). (See [Cargo.toml](./C
 include burn dependencies without `std`).
 
 For this demo, we use trained parameters (`model.bin`) and model (`model.rs`) from the
-[`burn` MNIST example](https://github.com/burn-rs/burn/tree/main/examples/mnist).
+[`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
 
 The inference API for JavaScript is exposed with the help of
 [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen)'s library and tools.
@@ -56,7 +56,7 @@ The total number of parameters is 376,952.
 The model is trained with 4 epochs and the final test accuracy is 98.67%.
 
 The training and hyper parameter information in can be found in
-[`burn` MNIST example](https://github.com/burn-rs/burn/tree/main/examples/mnist).
+[`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
 
 ## Comparison
 
@@ -72,9 +72,9 @@ byte file is the model's parameters. The rest of 356,744 bytes contain all the c
 
 There are several planned enhancements in place:
 
-- [#202](https://github.com/burn-rs/burn/issues/202) - Saving model's params in half-precision and
+- [#202](https://github.com/tracel-ai/burn/issues/202) - Saving model's params in half-precision and
   loading back in full. This can be half the size of the wasm file.
-- [#243](https://github.com/burn-rs/burn/issues/243) - New WebGPU backend would allow computation
+- [#243](https://github.com/tracel-ai/burn/issues/243) - New WebGPU backend would allow computation
   using GPU in the browser.
 - [#1271](https://github.com/rust-ndarray/ndarray/issues/1271) -
   [WASM SIMD](https://github.com/WebAssembly/simd/blob/master/proposals/simd/SIMD.md) support in

@@ -10,7 +10,7 @@ Here are some steps to guide you through the process of contributing to the Burn
 ### Step 1: Review the Issue Tickets
 
 Before you start working on a contribution, please take a moment to look through the open issues in
-the [issue tracker](https://github.com/burn-rs/burn/issues) for this project. This will give you an
+the [issue tracker](https://github.com/tracel-ai/burn/issues) for this project. This will give you an
 idea of what kind of work is currently being planned or is in progress.
 
 ### Step 2: Get Familiar with the Project Architecture
@@ -63,10 +63,10 @@ the issue or issues that your changes address.
 
 1. Install the following extensions:
 
-* [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-* [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-* [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
-* [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
+- [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
+- [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
+- [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
 2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
 
@@ -121,7 +121,7 @@ where `crate_name` is the name of the crate to publish
 
 ## Others
 
-To bump for the next version, use this command: 
+To bump for the next version, use this command:
 
 ```
 cargo set-version --bump minor
