@@ -68,7 +68,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))
-        .expect("Save without error");
+        .expect("Failed to save config");
 
     B::seed(config.seed);
 
