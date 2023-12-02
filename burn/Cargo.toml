@@ -65,7 +65,13 @@ features = [
     "default",
     "std",
     "train",
-    "train-tui",
-    "train-metrics",
-    "dataset-sqlite",
+    "tui",
+    "metrics",
+    "sqlite",
+    "ndarray",
+    "tch",
+    "wgpu",
+    "candle",
+    "fusion",
+    "experimental-named-tensor"
 ]
