@@ -89,6 +89,19 @@ pub fn slice_assign<E: CandleElement, const D1: usize, const D2: usize>(
     panic!("slice_assign not supported by Candle")
 }
 
+pub fn narrow<E: CandleElement, const D: usize>(
+    tensor: CandleTensor<E, D>,
+    dim: usize,
+    start: usize,
+    length: usize,
+) -> CandleTensor<E, D> {
+    let tensor = tensor.tensor.narrow(dim, start, length);
+    match tensor {
+        Ok(tensor) => CandleTensor::new(tensor),
+        Err(e) => panic!("error chunk from Candle"),
+    }
+}
+
 pub fn chunk<E: CandleElement, const D: usize>(
     tensor: CandleTensor<E, D>,
     chunks: usize,

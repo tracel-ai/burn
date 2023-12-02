@@ -115,6 +115,15 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
 
+    fn bool_narrow<const D: usize>(
+        tensor: TchTensor<bool, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<bool, D> {
+        TchOps::narrow(tensor, dim, start, length)
+    }
+
     fn bool_chunk<const D: usize>(
         tensor: TchTensor<bool, D>,
         chunks: usize,

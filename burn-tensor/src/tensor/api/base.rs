@@ -1128,6 +1128,12 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
 
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension along which the tensor will be narrowed.
+    /// * `start` - The starting point of the given range.
+    /// * `length` - The ending point of the given range.
     /// # Panics
     ///
     /// - If the dimension is greater than the number of dimensions of the tensor.

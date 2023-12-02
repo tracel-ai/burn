@@ -414,6 +414,19 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor)
     }
 
+    pub fn narrow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(
+            tensor
+                .tensor
+                .narrow(dim as i64, start as i64, length as i64),
+        )
+    }
+
     pub fn chunk<const D: usize>(
         tensor: TchTensor<E, D>,
         chunks: usize,

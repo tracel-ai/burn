@@ -93,6 +93,15 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
 
+    fn bool_narrow<const D: usize>(
+        tensor: BoolTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> BoolTensor<B, D> {
+        B::bool_narrow(tensor, dim, start, length)
+    }
+
     fn bool_chunk<const D: usize>(
         tensor: BoolTensor<B, D>,
         chunks: usize,
