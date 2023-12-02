@@ -1307,13 +1307,13 @@ impl<B: Backend> BasicOps<B> for Float {
         Tensor::new(B::equal(lhs, rhs))
     }
 
-    // fn chunk<const D: usize>(
-    //     tensor: Self::Primitive<D>,
-    //     chunks: usize,
-    //     dim: usize,
-    // ) -> Vec<Self::Primitive<D>> {
-    //     B::chunk(tensor, chunks, dim)
-    // }
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        B::chunk(tensor, chunks, dim)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -1402,13 +1402,13 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_cat(vectors, dim)
     }
 
-    // fn chunk<const D: usize>(
-    //     tensor: Self::Primitive<D>,
-    //     chunks: usize,
-    //     dim: usize,
-    // ) -> Vec<Self::Primitive<D>> {
-    //     B::int_chunk(tensor, chunks, dim);
-    // }
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        B::int_chunk(tensor, chunks, dim)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {

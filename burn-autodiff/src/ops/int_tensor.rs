@@ -316,4 +316,21 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::int_swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+        B::int_narrow(tensor, dim, start, length)
+    }
+
+    fn int_chunk<const D: usize>(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
+        B::int_chunk(tensor, chunks, dim)
+    }
 }

@@ -448,4 +448,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
     fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.recip().unwrap())
     }
+
+    fn narrow<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> FloatTensor<Self, D> {
+        super::base::narrow(tensor, dim, start, length)
+    }
+
+    fn chunk<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<FloatTensor<Self, D>> {
+        super::base::chunk(tensor, chunks, dim)
+    }
 }

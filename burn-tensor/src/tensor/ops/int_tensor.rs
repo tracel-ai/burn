@@ -850,4 +850,88 @@ pub trait IntTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> IntTensor<B, D>;
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which the tensor will be narrowed.
+    /// * `start` - The starting point of the given range.
+    /// * `length` - The ending point of the given range.
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    fn int_narrow<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> IntTensor<B, D> {
+        let ranges: Vec<_> = (0..D)
+            .map(|i| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..Self::int_shape(&tensor).dims[i]
+                }
+            })
+            .collect();
+
+        let ranges_array: [_; D] = ranges.try_into().unwrap();
+
+        Self::int_slice(tensor, ranges_array)
+    }
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    fn int_chunk<const D: usize>(
+        tensor: IntTensor<B, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<IntTensor<B, D>> {
+        let size = Self::int_shape(&tensor).dims[dim];
+
+        if size < chunks {
+            return (0..size)
+                .map(|i| Self::int_narrow(tensor.clone(), dim, i, 1))
+                .collect();
+        }
+
+        let chunk_size = size / chunks;
+        let cnt_additional = size % chunks;
+        let mut tensors = Vec::with_capacity(chunks);
+
+        let mut sum_chunk_size = 0;
+        for i in 0..chunks {
+            let chunk_size = if i < cnt_additional {
+                chunk_size + 1
+            } else {
+                chunk_size
+            };
+
+            tensors.push(Self::int_narrow(
+                tensor.clone(),
+                dim,
+                sum_chunk_size,
+                chunk_size,
+            ));
+            sum_chunk_size += chunk_size;
+        }
+        tensors
+    }
 }
