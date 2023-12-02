@@ -439,7 +439,8 @@ fn check_examples() {
         if !path.is_dir() {
             return;
         }
-        if path.file_name().unwrap().to_str().unwrap() == "notebook" {
+        let dirname = path.file_name().unwrap().to_str().unwrap();
+        if dirname == "notebook" || dirname == "train-web" {
             // not a crate
             return;
         }
