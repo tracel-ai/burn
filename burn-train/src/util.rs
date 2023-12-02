@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 #[cfg(not(feature = "browser"))]
 pub fn spawn<F>(f: F) -> Box<dyn FnOnce() -> Result<(), ()>>
 where
@@ -8,8 +10,6 @@ where
     Box::new(move || handle.join().map_err(|_| ()))
 }
 
-// High level description at https://www.tweag.io/blog/2022-11-24-wasm-threads-and-messages/
-// Mostly copied from https://github.com/tweag/rust-wasm-threads/blob/main/shared-memory/src/lib.rs
 #[cfg(feature = "browser")]
 pub fn spawn<F>(f: F) -> Box<dyn FnOnce() -> Result<(), ()>>
 where

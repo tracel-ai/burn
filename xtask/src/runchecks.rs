@@ -13,6 +13,41 @@ use std::time::Instant;
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
+const PACKAGES: &[&str] = &[
+    "backend-comparison",
+    "burn-autodiff",
+    "burn-candle",
+    "burn-common",
+    "burn-compute",
+    "burn-core",
+    "burn-dataset",
+    "burn-derive",
+    "burn-fusion",
+    "burn-import",
+    "burn-import/onnx-tests",
+    "burn-ndarray",
+    "burn-no-std-tests",
+    "burn-tch",
+    "burn-tensor-testgen",
+    "burn-tensor",
+    "burn-train",
+    "burn-wgpu",
+    "burn",
+    "examples/custom-renderer",
+    "examples/custom-training-loop",
+    "examples/custom-wgpu-kernel",
+    "examples/guide",
+    "examples/image-classification-web",
+    "examples/mnist-inference-web",
+    "examples/mnist",
+    "examples/named-tensor",
+    "examples/onnx-inference",
+    "examples/text-classification",
+    "examples/text-generation",
+    "examples/train-web/train",
+    "xtask",
+];
+
 // Handle child process
 fn handle_child_process(mut child: Child, error: &str) {
     // Wait for the child process to finish
@@ -54,66 +89,103 @@ fn rustup(command: &str, target: &str) {
 }
 
 // Define and run a cargo command
-fn run_cargo(command: &str, params: Params, error: &str) {
-    // Print cargo command
-    println!("\ncargo {} {}\n", command, params);
+fn run_cargo(command: &str, params: Params, error: &str, exclude: Vec<&str>) {
+    // Separate out packages to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
+    let packages = if params.params.contains(&String::from("-p")) {
+        vec!["."]
+    } else {
+        PACKAGES
+            .iter()
+            .filter(|p| !exclude.contains(p))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
 
-    // Run cargo
-    let cargo = Command::new("cargo")
-        .env("CARGO_INCREMENTAL", "0")
-        .arg(command)
-        .args(params.params)
-        .stdout(Stdio::inherit()) // Send stdout directly to terminal
-        .stderr(Stdio::inherit()) // Send stderr directly to terminal
-        .spawn()
-        .expect(error);
+    for p in packages {
+        // Print cargo command
+        println!("\n{} $ cargo {} {}\n", p, command, params);
+        // Run cargo
+        let cargo = Command::new("cargo")
+            .env("CARGO_INCREMENTAL", "0")
+            .current_dir(p)
+            .arg(command)
+            .args(&params.params)
+            .stdout(Stdio::inherit()) // Send stdout directly to terminal
+            .stderr(Stdio::inherit()) // Send stderr directly to terminal
+            .spawn()
+            .expect(error);
 
-    // Handle cargo child process
-    handle_child_process(cargo, "Failed to wait for cargo child process");
+        // Handle cargo child process
+        handle_child_process(cargo, "Failed to wait for cargo child process");
+    }
 }
 
 // Run cargo build command
-fn cargo_build(params: Params) {
+fn cargo_build_excluding(params: Params, exclude: Vec<&str>) {
     // Run cargo build
     run_cargo(
         "build",
         params + "--color=always",
         "Failed to run cargo build",
+        exclude,
     );
 }
 
+// Run cargo build command
+fn cargo_build(params: Params) {
+    cargo_build_excluding(params, [].into())
+}
+
 // Run cargo install command
-fn cargo_install(params: Params) {
+fn cargo_install_excluding(params: Params, exclude: Vec<&str>) {
     // Run cargo install
     run_cargo(
         "install",
         params + "--color=always",
         "Failed to run cargo install",
+        exclude,
     );
 }
 
+// Run cargo install command
+fn cargo_install(params: Params) {
+    cargo_install_excluding(params, [].into())
+}
+
 // Run cargo test command
-fn cargo_test(params: Params) {
+fn cargo_test_excluding(params: Params, exclude: Vec<&str>) {
     // Run cargo test
     run_cargo(
         "test",
         params + "--color=always" + "--" + "--color=always",
         "Failed to run cargo test",
+        exclude,
     );
 }
 
+// Run cargo test command
+fn cargo_test(params: Params) {
+    cargo_test_excluding(params, [].into())
+}
+
 // Run cargo fmt command
-fn cargo_fmt() {
+fn cargo_fmt_excluding(exclude: Vec<&str>) {
     // Run cargo fmt
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
         "Failed to run cargo fmt",
+        exclude,
     );
 }
 
+// Run cargo fmt command
+fn cargo_fmt() {
+    cargo_fmt_excluding([].into())
+}
+
 // Run cargo clippy command
-fn cargo_clippy() {
+fn cargo_clippy_excluding(exclude: Vec<&str>) {
     if std::env::var("CI_RUN").is_ok() {
         return;
     }
@@ -122,13 +194,23 @@ fn cargo_clippy() {
         "clippy",
         ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
         "Failed to run cargo clippy",
+        exclude,
     );
 }
 
 // Run cargo doc command
-fn cargo_doc(params: Params) {
+fn cargo_doc_excluding(params: Params, exclude: Vec<&str>) {
     // Run cargo doc
-    run_cargo("doc", params + "--color=always", "Failed to run cargo doc");
+    run_cargo(
+        "doc",
+        params + "--no-deps" + "--color=always",
+        "Failed to run cargo doc",
+        exclude,
+    );
+}
+
+fn cargo_doc(params: Params) {
+    cargo_doc_excluding(params, [].into())
 }
 
 // Build and test a crate in a no_std environment
@@ -271,36 +353,38 @@ fn std_checks() {
     cargo_fmt();
 
     // Check clippy lints
-    cargo_clippy();
+    cargo_clippy_excluding(
+        [
+            "burn-no-std-tests",
+            "examples/image-classification-web",
+            "examples/mnist-inference-web",
+            "examples/train-web/train",
+        ]
+        .into(),
+    );
 
-    // Build each workspace
-    if disable_wgpu {
-        cargo_build(
-            [
-                "--workspace",
-                "--exclude=burn-train",
-                "--exclude=xtask",
-                "--exclude=burn-wgpu",
-            ]
-            .into(),
-        );
+    // Build each package
+    let mut exclude = if disable_wgpu {
+        vec!["burn-wgpu"]
     } else {
-        cargo_build(["--workspace", "--exclude=burn-train", "--exclude=xtask"].into());
-    }
-    cargo_build(["-p", "burn-train", "--lib"].into());
+        vec![]
+    };
+    exclude.push("examples/train-web/train");
+    cargo_build_excluding([].into(), exclude);
 
-    // Produce documentation for each workspace
-    cargo_doc(["--workspace"].into());
+    // Produce documentation for each package
+    cargo_doc_excluding(
+        [].into(),
+        ["burn-no-std-tests", "examples/train-web/train"].into(),
+    );
 
     // Setup code coverage
     if is_coverage {
         setup_coverage();
     }
 
-    // Test each workspace
-    cargo_test(["--workspace", "--exclude", "burn-train"].into());
-    // Separate out `burn-train` to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
-    cargo_test(["-p", "burn-train", "--lib"].into());
+    // Test each package
+    cargo_test_excluding([].into(), ["examples/train-web/train"].into());
 
     // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
