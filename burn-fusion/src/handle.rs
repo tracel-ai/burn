@@ -132,7 +132,7 @@ impl<B: FusionBackend> HandleContainer<B> {
     pub(crate) fn free_orphans(&mut self, remaining: &[&TensorId]) {
         let mut handles_orphan = Vec::new();
 
-        // TODO: Optimization => Change the for loop order depending of the lenght of each.
+        // TODO: Optimization => Change the for loop order depending of the length of each.
         for id in self.handles_orphan.drain(..) {
             if remaining.contains(&&id) {
                 handles_orphan.push(id);
