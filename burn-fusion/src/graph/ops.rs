@@ -776,7 +776,7 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
 
 impl TensorOpsDescription {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub(crate) fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             TensorOpsDescription::BaseOpsFloat(ops) => ops.nodes(),
             TensorOpsDescription::BaseOpsInt(ops) => ops.nodes(),
@@ -792,7 +792,7 @@ impl TensorOpsDescription {
 }
 
 impl BaseOpsDescription {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             BaseOpsDescription::ToDevice(desc) => vec![desc],
             BaseOpsDescription::Reshape(desc) => {
@@ -819,7 +819,7 @@ impl BaseOpsDescription {
 }
 
 impl<E: Element> NumericOpsDescription<E> {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             NumericOpsDescription::Add(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
@@ -946,7 +946,7 @@ impl<E: Element> NumericOpsDescription<E> {
 }
 
 impl FloatOpsDescription {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             FloatOpsDescription::Matmul(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
@@ -968,7 +968,7 @@ impl FloatOpsDescription {
 }
 
 impl IntOpsDescription {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             IntOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
         }
@@ -976,7 +976,7 @@ impl IntOpsDescription {
 }
 
 impl BoolOpsDescription {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             BoolOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
             BoolOpsDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
@@ -986,7 +986,7 @@ impl BoolOpsDescription {
 }
 
 impl ModuleOpsDescription {
-    fn nodes<'a>(&'a self) -> Vec<&'a TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             ModuleOpsDescription::Embedding(desc) => {
                 vec![&desc.weights, &desc.indices, &desc.out]

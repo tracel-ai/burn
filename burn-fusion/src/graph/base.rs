@@ -73,8 +73,7 @@ impl<B: FusionBackend> Graph<B> {
     fn cleanup_total(&mut self, handles: &mut HandleContainer<B>) {
         self.global
             .iter()
-            .map(|desc| desc.nodes())
-            .flatten()
+            .flat_map(|desc| desc.nodes())
             .for_each(|tensor| handles.free(tensor));
         handles.free_orphans(&[]);
 
@@ -86,8 +85,7 @@ impl<B: FusionBackend> Graph<B> {
     fn cleanup_partial(&mut self, num_keep: usize, handles: &mut HandleContainer<B>) {
         self.global[0..num_keep]
             .iter()
-            .map(|desc| desc.nodes())
-            .flatten()
+            .flat_map(|desc| desc.nodes())
             .for_each(|tensor| handles.free(tensor));
 
         self.global.drain(0..num_keep);
@@ -96,8 +94,7 @@ impl<B: FusionBackend> Graph<B> {
             &self
                 .global
                 .iter()
-                .map(|desc| desc.nodes())
-                .flatten()
+                .flat_map(|desc| desc.nodes())
                 .map(|tensor| &tensor.id)
                 .collect::<Vec<_>>(),
         );
