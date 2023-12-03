@@ -421,16 +421,16 @@ fn check_examples() {
 
             let child = Command::new("cargo")
                 .arg("check")
-            .arg("--examples")
+                .arg("--examples")
                 .current_dir(dir)
-            .stdout(Stdio::inherit()) // Send stdout directly to terminal
-            .stderr(Stdio::inherit()) // Send stderr directly to terminal
-            .spawn()
-            .expect("Failed to check examples");
+                .stdout(Stdio::inherit()) // Send stdout directly to terminal
+                .stderr(Stdio::inherit()) // Send stderr directly to terminal
+                .spawn()
+                .expect("Failed to check examples");
 
-        // Handle typos child process
-        handle_child_process(child, "Failed to wait for examples child process");
-    });
+            // Handle typos child process
+            handle_child_process(child, "Failed to wait for examples child process");
+        });
 }
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
