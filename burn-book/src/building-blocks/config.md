@@ -70,5 +70,5 @@ impl MyModuleConfig {
 Then we could add this line to the above `main`:
 
 ```rust, ignore
-let my_module = config.init()
+let my_module = config.init();
 ```
