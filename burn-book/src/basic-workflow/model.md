@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.10.0", features=["train", "wgpu"]}
+burn = { version = "0.11.0", features=["train", "wgpu"]}
 
 # Serialization
 serde = "1"

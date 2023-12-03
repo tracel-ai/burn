@@ -1,11 +1,11 @@
 # Burn Torch Backend
 
-[Burn](https://github.com/burn-rs/burn) Torch backend
+[Burn](https://github.com/tracel-ai/burn) Torch backend
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-tch.svg)](https://crates.io/crates/burn-tch)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn-tch/blob/master/README.md)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-tch/blob/master/README.md)
 
-This crate provides a Torch backend for [Burn](https://github.com/burn-rs/burn) utilizing the
+This crate provides a Torch backend for [Burn](https://github.com/tracel-ai/burn) utilizing the
 [tch-rs](https://github.com/LaurentMazare/tch-rs) crate, which offers a Rust interface to the
 [PyTorch](https://pytorch.org/) C++ API.
 

@@ -124,8 +124,8 @@ fn main() {
 
 For practical examples, please refer to:
 
-1. [MNIST Inference Example](https://github.com/burn-rs/burn/tree/main/examples/onnx-inference)
-2. [SqueezeNet Image Classification](https://github.com/burn-rs/models/tree/main/squeezenet-burn)
+1. [MNIST Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
+2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
 
 By combining ONNX's robustness with Burn's unique features, you'll have the flexibility and power to
 streamline your deep learning workflows like never before.
@@ -133,4 +133,4 @@ streamline your deep learning workflows like never before.
 ---
 
 > 🚨**Note**: `burn-import` crate is in active development and currently supports a
-> [limited set of ONNX operators](https://github.com/burn-rs/burn/blob/main/burn-import/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](https://github.com/tracel-ai/burn/blob/main/burn-import/SUPPORTED-ONNX-OPS.md).
