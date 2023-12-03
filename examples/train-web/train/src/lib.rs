@@ -2,7 +2,6 @@ use crate::{model::ModelConfig, train::TrainingConfig};
 use burn::{
     backend::{ndarray::NdArrayDevice, Autodiff, NdArray},
     optim::AdamConfig,
-    train::util,
 };
 use wasm_bindgen::prelude::*;
 
