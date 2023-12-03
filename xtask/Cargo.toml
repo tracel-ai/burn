@@ -9,3 +9,4 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.8", features = ["derive"] }
+glob = "0.3.1"

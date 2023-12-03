@@ -4,49 +4,31 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
+use glob::glob;
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
 
+fn get_package_dirs(glob_str: &str) -> Vec<String> {
+    glob(glob_str)
+        .expect("Failed to read glob pattern")
+        .filter_map(|dir| {
+            let dir = dir.unwrap();
+            let dir = dir.as_path().to_str().unwrap();
+            if dir == "Cargo.toml" {
+                None
+            } else {
+                let length = dir.len() - "/Cargo.toml".len();
+                Some(dir.to_string()[..length].to_string())
+            }
+        })
+        .collect()
+}
+
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
-
-const PACKAGES: &[&str] = &[
-    "backend-comparison",
-    "burn-autodiff",
-    "burn-candle",
-    "burn-common",
-    "burn-compute",
-    "burn-core",
-    "burn-dataset",
-    "burn-derive",
-    "burn-fusion",
-    "burn-import",
-    "burn-import/onnx-tests",
-    "burn-ndarray",
-    "burn-no-std-tests",
-    "burn-tch",
-    "burn-tensor-testgen",
-    "burn-tensor",
-    "burn-train",
-    "burn-wgpu",
-    "burn",
-    "examples/custom-renderer",
-    "examples/custom-training-loop",
-    "examples/custom-wgpu-kernel",
-    "examples/guide",
-    "examples/image-classification-web",
-    "examples/mnist-inference-web",
-    "examples/mnist",
-    "examples/named-tensor",
-    "examples/onnx-inference",
-    "examples/text-classification",
-    "examples/text-generation",
-    "examples/train-web/train",
-    "xtask",
-];
 
 // Handle child process
 fn handle_child_process(mut child: Child, error: &str) {
@@ -92,12 +74,12 @@ fn rustup(command: &str, target: &str) {
 fn run_cargo(command: &str, params: Params, error: &str, exclude: Vec<&str>) {
     // Separate out packages to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
     let packages = if params.params.contains(&String::from("-p")) {
-        vec!["."]
+        vec![String::from(".")]
     } else {
-        PACKAGES
+        get_package_dirs("./**/Cargo.toml")
             .iter()
-            .filter(|p| !exclude.contains(p))
-            .cloned()
+            .filter(|p| !exclude.contains(&p.as_str()))
+            .map(String::from)
             .collect::<Vec<_>>()
     };
 
@@ -432,25 +414,15 @@ fn check_typos() {
 fn check_examples() {
     println!("Checking examples compile \n\n");
 
-    std::fs::read_dir("examples").unwrap().for_each(|dir| {
-        let dir = dir.unwrap();
-        let path = dir.path();
-        // Skip if not a directory
-        if !path.is_dir() {
-            return;
-        }
-        let dirname = path.file_name().unwrap().to_str().unwrap();
-        if dirname == "notebook" || dirname == "train-web" {
-            // not a crate
-            return;
-        }
-        let path = path.to_str().unwrap();
-        println!("Checking {path} \n\n");
+    get_package_dirs("./examples/**/Cargo.toml")
+        .iter()
+        .for_each(|dir| {
+            println!("Checking {dir} \n\n");
 
-        let child = Command::new("cargo")
-            .arg("check")
+            let child = Command::new("cargo")
+                .arg("check")
             .arg("--examples")
-            .current_dir(dir.path())
+                .current_dir(dir)
             .stdout(Stdio::inherit()) // Send stdout directly to terminal
             .stderr(Stdio::inherit()) // Send stderr directly to terminal
             .spawn()
