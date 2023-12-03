@@ -25,7 +25,7 @@ pub fn run(
     test_labels: &[u8],
     test_images: &[u8],
     test_lengths: &[u16],
-) -> Result<(), String> {
+) -> Vec<u8> {
     log::info!("Hello from Rust");
     let config = TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new());
     train::train::<Autodiff<NdArray<f32>>>(
@@ -38,6 +38,5 @@ pub fn run(
         test_labels,
         test_images,
         test_lengths,
-    );
-    Ok(())
+    )
 }

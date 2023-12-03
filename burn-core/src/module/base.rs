@@ -173,6 +173,15 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
         recorder.record(record, file_path.into())
     }
 
+    /// Return the module using [BytesRecorder](crate::record::BytesRecorder).
+    fn to_bytes<BR: crate::record::BytesRecorder>(
+        self,
+        recorder: &BR,
+    ) -> Result<Vec<u8>, crate::record::RecorderError> {
+        let record = Self::into_record(self);
+        recorder.record(record, ())
+    }
+
     #[cfg(feature = "std")]
     /// Load the module from a file using the provided [file recorder](crate::record::FileRecorder).
     ///

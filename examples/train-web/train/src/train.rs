@@ -10,7 +10,7 @@ use burn::{
     module::Module,
     nn::loss::CrossEntropyLoss,
     optim::AdamConfig,
-    record::CompactRecorder,
+    record::{BinBytesRecorder, FullPrecisionSettings},
     tensor::{
         backend::{AutodiffBackend, Backend},
         Int, Tensor,
@@ -96,7 +96,7 @@ pub fn train<B: AutodiffBackend>(
     test_labels: &[u8],
     test_images: &[u8],
     test_lengths: &[u16],
-) {
+) -> Vec<u8> {
     // std::fs::create_dir_all(artifact_dir).ok();
     // config
     //     .save(format!("{artifact_dir}/config.json"))
@@ -140,6 +140,6 @@ pub fn train<B: AutodiffBackend>(
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     model_trained
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Failed to save trained model");
+        .to_bytes(&BinBytesRecorder::<FullPrecisionSettings>::default())
+        .expect("Failed to serialize model")
 }
