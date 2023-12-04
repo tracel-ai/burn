@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 name = "backend-comparison"
 readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
-version = "0.11.0"
+version = "0.11.1"
 
 [features]
 default = ["std"]
@@ -28,7 +28,7 @@ wgpu-fusion = ["burn/wgpu", "burn/fusion"]
 burn = { path = "../burn" }
 derive-new = { workspace = true }
 rand = { workspace = true }
-burn-common = { path = "../burn-common", version = "0.11.0" }
+burn-common = { path = "../burn-common", version = "0.11.1" }
 serde_json = { workspace = true }
 dirs = "5.0.1"
 

@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "burn"
 readme = "README.md"
 repository = "https://github.com/tracel-ai/burn"
-version = "0.11.0"
+version = "0.11.1"
 rust-version = "1.71"
 
 [features]
@@ -56,8 +56,8 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.11.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.11.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.11.1", default-features = false }
+burn-train = { path = "../burn-train", version = "0.11.1", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 features = [

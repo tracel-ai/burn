@@ -8,13 +8,13 @@ license = "MIT OR Apache-2.0"
 name = "burn-no-std-tests"
 readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-no-std-tests"
-version = "0.11.0"
+version = "0.11.1"
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "0.11.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.11.0", default-features = false }
+burn = { path = "../burn", version = "0.11.1", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.11.1", default-features = false }
 
 serde = { workspace = true }
