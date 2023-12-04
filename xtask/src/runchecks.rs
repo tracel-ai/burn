@@ -4,27 +4,14 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
-use glob::glob;
+use crate::logging::init_logger;
+use crate::utils::{format_duration, get_workspaces, WorkspaceMemberType};
+use crate::{endgroup, group};
 use std::env;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::Instant;
-
-fn get_package_dirs(glob_str: &str) -> Vec<String> {
-    glob(glob_str)
-        .expect("Failed to read glob pattern")
-        .filter_map(|dir| {
-            let dir = dir.unwrap();
-            let dir = dir.as_path().to_str().unwrap();
-            if dir == "Cargo.toml" {
-                None
-            } else {
-                let length = dir.len() - "/Cargo.toml".len();
-                Some(dir.to_string()[..length].to_string())
-            }
-        })
-        .collect()
-}
 
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
@@ -46,7 +33,7 @@ fn handle_child_process(mut child: Child, error: &str) {
 // Run a command
 fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &str) {
     // Format command
-    println!("{command} {}\n\n", args.join(" "));
+    info!("{command} {}\n\n", args.join(" "));
 
     // Run command as child process
     let command = Command::new(command)
@@ -62,129 +49,94 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
 
 // Define and run rustup command
 fn rustup(command: &str, target: &str) {
+    group!("Rustup: {} add {}", command, target);
     run_command(
         "rustup",
         &[command, "add", target],
         "Failed to run rustup",
         "Failed to wait for rustup child process",
-    )
+    );
+    endgroup!();
 }
 
 // Define and run a cargo command
-fn run_cargo(command: &str, params: Params, error: &str, exclude: Vec<&str>) {
-    // Separate out packages to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
-    let package_dirs = if params.params.contains(&String::from("-p")) {
-        vec![String::from(".")]
-    } else {
-        get_package_dirs("./**/Cargo.toml")
-            .iter()
-            .filter(|p| !exclude.contains(&p.as_str()))
-            .map(String::from)
-            .collect::<Vec<_>>()
-    };
+fn run_cargo(command: &str, params: Params, error: &str) {
+    run_cargo_with_path::<String>(command, params, None, error)
+}
 
-    for package_dir in package_dirs {
-        let nightly = if package_dir == "examples/train-web/train" {
-            vec!["+nightly-2023-07-01"]
-        } else {
-            vec![]
-        };
-        // Print cargo command
-        println!(
-            "\n{} $ cargo{} {} {}\n",
-            package_dir,
-            if nightly.is_empty() {
-                "".to_string()
-            } else {
-                " ".to_string() + nightly[0]
-            },
-            command,
-            params
-        );
-        // Run cargo
-        let cargo = Command::new("cargo")
-            .env("CARGO_INCREMENTAL", "0")
-            .current_dir(package_dir)
-            .args(nightly)
-            .arg(command)
-            .args(&params.params)
-            .stdout(Stdio::inherit()) // Send stdout directly to terminal
-            .stderr(Stdio::inherit()) // Send stderr directly to terminal
-            .spawn()
-            .expect(error);
+// Define and run a cargo command with curr dir
+fn run_cargo_with_path<P: AsRef<Path>>(
+    command: &str,
+    params: Params,
+    path: Option<P>,
+    error: &str,
+) {
+    // Print cargo command
+    info!("cargo {} {}\n", command, params);
 
-        // Handle cargo child process
-        handle_child_process(cargo, "Failed to wait for cargo child process");
+    // Run cargo
+    let mut cargo = Command::new("cargo");
+    cargo
+        .env("CARGO_INCREMENTAL", "0")
+        .arg(command)
+        .args(params.params)
+        .stdout(Stdio::inherit()) // Send stdout directly to terminal
+        .stderr(Stdio::inherit()); // Send stderr directly to terminal
+
+    if let Some(path) = path {
+        cargo.current_dir(path);
     }
+
+    let cargo_process = cargo.spawn().expect(error);
+
+    // Handle cargo child process
+    handle_child_process(cargo_process, "Failed to wait for cargo child process");
 }
 
 // Run cargo build command
-fn cargo_build_excluding(params: Params, exclude: Vec<&str>) {
+fn cargo_build(params: Params) {
     // Run cargo build
     run_cargo(
         "build",
         params + "--color=always",
         "Failed to run cargo build",
-        exclude,
-    );
-}
-
-// Run cargo build command
-fn cargo_build(params: Params) {
-    cargo_build_excluding(params, [].into())
-}
-
-// Run cargo install command
-fn cargo_install_excluding(params: Params, exclude: Vec<&str>) {
-    // Run cargo install
-    run_cargo(
-        "install",
-        params + "--color=always",
-        "Failed to run cargo install",
-        exclude,
     );
 }
 
 // Run cargo install command
 fn cargo_install(params: Params) {
-    cargo_install_excluding(params, [].into())
-}
-
-// Run cargo test command
-fn cargo_test_excluding(params: Params, exclude: Vec<&str>) {
-    // Run cargo test
+    // Run cargo install
     run_cargo(
-        "test",
-        params + "--color=always" + "--" + "--color=always",
-        "Failed to run cargo test",
-        exclude,
+        "install",
+        params + "--color=always",
+        "Failed to run cargo install",
     );
 }
 
 // Run cargo test command
 fn cargo_test(params: Params) {
-    cargo_test_excluding(params, [].into())
-}
-
-// Run cargo fmt command
-fn cargo_fmt_excluding(exclude: Vec<&str>) {
-    // Run cargo fmt
+    // Run cargo test
     run_cargo(
-        "fmt",
-        ["--check", "--all", "--", "--color=always"].into(),
-        "Failed to run cargo fmt",
-        exclude,
+        "test",
+        params + "--color=always" + "--" + "--color=always",
+        "Failed to run cargo test",
     );
 }
 
 // Run cargo fmt command
 fn cargo_fmt() {
-    cargo_fmt_excluding([].into())
+    group!("Cargo: fmt");
+    run_cargo(
+        "fmt",
+        ["--check", "--all", "--", "--color=always"].into(),
+        "Failed to run cargo fmt",
+    );
+    endgroup!();
 }
 
 // Run cargo clippy command
-fn cargo_clippy_excluding(exclude: Vec<&str>) {
-    if std::env::var("CI_RUN").is_ok() {
+fn cargo_clippy() {
+    if std::env::var("CI").is_ok() {
         return;
     }
     // Run cargo clippy
@@ -192,28 +144,18 @@ fn cargo_clippy_excluding(exclude: Vec<&str>) {
         "clippy",
         ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
         "Failed to run cargo clippy",
-        exclude,
     );
 }
 
 // Run cargo doc command
-fn cargo_doc_excluding(params: Params, exclude: Vec<&str>) {
-    // Run cargo doc
-    run_cargo(
-        "doc",
-        params + "--no-deps" + "--color=always",
-        "Failed to run cargo doc",
-        exclude,
-    );
-}
-
 fn cargo_doc(params: Params) {
-    cargo_doc_excluding(params, [].into())
+    // Run cargo doc
+    run_cargo("doc", params + "--color=always", "Failed to run cargo doc");
 }
 
 // Build and test a crate in a no_std environment
 fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]) {
-    println!("\nRun checks for `{}` crate", crate_name);
+    group!("Checks: {} (no-std)", crate_name);
 
     // Run cargo build --no-default-features
     cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -242,6 +184,8 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             ARM_TARGET,
         ]) + extra_args,
     );
+
+    endgroup!();
 }
 
 // Setup code coverage
@@ -281,8 +225,6 @@ fn run_grcov() {
 
 // Run no_std checks
 fn no_std_checks() {
-    println!("Checks for no_std environment...\n\n");
-
     // Install wasm32 target
     rustup("target", WASM32_TARGET);
 
@@ -304,20 +246,22 @@ fn no_std_checks() {
 
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
-    println!("\n\nRun checks for burn-core crate with tch and wgpu backend");
-
     // Run cargo test --features test-tch
+    group!("Test: burn-core (tch)");
     cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
+    endgroup!();
 
     // Run cargo test --features test-wgpu
     if std::env::var("DISABLE_WGPU").is_err() {
+        group!("Test: burn-core (wgpu)");
         cargo_test(["-p", "burn-core", "--features", "test-wgpu"].into());
+        endgroup!();
     }
 }
 
 // Test burn-dataset features
 fn burn_dataset_features_std() {
-    println!("\n\nRun checks for burn-dataset features");
+    group!("Checks: burn-dataset (all-features)");
 
     // Run cargo build --all-features
     cargo_build(["-p", "burn-dataset", "--all-features"].into());
@@ -327,13 +271,17 @@ fn burn_dataset_features_std() {
 
     // Run cargo doc --all-features
     cargo_doc(["-p", "burn-dataset", "--all-features"].into());
+
+    endgroup!();
 }
 
 // Test burn-candle with accelerate (macOS only)
 // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
 #[cfg(target_os = "macos")]
 fn burn_candle_accelerate() {
+    group!("Checks: burn-candle (accelerate)");
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+    endgroup!();
 }
 
 fn std_checks() {
@@ -345,40 +293,38 @@ fn std_checks() {
     let is_coverage = std::env::var("COVERAGE").is_ok();
     let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
-    println!("Running std checks");
-
     // Check format
     cargo_fmt();
 
     // Check clippy lints
-    cargo_clippy_excluding(
-        [
-            "burn-no-std-tests",
-            "examples/image-classification-web",
-            "examples/mnist-inference-web",
-            "examples/train-web/train",
-        ]
-        .into(),
-    );
+    cargo_clippy();
 
-    // Build each package
-    let exclude = if disable_wgpu {
-        vec!["burn-wgpu"]
-    } else {
-        vec![]
-    };
-    cargo_build_excluding([].into(), exclude);
-
-    // Produce documentation for each package
-    cargo_doc_excluding([].into(), ["burn-no-std-tests"].into());
+    // Produce documentation for each workspace
+    group!("Docs: workspaces");
+    cargo_doc(["--workspace"].into());
+    endgroup!();
 
     // Setup code coverage
     if is_coverage {
         setup_coverage();
     }
 
-    // Test each package
-    cargo_test_excluding([].into(), ["examples/train-web/train"].into());
+    // Build & test each workspace
+    let workspaces = get_workspaces(WorkspaceMemberType::Crate);
+    for workspace in workspaces {
+        if disable_wgpu && workspace.name == "burn-wgpu" {
+            continue;
+        }
+
+        if workspace.name == "burn-tch" {
+            continue;
+        }
+
+        group!("Checks: {}", workspace.name);
+        cargo_build(Params::from(["-p", &workspace.name]));
+        cargo_test(Params::from(["-p", &workspace.name]));
+        endgroup!();
+    }
 
     // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
@@ -405,12 +351,12 @@ fn check_typos() {
 
     // Do not run cargo install on CI to speed up the computation.
     // Check whether the file has been installed on
-    if std::env::var("CI_RUN").is_err() && !typos_cli_path.exists() {
+    if std::env::var("CI").is_err() && !typos_cli_path.exists() {
         // Install typos-cli
         cargo_install(["typos-cli", "--version", "1.16.5"].into());
     }
 
-    println!("Running typos check \n\n");
+    info!("Running typos check \n\n");
 
     // Run typos command as child process
     let typos = Command::new("typos")
@@ -424,25 +370,21 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    println!("Checking examples compile \n\n");
+    let workspaces = get_workspaces(WorkspaceMemberType::Example);
+    for workspace in workspaces {
+        if workspace.name == "notebook" {
+            continue;
+        }
 
-    get_package_dirs("./examples/**/Cargo.toml")
-        .iter()
-        .for_each(|dir| {
-            println!("Checking {dir} \n\n");
-
-            let child = Command::new("cargo")
-                .arg("check")
-                .arg("--examples")
-                .current_dir(dir)
-                .stdout(Stdio::inherit()) // Send stdout directly to terminal
-                .stderr(Stdio::inherit()) // Send stderr directly to terminal
-                .spawn()
-                .expect("Failed to check examples");
-
-            // Handle typos child process
-            handle_child_process(child, "Failed to wait for examples child process");
-        });
+        group!("Checks: Example - {}", workspace.name);
+        run_cargo_with_path(
+            "check",
+            ["--examples"].into(),
+            Some(workspace.path),
+            "Failed to check example",
+        );
+        endgroup!();
+    }
 }
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
@@ -461,6 +403,9 @@ pub enum CheckType {
 }
 
 pub fn run(env: CheckType) -> anyhow::Result<()> {
+    // Setup logger
+    init_logger().init();
+
     // Start time measurement
     let start = Instant::now();
 
@@ -491,7 +436,10 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     let duration = start.elapsed();
 
     // Print duration
-    println!("Time elapsed for the current execution: {:?}", duration);
+    info!(
+        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+        format_duration(&duration)
+    );
 
     Ok(())
 }
