@@ -82,7 +82,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn build(&mut self, graph: &mut Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
+    fn build(&mut self, graph: &Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // graph even when there is no skipped operation.
         let offset = match mode {
@@ -123,7 +123,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn reset(&mut self, graph: &mut Graph<B>) {
+    fn reset(&mut self, graph: &Graph<B>) {
         for ops in self.optimizations.iter_mut() {
             ops.reset();
         }
@@ -142,7 +142,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 
     fn cache<'a>(
         &'a mut self,
-        graph: &mut Graph<B>,
+        graph: &Graph<B>,
         mode: ExecutionMode,
     ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);

@@ -32,7 +32,7 @@ The learner builder provides numerous options when it comes to configurations.
 | Devices                | Set the devices to be used                                                     |
 | Checkpoint             | Restart training from a checkpoint                                             |
 
-When the builder is configured at your liking, you can them move forward to build the learner. The
+When the builder is configured at your liking, you can then move forward to build the learner. The
 build method requires three inputs: the model, the optimizer and the learning rate scheduler. Note
 that the latter can be a simple float if you want it to be constant during training.
 
