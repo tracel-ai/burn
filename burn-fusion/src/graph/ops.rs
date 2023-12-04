@@ -776,343 +776,293 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
 
 impl TensorOpsDescription {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub(crate) fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            TensorOpsDescription::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BaseOpsBool(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BoolOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::IntOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::BaseOpsFloat(ops) => ops.nodes(),
+            TensorOpsDescription::BaseOpsInt(ops) => ops.nodes(),
+            TensorOpsDescription::BaseOpsBool(ops) => ops.nodes(),
+            TensorOpsDescription::NumericOpsFloat(ops) => ops.nodes(),
+            TensorOpsDescription::NumericOpsInt(ops) => ops.nodes(),
+            TensorOpsDescription::BoolOps(ops) => ops.nodes(),
+            TensorOpsDescription::IntOps(ops) => ops.nodes(),
+            TensorOpsDescription::FloatOps(ops) => ops.nodes(),
+            TensorOpsDescription::ModuleOps(ops) => ops.nodes(),
         }
-
-        // Cleanup tensor handles that were outputted, but ignored.
-        handles.cleanup_orphans();
     }
 }
 
 impl BaseOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            BaseOpsDescription::ToDevice(_) => (),
+            BaseOpsDescription::ToDevice(desc) => vec![desc],
             BaseOpsDescription::Reshape(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             BaseOpsDescription::SwapDims(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             BaseOpsDescription::Slice(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out]
             }
             BaseOpsDescription::SliceAssign(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.value, &desc.out]
             }
             BaseOpsDescription::Equal(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             BaseOpsDescription::Repeat(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out]
             }
-            BaseOpsDescription::Cat(desc) => {
-                for t in desc.tensors.iter() {
-                    handles.cleanup(t);
-                }
-            }
+            BaseOpsDescription::Cat(desc) => desc.tensors.iter().collect(),
         }
     }
 }
 
 impl<E: Element> NumericOpsDescription<E> {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             NumericOpsDescription::Add(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::AddScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Sub(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::SubScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Mul(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::MulScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Div(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::DivScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
-            NumericOpsDescription::Ones(_) => {}
+            NumericOpsDescription::Ones(desc) => vec![desc],
             NumericOpsDescription::Gather(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
+                vec![&desc.tensor, &desc.indices, &desc.out]
             }
             NumericOpsDescription::Scatter(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
             NumericOpsDescription::Select(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
+                vec![&desc.tensor, &desc.indices, &desc.out]
             }
             NumericOpsDescription::SelectAssign(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
             NumericOpsDescription::MaskWhere(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.value);
-                handles.cleanup(&desc.mask);
+                vec![&desc.tensor, &desc.mask, &desc.value, &desc.out]
             }
             NumericOpsDescription::MaskFill(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.mask);
+                vec![&desc.tensor, &desc.mask, &desc.out]
             }
             NumericOpsDescription::EqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::GreaterElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::GreaterEqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::LowerElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::LowerEqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Greater(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::GreaterEqual(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::Lower(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::LowerEqual(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::ArgMax(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::ArgMin(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Clamp(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out]
             }
             NumericOpsDescription::ClampMin(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::ClampMax(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Abs(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
-            NumericOpsDescription::Zeros(_) => {}
-            NumericOpsDescription::Full(_) => {}
+            NumericOpsDescription::Zeros(desc) => vec![desc],
+            NumericOpsDescription::Full(desc) => vec![&desc.0],
             NumericOpsDescription::MeanDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Mean(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::Sum(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::SumDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Max(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::MaxDimWithIndices(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
             NumericOpsDescription::MinDimWithIndices(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
             NumericOpsDescription::Min(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::MaxDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::MinDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
         }
     }
 }
 
 impl FloatOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             FloatOpsDescription::Matmul(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            FloatOpsDescription::Random(_) => {}
-            FloatOpsDescription::Exp(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log1p(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Erf(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Recip(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Powf(desc) => handles.cleanup(&desc.lhs),
-            FloatOpsDescription::Sqrt(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Cos(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Sin(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Tanh(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::IntoInt(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Random(desc) => vec![&desc.out],
+            FloatOpsDescription::Exp(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Log(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Log1p(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Erf(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Recip(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Powf(desc) => vec![&desc.lhs, &desc.out],
+            FloatOpsDescription::Sqrt(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Cos(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Sin(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl IntOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            IntOpsDescription::IntoFloat(desc) => {
-                handles.cleanup(&desc.input);
-            }
+            IntOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl BoolOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            BoolOpsDescription::IntoFloat(desc) => {
-                handles.cleanup(&desc.input);
-            }
-            BoolOpsDescription::IntoInt(desc) => {
-                handles.cleanup(&desc.input);
-            }
-            BoolOpsDescription::Not(desc) => {
-                handles.cleanup(&desc.input);
-            }
+            BoolOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            BoolOpsDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
+            BoolOpsDescription::Not(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl ModuleOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             ModuleOpsDescription::Embedding(desc) => {
-                handles.cleanup(&desc.weights);
-                handles.cleanup(&desc.indices);
+                vec![&desc.weights, &desc.indices, &desc.out]
             }
             ModuleOpsDescription::EmbeddingBackward(desc) => {
-                handles.cleanup(&desc.weights);
-                handles.cleanup(&desc.out_grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.weights, &desc.out_grad, &desc.indices, &desc.out]
             }
             ModuleOpsDescription::Conv1d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::Conv2d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::ConvTranspose1d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::ConvTranspose2d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::AvgPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AvgPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AvgPool1dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AvgPool2dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AdaptiveAvgPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AdaptiveAvgPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::MaxPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::MaxPool1dWithIndices(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out, &desc.out_indices]
             }
             ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
             ModuleOpsDescription::MaxPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::MaxPool2dWithIndices(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out, &desc.out_indices]
             }
             ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
         }
     }
