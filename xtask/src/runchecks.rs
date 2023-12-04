@@ -419,7 +419,13 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    rustup(&["default", "nightly-2023-07-01"]);
+    rustup(&[
+        "component",
+        "add",
+        "rust-src",
+        "--toolchain",
+        "nightly-2023-07-01-x86_64-unknown-linux-gnu",
+    ]);
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
         if workspace.name == "notebook" {
