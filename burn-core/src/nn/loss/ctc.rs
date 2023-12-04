@@ -216,7 +216,7 @@ impl<B: Backend> CTCLoss<B> {
                     ])
                     .reshape([1]);
                 // for the logsumexp calculation
-                let mut m = Tensor::cat(vec![l1.clone(), l2.clone()], 0).max();
+                let mut m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
 
                 if m.clone().equal_elem(NEG_INF).to_data().value[0] {
                     m = Tensor::<B, 1>::from_floats([0.0])
