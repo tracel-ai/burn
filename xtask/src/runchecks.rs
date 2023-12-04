@@ -275,12 +275,17 @@ fn burn_dataset_features_std() {
     endgroup!();
 }
 
-// Test burn-candle with accelerate (macOS only)
-// Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
+// macOS only checks
 #[cfg(target_os = "macos")]
-fn burn_candle_accelerate() {
+fn macos_checks() {
+    // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
     group!("Checks: burn-candle (accelerate)");
     cargo_test(["-p", "burn-candle", "--features", "accelerate"].into());
+    endgroup!();
+
+    // Leverages the macOS Accelerate framework: https://developer.apple.com/documentation/accelerate
+    group!("Checks: burn-ndarray (accelerate)");
+    cargo_test(["-p", "burn-ndarray", "--features", "blas-accelerate"].into());
     endgroup!();
 }
 
@@ -328,7 +333,7 @@ fn std_checks() {
 
     // Test burn-candle with accelerate (macOS only)
     #[cfg(target_os = "macos")]
-    burn_candle_accelerate();
+    macos_checks();
 
     // Test burn-dataset features
     burn_dataset_features_std();
