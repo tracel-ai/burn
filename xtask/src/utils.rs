@@ -4,6 +4,7 @@ use std::{process::Command, time::Duration};
 pub(crate) enum WorkspaceMemberType {
     Crate,
     Example,
+    Both,
 }
 
 #[derive(Debug)]
@@ -39,25 +40,20 @@ pub(crate) fn get_workspaces(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember
             let (workspace_name, workspace_path) =
                 (parts.first()?.to_owned(), parts.last()?.to_owned());
 
+            if workspace_name == "xtask" {
+                return None;
+            }
+
             let workspace_path = workspace_path.replace("(path+file://", "").replace(')', "");
 
+            let member = Some(WorkspaceMember::new(
+                workspace_name.to_string(),
+                workspace_path.to_string(),
+            ));
             match w_type {
-                WorkspaceMemberType::Crate
-                    if workspace_name != "xtask" && !workspace_path.contains("examples/") =>
-                {
-                    Some(WorkspaceMember::new(
-                        workspace_name.to_string(),
-                        workspace_path.to_string(),
-                    ))
-                }
-                WorkspaceMemberType::Example
-                    if workspace_name != "xtask" && workspace_path.contains("examples/") =>
-                {
-                    Some(WorkspaceMember::new(
-                        workspace_name.to_string(),
-                        workspace_path.to_string(),
-                    ))
-                }
+                WorkspaceMemberType::Crate if !workspace_path.contains("examples/") => member,
+                WorkspaceMemberType::Example if workspace_path.contains("examples/") => member,
+                WorkspaceMemberType::Both => member,
                 _ => None,
             }
         })

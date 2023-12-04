@@ -71,13 +71,41 @@ fn run_cargo_with_path<P: AsRef<Path>>(
     path: Option<P>,
     error: &str,
 ) {
+    let nightly = match path.as_ref() {
+        None => vec![],
+        Some(p) => {
+            if p.as_ref()
+                .to_str()
+                .unwrap()
+                .ends_with("examples/train-web/train")
+            {
+                vec!["+nightly-2023-07-01"]
+            } else {
+                vec![]
+            }
+        }
+    };
     // Print cargo command
-    info!("cargo {} {}\n", command, params);
+    info!(
+        "{}cargo{} {} {}\n",
+        match path.as_ref() {
+            None => "".to_string(),
+            Some(p) => p.as_ref().to_str().unwrap().to_string() + " $ ",
+        },
+        if nightly.is_empty() {
+            "".to_string()
+        } else {
+            " ".to_string() + nightly[0]
+        },
+        command,
+        params
+    );
 
     // Run cargo
     let mut cargo = Command::new("cargo");
     cargo
         .env("CARGO_INCREMENTAL", "0")
+        .args(nightly)
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
@@ -139,18 +167,39 @@ fn cargo_clippy() {
     if std::env::var("CI").is_ok() {
         return;
     }
-    // Run cargo clippy
-    run_cargo(
-        "clippy",
-        ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
-        "Failed to run cargo clippy",
-    );
+    for workspace in get_workspaces(WorkspaceMemberType::Both) {
+        if vec![
+            "burn-no-std-tests",
+            "image-classification-web",
+            "mnist-inference-web",
+            "train-web",
+        ]
+        .into_iter()
+        .collect::<String>()
+        .contains(&workspace.name)
+        {
+            continue;
+        }
+        // Run cargo clippy
+        run_cargo_with_path(
+            "clippy",
+            ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
+            Some(workspace.path),
+            "Failed to run cargo clippy",
+        );
+    }
 }
 
 // Run cargo doc command
 fn cargo_doc(params: Params) {
-    // Run cargo doc
-    run_cargo("doc", params + "--color=always", "Failed to run cargo doc");
+    for workspace in get_workspaces(WorkspaceMemberType::Both) {
+        run_cargo_with_path(
+            "doc",
+            (params.clone() + ["--no-deps", "--color=always"]).into(),
+            Some(workspace.path),
+            "Failed to run cargo doc",
+        );
+    }
 }
 
 // Build and test a crate in a no_std environment
@@ -301,7 +350,7 @@ fn std_checks() {
 
     // Produce documentation for each workspace
     group!("Docs: workspaces");
-    cargo_doc(["--workspace"].into());
+    cargo_doc([].into());
     endgroup!();
 
     // Setup code coverage
@@ -444,6 +493,7 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Clone)]
 struct Params {
     params: Vec<String>,
 }
