@@ -116,7 +116,7 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: run checks & tests
-        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} CI_RUN=1 cargo xtask run-checks ${{ matrix.test }}
+        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
         if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
@@ -145,4 +145,4 @@ jobs:
           tar xz -C $HOME/.cargo/bin
 
       - name: run spelling checks using typos
-        run: CI_RUN=1 cargo xtask run-checks typos
+        run: cargo xtask run-checks typos

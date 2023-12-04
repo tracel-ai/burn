@@ -1,5 +1,5 @@
 <div align="center">
-<img src="./assets/logo-burn-neutral.webp" width="350px"/>
+<img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/logo-burn-neutral.webp" width="350px"/>
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
@@ -21,7 +21,7 @@
 ## Performance
 
 <div align="left">
-<img align="right" src="./assets/ember-blazingly-fast.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-blazingly-fast.png" height="96px"/>
 
 Because we believe the goal of a deep learning framework is to convert computation into useful intelligence, we have made performance a core pillar of Burn.
 We strive to achieve top efficiency by leveraging multiple optimization techniques described below.
@@ -156,7 +156,7 @@ See [this section](https://burn.dev/book/advanced/backend-extension/index.html) 
 ## Training & Inference
 
 <div align="left">
-<img align="right" src="./assets/ember-wall.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-wall.png" height="96px"/>
 
 The whole deep learning workflow is made easy with Burn, as you can monitor your training progress with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU clusters.
 
@@ -169,7 +169,7 @@ Burn was built from the ground up with training and inference in mind. It's also
 <br />
 
 <a href="https://www.youtube.com/watch?v=N9RM5CQbNQc" target="_blank">
-    <img src="./assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
+    <img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
   </a>
 </div>
 
@@ -238,7 +238,7 @@ Burn's core components support [no_std](https://docs.rust-embedded.org/book/intr
 ## Backends
 
 <div align="left">
-<img align="right" src="./assets/backend-chip.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
 We believe this flexibility is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
 </div>
@@ -390,7 +390,7 @@ See the [Fusion Backend README](./burn-fusion/README.md) for more details.
 ## Getting Started
 
 <div align="left">
-<img align="right" src="./assets/ember-walking.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-walking.png" height="96px"/>
 
 Just heard of Burn? You are at the right place! Just continue reading this section and we hope you can get on board really quickly.
 
@@ -491,7 +491,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 ## Community
 
 <div align="left">
-<img align="right" src="./assets/ember-community.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-community.png" height="96px"/>
 
 If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/uPEBbYYDB6)!
 We try to be as welcoming as possible to everybody from any background.

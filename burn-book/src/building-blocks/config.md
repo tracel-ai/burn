@@ -41,8 +41,8 @@ fn main() {
 
 ## Good practices
 
-The interest of the Config pattern is to be able to easily create instances, factoried from this
-config. In that optic, initialization methods should be implemented on the config struct.
+By using the Config pattern it is easy to create instances from this
+config. Therefore, initialization methods should be implemented on the config struct.
 
 ```rust, ignore
 impl MyModuleConfig {
@@ -70,5 +70,5 @@ impl MyModuleConfig {
 Then we could add this line to the above `main`:
 
 ```rust, ignore
-let my_module = config.init()
+let my_module = config.init();
 ```
