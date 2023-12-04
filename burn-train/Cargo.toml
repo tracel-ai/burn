@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "burn-train"
 readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-train"
-version = "0.11.1"
+version = "0.12.0"
 
 [features]
 default = ["metrics", "tui"]
@@ -16,7 +16,7 @@ metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.11.1", features = ["dataset"] }
+burn-core = { path = "../burn-core", version = "0.12.0", features = ["dataset"] }
 
 log = { workspace = true }
 tracing-subscriber.workspace = true
@@ -37,4 +37,4 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.11.1" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
