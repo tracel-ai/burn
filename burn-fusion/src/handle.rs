@@ -119,7 +119,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub(crate) fn cleanup(&mut self, tensor: &TensorDescription) {
+    pub(crate) fn free(&mut self, tensor: &TensorDescription) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
@@ -129,9 +129,18 @@ impl<B: FusionBackend> HandleContainer<B> {
         }
     }
 
-    pub(crate) fn cleanup_orphans(&mut self) {
+    pub(crate) fn free_orphans(&mut self, remaining: &[&TensorId]) {
+        let mut handles_orphan = Vec::new();
+
+        // TODO: Optimization => Change the for loop order depending of the length of each.
         for id in self.handles_orphan.drain(..) {
-            self.handles.remove(&id);
+            if remaining.contains(&&id) {
+                handles_orphan.push(id);
+            } else {
+                self.handles.remove(&id);
+            }
         }
+
+        self.handles_orphan = handles_orphan;
     }
 }

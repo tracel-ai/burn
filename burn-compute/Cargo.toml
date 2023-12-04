@@ -25,7 +25,7 @@ channel-mpsc = [] # Assume std
 storage-bytes = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.11.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.12.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
