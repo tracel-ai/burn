@@ -1,8 +1,8 @@
 # Model
 
-The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml` file,
-add the `burn` dependency with `train` and `wgpu` features. Note that the `serde` dependency is also mandatory
-for the time being, as it is needed for serialization.
+The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml`
+file, add the `burn` dependency with `train` and `wgpu` features. Note that the `serde` dependency
+is also mandatory for the time being, as it is needed for serialization.
 
 ```toml
 [package]
@@ -11,7 +11,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.11.0", features=["train", "wgpu"]}
+burn = { version = "0.11.1", features=["train", "wgpu"]}
 
 # Serialization
 serde = "1"
@@ -60,9 +60,9 @@ There are two major things going on in this code sample.
    backend. Contrary to other frameworks, the backend abstraction isn't determined by a compilation
    flag or a device type. This is important because you can extend the functionalities of a specific
    backend (see [backend extension section](../advanced/backend-extension)), and it allows for an
-   innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during runtime, for instance to compute
-   training metrics on a cpu backend while using a gpu one only to train the model. In our example,
-   the backend in use will be determined later on.
+   innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during
+   runtime, for instance to compute training metrics on a cpu backend while using a gpu one only to
+   train the model. In our example, the backend in use will be determined later on.
 
 Next, we need to instantiate the model for training.
 
