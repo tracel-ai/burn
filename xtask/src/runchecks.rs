@@ -48,11 +48,11 @@ fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &
 }
 
 // Define and run rustup command
-fn rustup(command: &str, target: &str) {
-    group!("Rustup: {} add {}", command, target);
+fn rustup(args: &[&str]) {
+    group!("rustup {}", args.join(" "));
     run_command(
         "rustup",
-        &[command, "add", target],
+        args,
         "Failed to run rustup",
         "Failed to wait for rustup child process",
     );
@@ -240,7 +240,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
 // Setup code coverage
 fn setup_coverage() {
     // Install llvm-tools-preview
-    rustup("component", "llvm-tools-preview");
+    rustup(&["component", "add", "llvm-tools-preview"]);
 
     // Set coverage environment variables
     env::set_var("RUSTFLAGS", "-Cinstrument-coverage");
@@ -275,10 +275,10 @@ fn run_grcov() {
 // Run no_std checks
 fn no_std_checks() {
     // Install wasm32 target
-    rustup("target", WASM32_TARGET);
+    rustup(&["target", "add", WASM32_TARGET]);
 
     // Install ARM target
-    rustup("target", ARM_TARGET);
+    rustup(&["target", "add", ARM_TARGET]);
 
     // Run checks for the following crates
     build_and_test_no_std("burn", []);
@@ -419,6 +419,13 @@ fn check_typos() {
 }
 
 fn check_examples() {
+    rustup(&[
+        "component",
+        "add",
+        "rust-src",
+        "--toolchain",
+        "nightly-2023-07-01-x86_64-unknown-linux-gnu",
+    ]);
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
         if workspace.name == "notebook" || workspace.name == "train-web" {
