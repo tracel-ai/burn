@@ -29,6 +29,7 @@ wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 wasm-logger = { workspace = true }
 wasm-timer = { workspace = true }
+console_error_panic_hook = { workspace = true }
 
 [build-dependencies]
 # Used to generate code from ONNX model

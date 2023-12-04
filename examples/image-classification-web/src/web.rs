@@ -1,5 +1,7 @@
 #![allow(clippy::new_without_default)]
 
+extern crate console_error_panic_hook;
+
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -51,6 +53,7 @@ impl ImageClassifier {
     pub fn new() -> Self {
         // Initialize the logger so that the logs are printed to the console
         wasm_logger::init(wasm_logger::Config::default());
+        console_error_panic_hook::set_once();
 
         log::info!("Initializing the image classifier");
 

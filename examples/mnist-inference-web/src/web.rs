@@ -4,6 +4,9 @@ use alloc::string::String;
 use js_sys::Array;
 
 #[cfg(target_family = "wasm")]
+extern crate console_error_panic_hook;
+
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::model::Model;
@@ -23,6 +26,7 @@ impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
+        console_error_panic_hook::set_once();
         Self { model: None }
     }
 
