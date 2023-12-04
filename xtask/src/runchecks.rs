@@ -73,7 +73,7 @@ fn rustup(command: &str, target: &str) {
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str, exclude: Vec<&str>) {
     // Separate out packages to prevent feature unification https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2:~:text=When%20building%20multiple,separate%20cargo%20invocations.
-    let packages = if params.params.contains(&String::from("-p")) {
+    let package_dirs = if params.params.contains(&String::from("-p")) {
         vec![String::from(".")]
     } else {
         get_package_dirs("./**/Cargo.toml")
@@ -83,13 +83,29 @@ fn run_cargo(command: &str, params: Params, error: &str, exclude: Vec<&str>) {
             .collect::<Vec<_>>()
     };
 
-    for p in packages {
+    for package_dir in package_dirs {
+        let nightly = if package_dir == "examples/train-web/train" {
+            vec!["+nightly-2023-07-01"]
+        } else {
+            vec![]
+        };
         // Print cargo command
-        println!("\n{} $ cargo {} {}\n", p, command, params);
+        println!(
+            "\n{} $ cargo{} {} {}\n",
+            package_dir,
+            if nightly.is_empty() {
+                "".to_string()
+            } else {
+                " ".to_string() + nightly[0]
+            },
+            command,
+            params
+        );
         // Run cargo
         let cargo = Command::new("cargo")
             .env("CARGO_INCREMENTAL", "0")
-            .current_dir(p)
+            .current_dir(package_dir)
+            .args(nightly)
             .arg(command)
             .args(&params.params)
             .stdout(Stdio::inherit()) // Send stdout directly to terminal
@@ -346,19 +362,15 @@ fn std_checks() {
     );
 
     // Build each package
-    let mut exclude = if disable_wgpu {
+    let exclude = if disable_wgpu {
         vec!["burn-wgpu"]
     } else {
         vec![]
     };
-    exclude.push("examples/train-web/train");
     cargo_build_excluding([].into(), exclude);
 
     // Produce documentation for each package
-    cargo_doc_excluding(
-        [].into(),
-        ["burn-no-std-tests", "examples/train-web/train"].into(),
-    );
+    cargo_doc_excluding([].into(), ["burn-no-std-tests"].into());
 
     // Setup code coverage
     if is_coverage {
