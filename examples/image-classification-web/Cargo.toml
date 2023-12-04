@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "image-classification-web"
 publish = false
-version = "0.11.0"
+version = "0.11.1"
 
 [lib]
 crate-type = ["cdylib"]
@@ -14,11 +14,11 @@ default = []
 half_precision = []
 
 [dependencies]
-burn = { path = "../../burn", version = "0.11.0", default-features = false, features = [
+burn = { path = "../../burn", version = "0.11.1", default-features = false, features = [
     "ndarray",
 ] }
-burn-wgpu = { path = "../../burn-wgpu", version = "0.11.0", default-features = false }
-burn-candle = { path = "../../burn-candle", version = "0.11.0", default-features = false }
+burn-wgpu = { path = "../../burn-wgpu", version = "0.11.1", default-features = false }
+burn-candle = { path = "../../burn-candle", version = "0.11.1", default-features = false }
 
 js-sys = { workspace = true }
 log = { workspace = true }
