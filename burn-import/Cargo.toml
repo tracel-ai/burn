@@ -10,15 +10,15 @@ name = "burn-import"
 readme = "README.md"
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-import"
 
-version = "0.11.1"
+version = "0.12.0"
 
 [features]
 default = ["onnx"]
 onnx = []
 
 [dependencies]
-burn = { path = "../burn", version = "0.11.1" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.11.1" }
+burn = { path = "../burn", version = "0.12.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }

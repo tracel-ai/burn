@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "text-generation"
 publish = false
-version = "0.11.1"
+version = "0.12.0"
 
 [features]
 default = ["burn/dataset", "burn/sqlite-bundled"]
