@@ -34,11 +34,11 @@ Now let's create a simple `infer` method in which we will load our trained model
 
 ```rust , ignore
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem) {
-    let config =
-        TrainingConfig::load(format!("{artifact_dir}/config.json")).expect("A config exists");
+    let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
+        .expect("Config should exist for the model");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into())
-        .expect("Failed to load trained model");
+        .expect("Trained model should exist");
 
     let model = config.model.init_with::<B>(record).to_device(&device);
 
