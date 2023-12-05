@@ -1,7 +1,5 @@
 #![allow(clippy::new_without_default)]
 
-extern crate console_error_panic_hook;
-
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -21,6 +19,13 @@ use burn_wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 use wasm_timer::Instant;
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    // Initialize the logger so that the logs are printed to the console
+    console_error_panic_hook::set_once();
+    wasm_logger::init(wasm_logger::Config::default());
+}
 
 #[allow(clippy::large_enum_variant)]
 /// The model is loaded to a specific backend
@@ -51,10 +56,6 @@ impl ImageClassifier {
     /// Constructor called by JavaScripts with the new keyword.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        // Initialize the logger so that the logs are printed to the console
-        wasm_logger::init(wasm_logger::Config::default());
-        console_error_panic_hook::set_once();
-
         log::info!("Initializing the image classifier");
 
         Self {

@@ -4,15 +4,17 @@ use alloc::string::String;
 use js_sys::Array;
 
 #[cfg(target_family = "wasm")]
-extern crate console_error_panic_hook;
-
-#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::model::Model;
 use crate::state::{build_and_load_model, Backend};
 
 use burn::tensor::Tensor;
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen(start))]
+pub fn start() {
+    console_error_panic_hook::set_once();
+}
 
 /// Mnist structure that corresponds to JavaScript class.
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
