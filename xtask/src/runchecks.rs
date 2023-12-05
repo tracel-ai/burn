@@ -423,7 +423,7 @@ fn check_examples() {
     rustup(&["+nightly-2023-07-01", "component", "add", "rust-src"]);
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
-        if workspace.name == "notebook" || workspace.name == "train-web" {
+        if workspace.name == "notebook" {
             continue;
         }
 
