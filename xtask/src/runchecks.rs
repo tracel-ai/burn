@@ -79,6 +79,7 @@ fn run_cargo_with_path<P: AsRef<Path>>(
                 .unwrap()
                 .ends_with("examples/train-web/train")
             {
+                rustup(&["+nightly-2023-07-01", "component", "add", "rust-src"]);
                 vec!["+nightly-2023-07-01"]
             } else {
                 vec![]
