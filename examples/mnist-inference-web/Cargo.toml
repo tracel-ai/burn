@@ -20,7 +20,8 @@ burn = { path = "../../burn", default-features = false }
 serde = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-js-sys = "0.3.65"
+js-sys = { workspace = true }
+console_error_panic_hook = { workspace = true }
 
 [dev-dependencies]
 pollster = { workspace = true }
