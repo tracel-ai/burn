@@ -59,6 +59,16 @@ fn rustup(args: &[&str]) {
     endgroup!();
 }
 
+fn add_nightly() {
+    rustup(&[
+        "component",
+        "add",
+        "rust-src",
+        "--toolchain",
+        "nightly-2023-07-01",
+    ])
+}
+
 // Define and run a cargo command
 fn run_cargo(command: &str, params: Params, error: &str) {
     run_cargo_with_path::<String>(command, params, None, error)
@@ -79,13 +89,7 @@ fn run_cargo_with_path<P: AsRef<Path>>(
                 .unwrap()
                 .ends_with("examples/train-web/train")
             {
-                rustup(&[
-                    "component",
-                    "add",
-                    "rust-src",
-                    "--toolchain",
-                    "nightly-2023-07-01",
-                ]);
+                add_nightly();
                 vec!["+nightly-2023-07-01"]
             } else {
                 vec![]
@@ -426,13 +430,7 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    rustup(&[
-        "component",
-        "add",
-        "rust-src",
-        "--toolchain",
-        "nightly-2023-07-01",
-    ]);
+    add_nightly();
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
         if workspace.name == "notebook" {
