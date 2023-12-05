@@ -193,7 +193,7 @@ fn cargo_clippy() {
 
 // Run cargo doc command
 fn cargo_doc(params: Params) {
-    for workspace in get_workspaces(WorkspaceMemberType::Both) {
+    for workspace in get_workspaces(WorkspaceMemberType::Crate) {
         run_cargo_with_path(
             "doc",
             (params.clone() + ["--no-deps", "--color=always"]).into(),
