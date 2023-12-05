@@ -75,7 +75,7 @@ impl<B: Backend> CTCLoss<B> {
         let target_with_blank_length = 2 * max_target_length + 1;
 
         let mut log_alphas =
-            Tensor::<B, 3>::zeros([batch_size, seq_length, target_with_blank_length]);
+            Tensor::<B, 3>::empty([batch_size, seq_length, target_with_blank_length]);
         log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..target_with_blank_length],
             Tensor::<B, 3>::full([batch_size, 1, target_with_blank_length], NEG_INF),
@@ -113,7 +113,7 @@ impl<B: Backend> CTCLoss<B> {
             if target_length > 0 {
                 let target_prime = Self::get_target_prime(target_data.clone(), 1, self.blank);
                 log_alphas = log_alphas.slice_assign(
-                    [b..(b + 1), 0..1, 0..1],
+                    [b..(b + 1), 0..1, 1..2],
                     log_probs
                         .clone()
                         .slice([b..(b + 1), 0..1, target_prime..(target_prime + 1)]),
@@ -296,6 +296,8 @@ impl<B: Backend> CTCLoss<B> {
 
 #[cfg(test)]
 mod test {
+    use burn_tensor::Data;
+
     use super::*;
     use crate::TestBackend;
 
@@ -396,7 +398,7 @@ mod test {
         let target = Tensor::<TestBackend, 1, Int>::from_data([3, 4, 7, 6, 3, 7, 3, 6, 2]);
         let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([30]);
         let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([9]);
-        let _expected_res = 47.73889923095703;
+        let expected_res = Data::from([47.73889923095703]);
 
         let ctc_loss = CTCLoss::<TestBackend>::new(0);
         let res = ctc_loss.forward(
@@ -407,7 +409,7 @@ mod test {
             Some(Reduction::Sum),
         );
 
-        // 47.061913
-        res.to_data().assert_within_range(47..49);
+        // 47.7376
+        res.to_data().assert_approx_eq(&expected_res, 2);
     }
 }
