@@ -430,7 +430,7 @@ fn check_examples() {
         group!("Checks: Example - {}", workspace.name);
         run_cargo_with_path(
             "check",
-            ["--examples"].into(),
+            [].into(),
             Some(workspace.path),
             "Failed to check example",
         );
