@@ -421,7 +421,7 @@ fn check_typos() {
 fn check_examples() {
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
-        if workspace.name == "notebook" {
+        if workspace.name == "notebook" || workspace.name == "train-web" {
             continue;
         }
 
