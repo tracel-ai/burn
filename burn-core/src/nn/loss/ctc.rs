@@ -103,11 +103,10 @@ impl<B: Backend> CTCLoss<B> {
         );
         let mut neg_log_likelihood = Tensor::<B, 1>::zeros([batch_size]);
 
-        for t in 1..seq_length {
-            for s in 0..target_with_blank_length {
-                let current_target_prime =
-                    Self::get_target_primes(targets_pad.clone(), s, self.blank);
+        for s in 0..target_with_blank_length {
+            let current_target_primes = Self::get_target_primes(targets_pad.clone(), s, self.blank);
 
+            for t in 1..seq_length {
                 // \alpha_{t-1}(s)
                 let la1 = log_alphas
                     .clone()
@@ -135,7 +134,7 @@ impl<B: Backend> CTCLoss<B> {
                     // \alpha_{t-1}(s-2)
                     la3 = la3.mask_where(
                         Self::get_target_primes(targets_pad.clone(), s - 2, self.blank)
-                            .equal(current_target_prime.clone())
+                            .equal(current_target_primes.clone())
                             .bool_not(),
                         log_alphas
                             .clone()
@@ -163,7 +162,7 @@ impl<B: Backend> CTCLoss<B> {
                         + log_probs
                             .clone()
                             .slice([0..batch_size, t..(t + 1), 0..num_classes])
-                            .gather(2, current_target_prime.clone().reshape([batch_size, 1, 1]))
+                            .gather(2, current_target_primes.clone().reshape([batch_size, 1, 1]))
                             .reshape([batch_size]))
                     .reshape([batch_size, 1, 1]),
                 );
