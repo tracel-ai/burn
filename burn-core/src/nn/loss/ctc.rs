@@ -2,11 +2,10 @@
 use core::marker::PhantomData;
 
 use burn_tensor::{backend::Backend, ElementConversion, Int, Tensor};
-use half::f16;
 
 use super::Reduction;
 
-const NEG_INF: f16 = f16::NEG_INFINITY;
+const NEG_INF: f32 = -10000.0;
 
 /// The Connectionist Temporal Classification loss.
 #[derive(Clone, Debug)]
@@ -70,161 +69,138 @@ impl<B: Backend> CTCLoss<B> {
             target_lengths.clone(),
         );
 
-        let [batch_size, seq_length, _] = log_probs.dims();
+        let [batch_size, seq_length, num_classes] = log_probs.dims();
         let max_target_length = target_lengths.clone().max().into_scalar().elem::<u32>() as usize;
         let target_with_blank_length = 2 * max_target_length + 1;
 
+        let targets_pad = Self::pad_target(
+            targets.clone(),
+            target_lengths.clone(),
+            max_target_length,
+            self.blank,
+        );
+
         let mut log_alphas =
             Tensor::<B, 3>::empty([batch_size, seq_length, target_with_blank_length]);
+        // initialize value at t0
         log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..target_with_blank_length],
             Tensor::<B, 3>::full([batch_size, 1, target_with_blank_length], NEG_INF),
         );
+        log_alphas = log_alphas.slice_assign(
+            [0..batch_size, 0..1, 0..1],
+            log_probs
+                .clone()
+                .slice([0..batch_size, 0..1, self.blank..(self.blank + 1)]),
+        );
+        let target_primes = Self::get_target_primes(targets_pad.clone(), 1, self.blank);
+        log_alphas = log_alphas.slice_assign(
+            [0..batch_size, 0..1, 1..2],
+            log_probs
+                .clone()
+                .slice([0..batch_size, 0..1, 0..num_classes])
+                .gather(2, target_primes.reshape([batch_size, 1, 1])),
+        );
         let mut neg_log_likelihood = Tensor::<B, 1>::zeros([batch_size]);
 
-        let mut target_iter = target_lengths
-            .clone()
-            .iter_dim(0)
-            .scan(0usize, |start, current| {
-                let step = current.into_scalar().elem::<u32>() as usize;
-                let res = targets.clone().slice([*start..(*start + step)]);
-                *start += step;
+        for t in 1..seq_length {
+            for s in 0..target_with_blank_length {
+                let current_target_prime =
+                    Self::get_target_primes(targets_pad.clone(), s, self.blank);
 
-                Some(res)
-            });
-
-        for b in 0..batch_size {
-            let target_data = target_iter.next().unwrap();
-
-            let input_length = input_lengths
-                .clone()
-                .slice([b..(b + 1)])
-                .into_scalar()
-                .elem::<u32>() as usize;
-            let [target_length] = target_data.dims();
-
-            log_alphas = log_alphas.slice_assign(
-                [b..(b + 1), 0..1, 0..1],
-                log_probs
+                // \alpha_{t-1}(s)
+                let la1 = log_alphas
                     .clone()
-                    .slice([b..(b + 1), 0..1, self.blank..(self.blank + 1)]),
-            );
+                    .slice([0..batch_size, (t - 1)..t, s..(s + 1)])
+                    .reshape([batch_size]);
 
-            if target_length > 0 {
-                let target_prime = Self::get_target_prime(target_data.clone(), 1, self.blank);
-                log_alphas = log_alphas.slice_assign(
-                    [b..(b + 1), 0..1, 1..2],
-                    log_probs
-                        .clone()
-                        .slice([b..(b + 1), 0..1, target_prime..(target_prime + 1)]),
-                );
-            }
-
-            for t in 1..input_length {
-                for s in 0..(2 * target_length + 1) {
-                    let current_target_prime =
-                        Self::get_target_prime(target_data.clone(), s, self.blank);
-
-                    // \alpha_{t-1}(s)
-                    let la1 = log_alphas
-                        .clone()
-                        .slice([b..(b + 1), (t - 1)..t, s..(s + 1)])
-                        .reshape([1]);
-                    // for the logsumexp calculation
-                    let mut lamax = la1.clone();
-                    // \alpha_{t-1}(s-1)
-                    let (la2, la3);
-
-                    if s > 0 {
-                        la2 = log_alphas
-                            .clone()
-                            .slice([b..(b + 1), (t - 1)..t, (s - 1)..s])
-                            .reshape([1]);
-                        if la2.clone().greater(lamax.clone()).to_data().value[0] {
-                            lamax = la2.clone();
-                        }
-                    } else {
-                        la2 = Tensor::<B, 1>::full([1], NEG_INF);
-                    }
-
-                    if (s > 1)
-                        && (Self::get_target_prime(target_data.clone(), s - 2, self.blank)
-                            != current_target_prime)
-                    {
-                        // \alpha_{t-1}(s-2)
-                        la3 = log_alphas
-                            .clone()
-                            .slice([b..(b + 1), (t - 1)..t, (s - 2)..(s - 1)])
-                            .reshape([1]);
-                        if la3.clone().greater(lamax.clone()).to_data().value[0] {
-                            lamax = la3.clone();
-                        }
-                    } else {
-                        la3 = Tensor::<B, 1>::full([1], NEG_INF);
-                    }
-
-                    if lamax.clone().equal_elem(NEG_INF).to_data().value[0] {
-                        lamax = Tensor::<B, 1>::from_floats([0.0]);
-                    }
-                    log_alphas = log_alphas.slice_assign(
-                        [b..(b + 1), t..(t + 1), s..(s + 1)],
-                        (((la1 - lamax.clone()).exp()
-                            + (la2 - lamax.clone()).exp()
-                            + (la3 - lamax.clone()).exp())
-                        .log()
-                            + lamax
-                            + log_probs
-                                .clone()
-                                .slice([
-                                    b..(b + 1),
-                                    t..(t + 1),
-                                    current_target_prime..(current_target_prime + 1),
-                                ])
-                                .reshape([1]))
-                        .reshape([1, 1, 1]),
-                    );
-                }
-            }
-
-            // the likelihood is the sum of the last two alphas,
-            // the loss is the negative log likelihood
-            if target_length == 0 {
-                // if the target is empty then there is no preceding BLANK
-                // state and hence there is no path to merge
-                neg_log_likelihood = neg_log_likelihood.slice_assign(
-                    [b..(b + 1)],
-                    -log_alphas
-                        .clone()
-                        .slice([b..(b + 1), (input_length - 1)..input_length, 0..1])
-                        .reshape([1]),
-                );
-            } else {
-                let l1 = log_alphas
-                    .clone()
-                    .slice([
-                        b..(b + 1),
-                        (input_length - 1)..input_length,
-                        (target_length * 2)..(target_length * 2 + 1),
-                    ])
-                    .reshape([1]);
-                let l2 = log_alphas
-                    .clone()
-                    .slice([
-                        b..(b + 1),
-                        (input_length - 1)..input_length,
-                        (target_length * 2 - 1)..(target_length * 2),
-                    ])
-                    .reshape([1]);
                 // for the logsumexp calculation
-                let mut m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
+                let mut lamax = la1.clone();
 
-                if m.clone().equal_elem(NEG_INF).to_data().value[0] {
-                    m = Tensor::<B, 1>::from_floats([0.0])
-                };
-                let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp()).log() + m;
-                neg_log_likelihood = neg_log_likelihood.slice_assign([b..(b + 1)], -log_likelihood);
+                // \alpha_{t-1}(s-1)
+                let mut la2 = Tensor::<B, 1>::full([batch_size], NEG_INF);
+                if s > 0 {
+                    la2 = log_alphas
+                        .clone()
+                        .slice([0..batch_size, (t - 1)..t, (s - 1)..s])
+                        .reshape([batch_size]);
+
+                    lamax = lamax
+                        .clone()
+                        .mask_where(la2.clone().greater(lamax.clone()), la2.clone());
+                }
+
+                let mut la3 = Tensor::<B, 1>::full([batch_size], NEG_INF);
+                if s > 1 {
+                    // \alpha_{t-1}(s-2)
+                    la3 = la3.mask_where(
+                        Self::get_target_primes(targets_pad.clone(), s - 2, self.blank)
+                            .equal(current_target_prime.clone())
+                            .bool_not(),
+                        log_alphas
+                            .clone()
+                            .slice([0..batch_size, (t - 1)..t, (s - 2)..(s - 1)])
+                            .reshape([batch_size]),
+                    );
+
+                    lamax = lamax
+                        .clone()
+                        .mask_where(la3.clone().greater(lamax.clone()), la3.clone());
+                }
+
+                lamax = lamax
+                    .clone()
+                    .mask_fill(lamax.clone().lower_equal_elem(NEG_INF), 0.0);
+
+                log_alphas = log_alphas.slice_assign(
+                    [0..batch_size, t..(t + 1), s..(s + 1)],
+                    (((la1.clone() - lamax.clone()).exp()
+                        + (la2.clone() - lamax.clone()).exp()
+                        + (la3.clone() - lamax.clone()).exp())
+                    .log()
+                    .clamp_min(NEG_INF)
+                        + lamax.clone()
+                        + log_probs
+                            .clone()
+                            .slice([0..batch_size, t..(t + 1), 0..num_classes])
+                            .gather(2, current_target_prime.clone().reshape([batch_size, 1, 1]))
+                            .reshape([batch_size]))
+                    .reshape([batch_size, 1, 1]),
+                );
             }
         }
+
+        let l1 = log_alphas
+            .clone()
+            .gather(
+                1,
+                (input_lengths.clone() - 1)
+                    .reshape([batch_size, 1, 1])
+                    .repeat(2, target_with_blank_length),
+            )
+            .gather(2, (target_lengths.clone() * 2).reshape([batch_size, 1, 1]))
+            .reshape([batch_size]);
+        let l2 = log_alphas
+            .clone()
+            .gather(
+                1,
+                (input_lengths.clone() - 1)
+                    .reshape([batch_size, 1, 1])
+                    .repeat(2, target_with_blank_length),
+            )
+            .gather(
+                2,
+                (target_lengths.clone() * 2 - 1).reshape([batch_size, 1, 1]),
+            )
+            .reshape([batch_size]);
+        // for the logsumexp calculation
+        let mut m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
+
+        if m.clone().lower_equal_elem(NEG_INF).to_data().value[0] {
+            m = Tensor::<B, 1>::from_floats([0.0])
+        };
+        let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp()).log() + m;
+        neg_log_likelihood = neg_log_likelihood.slice_assign([0..batch_size], -log_likelihood);
 
         match reduction {
             Some(Reduction::Mean) | Some(Reduction::Auto) => {
@@ -235,15 +211,45 @@ impl<B: Backend> CTCLoss<B> {
         }
     }
 
-    fn get_target_prime(target_data: Tensor<B, 1, Int>, idx: usize, blank: usize) -> usize {
+    fn get_target_primes(
+        targets_pad: Tensor<B, 2, Int>,
+        idx: usize,
+        blank: usize,
+    ) -> Tensor<B, 1, Int> {
+        let [batch_size, _] = targets_pad.dims();
+
         if idx % 2 == 0 {
-            blank
+            Tensor::<B, 1, Int>::full([batch_size], blank as i32)
         } else {
-            target_data
-                .slice([(idx / 2)..(idx / 2 + 1)])
-                .into_scalar()
-                .elem::<u32>() as usize
+            targets_pad
+                .slice([0..batch_size, (idx / 2)..(idx / 2 + 1)])
+                .squeeze(1)
         }
+    }
+
+    fn pad_target(
+        targets: Tensor<B, 1, Int>,
+        target_lengths: Tensor<B, 1, Int>,
+        max_target_length: usize,
+        blank: usize,
+    ) -> Tensor<B, 2, Int> {
+        let [batch_size] = target_lengths.dims();
+
+        let mut targets_pad =
+            Tensor::<B, 2, Int>::full([batch_size, max_target_length], blank as i32);
+        let mut start = 0usize;
+        for (batch, length) in target_lengths.iter_dim(0).enumerate() {
+            let length = length.into_scalar().elem::<u32>() as usize;
+
+            targets_pad = targets_pad.clone().slice_assign(
+                [batch..(batch + 1), 0..length],
+                targets.clone().slice([start..(start + length)]).unsqueeze(),
+            );
+
+            start += length
+        }
+
+        targets_pad
     }
 
     fn assertions(
