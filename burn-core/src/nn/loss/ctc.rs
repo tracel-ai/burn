@@ -69,6 +69,10 @@ impl<B: Backend> CTCLoss<B> {
             target_lengths.clone(),
         );
 
+        let device = log_probs.device();
+        let input_lengths = input_lengths.to_device(&device);
+        let target_lengths = target_lengths.to_device(&device);
+
         let [batch_size, seq_length, num_classes] = log_probs.dims();
         let max_target_length = target_lengths.clone().max().into_scalar().elem::<u32>() as usize;
         let target_with_blank_length = 2 * max_target_length + 1;
@@ -78,14 +82,21 @@ impl<B: Backend> CTCLoss<B> {
             target_lengths.clone(),
             max_target_length,
             self.blank,
+            &device,
         );
 
-        let mut log_alphas =
-            Tensor::<B, 3>::empty([batch_size, seq_length, target_with_blank_length]);
+        let mut log_alphas = Tensor::<B, 3>::empty_device(
+            [batch_size, seq_length, target_with_blank_length],
+            &device,
+        );
         // initialize value at t0
         log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..target_with_blank_length],
-            Tensor::<B, 3>::full([batch_size, 1, target_with_blank_length], NEG_INF),
+            Tensor::<B, 3>::full_device(
+                [batch_size, 1, target_with_blank_length],
+                NEG_INF,
+                &device,
+            ),
         );
         log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..1],
@@ -101,7 +112,7 @@ impl<B: Backend> CTCLoss<B> {
                 .slice([0..batch_size, 0..1, 0..num_classes])
                 .gather(2, target_primes.reshape([batch_size, 1, 1])),
         );
-        let mut neg_log_likelihood = Tensor::<B, 1>::zeros([batch_size]);
+        let mut neg_log_likelihood = Tensor::<B, 1>::zeros_device([batch_size], &device);
 
         for s in 0..target_with_blank_length {
             let current_target_primes = Self::get_target_primes(targets_pad.clone(), s, self.blank);
@@ -117,7 +128,7 @@ impl<B: Backend> CTCLoss<B> {
                 let mut lamax = la1.clone();
 
                 // \alpha_{t-1}(s-1)
-                let mut la2 = Tensor::<B, 1>::full([batch_size], NEG_INF);
+                let mut la2 = Tensor::<B, 1>::full_device([batch_size], NEG_INF, &device);
                 if s > 0 {
                     la2 = log_alphas
                         .clone()
@@ -129,9 +140,9 @@ impl<B: Backend> CTCLoss<B> {
                         .mask_where(la2.clone().greater(lamax.clone()), la2.clone());
                 }
 
-                let mut la3 = Tensor::<B, 1>::full([batch_size], NEG_INF);
+                // \alpha_{t-1}(s-2)
+                let mut la3 = Tensor::<B, 1>::full_device([batch_size], NEG_INF, &device);
                 if s > 1 {
-                    // \alpha_{t-1}(s-2)
                     la3 = la3.mask_where(
                         Self::get_target_primes(targets_pad.clone(), s - 2, self.blank)
                             .equal(current_target_primes.clone())
@@ -196,7 +207,7 @@ impl<B: Backend> CTCLoss<B> {
         let mut m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
 
         if m.clone().lower_equal_elem(NEG_INF).to_data().value[0] {
-            m = Tensor::<B, 1>::from_floats([0.0])
+            m = Tensor::<B, 1>::full_device([1], 0.0, &device);
         };
         let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp()).log() + m;
         neg_log_likelihood = neg_log_likelihood.slice_assign([0..batch_size], -log_likelihood);
@@ -215,10 +226,11 @@ impl<B: Backend> CTCLoss<B> {
         idx: usize,
         blank: usize,
     ) -> Tensor<B, 1, Int> {
+        let device = targets_pad.device();
         let [batch_size, _] = targets_pad.dims();
 
         if idx % 2 == 0 {
-            Tensor::<B, 1, Int>::full([batch_size], blank as i32)
+            Tensor::<B, 1, Int>::full_device([batch_size], blank as i32, &device)
         } else {
             targets_pad
                 .slice([0..batch_size, (idx / 2)..(idx / 2 + 1)])
@@ -231,11 +243,15 @@ impl<B: Backend> CTCLoss<B> {
         target_lengths: Tensor<B, 1, Int>,
         max_target_length: usize,
         blank: usize,
+        device: &B::Device,
     ) -> Tensor<B, 2, Int> {
         let [batch_size] = target_lengths.dims();
 
-        let mut targets_pad =
-            Tensor::<B, 2, Int>::full([batch_size, max_target_length], blank as i32);
+        let mut targets_pad = Tensor::<B, 2, Int>::full_device(
+            [batch_size, max_target_length],
+            blank as i32,
+            &device,
+        );
         let mut start = 0usize;
         for (batch, length) in target_lengths.iter_dim(0).enumerate() {
             let length = length.into_scalar().elem::<u32>() as usize;
