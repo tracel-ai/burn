@@ -203,12 +203,10 @@ impl<B: Backend> CTCLoss<B> {
                 (target_lengths.clone() * 2 - 1).reshape([batch_size, 1, 1]),
             )
             .reshape([batch_size]);
-        // for the logsumexp calculation
-        let mut m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
 
-        if m.clone().lower_equal_elem(NEG_INF).to_data().value[0] {
-            m = Tensor::<B, 1>::full_device([1], 0.0, &device);
-        };
+        // for the logsumexp calculation
+        let m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
+        let m = m.clone().clamp_min(NEG_INF);
         let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp()).log() + m;
         neg_log_likelihood = neg_log_likelihood.slice_assign([0..batch_size], -log_likelihood);
 
