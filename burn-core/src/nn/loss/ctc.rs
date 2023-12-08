@@ -1,6 +1,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 use core::marker::PhantomData;
 
+use alloc::vec::Vec;
 use burn_tensor::{backend::Backend, Element, ElementConversion, Int, Numeric, Tensor};
 
 use super::Reduction;
@@ -85,7 +86,6 @@ impl<B: Backend> CTCLoss<B> {
             &device,
         );
         let targets_intersperse = intersperse(targets_pad.clone(), self.blank as u32);
-        println!("{}", targets_intersperse.clone());
         let targets_one_hot = one_hot(targets_intersperse.clone(), num_classes);
 
         let log_alphas = Tensor::<B, 3>::empty_device(
@@ -262,24 +262,17 @@ impl<B: Backend> CTCLoss<B> {
         );
 
         assert!(
-            target_lengths
-                .sum()
-                .equal_elem(targets_size as u32)
-                .into_data()
-                .value[0],
+            target_lengths.sum().into_scalar().elem::<u32>() == targets_size as u32,
             "Batch size of targets ({}) should correspond to sum of target_lengths ({}).",
             log_probs_batch_size,
             target_lengths_size
         );
 
-        let max_input_length = input_lengths.max();
+        let max_input_length = input_lengths.max().into_scalar().elem::<u32>() as usize;
         assert!(
-            max_input_length.clone()
-                .lower_equal_elem(input_seq_length as u32)
-                .into_data()
-                .value[0],
+            max_input_length == input_seq_length,
             "The maximum value of input_lengths ({}) must not be greater than the sequence length of log_probs ({}).",
-            max_input_length.into_scalar(), input_seq_length
+            max_input_length, input_seq_length
         );
     }
 }
