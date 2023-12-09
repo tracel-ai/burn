@@ -81,17 +81,16 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_int_tensor::<D1>(&self.desc.input);
-                let output = B::int_reshape::<D1, D2>(input, Shape::from(&self.desc.shape));
+                let output = B::int_reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
                 handles.register_int_tensor(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = shape.dims.into();
-        let out = tensor.client.tensor_uninitialized(shape.clone());
+        let out = tensor.client.tensor_uninitialized(shape);
 
         let desc = ReshapeDescription {
             input: tensor.into_description(),
-            shape,
             out: out.to_description_out(),
         };
         out.client.register(

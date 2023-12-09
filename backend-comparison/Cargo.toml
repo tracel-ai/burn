@@ -6,19 +6,19 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "backend-comparison"
 readme = "README.md"
-repository = "https://github.com/burn-rs/burn/tree/main/backend-comparison"
-version = "0.11.0"
+repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
+version = "0.12.0"
 
 [features]
 default = ["std"]
 std = []
 candle-cpu = ["burn/candle"]
-candle-cuda = ["burn/candle-cuda"]
-candle-accelerate = ["burn/candle-accelerate"]
+candle-cuda = ["burn/candle", "burn/cuda"]
+candle-accelerate = ["burn/candle", "burn/accelerate"]
 ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray-blas-accelerate"]
-ndarray-blas-netlib = ["burn/ndarray-blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray-blas-openblas"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
@@ -28,7 +28,7 @@ wgpu-fusion = ["burn/wgpu", "burn/fusion"]
 burn = { path = "../burn" }
 derive-new = { workspace = true }
 rand = { workspace = true }
-burn-common = { path = "../burn-common", version = "0.11.0" }
+burn-common = { path = "../burn-common", version = "0.12.0" }
 serde_json = { workspace = true }
 dirs = "5.0.1"
 
