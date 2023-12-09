@@ -296,6 +296,7 @@ fn std_checks() {
 
     // Check if COVERAGE environment variable is set
     let is_coverage = std::env::var("COVERAGE").is_ok();
+    let disable_wgpu = std::env::var("DISABLE_WGPU").is_ok();
 
     // Check format
     cargo_fmt();
