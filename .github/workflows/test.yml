@@ -51,10 +51,10 @@ jobs:
             rust: stable
             test: std
           - os: macos-13
-            wgpu-flags: DISABLE_WGPU=1
             rust: stable
             test: std
           - os: windows-2022
+            wgpu-flags: '$env:DISABLE_WGPU = "1";'
             auto-graphics-backend-flags: AUTO_GRAPHICS_BACKEND=dx12
         exclude:
           # only need to check this once
@@ -159,15 +159,6 @@ jobs:
         if: runner.os == 'Windows'
         uses: napokue/setup-dxc@v1.1.0
 
-      # - name: run checks & tests
-      #   run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
-
-      - name: (temp) run burn_common tests
-        shell: bash
-        run: |
-          cd burn-common
-          cargo test
-
       - name: (windows) run wgpu-info
         if: runner.os == 'Windows'
         shell: bash
@@ -178,11 +169,20 @@ jobs:
           export RUST_LOG=trace
           wgpu-info
 
-      - name: (temp) run burn_wgpu tests
+      - name: run checks & tests
+        run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
+
+      - name: (temp) run burn_common tests
         shell: bash
         run: |
-          cd burn-wgpu
-          ${{ matrix.auto-graphics-backend-flags }} cargo test -- --nocapture
+          cd burn-common
+          cargo test
+
+      # - name: (temp) run burn_wgpu tests
+      #   shell: bash
+      #   run: |
+      #     cd burn-wgpu
+      #     ${{ matrix.auto-graphics-backend-flags }} cargo test -- --nocapture
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
