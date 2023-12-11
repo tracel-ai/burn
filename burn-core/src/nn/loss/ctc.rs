@@ -70,13 +70,17 @@ impl<B: Backend> CTCLoss<B> {
             target_lengths.clone(),
         );
 
+        // make sure tensors are on the same device
         let device = log_probs.device();
         let input_lengths = input_lengths.to_device(&device);
         let target_lengths = target_lengths.to_device(&device);
 
-        let [batch_size, seq_length, num_classes] = log_probs.dims();
+        let [batch_size, _, num_classes] = log_probs.dims();
+        let min_input_length = input_lengths.clone().min().into_scalar().elem::<u32>() as usize;
+        let max_input_length = input_lengths.clone().max().into_scalar().elem::<u32>() as usize;
         let max_target_length = target_lengths.clone().max().into_scalar().elem::<u32>() as usize;
         let target_with_blank_length = 2 * max_target_length + 1;
+        let reserved_seq_length = 1 + max_input_length - min_input_length;
 
         let targets_pad = Self::pad_target(
             targets,
@@ -88,8 +92,10 @@ impl<B: Backend> CTCLoss<B> {
         let targets_intersperse = intersperse(targets_pad.clone(), self.blank as u32);
         let targets_one_hot = one_hot(targets_intersperse.clone(), num_classes);
 
+        // There is no need to reserve alpha for each time step; only reserved_seq_length is needed.
+        // If the input length is all the same, it is sufficient to save only one time step per iter.
         let log_alphas = Tensor::<B, 3>::empty_device(
-            [batch_size, seq_length, target_with_blank_length],
+            [batch_size, reserved_seq_length, target_with_blank_length],
             &device,
         );
         // initialize value at t0
@@ -129,12 +135,19 @@ impl<B: Backend> CTCLoss<B> {
             .float();
         let mask_la3 = pad(mask_la3, [(0, 0), (2, 0)], 0.0).unsqueeze_dim(1);
 
-        for t in 1..seq_length {
+        for t in 1..max_input_length {
+            let (alpha_prime_prev, alpha_prime_next) = if (t as i32 - min_input_length as i32) < 0 {
+                (0, 0)
+            } else {
+                let prev = t - min_input_length as usize;
+                (prev, prev + 1)
+            };
             // \alpha_{t-1}(s)
-            let la1 =
-                log_alphas
-                    .clone()
-                    .slice([0..batch_size, (t - 1)..t, 0..target_with_blank_length]);
+            let la1 = log_alphas.clone().slice([
+                0..batch_size,
+                alpha_prime_prev..(alpha_prime_prev + 1),
+                0..target_with_blank_length,
+            ]);
             // \alpha_{t-1}(s-1)
             let la2 = la1
                 .clone()
@@ -154,7 +167,11 @@ impl<B: Backend> CTCLoss<B> {
                     .squeeze(3);
 
             log_alphas = log_alphas.slice_assign(
-                [0..batch_size, t..(t + 1), 0..target_with_blank_length],
+                [
+                    0..batch_size,
+                    alpha_prime_next..(alpha_prime_next + 1),
+                    0..target_with_blank_length,
+                ],
                 ((la1 - lamax.clone()).exp()
                     + (la2 - lamax.clone()).exp()
                     + (la3 - lamax.clone()).exp().mul(mask_la3.clone()))
@@ -172,7 +189,7 @@ impl<B: Backend> CTCLoss<B> {
             .clone()
             .gather(
                 1,
-                (input_lengths.clone() - 1)
+                (input_lengths.clone() - min_input_length as i32)
                     .reshape([batch_size, 1, 1])
                     .repeat(2, target_with_blank_length),
             )
@@ -182,7 +199,7 @@ impl<B: Backend> CTCLoss<B> {
             .clone()
             .gather(
                 1,
-                (input_lengths - 1)
+                (input_lengths.clone() - min_input_length as i32)
                     .reshape([batch_size, 1, 1])
                     .repeat(2, target_with_blank_length),
             )
@@ -270,7 +287,7 @@ impl<B: Backend> CTCLoss<B> {
 
         let max_input_length = input_lengths.max().into_scalar().elem::<u32>() as usize;
         assert!(
-            max_input_length == input_seq_length,
+            max_input_length <= input_seq_length,
             "The maximum value of input_lengths ({}) must not be greater than the sequence length of log_probs ({}).",
             max_input_length, input_seq_length
         );
