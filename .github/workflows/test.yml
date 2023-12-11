@@ -34,35 +34,37 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [macos-13, ubuntu-22.04, windows-latest]
-        os: [windows-2022]
-        # rust: [stable, 1.71.0]
-        rust: [stable]
-        # test: ['std', 'no-std', 'examples']
-        test: ['std']
+        os: [macos-13, ubuntu-22.04, windows-2022]
+        # os: [windows-2022]
+        rust: [stable, 1.71.0]
+        # rust: [stable]
+        test: ['std', 'no-std', 'examples']
+        # test: ['std']
         include:
           - cache: stable
             rust: stable
-        #   - cache: 1-71-0
-        #     rust: 1.71.0
-        #   - coverage-flags: COVERAGE=1
-        #     rust: stable
-        #     test: std
-        #     os: ubuntu-22.04
-        #   - wgpu-flags: DISABLE_WGPU=1
-        #     rust: stable
-        #     test: std
-        #     os: macos-13
-        # exclude:
-        #   # only need to check this once
-        #   - rust: 1.71.0
-        #     test: 'examples'
-        #   # Do not run no-std tests on macos
-        #   - os: macos-13
-        #     test: 'no-std'
-        #   # Do not run no-std tests on Windows
-        #   - os: windows-2022
-        #     test: 'no-std'
+          - cache: 1-71-0
+            rust: 1.71.0
+          - os: ubuntu-22.04
+            coverage-flags: COVERAGE=1
+            rust: stable
+            test: std
+          - os: macos-13
+            wgpu-flags: DISABLE_WGPU=1
+            rust: stable
+            test: std
+          - os: windows-2022
+            auto-graphics-backend-flags: AUTO_GRAPHICS_BACKEND=dx12
+        exclude:
+          # only need to check this once
+          - rust: 1.71.0
+            test: 'examples'
+          # Do not run no-std tests on macos
+          - os: macos-13
+            test: 'no-std'
+          # Do not run no-std tests on Windows
+          - os: windows-2022
+            test: 'no-std'
 
     steps:
 
@@ -99,18 +101,18 @@ jobs:
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
-      # - name: Run cargo clippy for stable version
-      #   if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
-      #   uses: giraffate/clippy-action@v1
-      #   with:
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     # Run clippy for each workspace, targets, and featrues, considering
-      #     # warnings as errors
-      #     clippy_flags: --all-targets -- -Dwarnings
-      #     # Do not filter results
-      #     filter_mode: nofilter
-      #     # Report clippy annotations as snippets
-      #     reporter: github-pr-check
+      - name: Run cargo clippy for stable version
+        if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
+        uses: giraffate/clippy-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Run clippy for each workspace, targets, and featrues, considering
+          # warnings as errors
+          clippy_flags: --all-targets -- -Dwarnings
+          # Do not filter results
+          filter_mode: nofilter
+          # Report clippy annotations as snippets
+          reporter: github-pr-check
 
       - name: Install grcov
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
@@ -122,7 +124,7 @@ jobs:
           tar xj -C $HOME/.cargo/bin
 
       - name: (windows) install warp
-        if: matrix.os == 'windows-2022'
+        if: runner.os == 'Windows'
         shell: bash
         run: |
           set -e
@@ -136,7 +138,7 @@ jobs:
           cp -v warp/d3d10warp.dll target/debug/deps
 
       - name: (windows) install mesa
-        if: matrix.os == 'windows-2022'
+        if: runner.os == 'Windows'
         shell: bash
         run: |
           set -e
@@ -152,44 +154,34 @@ jobs:
           echo "VK_DRIVER_FILES=$PWD/mesa/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
           echo "GALLIUM_DRIVER=llvmpipe" >> "$GITHUB_ENV"
 
-      - name: (windows) install dxc
-        if: matrix.os == 'windows-2022'
+      - name: (windows) install directx
+        if: runner.os == 'Windows'
         uses: napokue/setup-dxc@v1.1.0
-
-      - name: (temp) debug
-        shell: bash
-        run: |
-          pwd
-          ls target/debug
-          env
 
       # - name: run checks & tests
       #   run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
       - name: (temp) run burn_common tests
         shell: bash
-        env:
-          CI_RUN: 1
         run: |
           cd burn-common
           cargo test
 
-      # - name: run wgpu-info
-      #   shell: bash
-      #   run: |
-      #     echo "$PATH"
-      #     cargo install wgpu-info
-      #     which wgpu-info
-      #     export RUST_LOG=trace
-      #     wgpu-info
+      - name: (windows) run wgpu-info
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "$PATH"
+          cargo install wgpu-info
+          which wgpu-info
+          export RUST_LOG=trace
+          wgpu-info
 
       - name: (temp) run burn_wgpu tests
         shell: bash
-        env:
-          CI_RUN: 1
         run: |
           cd burn-wgpu
-          cargo test
+          ${{ matrix.auto-graphics-backend-flags }} cargo test -- --nocapture
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
