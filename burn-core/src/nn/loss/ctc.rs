@@ -92,8 +92,9 @@ impl<B: Backend> CTCLoss<B> {
         let targets_intersperse = intersperse(targets_pad.clone(), self.blank as u32);
         let targets_one_hot = one_hot(targets_intersperse.clone(), num_classes);
 
-        // There is no need to reserve alpha for each time step; only reserved_seq_length is needed.
-        // If the input length is all the same, it is sufficient to save only one time step per iter.
+        // There is no need to reserve alpha for each time step; only reserved_seq_length
+        // is needed. For instance, if the input length is all the same, the reserved_seq_length
+        // value will be set to 1, which is adequate.
         let log_alphas = Tensor::<B, 3>::empty_device(
             [batch_size, reserved_seq_length, target_with_blank_length],
             &device,
@@ -130,7 +131,12 @@ impl<B: Backend> CTCLoss<B> {
         let mask_la3 = targets_intersperse
             .clone()
             .slice([0..batch_size, 0..(target_with_blank_length - 2)])
-            .equal(targets_intersperse.slice([0..batch_size, 2..target_with_blank_length]))
+            .equal(
+                targets_intersperse
+                    .clone()
+                    .slice([0..batch_size, 2..target_with_blank_length])
+                    .clone(),
+            )
             .bool_not()
             .float();
         let mask_la3 = pad(mask_la3, [(0, 0), (2, 0)], 0.0).unsqueeze_dim(1);
@@ -357,14 +363,6 @@ mod test {
     use crate::TestBackend;
 
     use super::*;
-
-    #[test]
-    fn test_intersperse() {
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25).reshape([4, 6]);
-        let tensor = intersperse(tensor, 0);
-
-        println!("{}", tensor);
-    }
 
     #[test]
     fn test_ctc_loss() {
