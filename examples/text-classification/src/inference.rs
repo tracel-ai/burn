@@ -72,6 +72,9 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         let class = D::class_name(class_index as usize); // Get class name
 
         // Print sample text, predicted logits and predicted class
-        println!("\n=== Item {i} ===\n- Text: {text}\n- Logits: {logits}\n- Prediction: {class}\n================");
+        println!(
+            "\n=== Item {i} ===\n- Text: {text}\n- Logits: {logits}\n- Prediction: \
+             {class}\n================"
+        );
     }
 }

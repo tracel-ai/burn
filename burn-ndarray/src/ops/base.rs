@@ -284,7 +284,11 @@ where
         let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
         if shape_value != shape_indices {
-            panic!("Invalid dimension: the shape of the index tensor should be the same as the value tensor: Index {:?} value {:?}", shape_indices.dims, shape_value.dims);
+            panic!(
+                "Invalid dimension: the shape of the index tensor should be the same as the value \
+                 tensor: Index {:?} value {:?}",
+                shape_indices.dims, shape_value.dims
+            );
         }
 
         let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index])).array;
@@ -355,9 +359,10 @@ where
         for i in 0..D - 1 {
             if shape_tensor.dims[i] != shape_indices.dims[i] {
                 panic!(
-          "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index {:?}",
-          shape_tensor.dims, shape_indices.dims
-        );
+                    "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
+                     {:?}",
+                    shape_tensor.dims, shape_indices.dims
+                );
             }
             batch_size *= shape_indices.dims[i];
         }

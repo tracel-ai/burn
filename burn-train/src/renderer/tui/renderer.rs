@@ -145,23 +145,32 @@ impl TuiMetricsRenderer {
                 if let Event::Key(key) = event {
                     if let KeyCode::Char('q') = key.code {
                         self.popup = PopupState::Full(
-                        "Quit".to_string(),
-                        vec![
-                            Callback::new(
-                                "Stop the training.",
-                                "Stop the training immediately. This will break from the training loop, but any remaining code after the loop will be executed.",
-                                's',
-                                QuitPopupAccept(self.interuptor.clone()),
-                            ),
-                            Callback::new(
-                                "Stop the training immediately.",
-                                "Kill the program. This will create a panic! which will make the current training fails. Any code following the training won't be executed.",
-                                'k',
-                                KillPopupAccept,
-                            ),
-                            Callback::new("Cancel", "Cancel the action, continue the training.", 'c', PopupCancel),
-                        ],
-                    );
+                            "Quit".to_string(),
+                            vec![
+                                Callback::new(
+                                    "Stop the training.",
+                                    "Stop the training immediately. This will break from the \
+                                     training loop, but any remaining code after the loop will be \
+                                     executed.",
+                                    's',
+                                    QuitPopupAccept(self.interuptor.clone()),
+                                ),
+                                Callback::new(
+                                    "Stop the training immediately.",
+                                    "Kill the program. This will create a panic! which will make \
+                                     the current training fails. Any code following the training \
+                                     won't be executed.",
+                                    'k',
+                                    KillPopupAccept,
+                                ),
+                                Callback::new(
+                                    "Cancel",
+                                    "Cancel the action, continue the training.",
+                                    'c',
+                                    PopupCancel,
+                                ),
+                            ],
+                        );
                     }
                 }
             }
