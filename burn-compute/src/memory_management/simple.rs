@@ -6,9 +6,9 @@ use crate::{
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(not(target_family = "wasm"), feature = "std"))]
 use std::time;
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", feature = "std"))]
 use web_time as time;
 
 // The ChunkId allows to keep track of how many references there are to a specific chunk.
