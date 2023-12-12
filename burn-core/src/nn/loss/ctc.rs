@@ -135,8 +135,10 @@ impl<B: Backend> CTCLoss<B> {
                 .clone()
                 .slice([0..batch_size, 0..seq_length, self.blank..self.blank + 1]);
         // Shape: [batch_size, seq_length, 2 * max_target_length + 1]
-        let log_probs_available =
-            Tensor::<B, 3>::zeros([batch_size, seq_length, target_with_blank_length]);
+        let log_probs_available = Tensor::<B, 3>::zeros_device(
+            [batch_size, seq_length, target_with_blank_length],
+            &device,
+        );
         let log_probs_available = log_probs_available.slice_assign(
             [0..batch_size, 0..seq_length, 0..1],
             log_probs_blank_available.clone(),
