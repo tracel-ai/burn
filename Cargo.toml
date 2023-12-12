@@ -31,6 +31,12 @@ members = [
 
 exclude = ["examples/notebook"]
 
+[workspace.package]
+edition = "2021"
+version = "0.12.0"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"

@@ -2,13 +2,13 @@
 authors = ["Dilshod Tadjibaev (@antimora)"]
 categories = []
 description = "Common crate for the Burn framework"
-edition = "2021"
+edition.workspace = true
 keywords = []
-license = "MIT OR Apache-2.0"
+license.workspace = true
 name = "burn-common"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-common"
-version = "0.12.0"
+version.workspace = true
 
 [features]
 default = ["std"]
