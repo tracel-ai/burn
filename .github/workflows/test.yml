@@ -36,11 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-13, ubuntu-22.04, windows-2022]
-        # os: [windows-2022]
         rust: [stable, 1.71.0]
-        # rust: [stable]
         test: ['std', 'no-std', 'examples']
-        # test: ['std']
         include:
           - cache: stable
             rust: stable
@@ -54,8 +51,11 @@ jobs:
             rust: stable
             test: std
           - os: windows-2022
+            # powershell format
             wgpu-flags: '$env:DISABLE_WGPU = "1";'
-            auto-graphics-backend-flags: AUTO_GRAPHICS_BACKEND=dx12
+            # not used yet, as wgpu tests are disabled on windows for now
+            # see issue: https://github.com/tracel-ai/burn/issues/1062
+            # auto-graphics-backend-flags: '$env:AUTO_GRAPHICS_BACKEND = "dx12";'
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -171,18 +171,6 @@ jobs:
 
       - name: run checks & tests
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
-
-      - name: (temp) run burn_common tests
-        shell: bash
-        run: |
-          cd burn-common
-          cargo test
-
-      # - name: (temp) run burn_wgpu tests
-      #   shell: bash
-      #   run: |
-      #     cd burn-wgpu
-      #     ${{ matrix.auto-graphics-backend-flags }} cargo test -- --nocapture
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'

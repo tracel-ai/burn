@@ -209,7 +209,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                         // often a Discrete Gpu.
                         DeviceType::IntegratedGpu => 3,
                         DeviceType::VirtualGpu => 2,
-                        DeviceType::Cpu => 6,
+                        DeviceType::Cpu => 1,
                     };
 
                     if score > current_score {
