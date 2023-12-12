@@ -2,38 +2,16 @@ name: vulnerabilities
 
 on:
   schedule:
-    - cron: '0 21 * * TUE' # Run every Tuesday at 21:00 (UTC)
+    - cron: '0 21 * * WED' # Run every Wednesday at 21:00 (UTC)
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*' # Run when a new version is being published
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-
-  valgrind:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install llvmpipe and lavapipe
-      run: |
-        sudo apt-get update -y -qq
-        sudo add-apt-repository ppa:kisak/kisak-mesa -y
-        sudo apt-get update
-        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
-
-    - name: Install valgrind
-      run: |
-        sudo apt-get install valgrind
-
-    - name: Run cargo-valgrind
-      env:
-        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
-      # Looking for vulnerabilities
-      run: |
-        cargo test
-
   cargo-careful:
 
     runs-on: ubuntu-latest
@@ -119,4 +97,58 @@ jobs:
         RUSTFLAGS: -Zsanitizer=thread -Copt-level=3
         RUSTDOCFLAGS: -Zsanitizer=thread
       # Looking for data race among threads
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+
+  memory-sanitizer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run MemorySanitizer
+      env:
+        RUSTFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins -Copt-level=3
+        RUSTDOCFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins
+      # Looking for unitialized memory.
+      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+
+  safe-stack:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        toolchain: nightly
+        components: rustfmt, rust-src
+
+    - name: Install llvmpipe and lavapipe
+      run: |
+        sudo apt-get update -y -qq
+        sudo add-apt-repository ppa:kisak/kisak-mesa -y
+        sudo apt-get update
+        sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+    - name: Run SafeStack
+      env:
+        RUSTFLAGS: -Zsanitizer=safestack -Copt-level=3
+        RUSTDOCFLAGS: -Zsanitizer=safestack
+      # Provides backward edge control flow protection
       run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
