@@ -1,53 +1,86 @@
 use crate::{
     fusion::codegen::{Elem, Operator},
-    fusion::kernel::FusionKernel,
+    fusion::{
+        cache::{CachedComputeShader, KernelCache},
+        codegen::ComputeShader,
+        kernel::FusionKernel,
+    },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{graph::Context, Optimization, TensorDescription};
 use burn_tensor::Device;
 
-#[derive(Clone)]
 pub(crate) struct FloatElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
+    pub(crate) id: String,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
     pub(crate) operators: Vec<Operator>,
     pub(crate) scalars_f32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
+    pub(crate) cache: KernelCache,
 }
 
+impl<G, F, I> FloatElementWise<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
+    pub fn compile(&mut self) -> ComputeShader {
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|(tensor, elem)| (tensor, *elem))
+            .collect::<Vec<_>>();
+
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|(tensor, elem)| (tensor, *elem))
+            .collect::<Vec<_>>();
+
+        FusionKernel::<G, F, I>::new(&self.device)
+            .inputs(&inputs, self.scalars_f32)
+            .body(&self.operators)
+            .outputs(&outputs, &self.locals)
+            .compile()
+    }
+}
 impl<G, F, I> Optimization<Wgpu<G, F, I>> for FloatElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    fn execute(&self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
-            .collect::<Vec<_>>();
+    fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
+        if let Some(kernel) = self.cache.get(&self.id) {
+            FusionKernel::execute(
+                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                self.scalars_f32,
+                kernel,
+                context,
+                self.device.clone(),
+            );
+        } else {
+            let kernel = self.compile();
+            FusionKernel::execute(
+                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                self.scalars_f32,
+                CachedComputeShader::Compile(self.id.to_string(), kernel),
+                context,
+                self.device.clone(),
+            );
 
-        let outputs = self
-            .outputs
-            .iter()
-            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
-            .collect::<Vec<_>>();
-
-        // The context may contain scalars for the end condition, which may vary.
-        let scalars_f32 = &context.scalar_floats[0..self.scalars_f32];
-
-        FusionKernel::new(&self.device)
-            .inputs(&inputs, scalars_f32)
-            .body(&self.operators)
-            .outputs(&outputs, &self.locals)
-            .execute(context.handles);
+            self.cache.insert(self.id.clone());
+        }
     }
 
     fn len(&self) -> usize {

@@ -1,8 +1,12 @@
 use crate::{
     element::WgpuElement,
-    fusion::codegen::{Elem, Operator, Variable},
+    fusion::{
+        cache::KernelCache,
+        codegen::{Elem, Operator, Variable},
+    },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
+use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
@@ -84,12 +88,14 @@ where
             .collect::<Vec<_>>();
 
         Box::new(FloatElementWise {
+            id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
             operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
             device: self.device.clone(),
+            cache: KernelCache::default(),
         })
     }
 
