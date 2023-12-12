@@ -75,7 +75,7 @@ impl<B: Backend> CTCLoss<B> {
         let input_lengths = input_lengths.to_device(&device);
         let target_lengths = target_lengths.to_device(&device);
 
-        let [batch_size, _, num_classes] = log_probs.dims();
+        let [batch_size, seq_length, num_classes] = log_probs.dims();
         let min_input_length = input_lengths.clone().min().into_scalar().elem::<u32>() as usize;
         let max_input_length = input_lengths.clone().max().into_scalar().elem::<u32>() as usize;
         let max_target_length = target_lengths.clone().max().into_scalar().elem::<u32>() as usize;
@@ -89,8 +89,7 @@ impl<B: Backend> CTCLoss<B> {
             self.blank,
             &device,
         );
-        let targets_intersperse = intersperse(targets_pad.clone(), self.blank as u32);
-        let targets_one_hot = one_hot(targets_intersperse.clone(), num_classes);
+        let targets_one_hot = one_hot(targets_pad.clone(), num_classes);
 
         // There is no need to reserve alpha for each time step; only reserved_seq_length
         // is needed. For instance, if the input length is all the same, the reserved_seq_length
@@ -115,6 +114,7 @@ impl<B: Backend> CTCLoss<B> {
                 .slice([0..batch_size, 0..1, self.blank..(self.blank + 1)]),
         );
         let target_primes: Tensor<B, 3, Int> = targets_pad
+            .clone()
             .slice([0..batch_size, 0..1])
             .reshape([batch_size, 1, 1]);
         let mut log_alphas = log_alphas.slice_assign(
@@ -124,22 +124,60 @@ impl<B: Backend> CTCLoss<B> {
                 .slice([0..batch_size, 0..1, 0..num_classes])
                 .gather(2, target_primes),
         );
-        let log_probs_available = targets_one_hot.matmul(log_probs.swap_dims(1, 2));
+
+        // Shape: [batch_size, seq_length, max_target_length]
+        let log_probs_letter_available = targets_one_hot
+            .matmul(log_probs.clone().swap_dims(1, 2))
+            .swap_dims(1, 2);
+        // Shape: [batch_size, seq_length, 1]
+        let log_probs_blank_available =
+            log_probs
+                .clone()
+                .slice([0..batch_size, 0..seq_length, self.blank..self.blank + 1]);
+        // Shape: [batch_size, seq_length, 2 * max_target_length + 1]
+        let log_probs_available =
+            Tensor::<B, 3>::zeros([batch_size, seq_length, target_with_blank_length]);
+        let log_probs_available = log_probs_available.slice_assign(
+            [0..batch_size, 0..seq_length, 0..1],
+            log_probs_blank_available.clone(),
+        );
+        let log_probs_available = log_probs_available.slice_assign(
+            [0..batch_size, 0..seq_length, 1..target_with_blank_length],
+            // interlace log_probs_letter_available and log_probs_blank_available
+            Tensor::stack::<4>(
+                [
+                    log_probs_letter_available.clone(),
+                    log_probs_blank_available.repeat(2, max_target_length),
+                ]
+                .to_vec(),
+                3,
+            )
+            .reshape([batch_size, seq_length, 2 * max_target_length]),
+        );
         let mut neg_log_likelihood = Tensor::<B, 1>::zeros_device([batch_size], &device);
 
         // s != s-2
-        let mask_la3 = targets_intersperse
+        let mask_la3_letter = targets_pad
             .clone()
-            .slice([0..batch_size, 0..(target_with_blank_length - 2)])
+            .slice([0..batch_size, 0..(max_target_length - 1)])
             .equal(
-                targets_intersperse
+                targets_pad
                     .clone()
-                    .slice([0..batch_size, 2..target_with_blank_length])
+                    .slice([0..batch_size, 1..max_target_length])
                     .clone(),
             )
             .bool_not()
             .float();
-        let mask_la3 = pad(mask_la3, [(0, 0), (2, 0)], 0.0).unsqueeze_dim(1);
+        let mask_la3_blank =
+            Tensor::<B, 2>::zeros_device([batch_size, max_target_length - 1], &device);
+        let mask_la3: Tensor<B, 3> = pad(
+            // interlace mask_la3_letter and mask_la3_blank
+            Tensor::stack::<3>([mask_la3_letter, mask_la3_blank].to_vec(), 2)
+                .reshape([batch_size, 2 * (max_target_length - 1)]),
+            [(0, 0), (3, 0)],
+            0.0,
+        )
+        .unsqueeze_dim(1);
 
         for t in 1..max_input_length {
             let (alpha_prime_prev, alpha_prime_next) = if (t as i32 - min_input_length as i32) < 0 {
@@ -184,10 +222,11 @@ impl<B: Backend> CTCLoss<B> {
                 .log()
                 .clamp_min(NEG_INF)
                     + lamax
-                    + log_probs_available
-                        .clone()
-                        .slice([0..batch_size, 0..target_with_blank_length, t..(t + 1)])
-                        .swap_dims(1, 2),
+                    + log_probs_available.clone().slice([
+                        0..batch_size,
+                        t..(t + 1),
+                        0..target_with_blank_length,
+                    ]),
             );
         }
 
@@ -326,21 +365,6 @@ where
     let padded = Tensor::<B, D, K>::full_device(pad_shape, fill_value, &device);
 
     padded.slice_assign::<D>(assign_range.try_into().unwrap(), tensor)
-}
-
-fn intersperse<B, K, E>(tensor: Tensor<B, 2, K>, value: E) -> Tensor<B, 2, K>
-where
-    B: Backend,
-    K: Numeric<B>,
-    K::Elem: Element,
-    E: ElementConversion + Clone,
-{
-    let device = tensor.device();
-    let mut shape = tensor.dims();
-    let constants: Tensor<B, 2, K> = Tensor::full_device(shape, value.clone(), &device);
-    shape[1] = shape[1] * 2;
-    let stack = Tensor::stack::<3>([tensor, constants].to_vec(), 2).reshape(shape);
-    pad(stack, [(0, 0), (1, 0)], value)
 }
 
 fn one_hot<B: Backend>(tensor: Tensor<B, 2, Int>, num_classes: usize) -> Tensor<B, 3> {
