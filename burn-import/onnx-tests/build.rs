@@ -37,6 +37,7 @@ fn main() {
         .input("tests/reshape/reshape.onnx")
         .input("tests/sigmoid/sigmoid.onnx")
         .input("tests/softmax/softmax.onnx")
+        .input("tests/shape/shape.onnx")
         .input("tests/sqrt/sqrt.onnx")
         .input("tests/sub/sub_int.onnx")
         .input("tests/sub/sub.onnx")

@@ -42,6 +42,7 @@ include_models!(
     recip,
     relu,
     reshape,
+    shape,
     sigmoid,
     softmax,
     sqrt,
@@ -332,6 +333,20 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
     }
+
+
+    #[test]
+    fn shape() {
+        let model: shape::Model<Backend> = shape::Model::new();
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]]);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
 
     #[test]
     fn sqrt() {

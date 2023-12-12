@@ -164,7 +164,7 @@ represent the corresponding Burn Op.
 | [SequenceInsert][157]            |       ❌       |      ❌      |
 | [SequenceLength][158]            |       ❌       |      ❌      |
 | [SequenceMap][159]               |       ❌       |      ❌      |
-| [Shape][160]                     |       ❌       |      ✅      |
+| [Shape][160]                     |       ✅       |      ✅      |
 | [Shrink][161]                    |       ❌       |      ❌      |
 | [Sigmoid][162]                   |       ✅       |      ✅      |
 | [Sign][163]                      |       ❌       |      ❌      |
