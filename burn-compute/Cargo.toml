@@ -31,5 +31,8 @@ spin = { workspace = true }
 log = { workspace = true }
 hashbrown = { workspace = true }
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+web-time = { version = "0.2.3" }
+
 [dev-dependencies]
 serial_test = "2.0.0"

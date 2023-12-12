@@ -20,6 +20,7 @@ wasm-sync = []
 [target.'cfg(target_family = "wasm")'.dependencies]
 async-trait = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
+web-time = { version = "0.2.3" }
 
 [dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **
