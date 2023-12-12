@@ -72,7 +72,9 @@ where
             .unwrap()
             .into_shared();
 
-        NdArrayTensor { array }
+        // Transform column-major layout into row-major (standard) layout. (fix #1053)
+        let array = NdArrayTensor { array };
+        Self::reshape(array.clone(), array.shape())
     }
 
     fn to_slice_args<const D1: usize, const D2: usize>(
