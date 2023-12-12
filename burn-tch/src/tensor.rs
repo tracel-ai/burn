@@ -55,6 +55,15 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
             phantom: PhantomData,
         }
     }
+
+    /// Create a tensor that uses a part of its parent tensor such as slice and narrow.
+    pub fn partial(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
+        Self {
+            tensor,
+            storage: storage_parent,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
