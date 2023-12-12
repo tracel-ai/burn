@@ -42,7 +42,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             tensor = tensor.narrow(i as i64, start, length);
         }
 
-        TchTensor::from_existing(tensor, storage)
+        TchTensor::partial(tensor, storage)
     }
 
     pub fn slice_assign<const D1: usize, const D2: usize>(
@@ -50,8 +50,12 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         ranges: [Range<usize>; D2],
         value: TchTensor<E, D1>,
     ) -> TchTensor<E, D1> {
-        let tensor_original = tensor.tensor.copy();
         let tch_shape = TchShape::from(tensor.shape());
+
+        // Copy the input tensor if we can't mutate it.
+        let tensor_original: TchTensor<E, D1> =
+            tensor.unary_ops(|tensor| tensor, |tensor| tensor.copy());
+        let tensor_original = tensor_original.tensor;
 
         let mut tensor = tensor_original.view_(tch_shape.dims);
 

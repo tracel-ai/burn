@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Data, Tensor};
+    use burn_tensor::{Data, Int, Tensor};
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -101,6 +101,25 @@ mod tests {
 
         let data_expected = Data::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
         assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn slice_should_not_corrupt_potentially_inplace_operations() {
+        let tensor = Tensor::<TestBackend, 1, Int>::from_data([1, 2, 3, 4, 5]);
+        let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
+
+        assert_eq!(tensor.into_data(), Data::from([4, 6, 8]));
+    }
+
+    #[test]
+    fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
+        let tensor = Tensor::<TestBackend, 1, Int>::from_data([1, 2, 3, 4, 5]);
+        let values = Tensor::<TestBackend, 1, Int>::from_data([10, 20, 30]);
+        let tensor_1 = tensor.clone().slice_assign([0..3], values);
+        let tensor_2 = tensor + 2;
+
+        assert_eq!(tensor_1.into_data(), Data::from([10, 20, 30, 4, 5]));
+        assert_eq!(tensor_2.into_data(), Data::from([3, 4, 5, 6, 7]));
     }
 
     #[test]
