@@ -2,7 +2,7 @@ use super::Elem;
 use std::fmt::Display;
 
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Function {
     Powf(Elem),
     Erf(Elem),

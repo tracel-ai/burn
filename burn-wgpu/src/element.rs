@@ -9,8 +9,7 @@ where
     fn type_name() -> &'static str;
     fn as_bytes(slice: &[Self]) -> &[u8];
     fn from_bytes(bytes: &[u8]) -> &[Self];
-    #[cfg(any(feature = "fusion", test))]
-    fn elem_type() -> crate::fusion::codegen::Elem;
+    fn elem_type() -> crate::codegen::Elem;
 }
 
 /// The float element type for the wgpu backend.
@@ -29,9 +28,8 @@ impl WgpuElement for u32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    #[cfg(any(feature = "fusion", test))]
-    fn elem_type() -> crate::fusion::codegen::Elem {
-        crate::fusion::codegen::Elem::U32
+    fn elem_type() -> crate::codegen::Elem {
+        crate::codegen::Elem::U32
     }
 }
 
@@ -45,9 +43,8 @@ impl WgpuElement for i32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    #[cfg(any(feature = "fusion", test))]
-    fn elem_type() -> crate::fusion::codegen::Elem {
-        crate::fusion::codegen::Elem::I32
+    fn elem_type() -> crate::codegen::Elem {
+        crate::codegen::Elem::I32
     }
 }
 
@@ -62,9 +59,8 @@ impl WgpuElement for f32 {
         bytemuck::cast_slice(bytes)
     }
 
-    #[cfg(any(feature = "fusion", test))]
-    fn elem_type() -> crate::fusion::codegen::Elem {
-        crate::fusion::codegen::Elem::F32
+    fn elem_type() -> crate::codegen::Elem {
+        crate::codegen::Elem::F32
     }
 }
 

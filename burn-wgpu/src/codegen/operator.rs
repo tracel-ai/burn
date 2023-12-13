@@ -1,9 +1,9 @@
-use super::Variable;
+use super::variable::Variable;
 use std::fmt::Display;
 
 /// All operators that can be fused in a WGSL compute shader.
-#[derive(Debug, Hash, Clone)]
-pub enum Operator {
+#[derive(Debug, Clone)]
+pub(crate) enum Operator {
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -163,13 +163,13 @@ impl Display for Operator {
                 f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
             Operator::ReadGlobal { variable } => match variable {
-                Variable::Input(number, elem) => f.write_fmt(format_args!(
+                Variable::Input(number, _elem) => f.write_fmt(format_args!(
                     "let input_{number} = input_{number}_global[id];"
                 )),
                 Variable::Local(_, _) => panic!("can't read global local variable."),
-                Variable::Output(number, elem) => {
-                    f.write_fmt(format_args!("let output_{number} = output_{number}_global[id];"))
-                }
+                Variable::Output(number, _elem) => f.write_fmt(format_args!(
+                    "let output_{number} = output_{number}_global[id];"
+                )),
                 Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
             },
             Operator::ReadGlobalIntoContiguous {

@@ -1,6 +1,5 @@
 use super::numeric;
-use crate::fusion::codegen::{Elem, Operator, Variable};
-use crate::fusion::kernel::{execute_dyn, FusionKernel};
+use crate::codegen::{execute_dyn, Elem, KernelCodegen, Operator, Variable};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
@@ -17,14 +16,11 @@ use crate::kernel::{
 use crate::tensor::WgpuTensor;
 use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
 use crate::{unary_scalar_inplace, WgpuDevice};
-use burn_fusion::{TensorDescription, TensorId, TensorStatus};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
 use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
-
-use std::marker::PhantomData;
 use std::ops::Range;
 
 impl<G, F, I> TensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
@@ -377,20 +373,21 @@ where
         // unary!(Log, func "log");
         // unary_inplace!(LogInplace, func "log");
 
-        struct Log<const D: usize>;
-        struct LogInplace<const D: usize>;
+        struct Log;
+        struct LogInplace;
 
-        impl<const D: usize> DynamicKernelSource for Log<D> {
+        impl DynamicKernelSource for Log {
             fn source(&self) -> kernel::SourceTemplate {
-                FusionKernel::new()
+                let shader = KernelCodegen::new()
                     .inputs(&[Elem::F32], 0)
                     .body(&[Operator::Log {
                         input: Variable::Input(0, Elem::F32),
                         out: Variable::Local(0, Elem::F32),
                     }])
                     .outputs(&[Elem::F32], &[0])
-                    .compile()
-                    .source()
+                    .compile();
+
+                kernel::SourceTemplate::new(shader.to_string())
             }
 
             fn id(&self) -> String {
@@ -398,9 +395,9 @@ where
             }
         }
 
-        impl<const D: usize> DynamicKernelSource for LogInplace<D> {
+        impl DynamicKernelSource for LogInplace {
             fn source(&self) -> kernel::SourceTemplate {
-                FusionKernel::new()
+                let shader = KernelCodegen::new()
                     .inputs(&[], 0)
                     .body(&[
                         Operator::ReadGlobal {
@@ -412,8 +409,9 @@ where
                         },
                     ])
                     .outputs(&[Elem::F32], &[0])
-                    .compile()
-                    .source()
+                    .compile();
+
+                kernel::SourceTemplate::new(shader.to_string())
             }
 
             fn id(&self) -> String {
@@ -438,19 +436,17 @@ where
                 &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
                 &[(&output.handle, &output.strides, &output.shape.dims)],
                 None,
-                Log::<D>,
+                Log,
                 tensor.client,
             );
 
             output
         } else {
-            let num_elems = tensor.shape.num_elements();
-
             execute_dyn::<_, G, F, I>(
                 &[],
                 &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
                 None,
-                LogInplace::<D>,
+                LogInplace,
                 tensor.client.clone(),
             );
 

@@ -1,9 +1,8 @@
 use crate::{
-    fusion::codegen::{Elem, Operator},
+    codegen::{ComputeShader, Elem, KernelCodegen, Operator},
     fusion::{
         cache::{CachedComputeShader, KernelCache},
-        codegen::ComputeShader,
-        kernel::{self, FusionKernel},
+        kernel,
     },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
@@ -45,7 +44,7 @@ where
             .map(|(_tensor, elem)| *elem)
             .collect::<Vec<_>>();
 
-        FusionKernel::new()
+        KernelCodegen::new()
             .inputs(&inputs, self.scalars_f32)
             .body(&self.operators)
             .outputs(&outputs, &self.locals)

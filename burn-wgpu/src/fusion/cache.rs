@@ -1,4 +1,4 @@
-use super::codegen::ComputeShader;
+use crate::codegen::ComputeShader;
 use crate::kernel::{DynamicKernelSource, SourceTemplate};
 use hashbrown::HashSet;
 
@@ -18,7 +18,7 @@ impl DynamicKernelSource for CachedComputeShader {
             CachedComputeShader::Cached(_) => {
                 panic!("NoSource compute shader should only be used by a higher level cache.")
             }
-            CachedComputeShader::Compile(_, shader) => shader.source(),
+            CachedComputeShader::Compile(_, shader) => SourceTemplate::new(shader.to_string()),
         }
     }
 

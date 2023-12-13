@@ -1,9 +1,7 @@
 use crate::{
+    codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::{
-        cache::KernelCache,
-        codegen::{Elem, Operator, Variable},
-    },
+    fusion::cache::KernelCache,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_common::id::IdGenerator;
