@@ -1,3 +1,4 @@
+use crate::codegen::{Elem, Operator, Variable};
 use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
@@ -96,10 +97,14 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // slowdowns.
         //
         // The solution is just to use a simple unary compute shader.
-        // unary!(CopyBuffer, body "output[id] = input[id];");
-        // unary_default::<CopyBuffer, E, D>(self.clone())
-
-        todo!()
+        unary!(
+            operator: |elem: Elem| Operator::AssignLocal {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: self.clone(),
+            elem: E
+        )
     }
 
     /// Check if the tensor is safe to mutate.

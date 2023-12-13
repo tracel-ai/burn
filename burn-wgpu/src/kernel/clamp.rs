@@ -1,6 +1,12 @@
 use crate::{
-    compute::StaticKernel, element::WgpuElement, kernel::WORKGROUP_DEFAULT, kernel_wgsl,
-    ops::numeric::empty_device, tensor::WgpuTensor, unary, codegen::{Elem, Operator, Variable},
+    codegen::{Elem, Operator, Variable},
+    compute::StaticKernel,
+    element::WgpuElement,
+    kernel::WORKGROUP_DEFAULT,
+    kernel_wgsl,
+    ops::numeric::empty_device,
+    tensor::WgpuTensor,
+    unary,
 };
 
 use super::{elemwise_workgroup, KernelSettings};
@@ -8,27 +14,27 @@ use super::{elemwise_workgroup, KernelSettings};
 kernel_wgsl!(Clamp, "../template/clamp/clamp.wgsl");
 kernel_wgsl!(ClampInplace, "../template/clamp/clamp_inplace.wgsl");
 
-pub(crate) fn clamp_min<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    min_value: E,
-) -> WgpuTensor<E, D> {
-    todo!()
-    // unary!(
-    //     operator: |elem: Elem| Operator::ClampMin {
-    //         input: Variable::Input(0, elem),
-    //         out: Variable::Local(0, elem),
-    //     },
-    //     input: input; min_value,
-    //     elem: E
-    // )
-}
-
-pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    max_value: E,
-) -> WgpuTensor<E, D> {
-    todo!()
-}
+// pub(crate) fn clamp_min<E: WgpuElement, const D: usize>(
+//     input: WgpuTensor<E, D>,
+//     min_value: E,
+// ) -> WgpuTensor<E, D> {
+//     todo!()
+//     // unary!(
+//     //     operator: |elem: Elem| Operator::ClampMin {
+//     //         input: Variable::Input(0, elem),
+//     //         out: Variable::Local(0, elem),
+//     //     },
+//     //     input: input; min_value,
+//     //     elem: E
+//     // )
+// }
+// 
+// pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
+//     input: WgpuTensor<E, D>,
+//     max_value: E,
+// ) -> WgpuTensor<E, D> {
+//     todo!()
+// }
 
 pub(crate) fn clamp<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
