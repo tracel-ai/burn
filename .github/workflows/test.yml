@@ -50,11 +50,10 @@ jobs:
             rust: stable
             test: std
           - os: windows-2022
-            # powershell format
-            wgpu-flags: '$env:DISABLE_WGPU = "1";'
+            wgpu-flags: "DISABLE_WGPU=1"
             # not used yet, as wgpu tests are disabled on windows for now
             # see issue: https://github.com/tracel-ai/burn/issues/1062
-            # auto-graphics-backend-flags: '$env:AUTO_GRAPHICS_BACKEND = "dx12";'
+            # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
         exclude:
           # only need to check this once
           - rust: 1.71.0
@@ -159,6 +158,7 @@ jobs:
         uses: napokue/setup-dxc@v1.1.0
 
       - name: run checks & tests
+        shell: bash
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
