@@ -158,16 +158,6 @@ jobs:
         if: runner.os == 'Windows'
         uses: napokue/setup-dxc@v1.1.0
 
-      - name: (windows) run wgpu-info
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          echo "$PATH"
-          cargo install wgpu-info
-          which wgpu-info
-          export RUST_LOG=trace
-          wgpu-info
-
       - name: run checks & tests
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
