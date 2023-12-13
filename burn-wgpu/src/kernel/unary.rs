@@ -55,14 +55,21 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(&[], &[])
+                    .inputs(
+                        &[$crate::codegen::ArrayInput::new(
+                            E::elem_type(),
+                            $crate::codegen::Visibility::ReadWrite,
+                        )],
+                        &[],
+                    )
                     .body(&[
-                        $crate::codegen::Operator::ReadGlobal {
-                            variable: $crate::codegen::Variable::Output(0, E::elem_type()),
-                        },
                         $ops(E::elem_type()),
+                        Operator::AssignGlobal {
+                            input: Variable::Local(0, E::elem_type()),
+                            out: Variable::Input(0, E::elem_type()),
+                        },
                     ])
-                    .outputs(&[E::elem_type()], &[0])
+                    .outputs(&[], &[])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -102,14 +109,21 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(&[], &[$crate::codegen::ScalarInput::new(E::elem_type(), 1)])
+                    .inputs(
+                        &[$crate::codegen::ArrayInput::new(
+                            E::elem_type(),
+                            $crate::codegen::Visibility::ReadWrite,
+                        )],
+                        &[$crate::codegen::ScalarInput::new(E::elem_type(), 1)],
+                    )
                     .body(&[
-                        $crate::codegen::Operator::ReadGlobal {
-                            variable: $crate::codegen::Variable::Output(0, E::elem_type()),
-                        },
                         $ops(E::elem_type()),
+                        Operator::AssignGlobal {
+                            input: Variable::Local(0, E::elem_type()),
+                            out: Variable::Input(0, E::elem_type()),
+                        },
                     ])
-                    .outputs(&[E::elem_type()], &[0])
+                    .outputs(&[], &[])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())

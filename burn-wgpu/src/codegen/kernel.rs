@@ -81,25 +81,29 @@ impl KernelCodegen<InputPhase> {
                     location: Location::Storage,
                     size: None,
                 });
-
-                self.operations.push(Operator::ReadGlobalIntoContiguous {
-                    variable: Variable::Input(i as u16, array.elem),
-                    position: i,
-                    position_out: arrays.len(), // First output
-                });
             } else {
                 self.input_bindings.push(Binding {
                     elem: Elem::I32,
-                    visibility: Visibility::Read,
+                    visibility: array.visibility,
                     location: Location::Storage,
                     size: None,
                 });
+            }
 
-                self.operations.push(Operator::ReadGlobalIntoContiguous {
-                    variable: Variable::Input(i as u16, array.elem),
-                    position: i,
-                    position_out: arrays.len(), // First output
-                });
+            // Temporary hack to allow inplace operations.
+            match array.visibility {
+                Visibility::Read => {
+                    self.operations.push(Operator::ReadGlobalIntoContiguous {
+                        variable: Variable::Input(i as u16, array.elem),
+                        position: i,
+                        position_out: arrays.len(), // First output
+                    });
+                }
+                Visibility::ReadWrite => {
+                    self.operations.push(Operator::ReadGlobal {
+                        variable: Variable::Input(i as u16, array.elem),
+                    });
+                }
             }
         }
 
