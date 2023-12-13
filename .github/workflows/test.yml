@@ -33,7 +33,6 @@ jobs:
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
         os: [macos-13, ubuntu-22.04, windows-2022]
         rust: [stable, 1.71.0]
