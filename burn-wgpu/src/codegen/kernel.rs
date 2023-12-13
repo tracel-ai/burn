@@ -54,6 +54,12 @@ pub struct ArrayInput {
     visibility: Visibility,
 }
 
+#[derive(new)]
+pub struct ArrayOutput {
+    elem: Elem,
+    local: u16,
+}
+
 impl KernelCodegen<InputPhase> {
     /// Create a new fusion kernel on the given device.
     pub fn new() -> Self {
@@ -174,19 +180,19 @@ impl KernelCodegen<OutputPhase> {
     /// Note that the index corresponds to the registered [operator](Operator) number at the
     /// [body phase](BodyPhase).
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
-    pub fn outputs(mut self, outputs: &[Elem], locals: &[u16]) -> KernelCodegen<CompilationPhase> {
-        for (i, (elem, local)) in outputs.iter().zip(locals).enumerate() {
-            if elem != &Elem::Bool {
+    pub fn outputs(mut self, outputs: &[ArrayOutput]) -> KernelCodegen<CompilationPhase> {
+        for (i, array) in outputs.iter().enumerate() {
+            if array.elem != Elem::Bool {
                 self.output_bindings.push(Binding {
-                    elem: *elem,
+                    elem: array.elem,
                     visibility: Visibility::ReadWrite,
                     location: Location::Storage,
                     size: None,
                 });
 
                 self.operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(*local, *elem),
-                    out: Variable::Output(i as u16, *elem),
+                    input: Variable::Local(array.local, array.elem),
+                    out: Variable::Output(i as u16, array.elem),
                 });
             } else {
                 self.output_bindings.push(Binding {
@@ -197,7 +203,7 @@ impl KernelCodegen<OutputPhase> {
                 });
 
                 self.operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(*local, *elem),
+                    input: Variable::Local(array.local, array.elem),
                     out: Variable::Output(i as u16, Elem::I32),
                 });
             }

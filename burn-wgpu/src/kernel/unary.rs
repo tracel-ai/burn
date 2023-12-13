@@ -45,7 +45,7 @@ macro_rules! unary {
                         &[],
                     )
                     .body(&[$ops(E::elem_type())])
-                    .outputs(&[E::elem_type()], &[0])
+                    .outputs(&[$crate::codegen::ArrayOutput::new(E::elem_type(), 0)])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -69,7 +69,7 @@ macro_rules! unary {
                             out: Variable::Input(0, E::elem_type()),
                         },
                     ])
-                    .outputs(&[], &[])
+                    .outputs(&[])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -99,7 +99,7 @@ macro_rules! unary {
                         &[$crate::codegen::ScalarInput::new(E::elem_type(), 1)],
                     )
                     .body(&[$ops(E::elem_type())])
-                    .outputs(&[E::elem_type()], &[0])
+                    .outputs(&[$crate::codegen::ArrayOutput::new(E::elem_type(), 0)])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -123,7 +123,7 @@ macro_rules! unary {
                             out: Variable::Input(0, E::elem_type()),
                         },
                     ])
-                    .outputs(&[], &[])
+                    .outputs(&[])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())

@@ -28,7 +28,7 @@ kernel_wgsl!(ClampInplace, "../template/clamp/clamp_inplace.wgsl");
 //     //     elem: E
 //     // )
 // }
-// 
+//
 // pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
 //     input: WgpuTensor<E, D>,
 //     max_value: E,

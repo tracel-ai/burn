@@ -1,5 +1,8 @@
 use crate::{
-    codegen::{ArrayInput, ComputeShader, Elem, KernelCodegen, Operator, ScalarInput, Visibility},
+    codegen::{
+        ArrayInput, ArrayOutput, ComputeShader, Elem, KernelCodegen, Operator, ScalarInput,
+        Visibility,
+    },
     fusion::{
         cache::{CachedComputeShader, KernelCache},
         kernel,
@@ -41,7 +44,8 @@ where
         let outputs = self
             .outputs
             .iter()
-            .map(|(_tensor, elem)| *elem)
+            .zip(self.locals.iter())
+            .map(|((_tensor, elem), local)| ArrayOutput::new(*elem, *local))
             .collect::<Vec<_>>();
 
         let scalar_input = match self.scalars_f32 > 0 {
@@ -52,7 +56,7 @@ where
         KernelCodegen::new()
             .inputs(&inputs, &scalar_input)
             .body(&self.operators)
-            .outputs(&outputs, &self.locals)
+            .outputs(&outputs)
             .compile()
     }
 }

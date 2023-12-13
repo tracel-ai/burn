@@ -280,19 +280,19 @@ where
         kernel::reduce::argmin(tensor, dim)
     }
 
-//     fn int_clamp_min<const D: usize>(
-//         tensor: IntTensor<Self, D>,
-//         min: IntElem<Self>,
-//     ) -> IntTensor<Self, D> {
-//         kernel::clamp_min(tensor, min)
-//     }
-// 
-//     fn int_clamp_max<const D: usize>(
-//         tensor: IntTensor<Self, D>,
-//         max: IntElem<Self>,
-//     ) -> IntTensor<Self, D> {
-//         kernel::clamp_max(tensor, max)
-//     }
+    //     fn int_clamp_min<const D: usize>(
+    //         tensor: IntTensor<Self, D>,
+    //         min: IntElem<Self>,
+    //     ) -> IntTensor<Self, D> {
+    //         kernel::clamp_min(tensor, min)
+    //     }
+    //
+    //     fn int_clamp_max<const D: usize>(
+    //         tensor: IntTensor<Self, D>,
+    //         max: IntElem<Self>,
+    //     ) -> IntTensor<Self, D> {
+    //         kernel::clamp_max(tensor, max)
+    //     }
 
     fn int_clamp<const D: usize>(
         tensor: IntTensor<Self, D>,
