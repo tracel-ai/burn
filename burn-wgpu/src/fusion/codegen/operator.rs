@@ -102,6 +102,9 @@ pub enum Operator {
     },
     ReadGlobal {
         variable: Variable,
+    },
+    ReadGlobalIntoContiguous {
+        variable: Variable,
         position: usize,
         position_out: usize,
     },
@@ -159,7 +162,17 @@ impl Display for Operator {
                 let elem = out.elem();
                 f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
-            Operator::ReadGlobal {
+            Operator::ReadGlobal { variable } => match variable {
+                Variable::Input(number, elem) => f.write_fmt(format_args!(
+                    "let input_{number} = input_{number}_global[id];"
+                )),
+                Variable::Local(_, _) => panic!("can't read global local variable."),
+                Variable::Output(number, elem) => {
+                    f.write_fmt(format_args!("let output_{number} = output_{number}_global[id];"))
+                }
+                Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+            },
+            Operator::ReadGlobalIntoContiguous {
                 variable,
                 position,
                 position_out,

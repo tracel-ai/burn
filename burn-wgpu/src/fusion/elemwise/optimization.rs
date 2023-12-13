@@ -3,7 +3,7 @@ use crate::{
     fusion::{
         cache::{CachedComputeShader, KernelCache},
         codegen::ComputeShader,
-        kernel::FusionKernel,
+        kernel::{self, FusionKernel},
     },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
@@ -36,16 +36,16 @@ where
         let inputs = self
             .inputs
             .iter()
-            .map(|(tensor, elem)| (tensor, *elem))
+            .map(|(_tensor, elem)| *elem)
             .collect::<Vec<_>>();
 
         let outputs = self
             .outputs
             .iter()
-            .map(|(tensor, elem)| (tensor, *elem))
+            .map(|(_tensor, elem)| *elem)
             .collect::<Vec<_>>();
 
-        FusionKernel::<G, F, I>::new(&self.device)
+        FusionKernel::new()
             .inputs(&inputs, self.scalars_f32)
             .body(&self.operators)
             .outputs(&outputs, &self.locals)
@@ -60,7 +60,7 @@ where
 {
     fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         if let Some(kernel) = self.cache.get(&self.id) {
-            FusionKernel::execute(
+            kernel::execute_context(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
@@ -70,7 +70,7 @@ where
             );
         } else {
             let kernel = self.compile();
-            FusionKernel::execute(
+            kernel::execute_context(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
@@ -177,6 +177,7 @@ mod tests {
         Variant1,
         Variant2,
     }
+
     fn execute<B: Backend>(
         data_1: Data<f32, 2>,
         data_2: Data<f32, 2>,

@@ -189,11 +189,14 @@ where
                 Operator::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::ReadGlobal {
+                Operator::ReadGlobalIntoContiguous {
                     variable: _,
                     position: _,
                     position_out: _,
                 } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobal { variable: _ } => {
                     // Nothing to do here.
                 }
                 Operator::Add { lhs, rhs, out } => {

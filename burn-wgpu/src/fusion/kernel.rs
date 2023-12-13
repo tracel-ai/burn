@@ -1,6 +1,6 @@
 use super::cache::CachedComputeShader;
 use super::codegen::Body;
-use crate::compute::{compute_client, DynamicKernel, WgpuComputeClient};
+use crate::compute::{compute_client, DynamicKernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::codegen::Function;
 use crate::fusion::{calculate_num_elems_dyn_rank, strides_dyn_rank};
 use crate::fusion::{
@@ -9,7 +9,7 @@ use crate::fusion::{
     },
     WgpuFusionHandle,
 };
-use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
+use crate::kernel::{elemwise_workgroup, DynamicKernelSource, WORKGROUP_DEFAULT};
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_fusion::graph::Context;
 use burn_fusion::TensorDescription;
@@ -22,8 +22,8 @@ pub struct InputPhase;
 pub struct BodyPhase;
 /// Kernel creation output phase, see [fusion kernel](FusionKernel) for more details.
 pub struct OutputPhase;
-/// Kernel execution phase, see [fusion kernel](FusionKernel) for more details.
-pub struct ExecutionPhase;
+/// Kernel compilation phase, see [fusion kernel](FusionKernel) for more details.
+pub struct CompilationPhase;
 
 /// Allows to create custom wgsl kernels based on configured inputs, body and outputs.
 ///
@@ -42,39 +42,26 @@ pub struct ExecutionPhase;
 ///     Now that all other phases are completed, we can actually run the kernel on the given
 ///     [handles](HandleContainer). Note that the actual chosen kernel may vary based on the
 ///     handles provided.
-pub struct FusionKernel<G, F, I, Phase = InputPhase>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
+pub struct FusionKernel<Phase = InputPhase> {
     operations: Vec<Operator>,
-    input_bindings: Vec<(Binding, TensorDescription)>,
-    output_bindings: Vec<(Binding, TensorDescription)>,
+    input_bindings: Vec<Binding>,
+    output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
-    num_elems_output: usize,
-    device: Device<Wgpu<G, F, I>>,
     scalars_f32: usize,
-    client: WgpuComputeClient,
     _phase: PhantomData<Phase>,
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, InputPhase> {
+impl FusionKernel<InputPhase> {
     /// Create a new fusion kernel on the given device.
-    pub fn new(device: &Device<Wgpu<G, F, I>>) -> Self {
-        let client = compute_client::<G>(device);
-
+    pub fn new() -> Self {
         Self {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
-            num_elems_output: 0,
-            device: device.clone(),
             scalars_f32: 0,
-            client,
             _phase: PhantomData,
         }
     }
@@ -82,40 +69,34 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
     /// Register the inputs used by the kernel.
     pub fn inputs(
         mut self,
-        inputs_tensor: &[(&TensorDescription, Elem)],
+        inputs_tensor: &[Elem],
         inputs_scalar_f32: usize,
-    ) -> FusionKernel<G, F, I, BodyPhase> {
+    ) -> FusionKernel<BodyPhase> {
         self.scalars_f32 = inputs_scalar_f32;
 
-        for (i, (input, elem)) in inputs_tensor.iter().enumerate() {
+        for (i, elem) in inputs_tensor.iter().enumerate() {
             if elem != &Elem::Bool {
-                self.input_bindings.push((
-                    Binding {
-                        elem: *elem,
-                        visibility: Visibility::Read,
-                        location: Location::Storage,
-                        size: None,
-                    },
-                    (*input).clone(),
-                ));
+                self.input_bindings.push(Binding {
+                    elem: *elem,
+                    visibility: Visibility::Read,
+                    location: Location::Storage,
+                    size: None,
+                });
 
-                self.operations.push(Operator::ReadGlobal {
+                self.operations.push(Operator::ReadGlobalIntoContiguous {
                     variable: Variable::Input(i as u16, *elem),
                     position: i,
                     position_out: inputs_tensor.len(), // First output
                 });
             } else {
-                self.input_bindings.push((
-                    Binding {
-                        elem: Elem::I32,
-                        visibility: Visibility::Read,
-                        location: Location::Storage,
-                        size: None,
-                    },
-                    (*input).clone(),
-                ));
+                self.input_bindings.push(Binding {
+                    elem: Elem::I32,
+                    visibility: Visibility::Read,
+                    location: Location::Storage,
+                    size: None,
+                });
 
-                self.operations.push(Operator::ReadGlobal {
+                self.operations.push(Operator::ReadGlobalIntoContiguous {
                     variable: Variable::Input(i as u16, *elem),
                     position: i,
                     position_out: inputs_tensor.len(), // First output
@@ -142,17 +123,14 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Input
             named_bindings: self.named_bindings,
             functions: self.functions,
             scalars_f32: self.scalars_f32,
-            num_elems_output: self.num_elems_output,
-            device: self.device,
-            client: self.client,
             _phase: PhantomData,
         }
     }
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, BodyPhase> {
+impl FusionKernel<BodyPhase> {
     /// Register the [operators](Operator) that the kernel must execute in the order provided.
-    pub fn body(mut self, operators: &[Operator]) -> FusionKernel<G, F, I, OutputPhase> {
+    pub fn body(mut self, operators: &[Operator]) -> FusionKernel<OutputPhase> {
         let mut register_function = |function: Function| {
             if !self.functions.contains(&function) {
                 self.functions.push(function);
@@ -184,58 +162,38 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, BodyP
             named_bindings: self.named_bindings,
             scalars_f32: self.scalars_f32,
             functions: self.functions,
-            num_elems_output: self.num_elems_output,
-            device: self.device,
-            client: self.client,
             _phase: PhantomData,
         }
     }
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, OutputPhase> {
+impl FusionKernel<OutputPhase> {
     /// Register the outputs with their local variable index.
     ///
     /// Note that the index corresponds to the registered [operator](Operator) number at the
     /// [body phase](BodyPhase).
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
-    pub fn outputs(
-        mut self,
-        outputs: &[(&TensorDescription, Elem)],
-        locals: &[u16],
-    ) -> FusionKernel<G, F, I, ExecutionPhase> {
-        let mut num_elems_launch_option = 0;
-
-        for (i, ((output, elem), local)) in outputs.iter().zip(locals).enumerate() {
-            let num_elems_output = calculate_num_elems_dyn_rank(&output.shape);
-            if num_elems_output > num_elems_launch_option {
-                num_elems_launch_option = num_elems_output;
-            }
-
+    pub fn outputs(mut self, outputs: &[Elem], locals: &[u16]) -> FusionKernel<CompilationPhase> {
+        for (i, (elem, local)) in outputs.iter().zip(locals).enumerate() {
             if elem != &Elem::Bool {
-                self.output_bindings.push((
-                    Binding {
-                        elem: *elem,
-                        visibility: Visibility::ReadWrite,
-                        location: Location::Storage,
-                        size: None,
-                    },
-                    (*output).clone(),
-                ));
+                self.output_bindings.push(Binding {
+                    elem: *elem,
+                    visibility: Visibility::ReadWrite,
+                    location: Location::Storage,
+                    size: None,
+                });
 
                 self.operations.push(Operator::AssignGlobal {
                     input: Variable::Local(*local, *elem),
                     out: Variable::Output(i as u16, *elem),
                 });
             } else {
-                self.output_bindings.push((
-                    Binding {
-                        elem: Elem::I32, // I32 are used for bool tensors
-                        visibility: Visibility::ReadWrite,
-                        location: Location::Storage,
-                        size: None,
-                    },
-                    (*output).clone(),
-                ));
+                self.output_bindings.push(Binding {
+                    elem: Elem::I32, // I32 are used for bool tensors
+                    visibility: Visibility::ReadWrite,
+                    location: Location::Storage,
+                    size: None,
+                });
 
                 self.operations.push(Operator::AssignGlobal {
                     input: Variable::Local(*local, *elem),
@@ -244,37 +202,32 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Outpu
             }
         }
 
-        self.num_elems_output = num_elems_launch_option;
-
         FusionKernel {
             operations: self.operations,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
-            num_elems_output: self.num_elems_output,
             scalars_f32: self.scalars_f32,
-            device: self.device,
-            client: self.client,
             _phase: PhantomData,
         }
     }
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, ExecutionPhase> {
-    /// Execute the kernel on the provided [handles](HandleContainer).
+impl FusionKernel<CompilationPhase> {
+    /// Compile the kernel into a [compute shader](ComputeShader).
     pub fn compile(self) -> ComputeShader {
         let mut inputs = Vec::with_capacity(self.input_bindings.len());
         let mut outputs = Vec::with_capacity(self.output_bindings.len());
         let mut named = Vec::with_capacity(2);
 
         // We start by registering the inputs.
-        for (binding, _tensor) in self.input_bindings.into_iter() {
+        for binding in self.input_bindings.into_iter() {
             inputs.push(binding);
         }
 
         // Then we follow with the outputs.
-        for (binding, _tensor) in self.output_bindings {
+        for binding in self.output_bindings {
             outputs.push(binding);
         }
 
@@ -313,78 +266,141 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> FusionKernel<G, F, I, Execu
             functions: self.functions,
         }
     }
+}
 
-    /// Execute the kernel on the provided [handles](HandleContainer).
-    pub fn execute(
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-        scalars_f32: usize,
-        kernel: CachedComputeShader,
-        context: &mut Context<'_, Wgpu<G, F, I>>,
-        device: Device<Wgpu<G, F, I>>,
-    ) {
-        let client = compute_client::<G>(&device);
-        let mut info = Vec::new();
-        let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
+pub fn execute_dyn<K, G, F, I>(
+    inputs: &[(&WgpuHandle, &[usize], &[usize])],
+    outputs: &[(&WgpuHandle, &[usize], &[usize])],
+    scalars_f32: Option<&[f32]>,
+    kernel: K,
+    client: WgpuComputeClient,
+) where
+    K: DynamicKernelSource + 'static,
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
+    let mut info = Vec::new();
+    let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
 
-        // Inner function to fill the info buffer.
-        let mut register_info_tensor = |tensor: &TensorDescription, handle: &WgpuFusionHandle| {
-            if info.is_empty() {
-                info.push(handle.strides.len() as u32);
-            }
+    // Inner function to fill the info buffer.
+    let mut register_info_tensor = |strides: &[usize], shape: &[usize]| {
+        if info.is_empty() {
+            info.push(strides.len() as u32);
+        }
 
-            for s in handle.strides.iter() {
-                info.push(*s as u32);
-            }
-            for s in tensor.shape.iter() {
-                info.push(*s as u32);
-            }
+        for s in strides.iter() {
+            info.push(*s as u32);
+        }
+        for s in shape.iter() {
+            info.push(*s as u32);
+        }
+    };
+
+    // We start by registering the inputs.
+    for (handle, strides, shape) in inputs.iter() {
+        register_info_tensor(strides, shape);
+        handles.push(*handle);
+    }
+
+    let mut num_elems_output = 0;
+
+    // Then we follow with the outputs.
+    for (handle, strides, shape) in outputs.iter() {
+        let num_elems = calculate_num_elems_dyn_rank(&shape);
+        if num_elems > num_elems_output {
+            num_elems_output = num_elems;
+        }
+        register_info_tensor(strides, shape);
+        handles.push(*handle);
+    }
+
+    let info = &client.create(bytemuck::cast_slice(&info));
+    handles.push(&info);
+
+    // Finally we finish with the named bindings.
+    let mut scalars = None;
+    if let Some(values) = &scalars_f32 {
+        scalars = Some(client.create(bytemuck::cast_slice(values)));
+    }
+
+    if let Some(scalars) = scalars.as_ref() {
+        handles.push(scalars);
+    }
+
+    let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
+    let kernel = Box::new(DynamicKernel::new(kernel, workgroup));
+    client.execute(kernel, &handles);
+}
+
+pub fn execute_context<G: GraphicsApi, F: FloatElement, I: IntElement>(
+    inputs: &[&TensorDescription],
+    outputs: &[&TensorDescription],
+    scalars_f32: usize,
+    kernel: CachedComputeShader,
+    context: &mut Context<'_, Wgpu<G, F, I>>,
+    device: Device<Wgpu<G, F, I>>,
+) {
+    let client = compute_client::<G>(&device);
+    let mut info = Vec::new();
+    let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
+
+    // Inner function to fill the info buffer.
+    let mut register_info_tensor = |tensor: &TensorDescription, handle: &WgpuFusionHandle| {
+        if info.is_empty() {
+            info.push(handle.strides.len() as u32);
+        }
+
+        for s in handle.strides.iter() {
+            info.push(*s as u32);
+        }
+        for s in tensor.shape.iter() {
+            info.push(*s as u32);
+        }
+    };
+
+    // We start by registering the inputs.
+    for tensor in inputs.iter() {
+        let tensor = context.tensors.get(&tensor.id).unwrap();
+        let handle = context.handles.get_handle(&tensor);
+
+        register_info_tensor(&tensor, &handle);
+        handles.push(handle.handle);
+    }
+
+    let mut num_elems_output = 0;
+
+    // Then we follow with the outputs.
+    for tensor in outputs.iter() {
+        let tensor = context.tensors.get(&tensor.id).unwrap();
+
+        let num_elems = calculate_num_elems_dyn_rank(&tensor.shape);
+        if num_elems > num_elems_output {
+            num_elems_output = num_elems;
+        }
+        let handle_fusion = WgpuFusionHandle {
+            client: client.clone(),
+            device: device.clone(),
+            strides: strides_dyn_rank(&tensor.shape),
+            handle: client.empty(core::mem::size_of::<F>() * num_elems),
         };
 
-        // We start by registering the inputs.
-        for tensor in inputs.iter() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
-            let handle = context.handles.get_handle(&tensor);
+        register_info_tensor(&tensor, &handle_fusion);
 
-            register_info_tensor(&tensor, &handle);
-            handles.push(handle.handle);
-        }
-
-        let mut num_elems_output = 0;
-
-        // Then we follow with the outputs.
-        for tensor in outputs.iter() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
-
-            let num_elems = calculate_num_elems_dyn_rank(&tensor.shape);
-            if num_elems > num_elems_output {
-                num_elems_output = num_elems;
-            }
-            let handle_fusion = WgpuFusionHandle {
-                client: client.clone(),
-                device: device.clone(),
-                strides: strides_dyn_rank(&tensor.shape),
-                handle: client.empty(core::mem::size_of::<F>() * num_elems),
-            };
-
-            register_info_tensor(&tensor, &handle_fusion);
-
-            handles.push(handle_fusion.handle.clone());
-            context
-                .handles
-                .register_handle(tensor.id.clone(), handle_fusion);
-        }
-
-        handles.push(client.create(bytemuck::cast_slice(&info)));
-
-        // Finally we finish with the named bindings.
-        if scalars_f32 > 0 {
-            handles
-                .push(client.create(bytemuck::cast_slice(&context.scalar_floats[0..scalars_f32])));
-        }
-
-        let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
-        let kernel = Box::new(DynamicKernel::new(kernel, workgroup));
-        client.execute(kernel, &handles.iter().collect::<Vec<_>>());
+        handles.push(handle_fusion.handle.clone());
+        context
+            .handles
+            .register_handle(tensor.id.clone(), handle_fusion);
     }
+
+    handles.push(client.create(bytemuck::cast_slice(&info)));
+
+    // Finally we finish with the named bindings.
+    if scalars_f32 > 0 {
+        handles.push(client.create(bytemuck::cast_slice(&context.scalar_floats[0..scalars_f32])));
+    }
+
+    let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
+    let kernel = Box::new(DynamicKernel::new(kernel, workgroup));
+    client.execute(kernel, &handles.iter().collect::<Vec<_>>());
 }
