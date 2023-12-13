@@ -1,5 +1,5 @@
 use super::numeric;
-use crate::codegen::{execute_dyn, Elem, KernelCodegen, Operator, Variable};
+use crate::codegen::{Elem, Operator, Variable};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
@@ -9,13 +9,9 @@ use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
-use crate::kernel::{
-    self, reduce, unary_default, unary_inplace_default, unary_scalar_default,
-    unary_scalar_inplace_default, DynamicKernelSource,
-};
-use crate::tensor::WgpuTensor;
-use crate::{unary, unary_inplace, unary_scalar, FloatElement, GraphicsApi, IntElement, Wgpu};
-use crate::{unary_scalar_inplace, WgpuDevice};
+use crate::kernel::{self, reduce};
+use crate::WgpuDevice;
+use crate::{unary, FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
@@ -358,202 +354,115 @@ where
         kernel::cast(tensor)
     }
 
-    fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Exp, func "exp");
-        unary_inplace!(ExpInplace, func "exp");
-
-        if lhs.can_mut() {
-            return unary_inplace_default::<ExpInplace, F, D>(lhs);
-        }
-
-        unary_default::<Exp, F, D>(lhs)
+    fn exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary!(
+            operator: |elem: Elem| Operator::Exp {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // unary!(Log, func "log");
-        // unary_inplace!(LogInplace, func "log");
-
-        struct Log;
-        struct LogInplace;
-
-        impl DynamicKernelSource for Log {
-            fn source(&self) -> kernel::SourceTemplate {
-                let shader = KernelCodegen::new()
-                    .inputs(&[Elem::F32], 0)
-                    .body(&[Operator::Log {
-                        input: Variable::Input(0, Elem::F32),
-                        out: Variable::Local(0, Elem::F32),
-                    }])
-                    .outputs(&[Elem::F32], &[0])
-                    .compile();
-
-                kernel::SourceTemplate::new(shader.to_string())
-            }
-
-            fn id(&self) -> String {
-                format!("{:?}", core::any::TypeId::of::<Self>())
-            }
-        }
-
-        impl DynamicKernelSource for LogInplace {
-            fn source(&self) -> kernel::SourceTemplate {
-                let shader = KernelCodegen::new()
-                    .inputs(&[], 0)
-                    .body(&[
-                        Operator::ReadGlobal {
-                            variable: Variable::Output(0, Elem::F32),
-                        },
-                        Operator::Log {
-                            input: Variable::Output(0, Elem::F32),
-                            out: Variable::Local(0, Elem::F32),
-                        },
-                    ])
-                    .outputs(&[Elem::F32], &[0])
-                    .compile();
-
-                kernel::SourceTemplate::new(shader.to_string())
-            }
-
-            fn id(&self) -> String {
-                format!("{:?}", core::any::TypeId::of::<Self>())
-            }
-        }
-
-        if !tensor.can_mut() {
-            let num_elems = tensor.shape.num_elements();
-            let buffer = tensor.client.empty(num_elems * core::mem::size_of::<F>());
-            let mut output = WgpuTensor::new(
-                tensor.client.clone(),
-                tensor.device,
-                tensor.shape.clone(),
-                buffer,
-            );
-            // Since we don't handle the stride inside the kernel, the output tensor have the same strides
-            // as the input tensor. It might not be in the default format.
-            output.strides = tensor.strides;
-
-            execute_dyn::<_, G, F, I>(
-                &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
-                &[(&output.handle, &output.strides, &output.shape.dims)],
-                None,
-                Log,
-                tensor.client,
-            );
-
-            output
-        } else {
-            execute_dyn::<_, G, F, I>(
-                &[],
-                &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
-                None,
-                LogInplace,
-                tensor.client.clone(),
-            );
-
-            tensor
-        }
-
-        // if tensor.can_mut() {
-        //     return unary_inplace_default::<LogInplace, F, D>(tensor);
-        // }
-
-        // unary_default::<Log, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Log {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Log1p, body "output[id] = log(1.0 + input[id]);");
-        unary_inplace!(Log1pInplace, body "input[id] = log(1.0 + input[id]);");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<Log1pInplace, F, D>(tensor);
-        }
-
-        unary_default::<Log1p, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Log1p {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        unary_scalar!(Powf, func "powf", include "../template/powf.wgsl");
-        unary_scalar_inplace!(PowfInplace, func "powf", include "../template/powf.wgsl");
-
-        if lhs.can_mut() {
-            return unary_scalar_inplace_default::<PowfInplace, F, D>(lhs, rhs.elem());
-        }
-
-        unary_scalar_default::<Powf, F, D>(lhs, rhs.elem())
+        unary!(
+            operator: |elem: Elem| Operator::Powf {
+                lhs: Variable::Input(0, elem),
+                rhs: Variable::Scalar(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: lhs; rhs.elem(),
+            elem: F
+        )
     }
 
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Sqrt, func "sqrt");
-        unary_inplace!(SqrtInplace, func "sqrt");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<SqrtInplace, F, D>(tensor);
-        }
-
-        unary_default::<Sqrt, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Sqrt {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Abs, func "abs");
-        unary_inplace!(AbsInplace, func "abs");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<AbsInplace, F, D>(tensor);
-        }
-
-        unary_default::<Abs, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Abs {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Cos, func "cos");
-        unary_inplace!(CosInplace, func "cos");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<CosInplace, F, D>(tensor);
-        }
-
-        unary_default::<Cos, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Cos {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Sin, func "sin");
-        unary_inplace!(SinInplace, func "sin");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<SinInplace, F, D>(tensor);
-        }
-
-        unary_default::<Sin, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Sin {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        // Metal has a weird numerical behaviour with tanh which require a new function
-        #[cfg(target_os = "macos")]
-        unary!(Tanh, func "safe_tanh", include "../template/safe_tanh.wgsl");
-        #[cfg(target_os = "macos")]
-        unary_inplace!(TanhInplace, func "safe_tanh", include "../template/safe_tanh.wgsl");
-
-        #[cfg(not(target_os = "macos"))]
-        unary!(Tanh, func "tanh");
-        #[cfg(not(target_os = "macos"))]
-        unary_inplace!(TanhInplace, func "tanh");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<TanhInplace, F, D>(tensor);
-        }
-
-        unary_default::<Tanh, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Tanh {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary!(Erf, func "erf", include "../template/erf.wgsl");
-        unary_inplace!(ErfInplace, func "erf", include "../template/erf.wgsl");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<ErfInplace, F, D>(tensor);
-        }
-
-        unary_default::<Erf, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Erf {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
@@ -597,13 +506,13 @@ where
     fn recip<const D: usize>(
         tensor: FloatTensor<Wgpu<G, F, I>, D>,
     ) -> FloatTensor<Wgpu<G, F, I>, D> {
-        unary!(Recip, func "1.0 /");
-        unary_inplace!(RecipInplace, func "1.0 /");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<RecipInplace, F, D>(tensor);
-        }
-
-        unary_default::<Recip, F, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Recip {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: F
+        )
     }
 }

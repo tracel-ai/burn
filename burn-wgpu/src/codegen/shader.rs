@@ -2,14 +2,14 @@ use super::{Body, Function};
 use crate::kernel::WORKGROUP_DEFAULT;
 use std::fmt::Display;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Visibility {
     Read,
     ReadWrite,
@@ -24,7 +24,7 @@ pub enum Elem {
     Bool,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,

@@ -1,5 +1,5 @@
 use crate::{
-    codegen::{ComputeShader, Elem, KernelCodegen, Operator},
+    codegen::{ArrayInput, ComputeShader, Elem, KernelCodegen, Operator, ScalarInput, Visibility},
     fusion::{
         cache::{CachedComputeShader, KernelCache},
         kernel,
@@ -35,7 +35,7 @@ where
         let inputs = self
             .inputs
             .iter()
-            .map(|(_tensor, elem)| *elem)
+            .map(|(_tensor, elem)| ArrayInput::new(*elem, Visibility::Read))
             .collect::<Vec<_>>();
 
         let outputs = self
@@ -44,13 +44,19 @@ where
             .map(|(_tensor, elem)| *elem)
             .collect::<Vec<_>>();
 
+        let scalar_input = match self.scalars_f32 > 0 {
+            true => vec![ScalarInput::new(Elem::F32, self.scalars_f32)],
+            false => vec![],
+        };
+
         KernelCodegen::new()
-            .inputs(&inputs, self.scalars_f32)
+            .inputs(&inputs, &scalar_input)
             .body(&self.operators)
             .outputs(&outputs, &self.locals)
             .compile()
     }
 }
+
 impl<G, F, I> Optimization<Wgpu<G, F, I>> for FloatElementWise<G, F, I>
 where
     G: GraphicsApi,

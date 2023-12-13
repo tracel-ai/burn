@@ -187,6 +187,9 @@ where
                 Operator::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
+                Operator::AssignLocal { input: _, out: _ } => {
+                    // Nothing to do here.
+                }
                 Operator::ReadGlobalIntoContiguous {
                     variable: _,
                     position: _,
@@ -292,6 +295,10 @@ where
                     mark(cond, &mut local_tensor_ids_input);
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::Sqrt { input, out } => {
+                    mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
             }

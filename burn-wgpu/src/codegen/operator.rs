@@ -57,6 +57,10 @@ pub(crate) enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    Sqrt {
+        input: Variable,
+        out: Variable,
+    },
     Erf {
         input: Variable,
         out: Variable,
@@ -100,6 +104,10 @@ pub(crate) enum Operator {
         input: Variable,
         out: Variable,
     },
+    AssignLocal {
+        input: Variable,
+        out: Variable,
+    },
     ReadGlobal {
         variable: Variable,
     },
@@ -131,6 +139,9 @@ impl Display for Operator {
             Operator::Powf { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
             }
+            Operator::Sqrt { input, out } => {
+                f.write_fmt(format_args!("let {out} = sqrt({input});"))
+            }
             Operator::Log1p { input, out } => {
                 f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
             }
@@ -161,6 +172,10 @@ impl Display for Operator {
             Operator::AssignGlobal { input, out } => {
                 let elem = out.elem();
                 f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
+            }
+            Operator::AssignLocal { input, out } => {
+                let elem = out.elem();
+                f.write_fmt(format_args!("let {out} = {elem}({input});"))
             }
             Operator::ReadGlobal { variable } => match variable {
                 Variable::Input(number, _elem) => f.write_fmt(format_args!(

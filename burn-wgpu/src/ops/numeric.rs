@@ -1,11 +1,8 @@
+use crate::codegen::{Elem, Operator, Variable};
 use crate::compute::{compute_client, WgpuComputeClient};
-use crate::kernel::{
-    binary_elemwise_default, binary_elemwise_inplace_default, unary_scalar_default,
-    unary_scalar_inplace_default,
-};
+use crate::kernel::{binary_elemwise_default, binary_elemwise_inplace_default};
 use crate::{
-    binary_elemwise, binary_elemwise_inplace, element::WgpuElement, tensor::WgpuTensor,
-    unary_scalar, unary_scalar_inplace,
+    binary_elemwise, binary_elemwise_inplace, element::WgpuElement, tensor::WgpuTensor, unary,
 };
 use crate::{GraphicsApi, WgpuDevice};
 use burn_tensor::{Element, ElementConversion, Shape};
@@ -28,8 +25,14 @@ pub fn full_device<E: WgpuElement + Element, const D: usize>(
 ) -> WgpuTensor<E, D> {
     let empty = empty_device(client, device, shape);
 
-    unary_scalar_inplace!(Full, body "lhs[id] = rhs;");
-    unary_scalar_inplace_default::<Full, E, D>(empty, value)
+    unary!(
+        operator: |elem: Elem| Operator::AssignLocal {
+            input: Variable::Scalar(0, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: empty; value,
+        elem: E
+    )
 }
 
 pub fn zeros<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
@@ -98,14 +101,15 @@ pub fn add_scalar<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(AddScalar, ops "+");
-    unary_scalar_inplace!(AddScalarInplace, ops "+");
-
-    if lhs.can_mut() {
-        return unary_scalar_inplace_default::<AddScalarInplace, E, D>(lhs, rhs);
-    }
-
-    unary_scalar_default::<AddScalar, E, D>(lhs, rhs)
+    unary!(
+        operator: |elem: Elem| Operator::Add {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Scalar(0, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn sub<E: WgpuElement, const D: usize>(
@@ -126,14 +130,15 @@ pub fn sub_scalar<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(SubScalar, ops "-");
-    unary_scalar_inplace!(SubScalarInplace, ops "-");
-
-    if lhs.can_mut() {
-        return unary_scalar_inplace_default::<SubScalarInplace, E, D>(lhs, rhs);
-    }
-
-    unary_scalar_default::<SubScalar, E, D>(lhs, rhs)
+    unary!(
+        operator: |elem: Elem| Operator::Sub {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Scalar(0, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn mul<E: WgpuElement, const D: usize>(
@@ -158,14 +163,15 @@ pub fn mul_scalar<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(MulScalar, ops "*");
-    unary_scalar_inplace!(MulScalarInplace, ops "*");
-
-    if lhs.can_mut() {
-        return unary_scalar_inplace_default::<MulScalarInplace, E, D>(lhs, rhs);
-    }
-
-    unary_scalar_default::<MulScalar, E, D>(lhs, rhs)
+    unary!(
+        operator: |elem: Elem| Operator::Mul {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Scalar(0, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn div<E: WgpuElement, const D: usize>(
@@ -186,12 +192,13 @@ pub fn div_scalar<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(DivScalar, ops "/");
-    unary_scalar_inplace!(DivScalarInplace, ops "/");
-
-    if lhs.can_mut() {
-        return unary_scalar_inplace_default::<DivScalarInplace, E, D>(lhs, rhs);
-    }
-
-    unary_scalar_default::<DivScalar, E, D>(lhs, rhs)
+    unary!(
+        operator: |elem: Elem| Operator::Div {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Scalar(0, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }

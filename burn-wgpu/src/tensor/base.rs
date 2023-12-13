@@ -1,8 +1,8 @@
+use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     unary, WgpuDevice,
 };
-use crate::{element::WgpuElement, kernel::unary_default};
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
@@ -96,8 +96,10 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // slowdowns.
         //
         // The solution is just to use a simple unary compute shader.
-        unary!(CopyBuffer, body "output[id] = input[id];");
-        unary_default::<CopyBuffer, E, D>(self.clone())
+        // unary!(CopyBuffer, body "output[id] = input[id];");
+        // unary_default::<CopyBuffer, E, D>(self.clone())
+
+        todo!()
     }
 
     /// Check if the tensor is safe to mutate.

@@ -2,9 +2,9 @@ use crate::codegen::{
     Binding, Body, ComputeShader, Elem, Function, Location, Operator, Variable, Visibility,
     WorkgroupSize,
 };
-use crate::compute::{DynamicKernel, WgpuComputeClient, WgpuHandle};
-use crate::kernel::{elemwise_workgroup, DynamicKernelSource, WORKGROUP_DEFAULT};
-use crate::{FloatElement, GraphicsApi, IntElement};
+use crate::compute::{StaticKernel, WgpuComputeClient, WgpuHandle};
+use crate::element::WgpuElement;
+use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
 /// Kernel creation input phase, see [fusion kernel](FusionKernel) for more details.
@@ -39,8 +39,19 @@ pub struct KernelCodegen<Phase = InputPhase> {
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
-    scalars_f32: usize,
     _phase: PhantomData<Phase>,
+}
+
+#[derive(new)]
+pub struct ScalarInput {
+    elem: Elem,
+    size: usize,
+}
+
+#[derive(new)]
+pub struct ArrayInput {
+    elem: Elem,
+    visibility: Visibility,
 }
 
 impl KernelCodegen<InputPhase> {
@@ -52,7 +63,6 @@ impl KernelCodegen<InputPhase> {
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
-            scalars_f32: 0,
             _phase: PhantomData,
         }
     }
@@ -60,24 +70,22 @@ impl KernelCodegen<InputPhase> {
     /// Register the inputs used by the kernel.
     pub fn inputs(
         mut self,
-        inputs_tensor: &[Elem],
-        inputs_scalar_f32: usize,
+        arrays: &[ArrayInput],
+        scalars: &[ScalarInput],
     ) -> KernelCodegen<BodyPhase> {
-        self.scalars_f32 = inputs_scalar_f32;
-
-        for (i, elem) in inputs_tensor.iter().enumerate() {
-            if elem != &Elem::Bool {
+        for (i, array) in arrays.iter().enumerate() {
+            if array.elem != Elem::Bool {
                 self.input_bindings.push(Binding {
-                    elem: *elem,
-                    visibility: Visibility::Read,
+                    elem: array.elem,
+                    visibility: array.visibility,
                     location: Location::Storage,
                     size: None,
                 });
 
                 self.operations.push(Operator::ReadGlobalIntoContiguous {
-                    variable: Variable::Input(i as u16, *elem),
+                    variable: Variable::Input(i as u16, array.elem),
                     position: i,
-                    position_out: inputs_tensor.len(), // First output
+                    position_out: arrays.len(), // First output
                 });
             } else {
                 self.input_bindings.push(Binding {
@@ -88,21 +96,21 @@ impl KernelCodegen<InputPhase> {
                 });
 
                 self.operations.push(Operator::ReadGlobalIntoContiguous {
-                    variable: Variable::Input(i as u16, *elem),
+                    variable: Variable::Input(i as u16, array.elem),
                     position: i,
-                    position_out: inputs_tensor.len(), // First output
+                    position_out: arrays.len(), // First output
                 });
             }
         }
 
-        if self.scalars_f32 > 0 {
+        for scalar in scalars {
             self.named_bindings.push((
-                "scalars_f32".to_string(),
+                format!("scalars_{}", scalar.elem),
                 Binding {
-                    elem: Elem::F32,
+                    elem: scalar.elem,
                     visibility: Visibility::Read,
                     location: Location::Storage,
-                    size: Some(self.scalars_f32),
+                    size: Some(scalar.size),
                 },
             ));
         }
@@ -113,7 +121,6 @@ impl KernelCodegen<InputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
-            scalars_f32: self.scalars_f32,
             _phase: PhantomData,
         }
     }
@@ -151,7 +158,6 @@ impl KernelCodegen<BodyPhase> {
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
-            scalars_f32: self.scalars_f32,
             functions: self.functions,
             _phase: PhantomData,
         }
@@ -199,7 +205,6 @@ impl KernelCodegen<OutputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
-            scalars_f32: self.scalars_f32,
             _phase: PhantomData,
         }
     }
@@ -233,16 +238,8 @@ impl KernelCodegen<CompilationPhase> {
             },
         ));
 
-        if self.scalars_f32 > 0 {
-            named.push((
-                "scalars_f32".to_string(),
-                Binding {
-                    elem: Elem::F32,
-                    visibility: Visibility::Read,
-                    location: Location::Storage,
-                    size: Some(self.scalars_f32),
-                },
-            ));
+        for (name, binding) in self.named_bindings.iter() {
+            named.push((name.clone(), binding.clone()));
         }
 
         // We create the shader codegen type and launch the kernel.
@@ -259,17 +256,17 @@ impl KernelCodegen<CompilationPhase> {
     }
 }
 
-pub fn execute_dyn<K, G, F, I>(
+/// Execute a static kernel.
+///
+/// The limitation from this method is that you can't launch a kernel with multiple types of
+/// scalar.
+pub fn execute_static<K, E: WgpuElement>(
     inputs: &[(&WgpuHandle, &[usize], &[usize])],
     outputs: &[(&WgpuHandle, &[usize], &[usize])],
-    scalars_f32: Option<&[f32]>,
-    kernel: K,
+    scalar_elems: Option<&[E]>,
     client: WgpuComputeClient,
 ) where
-    K: DynamicKernelSource + 'static,
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
+    K: StaticKernelSource + 'static,
 {
     let mut info = Vec::new();
     let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
@@ -311,7 +308,7 @@ pub fn execute_dyn<K, G, F, I>(
 
     // Finally we finish with the named bindings.
     let mut scalars = None;
-    if let Some(values) = &scalars_f32 {
+    if let Some(values) = &scalar_elems {
         scalars = Some(client.create(bytemuck::cast_slice(values)));
     }
 
@@ -320,7 +317,8 @@ pub fn execute_dyn<K, G, F, I>(
     }
 
     let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
-    let kernel = Box::new(DynamicKernel::new(kernel, workgroup));
+    let kernel = Box::new(StaticKernel::<K>::new(workgroup));
+
     client.execute(kernel, &handles);
 }
 

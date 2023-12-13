@@ -1,11 +1,10 @@
 use crate::{
     compute::StaticKernel,
     element::WgpuElement,
-    kernel::{unary_scalar, unary_scalar_inplace_default, WORKGROUP_DEFAULT},
+    kernel::{unary, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    unary_scalar, unary_scalar_inplace,
 };
 
 use super::{elemwise_workgroup, KernelSettings};
@@ -17,28 +16,14 @@ pub(crate) fn clamp_min<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     min_value: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(ClampMin, func "max");
-    unary_scalar_inplace!(ClampMinInplace, func "max");
-
-    if input.can_mut() {
-        return unary_scalar_inplace_default::<ClampMinInplace, E, D>(input, min_value);
-    }
-
-    unary_scalar::<ClampMin, E, D, WORKGROUP_DEFAULT>(input, min_value)
+    todo!()
 }
 
 pub(crate) fn clamp_max<E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     max_value: E,
 ) -> WgpuTensor<E, D> {
-    unary_scalar!(ClampMax, func "min");
-    unary_scalar_inplace!(ClampMaxInPlace, func "min");
-
-    if input.can_mut() {
-        return unary_scalar_inplace_default::<ClampMaxInPlace, E, D>(input, max_value);
-    }
-
-    unary_scalar::<ClampMax, E, D, WORKGROUP_DEFAULT>(input, max_value)
+    todo!()
 }
 
 pub(crate) fn clamp<E: WgpuElement, const D: usize>(
