@@ -42,22 +42,26 @@ pub struct KernelCodegen<Phase = InputPhase> {
     _phase: PhantomData<Phase>,
 }
 
-#[derive(new)]
-pub struct ScalarInput {
-    elem: Elem,
-    size: usize,
+pub enum Input {
+    Array {
+        elem: Elem,
+        visibility: Visibility,
+        strategy: ReadingStrategy,
+    },
+    Scalar {
+        elem: Elem,
+        size: usize,
+    },
 }
 
-#[derive(new)]
-pub struct ArrayInput {
-    elem: Elem,
-    visibility: Visibility,
+pub enum ReadingStrategy {
+    IntoContiguous,
+    Plain,
 }
 
-#[derive(new)]
-pub struct ArrayOutput {
-    elem: Elem,
-    local: u16,
+pub enum Output {
+    Array { elem: Elem, local: u16 },
+    Input { elem: Elem, input: u16, local: u16 },
 }
 
 impl KernelCodegen<InputPhase> {
@@ -74,55 +78,66 @@ impl KernelCodegen<InputPhase> {
     }
 
     /// Register the inputs used by the kernel.
-    pub fn inputs(
-        mut self,
-        arrays: &[ArrayInput],
-        scalars: &[ScalarInput],
-    ) -> KernelCodegen<BodyPhase> {
-        for (i, array) in arrays.iter().enumerate() {
-            if array.elem != Elem::Bool {
-                self.input_bindings.push(Binding {
-                    elem: array.elem,
-                    visibility: array.visibility,
-                    location: Location::Storage,
-                    size: None,
-                });
-            } else {
-                self.input_bindings.push(Binding {
-                    elem: Elem::I32,
-                    visibility: array.visibility,
-                    location: Location::Storage,
-                    size: None,
-                });
-            }
+    pub fn inputs(mut self, inputs: &[Input]) -> KernelCodegen<BodyPhase> {
+        let mut index: u16 = 0;
 
-            // Temporary hack to allow inplace operations.
-            match array.visibility {
-                Visibility::Read => {
-                    self.operations.push(Operator::ReadGlobalIntoContiguous {
-                        variable: Variable::Input(i as u16, array.elem),
-                        position: i,
-                        position_out: arrays.len(), // First output
+        let first_output_index = inputs
+            .iter()
+            .filter(|input| match input {
+                Input::Array {
+                    elem: _,
+                    visibility: _,
+                    strategy: _,
+                } => true,
+                Input::Scalar { elem: _, size: _ } => false,
+            })
+            .count();
+
+        for input in inputs {
+            match input {
+                Input::Array {
+                    elem,
+                    visibility,
+                    strategy,
+                } => {
+                    self.input_bindings.push(Binding {
+                        elem: bool_elem(*elem),
+                        visibility: *visibility,
+                        location: Location::Storage,
+                        size: None,
                     });
+
+                    match strategy {
+                        ReadingStrategy::IntoContiguous => {
+                            self.operations.push(Operator::ReadGlobalIntoContiguous {
+                                variable: Variable::Input(index, *elem),
+                                position: index as usize,
+                                position_out: first_output_index, // First output
+                            });
+                        }
+                        ReadingStrategy::Plain => {
+                            self.operations.push(Operator::ReadGlobal {
+                                variable: Variable::Input(index, *elem),
+                            });
+                        }
+                    }
+
+                    index += 1;
                 }
-                Visibility::ReadWrite => {
-                    self.operations.push(Operator::ReadGlobal {
-                        variable: Variable::Input(i as u16, array.elem),
-                    });
+                Input::Scalar { elem, size } => {
+                    let elem = bool_elem(*elem);
+
+                    self.named_bindings.push((
+                        format!("scalars_{}", elem),
+                        Binding {
+                            elem,
+                            visibility: Visibility::Read,
+                            location: Location::Storage,
+                            size: Some(*size),
+                        },
+                    ));
                 }
             }
-        }
-
-        for scalar in scalars {
-            self.named_bindings.push((
-                format!("scalars_{}", scalar.elem),
-                Binding {
-                    elem: scalar.elem,
-                    visibility: Visibility::Read,
-                    location: Location::Storage,
-                    size: Some(scalar.size),
-                },
-            ));
         }
 
         KernelCodegen {
@@ -180,32 +195,32 @@ impl KernelCodegen<OutputPhase> {
     /// Note that the index corresponds to the registered [operator](Operator) number at the
     /// [body phase](BodyPhase).
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
-    pub fn outputs(mut self, outputs: &[ArrayOutput]) -> KernelCodegen<CompilationPhase> {
-        for (i, array) in outputs.iter().enumerate() {
-            if array.elem != Elem::Bool {
-                self.output_bindings.push(Binding {
-                    elem: array.elem,
-                    visibility: Visibility::ReadWrite,
-                    location: Location::Storage,
-                    size: None,
-                });
+    pub fn outputs(mut self, outputs: &[Output]) -> KernelCodegen<CompilationPhase> {
+        let mut index = 0;
 
-                self.operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(array.local, array.elem),
-                    out: Variable::Output(i as u16, array.elem),
-                });
-            } else {
-                self.output_bindings.push(Binding {
-                    elem: Elem::I32, // I32 are used for bool tensors
-                    visibility: Visibility::ReadWrite,
-                    location: Location::Storage,
-                    size: None,
-                });
+        for array in outputs {
+            match array {
+                Output::Array { elem, local } => {
+                    let elem_adapted = bool_elem(*elem);
 
-                self.operations.push(Operator::AssignGlobal {
-                    input: Variable::Local(array.local, array.elem),
-                    out: Variable::Output(i as u16, Elem::I32),
-                });
+                    self.output_bindings.push(Binding {
+                        elem: elem_adapted,
+                        visibility: Visibility::ReadWrite,
+                        location: Location::Storage,
+                        size: None,
+                    });
+                    self.operations.push(Operator::AssignGlobal {
+                        input: Variable::Local(*local, *elem),
+                        out: Variable::Output(index, elem_adapted),
+                    });
+                    index += 1;
+                }
+                Output::Input { elem, input, local } => {
+                    self.operations.push(Operator::AssignGlobal {
+                        input: Variable::Local(*local, *elem),
+                        out: Variable::Input(*input, bool_elem(*elem)),
+                    });
+                }
             }
         }
 
@@ -248,8 +263,8 @@ impl KernelCodegen<CompilationPhase> {
             },
         ));
 
-        for (name, binding) in self.named_bindings.iter() {
-            named.push((name.clone(), binding.clone()));
+        for (name, binding) in self.named_bindings.into_iter() {
+            named.push((name, binding));
         }
 
         // We create the shader codegen type and launch the kernel.
@@ -338,4 +353,11 @@ pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
         num_elems *= i;
     }
     num_elems
+}
+fn bool_elem(elem: Elem) -> Elem {
+    match elem {
+        // I32 are used for bool tensors
+        Elem::Bool => Elem::I32,
+        _ => elem,
+    }
 }

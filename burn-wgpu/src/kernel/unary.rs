@@ -37,15 +37,16 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(
-                        &[$crate::codegen::ArrayInput::new(
-                            E::elem_type(),
-                            $crate::codegen::Visibility::Read,
-                        )],
-                        &[],
-                    )
+                    .inputs(&[$crate::codegen::Input::Array {
+                        elem: E::elem_type(),
+                        visibility: $crate::codegen::Visibility::Read,
+                        strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                    }])
                     .body(&[$ops(E::elem_type())])
-                    .outputs(&[$crate::codegen::ArrayOutput::new(E::elem_type(), 0)])
+                    .outputs(&[$crate::codegen::Output::Array {
+                        elem: E::elem_type(),
+                        local: 0,
+                    }])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -55,21 +56,17 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(
-                        &[$crate::codegen::ArrayInput::new(
-                            E::elem_type(),
-                            $crate::codegen::Visibility::ReadWrite,
-                        )],
-                        &[],
-                    )
-                    .body(&[
-                        $ops(E::elem_type()),
-                        Operator::AssignGlobal {
-                            input: Variable::Local(0, E::elem_type()),
-                            out: Variable::Input(0, E::elem_type()),
-                        },
-                    ])
-                    .outputs(&[])
+                    .inputs(&[$crate::codegen::Input::Array {
+                        elem: E::elem_type(),
+                        visibility: $crate::codegen::Visibility::ReadWrite,
+                        strategy: $crate::codegen::ReadingStrategy::Plain,
+                    }])
+                    .body(&[$ops(E::elem_type())])
+                    .outputs(&[$crate::codegen::Output::Input {
+                        elem: E::elem_type(),
+                        input: 0,
+                        local: 0,
+                    }])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -91,15 +88,22 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(
-                        &[$crate::codegen::ArrayInput::new(
-                            E::elem_type(),
-                            $crate::codegen::Visibility::Read,
-                        )],
-                        &[$crate::codegen::ScalarInput::new(E::elem_type(), 1)],
-                    )
+                    .inputs(&[
+                        $crate::codegen::Input::Array {
+                            elem: E::elem_type(),
+                            visibility: $crate::codegen::Visibility::Read,
+                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                        },
+                        $crate::codegen::Input::Scalar {
+                            elem: E::elem_type(),
+                            size: 1,
+                        },
+                    ])
                     .body(&[$ops(E::elem_type())])
-                    .outputs(&[$crate::codegen::ArrayOutput::new(E::elem_type(), 0)])
+                    .outputs(&[$crate::codegen::Output::Array {
+                        elem: E::elem_type(),
+                        local: 0,
+                    }])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())
@@ -109,21 +113,23 @@ macro_rules! unary {
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::KernelCodegen::new()
-                    .inputs(
-                        &[$crate::codegen::ArrayInput::new(
-                            E::elem_type(),
-                            $crate::codegen::Visibility::ReadWrite,
-                        )],
-                        &[$crate::codegen::ScalarInput::new(E::elem_type(), 1)],
-                    )
-                    .body(&[
-                        $ops(E::elem_type()),
-                        Operator::AssignGlobal {
-                            input: Variable::Local(0, E::elem_type()),
-                            out: Variable::Input(0, E::elem_type()),
+                    .inputs(&[
+                        $crate::codegen::Input::Array {
+                            elem: E::elem_type(),
+                            visibility: $crate::codegen::Visibility::ReadWrite,
+                            strategy: $crate::codegen::ReadingStrategy::Plain,
+                        },
+                        $crate::codegen::Input::Scalar {
+                            elem: E::elem_type(),
+                            size: 1,
                         },
                     ])
-                    .outputs(&[])
+                    .body(&[$ops(E::elem_type())])
+                    .outputs(&[$crate::codegen::Output::Input {
+                        elem: E::elem_type(),
+                        input: 0,
+                        local: 0,
+                    }])
                     .compile();
 
                 $crate::kernel::SourceTemplate::new(shader.to_string())

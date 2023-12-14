@@ -1,7 +1,6 @@
 use crate::{
     codegen::{
-        ArrayInput, ArrayOutput, ComputeShader, Elem, KernelCodegen, Operator, ScalarInput,
-        Visibility,
+        ComputeShader, Elem, Input, KernelCodegen, Operator, Output, ReadingStrategy, Visibility,
     },
     fusion::{
         cache::{CachedComputeShader, KernelCache},
@@ -35,26 +34,35 @@ where
     I: IntElement,
 {
     pub fn compile(&mut self) -> ComputeShader {
-        let inputs = self
+        let mut inputs = self
             .inputs
             .iter()
-            .map(|(_tensor, elem)| ArrayInput::new(*elem, Visibility::Read))
+            .map(|(_tensor, elem)| Input::Array {
+                elem: *elem,
+                visibility: Visibility::Read,
+                strategy: ReadingStrategy::IntoContiguous,
+            })
             .collect::<Vec<_>>();
 
         let outputs = self
             .outputs
             .iter()
             .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| ArrayOutput::new(*elem, *local))
+            .map(|((_tensor, elem), local)| Output::Array {
+                elem: *elem,
+                local: *local,
+            })
             .collect::<Vec<_>>();
 
-        let scalar_input = match self.scalars_f32 > 0 {
-            true => vec![ScalarInput::new(Elem::F32, self.scalars_f32)],
-            false => vec![],
-        };
+        if self.scalars_f32 > 0 {
+            inputs.push(Input::Scalar {
+                elem: Elem::F32,
+                size: self.scalars_f32,
+            })
+        }
 
         KernelCodegen::new()
-            .inputs(&inputs, &scalar_input)
+            .inputs(&inputs)
             .body(&self.operators)
             .outputs(&outputs)
             .compile()
