@@ -175,11 +175,16 @@ mod tests {
             .unwrap();
     }
 
+    #[inline(always)]
+    fn file_path(filename: String) -> PathBuf {
+        std::env::temp_dir().join(filename)
+    }
+
     fn deserialize_with_new_optional_field<R>(name: &str, recorder: R) -> Result<(), RecorderError>
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_optional_field-{name}").into();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_optional_field-{name}"));
         let model = Model {
             single_const: 32.0,
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
@@ -205,7 +210,7 @@ mod tests {
         R: FileRecorder,
     {
         let file_path: PathBuf =
-            format!("/tmp/deserialize_with_removed_optional_field-{name}").into();
+            file_path(format!("deserialize_with_removed_optional_field-{name}"));
         let model = ModelNewOptionalField {
             single_const: 32.0,
             linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
@@ -228,7 +233,7 @@ mod tests {
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_constant_field-{name}").into();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_constant_field-{name}"));
         let model = Model {
             single_const: 32.0,
             array_const: [2, 2],
@@ -254,7 +259,7 @@ mod tests {
         R: FileRecorder,
     {
         let file_path: PathBuf =
-            format!("/tmp/deserialize_with_removed_constant_field-{name}").into();
+            file_path(format!("deserialize_with_removed_constant_field-{name}"));
         let model = ModelNewConstantField {
             single_const: 32.0,
             array_const: [2, 2],
@@ -277,7 +282,7 @@ mod tests {
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_field_order-{name}").into();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_field_order-{name}"));
         let model = Model {
             array_const: [2, 2],
             single_const: 32.0,

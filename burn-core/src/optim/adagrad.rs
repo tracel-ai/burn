@@ -169,7 +169,10 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
         BinFileRecorder::<FullPrecisionSettings>::default()
-            .record(optimizer.to_record(), "/tmp/test_optim".into())
+            .record(
+                optimizer.to_record(),
+                std::env::temp_dir().as_path().join("test_optim"),
+            )
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
