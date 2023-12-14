@@ -1,6 +1,7 @@
 use crate::{
     codegen::{
-        ComputeShader, Elem, Input, KernelCodegen, Operator, Output, ReadingStrategy, Visibility,
+        ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
+        Visibility,
     },
     fusion::{
         cache::{CachedComputeShader, KernelCache},
@@ -61,7 +62,7 @@ where
             })
         }
 
-        KernelCodegen::new()
+        ElemWiseKernelCodegen::new()
             .inputs(&inputs)
             .body(&self.operators)
             .outputs(&outputs)
@@ -77,7 +78,7 @@ where
 {
     fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         if let Some(kernel) = self.cache.get(&self.id) {
-            kernel::execute_context(
+            kernel::execute_fusion(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
@@ -87,7 +88,7 @@ where
             );
         } else {
             let kernel = self.compile();
-            kernel::execute_context(
+            kernel::execute_fusion(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,

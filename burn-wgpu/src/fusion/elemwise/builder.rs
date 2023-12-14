@@ -252,6 +252,15 @@ where
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
+                Operator::Clamp {
+                    input,
+                    min_value: _,
+                    max_value: _,
+                    out,
+                } => {
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
                 Operator::Powf { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);

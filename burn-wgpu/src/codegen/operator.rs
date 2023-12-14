@@ -79,6 +79,12 @@ pub(crate) enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    Clamp {
+        input: Variable,
+        min_value: Variable,
+        max_value: Variable,
+        out: Variable,
+    },
     Greater {
         lhs: Variable,
         rhs: Variable,
@@ -136,6 +142,14 @@ impl Display for Operator {
             Operator::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
             Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
             Operator::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operator::Clamp {
+                input,
+                min_value,
+                max_value,
+                out,
+            } => f.write_fmt(format_args!(
+                "let {out} = clamp({input}, {min_value}, {max_value});"
+            )),
             Operator::Powf { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
             }

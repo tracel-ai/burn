@@ -33,7 +33,7 @@ pub struct CompilationPhase;
 ///     Now that all other phases are completed, we can actually run the kernel on the given
 ///     [handles](HandleContainer). Note that the actual chosen kernel may vary based on the
 ///     handles provided.
-pub struct KernelCodegen<Phase = InputPhase> {
+pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     operations: Vec<Operator>,
     input_bindings: Vec<Binding>,
     output_bindings: Vec<Binding>,
@@ -64,7 +64,7 @@ pub enum Output {
     Input { elem: Elem, input: u16, local: u16 },
 }
 
-impl KernelCodegen<InputPhase> {
+impl ElemWiseKernelCodegen<InputPhase> {
     /// Create a new fusion kernel on the given device.
     pub fn new() -> Self {
         Self {
@@ -78,7 +78,7 @@ impl KernelCodegen<InputPhase> {
     }
 
     /// Register the inputs used by the kernel.
-    pub fn inputs(mut self, inputs: &[Input]) -> KernelCodegen<BodyPhase> {
+    pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<BodyPhase> {
         let mut index: u16 = 0;
 
         let first_output_index = inputs
@@ -140,7 +140,7 @@ impl KernelCodegen<InputPhase> {
             }
         }
 
-        KernelCodegen {
+        ElemWiseKernelCodegen {
             operations: self.operations,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
@@ -151,9 +151,9 @@ impl KernelCodegen<InputPhase> {
     }
 }
 
-impl KernelCodegen<BodyPhase> {
+impl ElemWiseKernelCodegen<BodyPhase> {
     /// Register the [operators](Operator) that the kernel must execute in the order provided.
-    pub fn body(mut self, operators: &[Operator]) -> KernelCodegen<OutputPhase> {
+    pub fn body(mut self, operators: &[Operator]) -> ElemWiseKernelCodegen<OutputPhase> {
         let mut register_function = |function: Function| {
             if !self.functions.contains(&function) {
                 self.functions.push(function);
@@ -178,7 +178,7 @@ impl KernelCodegen<BodyPhase> {
             self.operations.push(ops.clone());
         }
 
-        KernelCodegen {
+        ElemWiseKernelCodegen {
             operations: self.operations,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
@@ -189,13 +189,13 @@ impl KernelCodegen<BodyPhase> {
     }
 }
 
-impl KernelCodegen<OutputPhase> {
+impl ElemWiseKernelCodegen<OutputPhase> {
     /// Register the outputs with their local variable index.
     ///
     /// Note that the index corresponds to the registered [operator](Operator) number at the
     /// [body phase](BodyPhase).
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
-    pub fn outputs(mut self, outputs: &[Output]) -> KernelCodegen<CompilationPhase> {
+    pub fn outputs(mut self, outputs: &[Output]) -> ElemWiseKernelCodegen<CompilationPhase> {
         let mut index = 0;
 
         for array in outputs {
@@ -224,7 +224,7 @@ impl KernelCodegen<OutputPhase> {
             }
         }
 
-        KernelCodegen {
+        ElemWiseKernelCodegen {
             operations: self.operations,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
@@ -235,7 +235,7 @@ impl KernelCodegen<OutputPhase> {
     }
 }
 
-impl KernelCodegen<CompilationPhase> {
+impl ElemWiseKernelCodegen<CompilationPhase> {
     /// Compile the kernel into a [compute shader](ComputeShader).
     pub fn compile(self) -> ComputeShader {
         let mut inputs = Vec::with_capacity(self.input_bindings.len());

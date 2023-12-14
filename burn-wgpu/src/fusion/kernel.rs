@@ -9,7 +9,7 @@ use burn_fusion::graph::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
 
-pub fn execute_context<G: GraphicsApi, F: FloatElement, I: IntElement>(
+pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     scalars_f32: usize,
