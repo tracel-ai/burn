@@ -265,7 +265,6 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
             named.push((name, binding));
         }
 
-        // We create the shader codegen type and launch the kernel.
         ComputeShader {
             inputs,
             outputs,
@@ -279,13 +278,21 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
     }
 }
 
+#[derive(new)]
+pub struct StaticHandle<'a> {
+    handle: &'a WgpuHandle,
+    strides: &'a [usize],
+    shape: &'a [usize],
+}
+
 /// Execute a static kernel.
+///
 ///
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
 pub fn execute_static<K, E: WgpuElement>(
-    inputs: &[(&WgpuHandle, &[usize], &[usize])],
-    outputs: &[(&WgpuHandle, &[usize], &[usize])],
+    inputs: &[StaticHandle],
+    outputs: &[StaticHandle],
     scalar_elems: Option<&[E]>,
     client: WgpuComputeClient,
 ) where
@@ -309,21 +316,21 @@ pub fn execute_static<K, E: WgpuElement>(
     };
 
     // We start by registering the inputs.
-    for (handle, strides, shape) in inputs.iter() {
-        register_info_tensor(strides, shape);
-        handles.push(*handle);
+    for input in inputs.iter() {
+        register_info_tensor(input.strides, input.shape);
+        handles.push(input.handle);
     }
 
     let mut num_elems_output = 0;
 
     // Then we follow with the outputs.
-    for (handle, strides, shape) in outputs.iter() {
-        let num_elems = calculate_num_elems_dyn_rank(shape);
+    for output in outputs.iter() {
+        let num_elems = calculate_num_elems_dyn_rank(output.shape);
         if num_elems > num_elems_output {
             num_elems_output = num_elems;
         }
-        register_info_tensor(strides, shape);
-        handles.push(*handle);
+        register_info_tensor(output.strides, output.shape);
+        handles.push(output.handle);
     }
 
     let info = &client.create(bytemuck::cast_slice(&info));
@@ -352,6 +359,7 @@ pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     }
     num_elems
 }
+
 fn bool_elem(elem: Elem) -> Elem {
     match elem {
         // I32 are used for bool tensors

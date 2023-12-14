@@ -1,5 +1,9 @@
 use super::StaticKernelSource;
-use crate::{codegen::execute_static, element::WgpuElement, tensor::WgpuTensor};
+use crate::{
+    codegen::{execute_static, StaticHandle},
+    element::WgpuElement,
+    tensor::WgpuTensor,
+};
 
 /// Creates a unary kernel.
 #[macro_export]
@@ -161,8 +165,16 @@ where
         );
 
         execute_static::<K, E>(
-            &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
-            &[(&output.handle, &output.strides, &output.shape.dims)],
+            &[StaticHandle::new(
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            )],
+            &[StaticHandle::new(
+                &output.handle,
+                &output.strides,
+                &output.shape.dims,
+            )],
             scalars,
             tensor.client,
         );
@@ -171,7 +183,11 @@ where
     } else {
         execute_static::<KI, E>(
             &[],
-            &[(&tensor.handle, &tensor.strides, &tensor.shape.dims)],
+            &[StaticHandle::new(
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            )],
             scalars,
             tensor.client.clone(),
         );
