@@ -90,4 +90,21 @@ mod tests {
 
         let output: Tensor<TestBackend, 4> = TestTensor::stack(vec![tensor_1, tensor_2], 3);
     }
+
+    #[test]
+    fn should_generate_row_major_layout() {
+        let data_expected = Data::from([
+            [1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0],
+            [7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0],
+            [13, 0, 14, 0, 15, 0, 16, 0, 17, 0, 18, 0],
+            [19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0],
+        ]);
+
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25).reshape([4, 6]);
+        let zeros: Tensor<TestBackend, 2, Int> = Tensor::zeros([4, 6]);
+        let intersperse =
+            Tensor::stack::<3>([tensor.clone(), zeros.clone()].to_vec(), 2).reshape([4, 12]);
+
+        assert_eq!(data_expected, intersperse.into_data());
+    }
 }
