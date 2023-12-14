@@ -525,4 +525,12 @@ where
 
         unary_default::<Recip, F, D>(tensor)
     }
+
+    fn repeat<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> FloatTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
+    }
 }
