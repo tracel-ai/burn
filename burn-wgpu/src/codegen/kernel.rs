@@ -7,13 +7,13 @@ use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
-/// Kernel creation input phase, see [fusion kernel](FusionKernel) for more details.
+/// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
-/// Kernel creation body phase, see [fusion kernel](FusionKernel) for more details.
+/// Kernel creation body phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct BodyPhase;
-/// Kernel creation output phase, see [fusion kernel](FusionKernel) for more details.
+/// Kernel creation output phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct OutputPhase;
-/// Kernel compilation phase, see [fusion kernel](FusionKernel) for more details.
+/// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct CompilationPhase;
 
 /// Allows to create custom wgsl kernels based on configured inputs, body and outputs.
@@ -22,17 +22,15 @@ pub struct CompilationPhase;
 /// you to make mistakes.
 ///
 ///   1. [Input Phase](InputPhase)
-///     This phase focuses on registering the input tensor descriptions that are going to be used by
-///     the fused kernel.
+///     This phase focuses on registering the input arrays and scalars that are going to be used by
+///     the kernel.
 ///   2. [Body Phase](BodyPhase)
 ///     After the input phase is done, all the operations that happen in the body must be
 ///     registered.
 ///   3. [Output Phase](OutputPhase)
-///     This step focuses on registering all tensor descriptions that the kernel needs to write to.
-///   4. [Execution Phase](ExecutionPhase)
-///     Now that all other phases are completed, we can actually run the kernel on the given
-///     [handles](HandleContainer). Note that the actual chosen kernel may vary based on the
-///     handles provided.
+///     This step focuses on registering all output arrays or inputs that the kernel needs to write to.
+///   4. [Compilation Phase](CompilationPhase)
+///     Now that all other phases are completed, we can actually compile the kernel.
 pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     operations: Vec<Operator>,
     input_bindings: Vec<Binding>,

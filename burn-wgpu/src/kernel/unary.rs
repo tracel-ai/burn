@@ -33,6 +33,7 @@ macro_rules! unary {
             _e: core::marker::PhantomData<E>,
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -52,6 +53,7 @@ macro_rules! unary {
             }
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -83,6 +85,7 @@ macro_rules! unary {
             _e: core::marker::PhantomData<E>,
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -108,6 +111,7 @@ macro_rules! unary {
             }
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
