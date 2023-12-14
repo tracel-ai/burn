@@ -318,7 +318,7 @@ pub fn execute_static<K, E: WgpuElement>(
 
     // Then we follow with the outputs.
     for (handle, strides, shape) in outputs.iter() {
-        let num_elems = calculate_num_elems_dyn_rank(&shape);
+        let num_elems = calculate_num_elems_dyn_rank(shape);
         if num_elems > num_elems_output {
             num_elems_output = num_elems;
         }
@@ -327,7 +327,7 @@ pub fn execute_static<K, E: WgpuElement>(
     }
 
     let info = &client.create(bytemuck::cast_slice(&info));
-    handles.push(&info);
+    handles.push(info);
 
     // Finally we finish with the named bindings.
     let mut scalars = None;

@@ -38,9 +38,9 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
     // We start by registering the inputs.
     for tensor in inputs.iter() {
         let tensor = context.tensors.get(&tensor.id).unwrap();
-        let handle = context.handles.get_handle(&tensor);
+        let handle = context.handles.get_handle(tensor);
 
-        register_info_tensor(&tensor, &handle);
+        register_info_tensor(tensor, &handle);
         handles.push(handle.handle);
     }
 
@@ -61,7 +61,7 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
             handle: client.empty(core::mem::size_of::<F>() * num_elems),
         };
 
-        register_info_tensor(&tensor, &handle_fusion);
+        register_info_tensor(tensor, &handle_fusion);
 
         handles.push(handle_fusion.handle.clone());
         context
