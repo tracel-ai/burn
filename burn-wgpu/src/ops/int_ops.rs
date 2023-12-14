@@ -327,4 +327,12 @@ where
 
         tensor
     }
+
+    fn int_repeat<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> IntTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
+    }
 }
