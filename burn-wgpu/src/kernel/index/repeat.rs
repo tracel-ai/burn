@@ -51,7 +51,7 @@ pub(crate) fn repeat<E: WgpuElement, const D1: usize>(
 mod tests {
     use super::*;
     use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{Bool, Distribution, Tensor};
+    use burn_tensor::{Distribution, Tensor};
 
     #[test]
     fn repeat_dim_0_few_times() {
