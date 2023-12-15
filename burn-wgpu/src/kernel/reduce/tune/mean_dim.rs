@@ -27,7 +27,11 @@ pub struct MeanDimAutotuneOperationSet<E: WgpuElement, const D: usize> {
 impl<E: WgpuElement, const D: usize> MeanDimAutotuneOperationSet<E, D> {
     fn new(input: WgpuTensor<E, D>, output: WgpuTensor<E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: WgpuAutotuneKey::MeanDim(ReduceAutotuneKey::new(&input.shape, reduce_dim)),
+            key: WgpuAutotuneKey::MeanDim(ReduceAutotuneKey::new(
+                &input.shape,
+                &input.strides,
+                reduce_dim,
+            )),
             input,
             output,
             reduce_dim,
