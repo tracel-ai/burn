@@ -85,17 +85,20 @@ bench_reduce!(
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
     let num_repeats = 3;
-    let shape = Shape::new([50, 8000, 50]);
-    let dim = 1;
+    let shape = Shape::new([32, 2048, 32]);
+    let dim = 2;
 
     macro_rules! run_reduce_benchmark {
         ($benchmark:ident) => {
-            run_benchmark($benchmark::new(
-                shape.clone(),
-                dim,
-                num_repeats,
-                device.clone(),
-            ));
+            println!(
+                "{}",
+                run_benchmark($benchmark::new(
+                    shape.clone(),
+                    dim,
+                    num_repeats,
+                    device.clone(),
+                ))
+            );
         };
     }
 
