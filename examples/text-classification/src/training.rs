@@ -30,7 +30,7 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 256)]
+    #[config(default = 512)]
     pub max_seq_length: usize,
     #[config(default = 32)]
     pub batch_size: usize,
@@ -84,7 +84,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLrSchedulerConfig::new(0.25)
+    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
         .init();
