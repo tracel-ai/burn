@@ -1,6 +1,6 @@
 use super::StaticKernelSource;
 use crate::{
-    codegen::{execute_static, GridLaunch, StaticHandle},
+    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
 };
@@ -164,7 +164,7 @@ where
             )],
             &[],
             scalars,
-            GridLaunch::Input { pos: 0 },
+            WorkgroupLaunch::Input { pos: 0 },
             tensor.client.clone(),
         );
 
@@ -191,7 +191,7 @@ where
                 &output.shape.dims,
             )],
             scalars,
-            GridLaunch::Output { pos: 0 },
+            WorkgroupLaunch::Output { pos: 0 },
             tensor.client,
         );
 

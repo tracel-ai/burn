@@ -1,11 +1,11 @@
 use crate::{
-    codegen::{execute_static, GridLaunch, StaticHandle},
+    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
 };
 use burn_tensor::Shape;
 
-/// Creates a unary kernel.
+/// Creates a binary kernel.
 #[macro_export]
 macro_rules! binary {
     (
@@ -157,7 +157,7 @@ where
             ],
             &[],
             None,
-            GridLaunch::Input { pos: 0 },
+            WorkgroupLaunch::Input { pos: 0 },
             rhs.client,
         );
 
@@ -170,7 +170,7 @@ where
             ],
             &[],
             None,
-            GridLaunch::Input { pos: 1 },
+            WorkgroupLaunch::Input { pos: 1 },
             lhs.client,
         );
 
@@ -202,7 +202,7 @@ where
                 &out.shape.dims,
             )],
             None,
-            GridLaunch::Output { pos: 0 },
+            WorkgroupLaunch::Output { pos: 0 },
             lhs.client,
         );
 

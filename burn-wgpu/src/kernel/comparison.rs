@@ -181,7 +181,6 @@ pub fn lower_equal_elem<E: WgpuElement, const D: usize>(
     )
 }
 
-/// Launch an binary comparison operation.
 fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, E, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,

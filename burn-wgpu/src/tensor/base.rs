@@ -97,7 +97,6 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // When we do an inplace operation with a broadcast, we set the RHS tensor to contiguous,
         // so LHS should be contiguous before lauching the kernel.
         if is_broadcasting {
-            println!("Is broadcast");
             self.is_contiguous()
         } else {
             true

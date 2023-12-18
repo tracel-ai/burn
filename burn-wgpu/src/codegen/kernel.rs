@@ -285,7 +285,8 @@ pub struct StaticHandle<'a> {
     shape: &'a [usize],
 }
 
-pub enum GridLaunch {
+/// The position of the input or output to calculate the number of workgroups to launch.
+pub enum WorkgroupLaunch {
     Input { pos: usize },
     Output { pos: usize },
 }
@@ -299,7 +300,7 @@ pub fn execute_static<K, E: WgpuElement>(
     inputs: &[StaticHandle],
     outputs: &[StaticHandle],
     scalar_elems: Option<&[E]>,
-    launch: GridLaunch,
+    launch: WorkgroupLaunch,
     client: WgpuComputeClient,
 ) where
     K: StaticKernelSource + 'static,
@@ -325,7 +326,7 @@ pub fn execute_static<K, E: WgpuElement>(
 
     // We start by registering the inputs.
     for (i, input) in inputs.iter().enumerate() {
-        if let GridLaunch::Input { pos } = &launch {
+        if let WorkgroupLaunch::Input { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(input.shape);
             }
@@ -336,7 +337,7 @@ pub fn execute_static<K, E: WgpuElement>(
 
     // Then we follow with the outputs.
     for (i, output) in outputs.iter().enumerate() {
-        if let GridLaunch::Output { pos } = &launch {
+        if let WorkgroupLaunch::Output { pos } = &launch {
             if i == *pos {
                 num_elems_output = calculate_num_elems_dyn_rank(output.shape);
             }
