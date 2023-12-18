@@ -83,11 +83,15 @@ mod tests {
 
     #[test]
     fn can_run_kernel() {
-        binary!(|elem: Elem| Operator::Add {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, elem),
-        });
+        binary!(
+            |elem: Elem| Operator::Add {
+                lhs: Variable::Input(0, elem),
+                rhs: Variable::Input(1, elem),
+                out: Variable::Local(0, elem),
+            },
+            elem_in: f32,
+            elem_out: f32
+        );
 
         let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
 
@@ -100,7 +104,8 @@ mod tests {
         let out = client.empty(core::mem::size_of::<f32>() * 8);
         let info = client.create(bytemuck::cast_slice(&info));
 
-        type Kernel = KernelSettings<Ops<f32>, f32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>;
+        type Kernel =
+            KernelSettings<Ops<f32, f32>, f32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>;
         let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);

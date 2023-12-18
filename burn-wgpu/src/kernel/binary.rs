@@ -13,43 +13,50 @@ macro_rules! binary {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!($ops);
+        binary!($ops, elem_in: $elem, elem_out: $elem);
 
-        $crate::kernel::binary::<Ops<$elem>, OpsInplaceLhs<$elem>, OpsInplaceRhs<$elem>, $elem, D>(
+        $crate::kernel::binary::<Ops<$elem, $elem>, OpsInplaceLhs<$elem, $elem>, OpsInplaceRhs<$elem, $elem>, $elem, D>(
             $lhs, $rhs,
         )
     }};
 
-    ($ops:expr) => {
-        pub struct Ops<E> {
-            _e: core::marker::PhantomData<E>,
+    ($ops:expr, elem_in: $elem_in:ty, elem_out: $elem_out:ty) => {
+        pub struct Ops<I, O> {
+            _i: core::marker::PhantomData<I>,
+            _o: core::marker::PhantomData<O>,
         }
-        pub struct OpsInplaceLhs<E> {
-            _e: core::marker::PhantomData<E>,
+        pub struct OpsInplaceLhs<I, O> {
+            _i: core::marker::PhantomData<I>,
+            _o: core::marker::PhantomData<O>,
         }
-        pub struct OpsInplaceRhs<E> {
-            _e: core::marker::PhantomData<E>,
+        pub struct OpsInplaceRhs<I, O> {
+            _i: core::marker::PhantomData<I>,
+            _o: core::marker::PhantomData<O>,
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
+        impl<I, O> $crate::kernel::StaticKernelSource for Ops<I, O>
+        where
+            I: $crate::element::WgpuElement,
+            O: $crate::element::WgpuElement
+        {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                     ])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: E::elem_type(),
+                        elem: O::elem_type(),
                         local: 0,
                     }])
                     .compile();
@@ -59,26 +66,29 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource
-            for OpsInplaceLhs<E>
+        impl<I, O> $crate::kernel::StaticKernelSource
+            for OpsInplaceLhs<I, O>
+        where
+            I: $crate::element::WgpuElement,
+            O: $crate::element::WgpuElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                     ])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        elem: O::elem_type(),
                         input: 0,
                         local: 0,
                     }])
@@ -89,26 +99,29 @@ macro_rules! binary {
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource
-            for OpsInplaceRhs<E>
+        impl<I, O> $crate::kernel::StaticKernelSource
+            for OpsInplaceRhs<I, O>
+        where
+            I: $crate::element::WgpuElement,
+            O: $crate::element::WgpuElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                     ])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        elem: O::elem_type(),
                         input: 1,
                         local: 0,
                     }])
