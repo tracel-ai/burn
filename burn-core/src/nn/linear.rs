@@ -28,7 +28,7 @@ pub struct LinearConfig {
 /// `O = IW + b`
 #[derive(Module, Debug)]
 pub struct Linear<B: Backend> {
-    /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
+    /// Matrix of shape `[d_output, d_input]` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
     pub weight: Param<Tensor<B, 2>>,
     /// Vector of size `d_output` initialized from a uniform distribution:
@@ -39,7 +39,7 @@ pub struct Linear<B: Backend> {
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self) -> Linear<B> {
-        let shape = [self.d_input, self.d_output];
+        let shape = [self.d_output, self.d_input];
         let weight = self
             .initializer
             .init_with(shape, Some(self.d_input), Some(self.d_output));
@@ -76,7 +76,12 @@ impl<B: Backend> Linear<B> {
     /// - input: `[..., any, d_input]`
     /// - output: `[..., any, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let output = input.matmul(self.weight.val().unsqueeze());
+        let output = self
+            .weight
+            .val()
+            .unsqueeze()
+            .matmul(input.transpose())
+            .transpose();
 
         match &self.bias {
             Some(bias) => output + bias.val().unsqueeze(),

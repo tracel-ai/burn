@@ -175,6 +175,7 @@ where
     /// # Panics
     ///
     /// If the two tensors dont' have a compatible shape.
+    #[track_caller]
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Self::new(B::matmul(self.primitive, other.primitive))

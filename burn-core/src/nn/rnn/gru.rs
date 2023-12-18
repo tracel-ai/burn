@@ -167,8 +167,21 @@ impl<B: Backend> Gru<B> {
         hidden: &Tensor<B, 2>,
         gate: &GateController<B>,
     ) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.input_transform.weight.val());
-        let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
+        let input_product = gate
+            .input_transform
+            .weight
+            .val()
+            .unsqueeze()
+            .matmul(input.clone().transpose())
+            .transpose();
+
+        let hidden_product = gate
+            .hidden_transform
+            .weight
+            .val()
+            .unsqueeze()
+            .matmul(hidden.clone().transpose())
+            .transpose();
 
         let input_bias = gate
             .input_transform
