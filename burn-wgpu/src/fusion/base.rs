@@ -81,14 +81,6 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     strides
 }
 
-pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
-    let mut num_elems = 1;
-    for i in shape.iter() {
-        num_elems *= i;
-    }
-    num_elems
-}
-
 #[derive(new, Debug, Clone)]
 /// Handle to be used when fusing operations.
 pub struct WgpuFusionHandle {

@@ -1,34 +1,29 @@
 use super::{Body, Function};
-use crate::kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT};
-use std::{
-    collections::hash_map::DefaultHasher,
-    fmt::Display,
-    hash::{Hash, Hasher},
-};
+use crate::kernel::WORKGROUP_DEFAULT;
+use std::fmt::Display;
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Visibility {
     Read,
     ReadWrite,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
-    #[allow(dead_code)]
     I32,
     U32,
     Bool,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
@@ -36,7 +31,7 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct WorkgroupSize {
     pub x: usize,
     pub y: usize,
@@ -53,7 +48,6 @@ impl Default for WorkgroupSize {
     }
 }
 
-#[derive(Hash)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
@@ -63,19 +57,6 @@ pub struct ComputeShader {
     pub num_workgroups: bool,
     pub body: Body,
     pub functions: Vec<Function>,
-}
-
-impl DynamicKernelSource for ComputeShader {
-    fn source(&self) -> SourceTemplate {
-        SourceTemplate::new(self.to_string())
-    }
-
-    fn id(&self) -> String {
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-
-        s.finish().to_string()
-    }
 }
 
 impl Display for ComputeShader {

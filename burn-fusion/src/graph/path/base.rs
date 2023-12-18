@@ -60,16 +60,13 @@ impl<O> OptimizationCache<O> {
         }
 
         if let Some(candidate) = self.found {
-            return CacheResult::Found(&self.optimizations.get(candidate).unwrap().value);
+            return CacheResult::Found(&mut self.optimizations.get_mut(candidate).unwrap().value);
         }
 
         // Invalidate candidates.
         let mut invalidated_candidate = Vec::new();
         for id in self.candidates.iter() {
-            let item = match self.optimizations.get(*id) {
-                Some(item) => item,
-                None => panic!("Should have an optimization"),
-            };
+            let item = &self.optimizations[*id];
             let next_ops = graph.last().expect("Validated earlier");
             let next_ops_index = graph.len() - 1;
             let next_ops_candidate = match item.graph.get(next_ops_index) {
@@ -93,18 +90,22 @@ impl<O> OptimizationCache<O> {
                     Condition::NextOps(ops) => ops,
                     Condition::Sync => {
                         self.found = Some(*id);
-                        return CacheResult::Found(&item.value);
+                        break;
                     }
                 };
 
                 if item.end_conditions.contains(ops) {
                     self.found = Some(*id);
-                    return CacheResult::Found(&item.value);
+                    break;
                 } else {
                     self.availables.push((*id, graph.len()));
                     invalidated_candidate.push(*id);
                 }
             }
+        }
+
+        if let Some(id) = self.found {
+            return CacheResult::Found(&mut self.optimizations[id].value);
         }
 
         let mut updated_candidates = Vec::new();
@@ -136,7 +137,7 @@ impl<O> OptimizationCache<O> {
         factory: &Factory,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
-    ) -> &'a O {
+    ) -> &'a mut O {
         let existing_optim = self
             .availables
             .iter()
@@ -149,7 +150,7 @@ impl<O> OptimizationCache<O> {
                 optimization.end_conditions.push(ops)
             };
 
-            return &optimization.value;
+            return &mut optimization.value;
         };
 
         self.starters
@@ -164,7 +165,9 @@ impl<O> OptimizationCache<O> {
         };
 
         self.optimizations.push(optimization);
-        &self.optimizations.last().unwrap().value
+
+        let last_index = self.optimizations.len() - 1;
+        &mut self.optimizations[last_index].value
     }
 
     // Signal that a new path will begin.
@@ -188,7 +191,7 @@ pub enum CacheResult<'a, T> {
     /// happens.
     OnPath,
     /// An optimization has been found, and the best action is to execute it!
-    Found(&'a T),
+    Found(&'a mut T),
 }
 
 /// When checking if an optimization is possible, a start or an end condition ensures that this optimization is

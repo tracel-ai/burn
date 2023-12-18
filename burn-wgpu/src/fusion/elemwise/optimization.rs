@@ -1,24 +1,73 @@
 use crate::{
-    fusion::codegen::{Elem, Operator},
-    fusion::kernel::FusionKernel,
+    codegen::{
+        ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
+        Visibility,
+    },
+    fusion::{
+        cache::{FusedKernelSource, KernelCompilationCache},
+        kernel,
+    },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{graph::Context, Optimization, TensorDescription};
 use burn_tensor::Device;
 
-#[derive(Clone)]
 pub(crate) struct FloatElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
+    pub(crate) id: String,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
     pub(crate) operators: Vec<Operator>,
     pub(crate) scalars_f32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
+    pub(crate) cache: KernelCompilationCache,
+}
+
+impl<G, F, I> FloatElementWise<G, F, I>
+where
+    G: GraphicsApi,
+    F: FloatElement,
+    I: IntElement,
+{
+    pub fn compile(&mut self) -> ComputeShader {
+        let mut inputs = self
+            .inputs
+            .iter()
+            .map(|(_tensor, elem)| Input::Array {
+                elem: *elem,
+                visibility: Visibility::Read,
+                strategy: ReadingStrategy::IntoContiguous,
+            })
+            .collect::<Vec<_>>();
+
+        let outputs = self
+            .outputs
+            .iter()
+            .zip(self.locals.iter())
+            .map(|((_tensor, elem), local)| Output::Array {
+                elem: *elem,
+                local: *local,
+            })
+            .collect::<Vec<_>>();
+
+        if self.scalars_f32 > 0 {
+            inputs.push(Input::Scalar {
+                elem: Elem::F32,
+                size: self.scalars_f32,
+            })
+        }
+
+        ElemWiseKernelCodegen::new()
+            .inputs(&inputs)
+            .body(&self.operators)
+            .outputs(&outputs)
+            .compile()
+    }
 }
 
 impl<G, F, I> Optimization<Wgpu<G, F, I>> for FloatElementWise<G, F, I>
@@ -27,27 +76,33 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn execute(&self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        let inputs = self
-            .inputs
-            .iter()
-            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
-            .collect::<Vec<_>>();
+    fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
+        if let Some(kernel) = self.cache.get(&self.id) {
+            kernel::execute_fusion(
+                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                self.scalars_f32,
+                kernel,
+                context,
+                self.device.clone(),
+            );
+        } else {
+            let shader = self.compile();
 
-        let outputs = self
-            .outputs
-            .iter()
-            .map(|(tensor, elem)| (context.tensors.get(&tensor.id).unwrap(), *elem))
-            .collect::<Vec<_>>();
+            kernel::execute_fusion(
+                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                self.scalars_f32,
+                FusedKernelSource::NewKernel {
+                    id: self.id.to_string(),
+                    shader,
+                },
+                context,
+                self.device.clone(),
+            );
 
-        // The context may contain scalars for the end condition, which may vary.
-        let scalars_f32 = &context.scalar_floats[0..self.scalars_f32];
-
-        FusionKernel::new(&self.device)
-            .inputs(&inputs, scalars_f32)
-            .body(&self.operators)
-            .outputs(&outputs, &self.locals)
-            .execute(context.handles);
+            self.cache.insert(self.id.clone());
+        }
     }
 
     fn len(&self) -> usize {
@@ -144,6 +199,7 @@ mod tests {
         Variant1,
         Variant2,
     }
+
     fn execute<B: Backend>(
         data_1: Data<f32, 2>,
         data_2: Data<f32, 2>,

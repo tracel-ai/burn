@@ -682,20 +682,6 @@ impl<E: Element> NumericOpsDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOpsDescription::ClampMax(desc) => {
-                NumericOpsDescription::ClampMax(ScalarOpsDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOpsDescription::ClampMin(desc) => {
-                NumericOpsDescription::ClampMin(ScalarOpsDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
         }
     }
 }

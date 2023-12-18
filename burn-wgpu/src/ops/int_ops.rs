@@ -1,10 +1,10 @@
 use super::numeric;
 
+use crate::codegen::{Elem, Operator, Variable};
 use crate::kernel::reduce::{self, init_reduce_output};
-use crate::kernel::{unary_default, unary_inplace_default};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, unary, unary_inplace, GraphicsApi, Wgpu,
+    kernel, unary, GraphicsApi, Wgpu,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
@@ -280,20 +280,6 @@ where
         kernel::reduce::argmin(tensor, dim)
     }
 
-    fn int_clamp_min<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        min: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        kernel::clamp_min(tensor, min)
-    }
-
-    fn int_clamp_max<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        kernel::clamp_max(tensor, max)
-    }
-
     fn int_clamp<const D: usize>(
         tensor: IntTensor<Self, D>,
         min: IntElem<Self>,
@@ -303,14 +289,14 @@ where
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
-        unary!(IntAbs, func "abs");
-        unary_inplace!(IntAbsInplace, func "abs");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<IntAbsInplace, I, D>(tensor);
-        }
-
-        unary_default::<IntAbs, I, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Abs {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: I
+        )
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {

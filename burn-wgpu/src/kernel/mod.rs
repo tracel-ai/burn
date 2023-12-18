@@ -8,14 +8,12 @@ mod index;
 mod mask;
 mod source;
 mod unary;
-mod unary_scalar;
 
 pub use base::*;
 pub use binary_elemwise::*;
 pub use cast::*;
 pub use source::*;
 pub use unary::*;
-pub use unary_scalar::*;
 
 /// Convolution kernels
 pub mod conv;

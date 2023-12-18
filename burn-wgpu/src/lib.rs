@@ -15,6 +15,8 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
+pub(crate) mod codegen;
+
 mod element;
 pub use element::{FloatElement, IntElement};
 
