@@ -140,9 +140,6 @@ pub fn mul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    println!("Lhs Stride mul {:?}", lhs.strides);
-    println!("Rhs Stride mul {:?}", rhs.strides);
-    println!("-----------");
     binary!(
         operator: |elem: Elem| Operator::Mul {
             lhs: Variable::Input(0, elem),

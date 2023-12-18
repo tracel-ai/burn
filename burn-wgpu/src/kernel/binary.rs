@@ -13,14 +13,18 @@ macro_rules! binary {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!($ops, elem_in: $elem, elem_out: $elem);
+        binary!(operator: $ops, elem_in: $elem, elem_out: $elem);
 
         $crate::kernel::binary::<Ops<$elem, $elem>, OpsInplaceLhs<$elem, $elem>, OpsInplaceRhs<$elem, $elem>, $elem, D>(
             $lhs, $rhs,
         )
     }};
 
-    ($ops:expr, elem_in: $elem_in:ty, elem_out: $elem_out:ty) => {
+    (
+        operator: $ops:expr,
+        elem_in: $elem_in:ty,
+        elem_out: $elem_out:ty
+    ) => {
         pub struct Ops<I, O> {
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
@@ -88,7 +92,7 @@ macro_rules! binary {
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: O::elem_type(),
+                        elem: I::elem_type(),
                         input: 0,
                         local: 0,
                     }])
@@ -121,7 +125,7 @@ macro_rules! binary {
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: O::elem_type(),
+                        elem: I::elem_type(),
                         input: 1,
                         local: 0,
                     }])
