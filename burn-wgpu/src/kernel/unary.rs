@@ -15,7 +15,7 @@ macro_rules! unary {
     ) => {{
         unary!($ops);
 
-        $crate::kernel::unary::<Ops<$elem>, OpsInplace<$elem>, $elem, D>($input, None)
+        $crate::kernel::unary::<Ops<$elem>, OpsInplace<$elem>, $elem, D>($input, None, true)
     }};
     (
         operator: $ops:expr,
@@ -24,7 +24,7 @@ macro_rules! unary {
     ) => {{
         unary!($ops, scalar 1);
 
-        $crate::kernel::unary::<Ops<$elem>, OpsInplace<$elem>, $elem, D>($input, Some(&[$scalar]))
+        $crate::kernel::unary::<Ops<$elem>, OpsInplace<$elem>, $elem, D>($input, Some(&[$scalar]), true)
     }};
 
     (
@@ -148,13 +148,28 @@ macro_rules! unary {
 pub fn unary<Kernel, KernelInplace, E, const D: usize>(
     tensor: WgpuTensor<E, D>,
     scalars: Option<&[E]>,
+    inplace_enabled: bool,
 ) -> WgpuTensor<E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
     E: WgpuElement,
 {
-    if !tensor.can_mut() {
+    if inplace_enabled && tensor.can_mut() {
+        execute_static::<KernelInplace, E>(
+            &[StaticHandle::new(
+                &tensor.handle,
+                &tensor.strides,
+                &tensor.shape.dims,
+            )],
+            &[],
+            scalars,
+            GridLaunch::Input { pos: 0 },
+            tensor.client.clone(),
+        );
+
+        tensor
+    } else {
         let num_elems = tensor.shape.num_elements();
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
         let output = WgpuTensor::new(
@@ -181,20 +196,6 @@ where
         );
 
         output
-    } else {
-        execute_static::<KernelInplace, E>(
-            &[StaticHandle::new(
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            )],
-            &[],
-            scalars,
-            GridLaunch::Input { pos: 0 },
-            tensor.client.clone(),
-        );
-
-        tensor
     }
 }
 
@@ -215,7 +216,8 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
 
-        let actual = unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None);
+        let actual =
+            unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(
@@ -229,7 +231,8 @@ mod tests {
         let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
         let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
 
-        let actual = unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None);
+        let actual =
+            unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(

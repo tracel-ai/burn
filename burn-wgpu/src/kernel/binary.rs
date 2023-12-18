@@ -16,7 +16,7 @@ macro_rules! binary {
         binary!(operator: $ops, elem_in: $elem, elem_out: $elem);
 
         $crate::kernel::binary::<Ops<$elem, $elem>, OpsInplaceLhs<$elem, $elem>, OpsInplaceRhs<$elem, $elem>, $elem, D>(
-            $lhs, $rhs,
+            $lhs, $rhs, true
         )
     }};
 
@@ -141,6 +141,7 @@ macro_rules! binary {
 pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, E, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
+    inplace_enabled: bool,
 ) -> WgpuTensor<E, D>
 where
     Kernel: crate::kernel::StaticKernelSource,
@@ -148,7 +149,7 @@ where
     KernelInplaceRhs: crate::kernel::StaticKernelSource,
     E: WgpuElement,
 {
-    if lhs.can_mut_broadcast(&rhs) {
+    if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         execute_static::<KernelInplaceLhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
@@ -161,7 +162,7 @@ where
         );
 
         lhs
-    } else if rhs.can_mut_broadcast(&lhs) {
+    } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
         execute_static::<KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),

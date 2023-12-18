@@ -220,18 +220,14 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 
         // We set the output number that will be used for the stride definition.
         for i in 0..self.input_bindings.len() {
-            if let Some(ops) = self.operations.get_mut(i) {
-                match ops {
-                    Operator::ReadGlobalIntoContiguous {
-                        variable: _,
-                        position: _,
-                        position_out,
-                    } => {
-                        *position_out = position_out_updated;
-                    }
-                    _ => {
-                        // Nothing to do
-                    }
+            if let Some(Operator::ReadGlobalIntoContiguous {
+                variable: _,
+                position: _,
+                position_out,
+            }) = self.operations.get_mut(i)
+            {
+                {
+                    *position_out = position_out_updated;
                 }
             };
         }
