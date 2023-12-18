@@ -79,18 +79,6 @@ impl ElemWiseKernelCodegen<InputPhase> {
     pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<BodyPhase> {
         let mut index: u16 = 0;
 
-        let first_output_index = inputs
-            .iter()
-            .filter(|input| match input {
-                Input::Array {
-                    elem: _,
-                    visibility: _,
-                    strategy: _,
-                } => true,
-                Input::Scalar { elem: _, size: _ } => false,
-            })
-            .count();
-
         for input in inputs {
             match input {
                 Input::Array {
@@ -110,7 +98,8 @@ impl ElemWiseKernelCodegen<InputPhase> {
                             self.operations.push(Operator::ReadGlobalIntoContiguous {
                                 variable: Variable::Input(index, *elem),
                                 position: index as usize,
-                                position_out: first_output_index, // First output
+                                position_out: 0, // Will set the right value during the output
+                                                 // phase.
                             });
                         }
                         ReadingStrategy::Plain => {
@@ -195,6 +184,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(mut self, outputs: &[Output]) -> ElemWiseKernelCodegen<CompilationPhase> {
         let mut index = 0;
+        let mut position_out_updated = 0;
 
         for array in outputs {
             match array {
@@ -212,14 +202,38 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         out: Variable::Output(index, elem_adapted),
                     });
                     index += 1;
+
+                    if index == 1 {
+                        position_out_updated = self.input_bindings.len(); // First output when we have a
+                                                                          // new array for the output.
+                    }
                 }
                 Output::Input { elem, input, local } => {
                     self.operations.push(Operator::AssignGlobal {
                         input: Variable::Local(*local, *elem),
                         out: Variable::Input(*input, bool_elem(*elem)),
                     });
+                    position_out_updated = *input as usize; // Input number when we use inplace operation.
                 }
             }
+        }
+
+        // We set the output number that will be used for the stride definition.
+        for i in 0..self.input_bindings.len() {
+            if let Some(ops) = self.operations.get_mut(i) {
+                match ops {
+                    Operator::ReadGlobalIntoContiguous {
+                        variable: _,
+                        position: _,
+                        position_out,
+                    } => {
+                        *position_out = position_out_updated;
+                    }
+                    _ => {
+                        // Nothing to do
+                    }
+                }
+            };
         }
 
         ElemWiseKernelCodegen {
@@ -364,8 +378,8 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
 
 fn bool_elem(elem: Elem) -> Elem {
     match elem {
-        // I32 are used for bool tensors
-        Elem::Bool => Elem::I32,
+        // U32 are used for bool tensors
+        Elem::Bool => Elem::U32,
         _ => elem,
     }
 }

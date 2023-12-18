@@ -1,10 +1,7 @@
 use crate::codegen::{Elem, Operator, Variable};
 use crate::compute::{compute_client, WgpuComputeClient};
-use crate::kernel::{binary_elemwise_default, binary_elemwise_inplace_default};
 use crate::{binary, GraphicsApi, WgpuDevice};
-use crate::{
-    binary_elemwise, binary_elemwise_inplace, element::WgpuElement, tensor::WgpuTensor, unary,
-};
+use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
 use burn_tensor::{Element, ElementConversion, Shape};
 
 pub fn full<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
@@ -113,14 +110,15 @@ pub fn sub<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    binary_elemwise!(Sub, "-");
-    binary_elemwise_inplace!(SubInplace, "-");
-
-    if lhs.can_mut_broadcast(&rhs) {
-        return binary_elemwise_inplace_default::<SubInplace, E, D>(lhs, rhs);
-    }
-
-    binary_elemwise_default::<Sub, E, D>(lhs, rhs)
+    binary!(
+        operator: |elem: Elem| Operator::Sub {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Input(1, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn sub_scalar<E: WgpuElement, const D: usize>(
@@ -142,18 +140,18 @@ pub fn mul<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    binary_elemwise!(Mul, "*");
-    binary_elemwise_inplace!(MulInplace, "*");
-
-    if lhs.can_mut_broadcast(&rhs) {
-        return binary_elemwise_inplace_default::<MulInplace, E, D>(lhs, rhs);
-    }
-
-    if rhs.can_mut_broadcast(&lhs) {
-        return binary_elemwise_inplace_default::<MulInplace, E, D>(rhs, lhs);
-    }
-
-    binary_elemwise_default::<Mul, E, D>(lhs, rhs)
+    println!("Lhs Stride mul {:?}", lhs.strides);
+    println!("Rhs Stride mul {:?}", rhs.strides);
+    println!("-----------");
+    binary!(
+        operator: |elem: Elem| Operator::Mul {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Input(1, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn mul_scalar<E: WgpuElement, const D: usize>(
@@ -175,14 +173,15 @@ pub fn div<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
-    binary_elemwise!(Div, "/");
-    binary_elemwise_inplace!(DivInplace, "/");
-
-    if lhs.can_mut_broadcast(&rhs) {
-        return binary_elemwise_inplace_default::<DivInplace, E, D>(lhs, rhs);
-    }
-
-    binary_elemwise_default::<Div, E, D>(lhs, rhs)
+    binary!(
+        operator: |elem: Elem| Operator::Div {
+            lhs: Variable::Input(0, elem),
+            rhs: Variable::Input(1, elem),
+            out: Variable::Local(0, elem),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
 }
 
 pub fn div_scalar<E: WgpuElement, const D: usize>(

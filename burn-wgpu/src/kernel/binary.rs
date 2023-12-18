@@ -20,9 +20,7 @@ macro_rules! binary {
         )
     }};
 
-    (
-        $ops:expr
-    ) => {
+    ($ops:expr) => {
         pub struct Ops<E> {
             _e: core::marker::PhantomData<E>,
         }
@@ -75,7 +73,7 @@ macro_rules! binary {
                         $crate::codegen::Input::Array {
                             elem: E::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::Plain,
+                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                     ])
                     .body(&[$ops(E::elem_type())])
@@ -100,7 +98,7 @@ macro_rules! binary {
                         $crate::codegen::Input::Array {
                             elem: E::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::Plain,
+                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
                         },
                         $crate::codegen::Input::Array {
                             elem: E::elem_type(),
@@ -146,7 +144,7 @@ where
         );
 
         lhs
-    } else if rhs.can_mut_broadcast(&lhs) {
+    } else if rhs.can_mut_broadcast(&lhs) && false {
         execute_static::<KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),

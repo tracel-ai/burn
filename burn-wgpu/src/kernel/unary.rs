@@ -183,14 +183,14 @@ where
         output
     } else {
         execute_static::<KernelInplace, E>(
-            &[],
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
                 &tensor.shape.dims,
             )],
+            &[],
             scalars,
-            GridLaunch::Output { pos: 0 },
+            GridLaunch::Input { pos: 0 },
             tensor.client.clone(),
         );
 

@@ -78,32 +78,30 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             return false;
         }
 
-        let mut strides_sorted_lhs = [(0, 0); D];
-        let mut strides_sorted_rhs = [(0, 0); D];
+        let mut is_broadcasting = false;
 
         for i in 0..D {
+            let shape_lhs = self.shape.dims[i];
+            let shape_rhs = rhs.shape.dims[i];
+
             // Output tensor will be different from the mutable tensor.
-            if self.shape.dims[i] < rhs.shape.dims[i] {
+            if shape_lhs < shape_rhs {
                 return false;
             }
 
-            strides_sorted_lhs[i] = (i, self.strides[i]);
-            strides_sorted_rhs[i] = (i, rhs.strides[i]);
-        }
-
-        strides_sorted_lhs.sort_by(|(_, a), (_, b)| a.cmp(b));
-        strides_sorted_rhs.sort_by(|(_, a), (_, b)| a.cmp(b));
-
-        for i in 0..D {
-            let (pos_lhs, _) = strides_sorted_lhs[i];
-            let (pos_rhs, _) = strides_sorted_rhs[i];
-
-            if pos_lhs != pos_rhs {
-                return false;
+            if shape_lhs != shape_rhs {
+                is_broadcasting = true;
             }
         }
 
-        true
+        // When we do an inplace operation with a broadcast, we set the RHS tensor to contiguous,
+        // so LHS should be contiguous before lauching the kernel.
+        if is_broadcasting {
+            println!("Is broadcast");
+            self.is_contiguous()
+        } else {
+            true
+        }
     }
 
     /// Copy the current tensor.
