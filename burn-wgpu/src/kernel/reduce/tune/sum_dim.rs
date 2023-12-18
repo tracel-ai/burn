@@ -27,7 +27,11 @@ pub struct SumDimAutotuneOperationSet<E: WgpuElement, const D: usize> {
 impl<E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<E, D> {
     fn new(input: WgpuTensor<E, D>, output: WgpuTensor<E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(&input.shape, reduce_dim)),
+            key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(
+                &input.shape,
+                &input.strides,
+                reduce_dim,
+            )),
             input,
             output,
             reduce_dim,

@@ -316,7 +316,7 @@ fn same_as_input(node: &mut Node) {
 }
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
-fn temporary_pass_through_stub(node: &mut Node) {
+fn temporary_pass_through_stub(node: &Node) {
     log::warn!(
         "Must implement dimension inference for {:?}",
         node.node_type

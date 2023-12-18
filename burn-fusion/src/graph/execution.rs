@@ -71,7 +71,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                     };
                 }
                 CacheResult::Found(ops) => {
-                    graph.execute_optimization(handles, ops.as_ref());
+                    graph.execute_optimization(handles, ops.as_mut());
                     self.reset(graph);
                 }
             };
@@ -82,7 +82,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn build(&mut self, graph: &mut Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
+    fn build(&mut self, graph: &Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // graph even when there is no skipped operation.
         let offset = match mode {
@@ -107,14 +107,14 @@ impl<B: FusionBackend> GraphExecution<B> {
             }
         }
 
-        match find_best_optimization_index(&self.optimizations) {
+        match find_best_optimization_index(&mut self.optimizations) {
             Some(index) => {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let optimization = &self.optimizations[index];
                 let ops = self
                     .optimization_cache
                     .complete(optimization, relative, next_ops);
-                BuildAction::ExecuteOptimization(ops.as_ref())
+                BuildAction::ExecuteOptimization(ops.as_mut())
             }
             None => {
                 // TODO: Cache this result too.
@@ -123,7 +123,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn reset(&mut self, graph: &mut Graph<B>) {
+    fn reset(&mut self, graph: &Graph<B>) {
         for ops in self.optimizations.iter_mut() {
             ops.reset();
         }
@@ -142,7 +142,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 
     fn cache<'a>(
         &'a mut self,
-        graph: &mut Graph<B>,
+        graph: &Graph<B>,
         mode: ExecutionMode,
     ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
@@ -184,7 +184,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 }
 
 enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a dyn Optimization<B>),
+    ExecuteOptimization(&'a mut dyn Optimization<B>),
     ExecuteOperations,
     ContinueBuilding,
 }
@@ -202,7 +202,7 @@ fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuild
 }
 
 fn find_best_optimization_index<B: FusionBackend>(
-    optimizations: &[Box<dyn OptimizationBuilder<B>>],
+    optimizations: &mut [Box<dyn OptimizationBuilder<B>>],
 ) -> Option<usize> {
     let mut best_index = None;
     let mut best_score = 0;

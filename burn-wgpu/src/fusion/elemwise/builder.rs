@@ -1,8 +1,10 @@
 use crate::{
+    codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::codegen::{Elem, Operator, Variable},
+    fusion::cache::KernelCompilationCache,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
+use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
@@ -84,12 +86,14 @@ where
             .collect::<Vec<_>>();
 
         Box::new(FloatElementWise {
+            id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
             operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
             device: self.device.clone(),
+            cache: KernelCompilationCache::default(),
         })
     }
 
@@ -183,11 +187,17 @@ where
                 Operator::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::ReadGlobal {
+                Operator::AssignLocal { input: _, out: _ } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobalIntoContiguous {
                     variable: _,
                     position: _,
                     position_out: _,
                 } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobal { variable: _ } => {
                     // Nothing to do here.
                 }
                 Operator::Add { lhs, rhs, out } => {
@@ -242,6 +252,15 @@ where
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
+                Operator::Clamp {
+                    input,
+                    min_value: _,
+                    max_value: _,
+                    out,
+                } => {
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
                 Operator::Powf { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
@@ -285,6 +304,10 @@ where
                     mark(cond, &mut local_tensor_ids_input);
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::Sqrt { input, out } => {
+                    mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
             }

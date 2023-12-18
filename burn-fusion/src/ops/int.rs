@@ -1034,48 +1034,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn int_clamp_min<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        min: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        scalar_int_ops!(ClampMinOps, B::int_clamp_min);
-
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-
-        let desc = ScalarOpsDescription {
-            lhs: tensor.into_description(),
-            rhs: min.elem(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ClampMin(desc.clone())),
-            ClampMinOps::<D>::new(desc),
-        );
-
-        out
-    }
-
-    fn int_clamp_max<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        scalar_int_ops!(ClampMaxOps, B::int_clamp_max);
-
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-
-        let desc = ScalarOpsDescription {
-            lhs: tensor.into_description(),
-            rhs: max.elem(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::ClampMax(desc.clone())),
-            ClampMaxOps::<D>::new(desc),
-        );
-
-        out
-    }
-
     fn int_clamp<const D: usize>(
         tensor: IntTensor<Self, D>,
         min: IntElem<Self>,

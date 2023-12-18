@@ -265,48 +265,6 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn clamp_min<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        min: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        scalar_float_ops!(ClampMinOps, B::clamp_min);
-
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-
-        let desc = ScalarOpsDescription {
-            lhs: tensor.into_description(),
-            rhs: min.elem(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::ClampMin(desc.clone())),
-            ClampMinOps::<D>::new(desc),
-        );
-
-        out
-    }
-
-    fn clamp_max<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
-        scalar_float_ops!(ClampMaxOps, B::clamp_max);
-
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-
-        let desc = ScalarOpsDescription {
-            lhs: tensor.into_description(),
-            rhs: max.elem(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::ClampMax(desc.clone())),
-            ClampMaxOps::<D>::new(desc),
-        );
-
-        out
-    }
-
     fn clamp<const D: usize>(
         tensor: FloatTensor<Self, D>,
         min: FloatElem<Self>,

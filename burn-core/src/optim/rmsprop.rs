@@ -317,7 +317,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestAutodiffBackend, TestBackend};
+    use crate::{nn, nn::Linear, TestAutodiffBackend, TestBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -509,7 +509,7 @@ mod tests {
     }
 
     fn create_rmsprop(
-    ) -> OptimizerAdaptor<RMSProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    ) -> OptimizerAdaptor<RMSProp<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend>
     {
         RMSPropConfig {
             alpha: 0.99,
