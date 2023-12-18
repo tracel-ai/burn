@@ -144,7 +144,7 @@ where
         );
 
         lhs
-    } else if rhs.can_mut_broadcast(&lhs) && false {
+    } else if rhs.can_mut_broadcast(&lhs) {
         execute_static::<KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
