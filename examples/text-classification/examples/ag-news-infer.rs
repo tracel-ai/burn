@@ -38,8 +38,8 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
     use crate::{launch, ElemType};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -53,8 +53,8 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
     use crate::{launch, ElemType};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
         launch::<LibTorch<ElemType>>(LibTorchDevice::Cpu);
@@ -63,8 +63,8 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
     use crate::{launch, ElemType};
+    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
 
     pub fn run() {
         launch::<Wgpu<AutoGraphicsApi, ElemType, i32>>(WgpuDevice::default());
