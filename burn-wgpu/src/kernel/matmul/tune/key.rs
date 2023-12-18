@@ -1,12 +1,13 @@
 use burn_tensor::Shape;
 use core::fmt::Debug;
+use serde::{Serialize, Deserialize};
 use std::{
     cmp::{max, min},
     fmt::Display,
     hash::Hash,
 };
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of matmul versions
 pub struct MatmulAutotuneKey {
     round: bool,     // True when all matmul dims are multiples of 64

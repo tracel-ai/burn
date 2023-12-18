@@ -1,6 +1,7 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use serde::{Serialize, Deserialize};
 use core::fmt::{Debug, Display};
 use core::hash::Hash;
 
@@ -16,6 +17,15 @@ pub trait AutotuneOperationSet<K>: Send {
     /// Returns the operation for the given index, matching the order
     /// returned by autotunables. Operation obtained here runs on original tensors
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
+
+    /// Compute checksum for the set by concatenating the op names together
+    fn compute_checksum (&self) -> String {
+        let mut checksum = String::new();
+        self.autotunables().iter().for_each(|op| {
+            checksum += op.name();
+        });
+        format!("{:x}", md5::compute(checksum))
+    }
 }
 
 /// Contains operation to run and inputs on which to run it
@@ -33,5 +43,5 @@ pub trait AutotuneOperation {
 }
 
 /// Trait alias
-pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display {}
+pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + for<'de> Deserialize<'de> {}
 impl AutotuneKey for String {}

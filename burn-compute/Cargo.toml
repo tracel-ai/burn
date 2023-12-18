@@ -30,6 +30,10 @@ derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 hashbrown = { workspace = true }
+dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }
+md5 = "0.7.0"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 web-time = { version = "0.2.3" }

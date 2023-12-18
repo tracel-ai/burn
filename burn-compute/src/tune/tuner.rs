@@ -36,6 +36,9 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
         client: &ComputeClient<S, C>,
     ) {
+        // TODO: load the autotune cache only once instead of each time we process a set
+        self.tune_cache.load().expect("Autotune cache missing or it cannot be read");
+
         let operation = match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(set) => self.autotuning(set, client),
@@ -53,7 +56,8 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let autotunables = autotune_operation_set.autotunables();
         let mut names = Vec::with_capacity(autotunables.len());
 
-        // Run all autotune benchmarks
+        println!("Running autotune...");
+
         let results: Vec<BenchmarkDurations> = autotunables
             .into_iter()
             .map(|op| {
@@ -62,20 +66,19 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
             })
             .collect();
 
-        for (name, result) in names.iter().zip(results.iter()) {
-            log::info!("Benchmark result {name}-{key} => {result}");
-        }
-
         // Finds the fastest operation, stores it and returns it
         let fastest_index = self.find_fastest(results);
         let fastest_name = names.get(fastest_index).unwrap();
         log::info!("Fastest result {fastest_name}-{key}");
 
-        self.tune_cache.cache_insert(key, fastest_index);
-        match self.tune_cache.try_cache(autotune_operation_set) {
+        let checksum = autotune_operation_set.compute_checksum();
+        self.tune_cache.cache_insert(key, fastest_index, checksum);
+        let result = match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),
-        }
+        };
+        self.tune_cache.save();
+        result
     }
 
     fn run_benchmark(
