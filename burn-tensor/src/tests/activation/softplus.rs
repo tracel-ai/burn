@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_softplus_d2() {
-        let data = Data::from([[-0.4240, -0.9574, -0.2215], [-0.5767,  0.7218, -0.1620]]);
+        let data = Data::from([[-0.4240, -0.9574, -0.2215], [-0.5767, 0.7218, -0.1620]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data);
 
         let data_actual_beta1 = activation::softplus(tensor.clone(), 1.0).to_data();
