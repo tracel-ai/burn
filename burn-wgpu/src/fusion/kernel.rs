@@ -1,4 +1,4 @@
-use super::cache::CachedComputeShader;
+use super::cache::FusedKernelSource;
 use crate::codegen::calculate_num_elems_dyn_rank;
 use crate::compute::{compute_client, DynamicKernel};
 use crate::fusion::strides_dyn_rank;
@@ -13,7 +13,7 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     scalars_f32: usize,
-    kernel: CachedComputeShader,
+    kernel: FusedKernelSource,
     context: &mut Context<'_, Wgpu<G, F, I>>,
     device: Device<Wgpu<G, F, I>>,
 ) {

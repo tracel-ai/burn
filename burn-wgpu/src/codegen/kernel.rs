@@ -236,19 +236,9 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 impl ElemWiseKernelCodegen<CompilationPhase> {
     /// Compile the kernel into a [compute shader](ComputeShader).
     pub fn compile(self) -> ComputeShader {
-        let mut inputs = Vec::with_capacity(self.input_bindings.len());
-        let mut outputs = Vec::with_capacity(self.output_bindings.len());
+        let inputs = self.input_bindings;
+        let outputs = self.output_bindings;
         let mut named = Vec::with_capacity(2);
-
-        // We start by registering the inputs.
-        for binding in self.input_bindings.into_iter() {
-            inputs.push(binding);
-        }
-
-        // Then we follow with the outputs.
-        for binding in self.output_bindings {
-            outputs.push(binding);
-        }
 
         named.push((
             "info".to_string(),

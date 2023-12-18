@@ -1,7 +1,7 @@
 use crate::{
     codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::cache::KernelCache,
+    fusion::cache::KernelCompilationCache,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_common::id::IdGenerator;
@@ -93,7 +93,7 @@ where
             operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
             device: self.device.clone(),
-            cache: KernelCache::default(),
+            cache: KernelCompilationCache::default(),
         })
     }
 

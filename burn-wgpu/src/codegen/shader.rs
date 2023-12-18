@@ -18,7 +18,6 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
-    #[allow(dead_code)]
     I32,
     U32,
     Bool,

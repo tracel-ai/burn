@@ -4,7 +4,7 @@ use crate::{
         Visibility,
     },
     fusion::{
-        cache::{CachedComputeShader, KernelCache},
+        cache::{FusedKernelSource, KernelCompilationCache},
         kernel,
     },
     FloatElement, GraphicsApi, IntElement, Wgpu,
@@ -25,7 +25,7 @@ where
     pub(crate) operators: Vec<Operator>,
     pub(crate) scalars_f32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
-    pub(crate) cache: KernelCache,
+    pub(crate) cache: KernelCompilationCache,
 }
 
 impl<G, F, I> FloatElementWise<G, F, I>
@@ -87,12 +87,16 @@ where
                 self.device.clone(),
             );
         } else {
-            let kernel = self.compile();
+            let shader = self.compile();
+
             kernel::execute_fusion(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
-                CachedComputeShader::Compile(self.id.to_string(), kernel),
+                FusedKernelSource::NewKernel {
+                    id: self.id.to_string(),
+                    shader,
+                },
                 context,
                 self.device.clone(),
             );
