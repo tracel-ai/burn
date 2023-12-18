@@ -264,11 +264,11 @@ mod tests {
 
     #[test]
     fn test_kernel_type_id() {
-        kernel_wgsl!(Add, "../template/binary_elemwise.wgsl");
+        kernel_wgsl!(Cat, "../template/cat.wgsl");
 
-        let type_id_1 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 4>>();
-        let type_id_2 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 5>>();
-        let type_id_3 = TypeId::of::<KernelSettings<Add, f32, i32, 2, 3, 4>>();
+        let type_id_1 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 4>>();
+        let type_id_2 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 5>>();
+        let type_id_3 = TypeId::of::<KernelSettings<Cat, f32, i32, 2, 3, 4>>();
 
         assert_ne!(type_id_1, type_id_2);
         assert_eq!(type_id_1, type_id_3);

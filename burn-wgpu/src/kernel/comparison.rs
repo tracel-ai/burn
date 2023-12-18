@@ -1,5 +1,3 @@
-use burn_tensor::Shape;
-
 use crate::{
     binary,
     codegen::{execute_static, Elem, GridLaunch, Operator, StaticHandle, Variable},
@@ -8,6 +6,7 @@ use crate::{
     tensor::WgpuTensor,
     unary,
 };
+use burn_tensor::Shape;
 use std::mem;
 
 macro_rules! comparison {
