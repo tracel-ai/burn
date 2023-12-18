@@ -1,4 +1,5 @@
 mod base;
+mod binary;
 mod binary_elemwise;
 mod cast;
 mod cat;
@@ -10,6 +11,7 @@ mod source;
 mod unary;
 
 pub use base::*;
+pub use binary::*;
 pub use binary_elemwise::*;
 pub use cast::*;
 pub use source::*;

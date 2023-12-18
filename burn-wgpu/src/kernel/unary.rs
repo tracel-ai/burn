@@ -1,6 +1,6 @@
 use super::StaticKernelSource;
 use crate::{
-    codegen::{execute_static, StaticHandle},
+    codegen::{execute_static, GridLaunch, StaticHandle},
     element::WgpuElement,
     tensor::WgpuTensor,
 };
@@ -145,13 +145,13 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<K, KI, E, const D: usize>(
+pub fn unary<Kernel, KernelInplace, E, const D: usize>(
     tensor: WgpuTensor<E, D>,
     scalars: Option<&[E]>,
 ) -> WgpuTensor<E, D>
 where
-    K: StaticKernelSource,
-    KI: StaticKernelSource,
+    Kernel: StaticKernelSource,
+    KernelInplace: StaticKernelSource,
     E: WgpuElement,
 {
     if !tensor.can_mut() {
@@ -164,7 +164,7 @@ where
             buffer,
         );
 
-        execute_static::<K, E>(
+        execute_static::<Kernel, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -176,12 +176,13 @@ where
                 &output.shape.dims,
             )],
             scalars,
+            GridLaunch::Output { pos: 0 },
             tensor.client,
         );
 
         output
     } else {
-        execute_static::<KI, E>(
+        execute_static::<KernelInplace, E>(
             &[],
             &[StaticHandle::new(
                 &tensor.handle,
@@ -189,6 +190,7 @@ where
                 &tensor.shape.dims,
             )],
             scalars,
+            GridLaunch::Output { pos: 0 },
             tensor.client.clone(),
         );
 

@@ -73,14 +73,32 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, rhs: &WgpuTensor<E, D>) -> bool {
         if !self.handle.can_mut() {
             return false;
         }
 
+        let mut strides_sorted_lhs = [(0, 0); D];
+        let mut strides_sorted_rhs = [(0, 0); D];
+
         for i in 0..D {
             // Output tensor will be different from the mutable tensor.
-            if self.shape.dims[i] < tensor_other.shape.dims[i] {
+            if self.shape.dims[i] < rhs.shape.dims[i] {
+                return false;
+            }
+
+            strides_sorted_lhs[i] = (i, self.strides[i]);
+            strides_sorted_rhs[i] = (i, rhs.strides[i]);
+        }
+
+        strides_sorted_lhs.sort_by(|(_, a), (_, b)| a.cmp(b));
+        strides_sorted_rhs.sort_by(|(_, a), (_, b)| a.cmp(b));
+
+        for i in 0..D {
+            let (pos_lhs, _) = strides_sorted_lhs[i];
+            let (pos_rhs, _) = strides_sorted_rhs[i];
+
+            if pos_lhs != pos_rhs {
                 return false;
             }
         }

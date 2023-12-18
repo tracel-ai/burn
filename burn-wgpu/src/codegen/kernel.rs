@@ -275,6 +275,11 @@ pub struct StaticHandle<'a> {
     shape: &'a [usize],
 }
 
+pub enum GridLaunch {
+    Input { pos: usize },
+    Output { pos: usize },
+}
+
 /// Execute a static kernel.
 ///
 ///
@@ -284,6 +289,7 @@ pub fn execute_static<K, E: WgpuElement>(
     inputs: &[StaticHandle],
     outputs: &[StaticHandle],
     scalar_elems: Option<&[E]>,
+    launch: GridLaunch,
     client: WgpuComputeClient,
 ) where
     K: StaticKernelSource + 'static,
@@ -305,20 +311,26 @@ pub fn execute_static<K, E: WgpuElement>(
         }
     };
 
+    let mut num_elems_output = 0;
+
     // We start by registering the inputs.
-    for input in inputs.iter() {
+    for (i, input) in inputs.iter().enumerate() {
+        if let GridLaunch::Input { pos } = &launch {
+            if i == *pos {
+                num_elems_output = calculate_num_elems_dyn_rank(input.shape);
+            }
+        };
         register_info_tensor(input.strides, input.shape);
         handles.push(input.handle);
     }
 
-    let mut num_elems_output = 0;
-
     // Then we follow with the outputs.
-    for output in outputs.iter() {
-        let num_elems = calculate_num_elems_dyn_rank(output.shape);
-        if num_elems > num_elems_output {
-            num_elems_output = num_elems;
-        }
+    for (i, output) in outputs.iter().enumerate() {
+        if let GridLaunch::Output { pos } = &launch {
+            if i == *pos {
+                num_elems_output = calculate_num_elems_dyn_rank(output.shape);
+            }
+        };
         register_info_tensor(output.strides, output.shape);
         handles.push(output.handle);
     }
