@@ -1,6 +1,6 @@
 # Learner
 
-The [burn-train](https://github.com/burn-rs/burn/tree/main/burn-train) crate encapsulates multiple
+The [burn-train](https://github.com/tracel-ai/burn/tree/main/burn-train) crate encapsulates multiple
 utilities for training deep learning models. The goal of the crate is to provide users with a
 well-crafted and flexible training loop, so that projects do not have to write such components from
 the ground up. Most of the interactions with `burn-train` will be with the `LearnerBuilder` struct,
@@ -32,7 +32,7 @@ The learner builder provides numerous options when it comes to configurations.
 | Devices                | Set the devices to be used                                                     |
 | Checkpoint             | Restart training from a checkpoint                                             |
 
-When the builder is configured at your liking, you can them move forward to build the learner. The
+When the builder is configured at your liking, you can then move forward to build the learner. The
 build method requires three inputs: the model, the optimizer and the learning rate scheduler. Note
 that the latter can be a simple float if you want it to be constant during training.
 

@@ -103,49 +103,45 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match bias {
-            Some(bias) => {
-                match Conv2DWithBias
-                    .prepare(
-                        [x.node, weight.node, bias.node],
-                        [x.graph, weight.graph, bias.graph],
-                    )
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            bias.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv2d(x.primitive, weight.primitive, Some(bias.primitive), options),
+            Some(bias) => match Conv2DWithBias
+                .prepare(
+                    [x.node, weight.node, bias.node],
+                    [x.graph, weight.graph, bias.graph],
+                )
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        bias.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
-                        x.primitive,
-                        weight.primitive,
-                        Some(bias.primitive),
-                        options,
-                    )),
-                }
-            }
-            None => {
-                match Conv2DNoBias
-                    .prepare([x.node, weight.node], [x.graph, weight.graph])
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv2d(x.primitive, weight.primitive, None, options),
+                    B::conv2d(x.primitive, weight.primitive, Some(bias.primitive), options),
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            None => match Conv2DNoBias
+                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => {
-                        prep.finish(B::conv2d(x.primitive, weight.primitive, None, options))
-                    }
+                    B::conv2d(x.primitive, weight.primitive, None, options),
+                ),
+                OpsKind::UnTracked(prep) => {
+                    prep.finish(B::conv2d(x.primitive, weight.primitive, None, options))
                 }
-            }
+            },
         }
     }
 
@@ -211,57 +207,53 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match bias {
-            Some(bias) => {
-                match ConvTranspose2DWithBias
-                    .prepare(
-                        [x.node, weight.node, bias.node],
-                        [x.graph, weight.graph, bias.graph],
-                    )
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            bias.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv_transpose2d(
-                            x.primitive,
-                            weight.primitive,
-                            Some(bias.primitive),
-                            options,
-                        ),
+            Some(bias) => match ConvTranspose2DWithBias
+                .prepare(
+                    [x.node, weight.node, bias.node],
+                    [x.graph, weight.graph, bias.graph],
+                )
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        bias.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
+                    B::conv_transpose2d(
                         x.primitive,
                         weight.primitive,
                         Some(bias.primitive),
                         options,
-                    )),
-                }
-            }
-            None => {
-                match ConvTranspose2DNoBias
-                    .prepare([x.node, weight.node], [x.graph, weight.graph])
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv_transpose2d(x.primitive, weight.primitive, None, options),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
-                        x.primitive,
-                        weight.primitive,
-                        None,
-                        options,
-                    )),
-                }
-            }
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            None => match ConvTranspose2DNoBias
+                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        options.clone(),
+                    ),
+                    B::conv_transpose2d(x.primitive, weight.primitive, None, options),
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
+                    x.primitive,
+                    weight.primitive,
+                    None,
+                    options,
+                )),
+            },
         }
     }
 
@@ -322,49 +314,45 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
         match bias {
-            Some(bias) => {
-                match Conv1DWithBias
-                    .prepare(
-                        [x.node, weight.node, bias.node],
-                        [x.graph, weight.graph, bias.graph],
-                    )
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            bias.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv1d(x.primitive, weight.primitive, Some(bias.primitive), options),
+            Some(bias) => match Conv1DWithBias
+                .prepare(
+                    [x.node, weight.node, bias.node],
+                    [x.graph, weight.graph, bias.graph],
+                )
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        bias.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
-                        x.primitive,
-                        weight.primitive,
-                        Some(bias.primitive),
-                        options,
-                    )),
-                }
-            }
-            None => {
-                match Conv1DNoBias
-                    .prepare([x.node, weight.node], [x.graph, weight.graph])
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv1d(x.primitive, weight.primitive, None, options),
+                    B::conv1d(x.primitive, weight.primitive, Some(bias.primitive), options),
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            None => match Conv1DNoBias
+                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => {
-                        prep.finish(B::conv1d(x.primitive, weight.primitive, None, options))
-                    }
+                    B::conv1d(x.primitive, weight.primitive, None, options),
+                ),
+                OpsKind::UnTracked(prep) => {
+                    prep.finish(B::conv1d(x.primitive, weight.primitive, None, options))
                 }
-            }
+            },
         }
     }
 
@@ -430,57 +418,53 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match bias {
-            Some(bias) => {
-                match ConvTranspose1DWithBias
-                    .prepare(
-                        [x.node, weight.node, bias.node],
-                        [x.graph, weight.graph, bias.graph],
-                    )
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            bias.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv_transpose1d(
-                            x.primitive,
-                            weight.primitive,
-                            Some(bias.primitive),
-                            options,
-                        ),
+            Some(bias) => match ConvTranspose1DWithBias
+                .prepare(
+                    [x.node, weight.node, bias.node],
+                    [x.graph, weight.graph, bias.graph],
+                )
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        bias.primitive.clone(),
+                        options.clone(),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
+                    B::conv_transpose1d(
                         x.primitive,
                         weight.primitive,
                         Some(bias.primitive),
                         options,
-                    )),
-                }
-            }
-            None => {
-                match ConvTranspose1DNoBias
-                    .prepare([x.node, weight.node], [x.graph, weight.graph])
-                    .stateful()
-                {
-                    OpsKind::Tracked(prep) => prep.finish(
-                        (
-                            x.primitive.clone(),
-                            weight.primitive.clone(),
-                            options.clone(),
-                        ),
-                        B::conv_transpose1d(x.primitive, weight.primitive, None, options),
                     ),
-                    OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
-                        x.primitive,
-                        weight.primitive,
-                        None,
-                        options,
-                    )),
-                }
-            }
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            None => match ConvTranspose1DNoBias
+                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .stateful()
+            {
+                OpsKind::Tracked(prep) => prep.finish(
+                    (
+                        x.primitive.clone(),
+                        weight.primitive.clone(),
+                        options.clone(),
+                    ),
+                    B::conv_transpose1d(x.primitive, weight.primitive, None, options),
+                ),
+                OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
+                    x.primitive,
+                    weight.primitive,
+                    None,
+                    options,
+                )),
+            },
         }
     }
 

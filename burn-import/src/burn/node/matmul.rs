@@ -84,8 +84,12 @@ mod tests {
                     }
                 }
 
-                #[allow(clippy::let_and_return)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>
+                ) -> Tensor<B, 4> {
                     let tensor3 = tensor1.matmul(tensor2);
 
                     tensor3

@@ -54,7 +54,8 @@ impl CrossEntropyLossConfig {
         if let Some(alpha) = self.smoothing {
             assert!(
                 (0.0..=1.).contains(&alpha),
-                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {}",
+                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. \
+                 Got {}",
                 alpha
             );
         };

@@ -257,6 +257,40 @@ where
         self.reshape(shape)
     }
 
+    /// Creates a new tensor with a dimension of size one inserted at the specified position.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let tensor = Tensor::<B, 2>::ones_default(Shape::new([3, 3]));
+    ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dim(1);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [3, 1, 3] }
+    /// }
+    /// ```
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::unsqueeze_dim::<{ D }>(dim));
+
+        let mut dims = [1; D2];
+        let shape = self.shape();
+
+        dims[0..dim].copy_from_slice(&shape.dims[0..dim]);
+
+        if dim < D {
+            dims[dim] = 1;
+            dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
+        } else {
+            dims[dim] = 1;
+        }
+
+        let shape = Shape::new(dims);
+        self.reshape(shape)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
@@ -270,10 +304,35 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
+    ///     // Create a tensor with a single dimension of ints between 0 and 11
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_default(0..12);
+    ///     // Select elements 0, 1, 2, 3 from the first dimension
+    ///     let tensor_slices = tensor.clone().slice([0..4]);
+    ///     println!("\nexpecting [0,1,2,3] : {:?}", tensor);
+    ///     println!("expecting [4] : {:?}", tensor.dims());
+    ///
+    ///     // Create a Tensor with 3 dimensions
     ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 3, 3]));
+    ///     // This slice will select the element 0 on the first dimension,
+    ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
-    ///     println!("{:?}", tensor_slices.dims()); // [1, 3, 2]
-    ///     
+    ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
+    ///
+    ///     // Create a tensor of ints from 0 to 11 and reshape it into three dimensions
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_default(0..12);
+    ///     let tensor = tensor.reshape([1, 3, 4]);
+    ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
+    ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
+    ///     // Select element 0 of first dimension, elements 1,2 of second dimension
+    ///     // and element 1 of third dimension
+    ///     //
+    ///     // This is the equivalent of this pseudo code
+    ///     // let mut v = vec![[[]]];
+    ///     // v[0][0][0] = tensor[0][1][1];
+    ///     // v[0][1][0] = tensor[0][2][1];
+    ///     let tensor_slices = tensor.slice([0..1, 1..3, 1..2]);
+    ///     println!("\nexpecting [1, 2, 1] : {:?}", tensor_slices.dims());
+    ///     println!("expecting [[[5],[9]]] : {:?}", tensor_slices);
     /// }
     /// ```
     pub fn slice<const D2: usize>(self, ranges: [core::ops::Range<usize>; D2]) -> Self {
@@ -398,6 +457,18 @@ where
         ))
     }
 
+    /// Concatenates all tensors into a new one along a new dimension.
+    ///
+    /// # Panics
+    ///
+    /// If all tensors don't have the same shape.
+    /// Given dimension is not with range of 0..=D2
+    pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::stack(&tensors, dim));
+        let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
+        Tensor::<B, D2, K>::cat(tensors, dim)
+    }
+
     /// Iterate over slices of tensors alongside a given dimension.
     ///
     /// # Panics
@@ -411,6 +482,76 @@ where
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
     }
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
+        check!(TensorCheck::dim_ops::<D>("narrow", dim));
+        check!(TensorCheck::narrow(&self, dim, start, length));
+
+        let ranges: Vec<_> = (0..D)
+            .map(|i| {
+                if i == dim {
+                    start..(start + length)
+                } else {
+                    0..self.shape().dims[i]
+                }
+            })
+            .collect();
+
+        let ranges_array: [_; D] = ranges.try_into().unwrap();
+
+        self.slice(ranges_array)
+    }
+
+    /// Attempts to split the tensor along the given dimension into chunks.
+    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
+    ///
+    /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
+    /// Otherwise all chunks will be of equal size except for the last one.
+    ///
+    /// # Panics
+    ///
+    ///  If the dimension is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    /// A vector of tensors.
+    pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::dim_ops::<D>("chunk", dim));
+
+        let size = self.shape().dims[dim];
+        if size < chunks {
+            return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
+        }
+
+        let mut tensors = Vec::with_capacity(chunks);
+        let mut sum_chunk_size = 0;
+        if size % chunks == 0 {
+            let chunk_size = size / chunks;
+            for _ in 0..chunks {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+        } else {
+            let chunk_size = (size / chunks) + 1; // assumes not divisible
+            for _ in 0..chunks - 1 {
+                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
+                sum_chunk_size += chunk_size;
+            }
+            let remainder = size % chunk_size;
+            tensors.push(self.clone().narrow(dim, sum_chunk_size, remainder));
+        }
+
+        tensors
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
@@ -419,9 +560,9 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
-    counter: usize,
+    start: usize,
+    end: usize,
     dim: usize,
-    end_idx: usize,
     ranges: [Range<usize>; D],
     tensor: Tensor<B, D, K>,
 }
@@ -430,16 +571,33 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
     type Item = Tensor<B, D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let res = if self.counter < self.end_idx {
-            let mut ranges = self.ranges.clone();
-            ranges[self.dim] = self.counter..(self.counter + 1);
-            let slice = self.tensor.clone().slice(ranges);
-            Some(slice)
-        } else {
-            None
-        };
-        self.counter += 1;
-        res
+        if self.start >= self.end {
+            return None;
+        }
+
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = self.start..(self.start + 1);
+
+        let slice = self.tensor.clone().slice(ranges);
+        self.start += 1;
+
+        Some(slice)
+    }
+}
+
+impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter<B, D, K> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start >= self.end {
+            return None;
+        }
+
+        let mut ranges = self.ranges.clone();
+        ranges[self.dim] = (self.end - 1)..self.end;
+
+        let slice = self.tensor.clone().slice(ranges);
+        self.end = self.end.saturating_sub(1);
+
+        Some(slice)
     }
 }
 
@@ -452,9 +610,9 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
             .collect::<Vec<Range<usize>>>();
         let ranges: [Range<usize>; D] = ranges.try_into().unwrap();
         Self {
-            end_idx: dims[dim],
+            end: dims[dim],
             ranges,
-            counter: 0,
+            start: 0,
             dim,
             tensor,
         }

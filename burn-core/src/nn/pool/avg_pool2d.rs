@@ -20,7 +20,7 @@ pub struct AvgPool2dConfig {
     pub padding: PaddingConfig2d,
     /// If the padding is counted in the denominator when computing the average.
     #[config(default = "true")]
-    count_include_pad: bool,
+    pub count_include_pad: bool,
 }
 
 /// Applies a 2D avg pooling over input tensors.
@@ -36,7 +36,7 @@ pub struct AvgPool2dConfig {
 /// `torch.nn.AvgPool2d` with `count_include_pad=True`.
 ///
 /// TODO: Add support for `count_include_pad=False`, see
-/// [Issue 636](https://github.com/burn-rs/burn/issues/636)
+/// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
 #[derive(Module, Debug, Clone)]
 pub struct AvgPool2d {
     stride: [usize; 2],

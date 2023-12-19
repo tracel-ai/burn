@@ -12,7 +12,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         match distribution {
@@ -30,9 +30,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
             }
             Distribution::Uniform(from, to) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
-                tensor
-                    .mut_ops(|tensor| tensor.uniform_(from.to_f64().unwrap(), to.to_f64().unwrap()))
-                    .unwrap()
+                tensor.mut_ops(|tensor| tensor.uniform_(from, to)).unwrap()
             }
             Distribution::Normal(mean, std) => {
                 let mut tensor = TchTensor::<E, D>::empty(shape, *device);
@@ -170,6 +168,10 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
 
     fn neg<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         Self::mul_scalar(tensor, (-1f32).elem::<E>())
+    }
+
+    fn recip<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        TchTensor::new(tensor.tensor.reciprocal())
     }
 
     fn swap_dims<const D: usize>(

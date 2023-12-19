@@ -46,8 +46,11 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.flatten(start_dim, end_dim)`     | `tensor.flatten(start_dim, end_dim)` |
 | `tensor.squeeze(dim)`                    | `tensor.squeeze(dim)`                |
 | `tensor.unsqueeze()`                     | `tensor.unsqueeze(0)`                |
+| `tensor.unsqueeze_dim(dim)`              | `tensor.unsqueeze(dim)`              |
 | `tensor.slice(ranges)`                   | `tensor[(*ranges,)]`                 |
 | `tensor.slice_assign(ranges, values)`    | `tensor[(*ranges,)] = values`        |
+| `tensor.narrow(dim, start, length)`      | `tensor.narrow(dim, start, length)`  |
+| `tensor.chunk(num_chunks, dim)`          | `tensor.chunk(num_chunks, dim)`      |
 | `tensor.device()`                        | `tensor.device`                      |
 | `tensor.to_device(device)`               | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                    | `tensor.repeat([1, 1, 4])`           |
@@ -59,6 +62,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::from_data(data, device)`        | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
+| `Tensor::stack(tensors, dim)`            | torch.stack(tensors, dim)`           |
 
 ### Numeric Operations
 
@@ -113,6 +117,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_min(min)`                          | `torch.clamp(tensor, min=min)`                 |
 | `tensor.clamp_max(max)`                          | `torch.clamp(tensor, max=max)`                 |
 | `tensor.abs()`                                   | `torch.abs(tensor)`                            |
+| `tensor.triu(diagonal)                           | `torch.triu(tensor, diagonal)`                 |
+| `tensor.tril(diagonal)                           | `torch.tril(tensor, diagonal)`                 |
 
 ### Float Operations
 
@@ -126,6 +132,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.erf()`                                      | `tensor.erf()`                     |
 | `tensor.powf(value)`                                | `tensor.pow(value)`                |
 | `tensor.sqrt()`                                     | `tensor.sqrt()`                    |
+| `tensor.recip()`                                    | `tensor.reciprocal()`              |
 | `tensor.cos()`                                      | `tensor.cos()`                     |
 | `tensor.sin()`                                      | `tensor.sin()`                     |
 | `tensor.tanh()`                                     | `tensor.tanh()`                    |

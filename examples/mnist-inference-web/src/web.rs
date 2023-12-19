@@ -11,6 +11,11 @@ use crate::state::{build_and_load_model, Backend};
 
 use burn::tensor::Tensor;
 
+#[cfg_attr(target_family = "wasm", wasm_bindgen(start))]
+pub fn start() {
+    console_error_panic_hook::set_once();
+}
+
 /// Mnist structure that corresponds to JavaScript class.
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -23,6 +28,7 @@ impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
+        console_error_panic_hook::set_once();
         Self { model: None }
     }
 

@@ -8,7 +8,7 @@ import torch.nn as nn
 
 class Model(nn.Module):
     def __init__(self):
-        # TODO enable this after https://github.com/burn-rs/burn/issues/665 is fixed
+        # TODO enable this after https://github.com/tracel-ai/burn/issues/665 is fixed
         # Declare a constant int tensor with ones
         # self.a = torch.ones(1, 1, 1, 4)
 

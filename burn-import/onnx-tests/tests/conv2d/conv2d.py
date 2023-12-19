@@ -22,6 +22,10 @@ class Model(nn.Module):
 
 
 def main():
+
+    # Set random seed for reproducibility
+    torch.manual_seed(0)
+
     # Export to onnx
     model = Model()
     model.eval()

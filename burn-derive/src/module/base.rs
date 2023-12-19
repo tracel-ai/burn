@@ -29,6 +29,9 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let num_params_fn = generator.gen_num_params();
     let visit = generator.gen_visit();
     let map_mut = generator.gen_map();
+    let collect_devices = generator.gen_collect_devices();
+    let to_device = generator.gen_to_device();
+    let fork = generator.gen_fork();
     let valid_fn = generator.gen_valid();
     let into_record_fn = generator.gen_into_record();
     let load_record_fn = generator.gen_load_record();
@@ -50,6 +53,10 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
             #visit
             #map_mut
+
+            #collect_devices
+            #to_device
+            #fork
         }
 
         impl #generics burn::module::AutodiffModule<B> for #name #generics_ty
@@ -101,7 +108,8 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
             burn::constant!(module);
         }
 
-        impl #generics_module_ad burn::module::AutodiffModule<B> for #name #generics_ty #generics_where {
+        impl #generics_module_ad burn::module::AutodiffModule<B>
+            for #name #generics_ty #generics_where {
             burn::constant!(ad_module, #name #generics_ty);
         }
     };

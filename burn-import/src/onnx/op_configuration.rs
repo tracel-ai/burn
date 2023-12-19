@@ -1,13 +1,11 @@
 use burn::nn::{
     conv::Conv1dConfig,
-    conv::Conv2dConfig,
+    conv::{Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool2dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig1d, PaddingConfig2d,
 };
 
-use crate::onnx::ir::Data;
-
-use super::ir::{ArgType, Node};
+use super::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -123,12 +121,66 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
 
+pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
+    let mut attrs = curr.attrs.clone();
+    let kernel_shape = attrs
+        .remove("kernel_shape")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_default();
+    let stride = attrs
+        .remove("strides")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let pads = attrs
+        .remove("pads")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
+    let dilations = attrs
+        .remove("dilations")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let group = attrs
+        .remove("group")
+        .map(AttributeValue::into_i64)
+        .unwrap_or(1);
+
+    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
+    if !attrs.is_empty() {
+        panic!("Not all attributes are used: {attrs:?}");
+    }
+
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
+        weight
+    } else {
+        panic!("ConvTranspose2d: weight tensor must be present");
+    };
+
+    // check if the bias is present
+    let bias = curr.inputs.len() == 3;
+
+    // the channels are inverted in the weight tensor
+    let shape = weight.shape.clone().unwrap();
+    let channels: [usize; 2] = [shape[1], shape[0]];
+
+    ConvTranspose2dConfig::new(
+        channels,
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+    )
+    .with_stride([stride[0] as usize, stride[1] as usize])
+    .with_padding([pads[0] as usize, pads[1] as usize])
+    .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_groups(group as usize)
+    .with_bias(bias)
+}
+
 /// Create a AvgPool2dConfig from the attributes of the node
 pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
     let mut kernel_shape = Vec::new();
     let mut strides = vec![1, 1];
     let mut pads = vec![0, 0, 0, 0];
     let mut count_include_pad: i64 = 0;
+    let mut ceil_mode: i64 = 0;
 
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
@@ -136,19 +188,21 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "count_include_pad" => count_include_pad = value.clone().into_i64(),
+            "ceil_mode" => ceil_mode = value.clone().into_i64(),
             _ => {}
         }
     }
 
-    let padding = padding_config(&pads);
-
-    if count_include_pad == 1 && padding != PaddingConfig2d::Valid {
-        todo!("AvgPool2d: count_include_pad is not supported. See https://github.com/burn-rs/burn/issues/636");
+    if ceil_mode == 1 {
+        panic!("ceil_mode is not supported");
     }
+
+    let padding = padding_config(&pads);
 
     AvgPool2dConfig::new([kernel_shape[0] as usize, kernel_shape[1] as usize])
         .with_strides([strides[0] as usize, strides[1] as usize])
         .with_padding(padding)
+        .with_count_include_pad(count_include_pad == 1)
 }
 
 /// Create a FlattenConfig from the attributes of the node
@@ -195,6 +249,38 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     }
 
     (start_dim as usize, end_dim)
+}
+
+/// Create a GatherConfig from the attributes of the node
+pub fn gather_config(curr: &Node) -> usize {
+    // Default: 0 per ONNX spec
+    let mut dim: i64 = 0;
+
+    // check if the node has only one input
+    if curr.inputs.len() != 2 {
+        panic!("Gather: index tensor must be present");
+    }
+
+    // extract the shape of the input tensor
+    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    // extract the attributes
+    for (key, value) in curr.attrs.iter() {
+        match key.as_str() {
+            "axis" => dim = value.clone().into_i64(),
+            _ => {}
+        }
+    }
+
+    // if dim is negative, it is counted from the end
+    if dim < 0 {
+        dim += tensor.dim as i64;
+    }
+
+    dim as usize
 }
 
 /// Create a LinearConfig from the attributes of the node

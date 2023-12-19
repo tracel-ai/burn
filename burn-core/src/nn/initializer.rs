@@ -3,7 +3,7 @@ use libm::sqrt;
 
 use crate::config::Config;
 use crate::tensor::backend::Backend;
-use crate::tensor::{Distribution, ElementConversion, Tensor};
+use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
 
@@ -138,10 +138,12 @@ impl Initializer {
 
     fn xavier_std(&self, fan_in: Option<usize>, fan_out: Option<usize>) -> f64 {
         let fan_in = fan_in.expect(
-            "Can't use Xavier initialization without specifying fan in. Use init_with method and provide fan_in.",
+            "Can't use Xavier initialization without specifying fan in. Use init_with method and \
+             provide fan_in.",
         );
         let fan_out = fan_out.expect(
-            "Can't use Xavier initialization without specifying fan out. Use init_with method and provide fan_out.",
+            "Can't use Xavier initialization without specifying fan out. Use init_with method and \
+             provide fan_out.",
         );
         sqrt(2.0 / (fan_in + fan_out) as f64)
     }
@@ -153,8 +155,7 @@ fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
     high: f64,
     device: &B::Device,
 ) -> Tensor<B, D> {
-    let distribution =
-        Distribution::Uniform(low.elem::<B::FloatElem>(), high.elem::<B::FloatElem>());
+    let distribution = Distribution::Uniform(low, high);
     Tensor::<B, D>::random(shape, distribution, device)
 }
 
@@ -172,7 +173,7 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use burn_tensor::Data;
+    use burn_tensor::{Data, ElementConversion};
 
     pub type TB = burn_ndarray::NdArray<f32>;
 

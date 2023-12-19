@@ -15,7 +15,7 @@ pub struct Bool;
 /// A type-level representation of the kind of a tensor.
 pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
-    type Primitive<const D: usize>: Clone + core::fmt::Debug;
+    type Primitive<const D: usize>: Clone + core::fmt::Debug + Sync + Send;
 
     /// The name of the tensor kind.
     fn name() -> &'static str;

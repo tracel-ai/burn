@@ -1,26 +1,21 @@
 use super::FusionClient;
-use crate::{
-    graph::{GraphExecution, TensorOpsDescription},
-    FusionBackend, FusionServer, FusionTensor,
-};
+use crate::{graph::TensorOpsDescription, FusionBackend, FusionServer, FusionTensor, Handle};
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
 
 /// Use a mutex to communicate with the fusion server.
-pub struct MutexFusionClient<B, G>
+pub struct MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
-    server: Arc<Mutex<FusionServer<B, G>>>,
+    server: Arc<Mutex<FusionServer<B>>>,
     device: B::FusionDevice,
 }
 
-impl<B, G> Clone for MutexFusionClient<B, G>
+impl<B> Clone for MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
     fn clone(&self) -> Self {
         Self {
@@ -30,13 +25,11 @@ where
     }
 }
 
-impl<B, G> FusionClient for MutexFusionClient<B, G>
+impl<B> FusionClient for MutexFusionClient<B>
 where
     B: FusionBackend,
-    G: GraphExecution<B>,
 {
     type FusionBackend = B;
-    type GraphExecution = G;
 
     fn new(device: B::FusionDevice) -> Self {
         Self {
@@ -45,14 +38,19 @@ where
         }
     }
 
-    fn register(&self, ops: TensorOpsDescription<B>) {
-        self.server.lock().register(ops);
+    fn register<O: crate::graph::Ops<Self::FusionBackend> + 'static>(
+        &self,
+        description: TensorOpsDescription,
+        ops: O,
+    ) {
+        self.server.lock().register(description, Box::new(ops))
     }
 
-    fn sync(&self) {
-        self.server.lock().sync();
+    fn drain_graph(&self) {
+        self.server.lock().drain_graph();
     }
-    fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self> {
+
+    fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
         FusionTensor::new(id, shape, self.clone())
@@ -61,38 +59,24 @@ where
     fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice {
         &self.device
     }
+    fn register_tensor(
+        &self,
+        handle: Handle<Self::FusionBackend>,
+        shape: Vec<usize>,
+    ) -> FusionTensor<Self> {
+        let mut server = self.server.lock();
+        let id = server.create_empty_handle();
+        server.handles.register_handle(id.as_ref().clone(), handle);
+        core::mem::drop(server);
+
+        FusionTensor::new(id, shape, self.clone())
+    }
 
     fn read_tensor_float<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusionBackend>, D>> {
         self.server.lock().read_float(tensor)
-    }
-
-    fn create_tensor_float(
-        &self,
-        values: Vec<FloatElem<Self::FusionBackend>>,
-        shape: Vec<usize>,
-    ) -> FusionTensor<Self> {
-        let id = self.server.lock().create_float_handle(values);
-
-        FusionTensor::new(id, shape, self.clone())
-    }
-
-    fn create_tensor_int(
-        &self,
-        values: Vec<burn_tensor::ops::IntElem<Self::FusionBackend>>,
-        shape: Vec<usize>,
-    ) -> FusionTensor<Self> {
-        let id = self.server.lock().create_int_handle(values);
-
-        FusionTensor::new(id, shape, self.clone())
-    }
-
-    fn create_tensor_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self> {
-        let id = self.server.lock().create_bool_handle(values);
-
-        FusionTensor::new(id, shape, self.clone())
     }
 
     fn read_tensor_int<const D: usize>(

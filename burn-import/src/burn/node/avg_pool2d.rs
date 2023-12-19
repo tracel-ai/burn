@@ -51,6 +51,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
         let padding = self.config.padding.to_tokens();
+        let count_include_pad = self.config.count_include_pad;
 
         let init_line = quote! {
             init();
@@ -60,6 +61,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for AvgPool2dNode {
             let #name = AvgPool2dConfig::new(#kernel_size)
                 .with_strides(#strides)
                 .with_padding(#padding)
+                .with_count_include_pad(#count_include_pad)
                 .#init_line
         };
 
@@ -137,6 +139,7 @@ mod tests {
                     let avg_pool2d = AvgPool2dConfig::new([3, 3])
                         .with_strides([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
+                        .with_count_include_pad(true)
                         .init();
 
                     Self {
@@ -144,7 +147,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.avg_pool2d.forward(input);
 

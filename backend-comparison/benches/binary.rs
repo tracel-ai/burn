@@ -1,3 +1,4 @@
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
@@ -35,11 +36,13 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
 
 #[allow(dead_code)]
 fn bench<B: Backend>(device: &B::Device) {
-    run_benchmark(BinaryBenchmark::<B, 3> {
+    let benchmark = BinaryBenchmark::<B, 3> {
         shape: [32, 512, 1024].into(),
         num_repeats: 10,
         device: device.clone(),
-    })
+    };
+
+    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
 }
 
 fn main() {

@@ -2,55 +2,52 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
-edition = "2021"
+edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
-license = "MIT OR Apache-2.0"
+license.workspace = true
 name = "burn"
-readme = "README.md"
-repository = "https://github.com/burn-rs/burn"
-version = "0.11.0"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn"
+version.workspace = true
 rust-version = "1.71"
 
 [features]
-default = ["burn-core/default"]
+default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
 
 # Training with full features
-train = ["burn-train/default", "autodiff", "dataset"]
+train = ["burn-train", "autodiff", "dataset"]
+
+## Includes the Text UI (progress bars, metric plots)
+tui = ["burn-train?/tui"]
+
+##  Includes system info metrics (CPU/GPU usage, etc)
+metrics = ["burn-train?/metrics"]
 
 # Useful when targeting WASM and not using WGPU.
 wasm-sync = ["burn-core/wasm-sync"]
 
-## Include nothing
-train-minimal = ["burn-train"]
-
-## Includes the Text UI (progress bars, metric plots)
-train-tui = ["burn-train/tui"]
-
-##  Includes system info metrics (CPU/GPU usage, etc)
-train-metrics = ["burn-train/metrics"]
-
 # Datasets
 dataset = ["burn-core/dataset"]
-dataset-minimal = ["burn-core/dataset-minimal"]
-dataset-sqlite = ["burn-core/dataset-sqlite"]
-dataset-sqlite-bundled = ["burn-core/dataset-sqlite-bundled"]
+
+sqlite = ["burn-core/sqlite"]
+sqlite-bundled = ["burn-core/sqlite-bundled"]
 
 # Backends
 autodiff = ["burn-core/autodiff"]
 fusion = ["burn-core/fusion"]
 
-ndarray = ["burn-core/ndarray"]
-ndarray-no-std = ["burn-core/ndarray-no-std"]
-ndarray-blas-accelerate = ["burn-core/ndarray-blas-accelerate"]
-ndarray-blas-netlib = ["burn-core/ndarray-blas-netlib"]
-ndarray-blas-openblas = ["burn-core/ndarray-blas-openblas"]
-ndarray-blas-openblas-system = ["burn-core/ndarray-blas-openblas-system"]
+## Backend features
+cuda = ["burn-core/cuda"]
+accelerate = ["burn-core/accelerate"]
+openblas = ["burn-core/openblas"]
+openblas-system = ["burn-core/openblas-system"]
+blas-netlib = ["burn-core/blas-netlib"]
 
+ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
-candle-cuda = ["burn-core/candle-cuda"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
@@ -59,8 +56,22 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.11.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.11.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.12.0", default-features = false }
+burn-train = { path = "../burn-train", version = "0.12.0", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
-features = ["dataset", "default", "std", "train", "train-tui", "train-metrics", "dataset-sqlite"]
+features = [
+    "dataset",
+    "default",
+    "std",
+    "train",
+    "tui",
+    "metrics",
+    "sqlite",
+    "ndarray",
+    "tch",
+    "wgpu",
+    "candle",
+    "fusion",
+    "experimental-named-tensor"
+]

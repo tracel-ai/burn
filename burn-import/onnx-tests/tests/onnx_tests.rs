@@ -22,25 +22,34 @@ include_models!(
     concat,
     conv1d,
     conv2d,
+    cos,
     div,
     dropout_opset16,
     dropout_opset7,
     equal,
     erf,
+    exp,
     flatten,
+    gather,
+    gelu,
     global_avr_pool,
     linear,
     log_softmax,
+    log,
     maxpool2d,
     mul,
+    neg,
+    recip,
     relu,
     reshape,
     sigmoid,
     softmax,
+    sqrt,
     sub_int,
     sub,
     tanh,
-    transpose
+    transpose,
+    conv_transpose2d
 );
 
 #[cfg(test)]
@@ -250,6 +259,20 @@ mod tests {
     }
 
     #[test]
+    fn gather() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: gather::Model<Backend> = gather::Model::default();
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats_default([[1., 2.], [3., 4.]]);
+        let index = Tensor::<Backend, 2, Int>::from_ints_default([[0, 0], [1, 0]]);
+        let output = model.forward(input, index);
+        let expected = Data::from([[1., 1.], [4., 3.]]);
+
+        assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
     fn globalavrpool_1d_2d() {
         // The model contains 1d and 2d global average pooling nodes
         let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
@@ -322,6 +345,22 @@ mod tests {
     }
 
     #[test]
+    fn sqrt() {
+        let device = Default::default();
+        let model: sqrt::Model<Backend> = sqrt::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let input2 = 36f64;
+
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[1.0, 2.0, 3.0, 5.0]]]]);
+        let expected2 = 6.0;
+
+        assert_eq!(output1.to_data(), expected1);
+        assert_eq!(output2, expected2);
+    }
+
+    #[test]
     fn maxpool2d() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -365,10 +404,30 @@ mod tests {
             ]]],
             &device,
         );
-        let output = model.forward(input);
-        let expected = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
+        let (output1, output2, output3) = model.forward(input.clone(), input.clone(), input);
+        let expected1 = Data::from([[[[0.008, -0.131, -0.208, 0.425]]]]);
+        let expected2 = Data::from([[[
+            [-0.045, 0.202, -0.050, -0.295, 0.162, 0.160],
+            [-0.176, 0.008, -0.131, -0.208, 0.425, 0.319],
+            [-0.084, -0.146, 0.017, 0.170, 0.216, 0.125],
+        ]]]);
+        let expected3 = Data::from([[[
+            [-0.182, 0.404, -0.100, -0.590, 0.324, 0.638],
+            [-0.352, 0.008, -0.131, -0.208, 0.425, 0.638],
+            [-0.224, -0.195, 0.023, 0.226, 0.288, 0.335],
+        ]]]);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        let expected_shape1 = Shape::from([1, 1, 1, 4]);
+        let expected_shape2 = Shape::from([1, 1, 3, 6]);
+        let expected_shape3 = Shape::from([1, 1, 3, 6]);
+
+        assert_eq!(output1.shape(), expected_shape1);
+        assert_eq!(output2.shape(), expected_shape2);
+        assert_eq!(output3.shape(), expected_shape3);
+
+        output1.to_data().assert_approx_eq(&expected1, 3);
+        output2.to_data().assert_approx_eq(&expected2, 3);
+        output3.to_data().assert_approx_eq(&expected3, 3);
     }
 
     #[test]
@@ -576,8 +635,11 @@ mod tests {
     fn linear() {
         // Initialize the model with weights (loaded from the exported file)
         let model: linear::Model<Backend> = linear::Model::default();
+        #[allow(clippy::approx_constant)]
         let input1 = Tensor::<Backend, 2>::full_default([4, 3], 3.14);
+        #[allow(clippy::approx_constant)]
         let input2 = Tensor::<Backend, 2>::full_default([2, 5], 3.14);
+        #[allow(clippy::approx_constant)]
         let input3 = Tensor::<Backend, 3>::full_default([3, 2, 7], 3.14);
 
         let (output1, output2, output3) = model.forward(input1, input2, input3);
@@ -617,5 +679,111 @@ mod tests {
         // data from pyTorch
         let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn recip() {
+        // Initialize the model
+        let device = Default::default();
+        let model = recip::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = Data::from([[[[1.0000, 0.5000, 0.3333, 0.2500]]]]);
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn conv_transpose2d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose2d::Model<Backend> = conv_transpose2d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 17, 15]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose2d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -120.070_15; // result running pytorch model (conv_transpose2d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn cos() {
+        let device = Default::default();
+        let model: cos::Model<Backend> = cos::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.5403, -0.6536, -0.9111, 0.9912]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    #[allow(clippy::approx_constant)]
+    fn exp() {
+        let device = Default::default();
+        let model: exp::Model<Backend> = exp::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[0.0000, 0.6931]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[1., 2.]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 2);
+    }
+
+    #[test]
+    fn gelu() {
+        let device = Default::default();
+        let model: gelu::Model<Backend> = gelu::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.8413, 3.9999, 9.0000, 25.0000]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn log() {
+        let device = Default::default();
+        let model: log::Model<Backend> = log::Model::new(&device);
+
+        let input = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+
+        let output = model.forward(input);
+        let expected = Data::from([[[[0.0000, 1.3863, 2.1972, 3.2189]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn neg() {
+        let device = Default::default();
+        let model: neg::Model<Backend> = neg::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 4>::from_floats([[[[1.0, 4.0, 9.0, 25.0]]]], &device);
+        let input2 = 99f64;
+
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[-1.0, -4.0, -9.0, -25.0]]]]);
+        let expected2 = -99f64;
+
+        output1.to_data().assert_approx_eq(&expected1, 4);
+
+        assert_eq!(output2, expected2);
     }
 }

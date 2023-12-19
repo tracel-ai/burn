@@ -70,7 +70,8 @@ macro_rules! batch_norm_serialize {
     }};
 
     ($self:expr, $serializer:expr, $dim:expr) => {{
-        let record: BatchNormRecord<SerializationBackend, $dim> = batch_norm_serialize!(record $self);
+        let record: BatchNormRecord<SerializationBackend, $dim> =
+            batch_norm_serialize!(record $self);
         let item = Record::into_item::<PS>(record);
 
         item.serialize($serializer)
@@ -210,7 +211,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.norm.forward(input);
 

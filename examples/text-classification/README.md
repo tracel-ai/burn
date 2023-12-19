@@ -15,15 +15,14 @@ models on AG News and DbPedia datasets using the Rust-based Burn Deep Learning L
 
 # Usage
 
-
 ## Torch GPU backend
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
-# Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device. 
+# Use the f16 feature if your CUDA device supports FP16 (half precision) operations. May not work well on every device.
 
 export TORCH_CUDA_VERSION=cu117  # Set the cuda version (CUDA users)
 
@@ -39,7 +38,7 @@ cargo run --example db-pedia-infer --release --features tch-gpu  # Run inference
 ## Torch CPU backend
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
@@ -56,7 +55,7 @@ cargo run --example db-pedia-infer --release --features tch-cpu  # Run inference
 ## ndarray backend
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
@@ -75,7 +74,7 @@ cargo run --example db-pedia-infer --release --features ndarray  # Run inference
 ## WGPU backend
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.

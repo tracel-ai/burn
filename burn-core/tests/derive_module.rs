@@ -1,6 +1,6 @@
 use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
-use burn::tensor::{Distribution, Shape, Tensor};
+use burn::tensor::{Distribution, Int, Shape, Tensor};
 use burn_core as burn;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
@@ -10,6 +10,11 @@ pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 #[derive(Module, Debug)]
 pub struct ModuleBasic<B: Backend> {
     weight_basic: Param<Tensor<B, 2>>,
+}
+
+#[derive(Module, Debug)]
+struct ModuleTensorConstInt<B: Backend> {
+    weight_basic: Tensor<B, 2, Int>,
 }
 
 impl<B: Backend> ModuleBasic<B> {

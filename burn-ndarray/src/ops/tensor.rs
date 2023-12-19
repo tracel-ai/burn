@@ -27,7 +27,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
 
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<E>,
+        distribution: Distribution,
         device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         let mut seed = SEED.lock().unwrap();
@@ -125,6 +125,10 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
 
     fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         Self::mul_scalar(tensor, (-1f32).elem::<E>())
+    }
+
+    fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::recip(tensor)
     }
 
     fn swap_dims<const D: usize>(

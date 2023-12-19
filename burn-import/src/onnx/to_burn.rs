@@ -21,7 +21,9 @@ use crate::{
             constant::{ConstantNode, ConstantValue, TensorValue},
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
+            conv_transpose_2d::ConvTranspose2dNode,
             dropout::DropoutNode,
+            gather::GatherNode,
             global_avg_pool::GlobalAvgPoolNode,
             linear::LinearNode,
             matmul::MatmulNode,
@@ -36,16 +38,13 @@ use crate::{
     onnx::{
         from_onnx::convert_constant_value,
         ir::{Node, NodeType},
-        op_configuration::{
-            batch_norm_config, conv1d_config, conv2d_config, flatten_config, linear_config,
-            log_softmax_config, max_pool2d_config,
-        },
+        op_configuration::*,
     },
 };
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{ArgType, Argument, Data, ElementType, ONNXGraph},
+    ir::{self, ArgType, Argument, Data, ElementType, ONNXGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
         softmax_config,
@@ -231,23 +230,31 @@ impl ONNXGraph {
                 NodeType::Div => graph.register(Self::div_conversion(node)),
                 NodeType::Equal => graph.register(Self::equal_conversion(node)),
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
+                NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
+                NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
                 NodeType::Conv2d => graph.register(Self::conv2d_conversion::<PS>(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
+                NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Linear => graph.register(Self::linear_conversion::<PS>(node)),
                 NodeType::BatchNormalization => {
                     graph.register(Self::batch_norm_conversion::<PS>(node))
                 }
                 NodeType::Relu => graph.register(Self::relu_conversion(node)),
+                NodeType::Gelu => graph.register(Self::gelu_conversion(node)),
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
+                NodeType::GatherElements => graph.register(Self::gather_conversion(node)),
+                NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
                 NodeType::Softmax => graph.register(Self::softmax_conversion(node)),
+                NodeType::Sqrt => graph.register(Self::sqrt_conversion(node)),
                 NodeType::Tanh => graph.register(Self::tanh_conversion(node)),
                 NodeType::Constant => graph.register(Self::constant_conversion::<PS>(node)),
                 NodeType::Reshape => graph.register(Self::reshape_conversion(node)),
+                NodeType::Reciprocal => graph.register(Self::reciprocal_conversion(node)),
                 NodeType::Sigmoid => graph.register(Self::sigmoid_conversion(node)),
                 NodeType::Transpose => graph.register(Self::transpose_conversion(node)),
                 NodeType::Concat => graph.register(Self::concat_conversion(node)),
@@ -255,6 +262,9 @@ impl ONNXGraph {
                 NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
                 NodeType::GlobalAveragePool => {
                     graph.register(Self::global_avg_pool_conversion(node))
+                }
+                NodeType::ConvTranspose2d => {
+                    graph.register(Self::conv_transpose2d_conversion(node))
                 }
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
@@ -391,12 +401,35 @@ impl ONNXGraph {
         UnaryNode::relu(input, output)
     }
 
+    fn gelu_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::gelu(input, output)
+    }
+
+    fn log_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::log(input, output)
+    }
+
     fn flatten_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_type();
         let output = node.outputs.get(0).unwrap().to_type();
         let (start_dim, end_dim) = flatten_config(&node);
 
         UnaryNode::flatten(input, output, start_dim, end_dim)
+    }
+
+    fn gather_conversion(node: Node) -> GatherNode {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let index = node.inputs.get(1).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let dim = gather_config(&node);
+
+        GatherNode::new(input, index, output, dim)
     }
 
     fn transpose_conversion(node: Node) -> UnaryNode {
@@ -436,6 +469,13 @@ impl ONNXGraph {
         UnaryNode::sigmoid(input, output)
     }
 
+    fn reciprocal_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::reciprocal(input, output)
+    }
+
     fn log_softmax_conversion(node: Node) -> UnaryNode {
         let input = node.inputs.get(0).unwrap().to_type();
         let output = node.outputs.get(0).unwrap().to_type();
@@ -450,6 +490,13 @@ impl ONNXGraph {
         let dim = softmax_config(&node);
 
         UnaryNode::softmax(input, output, dim)
+    }
+
+    fn sqrt_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::sqrt(input, output)
     }
 
     fn tanh_conversion(node: Node) -> UnaryNode {
@@ -563,6 +610,22 @@ impl ONNXGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
+    fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode<PS> {
+        let input = node.inputs.get(0).unwrap().to_tensor_type();
+        let output = node.outputs.get(0).unwrap().to_tensor_type();
+        let config = conv_transpose2d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
+        let name = &node.name;
+        ConvTranspose2dNode::<PS>::new(name, input, output, weight, bias, config)
+    }
+
     fn avg_pool_2d_conversion(node: Node) -> AvgPool2dNode {
         let input = node.inputs.get(0).unwrap().to_tensor_type();
         let output = node.outputs.get(0).unwrap().to_tensor_type();
@@ -579,6 +642,26 @@ impl ONNXGraph {
         let name = &node.name;
 
         GlobalAvgPoolNode::new(name, input, output)
+    }
+
+    fn cos_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::cos(input, output)
+    }
+
+    fn exp_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+
+        UnaryNode::exp(input, output)
+    }
+
+    fn neg_conversion(node: Node) -> UnaryNode {
+        let input = node.inputs.get(0).unwrap().to_type();
+        let output = node.outputs.get(0).unwrap().to_type();
+        UnaryNode::neg(input, output)
     }
 }
 
@@ -629,7 +712,16 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DataSerialize<E>
 impl Argument {
     pub fn to_tensor_type(&self) -> TensorType {
         match &self.ty {
-            ArgType::Tensor(tensor) => TensorType::new_float(self.name.clone(), tensor.dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
+                dim,
+                ..
+            }) => TensorType::new_float(self.name.clone(), *dim),
+            ArgType::Tensor(ir::TensorType {
+                elem_type: ElementType::Int32 | ElementType::Int64,
+                dim,
+                ..
+            }) => TensorType::new_int(self.name.clone(), *dim),
             _ => panic!("Can't transform to tensor."),
         }
     }

@@ -1,3 +1,4 @@
+use backend_comparison::persistence::Persistence;
 use burn::tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
@@ -76,9 +77,10 @@ fn bench<B: Backend>(device: &B::Device) {
     let to_benchmark = ToDataBenchmark::<B, D>::new(shape.clone(), num_repeats, device.clone());
     let from_benchmark = FromDataBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    println!("Backend {}", B::name());
-    run_benchmark(to_benchmark);
-    run_benchmark(from_benchmark)
+    Persistence::persist::<B>(
+        vec![run_benchmark(to_benchmark), run_benchmark(from_benchmark)],
+        device,
+    )
 }
 
 fn main() {

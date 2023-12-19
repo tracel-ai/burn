@@ -1,6 +1,6 @@
 use crate::{
-    graph::{GraphExecution, TensorOpsDescription},
-    FusionBackend, FusionTensor, TensorDescription, TensorId,
+    graph::{Ops, TensorOpsDescription},
+    FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{
     ops::{FloatElem, IntElem},
@@ -11,33 +11,27 @@ use burn_tensor::{
 pub trait FusionClient: Send + Sync + Clone {
     /// The [fusion backend](FusionBackend) associated type.
     type FusionBackend: FusionBackend;
-    /// The [graph execution](GraphExecution) associated type.
-    type GraphExecution: GraphExecution<Self::FusionBackend>;
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
     /// Register a new [tensor operation description](TensorOpsDescription).
-    fn register(&self, ops: TensorOpsDescription<Self::FusionBackend>);
-    /// Sync the computation.
-    fn sync(&self);
+    fn register<O: Ops<Self::FusionBackend> + 'static>(
+        &self,
+        description: TensorOpsDescription,
+        ops: O,
+    );
+    /// Register all lazy computation.
+    fn drain_graph(&self);
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice;
-    /// Create an empty tensor.
-    fn create_tensor_empty(&self, shape: Vec<usize>) -> FusionTensor<Self>;
-    /// Create a float tensor with the given values.
-    fn create_tensor_float(
+    /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.
+    fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self>;
+    /// Create a tensor with the given handle and shape.
+    fn register_tensor(
         &self,
-        values: Vec<FloatElem<Self::FusionBackend>>,
+        handle: Handle<Self::FusionBackend>,
         shape: Vec<usize>,
     ) -> FusionTensor<Self>;
-    /// Create an integer tensor with the given values.
-    fn create_tensor_int(
-        &self,
-        values: Vec<IntElem<Self::FusionBackend>>,
-        shape: Vec<usize>,
-    ) -> FusionTensor<Self>;
-    /// Create a bool tensor with the given values.
-    fn create_tensor_bool(&self, values: Vec<bool>, shape: Vec<usize>) -> FusionTensor<Self>;
     /// Read the values contained by a float tensor.
     fn read_tensor_float<const D: usize>(
         &self,

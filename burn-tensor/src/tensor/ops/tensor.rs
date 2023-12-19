@@ -34,7 +34,7 @@ pub trait TensorOps<B: Backend> {
     /// The tensor with the given shape and random values.
     fn random<const D: usize>(
         shape: Shape<D>,
-        distribution: Distribution<FloatElem<B>>,
+        distribution: Distribution,
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
@@ -409,6 +409,9 @@ pub trait TensorOps<B: Backend> {
     fn neg<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
         Self::mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
     }
+
+    /// Calculates the reciprocals elementwise
+    fn recip<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Transposes a tensor.
     ///
@@ -998,7 +1001,7 @@ pub trait TensorOps<B: Backend> {
     fn max_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
         let index = B::argmax(tensor.clone(), dim);
 
-        B::gather(D - 1, tensor, index)
+        B::gather(dim, tensor, index)
     }
 
     /// Gets the maximum elements of a tensor along an axis and their indices.
@@ -1016,7 +1019,7 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
     ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
         let index = B::argmax(tensor.clone(), dim);
-        let values = B::gather(D - 1, tensor, index.clone());
+        let values = B::gather(dim, tensor, index.clone());
 
         (values, index)
     }
@@ -1050,7 +1053,7 @@ pub trait TensorOps<B: Backend> {
     fn min_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
         let index = B::argmin(tensor.clone(), dim);
 
-        B::gather(D - 1, tensor, index)
+        B::gather(dim, tensor, index)
     }
 
     /// Gets the minimum elements of a tensor along an axis and their indices.
@@ -1068,7 +1071,7 @@ pub trait TensorOps<B: Backend> {
         dim: usize,
     ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
         let index = B::argmin(tensor.clone(), dim);
-        let values = B::gather(D - 1, tensor, index.clone());
+        let values = B::gather(dim, tensor, index.clone());
 
         (values, index)
     }

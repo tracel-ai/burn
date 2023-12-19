@@ -111,7 +111,7 @@ mod tests {
         let indices = Tensor::<TestBackend, 1, Int>::from_data_default(
             Tensor::<TestBackend, 1>::random_default(
                 [shape2.iter().product()],
-                Distribution::Uniform(0., shape2[dim] as f32),
+                Distribution::Uniform(0., shape2[dim] as f64),
             )
             .into_data()
             .convert(),

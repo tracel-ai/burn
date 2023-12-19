@@ -59,7 +59,7 @@ impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> 
 Here we define the input and output types as generic arguments in the `TrainStep` and `ValidStep`.
 We will call them `MNISTBatch` and `ClassificationOutput`. In the training step, the computation of
 gradients is straightforward, necessitating a simple invocation of `backward()` on the loss. Note
-that contrary to PyTorch, gradients are not store alongside each tensor parameter, but are rather
+that contrary to PyTorch, gradients are not stored alongside each tensor parameter, but are rather
 returned by the backward pass, as such: `let gradients = loss.backward();`. The gradient of a
 parameter can be obtained with the grad function: `let grad = tensor.grad(&gradients);`. Although it
 is not necessary when using the learner struct and the optimizers, it can prove to be quite useful
@@ -91,7 +91,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))
-        .expect("Save without error");
+        .expect("Config should be saved successfully");
 
     B::seed(config.seed);
 
@@ -115,7 +115,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(1, CompactRecorder::new())
+        .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(
@@ -128,14 +128,14 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Failed to save trained model");
+        .expect("Trained model should be saved successfully");
 }
 ```
 
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under the this directory. We then initialize our dataloaders using our previously created batcher.
+under this directory. We then initialize our dataloaders using our previously created batcher.
 Since no automatic differentiation is needed during the validation phase, the backend used for the
 corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
 are available through a type system, making it nearly impossible to forget to deactivate gradient

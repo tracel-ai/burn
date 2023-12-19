@@ -1,8 +1,10 @@
 use super::numeric;
-use crate::kernel::{unary_default, unary_inplace_default};
+
+use crate::codegen::{Elem, Operator, Variable};
+use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, unary, unary_inplace, GraphicsApi, Wgpu,
+    kernel, unary, GraphicsApi, Wgpu,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
@@ -257,37 +259,25 @@ where
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
-        kernel::sum(tensor)
+        kernel::reduce::sum(tensor)
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::sum_dim(tensor, dim)
+        let output = init_reduce_output(&tensor, dim);
+        reduce::sum_dim(tensor, output, dim)
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::mean_dim(tensor, dim)
+        let output = init_reduce_output(&tensor, dim);
+        reduce::mean_dim(tensor, output, dim)
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmax(tensor, dim)
+        kernel::reduce::argmax(tensor, dim)
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::argmin(tensor, dim)
-    }
-
-    fn int_clamp_min<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        min: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        kernel::clamp_min(tensor, min)
-    }
-
-    fn int_clamp_max<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
-        kernel::clamp_max(tensor, max)
+        kernel::reduce::argmin(tensor, dim)
     }
 
     fn int_clamp<const D: usize>(
@@ -299,14 +289,14 @@ where
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
-        unary!(IntAbs, func "abs");
-        unary_inplace!(IntAbsInplace, func "abs");
-
-        if tensor.can_mut() {
-            return unary_inplace_default::<IntAbsInplace, I, D>(tensor);
-        }
-
-        unary_default::<IntAbs, I, D>(tensor)
+        unary!(
+            operator: |elem: Elem| Operator::Abs {
+                input: Variable::Input(0, elem),
+                out: Variable::Local(0, elem),
+            },
+            input: tensor,
+            elem: I
+        )
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -322,5 +312,13 @@ where
         tensor.shape.dims.swap(dim1, dim2);
 
         tensor
+    }
+
+    fn int_repeat<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> IntTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
     }
 }

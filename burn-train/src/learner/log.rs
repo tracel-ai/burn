@@ -39,7 +39,8 @@ fn update_panic_hook(file_path: &str) {
     std::panic::set_hook(Box::new(move |info| {
         log::error!("PANIC => {}", info.to_string());
         eprintln!(
-            "=== PANIC ===\nA fatal error happened, you can check the experiment logs here => '{file_path}'\n============="
+            "=== PANIC ===\nA fatal error happened, you can check the experiment logs here => \
+             '{file_path}'\n============="
         );
         hook(info);
     }));
