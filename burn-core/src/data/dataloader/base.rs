@@ -2,7 +2,7 @@ pub use crate::data::dataset::{Dataset, DatasetIterator};
 use core::iter::Iterator;
 
 /// A progress struct that can be used to track the progress of a data loader.
-#[derive(Clone, Debug)]
+#[derive(new, Clone, Debug)]
 pub struct Progress {
     /// The number of items that have been processed.
     pub items_processed: usize,
@@ -21,4 +21,7 @@ pub trait DataLoaderIterator<O>: Iterator<Item = O> {
 pub trait DataLoader<O> {
     /// Returns a boxed [iterator](DataLoaderIterator) to iterate over the data loader.
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a>;
+    /// The number of items (not the number of batches nor the number of iterations),
+    /// corresponding to the items_total of the progress returned by the iterator.
+    fn num_items(&self) -> usize;
 }
