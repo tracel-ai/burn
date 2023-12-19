@@ -15,10 +15,10 @@ use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 /// Executes autotune benchmarking and caching
 pub struct Tuner<S: ComputeServer, C> {
-    tune_cache: TuneCache<S::AutotuneKey>,
+    tune_cache: TuneCache::<S::AutotuneKey>,
     _channel: PhantomData<C>,
 }
 
@@ -36,9 +36,6 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,
         client: &ComputeClient<S, C>,
     ) {
-        // TODO: load the autotune cache only once instead of each time we process a set
-        self.tune_cache.load().expect("Autotune cache missing or it cannot be read");
-
         let operation = match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(set) => self.autotuning(set, client),
@@ -72,7 +69,7 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         log::info!("Fastest result {fastest_name}-{key}");
 
         let checksum = autotune_operation_set.compute_checksum();
-        self.tune_cache.cache_insert(key, fastest_index, checksum);
+        self.tune_cache.cache_insert(key, checksum, fastest_index);
         let result = match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),

@@ -1,7 +1,8 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use core::fmt::{Debug, Display};
 use core::hash::Hash;
 
@@ -43,5 +44,5 @@ pub trait AutotuneOperation {
 }
 
 /// Trait alias
-pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + for<'de> Deserialize<'de> {}
+pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + DeserializeOwned {}
 impl AutotuneKey for String {}

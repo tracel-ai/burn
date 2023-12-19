@@ -11,10 +11,10 @@ use alloc::boxed::Box;
 use hashbrown::HashMap;
 
 /// Use to find and reuse the best kernel for some input
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct TuneCache<K> {
     cache: HashMap<K, (bool, usize)>,
-    persistent_cache: HashMap<String, (String, usize)>,
+    persistent_cache: HashMap<K, (String, usize)>,
 }
 
 /// Result of the cache try
@@ -27,10 +27,12 @@ pub enum TuneCacheResult<K> {
 
 impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn new() -> Self {
-        TuneCache {
+        let mut cache =  TuneCache {
             cache: HashMap::new(),
             persistent_cache: HashMap::new(),
-        }
+        };
+        cache.load();
+        cache
     }
 
     #[allow(clippy::borrowed_box)]
@@ -40,15 +42,14 @@ impl<K: AutotuneKey> TuneCache<K> {
     ) -> TuneCacheResult<K> {
         let key = autotune_operation_set.key();
         let result = self.cache.get_mut(&key);
-        println!("result {:?}", result);
         if let Some((is_checked, index)) = result {
             if !*is_checked {
                 let checksum = autotune_operation_set.compute_checksum();
                 let (expected_checksum, _) = self
                     .persistent_cache
-                    .get(&key.to_string())
+                    .get(&key)
                     .expect("Both caches should be in sync");
-                println!("{} -- {}", checksum, expected_checksum);
+                println!("{}: {} -- {}", key, checksum, expected_checksum);
                 if &checksum != expected_checksum {
                     return TuneCacheResult::Miss(autotune_operation_set);
                 }
@@ -59,8 +60,9 @@ impl<K: AutotuneKey> TuneCache<K> {
         TuneCacheResult::Miss(autotune_operation_set)
     }
 
-    pub(crate) fn cache_insert(&mut self, key: K, fastest_index: usize, checksum: String) {
-        self.persistent_cache.insert(key.to_string(), (checksum, fastest_index));
+    pub(crate) fn cache_insert(&mut self, key: K, checksum: String, fastest_index: usize) {
+        println!("Inserting key: {}", key);
+        self.persistent_cache.insert(key.clone(), (checksum, fastest_index));
         self.cache.insert(key, (true, fastest_index));
     }
 
@@ -71,9 +73,25 @@ impl<K: AutotuneKey> TuneCache<K> {
         // serde from_reader with a buffered reader
         // see issue:
         // https://github.com/serde-rs/json/issues/160
-        let data = fs::read_to_string(file_path)?;
-        self.persistent_cache = serde_json::from_str(&data)?;
-        dbg!(&self.persistent_cache);
+        match fs::read_to_string(file_path) {
+            Ok(data) => {
+                let data: Vec<(K, (String, usize))> = serde_json::from_str(&data)?;
+                for (key, value) in data.into_iter() {
+                    self.persistent_cache.insert(key, value);
+                }
+                Ok(())
+            },
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }?;
+        for (key, (_checksum, index)) in self.persistent_cache.iter() {
+            self.cache.insert(key.clone(), (false, *index));
+        };
         Ok(())
     }
 
@@ -82,7 +100,8 @@ impl<K: AutotuneKey> TuneCache<K> {
         let file_path  = TuneCache::<K>::get_persistent_cache_file_path();
         let file = File::create(&file_path).expect(
             "Unable to open autotune persistent cache file");
-        serde_json::to_writer_pretty(file, &self.persistent_cache)
+        let data = self.persistent_cache.iter().collect::<Vec<_>>();
+        serde_json::to_writer_pretty(file, &data)
             .expect("Unable to write to autotune persistent cache");
     }
 
@@ -95,3 +114,4 @@ impl<K: AutotuneKey> TuneCache<K> {
         file_path
     }
 }
+
