@@ -54,3 +54,7 @@ harness = false
 [[bench]]
 name = "custom_gelu"
 harness = false
+
+[[bench]]
+name = "linear"
+harness = false
