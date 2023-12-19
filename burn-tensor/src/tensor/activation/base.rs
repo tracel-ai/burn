@@ -35,8 +35,8 @@ pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> 
 ///
 /// `softplus(x_i) = log(1 + exp(\beta x_i)) / \beta`
 pub fn softplus<const D: usize, B: Backend>(tensor: Tensor<B, D>, beta: f64) -> Tensor<B, D> {
-    let tensor = (tensor.mul(beta).exp() + 1).log();
-    tensor.div(beta)
+    let tensor = (tensor.mul_scalar(beta).exp() + 1).log();
+    tensor.div_scalar(beta)
 }
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
