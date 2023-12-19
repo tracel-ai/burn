@@ -2,21 +2,21 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Kernel fusion backend decorator for the Burn framework"
-edition = "2021"
+edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
-license = "MIT OR Apache-2.0"
+license.workspace = true
 name = "burn-fusion"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-fusion"
-version = "0.11.0"
+version.workspace = true
 
 [features]
 default = ["std"]
 std = []
 
 [dependencies]
-burn-tensor = {path = "../burn-tensor", version = "0.11.0", default-features = false }
-burn-common = {path = "../burn-common", version = "0.11.0" }
+burn-tensor = {path = "../burn-tensor", version = "0.12.0", default-features = false }
+burn-common = {path = "../burn-common", version = "0.12.0" }
 hashbrown = { workspace = true }
 derive-new = {workspace = true}
 spin = {workspace = true}

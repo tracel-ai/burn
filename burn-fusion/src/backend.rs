@@ -96,7 +96,7 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
 /// The operation created from the [builder](OptimizationBuilder).
 pub trait Optimization<B: FusionBackend>: Send {
     /// Execute the operation.
-    fn execute(&self, context: &mut Context<'_, B>);
+    fn execute(&mut self, context: &mut Context<'_, B>);
     /// The number of registered operations in this optimization.
     fn len(&self) -> usize;
     /// If the current optimization is empty.

@@ -74,26 +74,38 @@ where
 mod tests {
     use super::*;
     use crate::{
-        binary_elemwise, compute::compute_client, kernel::KernelSettings, AutoGraphicsApi,
-        WgpuDevice,
+        binary,
+        codegen::{Elem, Operator, Variable},
+        compute::compute_client,
+        kernel::{KernelSettings, WORKGROUP_DEFAULT},
+        AutoGraphicsApi, WgpuDevice,
     };
 
     #[test]
     fn can_run_kernel() {
-        binary_elemwise!(Add, "+");
+        binary!(
+            operator: |elem: Elem| Operator::Add {
+                lhs: Variable::Input(0, elem),
+                rhs: Variable::Input(1, elem),
+                out: Variable::Local(0, elem),
+            },
+            elem_in: f32,
+            elem_out: f32
+        );
 
         let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
 
         let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
-        let info: Vec<u32> = vec![1, 1, 1, 1, 8, 8, 8];
+        let info: Vec<u32> = vec![1, 1, 8, 1, 8, 1, 8];
 
         let lhs = client.create(bytemuck::cast_slice(&lhs));
         let rhs = client.create(bytemuck::cast_slice(&rhs));
         let out = client.empty(core::mem::size_of::<f32>() * 8);
         let info = client.create(bytemuck::cast_slice(&info));
 
-        type Kernel = KernelSettings<Add, f32, i32, 16, 16, 1>;
+        type Kernel =
+            KernelSettings<Ops<f32, f32>, f32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>;
         let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);

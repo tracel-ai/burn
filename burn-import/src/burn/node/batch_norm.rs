@@ -70,7 +70,8 @@ macro_rules! batch_norm_serialize {
     }};
 
     ($self:expr, $serializer:expr, $dim:expr) => {{
-        let record: BatchNormRecord<SerializationBackend, $dim> = batch_norm_serialize!(record $self);
+        let record: BatchNormRecord<SerializationBackend, $dim> =
+            batch_norm_serialize!(record $self);
         let item = Record::into_item::<PS>(record);
 
         item.serialize($serializer)

@@ -2,13 +2,13 @@
 authors = ["louisfd <louisfd94@gmail.com>", "Nathaniel Simard"]
 categories = ["science"]
 description = "Compute crate that helps creating high performance async backends."
-edition = "2021"
+edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
-license = "MIT OR Apache-2.0"
+license.workspace = true
 name = "burn-compute"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-compute"
-version = "0.11.0"
+version.workspace = true
 
 [features]
 default = [
@@ -25,11 +25,14 @@ channel-mpsc = [] # Assume std
 storage-bytes = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.11.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.12.0", default-features = false }
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 hashbrown = { workspace = true }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+web-time = { version = "0.2.3" }
 
 [dev-dependencies]
 serial_test = "2.0.0"

@@ -4,12 +4,12 @@ authors = [
     "Nathaniel Simard (@nathanielsimard)",
 ]
 description = "Library for importing datamodels into the Burn framework"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 name = "burn-import"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-import"
-version = "0.11.0"
+version.workspace = true
 
 default-run = "onnx2burn"
 
@@ -19,8 +19,8 @@ onnx = []
 pytorch = ["candle-core", "clap", "regex", "num-traits", "lazy_static"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.11.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.11.0" }
+burn = { path = "../burn", version = "0.12.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
 
 anyhow = { version = "1.0.75" }
 bytemuck = { workspace = true }
@@ -36,15 +36,8 @@ serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 syn = { workspace = true, features = ["parsing"] }
-tracing-subscriber = { workspace = true }
-tracing-core = { workspace = true }
-thiserror = { workspace = true }
-
-candle-core = { workspace = true, optional = true }
-clap = { version = "4.4.11", features = ["derive"], optional = true }
-regex = { workspace = true, optional = true }
-num-traits = { workspace = true, optional = true }
-lazy_static = { workspace = true, optional = true }
+tracing-subscriber.workspace = true
+tracing-core.workspace = true
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }

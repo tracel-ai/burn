@@ -208,7 +208,7 @@ This will result in the following compilation error:
    unconstrained type parameter [E0207]
 ```
 
-To resolve this issue, you have two options. The first one is to make your function is generic over
+To resolve this issue, you have two options. The first one is to make your function generic over
 the backend and add your trait constraint within its definition:
 
 ```rust, ignore

@@ -6,6 +6,11 @@ use crate::{
 use alloc::{sync::Arc, vec::Vec};
 use hashbrown::HashMap;
 
+#[cfg(all(not(target_family = "wasm"), feature = "std"))]
+use std::time;
+#[cfg(all(target_family = "wasm", feature = "std"))]
+use web_time as time;
+
 // The ChunkId allows to keep track of how many references there are to a specific chunk.
 memory_id_type!(ChunkId);
 // The SliceId allows to keep track of how many references there are to a specific slice.
@@ -48,9 +53,9 @@ pub enum DeallocStrategy {
     /// Once every period of time
     PeriodTime {
         /// Number of time before triggering the deallocation.
-        period: std::time::Duration,
+        period: time::Duration,
         /// Current state. Should start at now.
-        state: std::time::Instant,
+        state: time::Instant,
     },
     /// Never deallocate.
     Never,
@@ -100,7 +105,7 @@ impl DeallocStrategy {
             #[cfg(feature = "std")]
             DeallocStrategy::PeriodTime { period, state } => {
                 if &state.elapsed() > period {
-                    *state = std::time::Instant::now();
+                    *state = time::Instant::now();
                     true
                 } else {
                     false

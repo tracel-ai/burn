@@ -156,7 +156,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, TestAutodiffBackend, TestBackend};
+    use crate::{nn, nn::Linear, TestAutodiffBackend, TestBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -169,7 +169,10 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
         BinFileRecorder::<FullPrecisionSettings>::default()
-            .record(optimizer.to_record(), "/tmp/test_optim".into())
+            .record(
+                optimizer.to_record(),
+                std::env::temp_dir().as_path().join("test_optim"),
+            )
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
@@ -262,7 +265,7 @@ mod tests {
     }
 
     fn create_adagrad(
-    ) -> OptimizerAdaptor<AdaGrad<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    ) -> OptimizerAdaptor<AdaGrad<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend>
     {
         let config = AdaGradConfig::new();
         AdaGrad {
