@@ -24,8 +24,8 @@ pub struct BatchNormConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct BatchNorm<B: Backend, const D: usize> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
+    weight: Param<Tensor<B, 1>>,
+    bias: Param<Tensor<B, 1>>,
     running_mean: RunningState<Tensor<B, 1>>,
     running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
@@ -35,15 +35,15 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 impl BatchNormConfig {
     /// Initialize a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
-        let gamma = Tensor::ones([self.num_features]);
-        let beta = Tensor::zeros([self.num_features]);
+        let weight = Tensor::ones([self.num_features]);
+        let bias = Tensor::zeros([self.num_features]);
 
         let running_mean = Tensor::zeros([self.num_features]);
         let running_var = Tensor::ones([self.num_features]);
 
         BatchNorm {
-            gamma: Param::from(gamma),
-            beta: Param::from(beta),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
             running_mean: RunningState::new(running_mean),
             running_var: RunningState::new(running_var),
             momentum: self.momentum,
@@ -57,8 +57,8 @@ impl BatchNormConfig {
         record: BatchNormRecord<B, D>,
     ) -> BatchNorm<B, D> {
         BatchNorm {
-            gamma: record.gamma,
-            beta: record.beta,
+            weight: record.weight,
+            bias: record.bias,
             running_mean: RunningState::from_record(record.running_mean),
             running_var: RunningState::from_record(record.running_var),
             momentum: self.momentum,
@@ -164,9 +164,9 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let x = x.sub(mean);
         let x = x.div(std);
 
-        let x = x.mul(self.gamma.val().reshape(shape));
+        let x = x.mul(self.weight.val().reshape(shape));
 
-        x.add(self.beta.val().reshape(shape))
+        x.add(self.bias.val().reshape(shape))
     }
 }
 
@@ -333,7 +333,7 @@ mod tests_2d {
         let grads = output.backward();
 
         module
-            .gamma
+            .weight
             .grad(&grads)
             .unwrap()
             .reshape([3])
@@ -341,7 +341,7 @@ mod tests_2d {
             .assert_approx_eq(&Data::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
 
         module
-            .beta
+            .bias
             .grad(&grads)
             .unwrap()
             .reshape([3])

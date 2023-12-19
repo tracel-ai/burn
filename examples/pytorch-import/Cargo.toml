@@ -1,0 +1,20 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "pytorch-import"
+publish = false
+version = "0.11.0"
+
+[dependencies]
+burn = { path = "../../burn", features = [
+    "ndarray",
+    "dataset",
+    "sqlite-bundled",
+] }
+serde = { workspace = true }
+
+[build-dependencies]
+burn-import = { path = "../../burn-import", features = [
+    "pytorch",
+], default-features = false }

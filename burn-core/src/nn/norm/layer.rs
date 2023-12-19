@@ -21,20 +21,20 @@ pub struct LayerNormConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
+    weight: Param<Tensor<B, 1>>,
+    bias: Param<Tensor<B, 1>>,
     epsilon: f64,
 }
 
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self) -> LayerNorm<B> {
-        let gamma = Tensor::ones([self.d_model]);
-        let beta = Tensor::zeros([self.d_model]);
+        let weight = Tensor::ones([self.d_model]);
+        let bias = Tensor::zeros([self.d_model]);
 
         LayerNorm {
-            gamma: Param::from(gamma),
-            beta: Param::from(beta),
+            weight: Param::from(weight),
+            bias: Param::from(bias),
             epsilon: self.epsilon,
         }
     }
@@ -42,8 +42,8 @@ impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
     pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
         LayerNorm {
-            gamma: record.gamma,
-            beta: record.beta,
+            weight: record.weight,
+            bias: record.bias,
             epsilon: self.epsilon,
         }
     }
@@ -62,8 +62,8 @@ impl<B: Backend> LayerNorm<B> {
         let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
-            .mul(self.gamma.val().unsqueeze())
-            .add(self.beta.val().unsqueeze())
+            .mul(self.weight.val().unsqueeze())
+            .add(self.bias.val().unsqueeze())
     }
 }
 
@@ -113,13 +113,13 @@ mod tests {
 
         let tensor_1_grad = tensor_1.grad(&grads).unwrap();
         let tensor_2_grad = tensor_2.grad(&grads).unwrap();
-        let gamma_grad = module.gamma.grad(&grads).unwrap();
-        let beta_grad = module.beta.grad(&grads).unwrap();
+        let weight_grad = module.weight.grad(&grads).unwrap();
+        let bias_grad = module.bias.grad(&grads).unwrap();
 
-        gamma_grad
+        weight_grad
             .to_data()
             .assert_approx_eq(&Data::from([-2.0, 2.0]), 3);
-        beta_grad
+        bias_grad
             .to_data()
             .assert_approx_eq(&Data::from([2.0, 2.0]), 3);
         tensor_1_grad

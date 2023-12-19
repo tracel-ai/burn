@@ -16,8 +16,8 @@ pub struct BatchNormNode<PS: PrecisionSettings> {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub gamma: DataSerialize<PS::FloatElem>,
-    pub beta: DataSerialize<PS::FloatElem>,
+    pub weight: DataSerialize<PS::FloatElem>,
+    pub bias: DataSerialize<PS::FloatElem>,
     pub running_mean: DataSerialize<PS::FloatElem>,
     pub running_var: DataSerialize<PS::FloatElem>,
     pub config: BatchNormConfig,
@@ -30,8 +30,8 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
         name: S,
         input: TensorType,
         output: TensorType,
-        gamma: DataSerialize<PS::FloatElem>,
-        beta: DataSerialize<PS::FloatElem>,
+        weight: DataSerialize<PS::FloatElem>,
+        bias: DataSerialize<PS::FloatElem>,
         running_mean: DataSerialize<PS::FloatElem>,
         running_var: DataSerialize<PS::FloatElem>,
         config: BatchNormConfig,
@@ -48,8 +48,8 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
             ),
             input,
             output,
-            gamma,
-            beta,
+            weight,
+            bias,
             running_mean,
             running_var,
             config,
@@ -78,13 +78,13 @@ macro_rules! batch_norm_serialize {
 
     (record $self:expr) => {{
         BatchNormRecord {
-            gamma: Param::new(
+            weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert()),
+                Tensor::from_data($self.weight.clone().convert()),
             ),
-            beta: Param::new(
+            bias: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert()),
+                Tensor::from_data($self.bias.clone().convert()),
             ),
             running_mean: Param::new(
                 ParamId::new(),

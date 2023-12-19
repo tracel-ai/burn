@@ -30,8 +30,8 @@ pub struct GroupNormConfig {
 pub struct GroupNorm<B: Backend> {
     num_groups: usize,
     num_channels: usize,
-    gamma: Option<Param<Tensor<B, 1>>>,
-    beta: Option<Param<Tensor<B, 1>>>,
+    weight: Option<Param<Tensor<B, 1>>>,
+    bias: Option<Param<Tensor<B, 1>>>,
     epsilon: f64,
     affine: bool,
 }
@@ -45,11 +45,11 @@ impl GroupNormConfig {
             "The number of channels must be divisible by the number of groups"
         );
 
-        let (gamma, beta) = if self.affine {
-            let gamma = Tensor::ones([self.num_channels]).into();
-            let beta = Tensor::zeros([self.num_channels]).into();
+        let (weight, bias) = if self.affine {
+            let weight = Tensor::ones([self.num_channels]).into();
+            let bias = Tensor::zeros([self.num_channels]).into();
 
-            (Some(gamma), Some(beta))
+            (Some(weight), Some(bias))
         } else {
             (None, None)
         };
@@ -57,8 +57,8 @@ impl GroupNormConfig {
         GroupNorm {
             num_groups: self.num_groups,
             num_channels: self.num_channels,
-            gamma,
-            beta,
+            weight,
+            bias,
             epsilon: self.epsilon,
             affine: self.affine,
         }
@@ -69,8 +69,8 @@ impl GroupNormConfig {
         GroupNorm {
             num_groups: self.num_groups,
             num_channels: self.num_channels,
-            gamma: record.gamma,
-            beta: record.beta,
+            weight: record.weight,
+            bias: record.bias,
             epsilon: self.epsilon,
             affine: self.affine,
         }
@@ -117,8 +117,8 @@ impl<B: Backend> GroupNorm<B> {
 
             input_normalized
                 .reshape(shape)
-                .mul(self.gamma.clone().unwrap().val().reshape(affine_shape))
-                .add(self.beta.clone().unwrap().val().reshape(affine_shape))
+                .mul(self.weight.clone().unwrap().val().reshape(affine_shape))
+                .add(self.bias.clone().unwrap().val().reshape(affine_shape))
         } else {
             input_normalized.reshape(shape)
         }
@@ -137,8 +137,8 @@ mod tests {
             .with_affine(false)
             .init::<TestBackend>();
 
-        assert!(module.gamma.is_none());
-        assert!(module.beta.is_none());
+        assert!(module.weight.is_none());
+        assert!(module.bias.is_none());
 
         let input = Tensor::from_data(Data::from([
             [
@@ -191,17 +191,17 @@ mod tests {
             .init::<TestBackend>();
 
         module
-            .gamma
+            .weight
             .as_ref()
-            .expect("Gamma is None")
+            .expect("weight is None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::ones([6].into()), 3);
 
         module
-            .beta
+            .bias
             .as_ref()
-            .expect("beta is None")
+            .expect("bias is None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);

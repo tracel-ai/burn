@@ -1,0 +1,14 @@
+[package]
+name = "pytorch-tests"
+version = "0.11.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dev-dependencies]
+burn = { path = "../../burn" }
+burn-ndarray = { path = "../../burn-ndarray" }
+serde = { workspace = true }
+float-cmp = { workspace = true }
+
+[build-dependencies]
+burn-import = { path = "../", features = ["pytorch"] }

@@ -1,0 +1,25 @@
+# Import PyTorch Weights
+
+This crate provides a simple example for importing PyTorch generated weights to Burn.
+
+The `.pt` file is converted into a Burn consumable file using `burn-import`.
+
+## Usage
+
+```bash
+cargo run -- 15
+```
+
+Output:
+
+```bash
+Finished dev [unoptimized + debuginfo] target(s) in 0.13s
+    Running `burn/target/debug/onnx-inference 15`
+
+Image index: 15
+Success!
+Predicted: 5
+Actual: 5
+See the image online, click the link below:
+https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image.jpg
+```

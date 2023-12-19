@@ -1,0 +1,67 @@
+use burn::{
+    module::Module,
+    nn::{Embedding, EmbeddingConfig},
+    tensor::{backend::Backend, Int, Tensor},
+};
+
+#[derive(Module, Debug)]
+struct Net<B: Backend> {
+    embed: Embedding<B>,
+}
+
+impl<B: Backend> Net<B> {
+    /// Create a new model from the given record.
+    pub fn new_with(record: NetRecord<B>) -> Self {
+        let embed = EmbeddingConfig::new(10, 3).init_with(record.embed);
+        Self { embed }
+    }
+
+    /// Forward pass of the model.
+    pub fn forward(&self, x: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+        self.embed.forward(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    type Backend = burn_ndarray::NdArray<f32>;
+
+    use std::{env, path::Path};
+
+    use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+
+    use super::*;
+
+    #[test]
+    fn embedding() {
+        let out_dir = env::var_os("OUT_DIR").unwrap();
+        let file_path = Path::new(&out_dir).join("model/embedding");
+
+        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
+            .load(file_path)
+            .expect("Failed to decode state");
+
+        let model = Net::<Backend>::new_with(record);
+
+        let input = Tensor::<Backend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]]);
+
+        let output = model.forward(input);
+
+        let expected = Tensor::<Backend, 3>::from_data([
+            [
+                [-1.609_484_9, -0.10016718, -0.609_188_9],
+                [-0.97977227, -1.609_096_3, -0.712_144_6],
+                [-0.22227049, 1.687_113_4, -0.32062083],
+                [-0.29934573, 1.879_345_7, -0.07213178],
+            ],
+            [
+                [-0.22227049, 1.687_113_4, -0.32062083],
+                [0.303_722, -0.777_314_3, -0.25145486],
+                [-0.97977227, -1.609_096_3, -0.712_144_6],
+                [-0.02878714, 2.357_111, -1.037_338_7],
+            ],
+        ]);
+
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+    }
+}
