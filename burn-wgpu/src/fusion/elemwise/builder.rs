@@ -190,10 +190,10 @@ where
                 Operator::AssignLocal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::ReadGlobalIntoContiguous {
+                Operator::ReadGlobalWithLayout {
                     variable: _,
-                    position: _,
-                    position_out: _,
+                    tensor_read_pos: _,
+                    tensor_layout_pos: _,
                 } => {
                     // Nothing to do here.
                 }

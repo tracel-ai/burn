@@ -44,7 +44,7 @@ macro_rules! unary {
                     .inputs(&[$crate::codegen::Input::Array {
                         elem: E::elem_type(),
                         visibility: $crate::codegen::Visibility::Read,
-                        strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                        strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
@@ -97,7 +97,7 @@ macro_rules! unary {
                         $crate::codegen::Input::Array {
                             elem: E::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Scalar {
                             elem: E::elem_type(),

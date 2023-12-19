@@ -50,12 +50,12 @@ macro_rules! binary {
                         $crate::codegen::Input::Array {
                             elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
                             elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
@@ -87,7 +87,7 @@ macro_rules! binary {
                         $crate::codegen::Input::Array {
                             elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
@@ -115,7 +115,7 @@ macro_rules! binary {
                         $crate::codegen::Input::Array {
                             elem: I::elem_type(),
                             visibility: $crate::codegen::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::IntoContiguous,
+                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
                             elem: I::elem_type(),

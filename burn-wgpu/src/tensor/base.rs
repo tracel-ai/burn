@@ -78,8 +78,6 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             return false;
         }
 
-        let mut is_broadcasting = false;
-
         for i in 0..D {
             let shape_lhs = self.shape.dims[i];
             let shape_rhs = rhs.shape.dims[i];
@@ -88,19 +86,9 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
             if shape_lhs < shape_rhs {
                 return false;
             }
-
-            if shape_lhs != shape_rhs {
-                is_broadcasting = true;
-            }
         }
 
-        // When we do an inplace operation with a broadcast, we set the RHS tensor to contiguous,
-        // so LHS should be contiguous before launching the kernel.
-        if is_broadcasting {
-            self.is_contiguous()
-        } else {
-            true
-        }
+        true
     }
 
     /// Copy the current tensor.

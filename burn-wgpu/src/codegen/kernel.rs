@@ -53,7 +53,9 @@ pub enum Input {
 }
 
 pub enum ReadingStrategy {
-    IntoContiguous,
+    /// Each element will be read in a way to be compatible with the output layout.
+    OutputLayout,
+    /// Keep the current layout.
     Plain,
 }
 
@@ -94,12 +96,12 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     });
 
                     match strategy {
-                        ReadingStrategy::IntoContiguous => {
-                            self.operations.push(Operator::ReadGlobalIntoContiguous {
+                        ReadingStrategy::OutputLayout => {
+                            self.operations.push(Operator::ReadGlobalWithLayout {
                                 variable: Variable::Input(index, *elem),
-                                position: index as usize,
-                                position_out: 0, // Will set the right value during the output
-                                                 // phase.
+                                tensor_read_pos: index as usize,
+                                tensor_layout_pos: 0, // Will set the right value during the output
+                                                      // phase.
                             });
                         }
                         ReadingStrategy::Plain => {
@@ -184,7 +186,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(mut self, outputs: &[Output]) -> ElemWiseKernelCodegen<CompilationPhase> {
         let mut index = 0;
-        let mut position_out_updated = 0;
+        let mut position_out = 0;
 
         for array in outputs {
             match array {
@@ -204,8 +206,8 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                     index += 1;
 
                     if index == 1 {
-                        position_out_updated = self.input_bindings.len(); // First output when we have a
-                                                                          // new array for the output.
+                        position_out = self.input_bindings.len(); // First output when we have a
+                                                                  // new array for the output.
                     }
                 }
                 Output::Input { elem, input, local } => {
@@ -213,21 +215,21 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         input: Variable::Local(*local, *elem),
                         out: Variable::Input(*input, bool_elem(*elem)),
                     });
-                    position_out_updated = *input as usize; // Input number when we use inplace operation.
+                    position_out = *input as usize; // Input number when we use inplace operation.
                 }
             }
         }
 
         // We set the output number that will be used for the stride definition.
         for i in 0..self.input_bindings.len() {
-            if let Some(Operator::ReadGlobalIntoContiguous {
+            if let Some(Operator::ReadGlobalWithLayout {
                 variable: _,
-                position: _,
-                position_out,
+                tensor_read_pos: _,
+                tensor_layout_pos,
             }) = self.operations.get_mut(i)
             {
                 {
-                    *position_out = position_out_updated;
+                    *tensor_layout_pos = position_out;
                 }
             };
         }
