@@ -27,11 +27,14 @@ pub enum TuneCacheResult<K> {
 
 impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn new() -> Self {
-        let mut cache =  TuneCache {
+        let mut cache = TuneCache {
             cache: HashMap::new(),
             persistent_cache: HashMap::new(),
         };
-        cache.load();
+        if let Err(e) = cache.load() {
+            eprintln!(
+                "Unable to load autotune cache. Cache will be ignored ({}).", e);
+        }
         cache
     }
 
