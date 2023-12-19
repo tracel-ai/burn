@@ -26,11 +26,16 @@ mod tests {
 
     #[test]
     fn should_diff_mask_where() {
-        let tensor_1 = TestAutodiffTensor::from_data_default([[1.0, 7.0], [2.0, 3.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data_default([[4.0, 7.0], [2.0, 3.0]]).require_grad();
-        let tensor_3 = TestAutodiffTensor::from_data_default([[8.8, 9.8], [10.8, 11.8]]).require_grad();
-        let mask =
-            Tensor::<TestAutodiffBackend, 2, Bool>::from_data_default([[true, false], [false, true]]);
+        let tensor_1 =
+            TestAutodiffTensor::from_data_default([[1.0, 7.0], [2.0, 3.0]]).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_data_default([[4.0, 7.0], [2.0, 3.0]]).require_grad();
+        let tensor_3 =
+            TestAutodiffTensor::from_data_default([[8.8, 9.8], [10.8, 11.8]]).require_grad();
+        let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_data_default([
+            [true, false],
+            [false, true],
+        ]);
 
         let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_5 = tensor_4.clone().matmul(tensor_3.clone());

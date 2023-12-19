@@ -5,8 +5,10 @@ mod tests {
 
     #[test]
     fn should_diff_max_dim() {
-        let tensor_1 = TestAutodiffTensor::from_floats_default([[1.0, 7.0], [-2.0, -3.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_floats_default([[4.0, -7.0], [2.0, 3.0]]).require_grad();
+        let tensor_1 =
+            TestAutodiffTensor::from_floats_default([[1.0, 7.0], [-2.0, -3.0]]).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_floats_default([[4.0, -7.0], [2.0, 3.0]]).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.max_dim(1).unsqueeze());
@@ -25,8 +27,10 @@ mod tests {
 
     #[test]
     fn should_diff_min_dim() {
-        let tensor_1 = TestAutodiffTensor::from_floats_default([[1.0, 7.0], [-2.0, -3.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_floats_default([[4.0, -7.0], [2.0, 3.0]]).require_grad();
+        let tensor_1 =
+            TestAutodiffTensor::from_floats_default([[1.0, 7.0], [-2.0, -3.0]]).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_floats_default([[4.0, -7.0], [2.0, 3.0]]).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.min_dim(1).unsqueeze());

@@ -24,12 +24,16 @@ mod tests {
 
     #[test]
     fn should_diff_swap_dims() {
-        let tensor_1 =
-            TestAutodiffTensor::from_floats_default([[[0.0, 1.0], [3.0, 4.0]], [[6.0, 7.0], [9.0, 10.0]]])
-                .require_grad();
-        let tensor_2 =
-            TestAutodiffTensor::from_floats_default([[[1.0, 4.0], [2.0, 5.0]], [[7.0, 10.0], [8.0, 11.0]]])
-                .require_grad();
+        let tensor_1 = TestAutodiffTensor::from_floats_default([
+            [[0.0, 1.0], [3.0, 4.0]],
+            [[6.0, 7.0], [9.0, 10.0]],
+        ])
+        .require_grad();
+        let tensor_2 = TestAutodiffTensor::from_floats_default([
+            [[1.0, 4.0], [2.0, 5.0]],
+            [[7.0, 10.0], [8.0, 11.0]],
+        ])
+        .require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().swap_dims(0, 2));
         let tensor_4 = tensor_3.matmul(tensor_2.clone().swap_dims(1, 2));

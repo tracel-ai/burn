@@ -68,8 +68,12 @@ mod tests {
 
     #[test]
     fn test_matmul_simple_3() {
-        let tensor_1 =
-            TestTensor::from_floats_default([[3., 3., 3.], [4., 4., 4.], [5., 5., 5.], [6., 6., 6.]]);
+        let tensor_1 = TestTensor::from_floats_default([
+            [3., 3., 3.],
+            [4., 4., 4.],
+            [5., 5., 5.],
+            [6., 6., 6.],
+        ]);
         let tensor_2 =
             TestTensor::from_floats_default([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
 

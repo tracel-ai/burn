@@ -1,4 +1,4 @@
-use crate::{backend::Backend, Data, Device, Float, Int, Tensor};
+use crate::{backend::Backend, Data, Float, Int, Tensor};
 use core::ops::Range;
 
 impl<B> Tensor<B, 1, Int>

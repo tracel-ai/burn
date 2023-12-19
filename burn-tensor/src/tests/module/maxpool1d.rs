@@ -105,7 +105,8 @@ mod tests {
 
         let x = TestTensor::from_floats_default([[[0.5388, 0.0676, 0.7122, 0.8316, 0.0653]]]);
         let indices = Data::<IntElem, 3>::from([[[0, 2, 3, 3, 3, 3]]]);
-        let y = TestTensor::from_floats_default([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
+        let y =
+            TestTensor::from_floats_default([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);

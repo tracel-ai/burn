@@ -5,7 +5,8 @@ mod tests {
 
     #[test]
     fn cast_float_to_int() {
-        let tensor = Tensor::<TestBackend, 2>::from_data_default([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
+        let tensor =
+            Tensor::<TestBackend, 2>::from_data_default([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
 
         let actual = tensor.int().into_data();
         let expected = Data::from([[1, 2, 3], [4, 5, 6]]);
@@ -23,8 +24,10 @@ mod tests {
 
     #[test]
     fn cast_bool_to_int_tensor() {
-        let tensor =
-            Tensor::<TestBackend, 2, Bool>::from_data_default([[true, false, true], [false, false, true]]);
+        let tensor = Tensor::<TestBackend, 2, Bool>::from_data_default([
+            [true, false, true],
+            [false, false, true],
+        ]);
 
         let actual = tensor.int().into_data();
         let expected = Data::from([[1, 0, 1], [0, 0, 1]]);
@@ -33,8 +36,10 @@ mod tests {
 
     #[test]
     fn cast_bool_to_float_tensor() {
-        let tensor =
-            Tensor::<TestBackend, 2, Bool>::from_data_default([[true, false, true], [false, false, true]]);
+        let tensor = Tensor::<TestBackend, 2, Bool>::from_data_default([
+            [true, false, true],
+            [false, false, true],
+        ]);
 
         let actual = tensor.float().into_data();
         let expected = Data::from([[1., 0., 1.], [0., 0., 1.]]);

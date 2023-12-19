@@ -10,9 +10,10 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x =
-            TestAutodiffTensor::from_floats_default([[[0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221]]])
-                .require_grad();
+        let x = TestAutodiffTensor::from_floats_default([[[
+            0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221,
+        ]]])
+        .require_grad();
         let x_grad_expected = TestAutodiffTensor::from_floats_default([[[1., 1., 0., 0., 0., 1.]]]);
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
