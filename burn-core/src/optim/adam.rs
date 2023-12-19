@@ -197,7 +197,8 @@ mod tests {
     fn test_adam_optimizer_save_load_state() {
         let device = Default::default();
         let linear = nn::LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
+        let x =
+            Tensor::<TestAutodiffBackend, 2>::random_device([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -329,8 +330,8 @@ mod tests {
         bias: Data<f32, 1>,
     ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
-            weight: Param::from(Tensor::from_data_default(weight)),
-            bias: Some(Param::from(Tensor::from_data_default(bias))),
+            weight: Param::from(Tensor::from_data(weight)),
+            bias: Some(Param::from(Tensor::from_data(bias))),
         };
 
         nn::LinearConfig::new(6, 6).init_with(record)
