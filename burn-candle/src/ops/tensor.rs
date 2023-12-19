@@ -133,9 +133,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
     }
 
     fn matmul<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        mut lhs: FloatTensor<Self, D>,
+        mut rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
+        if !lhs.tensor.is_contiguous() {
+            lhs.tensor = lhs.tensor.contiguous().unwrap();
+        }
+        if !rhs.tensor.is_contiguous() {
+            rhs.tensor = rhs.tensor.contiguous().unwrap();
+        }
         CandleTensor::new(lhs.tensor.broadcast_matmul(&rhs.tensor).unwrap())
     }
 

@@ -49,8 +49,21 @@ where
 
     /// Create a random named tensor of the given shape where each element is sampled from
     /// the given distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution<B::FloatElem>) -> Self {
-        Self::from_tensor(Tensor::random(shape, distribution))
+    pub fn random<S: Into<Shape<D>>>(
+        shape: S,
+        distribution: Distribution<B::FloatElem>,
+        device: &B::Device,
+    ) -> Self {
+        Self::from_tensor(Tensor::random(shape, distribution, device))
+    }
+
+    /// Create a random named tensor of the given shape where each element is sampled from
+    /// the given distribution. Tensor will be placed on the default device of the backend.
+    pub fn random_default<S: Into<Shape<D>>>(
+        shape: S,
+        distribution: Distribution<B::FloatElem>,
+    ) -> Self {
+        Self::from_tensor(Tensor::random_default(shape, distribution))
     }
 
     /// Returns the shape of the current tensor.

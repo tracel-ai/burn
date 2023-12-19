@@ -61,7 +61,7 @@ mod tests {
         let model: add::Model<Backend> = add::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
         let scalar = 2f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[9., 10., 11., 12.]]]]);
@@ -75,7 +75,7 @@ mod tests {
         let model: add_int::Model<Backend> = add_int::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let input = Tensor::<Backend, 4, Int>::from_ints_default([[[[1, 2, 3, 4]]]]);
         let scalar = 2;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[9, 11, 13, 15]]]]);
@@ -89,7 +89,7 @@ mod tests {
         let model: sub::Model<Backend> = sub::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
         let scalar = 3.0f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[6., 7., 8., 9.]]]]);
@@ -103,7 +103,7 @@ mod tests {
         let model: sub_int::Model<Backend> = sub_int::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]]);
+        let input = Tensor::<Backend, 4, Int>::from_ints_default([[[[1, 2, 3, 4]]]]);
         let scalar = 3;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[6, 6, 6, 6]]]]);
@@ -116,7 +116,7 @@ mod tests {
         let model: mul::Model<Backend> = mul::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
         let scalar = 6.0f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[126., 252., 378., 504.]]]]);
@@ -131,7 +131,7 @@ mod tests {
         let model: div::Model<Backend> = div::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_device([[[[3., 6., 6., 9.]]]], &device);
+        let input = Tensor::<Backend, 4>::from_floats([[[[3., 6., 6., 9.]]]], &device);
         let scalar1 = 9.0f64;
         let scalar2 = 3.0f64;
         let output = model.forward(input, scalar1, scalar2);
@@ -147,7 +147,7 @@ mod tests {
         let model: concat::Model<Backend> = concat::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::zeros_device([1, 2, 3, 5], &device);
+        let input = Tensor::<Backend, 4>::zeros([1, 2, 3, 5], &device);
 
         let output = model.forward(input);
 
@@ -162,7 +162,7 @@ mod tests {
         let model: conv1d::Model<Backend> = conv1d::Model::default();
 
         // Run the model with pi as input for easier testing
-        let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI);
+        let input = Tensor::<Backend, 3>::full_default([6, 4, 10], consts::PI);
 
         let output = model.forward(input);
 
@@ -183,7 +183,7 @@ mod tests {
         let model: conv2d::Model<Backend> = conv2d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -204,7 +204,7 @@ mod tests {
         let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -223,7 +223,7 @@ mod tests {
         let model: dropout_opset7::Model<Backend> = dropout_opset7::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -241,9 +241,10 @@ mod tests {
     fn erf() {
         let model: erf::Model<Backend> = erf::Model::default();
 
-        let input = Tensor::<Backend, 4>::from_data([[[[1.0, 2.0, 3.0, 4.0]]]]);
+        let input = Tensor::<Backend, 4>::from_data_default([[[[1.0, 2.0, 3.0, 4.0]]]]);
         let output = model.forward(input);
-        let expected = Tensor::<Backend, 4>::from_data([[[[0.8427, 0.9953, 1.0000, 1.0000]]]]);
+        let expected =
+            Tensor::<Backend, 4>::from_data_default([[[[0.8427, 0.9953, 1.0000, 1.0000]]]]);
 
         output.to_data().assert_approx_eq(&expected.to_data(), 4);
     }
@@ -254,8 +255,8 @@ mod tests {
         let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input_1d = Tensor::<Backend, 3>::ones([2, 4, 10]);
-        let input_2d = Tensor::<Backend, 4>::ones([3, 10, 3, 15]);
+        let input_1d = Tensor::<Backend, 3>::ones_default([2, 4, 10]);
+        let input_2d = Tensor::<Backend, 4>::ones_default([3, 10, 3, 15]);
 
         let (output_1d, output_2d) = model.forward(input_1d, input_2d);
 
@@ -281,7 +282,7 @@ mod tests {
         let model: softmax::Model<Backend> = softmax::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_device(
+        let input = Tensor::<Backend, 2>::from_floats(
             [
                 [0.33669037, 0.128_809_4, 0.23446237],
                 [0.23033303, -1.122_856_4, -0.18632829],
@@ -304,7 +305,7 @@ mod tests {
         let model: log_softmax::Model<Backend> = log_softmax::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_device(
+        let input = Tensor::<Backend, 2>::from_floats(
             [
                 [0.33669037, 0.128_809_4, 0.23446237],
                 [0.23033303, -1.122_856_4, -0.18632829],
@@ -327,7 +328,7 @@ mod tests {
         let model: maxpool2d::Model<Backend> = maxpool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_device(
+        let input = Tensor::<Backend, 4>::from_floats(
             [[[
                 [1.927, 1.487, 0.901, -2.106, 0.678],
                 [-1.235, -0.043, -1.605, -0.752, -0.687],
@@ -354,7 +355,7 @@ mod tests {
         let model: avg_pool2d::Model<Backend> = avg_pool2d::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_device(
+        let input = Tensor::<Backend, 4>::from_floats(
             [[[
                 [-0.077, 0.360, -0.782, 0.072, 0.665],
                 [-0.287, 1.621, -1.597, -0.052, 0.611],
@@ -377,7 +378,7 @@ mod tests {
         let model: reshape::Model<Backend> = reshape::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats_device([0., 1., 2., 3.], &device);
+        let input = Tensor::<Backend, 1>::from_floats([0., 1., 2., 3.], &device);
         let output = model.forward(input);
         let expected = Data::from([[0., 1., 2., 3.]]);
 
@@ -391,7 +392,7 @@ mod tests {
         let model: flatten::Model<Backend> = flatten::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 3>::ones_device([1, 5, 15], &device);
+        let input = Tensor::<Backend, 3>::ones([1, 5, 15], &device);
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 75]);
@@ -403,7 +404,7 @@ mod tests {
         let model: batch_norm::Model<Backend> = batch_norm::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones([1, 20, 1]);
+        let input = Tensor::<Backend, 3>::ones_default([1, 20, 1]);
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 5, 2, 2]);
@@ -421,7 +422,7 @@ mod tests {
         let model: relu::Model<Backend> = relu::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_device(
+        let input = Tensor::<Backend, 2>::from_floats(
             [
                 [0.33669037, 0.128_809_4, 0.23446237],
                 [0.23033303, -1.122_856_4, -0.18632829],
@@ -444,7 +445,7 @@ mod tests {
         let model: sigmoid::Model<Backend> = sigmoid::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_device(
+        let input = Tensor::<Backend, 2>::from_floats(
             [
                 [0.33669037, 0.128_809_4, 0.23446237],
                 [0.23033303, -1.122_856_4, -0.18632829],
@@ -467,7 +468,7 @@ mod tests {
         let model: transpose::Model<Backend> = transpose::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_device(
+        let input = Tensor::<Backend, 2>::from_floats(
             [
                 [0.33669037, 0.128_809_4, 0.23446237],
                 [0.23033303, -1.122_856_4, -0.18632829],
@@ -490,7 +491,7 @@ mod tests {
         let model: equal::Model<Backend> = equal::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats([[[[1., 1., 1., 1.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 1., 1., 1.]]]]);
 
         let scalar = 2f64;
         let (tensor_out, scalar_out) = model.forward(input, scalar);
@@ -508,7 +509,7 @@ mod tests {
         let model: clip_opset16::Model<Backend> = clip_opset16::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats_device(
+        let input = Tensor::<Backend, 1>::from_floats(
             [
                 0.88226926,
                 0.91500396,
@@ -543,7 +544,7 @@ mod tests {
         let model: clip_opset7::Model<Backend> = clip_opset7::Model::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 1>::from_floats_device(
+        let input = Tensor::<Backend, 1>::from_floats(
             [
                 0.88226926,
                 0.91500396,
@@ -575,9 +576,9 @@ mod tests {
     fn linear() {
         // Initialize the model with weights (loaded from the exported file)
         let model: linear::Model<Backend> = linear::Model::default();
-        let input1 = Tensor::<Backend, 2>::full([4, 3], 3.14);
-        let input2 = Tensor::<Backend, 2>::full([2, 5], 3.14);
-        let input3 = Tensor::<Backend, 3>::full([3, 2, 7], 3.14);
+        let input1 = Tensor::<Backend, 2>::full_default([4, 3], 3.14);
+        let input2 = Tensor::<Backend, 2>::full_default([2, 5], 3.14);
+        let input3 = Tensor::<Backend, 3>::full_default([3, 2, 7], 3.14);
 
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
@@ -611,7 +612,7 @@ mod tests {
         let model = tanh::Model::<Backend>::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_device([[[[1., 2., 3., 4.]]]], &device);
+        let input = Tensor::<Backend, 4>::from_floats([[[[1., 2., 3., 4.]]]], &device);
         let output = model.forward(input);
         // data from pyTorch
         let expected = Data::from([[[[0.7616, 0.9640, 0.9951, 0.9993]]]]);

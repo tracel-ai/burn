@@ -21,7 +21,7 @@ fn test_mnist_model_with_random_input() {
 
     // Some random input
     let input_shape = [1, 28, 28];
-    let input = Tensor::<Backend, 3>::random_device(input_shape, Distribution::Default, &device);
+    let input = Tensor::<Backend, 3>::random(input_shape, Distribution::Default, &device);
 
     // Run through the model
     let output = mnist_model.forward(input);

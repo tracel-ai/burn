@@ -138,9 +138,9 @@ mod tests {
         let device = Default::default();
         let linear = config.init::<TestBackend>(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones_device(Shape::new([1, 2]), &device);
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data_device([[4., 4., 4.]], &device);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[4., 4., 4.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }
@@ -155,9 +155,9 @@ mod tests {
         let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
         let linear = config.init::<TestBackend>(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones_device(Shape::new([1, 2]), &device);
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data_device([[6., 6., 6.]], &device);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }

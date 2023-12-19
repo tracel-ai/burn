@@ -57,10 +57,8 @@ where
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs =
-            WTensor::random_device(self.shape_lhs.clone(), Distribution::Default, &self.device);
-        let rhs =
-            WTensor::random_device(self.shape_rhs.clone(), Distribution::Default, &self.device);
+        let lhs = WTensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
+        let rhs = WTensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
     }

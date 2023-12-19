@@ -127,14 +127,16 @@ impl<B: Backend> Lstm<B> {
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
         let [batch_size, seq_length, _] = batched_input.shape().dims;
-        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
-        let mut batched_hidden_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
+        let device = &batched_input.device();
+        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
+        let mut batched_hidden_state =
+            Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
 
         let (mut cell_state, mut hidden_state) = match state {
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
-                Tensor::zeros([batch_size, self.d_hidden]),
-                Tensor::zeros([batch_size, self.d_hidden]),
+                Tensor::zeros([batch_size, self.d_hidden], device),
+                Tensor::zeros([batch_size, self.d_hidden], device),
             ),
         };
 
@@ -267,11 +269,8 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record = LinearRecord {
-                weight: Param::from(Tensor::from_data_device(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data_device(
-                    Data::from([biases]),
-                    device,
-                ))),
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -321,12 +320,14 @@ mod tests {
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data_device(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
 
         let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
-        let cell_state = cell_state_batch.select(0, Tensor::arange(0..1)).squeeze(0);
+        let cell_state = cell_state_batch
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze(0);
         let hidden_state = hidden_state_batch
-            .select(0, Tensor::arange(0..1))
+            .select(0, Tensor::arange(0..1, &device))
             .squeeze(0);
         cell_state
             .to_data()
@@ -341,7 +342,7 @@ mod tests {
         let device = Default::default();
         let lstm = LstmConfig::new(64, 1024, true).init(&device);
         let batched_input =
-            Tensor::<TestBackend, 3>::random_device([8, 10, 64], Distribution::Default, &device);
+            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
 
         let (cell_state, hidden_state) = lstm.forward(batched_input, None);
 

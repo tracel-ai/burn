@@ -80,19 +80,19 @@ macro_rules! batch_norm_serialize {
         BatchNormRecord {
             gamma: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert()),
+                Tensor::from_data_default($self.gamma.clone().convert()),
             ),
             beta: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert()),
+                Tensor::from_data_default($self.beta.clone().convert()),
             ),
             running_mean: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_mean.clone().convert()),
+                Tensor::from_data_default($self.running_mean.clone().convert()),
             ),
             running_var: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_var.clone().convert()),
+                Tensor::from_data_default($self.running_var.clone().convert()),
             ),
             epsilon: ConstantRecord::new(),
             momentum: ConstantRecord::new(),

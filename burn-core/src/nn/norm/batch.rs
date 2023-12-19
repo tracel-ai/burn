@@ -35,11 +35,11 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 impl BatchNormConfig {
     /// Initialize a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
-        let gamma = Tensor::ones_device([self.num_features], device);
-        let beta = Tensor::zeros_device([self.num_features], device);
+        let gamma = Tensor::ones([self.num_features], device);
+        let beta = Tensor::zeros([self.num_features], device);
 
-        let running_mean = Tensor::zeros_device([self.num_features], device);
-        let running_var = Tensor::ones_device([self.num_features], device);
+        let running_mean = Tensor::zeros([self.num_features], device);
+        let running_var = Tensor::ones([self.num_features], device);
 
         BatchNorm {
             gamma: Param::from(gamma),
@@ -220,7 +220,7 @@ mod tests_1d {
     }
 
     fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
-        Tensor::<B, 3>::from_floats_device(
+        Tensor::<B, 3>::from_floats(
             [
                 [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
                 [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
@@ -377,7 +377,7 @@ mod tests_2d {
     }
 
     fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
-        Tensor::<B, 4>::from_floats_device(
+        Tensor::<B, 4>::from_floats(
             [
                 [
                     [[0.9601, 0.7277], [0.1270, 0.5441]],

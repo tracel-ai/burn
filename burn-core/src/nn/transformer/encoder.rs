@@ -357,7 +357,7 @@ mod tests {
         let device = Default::default();
         let transformer = config.init(&device);
 
-        let tensor = Tensor::<TestBackend, 3>::random_device(
+        let tensor = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
             Distribution::Default,
             &device,

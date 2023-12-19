@@ -47,7 +47,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 
     fn execute(&self, (data, device): Self::Args) {
         for _ in 0..self.num_repeats {
-            let _data = Tensor::<B, D>::from_data_device(data.clone(), &device);
+            let _data = Tensor::<B, D>::from_data(data.clone(), &device);
         }
     }
 

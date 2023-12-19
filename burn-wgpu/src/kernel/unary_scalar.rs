@@ -191,8 +191,8 @@ mod tests {
 
     #[test]
     fn unary_scalar_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_default(tensor.to_data());
 
         let actual = unary_scalar::<TestKernel, _, 2, 16>(tensor.into_primitive(), 5.0);
         let expected = tensor_ref.mul_scalar(5.0);
@@ -205,8 +205,8 @@ mod tests {
 
     #[test]
     fn unary_scalar_inplace_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_default(tensor.to_data());
 
         let actual =
             unary_scalar_inplace::<TestKernelInplace, _, 2, 16>(tensor.into_primitive(), 5.0);

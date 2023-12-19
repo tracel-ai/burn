@@ -411,12 +411,12 @@ mod tests {
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
         let transformer = config.init(&device);
 
-        let memory = Tensor::<TestBackend, 3>::random_device(
+        let memory = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
             Distribution::Default,
             &device,
         );
-        let target = Tensor::<TestBackend, 3>::random_device(
+        let target = Tensor::<TestBackend, 3>::random(
             [batch_size, seq_length, d_model],
             Distribution::Default,
             &device,

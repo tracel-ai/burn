@@ -98,9 +98,9 @@ impl Initializer {
     ) -> Tensor<B, D> {
         let shape = shape.into();
         match self {
-            Initializer::Constant { value } => Tensor::<B, D>::full_device(shape, *value, device),
-            Initializer::Ones => Tensor::<B, D>::ones_device(shape, device),
-            Initializer::Zeros => Tensor::<B, D>::zeros_device(shape, device),
+            Initializer::Constant { value } => Tensor::<B, D>::full(shape, *value, device),
+            Initializer::Ones => Tensor::<B, D>::ones(shape, device),
+            Initializer::Zeros => Tensor::<B, D>::zeros(shape, device),
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max, device),
             Initializer::Normal { mean, std } => normal_draw(shape, *mean, *std, device),
             Initializer::KaimingUniform { gain, fan_out_only } => {
@@ -155,7 +155,7 @@ fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 ) -> Tensor<B, D> {
     let distribution =
         Distribution::Uniform(low.elem::<B::FloatElem>(), high.elem::<B::FloatElem>());
-    Tensor::<B, D>::random_device(shape, distribution, device)
+    Tensor::<B, D>::random(shape, distribution, device)
 }
 
 fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
@@ -165,7 +165,7 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
     device: &B::Device,
 ) -> Tensor<B, D> {
     let distribution = Distribution::Normal(mean, std);
-    Tensor::<B, D>::random_device(shape, distribution, device)
+    Tensor::<B, D>::random(shape, distribution, device)
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_max_dim_2d() {
-        let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_floats_default([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let output_actual = tensor.max_dim(1);
 
@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn test_max_dim_with_indices_2d() {
-        let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_floats_default([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let (output_actual, index_actual) = tensor.max_dim_with_indices(1);
 
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn test_min_dim_2d() {
-        let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_floats_default([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let output_actual = tensor.min_dim(1);
 
@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_min_dim_with_indices_2d() {
-        let tensor = TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_floats_default([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let (output_actual, index_actual) = tensor.min_dim_with_indices(1);
 

@@ -42,12 +42,12 @@ where
     }
 
     /// Create an empty tensor of the given shape.
-    pub fn empty<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::empty_device(shape, &B::Device::default())
+    pub fn empty_default<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::empty(shape, &B::Device::default())
     }
 
     /// Create an empty tensor of the given shape.
-    pub fn empty_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn empty<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::empty(shape.into(), device))
     }
 
@@ -88,7 +88,7 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4]);
+    ///    let tensor = Tensor::<B, 3>::ones_default([2, 3, 4]);
     ///    // Given a 3D tensor with dimensions (2, 3, 4), reshape it to (2, 12)
     ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape([2, -1]);
     ///    // The resulting tensor will have dimensions (2, 12).
@@ -155,7 +155,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]));
+    ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 3, 4]));
     ///
     ///     // Given a 3D tensor with dimensions (2, 3, 4), flatten the dimensions between indices 1 and 2:
     ///     let flattened_tensor: Tensor::<B, 2> = tensor.flatten(1, 2);
@@ -206,7 +206,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]));
+    ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 1, 4]));
     ///
     ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
     ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
@@ -238,7 +238,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]));
+    ///     let tensor = Tensor::<B, 2>::ones_default(Shape::new([3, 3]));
     ///     let tensor = tensor.unsqueeze::<4>();
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 1, 3, 3] }
@@ -270,7 +270,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 3, 3]));
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
     ///     println!("{:?}", tensor_slices.dims()); // [1, 3, 2]
     ///     
@@ -296,8 +296,8 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3]);
-    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1]);
+    ///     let tensor = Tensor::<B, 3>::ones_default([2, 3, 3]);
+    ///     let values = Tensor::<B, 3>::zeros_default([1, 1, 1]);
     ///     let tensor_sliced = tensor.slice_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
@@ -350,15 +350,15 @@ where
     }
 
     /// Create a tensor from the given data.
-    pub fn from_data<T>(data: T) -> Self
+    pub fn from_data_default<T>(data: T) -> Self
     where
         T: Into<Data<K::Elem, D>>,
     {
-        Self::from_data_device(data, &B::Device::default())
+        Self::from_data(data, &B::Device::default())
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data_device<T>(data: T, device: &B::Device) -> Self
+    pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
         T: Into<Data<K::Elem, D>>,
     {
@@ -673,7 +673,7 @@ where
 /// use burn_tensor::{Tensor, T};
 ///
 /// fn example<B: Backend>() {
-///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+///     let tensor = Tensor::<B, 2>::from_floats_default([[1.0, 2.0], [3.0, 4.0]]);
 ///     let transposed = tensor^T;
 /// }
 /// ```

@@ -155,7 +155,7 @@ mod tests {
     }
 
     fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
-        Tensor::<B, 2>::random_device(Shape::new([2, 20]), Distribution::Default, device)
+        Tensor::<B, 2>::random(Shape::new([2, 20]), Distribution::Default, device)
     }
 
     fn layer<B: Backend>(device: &B::Device) -> Linear<B> {

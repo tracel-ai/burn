@@ -113,7 +113,7 @@ impl<B: Backend> Gru<B> {
 
         let mut hidden_state = match state {
             Some(state) => state,
-            None => Tensor::zeros_device(
+            None => Tensor::zeros(
                 [batch_size, seq_length, self.d_hidden],
                 &batched_input.device(),
             ),
@@ -228,11 +228,8 @@ mod tests {
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record = LinearRecord {
-                weight: Param::from(Tensor::from_data_device(Data::from([[weights]]), device)),
-                bias: Some(Param::from(Tensor::from_data_device(
-                    Data::from([biases]),
-                    device,
-                ))),
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -272,13 +269,11 @@ mod tests {
             &device,
         );
 
-        let input = Tensor::<TestBackend, 3>::from_data_device(Data::from([[[0.1]]]), &device);
+        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
 
         let state = gru.forward(input, None);
 
-        let output = state
-            .select(0, Tensor::arange_device(0..1, &device))
-            .squeeze(0);
+        let output = state.select(0, Tensor::arange(0..1, &device)).squeeze(0);
 
         output.to_data().assert_approx_eq(&Data::from([[0.034]]), 3);
     }
@@ -288,7 +283,7 @@ mod tests {
         let device = Default::default();
         let gru = GruConfig::new(64, 1024, true).init::<TestBackend>(&device);
         let batched_input =
-            Tensor::<TestBackend, 3>::random_device([8, 10, 64], Distribution::Default, &device);
+            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
 
         let hidden_state = gru.forward(batched_input, None);
 

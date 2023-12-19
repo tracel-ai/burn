@@ -167,10 +167,12 @@ mod tests {
         Tensor<ReferenceBackend, 3>,
     ) {
         TestBackend::seed(0);
-        let lhs = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0.0, 1.0));
-        let rhs = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0.0, 1.0));
-        let lhs_ref = Tensor::<ReferenceBackend, 3>::from_data(lhs.to_data());
-        let rhs_ref = Tensor::<ReferenceBackend, 3>::from_data(rhs.to_data());
+        let lhs =
+            Tensor::<TestBackend, 3>::random_default([2, 6, 256], Distribution::Uniform(0.0, 1.0));
+        let rhs =
+            Tensor::<TestBackend, 3>::random_default([2, 6, 256], Distribution::Uniform(0.0, 1.0));
+        let lhs_ref = Tensor::<ReferenceBackend, 3>::from_data_default(lhs.to_data());
+        let rhs_ref = Tensor::<ReferenceBackend, 3>::from_data_default(rhs.to_data());
 
         (lhs, rhs, lhs_ref, rhs_ref)
     }

@@ -55,8 +55,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::cat(tensors, dim)`              | `torch.cat(tensors, dim)`            |
 | `tensor.into_data()`                     | N/A                                  |
 | `tensor.to_data()`                       | N/A                                  |
-| `Tensor::from_data(data)`                | N/A                                  |
-| `Tensor::from_data_device(data, device)` | N/A                                  |
+| `Tensor::from_data_default(data)`                | N/A                                  |
+| `Tensor::from_data_default(data, device)` | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
 
@@ -78,7 +78,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `-tensor` or `tensor.neg()`                      | `-tensor`                                      |
 | `Tensor::zeros(shape)`                           | `torch.zeros(shape)`                           |
 | `Tensor::zeros_device(shape, device)`            | `torch.zeros(shape, device=device)`            |
-| `Tensor::ones(shape)`                            | `torch.ones(shape)`                            |
+| `Tensor::ones_default(shape)`                            | `torch.ones_default(shape)`                            |
 | `Tensor::ones_device(shape, device)`             | `torch.ones(shape, device=device)`             |
 | `Tensor::full(shape, fill_value)`                | `torch.full(shape, fill_value)`                |
 | `Tensor::full_device(shape, fill_value, device)` | `torch.full(shape, fill_value, device=device)` |
@@ -129,7 +129,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.cos()`                                      | `tensor.cos()`                     |
 | `tensor.sin()`                                      | `tensor.sin()`                     |
 | `tensor.tanh()`                                     | `tensor.tanh()`                    |
-| `tensor.from_floats(floats)`                        | N/A                                |
+| `tensor.from_floats_default(floats)`                        | N/A                                |
 | `tensor.int()`                                      | Similar to `tensor.to(torch.long)` |
 | `tensor.zeros_like()`                               | `torch.zeros_like(tensor)`         |
 | `tensor.ones_like()`                                | `torch.ones_like(tensor)`          |
@@ -155,10 +155,10 @@ Those operations are only available for `Int` tensors.
 | --------------------------------------------- | ------------------------------------------------------- |
 | `tensor.from_ints(ints)`                      | N/A                                                     |
 | `tensor.float()`                              | Similar to `tensor.to(torch.float)`                     |
-| `tensor.arange(5..10)`                        | `tensor.arange(start=5, end=10)`                        |
-| `tensor.arange_device(5..10, device)`         | `tensor.arange(start=5, end=10, device=device)`         |
-| `tensor.arange_step(5..10, 2)`                | `tensor.arange(start=5, end=10, step=2)`                |
-| `tensor.arange_step_device(5..10, 2, device)` | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `tensor.arange_default(5..10)`                | `tensor.arange(start=5, end=10)`                        |
+| `tensor.arange(5..10, device)       `         | `tensor.arange(start=5, end=10, device=device)`         |
+| `tensor.arange_step_default(5..10, 2)`        | `tensor.arange(start=5, end=10, step=2)`                |
+| `tensor.arange_step(5..10, 2, device)`        | `tensor.arange(start=5, end=10, step=2, device=device)` |
 
 # Bool Operations
 
