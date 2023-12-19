@@ -23,8 +23,8 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
-        let rhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
+        let lhs = Tensor::random(self.shape.clone(), Distribution::Default, &self.device);
+        let rhs = Tensor::random(self.shape.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
     }
