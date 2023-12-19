@@ -102,7 +102,7 @@ pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 ///
 /// `mish(x_i) = x_i \times tanh(softplus(x_i))`
 pub fn mish<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    tensor.clone().mul(B::softplus(tensor, 1).tanh())
+    tensor.clone().mul(softplus(tensor, 1.0).tanh())
 }
 
 /// Applies the tanh function
