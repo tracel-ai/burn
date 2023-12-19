@@ -21,7 +21,7 @@ pub(crate) fn clamp<E: WgpuElement, const D: usize>(
     min_value: E,
     max_value: E,
 ) -> WgpuTensor<E, D> {
-    unary::<Ops<E>, OpsInplace<E>, E, D>(input, Some(&[min_value, max_value]))
+    unary::<Ops<E>, OpsInplace<E>, E, D>(input, Some(&[min_value, max_value]), true)
 }
 
 #[cfg(test)]

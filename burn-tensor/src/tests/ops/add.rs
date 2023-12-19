@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(add)]
 mod tests {
     use super::*;
+    use burn_tensor::backend::Backend;
     use burn_tensor::{Data, Int, Tensor};
 
     #[test]
@@ -26,6 +27,54 @@ mod tests {
         let data_actual = (tensor_1 + tensor_2).into_data();
 
         let data_expected = Data::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn test_add_different_strides_rhs() {
+        let data_1 = Data::from([[0.0, 1.0], [2.0, 3.0]]);
+        let data_2 = Data::from([[4.0, 5.0], [6.0, 7.0]]);
+
+        // We need to execute an operation after `from data` to trigger inplace in some backends.
+        // Which is the operation that might be problematic in this case.
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1) * 1;
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2) * 1;
+
+        let data_actual = (tensor_1 + tensor_2.transpose()).into_data();
+
+        let data_expected = Data::from([[4.0, 7.0], [7.0, 10.0]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn test_add_different_strides_lhs() {
+        let data_1 = Data::from([[0.0, 1.0], [2.0, 3.0]]);
+        let data_2 = Data::from([[4.0, 5.0], [6.0, 7.0]]);
+
+        // We need to execute an operation after `from data` to trigger inplace in some backends.
+        // Which is the operation that might be problematic in this case.
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1) * 1;
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2) * 1;
+
+        let data_actual = (tensor_1.transpose() + tensor_2).into_data();
+
+        let data_expected = Data::from([[4.0, 7.0], [7.0, 10.0]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn test_add_different_strides_broadcast() {
+        let data_1 = Data::from([[0.0, 1.0], [2.0, 3.0]]);
+        let data_2 = Data::from([[4.0, 5.0]]);
+
+        // We need to execute an operation after `from data` to trigger inplace in some backends.
+        // Which is the operation that might be problematic in this case.
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1) * 1;
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2) * 1;
+
+        let data_actual = (tensor_1.transpose() + tensor_2).into_data();
+
+        let data_expected = Data::from([[4.0, 7.0], [5.0, 8.0]]);
         assert_eq!(data_expected, data_actual);
     }
 
