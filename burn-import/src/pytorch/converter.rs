@@ -1,4 +1,9 @@
-use std::{collections::HashMap, env, fs::create_dir_all, path::PathBuf};
+use std::{
+    collections::HashMap,
+    env,
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+};
 
 use regex::Regex;
 
@@ -74,13 +79,13 @@ impl Converter {
 
     /// Set output directory.
     pub fn out_dir(&mut self, out_dir: &str) -> &mut Self {
-        self.out_dir = Some(PathBuf::from(out_dir));
+        self.out_dir = Some(Path::new(out_dir).into());
         self
     }
 
     /// Add input file.
     pub fn input(&mut self, input: &str) -> &mut Self {
-        self.inputs.push(PathBuf::from(input));
+        self.inputs.push(Path::new(input).into());
         self
     }
 
