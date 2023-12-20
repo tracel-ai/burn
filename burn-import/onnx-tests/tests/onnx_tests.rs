@@ -786,4 +786,20 @@ mod tests {
 
         assert_eq!(output2, expected2);
     }
+
+    #[test]
+    fn test_model_creation_with_a_default_device() {
+        let model: neg::Model<Backend> = neg::Model::new_devauto();
+
+        let input1 = Tensor::<Backend, 4>::from_floats_devauto([[[[1.0, 4.0, 9.0, 25.0]]]]);
+        let input2 = 99f64;
+
+        let (output1, output2) = model.forward(input1, input2);
+        let expected1 = Data::from([[[[-1.0, -4.0, -9.0, -25.0]]]]);
+        let expected2 = -99f64;
+
+        output1.to_data().assert_approx_eq(&expected1, 4);
+
+        assert_eq!(output2, expected2);
+    }
 }

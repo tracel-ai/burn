@@ -448,7 +448,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             .collect::<Vec<_>>();
 
         quote! {
-            #[allow(dead_code)]
+            #[allow(dead_code, unused_variables)]
             pub fn new(device: &B::Device) -> Self {
                 #body
 
@@ -456,6 +456,11 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     #(#fields,)*
                     phantom: core::marker::PhantomData,
                 }
+            }
+
+            pub fn new_devauto() -> Self {
+                let device = B::Device::default();
+                Self::new(&device)
             }
         }
     }
