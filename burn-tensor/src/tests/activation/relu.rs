@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_relu_d2() {
         let data = Data::from([[0.0, -1.0, 2.0], [3.0, -4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = activation::relu(tensor).to_data();
 

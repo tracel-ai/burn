@@ -39,13 +39,13 @@ mod tests {
                     type Args = Data<f32, 2>;
 
                     fn args(&self) -> Self::Args {
-                        TestTensor::random([32, 32], Distribution::Default)
+                        TestTensor::random_devauto([32, 32], Distribution::Default)
                             .into_data()
                             .convert()
                     }
 
                     fn run(&self, args: &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs = TestTensor::from_data(args.clone().convert());
+                        let lhs = TestTensor::from_data_devauto(args.clone().convert());
 
                         if inplace {
                             $ops(lhs).into_data().convert()
@@ -72,19 +72,19 @@ mod tests {
 
                     fn args(&self) -> Self::Args {
                         (
-                            TestTensor::random([32, 32], Distribution::Default)
+                            TestTensor::random_devauto([32, 32], Distribution::Default)
                                 .into_data()
                                 .convert(),
                             // Avoid div by zero.
-                            TestTensor::random([32, 32], Distribution::Uniform(1., 3.))
+                            TestTensor::random_devauto([32, 32], Distribution::Uniform(1., 3.))
                                 .into_data()
                                 .convert(),
                         )
                     }
 
                     fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs = TestTensor::from_data(lhs_arg.clone().convert());
-                        let rhs = TestTensor::from_data(rhs_arg.clone().convert());
+                        let lhs = TestTensor::from_data_devauto(lhs_arg.clone().convert());
+                        let rhs = TestTensor::from_data_devauto(rhs_arg.clone().convert());
 
                         if inplace {
                             $ops(lhs, rhs).into_data().convert()
@@ -113,13 +113,13 @@ mod tests {
                     type Args = Data<i32, 2>;
 
                     fn args(&self) -> Self::Args {
-                        TestTensor::random([32, 32], Distribution::Uniform(0.0, 50.0))
+                        TestTensor::random_devauto([32, 32], Distribution::Uniform(0.0, 50.0))
                             .into_data()
                             .convert()
                     }
 
                     fn run(&self, args: &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs = TestTensorInt::from_data(args.clone().convert());
+                        let lhs = TestTensorInt::from_data_devauto(args.clone().convert());
 
                         if inplace {
                             $ops(lhs).into_data().convert()
@@ -146,19 +146,19 @@ mod tests {
 
                     fn args(&self) -> Self::Args {
                         (
-                            TestTensor::random([32, 32], Distribution::Uniform(0., 50.))
+                            TestTensor::random_devauto([32, 32], Distribution::Uniform(0., 50.))
                                 .into_data()
                                 .convert(),
                             // Avoid div by zero.
-                            TestTensor::random([32, 32], Distribution::Uniform(1., 51.))
+                            TestTensor::random_devauto([32, 32], Distribution::Uniform(1., 51.))
                                 .into_data()
                                 .convert(),
                         )
                     }
 
                     fn run(&self, (lhs_arg, rhs_arg): &Self::Args, inplace: bool) -> Data<f32, 2> {
-                        let lhs = TestTensorInt::from_data(lhs_arg.clone().convert());
-                        let rhs = TestTensorInt::from_data(rhs_arg.clone().convert());
+                        let lhs = TestTensorInt::from_data_devauto(lhs_arg.clone().convert());
+                        let rhs = TestTensorInt::from_data_devauto(rhs_arg.clone().convert());
 
                         if inplace {
                             $ops(lhs, rhs).into_data().convert()
@@ -345,17 +345,17 @@ mod tests {
             }
         );
         clone_invariance_test!(
-            unary: Gather,
+            unary: Gatter,
             ops_float: |tensor: TestTensor<2>| {
                 let shape = tensor.shape();
-                let indices = TestTensorInt::ones(shape);
+                let indices = TestTensorInt::ones_devauto(shape);
                 tensor.gather(0, indices)
             }
         );
         clone_invariance_test!(
             unary: Select,
             ops_float: |tensor: TestTensor<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5]);
+                let indices = TestTensorInt::from_ints_devauto([1, 2, 0, 5]);
                 tensor.select(0, indices)
             }
         );
@@ -463,7 +463,7 @@ mod tests {
             binary: Scatter,
             ops_float: |tensor: TestTensor<2>, values: TestTensor<2>| {
                 let shape = tensor.shape();
-                let indices = TestTensorInt::ones(shape);
+                let indices = TestTensorInt::ones_devauto(shape);
                 tensor.scatter(0, indices, values)
             }
         );
@@ -483,7 +483,7 @@ mod tests {
         clone_invariance_test!(
             binary: SelectAssign,
             ops_float: |tensor: TestTensor<2>, values: TestTensor<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5]);
+                let indices = TestTensorInt::from_ints_devauto([1, 2, 0, 5]);
                 let values = values.select(0, indices.clone());
                 tensor.select_assign(0, indices, values)
             }
@@ -625,17 +625,17 @@ mod tests {
             }
         );
         clone_invariance_test!(
-            unary: Gather,
+            unary: Gatter,
             ops_int: |tensor: TestTensorInt<2>| {
                 let shape = tensor.shape();
-                let indices = TestTensorInt::ones(shape);
+                let indices = TestTensorInt::ones_devauto(shape);
                 tensor.gather(0, indices)
             }
         );
         clone_invariance_test!(
             unary: Select,
             ops_int: |tensor: TestTensorInt<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5]);
+                let indices = TestTensorInt::from_ints_devauto([1, 2, 0, 5]);
                 tensor.select(0, indices)
             }
         );
@@ -697,7 +697,7 @@ mod tests {
             binary: Scatter,
             ops_int: |tensor: TestTensorInt<2>, values: TestTensorInt<2>| {
                 let shape = tensor.shape();
-                let indices = TestTensorInt::ones(shape);
+                let indices = TestTensorInt::ones_devauto(shape);
                 tensor.scatter(0, indices, values)
             }
         );
@@ -717,7 +717,7 @@ mod tests {
         clone_invariance_test!(
             binary: SelectAssign,
             ops_int: |tensor: TestTensorInt<2>, values: TestTensorInt<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5]);
+                let indices = TestTensorInt::from_ints_devauto([1, 2, 0, 5]);
                 let values = values.select(0, indices.clone());
                 tensor.select_assign(0, indices, values)
             }

@@ -24,7 +24,7 @@ where
     /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D]);
+        let mut tensor_owned = Tensor::empty([0; D], &self.device());
         core::mem::swap(&mut tensor_owned, self);
 
         let mut tensor_new = func(tensor_owned);
@@ -100,12 +100,30 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let _ = Tensor::<B, 1>::from_floats([1.0, 2.0]);
-    ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]]);
+    ///     let _ = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
+    ///     let _ = Tensor::<B, 2>::from_floats_devauto([[1.0, 2.0], [3.0, 4.0]]);
     /// }
     /// ```
-    pub fn from_floats<A: Into<Data<f32, D>>>(floats: A) -> Self {
-        Self::from_data(floats.into().convert())
+    pub fn from_floats_devauto<A: Into<Data<f32, D>>>(floats: A) -> Self {
+        Self::from_data_devauto(floats.into().convert())
+    }
+
+    /// Create a tensor from floats (f32) on a given device.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let _ = Tensor::<B, 1>::from_floats([1.0, 2.0], &device);
+    ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    /// }
+    /// ```
+    pub fn from_floats<A: Into<Data<f32, D>>>(floats: A, device: &B::Device) -> Self {
+        Self::from_data(floats.into().convert(), device)
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
@@ -118,7 +136,7 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0]);
+    ///     let float_tensor = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
@@ -161,11 +179,11 @@ where
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
-        let tensor = Tensor::zeros(shape);
+        let tensor = Tensor::zeros_devauto(shape);
         let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
-        tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D])))
+        tensor.slice_assign(ranges, Tensor::ones_devauto(Shape::new([1; D])))
     }
 
     /// Applies the matrix multiplication operation.
@@ -206,14 +224,14 @@ where
 
     /// Create a random tensor of the given shape where each element is sampled from the given
     /// distribution.
-    pub fn random<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
+    pub fn random_devauto<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
         let tensor = B::random(shape.into(), distribution, &B::Device::default());
         Self::new(tensor)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is
     /// sampled from the given distribution.
-    pub fn random_device<S: Into<Shape<D>>>(
+    pub fn random<S: Into<Shape<D>>>(
         shape: S,
         distribution: Distribution,
         device: &B::Device,

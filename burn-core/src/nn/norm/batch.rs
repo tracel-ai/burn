@@ -33,13 +33,19 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 }
 
 impl BatchNormConfig {
-    /// Initialize a new [batch norm](BatchNorm) module.
-    pub fn init<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
-        let gamma = Tensor::ones([self.num_features]);
-        let beta = Tensor::zeros([self.num_features]);
+    /// Initialize a new [batch norm](BatchNorm) module on an automatically selected device.
+    pub fn init_devauto<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
 
-        let running_mean = Tensor::zeros([self.num_features]);
-        let running_var = Tensor::ones([self.num_features]);
+    /// Initialize a new [batch norm](BatchNorm) module.
+    pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
+        let gamma = Tensor::ones([self.num_features], device);
+        let beta = Tensor::zeros([self.num_features], device);
+
+        let running_mean = Tensor::zeros([self.num_features], device);
+        let running_var = Tensor::ones([self.num_features], device);
 
         BatchNorm {
             gamma: Param::from(gamma),
@@ -184,10 +190,16 @@ mod tests_1d {
     use burn_tensor::Data;
 
     #[test]
-    fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
+    fn default_device_initialization() {
+        let _module = BatchNormConfig::new(3).init_devauto::<TestAutodiffBackend, 1>();
+    }
 
-        let output = module.forward(input_tensor());
+    #[test]
+    fn batch_norm_forward_train() {
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>(&device);
+
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -208,11 +220,12 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>(&device);
 
-        module.forward(input_tensor());
+        module.forward(input_tensor(&device));
         let module = module.valid();
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -223,11 +236,14 @@ mod tests_1d {
         );
     }
 
-    fn input_tensor<B: Backend>() -> Tensor<B, 3> {
-        Tensor::<B, 3>::from_floats([
-            [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
-            [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
-        ])
+    fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
+        Tensor::<B, 3>::from_floats(
+            [
+                [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
+                [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
+            ],
+            device,
+        )
     }
 }
 
@@ -240,9 +256,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -263,11 +280,12 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        module.forward(input_tensor());
+        module.forward(input_tensor(&device));
         let module = module.valid();
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -288,9 +306,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let running_mean = module.running_mean.value_sync();
 
@@ -302,9 +321,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_var() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let running_var = module.running_var.value_sync();
 
@@ -316,9 +336,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean_inner_module() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let module_valid = module.valid();
         let running_mean = module_valid.running_mean.value();
@@ -331,8 +352,9 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_grads() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
-        let input = input_tensor().require_grad();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
+        let input = input_tensor(&device).require_grad();
 
         let output = module.forward(input.clone());
 
@@ -371,18 +393,21 @@ mod tests_2d {
         );
     }
 
-    fn input_tensor<B: Backend>() -> Tensor<B, 4> {
-        Tensor::<B, 4>::from_floats([
+    fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+        Tensor::<B, 4>::from_floats(
             [
-                [[0.9601, 0.7277], [0.1270, 0.5441]],
-                [[0.6272, 0.9034], [0.4066, 0.7179]],
-                [[0.9378, 0.7230], [0.3544, 0.9591]],
+                [
+                    [[0.9601, 0.7277], [0.1270, 0.5441]],
+                    [[0.6272, 0.9034], [0.4066, 0.7179]],
+                    [[0.9378, 0.7230], [0.3544, 0.9591]],
+                ],
+                [
+                    [[0.6356, 0.1362], [0.1333, 0.7287]],
+                    [[0.0249, 0.9509], [0.3791, 0.2481]],
+                    [[0.6600, 0.5945], [0.5424, 0.4767]],
+                ],
             ],
-            [
-                [[0.6356, 0.1362], [0.1333, 0.7287]],
-                [[0.0249, 0.9509], [0.3791, 0.2481]],
-                [[0.6600, 0.5945], [0.5424, 0.4767]],
-            ],
-        ])
+            device,
+        )
     }
 }

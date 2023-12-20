@@ -9,9 +9,9 @@ mod tests {
         let data_2 = Data::<f32, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
         let mask = Data::<bool, 2>::from([[true, false], [false, true]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
-        let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_bool(mask);
+        let tensor_1 = TestAutodiffTensor::from_data_devauto(data_1).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data_devauto(data_2).require_grad();
+        let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_bool_devauto(mask);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.mask_fill(mask, 2.0);
@@ -26,11 +26,16 @@ mod tests {
 
     #[test]
     fn should_diff_mask_where() {
-        let tensor_1 = TestAutodiffTensor::from_data([[1.0, 7.0], [2.0, 3.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data([[4.0, 7.0], [2.0, 3.0]]).require_grad();
-        let tensor_3 = TestAutodiffTensor::from_data([[8.8, 9.8], [10.8, 11.8]]).require_grad();
-        let mask =
-            Tensor::<TestAutodiffBackend, 2, Bool>::from_data([[true, false], [false, true]]);
+        let tensor_1 =
+            TestAutodiffTensor::from_data_devauto([[1.0, 7.0], [2.0, 3.0]]).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_data_devauto([[4.0, 7.0], [2.0, 3.0]]).require_grad();
+        let tensor_3 =
+            TestAutodiffTensor::from_data_devauto([[8.8, 9.8], [10.8, 11.8]]).require_grad();
+        let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_data_devauto([
+            [true, false],
+            [false, true],
+        ]);
 
         let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_5 = tensor_4.clone().matmul(tensor_3.clone());

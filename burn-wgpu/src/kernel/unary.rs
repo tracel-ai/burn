@@ -213,8 +213,8 @@ mod tests {
 
     #[test]
     fn unary_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
 
         let actual =
             unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
@@ -228,8 +228,8 @@ mod tests {
 
     #[test]
     fn unary_inplace_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
 
         let actual =
             unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn tanh_should_not_have_numerical_bugs_on_macos() {
         fn tanh_one_value(input: f32) -> f32 {
-            let tensor = Tensor::<TestBackend, 1>::ones([1]) * input;
+            let tensor = Tensor::<TestBackend, 1>::ones_devauto([1]) * input;
             let output = tensor.tanh().into_primitive();
             Tensor::<TestBackend, 1>::from_primitive(output)
                 .into_data()

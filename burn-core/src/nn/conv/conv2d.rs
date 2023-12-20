@@ -59,8 +59,14 @@ pub struct Conv2d<B: Backend> {
 }
 
 impl Conv2dConfig {
+    /// Initialize a new [conv2d](Conv2d) module on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> Conv2d<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [conv2d](Conv2d) module.
-    pub fn init<B: Backend>(&self) -> Conv2d<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Conv2d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
 
         let shape = [
@@ -71,13 +77,15 @@ impl Conv2dConfig {
         ];
 
         let fan_in = self.channels[0] / self.groups * self.kernel_size.iter().product::<usize>();
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
+        let weight = self
+            .initializer
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
             bias = Some(
                 self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None),
+                    .init_with([self.channels[1]], Some(fan_in), None, device),
             );
         }
 
@@ -140,7 +148,7 @@ mod tests {
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init::<TestBackend>();
+        let conv = config.init_devauto::<TestBackend>();
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
@@ -150,7 +158,8 @@ mod tests {
         TestBackend::seed(0);
 
         let config = Conv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>();
+        let device = Default::default();
+        let conv = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight

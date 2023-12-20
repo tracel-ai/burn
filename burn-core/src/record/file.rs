@@ -347,12 +347,13 @@ mod tests {
     }
 
     fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {
-        let model_before = create_model();
+        let device = Default::default();
+        let model_before = create_model(&device);
         recorder
             .record(model_before.clone().into_record(), file_path())
             .unwrap();
 
-        let model_after = create_model().load_record(recorder.load(file_path()).unwrap());
+        let model_after = create_model(&device).load_record(recorder.load(file_path()).unwrap());
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder
@@ -370,10 +371,10 @@ mod tests {
         phantom: core::marker::PhantomData<B>,
     }
 
-    pub fn create_model() -> Model<TestBackend> {
-        let conv2d1 = Conv2dConfig::new([1, 8], [3, 3]).init();
+    pub fn create_model(device: &<TestBackend as Backend>::Device) -> Model<TestBackend> {
+        let conv2d1 = Conv2dConfig::new([1, 8], [3, 3]).init(device);
 
-        let linear1 = LinearConfig::new(32, 32).with_bias(true).init();
+        let linear1 = LinearConfig::new(32, 32).with_bias(true).init(device);
 
         Model {
             conv2d1,

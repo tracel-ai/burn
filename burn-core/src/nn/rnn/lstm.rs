@@ -36,8 +36,14 @@ pub struct Lstm<B: Backend> {
 }
 
 impl LstmConfig {
+    /// Initialize a new [lstm](Lstm) module on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> Lstm<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [lstm](Lstm) module.
-    pub fn init<B: Backend>(&self) -> Lstm<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Lstm<B> {
         let d_output = self.d_hidden;
 
         let input_gate = gate_controller::GateController::new(
@@ -45,24 +51,28 @@ impl LstmConfig {
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let forget_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let output_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
         let cell_gate = gate_controller::GateController::new(
             self.d_input,
             d_output,
             self.bias,
             self.initializer.clone(),
+            device,
         );
 
         Lstm {
@@ -123,14 +133,16 @@ impl<B: Backend> Lstm<B> {
         state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
         let [batch_size, seq_length, _] = batched_input.shape().dims;
-        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
-        let mut batched_hidden_state = Tensor::zeros([batch_size, seq_length, self.d_hidden]);
+        let device = &batched_input.device();
+        let mut batched_cell_state = Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
+        let mut batched_hidden_state =
+            Tensor::zeros([batch_size, seq_length, self.d_hidden], device);
 
         let (mut cell_state, mut hidden_state) = match state {
             Some((cell_state, hidden_state)) => (cell_state, hidden_state),
             None => (
-                Tensor::zeros([batch_size, self.d_hidden]),
-                Tensor::zeros([batch_size, self.d_hidden]),
+                Tensor::zeros([batch_size, self.d_hidden], device),
+                Tensor::zeros([batch_size, self.d_hidden], device),
             ),
         };
 
@@ -226,7 +238,7 @@ mod tests {
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let lstm = config.init::<TestBackend>();
+        let lstm = config.init_devauto::<TestBackend>();
 
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
@@ -250,7 +262,8 @@ mod tests {
     fn test_forward_single_input_single_feature() {
         TestBackend::seed(0);
         let config = LstmConfig::new(1, 1, false);
-        let mut lstm = config.init::<TestBackend>();
+        let device = Default::default();
+        let mut lstm = config.init::<TestBackend>(&device);
 
         fn create_gate_controller(
             weights: f32,
@@ -259,10 +272,11 @@ mod tests {
             d_output: usize,
             bias: bool,
             initializer: Initializer,
+            device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
             let record = LinearRecord {
-                weight: Param::from(Tensor::from_data(Data::from([[weights]]))),
-                bias: Some(Param::from(Tensor::from_data(Data::from([biases])))),
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
             };
             gate_controller::GateController::create_with_weights(
                 d_input,
@@ -281,6 +295,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.forget_gate = create_gate_controller(
             0.7,
@@ -289,6 +304,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.cell_gate = create_gate_controller(
             0.9,
@@ -297,6 +313,7 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
         lstm.output_gate = create_gate_controller(
             1.1,
@@ -305,15 +322,18 @@ mod tests {
             1,
             false,
             Initializer::XavierUniform { gain: 1.0 },
+            &device,
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]));
+        let input = Tensor::<TestBackend, 3>::from_data(Data::from([[[0.1]]]), &device);
 
         let (cell_state_batch, hidden_state_batch) = lstm.forward(input, None);
-        let cell_state = cell_state_batch.select(0, Tensor::arange(0..1)).squeeze(0);
+        let cell_state = cell_state_batch
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze(0);
         let hidden_state = hidden_state_batch
-            .select(0, Tensor::arange(0..1))
+            .select(0, Tensor::arange(0..1, &device))
             .squeeze(0);
         cell_state
             .to_data()
@@ -325,8 +345,10 @@ mod tests {
 
     #[test]
     fn test_batched_forward_pass() {
-        let lstm = LstmConfig::new(64, 1024, true).init::<TestBackend>();
-        let batched_input = Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default);
+        let device = Default::default();
+        let lstm = LstmConfig::new(64, 1024, true).init(&device);
+        let batched_input =
+            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
 
         let (cell_state, hidden_state) = lstm.forward(batched_input, None);
 

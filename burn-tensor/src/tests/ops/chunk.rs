@@ -5,7 +5,7 @@ mod tests {
     use burn_tensor::{Data, Int, Shape, Tensor};
 
     fn test_chunk_evenly_divisible() {
-        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..12).chunk(6, 0);
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange_devauto(0..12).chunk(6, 0);
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn test_chunk_not_evenly_divisible() {
-        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..11).chunk(6, 0);
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange_devauto(0..11).chunk(6, 0);
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_chunk_not_evenly_divisible_remains_several() {
-        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..100).chunk(8, 0);
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange_devauto(0..100).chunk(8, 0);
         assert_eq!(tensors.len(), 8);
 
         let expected = [13, 13, 13, 13, 13, 13, 13, 9];
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_chunk_not_divisible() {
-        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..6).chunk(7, 0);
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange_devauto(0..6).chunk(7, 0);
         assert_eq!(tensors.len(), 6);
 
         let expected = vec![
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_chunk_multi_dimension() {
         let tensors: Vec<Tensor<TestBackend, 2, Int>> =
-            Tensor::from_data(Data::from([[0, 1, 2, 3]])).chunk(2, 1);
+            Tensor::from_data_devauto(Data::from([[0, 1, 2, 3]])).chunk(2, 1);
         assert_eq!(tensors.len(), 2);
 
         let expected = vec![Data::from([[0, 1]]), Data::from([[2, 3]])];
@@ -88,6 +88,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_invalid_dim() {
-        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange(0..12).chunk(6, 1);
+        let tensors: Vec<Tensor<TestBackend, 1, Int>> = Tensor::arange_devauto(0..12).chunk(6, 1);
     }
 }

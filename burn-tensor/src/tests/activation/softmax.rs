@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_softmax_d2() {
         let data = Data::from([[1.0, 7.0], [13.0, -3.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = activation::softmax(tensor, 1).to_data();
 

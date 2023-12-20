@@ -138,7 +138,8 @@ impl<B: Backend> Model<B> {
     /// Normalizes input and runs inference on the image
     pub async fn forward(&self, input: &[f32]) -> Vec<f32> {
         // Reshape from the 1D array to 3d tensor [ width, height, channels]
-        let input: Tensor<B, 4> = Tensor::from_floats(input).reshape([1, CHANNELS, HEIGHT, WIDTH]);
+        let input: Tensor<B, 4> =
+            Tensor::from_floats_devauto(input).reshape([1, CHANNELS, HEIGHT, WIDTH]);
 
         // Normalize input: make between [-1,1] and make the mean=0 and std=1
         let input = self.normalizer.normalize(input);

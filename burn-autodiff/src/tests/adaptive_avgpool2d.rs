@@ -15,7 +15,7 @@ mod tests {
             output_size_2: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [
                 [0.2500, 0.5000, 0.2500],
                 [0.4167, 0.8333, 0.4167],
@@ -45,8 +45,8 @@ mod tests {
     impl AdaptiveAvgPool2dTestCase {
         fn assert_output(self, x_grad: TestTensor<4>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-            let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestAutodiffTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

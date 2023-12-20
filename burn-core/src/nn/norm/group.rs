@@ -46,8 +46,8 @@ impl GroupNormConfig {
         );
 
         let (gamma, beta) = if self.affine {
-            let gamma = Tensor::ones([self.num_channels]).into();
-            let beta = Tensor::zeros([self.num_channels]).into();
+            let gamma = Tensor::ones_devauto([self.num_channels]).into();
+            let beta = Tensor::zeros_devauto([self.num_channels]).into();
 
             (Some(gamma), Some(beta))
         } else {
@@ -142,7 +142,7 @@ mod tests {
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::from_data(Data::from([
+        let input = Tensor::from_data_devauto(Data::from([
             [
                 [-0.3034, 0.2726, -0.9659],
                 [-1.1845, -1.3236, 0.0172],
@@ -208,7 +208,7 @@ mod tests {
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);
 
-        let input = Tensor::from_data(Data::from([
+        let input = Tensor::from_data_devauto(Data::from([
             [
                 [0.3345, 0.4429, 0.6639],
                 [0.5041, 0.4175, 0.8437],

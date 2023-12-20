@@ -68,7 +68,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.max_seq_length,
     )
-    .init();
+    .init(&devices[0]);
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher_train)

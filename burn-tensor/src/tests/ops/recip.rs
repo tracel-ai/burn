@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn should_support_recip_ops() {
         let data = Data::from([[0.5, 1.0, 2.0], [3.0, -4.0, -5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = tensor.recip().into_data();
 

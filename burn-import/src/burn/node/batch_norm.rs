@@ -81,19 +81,19 @@ macro_rules! batch_norm_serialize {
         BatchNormRecord {
             gamma: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert()),
+                Tensor::from_data_devauto($self.gamma.clone().convert()),
             ),
             beta: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert()),
+                Tensor::from_data_devauto($self.beta.clone().convert()),
             ),
             running_mean: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_mean.clone().convert()),
+                Tensor::from_data_devauto($self.running_mean.clone().convert()),
             ),
             running_var: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_var.clone().convert()),
+                Tensor::from_data_devauto($self.running_var.clone().convert()),
             ),
             epsilon: ConstantRecord::new(),
             momentum: ConstantRecord::new(),
@@ -123,7 +123,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 

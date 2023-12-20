@@ -106,10 +106,10 @@ mod tests {
         shape2: [usize; D],
     ) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, D>::random(shape1, Distribution::Default);
-        let value = Tensor::<TestBackend, D>::random(shape2, Distribution::Default);
-        let indices = Tensor::<TestBackend, 1, Int>::from_data(
-            Tensor::<TestBackend, 1>::random(
+        let tensor = Tensor::<TestBackend, D>::random_devauto(shape1, Distribution::Default);
+        let value = Tensor::<TestBackend, D>::random_devauto(shape2, Distribution::Default);
+        let indices = Tensor::<TestBackend, 1, Int>::from_data_devauto(
+            Tensor::<TestBackend, 1>::random_devauto(
                 [shape2.iter().product()],
                 Distribution::Uniform(0., shape2[dim] as f64),
             )
@@ -117,10 +117,10 @@ mod tests {
             .convert(),
         )
         .reshape(shape2);
-        let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data());
-        let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data());
+        let tensor_ref = Tensor::<ReferenceBackend, D>::from_data_devauto(tensor.to_data());
+        let value_ref = Tensor::<ReferenceBackend, D>::from_data_devauto(value.to_data());
         let indices_ref =
-            Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert());
+            Tensor::<ReferenceBackend, D, Int>::from_data_devauto(indices.to_data().convert());
 
         let actual = Tensor::<TestBackend, D>::from_primitive(scatter(
             dim,
