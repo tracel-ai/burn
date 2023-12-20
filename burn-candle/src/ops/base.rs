@@ -98,7 +98,7 @@ pub fn narrow<E: CandleElement, const D: usize>(
     let tensor = tensor.tensor.narrow(dim, start, length);
     match tensor {
         Ok(tensor) => CandleTensor::new(tensor),
-        Err(e) => panic!("error chunk from Candle"),
+        Err(e) => panic!("error narrow from Candle"),
     }
 }
 

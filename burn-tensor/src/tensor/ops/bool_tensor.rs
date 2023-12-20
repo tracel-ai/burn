@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data};
+use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -280,19 +280,7 @@ pub trait BoolTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> BoolTensor<B, D> {
-        let ranges: Vec<_> = (0..D)
-            .map(|i| {
-                if i == dim {
-                    start..(start + length)
-                } else {
-                    0..Self::bool_shape(&tensor).dims[i]
-                }
-            })
-            .collect();
-
-        let ranges_array: [_; D] = ranges.try_into().unwrap();
-
-        Self::bool_slice(tensor, ranges_array)
+        narrow::<B, D, Bool>(tensor, dim, start, length)
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -312,34 +300,6 @@ pub trait BoolTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<BoolTensor<B, D>> {
-        let size = Self::bool_shape(&tensor).dims[dim];
-
-        if size < chunks {
-            return (0..size)
-                .map(|i| Self::bool_narrow(tensor.clone(), dim, i, 1))
-                .collect();
-        }
-
-        let chunk_size = size / chunks;
-        let cnt_additional = size % chunks;
-        let mut tensors = Vec::with_capacity(chunks);
-
-        let mut sum_chunk_size = 0;
-        for i in 0..chunks {
-            let chunk_size = if i < cnt_additional {
-                chunk_size + 1
-            } else {
-                chunk_size
-            };
-
-            tensors.push(Self::bool_narrow(
-                tensor.clone(),
-                dim,
-                sum_chunk_size,
-                chunk_size,
-            ));
-            sum_chunk_size += chunk_size;
-        }
-        tensors
+        chunk::<B, D, Bool>(tensor, chunks, dim)
     }
 }

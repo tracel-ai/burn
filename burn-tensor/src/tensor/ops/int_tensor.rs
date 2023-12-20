@@ -1,5 +1,6 @@
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
+use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -872,19 +873,7 @@ pub trait IntTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> IntTensor<B, D> {
-        let ranges: Vec<_> = (0..D)
-            .map(|i| {
-                if i == dim {
-                    start..(start + length)
-                } else {
-                    0..Self::int_shape(&tensor).dims[i]
-                }
-            })
-            .collect();
-
-        let ranges_array: [_; D] = ranges.try_into().unwrap();
-
-        Self::int_slice(tensor, ranges_array)
+        narrow::<B, D, Int>(tensor, dim, start, length)
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -904,34 +893,6 @@ pub trait IntTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<IntTensor<B, D>> {
-        let size = Self::int_shape(&tensor).dims[dim];
-
-        if size < chunks {
-            return (0..size)
-                .map(|i| Self::int_narrow(tensor.clone(), dim, i, 1))
-                .collect();
-        }
-
-        let chunk_size = size / chunks;
-        let cnt_additional = size % chunks;
-        let mut tensors = Vec::with_capacity(chunks);
-
-        let mut sum_chunk_size = 0;
-        for i in 0..chunks {
-            let chunk_size = if i < cnt_additional {
-                chunk_size + 1
-            } else {
-                chunk_size
-            };
-
-            tensors.push(Self::int_narrow(
-                tensor.clone(),
-                dim,
-                sum_chunk_size,
-                chunk_size,
-            ));
-            sum_chunk_size += chunk_size;
-        }
-        tensors
+        chunk::<B, D, Int>(tensor, chunks, dim)
     }
 }
