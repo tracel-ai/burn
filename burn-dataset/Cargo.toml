@@ -18,7 +18,7 @@ audio = ["hound"]
 fake = ["dep:fake"]
 
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
-sqlite-bundled = ["__sqlite-shared", "rusqlite?/bundled"]
+sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
 # internal
 __sqlite-shared = [
