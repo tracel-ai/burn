@@ -1,10 +1,19 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 use core::fmt::{Debug, Display};
 use core::hash::Hash;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
+/// Default checksum for an operation set
+pub fn compute_checksum(autotunables: &[Box<dyn AutotuneOperation>]) -> String {
+    let mut checksum = String::new();
+    autotunables.iter().for_each(|op| {
+        checksum += op.name();
+    });
+    format!("{:x}", md5::compute(checksum))
+}
 
 /// Groups operations of the same type for autotune
 pub trait AutotuneOperationSet<K>: Send {
@@ -20,12 +29,8 @@ pub trait AutotuneOperationSet<K>: Send {
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 
     /// Compute checksum for the set by concatenating the op names together
-    fn compute_checksum (&self) -> String {
-        let mut checksum = String::new();
-        self.autotunables().iter().for_each(|op| {
-            checksum += op.name();
-        });
-        format!("{:x}", md5::compute(checksum))
+    fn compute_checksum(&self) -> String {
+        compute_checksum(&self.autotunables())
     }
 }
 
@@ -44,5 +49,8 @@ pub trait AutotuneOperation {
 }
 
 /// Trait alias
-pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + DeserializeOwned {}
+pub trait AutotuneKey:
+    Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + DeserializeOwned
+{
+}
 impl AutotuneKey for String {}

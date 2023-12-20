@@ -34,6 +34,7 @@ dirs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["std"] }
 md5 = "0.7.0"
+rand.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 web-time = { version = "0.2.3" }

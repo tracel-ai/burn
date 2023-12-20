@@ -10,6 +10,14 @@ use super::AutotuneOperationSet;
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 
+/// Return the file path for the persistent cache on disk
+pub fn get_persistent_cache_file_path() -> PathBuf {
+    let home_dir = dirs::home_dir().expect("Could not get home directory");
+    let path_dir = home_dir.join(".cache").join("burn").join("autotune");
+    let path = Path::new(&path_dir);
+    path.join("autotune-cache.json")
+}
+
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
 pub(crate) struct TuneCache<K> {
@@ -33,7 +41,9 @@ impl<K: AutotuneKey> TuneCache<K> {
         };
         if let Err(e) = cache.load() {
             eprintln!(
-                "Unable to load autotune cache. Cache will be ignored ({}).", e);
+                "Unable to load autotune cache. Cache will be ignored ({}).",
+                e
+            );
         }
         cache
     }
@@ -52,7 +62,6 @@ impl<K: AutotuneKey> TuneCache<K> {
                     .persistent_cache
                     .get(&key)
                     .expect("Both caches should be in sync");
-                println!("{}: {} -- {}", key, checksum, expected_checksum);
                 if &checksum != expected_checksum {
                     return TuneCacheResult::Miss(autotune_operation_set);
                 }
@@ -65,13 +74,14 @@ impl<K: AutotuneKey> TuneCache<K> {
 
     pub(crate) fn cache_insert(&mut self, key: K, checksum: String, fastest_index: usize) {
         println!("Inserting key: {}", key);
-        self.persistent_cache.insert(key.clone(), (checksum, fastest_index));
+        self.persistent_cache
+            .insert(key.clone(), (checksum, fastest_index));
         self.cache.insert(key, (true, fastest_index));
     }
 
     /// Load the persistent cache data from disk
     pub(crate) fn load(&mut self) -> Result<(), io::Error> {
-        let file_path  = TuneCache::<K>::get_persistent_cache_file_path();
+        let file_path = get_persistent_cache_file_path();
         // note: reading file ro memory is faster than using
         // serde from_reader with a buffered reader
         // see issue:
@@ -83,7 +93,7 @@ impl<K: AutotuneKey> TuneCache<K> {
                     self.persistent_cache.insert(key, value);
                 }
                 Ok(())
-            },
+            }
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     Ok(())
@@ -94,27 +104,16 @@ impl<K: AutotuneKey> TuneCache<K> {
         }?;
         for (key, (_checksum, index)) in self.persistent_cache.iter() {
             self.cache.insert(key.clone(), (false, *index));
-        };
+        }
         Ok(())
     }
 
     /// Save the persistent cache on disk
     pub(crate) fn save(&self) {
-        let file_path  = TuneCache::<K>::get_persistent_cache_file_path();
-        let file = File::create(&file_path).expect(
-            "Unable to open autotune persistent cache file");
+        let file_path = get_persistent_cache_file_path();
+        let file = File::create(file_path).expect("Unable to open autotune persistent cache file");
         let data = self.persistent_cache.iter().collect::<Vec<_>>();
         serde_json::to_writer_pretty(file, &data)
             .expect("Unable to write to autotune persistent cache");
     }
-
-    /// Return the file path for the persistent cache on disk
-    fn get_persistent_cache_file_path() -> PathBuf {
-        let home_dir = dirs::home_dir().expect("Could not get home directory");
-        let path_dir = home_dir.join(".cache").join("burn").join("autotune");
-        let path = Path::new(&path_dir);
-        let file_path = path.join("autotune-cache.json");
-        file_path
-    }
 }
-

@@ -18,12 +18,13 @@ use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCa
 #[derive(Debug)]
 /// Executes autotune benchmarking and caching
 pub struct Tuner<S: ComputeServer, C> {
-    tune_cache: TuneCache::<S::AutotuneKey>,
+    tune_cache: TuneCache<S::AutotuneKey>,
     _channel: PhantomData<C>,
 }
 
+#[allow(clippy::new_without_default)]
 impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
-    /// Returns a tuner with empty cache
+    /// Returns a tuner with cache initialized from persistent cache
     pub fn new() -> Self {
         Self {
             tune_cache: TuneCache::new(),
@@ -52,8 +53,6 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let key = autotune_operation_set.key();
         let autotunables = autotune_operation_set.autotunables();
         let mut names = Vec::with_capacity(autotunables.len());
-
-        println!("Running autotune...");
 
         let results: Vec<BenchmarkDurations> = autotunables
             .into_iter()
