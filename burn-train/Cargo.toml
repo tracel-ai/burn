@@ -11,7 +11,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-train"
 version.workspace = true
 
 [features]
-default = ["metrics", "tui"]
+default = ["metrics"]
+# default = ["metrics", "tui"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
 

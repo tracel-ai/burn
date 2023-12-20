@@ -1,6 +1,6 @@
 use burn_tensor::Shape;
 use core::fmt::Debug;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     fmt::Display,

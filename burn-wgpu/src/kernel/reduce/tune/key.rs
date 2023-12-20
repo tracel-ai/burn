@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::{cmp::min, fmt::Display};
-use serde::{Serialize, Deserialize};
 
 use burn_tensor::Shape;
 

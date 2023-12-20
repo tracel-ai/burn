@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::fmt::Display;
 use core::time::Duration;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(all(not(target_family = "wasm"), feature = "std"))]
 use std::time::Instant;
