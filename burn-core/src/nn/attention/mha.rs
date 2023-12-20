@@ -73,6 +73,13 @@ pub struct MhaInput<B: Backend> {
 }
 
 impl MultiHeadAttentionConfig {
+    /// Initialize a new [multihead attention](MultiHeadAttention) module
+    /// on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> MultiHeadAttention<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> MultiHeadAttention<B> {
         let linear = |config: &Self| {
@@ -340,8 +347,7 @@ mod tests {
     #[test]
     fn test_self_attention_shapes() {
         let [batch_size, seq_length, d_model, n_heads] = [7, 13, 32, 4];
-        let mha = MultiHeadAttentionConfig::new(d_model, n_heads)
-            .init::<TestBackend>(&Default::default());
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init_devauto::<TestBackend>();
         let input = MhaInput::self_attn(Tensor::random_devauto(
             [batch_size, seq_length, d_model],
             Distribution::Default,

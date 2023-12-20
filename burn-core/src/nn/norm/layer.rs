@@ -28,6 +28,12 @@ pub struct LayerNorm<B: Backend> {
 
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
+    pub fn init_devauto<B: Backend>(&self) -> LayerNorm<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
+    /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
         let gamma = Tensor::ones([self.d_model], device);
         let beta = Tensor::zeros([self.d_model], device);
@@ -77,6 +83,11 @@ mod tests {
 
     #[cfg(not(feature = "std"))]
     use crate::TestBackend;
+
+    #[test]
+    fn layer_default_initialization() {
+        let _module = LayerNormConfig::new(10).init_devauto::<TestBackend>();
+    }
 
     #[test]
     fn layer_norm_forward() {

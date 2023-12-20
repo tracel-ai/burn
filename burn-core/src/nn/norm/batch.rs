@@ -33,6 +33,12 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 }
 
 impl BatchNormConfig {
+    /// Initialize a new [batch norm](BatchNorm) module on an automatically selected device.
+    pub fn init_devauto<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
         let gamma = Tensor::ones([self.num_features], device);
@@ -182,6 +188,11 @@ mod tests_1d {
     use super::*;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
     use burn_tensor::Data;
+
+    #[test]
+    fn default_device_initialization() {
+        let _module = BatchNormConfig::new(3).init_devauto::<TestAutodiffBackend, 1>();
+    }
 
     #[test]
     fn batch_norm_forward_train() {

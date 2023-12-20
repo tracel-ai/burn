@@ -91,6 +91,12 @@ impl<B: Backend> TransformerEncoderInput<B> {
 }
 impl TransformerEncoderConfig {
     /// Initialize a new [transformer encoder](TransformerEncoder) module.
+    pub fn init_devauto<B: Backend>(&self) -> TransformerEncoder<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
+    /// Initialize a new [transformer encoder](TransformerEncoder) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerEncoder<B> {
         let layers = (0..self.n_layers)
             .map(|_| TransformerEncoderLayer::new(self, device))
@@ -344,6 +350,13 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn_tensor::Distribution;
+
+    #[test]
+    fn test_initialization_on_default_device() {
+        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
+        let _module = TransformerEncoderConfig::new(d_model, d_ff, n_heads, num_layers)
+            .init_devauto::<TestBackend>();
+    }
 
     #[test]
     fn test_autoregressive_norm_last() {
