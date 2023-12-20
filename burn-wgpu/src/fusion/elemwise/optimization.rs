@@ -41,7 +41,7 @@ where
             .map(|(_tensor, elem)| Input::Array {
                 elem: *elem,
                 visibility: Visibility::Read,
-                strategy: ReadingStrategy::IntoContiguous,
+                strategy: ReadingStrategy::OutputLayout,
             })
             .collect::<Vec<_>>();
 

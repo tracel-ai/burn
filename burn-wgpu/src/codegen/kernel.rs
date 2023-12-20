@@ -53,7 +53,9 @@ pub enum Input {
 }
 
 pub enum ReadingStrategy {
-    IntoContiguous,
+    /// Each element will be read in a way to be compatible with the output layout.
+    OutputLayout,
+    /// Keep the current layout.
     Plain,
 }
 
@@ -79,18 +81,6 @@ impl ElemWiseKernelCodegen<InputPhase> {
     pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<BodyPhase> {
         let mut index: u16 = 0;
 
-        let first_output_index = inputs
-            .iter()
-            .filter(|input| match input {
-                Input::Array {
-                    elem: _,
-                    visibility: _,
-                    strategy: _,
-                } => true,
-                Input::Scalar { elem: _, size: _ } => false,
-            })
-            .count();
-
         for input in inputs {
             match input {
                 Input::Array {
@@ -106,11 +96,12 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     });
 
                     match strategy {
-                        ReadingStrategy::IntoContiguous => {
-                            self.operations.push(Operator::ReadGlobalIntoContiguous {
+                        ReadingStrategy::OutputLayout => {
+                            self.operations.push(Operator::ReadGlobalWithLayout {
                                 variable: Variable::Input(index, *elem),
-                                position: index as usize,
-                                position_out: first_output_index, // First output
+                                tensor_read_pos: index as usize,
+                                tensor_layout_pos: 0, // Will set the right value during the output
+                                                      // phase.
                             });
                         }
                         ReadingStrategy::Plain => {
@@ -195,6 +186,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(mut self, outputs: &[Output]) -> ElemWiseKernelCodegen<CompilationPhase> {
         let mut index = 0;
+        let mut position_out = 0;
 
         for array in outputs {
             match array {
@@ -212,14 +204,34 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         out: Variable::Output(index, elem_adapted),
                     });
                     index += 1;
+
+                    if index == 1 {
+                        position_out = self.input_bindings.len(); // First output when we have a
+                                                                  // new array for the output.
+                    }
                 }
                 Output::Input { elem, input, local } => {
                     self.operations.push(Operator::AssignGlobal {
                         input: Variable::Local(*local, *elem),
                         out: Variable::Input(*input, bool_elem(*elem)),
                     });
+                    position_out = *input as usize; // Input number when we use inplace operation.
                 }
             }
+        }
+
+        // We set the output number that will be used for the stride definition.
+        for i in 0..self.input_bindings.len() {
+            if let Some(Operator::ReadGlobalWithLayout {
+                variable: _,
+                tensor_read_pos: _,
+                tensor_layout_pos,
+            }) = self.operations.get_mut(i)
+            {
+                {
+                    *tensor_layout_pos = position_out;
+                }
+            };
         }
 
         ElemWiseKernelCodegen {
@@ -275,6 +287,12 @@ pub struct StaticHandle<'a> {
     shape: &'a [usize],
 }
 
+/// The position of the input or output to calculate the number of workgroups to launch.
+pub enum WorkgroupLaunch {
+    Input { pos: usize },
+    Output { pos: usize },
+}
+
 /// Execute a static kernel.
 ///
 ///
@@ -284,6 +302,7 @@ pub fn execute_static<K, E: WgpuElement>(
     inputs: &[StaticHandle],
     outputs: &[StaticHandle],
     scalar_elems: Option<&[E]>,
+    launch: WorkgroupLaunch,
     client: WgpuComputeClient,
 ) where
     K: StaticKernelSource + 'static,
@@ -305,20 +324,26 @@ pub fn execute_static<K, E: WgpuElement>(
         }
     };
 
+    let mut num_elems_output = 0;
+
     // We start by registering the inputs.
-    for input in inputs.iter() {
+    for (i, input) in inputs.iter().enumerate() {
+        if let WorkgroupLaunch::Input { pos } = &launch {
+            if i == *pos {
+                num_elems_output = calculate_num_elems_dyn_rank(input.shape);
+            }
+        };
         register_info_tensor(input.strides, input.shape);
         handles.push(input.handle);
     }
 
-    let mut num_elems_output = 0;
-
     // Then we follow with the outputs.
-    for output in outputs.iter() {
-        let num_elems = calculate_num_elems_dyn_rank(output.shape);
-        if num_elems > num_elems_output {
-            num_elems_output = num_elems;
-        }
+    for (i, output) in outputs.iter().enumerate() {
+        if let WorkgroupLaunch::Output { pos } = &launch {
+            if i == *pos {
+                num_elems_output = calculate_num_elems_dyn_rank(output.shape);
+            }
+        };
         register_info_tensor(output.strides, output.shape);
         handles.push(output.handle);
     }
@@ -352,8 +377,8 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
 
 fn bool_elem(elem: Elem) -> Elem {
     match elem {
-        // I32 are used for bool tensors
-        Elem::Bool => Elem::I32,
+        // U32 are used for bool tensors
+        Elem::Bool => Elem::U32,
         _ => elem,
     }
 }

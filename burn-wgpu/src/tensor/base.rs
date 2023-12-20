@@ -73,14 +73,17 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, rhs: &WgpuTensor<E, D>) -> bool {
         if !self.handle.can_mut() {
             return false;
         }
 
         for i in 0..D {
+            let shape_lhs = self.shape.dims[i];
+            let shape_rhs = rhs.shape.dims[i];
+
             // Output tensor will be different from the mutable tensor.
-            if self.shape.dims[i] < tensor_other.shape.dims[i] {
+            if shape_lhs < shape_rhs {
                 return false;
             }
         }

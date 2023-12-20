@@ -1,4 +1,5 @@
 use crate::model::Model;
+#[cfg(feature = "wgpu")]
 use burn::backend::wgpu::WgpuDevice;
 use burn::module::Module;
 use burn::record::BinBytesRecorder;

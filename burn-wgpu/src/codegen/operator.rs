@@ -118,10 +118,11 @@ pub enum Operator {
     ReadGlobal {
         variable: Variable,
     },
-    ReadGlobalIntoContiguous {
+    /// Read the tensor in a way to be compatible with another tensor layout.
+    ReadGlobalWithLayout {
         variable: Variable,
-        position: usize,
-        position_out: usize,
+        tensor_read_pos: usize,
+        tensor_layout_pos: usize,
     },
 }
 
@@ -202,10 +203,10 @@ impl Display for Operator {
                 )),
                 Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
             },
-            Operator::ReadGlobalIntoContiguous {
+            Operator::ReadGlobalWithLayout {
                 variable,
-                position,
-                position_out,
+                tensor_read_pos: position,
+                tensor_layout_pos: position_out,
             } => {
                 let (global, local, elem) = match variable {
                     Variable::Input(number, elem) => (
