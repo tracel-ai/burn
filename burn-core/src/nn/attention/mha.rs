@@ -342,7 +342,7 @@ mod tests {
         let [batch_size, seq_length, d_model, n_heads] = [7, 13, 32, 4];
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads)
             .init::<TestBackend>(&Default::default());
-        let input = MhaInput::self_attn(Tensor::random_default(
+        let input = MhaInput::self_attn(Tensor::random_devauto(
             [batch_size, seq_length, d_model],
             Distribution::Default,
         ));
@@ -367,9 +367,9 @@ mod tests {
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads)
             .init::<TestBackend>(&Default::default());
         let input = MhaInput::new(
-            Tensor::random_default([batch_size, seq_length_1, d_model], Distribution::Default),
-            Tensor::random_default([batch_size, seq_length_2, d_model], Distribution::Default),
-            Tensor::random_default([batch_size, seq_length_2, d_model], Distribution::Default),
+            Tensor::random_devauto([batch_size, seq_length_1, d_model], Distribution::Default),
+            Tensor::random_devauto([batch_size, seq_length_2, d_model], Distribution::Default),
+            Tensor::random_devauto([batch_size, seq_length_2, d_model], Distribution::Default),
         );
 
         let output = mha.forward(input);
@@ -397,7 +397,7 @@ mod tests {
             Tensor::zeros([batch_size, seq_length], &device);
         let mask_pad = mask_pad.slice_assign(
             [0..batch_size, seq_length - num_padded..seq_length],
-            Tensor::ones_default([batch_size, num_padded]),
+            Tensor::ones_devauto([batch_size, num_padded]),
         );
         let mask_pad = mask_pad.equal_elem(1).to_device(&device);
 

@@ -10,7 +10,7 @@ where
     /// # Arguments
     ///
     /// * `range` - The range of values to generate.
-    pub fn arange_default(range: Range<usize>) -> Self {
+    pub fn arange_devauto(range: Range<usize>) -> Self {
         Tensor::new(B::arange(range, &B::Device::default()))
     }
 
@@ -20,7 +20,7 @@ where
     ///
     /// * `range` - The range of values to generate.
     /// * `step` - The step between each value.
-    pub fn arange_step_default(range: Range<usize>, step: usize) -> Self {
+    pub fn arange_step_devauto(range: Range<usize>, step: usize) -> Self {
         Tensor::new(B::arange_step(range, step, &B::Device::default()))
     }
 
@@ -58,12 +58,12 @@ where
     /// use burn_tensor::{Tensor, Int};
     ///
     /// fn example<B: Backend>() {
-    ///     let _x: Tensor<B, 1, Int> = Tensor::from_ints_default([1, 2]);
-    ///     let _y: Tensor<B, 2, Int> = Tensor::from_ints_default([[1, 2], [3, 4]]);
+    ///     let _x: Tensor<B, 1, Int> = Tensor::from_ints_devauto([1, 2]);
+    ///     let _y: Tensor<B, 2, Int> = Tensor::from_ints_devauto([[1, 2], [3, 4]]);
     /// }
     /// ```
-    pub fn from_ints_default<A: Into<Data<i32, D>>>(ints: A) -> Self {
-        Self::from_data_default(ints.into().convert())
+    pub fn from_ints_devauto<A: Into<Data<i32, D>>>(ints: A) -> Self {
+        Self::from_data_devauto(ints.into().convert())
     }
 
     /// Create a tensor from integers (i32), placing it on a given device.
@@ -94,7 +94,7 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///     let int_tensor = Tensor::<B, 1, Int>::arange_default(0..5);
+    ///     let int_tensor = Tensor::<B, 1, Int>::arange_devauto(0..5);
     ///     let float_tensor = int_tensor.float();
     /// }
     /// ```

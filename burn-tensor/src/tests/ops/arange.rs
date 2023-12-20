@@ -5,8 +5,8 @@ mod tests {
     use burn_tensor::{Data, Int, Tensor};
 
     #[test]
-    fn test_arange_default() {
-        let tensor = Tensor::<TestBackend, 1, Int>::arange_default(2..5);
+    fn test_arange_devauto() {
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_devauto(2..5);
         assert_eq!(tensor.into_data(), Data::from([2, 3, 4]));
     }
 

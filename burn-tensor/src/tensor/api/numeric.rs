@@ -106,7 +106,7 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_default<S: Into<Shape<D>>>(shape: S) -> Self {
+    pub fn zeros_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
         Self::zeros(shape, &B::Device::default())
     }
 
@@ -116,7 +116,7 @@ where
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones_default<S: Into<Shape<D>>>(shape: S) -> Self {
+    pub fn ones_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
         Self::ones(shape, &B::Device::default())
     }
 
@@ -126,7 +126,7 @@ where
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full_default<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
+    pub fn full_devauto<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
         Self::full(shape, fill_value, &B::Device::default())
     }
 
@@ -335,7 +335,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -380,7 +380,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_default(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -508,7 +508,7 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_default([
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
     ///      [1, 2, 3],
     ///      [4, 5, 6],
     ///      [7, 8, 9]
@@ -535,7 +535,7 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_default([
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
     ///      [1, 2, 3],
     ///      [4, 5, 6],
     ///      [7, 8, 9]

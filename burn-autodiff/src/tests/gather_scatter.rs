@@ -6,9 +6,9 @@ mod tests {
     #[test]
     fn test_gather_grad() {
         let tensor_1 =
-            TestAutodiffTensor::from_data_default(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
+            TestAutodiffTensor::from_data_devauto(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
                 .require_grad();
-        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_default(Data::from([
+        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_devauto(Data::from([
             [2, 1, 0, 1, 2],
             [1, 0, 2, 1, 0],
         ]));
@@ -30,12 +30,12 @@ mod tests {
     #[test]
     fn test_scatter_grad() {
         let tensor_1 =
-            TestAutodiffTensor::from_data_default(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
+            TestAutodiffTensor::from_data_devauto(Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]))
                 .require_grad();
         let values =
-            TestAutodiffTensor::from_data_default(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+            TestAutodiffTensor::from_data_devauto(Data::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
                 .require_grad();
-        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_default(Data::from([
+        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_devauto(Data::from([
             [2, 1, 0],
             [2, 0, 1],
         ]));

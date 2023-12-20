@@ -145,10 +145,10 @@ mod tests {
 
     #[test]
     fn binary_should_work_with_multiple_invocations() {
-        let lhs = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
-        let rhs = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
-        let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data_default(lhs.to_data());
-        let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data_default(rhs.to_data());
+        let lhs = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let rhs = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(lhs.to_data());
+        let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(rhs.to_data());
 
         let actual =
             binary_elemwise::<TestKernel, _, 2, 16>(lhs.into_primitive(), rhs.into_primitive());
@@ -162,10 +162,10 @@ mod tests {
 
     #[test]
     fn binary_inplace_should_work_with_multiple_invocations() {
-        let lhs = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
-        let rhs = Tensor::<TestBackend, 2>::random_default([6, 256], Distribution::Default);
-        let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data_default(lhs.to_data());
-        let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data_default(rhs.to_data());
+        let lhs = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let rhs = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let lhs_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(lhs.to_data());
+        let rhs_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(rhs.to_data());
 
         let actual = binary_elemwise_inplace::<TestKernelInplace, _, 2, 16>(
             lhs.into_primitive(),

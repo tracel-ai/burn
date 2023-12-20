@@ -317,7 +317,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Data, Distribution, Tensor};
-    use crate::{nn, nn::Linear, TestAutodiffBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend, TestBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -360,12 +360,12 @@ mod tests {
             ]),
             Data::from([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
         );
-        let x_1 = Tensor::from_floats_default([
+        let x_1 = Tensor::from_floats_devauto([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ])
         .require_grad();
-        let x_2 = Tensor::from_floats_default([
+        let x_2 = Tensor::from_floats_devauto([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
@@ -428,12 +428,12 @@ mod tests {
             ]),
             Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats_default([
+        let x_1 = Tensor::from_floats_devauto([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ])
         .require_grad();
-        let x_2 = Tensor::from_floats_default([
+        let x_2 = Tensor::from_floats_devauto([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
@@ -497,8 +497,8 @@ mod tests {
         bias: Data<f32, 1>,
     ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
-            weight: Param::from(Tensor::from_data_default(weight)),
-            bias: Some(Param::from(Tensor::from_data_default(bias))),
+            weight: Param::from(Tensor::from_data_devauto(weight)),
+            bias: Some(Param::from(Tensor::from_data_devauto(bias))),
         };
 
         nn::LinearConfig::new(6, 6).init_with(record)
@@ -506,11 +506,11 @@ mod tests {
 
     #[allow(dead_code)]
     fn create_random_tensor() -> Tensor<TestAutodiffBackend, 2> {
-        Tensor::<TestAutodiffBackend, 2>::random_default(Shape::new([2, 20]), Distribution::Default)
+        Tensor::<TestAutodiffBackend, 2>::random_devauto(Shape::new([2, 20]), Distribution::Default)
     }
 
     fn create_rmsprop(
-    ) -> OptimizerAdaptor<RMSProp<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    ) -> OptimizerAdaptor<RMSProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
     {
         RMSPropConfig {
             alpha: 0.99,

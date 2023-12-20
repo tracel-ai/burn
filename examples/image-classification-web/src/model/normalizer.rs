@@ -14,8 +14,8 @@ pub struct Normalizer<B: Backend> {
 impl<B: Backend> Normalizer<B> {
     /// Creates a new normalizer.
     pub fn new() -> Self {
-        let mean = Tensor::from_floats_default(MEAN).reshape([1, 3, 1, 1]);
-        let std = Tensor::from_floats_default(STD).reshape([1, 3, 1, 1]);
+        let mean = Tensor::from_floats_devauto(MEAN).reshape([1, 3, 1, 1]);
+        let std = Tensor::from_floats_devauto(STD).reshape([1, 3, 1, 1]);
         Self { mean, std }
     }
 

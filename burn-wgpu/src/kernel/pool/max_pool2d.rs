@@ -109,8 +109,8 @@ mod tests {
     #[test]
     pub fn max_pool2d_should_work_with_multiple_invocations() {
         let tensor =
-            Tensor::<TestBackend, 4>::random_default([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_default(tensor.to_data());
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(tensor.to_data());
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
@@ -127,8 +127,8 @@ mod tests {
     #[test]
     pub fn max_pool2d_with_indices_should_work_with_multiple_invocations() {
         let tensor =
-            Tensor::<TestBackend, 4>::random_default([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_default(tensor.to_data());
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(tensor.to_data());
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
@@ -148,12 +148,12 @@ mod tests {
     #[test]
     pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
         let tensor =
-            Tensor::<TestBackend, 4>::random_default([32, 32, 32, 32], Distribution::Default);
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 32, 32], Distribution::Default);
         let grad_output =
-            Tensor::<TestBackend, 4>::random_default([32, 32, 16, 16], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_default(tensor.to_data());
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 16, 16], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(tensor.to_data());
         let grad_output_ref =
-            Tensor::<ReferenceBackend, 4>::from_data_default(grad_output.to_data());
+            Tensor::<ReferenceBackend, 4>::from_data_devauto(grad_output.to_data());
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];

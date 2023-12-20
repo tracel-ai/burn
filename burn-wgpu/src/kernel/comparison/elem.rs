@@ -134,8 +134,8 @@ mod tests {
     fn inputs() -> (Tensor<TestBackend, 3>, Tensor<ReferenceBackend, 3>, f32) {
         TestBackend::seed(0);
         let lhs =
-            Tensor::<TestBackend, 3>::random_default([2, 6, 256], Distribution::Uniform(0.0, 1.0));
-        let lhs_ref = Tensor::<ReferenceBackend, 3>::from_data_default(lhs.to_data());
+            Tensor::<TestBackend, 3>::random_devauto([2, 6, 256], Distribution::Uniform(0.0, 1.0));
+        let lhs_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(lhs.to_data());
 
         (lhs, lhs_ref, 5.0)
     }

@@ -44,7 +44,7 @@ impl CrossEntropyLossConfig {
             weights: self
                 .weights
                 .as_ref()
-                .map(|e| Tensor::<B, 1>::from_floats_default(e.as_slice())),
+                .map(|e| Tensor::<B, 1>::from_floats_devauto(e.as_slice())),
             smoothing: self.smoothing,
             logits: self.logits,
         }
@@ -54,8 +54,7 @@ impl CrossEntropyLossConfig {
         if let Some(alpha) = self.smoothing {
             assert!(
                 (0.0..=1.).contains(&alpha),
-                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. \
-                 Got {}",
+                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {}",
                 alpha
             );
         };
@@ -227,13 +226,13 @@ mod tests {
     macro_rules! setup {
         () => {{
             let [batch_size, num_targets] = [4, 5];
-            let logits = Tensor::<TestBackend, 2>::random_default(
+            let logits = Tensor::<TestBackend, 2>::random_devauto(
                 [batch_size, num_targets],
                 Distribution::Normal(0., 1.0),
             );
             let targets =
-                Tensor::<TestBackend, 1, Int>::from_data_default(Data::from([2, 0, 4, 1]));
-            let targets_logits = Tensor::<TestBackend, 2>::from_data_default(Data::from([
+                Tensor::<TestBackend, 1, Int>::from_data_devauto(Data::from([2, 0, 4, 1]));
+            let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
                 [0.0, 0.0, 1.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -246,14 +245,14 @@ mod tests {
     macro_rules! setup_padded {
         () => {{
             let [batch_size, num_targets, pad_index] = [4, 5, 1];
-            let logits = Tensor::<TestBackend, 2>::random_default(
+            let logits = Tensor::<TestBackend, 2>::random_devauto(
                 [batch_size, num_targets],
                 Distribution::Normal(0., 1.0),
             );
-            let targets = Tensor::<TestBackend, 1, Int>::from_data_default(
+            let targets = Tensor::<TestBackend, 1, Int>::from_data_devauto(
                 Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
             );
-            let targets_logits = Tensor::<TestBackend, 2>::from_data_default(Data::from([
+            let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
                 [0.0, 0.0, 0.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -274,7 +273,7 @@ mod tests {
         let tensor = log_softmax(logits, 1);
         let loss_2 = tensor
             * targets_logits
-            * Tensor::<TestBackend, 1>::from_floats_default(weights.as_slice())
+            * Tensor::<TestBackend, 1>::from_floats_devauto(weights.as_slice())
                 .unsqueeze()
                 .repeat(0, 4);
         let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
@@ -359,7 +358,7 @@ mod tests {
         let (logits, targets, _) = setup!();
         let smoothed_targets =
             CrossEntropyLoss::compute_smoothed_targets(logits.dims(), targets, 0.05);
-        let targets_logits = Tensor::<TestBackend, 2>::from_data_default(Data::from([
+        let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
             [0.01, 0.01, 0.96, 0.01, 0.01],
             [0.96, 0.01, 0.01, 0.01, 0.01],
             [0.01, 0.01, 0.01, 0.01, 0.96],
@@ -377,7 +376,7 @@ mod tests {
             .with_smoothing(Some(0.05))
             .init()
             .forward(logits.clone(), targets);
-        let targets_logits = Tensor::<TestBackend, 2>::from_data_default(Data::from([
+        let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
             [0.01, 0.01, 0.96, 0.01, 0.01],
             [0.96, 0.01, 0.01, 0.01, 0.01],
             [0.01, 0.01, 0.01, 0.01, 0.96],

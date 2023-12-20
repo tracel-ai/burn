@@ -11,9 +11,9 @@ mod tests {
             [[1.0, 2.0], [4.0, 5.0], [3.0, 4.0]],
             [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
         ]);
-        let weights = Tensor::<TestAutodiffBackend, 2>::from_data_default(weights).require_grad();
-        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_default(indices);
-        let x = Tensor::<TestAutodiffBackend, 3>::from_data_default(x).require_grad();
+        let weights = Tensor::<TestAutodiffBackend, 2>::from_data_devauto(weights).require_grad();
+        let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data_devauto(indices);
+        let x = Tensor::<TestAutodiffBackend, 3>::from_data_devauto(x).require_grad();
 
         let output = embedding(weights.clone(), indices);
         let output = output.matmul(x);

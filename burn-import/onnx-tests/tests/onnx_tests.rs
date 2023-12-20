@@ -70,7 +70,7 @@ mod tests {
         let model: add::Model<Backend> = add::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_devauto([[[[1., 2., 3., 4.]]]]);
         let scalar = 2f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[9., 10., 11., 12.]]]]);
@@ -84,7 +84,7 @@ mod tests {
         let model: add_int::Model<Backend> = add_int::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints_default([[[[1, 2, 3, 4]]]]);
+        let input = Tensor::<Backend, 4, Int>::from_ints_devauto([[[[1, 2, 3, 4]]]]);
         let scalar = 2;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[9, 11, 13, 15]]]]);
@@ -98,7 +98,7 @@ mod tests {
         let model: sub::Model<Backend> = sub::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_devauto([[[[1., 2., 3., 4.]]]]);
         let scalar = 3.0f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[6., 7., 8., 9.]]]]);
@@ -112,7 +112,7 @@ mod tests {
         let model: sub_int::Model<Backend> = sub_int::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4, Int>::from_ints_default([[[[1, 2, 3, 4]]]]);
+        let input = Tensor::<Backend, 4, Int>::from_ints_devauto([[[[1, 2, 3, 4]]]]);
         let scalar = 3;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[6, 6, 6, 6]]]]);
@@ -125,7 +125,7 @@ mod tests {
         let model: mul::Model<Backend> = mul::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 2., 3., 4.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_devauto([[[[1., 2., 3., 4.]]]]);
         let scalar = 6.0f64;
         let output = model.forward(input, scalar);
         let expected = Data::from([[[[126., 252., 378., 504.]]]]);
@@ -171,7 +171,7 @@ mod tests {
         let model: conv1d::Model<Backend> = conv1d::Model::default();
 
         // Run the model with pi as input for easier testing
-        let input = Tensor::<Backend, 3>::full_default([6, 4, 10], consts::PI);
+        let input = Tensor::<Backend, 3>::full_devauto([6, 4, 10], consts::PI);
 
         let output = model.forward(input);
 
@@ -192,7 +192,7 @@ mod tests {
         let model: conv2d::Model<Backend> = conv2d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_devauto([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -213,7 +213,7 @@ mod tests {
         let model: dropout_opset16::Model<Backend> = dropout_opset16::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_devauto([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -232,7 +232,7 @@ mod tests {
         let model: dropout_opset7::Model<Backend> = dropout_opset7::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_devauto([2, 4, 10, 15]);
 
         let output = model.forward(input);
 
@@ -250,10 +250,10 @@ mod tests {
     fn erf() {
         let model: erf::Model<Backend> = erf::Model::default();
 
-        let input = Tensor::<Backend, 4>::from_data_default([[[[1.0, 2.0, 3.0, 4.0]]]]);
+        let input = Tensor::<Backend, 4>::from_data_devauto([[[[1.0, 2.0, 3.0, 4.0]]]]);
         let output = model.forward(input);
         let expected =
-            Tensor::<Backend, 4>::from_data_default([[[[0.8427, 0.9953, 1.0000, 1.0000]]]]);
+            Tensor::<Backend, 4>::from_data_devauto([[[[0.8427, 0.9953, 1.0000, 1.0000]]]]);
 
         output.to_data().assert_approx_eq(&expected.to_data(), 4);
     }
@@ -264,8 +264,8 @@ mod tests {
         let model: gather::Model<Backend> = gather::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats_default([[1., 2.], [3., 4.]]);
-        let index = Tensor::<Backend, 2, Int>::from_ints_default([[0, 0], [1, 0]]);
+        let input = Tensor::<Backend, 2>::from_floats_devauto([[1., 2.], [3., 4.]]);
+        let index = Tensor::<Backend, 2, Int>::from_ints_devauto([[0, 0], [1, 0]]);
         let output = model.forward(input, index);
         let expected = Data::from([[1., 1.], [4., 3.]]);
 
@@ -278,8 +278,8 @@ mod tests {
         let model: global_avr_pool::Model<Backend> = global_avr_pool::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input_1d = Tensor::<Backend, 3>::ones_default([2, 4, 10]);
-        let input_2d = Tensor::<Backend, 4>::ones_default([3, 10, 3, 15]);
+        let input_1d = Tensor::<Backend, 3>::ones_devauto([2, 4, 10]);
+        let input_2d = Tensor::<Backend, 4>::ones_devauto([3, 10, 3, 15]);
 
         let (output_1d, output_2d) = model.forward(input_1d, input_2d);
 
@@ -463,7 +463,7 @@ mod tests {
         let model: batch_norm::Model<Backend> = batch_norm::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 3>::ones_default([1, 20, 1]);
+        let input = Tensor::<Backend, 3>::ones_devauto([1, 20, 1]);
         let output = model.forward(input);
 
         let expected_shape = Shape::from([1, 5, 2, 2]);
@@ -550,7 +550,7 @@ mod tests {
         let model: equal::Model<Backend> = equal::Model::default();
 
         // Run the model
-        let input = Tensor::<Backend, 4>::from_floats_default([[[[1., 1., 1., 1.]]]]);
+        let input = Tensor::<Backend, 4>::from_floats_devauto([[[[1., 1., 1., 1.]]]]);
 
         let scalar = 2f64;
         let (tensor_out, scalar_out) = model.forward(input, scalar);
@@ -636,11 +636,11 @@ mod tests {
         // Initialize the model with weights (loaded from the exported file)
         let model: linear::Model<Backend> = linear::Model::default();
         #[allow(clippy::approx_constant)]
-        let input1 = Tensor::<Backend, 2>::full_default([4, 3], 3.14);
+        let input1 = Tensor::<Backend, 2>::full_devauto([4, 3], 3.14);
         #[allow(clippy::approx_constant)]
-        let input2 = Tensor::<Backend, 2>::full_default([2, 5], 3.14);
+        let input2 = Tensor::<Backend, 2>::full_devauto([2, 5], 3.14);
         #[allow(clippy::approx_constant)]
-        let input3 = Tensor::<Backend, 3>::full_default([3, 2, 7], 3.14);
+        let input3 = Tensor::<Backend, 3>::full_devauto([3, 2, 7], 3.14);
 
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
@@ -701,7 +701,7 @@ mod tests {
         let model: conv_transpose2d::Model<Backend> = conv_transpose2d::Model::default();
 
         // Run the model with ones as input for easier testing
-        let input = Tensor::<Backend, 4>::ones_default([2, 4, 10, 15]);
+        let input = Tensor::<Backend, 4>::ones_devauto([2, 4, 10, 15]);
 
         let output = model.forward(input);
 

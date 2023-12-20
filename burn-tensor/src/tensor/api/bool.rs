@@ -5,7 +5,7 @@ where
     B: Backend,
 {
     /// Create a boolean tensor from data.
-    pub fn from_bool_default(data: Data<bool, D>) -> Self {
+    pub fn from_bool_devauto(data: Data<bool, D>) -> Self {
         Self::new(B::bool_from_data(data, &B::Device::default()))
     }
 
