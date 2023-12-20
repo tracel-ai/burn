@@ -176,3 +176,19 @@ Those operations are only available for `Bool` tensors.
 | `tensor.float()` | Similar to `tensor.to(torch.float)` |
 | `tensor.int()`   | Similar to `tensor.to(torch.long)`  |
 | `tensor.not()`   | `tensor.logical_not()`              |
+
+## Activation Functions
+
+| Burn API                                   | PyTorch Equivalent                                    |
+| ------------------------------------------ | ----------------------------------------------------- |
+| `activation::gelu(tensor)`                 | Similar to `nn.functional.gelu(tensor)`               |
+| `activation::log_sigmoid(tensor)`          | Similar to `nn.functional.log_sigmoid(tensor)`        |
+| `activation::log_softmax(tensor, dim)`     | Similar to `nn.functional.log_softmax(tensor, dim)`   |
+| `activation::mish(tensor)`                 | Similar to `nn.functional.mish(tensor)`               |
+| `activation::quiet_softmax(tensor, dim)`   | Similar to `nn.functional.quiet_softmax(tensor, dim)` |
+| `activation::relu(tensor)`                 | Similar to `nn.functional.relu(tensor)`               |
+| `activation::sigmoid(tensor)`              | Similar to `nn.functional.sigmoid(tensor)`            |
+| `activation::silu(tensor)`                 | Similar to `nn.functional.silu(tensor)`               |
+| `activation::softmax(tensor, dim)`         | Similar to `nn.functional.softmax(tensor, dim)`       |
+| `activation::softplus(tensor, beta)`       | Similar to `nn.functional.softplus(tensor, beta)`     |
+| `activation::tanh(tensor)`                 | Similar to `nn.functional.tanh(tensor)`               |

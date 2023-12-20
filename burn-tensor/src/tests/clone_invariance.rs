@@ -8,7 +8,7 @@
 mod tests {
     use super::*;
     use burn_tensor::activation::{
-        gelu, log_sigmoid, log_softmax, relu, sigmoid, silu, softmax, tanh,
+        gelu, log_sigmoid, log_softmax, mish, relu, sigmoid, silu, softmax, softplus, tanh,
     };
     use burn_tensor::{Data, Distribution, Tensor};
 
@@ -393,8 +393,16 @@ mod tests {
             ops_float: |tensor: TestTensor<2>| gelu(tensor)
         );
         clone_invariance_test!(
+            unary: Mish,
+            ops_float: |tensor: TestTensor<2>| mish(tensor)
+        );
+        clone_invariance_test!(
             unary: Silu,
             ops_float: |tensor: TestTensor<2>| silu(tensor)
+        );
+        clone_invariance_test!(
+            unary: Softplus,
+            ops_float: |tensor: TestTensor<2>| softplus(tensor, 1.0)
         );
         clone_invariance_test!(
             unary: Tanh,
