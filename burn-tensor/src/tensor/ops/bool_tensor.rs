@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data};
+use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -258,4 +258,48 @@ pub trait BoolTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> BoolTensor<B, D>;
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which the tensor will be narrowed.
+    /// * `start` - The starting point of the given range.
+    /// * `length` - The ending point of the given range.
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    fn bool_narrow<const D: usize>(
+        tensor: BoolTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> BoolTensor<B, D> {
+        narrow::<B, D, Bool>(tensor, dim, start, length)
+    }
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    fn bool_chunk<const D: usize>(
+        tensor: BoolTensor<B, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<BoolTensor<B, D>> {
+        chunk::<B, D, Bool>(tensor, chunks, dim)
+    }
 }

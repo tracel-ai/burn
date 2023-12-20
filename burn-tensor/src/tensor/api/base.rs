@@ -12,9 +12,10 @@ use alloc::vec;
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
 
-use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
-};
+use crate::check::TensorCheck;
+use crate::tensor::api::chunk::chunk;
+use crate::tensor::api::narrow::narrow;
+use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -496,20 +497,7 @@ where
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
-
-        let ranges: Vec<_> = (0..D)
-            .map(|i| {
-                if i == dim {
-                    start..(start + length)
-                } else {
-                    0..self.shape().dims[i]
-                }
-            })
-            .collect();
-
-        let ranges_array: [_; D] = ranges.try_into().unwrap();
-
-        self.slice(ranges_array)
+        Self::new(narrow::<B, D, K>(self.primitive, dim, start, length))
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
@@ -526,31 +514,10 @@ where
     /// A vector of tensors.
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-
-        let size = self.shape().dims[dim];
-        if size < chunks {
-            return (0..size).map(|i| self.clone().narrow(dim, i, 1)).collect();
-        }
-
-        let mut tensors = Vec::with_capacity(chunks);
-        let mut sum_chunk_size = 0;
-        if size % chunks == 0 {
-            let chunk_size = size / chunks;
-            for _ in 0..chunks {
-                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-        } else {
-            let chunk_size = (size / chunks) + 1; // assumes not divisible
-            for _ in 0..chunks - 1 {
-                tensors.push(self.clone().narrow(dim, sum_chunk_size, chunk_size));
-                sum_chunk_size += chunk_size;
-            }
-            let remainder = size % chunk_size;
-            tensors.push(self.clone().narrow(dim, sum_chunk_size, remainder));
-        }
-
-        tensors
+        chunk::<B, D, K>(self.primitive, chunks, dim)
+            .into_iter()
+            .map(|v| Self::new(v))
+            .collect()
     }
 }
 

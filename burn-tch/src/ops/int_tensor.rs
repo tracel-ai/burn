@@ -401,4 +401,21 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<i64, D> {
+        TchOps::narrow(tensor, dim, start, length)
+    }
+
+    fn int_chunk<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<TchTensor<i64, D>> {
+        TchOps::chunk(tensor, chunks, dim)
+    }
 }
