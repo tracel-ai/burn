@@ -3,10 +3,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 use core::hash::Hash;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 /// Default checksum for an operation set
+#[cfg(feature = "autotune-persistent-cache")]
 pub fn compute_checksum(autotunables: &[Box<dyn AutotuneOperation>]) -> String {
     let mut checksum = String::new();
     autotunables.iter().for_each(|op| {
@@ -29,6 +28,7 @@ pub trait AutotuneOperationSet<K>: Send {
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 
     /// Compute checksum for the set by concatenating the op names together
+    #[cfg(feature = "autotune-persistent-cache")]
     fn compute_checksum(&self) -> String {
         compute_checksum(&self.autotunables())
     }
@@ -48,9 +48,13 @@ pub trait AutotuneOperation {
     fn clone(&self) -> Box<dyn AutotuneOperation>;
 }
 
-/// Trait alias
+#[cfg(feature = "autotune-persistent-cache")]
+/// Trait alias with support for persistent caching
 pub trait AutotuneKey:
-    Clone + Debug + PartialEq + Eq + Hash + Display + Serialize + DeserializeOwned
+    Clone + Debug + PartialEq + Eq + Hash + Display + serde::Serialize + serde::de::DeserializeOwned
 {
 }
+#[cfg(not(feature = "autotune-persistent-cache"))]
+/// Trait alias
+pub trait AutotuneKey: Clone + Debug + PartialEq + Eq + Hash + Display {}
 impl AutotuneKey for String {}

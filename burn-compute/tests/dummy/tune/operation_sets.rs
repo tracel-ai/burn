@@ -1,9 +1,11 @@
 use rand::{distributions::Alphanumeric, Rng};
 use std::sync::Arc;
 
+#[cfg(feature = "autotune-persistent-cache")]
+use burn_compute::tune::compute_checksum;
 use burn_compute::{
     server::Handle,
-    tune::{compute_checksum, AutotuneOperation, AutotuneOperationSet},
+    tune::{AutotuneOperation, AutotuneOperationSet},
 };
 
 use crate::dummy::{
@@ -161,6 +163,7 @@ impl AutotuneOperationSet<String> for CacheTestAutotuneOperationSet {
         self.autotunables()[fastest_index].clone()
     }
 
+    #[cfg(feature = "std")]
     fn compute_checksum(&self) -> String {
         if self.generate_random_checksum {
             let rand_string: String = rand::thread_rng()

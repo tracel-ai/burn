@@ -67,14 +67,19 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let fastest_name = names.get(fastest_index).unwrap();
         log::info!("Fastest result {fastest_name}-{key}");
 
-        let checksum = autotune_operation_set.compute_checksum();
-        self.tune_cache.cache_insert(key, checksum, fastest_index);
-        let result = match self.tune_cache.try_cache(autotune_operation_set) {
+        self.tune_cache.cache_insert(key.clone(), fastest_index);
+        #[cfg(feature = "autotune-persistent-cache")]
+        {
+            let checksum = autotune_operation_set.compute_checksum();
+            self.tune_cache
+                .persistent_cache_insert(key, checksum, fastest_index);
+            self.tune_cache.save();
+        }
+
+        match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),
-        };
-        self.tune_cache.save();
-        result
+        }
     }
 
     fn run_benchmark(

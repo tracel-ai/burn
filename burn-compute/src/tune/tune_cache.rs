@@ -1,8 +1,14 @@
-use std::fs;
-use std::fs::File;
-use std::io;
-use std::path::Path;
-use std::path::PathBuf;
+#[cfg(feature = "autotune-persistent-cache")]
+mod std_imports {
+    pub use std::fs;
+    pub use std::fs::File;
+    pub use std::io;
+    pub use std::path::Path;
+    pub use std::path::PathBuf;
+}
+
+#[cfg(feature = "autotune-persistent-cache")]
+use std_imports::*;
 
 use super::AutotuneKey;
 use super::AutotuneOperation;
@@ -11,6 +17,7 @@ use alloc::boxed::Box;
 use hashbrown::HashMap;
 
 /// Return the file path for the persistent cache on disk
+#[cfg(feature = "autotune-persistent-cache")]
 pub fn get_persistent_cache_file_path() -> PathBuf {
     let home_dir = dirs::home_dir().expect("Could not get home directory");
     let path_dir = home_dir.join(".cache").join("burn").join("autotune");
@@ -22,6 +29,7 @@ pub fn get_persistent_cache_file_path() -> PathBuf {
 #[derive(Debug)]
 pub(crate) struct TuneCache<K> {
     cache: HashMap<K, (bool, usize)>,
+    #[cfg(feature = "autotune-persistent-cache")]
     persistent_cache: HashMap<K, (String, usize)>,
 }
 
@@ -35,17 +43,27 @@ pub enum TuneCacheResult<K> {
 
 impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn new() -> Self {
-        let mut cache = TuneCache {
-            cache: HashMap::new(),
-            persistent_cache: HashMap::new(),
-        };
-        if let Err(e) = cache.load() {
-            eprintln!(
-                "Unable to load autotune cache. Cache will be ignored ({}).",
-                e
-            );
+        #[cfg(feature = "autotune-persistent-cache")]
+        {
+            let mut cache = TuneCache {
+                cache: HashMap::new(),
+                persistent_cache: HashMap::new(),
+            };
+            if let Err(e) = cache.load() {
+                eprintln!(
+                    "Unable to load autotune cache. Cache will be ignored ({}).",
+                    e
+                );
+            }
+            cache
         }
-        cache
+
+        #[cfg(not(feature = "autotune-persistent-cache"))]
+        {
+            TuneCache {
+                cache: HashMap::new(),
+            }
+        }
     }
 
     #[allow(clippy::borrowed_box)]
@@ -55,31 +73,51 @@ impl<K: AutotuneKey> TuneCache<K> {
     ) -> TuneCacheResult<K> {
         let key = autotune_operation_set.key();
         let result = self.cache.get_mut(&key);
-        if let Some((is_checked, index)) = result {
-            if !*is_checked {
-                let checksum = autotune_operation_set.compute_checksum();
-                let (expected_checksum, _) = self
-                    .persistent_cache
-                    .get(&key)
-                    .expect("Both caches should be in sync");
-                if &checksum != expected_checksum {
-                    return TuneCacheResult::Miss(autotune_operation_set);
+
+        #[cfg(feature = "autotune-persistent-cache")]
+        {
+            if let Some((is_checked, index)) = result {
+                if !*is_checked {
+                    let checksum = autotune_operation_set.compute_checksum();
+                    let (expected_checksum, _) = self
+                        .persistent_cache
+                        .get(&key)
+                        .expect("Both caches should be in sync");
+                    if &checksum != expected_checksum {
+                        return TuneCacheResult::Miss(autotune_operation_set);
+                    }
+                    *is_checked = true;
                 }
-                *is_checked = true;
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(*index));
             }
-            return TuneCacheResult::Hit(autotune_operation_set.fastest(*index));
         }
+
+        #[cfg(not(feature = "autotune-persistent-cache"))]
+        {
+            if let Some((_is_checked, index)) = result {
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(*index));
+            }
+        }
+
         TuneCacheResult::Miss(autotune_operation_set)
     }
 
-    pub(crate) fn cache_insert(&mut self, key: K, checksum: String, fastest_index: usize) {
-        println!("Inserting key: {}", key);
-        self.persistent_cache
-            .insert(key.clone(), (checksum, fastest_index));
+    pub(crate) fn cache_insert(&mut self, key: K, fastest_index: usize) {
         self.cache.insert(key, (true, fastest_index));
     }
 
+    #[cfg(feature = "autotune-persistent-cache")]
+    pub(crate) fn persistent_cache_insert(
+        &mut self,
+        key: K,
+        checksum: String,
+        fastest_index: usize,
+    ) {
+        self.persistent_cache.insert(key, (checksum, fastest_index));
+    }
+
     /// Load the persistent cache data from disk
+    #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn load(&mut self) -> Result<(), io::Error> {
         let file_path = get_persistent_cache_file_path();
         // note: reading file ro memory is faster than using
@@ -109,6 +147,7 @@ impl<K: AutotuneKey> TuneCache<K> {
     }
 
     /// Save the persistent cache on disk
+    #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn save(&self) {
         let file_path = get_persistent_cache_file_path();
         let file = File::create(file_path).expect("Unable to open autotune persistent cache file");
