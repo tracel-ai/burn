@@ -32,6 +32,8 @@ mod tests {
     type TestBackend = crate::NdArray<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+
     use alloc::format;
     use alloc::vec;
 
