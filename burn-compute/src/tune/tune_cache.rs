@@ -190,11 +190,18 @@ impl<K: AutotuneKey> TuneCache<K> {
     #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn save(&self) {
         let file_path = get_persistent_cache_file_path();
-        let expect_msg = format!(
+        if let Some(parent_dir) = file_path.parent() {
+            if !parent_dir.exists() {
+                fs::create_dir_all(parent_dir).expect(&format!(
+                    "Should be able to create directory '{}' for autotune persistent cache file",
+                    parent_dir.to_str().unwrap()
+                ));
+            }
+        }
+        let file = File::create(file_path.clone()).expect(&format!(
             "Should be able to open autotune persistent cache file: {:?}",
             &file_path.to_str().unwrap()
-        );
-        let file = File::create(file_path).expect(&expect_msg);
+        ));
         let data = self.persistent_cache.iter().collect::<Vec<_>>();
         serde_json::to_writer_pretty(file, &data)
             .expect("Should be able to write to autotune persistent cache");
