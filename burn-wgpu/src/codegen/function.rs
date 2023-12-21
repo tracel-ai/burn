@@ -74,6 +74,7 @@ fn erf(x: {elem}) -> {elem} {{
     ))
 }
 
+#[cfg(target_os = "macos")]
 fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, elem: &Elem) -> core::fmt::Result {
     f.write_fmt(format_args!(
         "
