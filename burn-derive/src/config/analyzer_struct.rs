@@ -85,7 +85,7 @@ impl ConfigStructAnalyzer {
         });
 
         quote! {
-            impl serde::Serialize for #name {
+            impl burn::serde::Serialize for #name {
 
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
