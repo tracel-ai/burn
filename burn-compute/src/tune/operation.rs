@@ -27,7 +27,7 @@ pub trait AutotuneOperationSet<K>: Send {
     /// returned by autotunables. Operation obtained here runs on original tensors
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation>;
 
-    /// Compute checksum for the set by concatenating the op names together
+    /// Compute a checksum that can invalidate outdated cached auto-tune results.
     #[cfg(feature = "autotune-persistent-cache")]
     fn compute_checksum(&self) -> String {
         compute_checksum(&self.autotunables())
