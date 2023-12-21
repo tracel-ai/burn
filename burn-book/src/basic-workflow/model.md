@@ -1,8 +1,7 @@
 # Model
 
 The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml`
-file, add the `burn` dependency with `train` and `wgpu` features. Note that the `serde` dependency
-is also mandatory for the time being, as it is needed for serialization.
+file, add the `burn` dependency with `train` and `wgpu` features.
 
 ```toml
 [package]
@@ -12,9 +11,6 @@ edition = "2021"
 
 [dependencies]
 burn = { version = "0.12.0", features=["train", "wgpu"]}
-
-# Serialization
-serde = "1"
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
