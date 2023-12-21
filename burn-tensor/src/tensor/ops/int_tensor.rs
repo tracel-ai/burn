@@ -1,5 +1,6 @@
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
+use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -850,4 +851,48 @@ pub trait IntTensorOps<B: Backend> {
         dim1: usize,
         dim2: usize,
     ) -> IntTensor<B, D>;
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which the tensor will be narrowed.
+    /// * `start` - The starting point of the given range.
+    /// * `length` - The ending point of the given range.
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    fn int_narrow<const D: usize>(
+        tensor: IntTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> IntTensor<B, D> {
+        narrow::<B, D, Int>(tensor, dim, start, length)
+    }
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    fn int_chunk<const D: usize>(
+        tensor: IntTensor<B, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<IntTensor<B, D>> {
+        chunk::<B, D, Int>(tensor, chunks, dim)
+    }
 }

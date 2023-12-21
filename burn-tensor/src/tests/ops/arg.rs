@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_argmax_2d_dim0() {
         let data = Data::from([[10.0, 11.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = tensor.argmax(0);
 
@@ -17,7 +17,7 @@ mod tests {
     #[test]
     fn test_argmin_2d_dim0() {
         let data = Data::from([[10.0, 11.0, 2.0], [30.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = tensor.argmin(0);
 
@@ -28,7 +28,7 @@ mod tests {
     #[test]
     fn test_argmax_2d_dim0_int() {
         let data = Data::from([[10, 11, 2], [3, 4, 5]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data_devauto(data);
 
         let data_actual = tensor.argmax(0);
 
@@ -39,7 +39,7 @@ mod tests {
     #[test]
     fn test_argmin_2d_dim0_int() {
         let data = Data::from([[10, 11, 2], [30, 4, 5]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data_devauto(data);
 
         let data_actual = tensor.argmin(0);
 
@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn test_argmax_2d_dim1() {
         let data = Data::from([[10.0, 11.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = tensor.argmax(1);
 
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_argmin_2d_dim1() {
         let data = Data::from([[10.0, 11.0, 2.0], [30.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = tensor.argmin(1);
 

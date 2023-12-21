@@ -34,7 +34,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, ubuntu-22.04]
+        os: [macos-13, ubuntu-22.04, windows-2022]
         rust: [stable, 1.71.0]
         test: ['std', 'no-std', 'examples']
         include:
@@ -42,20 +42,27 @@ jobs:
             rust: stable
           - cache: 1-71-0
             rust: 1.71.0
-          - coverage-flags: COVERAGE=1
+          - os: ubuntu-22.04
+            coverage-flags: COVERAGE=1
             rust: stable
             test: std
-            os: ubuntu-22.04
-          - wgpu-flags: DISABLE_WGPU=1
+          - os: macos-13
             rust: stable
             test: std
-            os: macos-13
+          - os: windows-2022
+            wgpu-flags: "DISABLE_WGPU=1"
+            # not used yet, as wgpu tests are disabled on windows for now
+            # see issue: https://github.com/tracel-ai/burn/issues/1062
+            # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
         exclude:
           # only need to check this once
           - rust: 1.71.0
             test: 'examples'
-          # only need to check this once
+          # Do not run no-std tests on macos
           - os: macos-13
+            test: 'no-std'
+          # Do not run no-std tests on Windows
+          - os: windows-2022
             test: 'no-std'
 
     steps:
@@ -94,7 +101,7 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
       - name: Run cargo clippy for stable version
-        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
         uses: giraffate/clippy-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -107,7 +114,7 @@ jobs:
           reporter: github-pr-check
 
       - name: Install grcov
-        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
         env:
           GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
           GRCOV_VERSION: v0.8.18
@@ -115,17 +122,53 @@ jobs:
           curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
+      - name: (windows) install warp
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -e
+
+          curl.exe -L https://www.nuget.org/api/v2/package/Microsoft.Direct3D.WARP/1.0.7.1 -o warp.zip
+          7z.exe e warp.zip -owarp build/native/amd64/d3d10warp.dll
+
+          mkdir -p target/debug/deps
+
+          cp -v warp/d3d10warp.dll target/debug/
+          cp -v warp/d3d10warp.dll target/debug/deps
+
+      - name: (windows) install mesa
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -e
+
+          curl.exe -L https://github.com/pal1000/mesa-dist-win/releases/download/23.2.1/mesa3d-23.2.1-release-msvc.7z -o mesa.7z
+          7z.exe e mesa.7z -omesa x64/{opengl32.dll,libgallium_wgl.dll,libglapi.dll,vulkan_lvp.dll,lvp_icd.x86_64.json}
+
+          mkdir -p target/debug/deps
+
+          cp -v mesa/* target/debug/
+          cp -v mesa/* target/debug/deps
+
+          echo "VK_DRIVER_FILES=$PWD/mesa/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
+          echo "GALLIUM_DRIVER=llvmpipe" >> "$GITHUB_ENV"
+
+      - name: (windows) install directx
+        if: runner.os == 'Windows'
+        uses: napokue/setup-dxc@v1.1.0
+
       - name: run checks & tests
+        shell: bash
         run: ${{ matrix.coverage-flags }} ${{ matrix.wgpu-flags }} cargo xtask run-checks ${{ matrix.test }}
 
       - name: Codecov upload
-        if: matrix.rust == 'stable' && matrix.test == 'std' && runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
         uses: codecov/codecov-action@v3
         with:
           files: lcov.info
 
   check-typos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: checkout
         uses: actions/checkout@v4

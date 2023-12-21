@@ -1,8 +1,8 @@
 [package]
 name = "onnx-tests"
-version = "0.12.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dev-dependencies]
 burn = { path = "../../burn" }

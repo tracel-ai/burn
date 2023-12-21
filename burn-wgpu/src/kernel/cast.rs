@@ -70,7 +70,7 @@ mod tests {
         const START: usize = 0;
         const END: usize = 100;
 
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(START..END);
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_devauto(START..END);
         let tensor_float = cast::<i32, f32, 1>(tensor.clone().into_primitive());
 
         let data_int = tensor.into_data();

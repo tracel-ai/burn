@@ -9,10 +9,10 @@ mod tests {
         let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
         let data_targets = Data::from([[0.8, 0.2], [0.9, 0.1]]);
 
-        let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1).require_grad();
-        let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data_2).require_grad();
+        let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data_devauto(data_1).require_grad();
+        let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data_devauto(data_2).require_grad();
         let tensor_targets =
-            Tensor::<TestAutodiffBackend, 2>::from_data(data_targets).require_grad();
+            Tensor::<TestAutodiffBackend, 2>::from_data_devauto(data_targets).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = loss::cross_entropy_with_logits(tensor_3, tensor_targets);

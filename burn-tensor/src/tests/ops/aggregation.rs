@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_should_mean() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_data_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual = tensor.mean().to_data();
 
@@ -14,7 +14,7 @@ mod tests {
 
     #[test]
     fn test_should_mean_int() {
-        let tensor = TestTensorInt::from_data([[2, 2, 2], [3, 4, 5]]);
+        let tensor = TestTensorInt::from_data_devauto([[2, 2, 2], [3, 4, 5]]);
 
         let data_actual = tensor.mean().to_data();
 
@@ -23,7 +23,7 @@ mod tests {
 
     #[test]
     fn test_should_sum() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_data_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual = tensor.sum().to_data();
 
@@ -32,7 +32,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_int() {
-        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+        let tensor = TestTensorInt::from_data_devauto([[0, 1, 2], [3, 4, 5]]);
 
         let data_actual = tensor.sum().to_data();
 
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn test_should_mean_last_dim() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_data_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual = tensor.mean_dim(1).to_data();
 
@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_last_dim() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::from_data_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
         let data_actual = tensor.sum_dim(1).to_data();
 
@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn test_should_mean_last_dim_int() {
-        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+        let tensor = TestTensorInt::from_data_devauto([[0, 1, 2], [3, 4, 5]]);
 
         let data_actual = tensor.mean_dim(1).to_data();
 
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_last_dim_int() {
-        let tensor = TestTensorInt::from_data([[0, 1, 2], [3, 4, 5]]);
+        let tensor = TestTensorInt::from_data_devauto([[0, 1, 2], [3, 4, 5]]);
 
         let data_actual = tensor.sum_dim(1).to_data();
 
@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_first_dim() {
-        let tensor = TestTensor::from_data([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
+        let tensor = TestTensor::from_data_devauto([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
 
         let data_actual = tensor.sum_dim(0).to_data();
 
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_should_mean_first_dim() {
-        let tensor = TestTensor::from_data([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
+        let tensor = TestTensor::from_data_devauto([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
 
         let data_actual = tensor.mean_dim(0).to_data();
 
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_mid_dim_3d_non_contiguous_1() {
-        let tensor = TestTensor::from_data([
+        let tensor = TestTensor::from_data_devauto([
             [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
             [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
         ]);
@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn test_should_sum_mid_dim_3d_non_contiguous_2() {
-        let tensor = TestTensor::from_data([
+        let tensor = TestTensor::from_data_devauto([
             [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
             [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
         ]);

@@ -18,8 +18,8 @@ struct ModuleTensorConstInt<B: Backend> {
 }
 
 impl<B: Backend> ModuleBasic<B> {
-    fn new() -> Self {
-        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Default);
+    fn new(device: &B::Device) -> Self {
+        let weight_basic = Tensor::random(Shape::new([20, 20]), Distribution::Default, device);
         Self {
             weight_basic: Param::from(weight_basic),
         }
@@ -33,11 +33,11 @@ pub struct ModuleComposed<B: Backend> {
 }
 
 impl<B: Backend> ModuleComposed<B> {
-    fn new() -> Self {
-        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Default);
+    fn new(device: &B::Device) -> Self {
+        let weight = Tensor::random(Shape::new([20, 20]), Distribution::Default, device);
         Self {
             weight: Param::from(weight),
-            basic: ModuleBasic::new(),
+            basic: ModuleBasic::new(device),
         }
     }
 }
@@ -47,8 +47,9 @@ mod state {
 
     #[test]
     fn should_load_from_record_basic() {
-        let module_1 = ModuleBasic::<TestBackend>::new();
-        let mut module_2 = ModuleBasic::<TestBackend>::new();
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleBasic::<TestBackend>::new(&device);
+        let mut module_2 = ModuleBasic::<TestBackend>::new(&device);
         let state_1 = module_1.clone().into_record();
 
         assert_ne!(
@@ -66,8 +67,9 @@ mod state {
 
     #[test]
     fn should_load_from_record_compose() {
-        let module_1 = ModuleComposed::<TestBackend>::new();
-        let mut module_2 = ModuleComposed::<TestBackend>::new();
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleComposed::<TestBackend>::new(&device);
+        let mut module_2 = ModuleComposed::<TestBackend>::new(&device);
         assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
         assert_ne!(
             module_1.basic.weight_basic.to_data(),
@@ -90,13 +92,15 @@ mod num_params {
 
     #[test]
     fn should_calculate_num_params_basic() {
-        let module = ModuleBasic::<TestBackend>::new();
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
         assert_eq!(20 * 20, module.num_params());
     }
 
     #[test]
     fn should_output_state_composed() {
-        let module = ModuleComposed::<TestBackend>::new();
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleComposed::<TestBackend>::new(&device);
         assert_eq!(2 * 20 * 20, module.num_params());
     }
 }
@@ -109,7 +113,8 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_by_default() {
-        let module = ModuleBasic::<TestAutodiffBackend>::new();
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
         let mut grads = calculate_grads(&module);
 
         let grad_x = module.weight_basic.grad_remove(&mut grads);
@@ -119,7 +124,8 @@ mod require_grad {
 
     #[test]
     fn should_have_no_grad_after_no_grad() {
-        let module = ModuleBasic::<TestAutodiffBackend>::new().no_grad();
+        let device = <TestAutodiffBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device).no_grad();
         let mut grads = calculate_grads(&module);
 
         let grad_x = module.weight_basic.grad_remove(&mut grads);
@@ -129,7 +135,8 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_when_from_record() {
-        let module = ModuleBasic::<TestAutodiffBackend>::new();
+        let device = <TestAutodiffBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
         let record = ModuleBasicRecord {
             weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
         };
@@ -144,7 +151,7 @@ mod require_grad {
     fn calculate_grads(
         module: &ModuleBasic<TestAutodiffBackend>,
     ) -> <TestAutodiffBackend as AutodiffBackend>::Gradients {
-        let x = Tensor::ones([20, 20]).require_grad();
+        let x = Tensor::ones_devauto([20, 20]).require_grad();
         let y = module.weight_basic.val().matmul(x);
 
         y.backward()

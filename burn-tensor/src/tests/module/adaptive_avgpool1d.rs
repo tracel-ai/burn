@@ -13,7 +13,7 @@ mod tests {
             length_out: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.5, 2.5, 4.5, 6.5],
             [8.5, 10.5, 12.5, 14.5],
         ]]));
@@ -28,7 +28,7 @@ mod tests {
             length_out: 3,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [1.0, 3.0, 5.0],
             [8.0, 10.0, 12.0],
         ]]));
@@ -43,7 +43,7 @@ mod tests {
             length_out: 8,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
             [4.0, 4.0, 5.0, 5.0, 6.0, 6.0, 7.0, 7.0],
         ]]));
@@ -59,8 +59,8 @@ mod tests {
     impl AdaptiveAvgPool1dTestCase {
         fn assert_output(self, y: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.length]);
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

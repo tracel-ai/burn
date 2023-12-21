@@ -115,8 +115,8 @@ mod tests {
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
@@ -132,7 +132,7 @@ mod tests {
         E: Element,
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().equal_elem(2);
         let data_actual_inplace = tensor_1.equal_elem(2);
@@ -148,7 +148,7 @@ mod tests {
         E: Element,
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().greater_elem(4);
         let data_actual_inplace = tensor_1.greater_elem(4);
@@ -164,7 +164,7 @@ mod tests {
         E: Element,
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().greater_equal_elem(4.0);
         let data_actual_inplace = tensor_1.greater_equal_elem(4.0);
@@ -181,8 +181,8 @@ mod tests {
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().greater(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater(tensor_2);
@@ -199,8 +199,8 @@ mod tests {
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().greater_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater_equal(tensor_2);
@@ -216,7 +216,7 @@ mod tests {
         E: Element,
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().lower_elem(4.0);
         let data_actual_inplace = tensor_1.lower_elem(4.0);
@@ -232,7 +232,7 @@ mod tests {
         E: Element,
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().lower_equal_elem(4.0);
         let data_actual_inplace = tensor_1.lower_equal_elem(4.0);
@@ -249,8 +249,8 @@ mod tests {
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().lower(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower(tensor_2);
@@ -267,8 +267,8 @@ mod tests {
     {
         let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
         let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
-        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().lower_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower_equal(tensor_2);
@@ -282,8 +282,8 @@ mod tests {
     fn should_support_bool_equal() {
         let data_1 = Data::from([[false, true, true], [true, false, true]]);
         let data_2 = Data::from([[false, false, true], [false, true, true]]);
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data_devauto(data_2);
 
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn should_support_bool_not() {
         let data_1 = Data::from([[false, true, true], [true, true, false]]);
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1);
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data_devauto(data_1);
 
         let data_actual_cloned = tensor_1.clone().bool_not();
         let data_actual_inplace = tensor_1.bool_not();

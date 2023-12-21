@@ -379,16 +379,6 @@ pub enum NumericOpsDescription<E> {
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpsDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [clamp max](burn_tensor::ops::TensorOps::clamp_max).
-    /// Int => [clamp max](burn_tensor::ops::IntTensorOps::int_clamp_max).
-    ClampMax(ScalarOpsDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [clamp min](burn_tensor::ops::TensorOps::clamp_min).
-    /// Int => [cleamp min](burn_tensor::ops::IntTensorOps::int_clamp_min).
-    ClampMin(ScalarOpsDescription<E>),
 }
 
 /// Operation description specific to an int tensor.
@@ -900,12 +890,6 @@ impl<E: Element> NumericOpsDescription<E> {
             NumericOpsDescription::Clamp(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
-            NumericOpsDescription::ClampMin(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
-            NumericOpsDescription::ClampMax(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
             NumericOpsDescription::Abs(desc) => {
                 vec![&desc.input, &desc.out]
             }
@@ -1144,8 +1128,6 @@ impl<E> core::hash::Hash for NumericOpsDescription<E> {
             NumericOpsDescription::MaxDim(desc) => desc.hash(state),
             NumericOpsDescription::MinDim(desc) => desc.hash(state),
             NumericOpsDescription::Clamp(desc) => desc.hash(state),
-            NumericOpsDescription::ClampMax(desc) => desc.hash(state),
-            NumericOpsDescription::ClampMin(desc) => desc.hash(state),
         }
     }
 }

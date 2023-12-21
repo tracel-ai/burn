@@ -77,7 +77,7 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
        let model: Model<Backend> = Model::new().load_state();
 
        // Create a new input tensor (all zeros for demonstration purposes)
-       let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28]);
+       let input = tensor::Tensor::<NdArray<f32>, 4>::zeros_devauto([1, 1, 28, 28]);
 
        // Run the model
        let output = model.forward(input);

@@ -52,7 +52,7 @@ impl Mnist {
         let model = self.model.as_ref().unwrap();
 
         // Reshape from the 1D array to 3d tensor [batch, height, width]
-        let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
+        let input: Tensor<Backend, 3> = Tensor::from_floats_devauto(input).reshape([1, 28, 28]);
 
         // Normalize input: make between [0,1] and make the mean=0 and std=1
         // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example

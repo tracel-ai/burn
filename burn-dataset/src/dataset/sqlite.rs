@@ -599,8 +599,9 @@ where
         let conn_pool = self.conn_pool.as_ref().unwrap();
         let connection = conn_pool.get()?;
         let create_table_statement = format!(
-                "create table if not exists  {split} (row_id integer primary key autoincrement not null, item blob not null)"
-            );
+            "create table if not exists  {split} (row_id integer primary key autoincrement not \
+             null, item blob not null)"
+        );
 
         connection.execute(create_table_statement.as_str(), [])?;
 

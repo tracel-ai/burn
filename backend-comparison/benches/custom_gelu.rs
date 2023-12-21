@@ -39,7 +39,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn prepare(&self) -> Self::Args {
-        Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
+        Tensor::random(self.shape.clone(), Distribution::Default, &self.device)
     }
 
     fn sync(&self) {

@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_clip_by_value() {
-        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats([
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats_devauto([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ]);
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_clip_by_norm() {
-        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats([
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats_devauto([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ]);

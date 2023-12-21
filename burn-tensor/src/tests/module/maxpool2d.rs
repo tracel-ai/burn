@@ -19,7 +19,7 @@ mod tests {
         let dilation_1 = 1;
         let dilation_2 = 1;
 
-        let x = TestTensor::from_floats([
+        let x = TestTensor::from_floats_devauto([
             [
                 [
                     [0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221],
@@ -57,7 +57,7 @@ mod tests {
                 ],
             ],
         ]);
-        let y = TestTensor::from_floats([
+        let y = TestTensor::from_floats_devauto([
             [
                 [
                     [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
@@ -120,7 +120,7 @@ mod tests {
         let dilation_1 = 1;
         let dilation_2 = 1;
 
-        let x = TestTensor::from_floats([[[
+        let x = TestTensor::from_floats_devauto([[[
             [0.6309, 0.6112, 0.6998],
             [0.4708, 0.9161, 0.5402],
             [0.4577, 0.7397, 0.9870],
@@ -128,7 +128,7 @@ mod tests {
             [0.6277, 0.5139, 0.4525],
             [0.9333, 0.9846, 0.5006],
         ]]]);
-        let y = TestTensor::from_floats([[[
+        let y = TestTensor::from_floats_devauto([[[
             [0.6309, 0.6998],
             [0.6309, 0.9870],
             [0.6380, 0.9870],
@@ -161,7 +161,7 @@ mod tests {
         let dilation_1 = 1;
         let dilation_2 = 1;
 
-        let x = TestTensor::from_floats([[[
+        let x = TestTensor::from_floats_devauto([[[
             [0.6309, 0.6112, 0.6998],
             [0.4708, 0.9161, 0.5402],
             [0.4577, 0.7397, 0.9870],
@@ -170,7 +170,7 @@ mod tests {
             [0.9333, 0.9846, 0.5006],
         ]]])
         .neg();
-        let y = TestTensor::from_floats([[[
+        let y = TestTensor::from_floats_devauto([[[
             [-0.4708, -0.4708, -0.5402],
             [-0.4577, -0.4577, -0.5402],
             [-0.4352, -0.4352, -0.4352],
@@ -203,7 +203,7 @@ mod tests {
         let dilation_1 = 2;
         let dilation_2 = 2;
 
-        let x = TestTensor::from_floats([[[
+        let x = TestTensor::from_floats_devauto([[[
             [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
             [0.9861, 0.9861, 0.9490, 0.9490, 0.8221, 0.8221],
             [0.9540, 0.9540, 0.9540, 0.9490, 0.7890, 0.7111],
@@ -211,7 +211,7 @@ mod tests {
             [0.9540, 0.9540, 0.9540, 0.9432, 0.8855, 0.8855],
             [0.5063, 0.9432, 0.9432, 0.9432, 0.8855, 0.8855],
         ]]]);
-        let y = TestTensor::from_floats([[[
+        let y = TestTensor::from_floats_devauto([[[
             [0.9861, 0.9861, 0.9540, 0.9490],
             [0.9861, 0.9861, 0.9540, 0.9490],
             [0.9540, 0.9540, 0.9540, 0.9490],
@@ -241,7 +241,7 @@ mod tests {
         let dilation_1 = 1;
         let dilation_2 = 1;
 
-        let x = TestTensor::from_floats([[[
+        let x = TestTensor::from_floats_devauto([[[
             [0.2479, 0.6386, 0.3166, 0.5742],
             [0.7065, 0.1940, 0.6305, 0.8959],
             [0.5416, 0.8602, 0.8129, 0.1662],
@@ -254,7 +254,7 @@ mod tests {
             [8, 9, 9, 14, 11],
             [12, 12, 14, 14, 15],
         ]]]);
-        let y = TestTensor::from_floats([[[
+        let y = TestTensor::from_floats_devauto([[[
             [0.2479, 0.6386, 0.6386, 0.5742, 0.5742],
             [0.7065, 0.7065, 0.6386, 0.8959, 0.8959],
             [0.7065, 0.8602, 0.8602, 0.8959, 0.8959],
@@ -287,7 +287,7 @@ mod tests {
         let dilation_1 = 1;
         let dilation_2 = 1;
 
-        let x = TestTensor::from_floats([[[
+        let x = TestTensor::from_floats_devauto([[[
             [0.5388, 0.0676, 0.7122, 0.8316, 0.0653],
             [0.9154, 0.1536, 0.9089, 0.8016, 0.7518],
             [0.2073, 0.0501, 0.8811, 0.5604, 0.5075],
@@ -302,7 +302,7 @@ mod tests {
             [15, 16, 24],
             [15, 16, 24],
         ]]]);
-        let y = TestTensor::from_floats([[[
+        let y = TestTensor::from_floats_devauto([[[
             [0.9154, 0.9089, 0.8316],
             [0.9154, 0.9089, 0.8316],
             [0.9154, 0.9963, 0.8316],

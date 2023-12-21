@@ -145,7 +145,7 @@ pub fn generate_sinusoids<B: Backend>(
         [length, d_model].into(),
     );
 
-    Tensor::<B, 2>::from_data(data.convert())
+    Tensor::<B, 2>::from_data_devauto(data.convert())
 }
 
 #[cfg(test)]
@@ -165,13 +165,13 @@ mod tests {
 
         // Use a tensor of zeros as input for easy verification of the output
         // The output should be the sinusoids broadcasted to the input shape
-        let tensor = Tensor::zeros([batch_size, length, d_model]);
+        let tensor = Tensor::zeros_devauto([batch_size, length, d_model]);
 
         let output = pe.forward(tensor);
 
         assert_eq!(output.shape().dims, [batch_size, length, d_model]);
 
-        let expected = Tensor::<TestBackend, 3>::from_floats([
+        let expected = Tensor::<TestBackend, 3>::from_floats_devauto([
             [
                 [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
                 [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
@@ -192,7 +192,7 @@ mod tests {
         let sinusoids = generate_sinusoids::<TestBackend>(12, 6, 10_000);
 
         // The values are taken from the pytorch reference implementation
-        let expected = Tensor::<TestBackend, 2>::from_floats([
+        let expected = Tensor::<TestBackend, 2>::from_floats_devauto([
             [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
             [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
             [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
@@ -214,7 +214,7 @@ mod tests {
     fn d_model_input_should_match() {
         let d_model = 8;
         let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
-        let input = Tensor::zeros([1, 5, 10]);
+        let input = Tensor::zeros_devauto([1, 5, 10]);
         let _output = pe.forward(input);
     }
 
@@ -223,7 +223,7 @@ mod tests {
     fn input_length_should_be_less_than_max_len() {
         let d_model = 8;
         let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
-        let input = Tensor::zeros([1, 6_000, d_model]);
+        let input = Tensor::zeros_devauto([1, 6_000, d_model]);
         let _output = pe.forward(input);
     }
 }

@@ -53,7 +53,7 @@ impl<B: FusionBackend> Graph<B> {
     pub(crate) fn execute_optimization(
         &mut self,
         handles: &mut HandleContainer<B>,
-        optimization: &dyn Optimization<B>,
+        optimization: &mut dyn Optimization<B>,
     ) {
         let num_keep = optimization.len();
         let mut context = self.converter.context(handles);

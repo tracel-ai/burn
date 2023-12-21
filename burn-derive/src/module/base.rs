@@ -108,7 +108,8 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
             burn::constant!(module);
         }
 
-        impl #generics_module_ad burn::module::AutodiffModule<B> for #name #generics_ty #generics_where {
+        impl #generics_module_ad burn::module::AutodiffModule<B>
+            for #name #generics_ty #generics_where {
             burn::constant!(ad_module, #name #generics_ty);
         }
     };

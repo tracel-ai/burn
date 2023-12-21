@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_tanh() {
         let data = Data::from([[1., 2.], [3., 4.]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = activation::tanh(tensor).to_data();
 

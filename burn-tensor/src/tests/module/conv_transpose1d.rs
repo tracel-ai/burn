@@ -20,7 +20,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [270., 453., 516., 387.],
             [352., 589., 679., 505.],
         ]]));
@@ -41,7 +41,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [28., 62., 36., 78., 44., 94., 52., 62.],
             [41., 93., 55., 121., 69., 149., 83., 93.],
         ]]));
@@ -62,7 +62,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [30., 64., 78., 76., 94., 52.],
             [49., 101., 127., 113., 143., 77.],
         ]]));
@@ -83,7 +83,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0., 1., 4., 7.],
             [32., 59., 71., 59.],
         ]]));
@@ -110,19 +110,19 @@ mod tests {
                 self.channels_out / self.groups,
                 self.kernel_size,
             ]);
-            let weights = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_weights.num_elements())
+            let weights = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_weights.num_elements())
                     .reshape(shape_weights)
                     .into_data()
                     .convert(),
             );
-            let bias = TestTensor::from_data(
-                TestTensorInt::arange(0..self.channels_out)
+            let bias = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..self.channels_out)
                     .into_data()
                     .convert(),
             );
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

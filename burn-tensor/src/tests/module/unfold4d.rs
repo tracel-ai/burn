@@ -34,7 +34,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from_data([[
+        test.assert_output(TestTensor::from_data_devauto([[
             [0., 1., 2., 4., 5., 6., 8., 9., 10.],
             [1., 2., 3., 5., 6., 7., 9., 10., 11.],
             [4., 5., 6., 8., 9., 10., 12., 13., 14.],
@@ -59,7 +59,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from_data([[
+        test.assert_output(TestTensor::from_data_devauto([[
             [0., 0.],
             [1., 5.],
             [3., 7.],
@@ -89,8 +89,8 @@ mod tests {
     impl Unfold4dTestCase {
         fn assert_shape(self, expected_shape: [usize; 3]) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
@@ -111,8 +111,8 @@ mod tests {
 
         fn assert_output(self, expected: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

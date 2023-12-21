@@ -13,11 +13,11 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestTensor::from_floats([[
+        let x = TestTensor::from_floats_devauto([[
             [0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221],
             [0.8148, 0.5474, 0.9490, 0.7890, 0.5537, 0.5689],
         ]]);
-        let y = TestTensor::from_floats([[
+        let y = TestTensor::from_floats_devauto([[
             [0.9861, 0.5474, 0.4477, 0.8221],
             [0.949, 0.949, 0.949, 0.789],
         ]]);
@@ -34,8 +34,8 @@ mod tests {
         let stride = 2;
         let dilation = 1;
 
-        let x = TestTensor::from_floats([[[0.6309, 0.6112, 0.6998, 0.4708]]]);
-        let y = TestTensor::from_floats([[[0.6309, 0.6998]]]);
+        let x = TestTensor::from_floats_devauto([[[0.6309, 0.6112, 0.6998, 0.4708]]]);
+        let y = TestTensor::from_floats_devauto([[[0.6309, 0.6998]]]);
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
@@ -49,8 +49,8 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestTensor::from_floats([[[-0.6309, -0.6112, -0.6998, -0.4708]]]);
-        let y = TestTensor::from_floats([[[-0.6112, -0.6112, -0.4708, -0.4708]]]);
+        let x = TestTensor::from_floats_devauto([[[-0.6309, -0.6112, -0.6998, -0.4708]]]);
+        let y = TestTensor::from_floats_devauto([[[-0.6112, -0.6112, -0.4708, -0.4708]]]);
 
         let output = max_pool1d(x, kernel_size, stride, padding, dilation);
 
@@ -64,11 +64,11 @@ mod tests {
         let stride = 1;
         let dilation = 2;
 
-        let x = TestTensor::from_floats([[
+        let x = TestTensor::from_floats_devauto([[
             [0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221],
             [0.8148, 0.5474, 0.9490, 0.7890, 0.5537, 0.5689],
         ]]);
-        let y = TestTensor::from_floats([[
+        let y = TestTensor::from_floats_devauto([[
             [0.5474, 0.9861, 0.5474, 0.4477, 0.8221, 0.3548],
             [0.5474, 0.9490, 0.7890, 0.9490, 0.7890, 0.5537],
         ]]);
@@ -85,9 +85,9 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestTensor::from_floats([[[0.2479, 0.6386, 0.3166, 0.5742]]]);
+        let x = TestTensor::from_floats_devauto([[[0.2479, 0.6386, 0.3166, 0.5742]]]);
         let indices = Data::<IntElem, 3>::from([[[1, 1, 3]]]);
-        let y = TestTensor::from_floats([[[0.6386, 0.6386, 0.5742]]]);
+        let y = TestTensor::from_floats_devauto([[[0.6386, 0.6386, 0.5742]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);
@@ -103,9 +103,10 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestTensor::from_floats([[[0.5388, 0.0676, 0.7122, 0.8316, 0.0653]]]);
+        let x = TestTensor::from_floats_devauto([[[0.5388, 0.0676, 0.7122, 0.8316, 0.0653]]]);
         let indices = Data::<IntElem, 3>::from([[[0, 2, 3, 3, 3, 3]]]);
-        let y = TestTensor::from_floats([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
+        let y =
+            TestTensor::from_floats_devauto([[[0.5388, 0.7122, 0.8316, 0.8316, 0.8316, 0.8316]]]);
 
         let (output, output_indices) =
             max_pool1d_with_indices(x, kernel_size, stride, padding, dilation);

@@ -5,8 +5,9 @@ mod tests {
 
     #[test]
     fn should_update_tensor_when_grad_replace() {
-        let tensor_1 = TestAutodiffTensor::random([32, 32], Distribution::Default).require_grad();
-        let tensor_2 = TestAutodiffTensor::random([32, 32], Distribution::Default);
+        let tensor_1 =
+            TestAutodiffTensor::random_devauto([32, 32], Distribution::Default).require_grad();
+        let tensor_2 = TestAutodiffTensor::random_devauto([32, 32], Distribution::Default);
 
         let x = tensor_1.clone().matmul(activation::gelu(tensor_2));
         let mut grads = x.backward();
@@ -14,7 +15,7 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
 
         let grad_1_updated =
-            TestAutodiffTensor::random([32, 32], Distribution::Default).require_grad();
+            TestAutodiffTensor::random_devauto([32, 32], Distribution::Default).require_grad();
         tensor_1.grad_replace(&mut grads, grad_1_updated.clone().inner());
 
         let grad_1_new = tensor_1.grad(&grads).unwrap();

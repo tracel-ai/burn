@@ -26,7 +26,10 @@ mod tests {
             width: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[[[5.0, 11.0], [23.0, 29.0]]]]));
+        test.assert_output(TestTensor::from_floats_devauto([[[
+            [5.0, 11.0],
+            [23.0, 29.0],
+        ]]]));
     }
     #[test]
     fn test_conv_transpose2d_simple_2() {
@@ -49,7 +52,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [
                 [9855., 15207., 15738., 10797.],
                 [16290., 25119., 25956., 17793.],
@@ -92,7 +95,7 @@ mod tests {
             width: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[[
+        test.assert_output(TestTensor::from_floats_devauto([[[
             [0.0, 0.0, 0.0, 1.0],
             [0.0, 0.0, 2.0, 3.0],
             [0.0, 2.0, 0.0, 3.0],
@@ -121,7 +124,7 @@ mod tests {
             width: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [
                 [126., 116., 136., 124., 146.],
                 [108., 88., 114., 92., 120.],
@@ -160,7 +163,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [
                 [352., 728., 378., 780., 404., 832., 430., 452.],
                 [784., 1616., 836., 1720., 888., 1824., 940., 992.],
@@ -205,7 +208,7 @@ mod tests {
             width: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [[5., 11.], [23., 29.]],
             [[236., 258.], [302., 324.]],
         ]]));
@@ -232,7 +235,7 @@ mod tests {
             width: 2,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [
                 [0.0000e+00, 0.0000e+00, 1.0000e+00, 2.0000e+00],
                 [0.0000e+00, 5.0000e+00, 1.1000e+01, 1.1000e+01],
@@ -300,19 +303,19 @@ mod tests {
                 self.kernel_size_1,
                 self.kernel_size_2,
             ]);
-            let weights = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_weights.num_elements())
+            let weights = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_weights.num_elements())
                     .reshape(shape_weights)
                     .into_data()
                     .convert(),
             );
-            let bias = TestTensor::from_data(
-                TestTensorInt::arange(0..self.channels_out)
+            let bias = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..self.channels_out)
                     .into_data()
                     .convert(),
             );
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

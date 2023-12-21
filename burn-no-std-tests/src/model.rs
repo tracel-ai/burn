@@ -36,11 +36,11 @@ pub struct Model<B: Backend> {
 }
 
 impl<B: Backend> Model<B> {
-    pub fn new(config: &MnistConfig) -> Self {
-        let mlp = Mlp::new(&config.mlp);
-        let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init();
-        let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init();
-        let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]));
+    pub fn new(config: &MnistConfig, device: &B::Device) -> Self {
+        let mlp = Mlp::new(&config.mlp, device);
+        let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init(device);
+        let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init(device);
+        let conv = ConvBlock::new(&ConvBlockConfig::new([1, 1]), device);
 
         Self {
             mlp,

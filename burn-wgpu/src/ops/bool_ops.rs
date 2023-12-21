@@ -123,4 +123,12 @@ where
 
         tensor
     }
+
+    fn bool_repeat<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        dim: usize,
+        times: usize,
+    ) -> BoolTensor<Self, D> {
+        kernel::repeat(tensor, dim, times)
+    }
 }

@@ -16,7 +16,7 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats([[[1., 2., 3., 4.]]]));
+        test.assert_output(TestTensor::from_floats_devauto([[[1., 2., 3., 4.]]]));
     }
 
     #[test]
@@ -31,7 +31,7 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.3333, 2.0000, 4.0000],
             [4.3333, 8.0000, 10.0000],
         ]]));
@@ -49,7 +49,7 @@ mod tests {
             count_include_pad: false,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.5000, 2.0000, 4.0000],
             [6.5000, 8.0000, 10.0000],
         ]]));
@@ -68,8 +68,8 @@ mod tests {
     impl AvgPool1dTestCase {
         fn assert_output(self, y: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.length]);
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

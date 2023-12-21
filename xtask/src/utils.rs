@@ -39,7 +39,12 @@ pub(crate) fn get_workspaces(w_type: WorkspaceMemberType) -> Vec<WorkspaceMember
             let (workspace_name, workspace_path) =
                 (parts.first()?.to_owned(), parts.last()?.to_owned());
 
-            let workspace_path = workspace_path.replace("(path+file://", "").replace(')', "");
+            let prefix = if cfg!(target_os = "windows") {
+                "(path+file:///"
+            } else {
+                "(path+file://"
+            };
+            let workspace_path = workspace_path.replace(prefix, "").replace(')', "");
 
             match w_type {
                 WorkspaceMemberType::Crate

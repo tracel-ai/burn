@@ -10,12 +10,12 @@ pub fn run<B: Backend>() {
     let seq_length = 48;
     let d_model = 24;
 
-    let weights = NamedTensor::<B, (Batch, DModel, DModel)>::random(
+    let weights = NamedTensor::<B, (Batch, DModel, DModel)>::random_devauto(
         [1, d_model, d_model],
         Distribution::Default,
     );
 
-    let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random(
+    let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random_devauto(
         [batch_size, seq_length, d_model],
         Distribution::Default,
     );

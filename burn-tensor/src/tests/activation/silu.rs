@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_silu() {
         let data = Data::from([[1.0, 2.0], [3.0, 4.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = activation::silu(tensor).to_data();
 

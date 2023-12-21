@@ -97,7 +97,7 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D> {
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        Tensor::from_data(item.data.convert::<B::FloatElem>())
+        Tensor::from_data_devauto(item.data.convert::<B::FloatElem>())
     }
 }
 
@@ -113,7 +113,7 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        Tensor::from_data(item.data.convert())
+        Tensor::from_data_devauto(item.data.convert())
     }
 }
 
@@ -129,6 +129,6 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        Tensor::from_data(item.data)
+        Tensor::from_data_devauto(item.data)
     }
 }
