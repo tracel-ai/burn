@@ -30,6 +30,7 @@ pub fn get_persistent_cache_file_path() -> PathBuf {
 /// In-memory cache entry
 #[derive(Debug)]
 pub(crate) struct InMemoryCacheEntry {
+    #[cfg(feature = "autotune-persistent-cache")]
     checksum_checked: bool,
     fastest_index: usize,
 }
@@ -78,7 +79,7 @@ impl<K: AutotuneKey> TuneCache<K> {
         #[cfg(not(feature = "autotune-persistent-cache"))]
         {
             TuneCache {
-                cache: HashMap::new(),
+                in_memory_cache: HashMap::new(),
             }
         }
     }
@@ -114,12 +115,8 @@ impl<K: AutotuneKey> TuneCache<K> {
 
         #[cfg(not(feature = "autotune-persistent-cache"))]
         {
-            if let Some(InMemoryCacheEntry {
-                _checksum_checked,
-                fastest_index,
-            }) = result
-            {
-                return TuneCacheResult::Hit(autotune_operation_set.fastest(fastest_index));
+            if let Some(InMemoryCacheEntry { fastest_index, .. }) = result {
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(*fastest_index));
             }
         }
 
@@ -130,6 +127,7 @@ impl<K: AutotuneKey> TuneCache<K> {
         self.in_memory_cache.insert(
             key,
             InMemoryCacheEntry {
+                #[cfg(feature = "autotune-persistent-cache")]
                 checksum_checked: true,
                 fastest_index,
             },
