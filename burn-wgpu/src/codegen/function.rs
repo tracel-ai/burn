@@ -6,6 +6,7 @@ use std::fmt::Display;
 pub enum Function {
     Powf(Elem),
     Erf(Elem),
+    #[cfg(target_os = "macos")]
     SafeTanh(Elem),
 }
 
@@ -14,6 +15,7 @@ impl Display for Function {
         match self {
             Function::Powf(elem) => format_powf(f, elem),
             Function::Erf(elem) => format_erf(f, elem),
+            #[cfg(target_os = "macos")]
             Function::SafeTanh(elem) => format_safe_tanh(f, elem),
         }
     }

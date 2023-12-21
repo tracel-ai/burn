@@ -162,9 +162,8 @@ impl ElemWiseKernelCodegen<BodyPhase> {
                 Operator::Erf { input: _, out: _ } => {
                     register_function(Function::Erf(Elem::F32));
                 }
-                Operator::Tanh { input: _, out: _ } =>
-                {
-                    #[cfg(target_os = "macos")]
+                #[cfg(target_os = "macos")]
+                Operator::Tanh { input: _, out: _ } => {
                     register_function(Function::SafeTanh(Elem::F32))
                 }
                 _ => {}
