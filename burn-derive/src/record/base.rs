@@ -9,16 +9,10 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> proc_macro::TokenStream {
     let record_gen = RecordDeriveCodegen::from_ast(ast);
     let item_struct = record_gen.gen_record_type();
     let record_impl = record_gen.gen_impl_record();
-    let module_name = record_gen.module_name();
 
     quote! {
-        mod #module_name {
-            use super::*;
-            use burn::serde as serde;
-
-            #item_struct
-            #record_impl
-        }
+        #item_struct
+        #record_impl
     }
     .into()
 }
@@ -46,13 +40,6 @@ impl RecordDeriveCodegen {
             ),
             generics: ast.generics.clone(),
         }
-    }
-
-    pub(crate) fn module_name(&self) -> Ident {
-        Ident::new(
-            format!("_{}_codegen", self.name_record.to_string().to_lowercase()).as_str(),
-            self.name_record.span(),
-        )
     }
 
     /// Generate the record type with the correct generics.
