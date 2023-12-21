@@ -19,7 +19,7 @@ use hashbrown::HashMap;
 /// Return the file path for the persistent cache on disk
 #[cfg(feature = "autotune-persistent-cache")]
 pub fn get_persistent_cache_file_path() -> PathBuf {
-    let home_dir = dirs::home_dir().expect("Could not get home directory");
+    let home_dir = dirs::home_dir().expect("An home directory should exist");
     let path_dir = home_dir.join(".cache").join("burn").join("autotune");
     let path = Path::new(&path_dir);
     path.join("autotune-cache.json")
@@ -151,12 +151,12 @@ impl<K: AutotuneKey> TuneCache<K> {
     pub(crate) fn save(&self) {
         let file_path = get_persistent_cache_file_path();
         let expect_msg = format!(
-            "Unable to open autotune persistent cache file: {:?}",
+            "Should be able to open autotune persistent cache file: {:?}",
             &file_path.to_str().unwrap()
         );
         let file = File::create(file_path).expect(&expect_msg);
         let data = self.persistent_cache.iter().collect::<Vec<_>>();
         serde_json::to_writer_pretty(file, &data)
-            .expect("Unable to write to autotune persistent cache");
+            .expect("Should be able to write to autotune persistent cache");
     }
 }
