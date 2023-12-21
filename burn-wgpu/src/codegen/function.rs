@@ -6,6 +6,7 @@ use std::fmt::Display;
 pub enum Function {
     Powf(Elem),
     Erf(Elem),
+    SafeTanh(Elem),
 }
 
 impl Display for Function {
@@ -13,6 +14,7 @@ impl Display for Function {
         match self {
             Function::Powf(elem) => format_powf(f, elem),
             Function::Erf(elem) => format_erf(f, elem),
+            Function::SafeTanh(elem) => format_safe_tanh(f, elem),
         }
     }
 }
@@ -65,6 +67,21 @@ fn erf(x: {elem}) -> {elem} {{
     }}
 
     return erf_positive(x);
+}}
+"
+    ))
+}
+
+fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, elem: &Elem) -> core::fmt::Result {
+    f.write_fmt(format_args!(
+        "
+/// Metal has a weird numerical behaviour with tanh for inputs over 43.0
+fn safe_tanh(x: {elem}) -> {elem} {{
+    if x > 43.0 {{
+        return 1.0;
+    }} else {{
+        return tanh(x);
+    }}
 }}
 "
     ))
