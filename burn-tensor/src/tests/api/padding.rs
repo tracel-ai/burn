@@ -1,7 +1,6 @@
 #[burn_tensor_testgen::testgen(padding)]
 mod tests {
     use super::*;
-    use burn_tensor::module::adaptive_avg_pool1d;
     use burn_tensor::{Data, Shape, Tensor,Padding,PadMode,Int};
 
     #[test]
