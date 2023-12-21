@@ -10,7 +10,7 @@ mod std_imports {
 use std_imports::*;
 
 #[cfg(feature = "autotune-persistent-cache")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::AutotuneKey;
 use super::AutotuneOperation;
@@ -92,8 +92,12 @@ impl<K: AutotuneKey> TuneCache<K> {
 
         #[cfg(feature = "autotune-persistent-cache")]
         {
-            if let Some(entry) = result {
-                if !entry.checksum_checked {
+            if let Some(InMemoryCacheEntry {
+                checksum_checked,
+                fastest_index,
+            }) = result
+            {
+                if !*checksum_checked {
                     let checksum = autotune_operation_set.compute_checksum();
                     let persistent_entry = self
                         .persistent_cache
@@ -102,16 +106,20 @@ impl<K: AutotuneKey> TuneCache<K> {
                     if checksum != persistent_entry.checksum {
                         return TuneCacheResult::Miss(autotune_operation_set);
                     }
-                    entry.checksum_checked = true;
+                    *checksum_checked = true;
                 }
-                return TuneCacheResult::Hit(autotune_operation_set.fastest(entry.fastest_index));
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(*fastest_index));
             }
         }
 
         #[cfg(not(feature = "autotune-persistent-cache"))]
         {
-            if let Some(entry) = result {
-                return TuneCacheResult::Hit(autotune_operation_set.fastest(entry.fastest_index));
+            if let Some(InMemoryCacheEntry {
+                _checksum_checked,
+                fastest_index,
+            }) = result
+            {
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(fastest_index));
             }
         }
 
@@ -119,10 +127,13 @@ impl<K: AutotuneKey> TuneCache<K> {
     }
 
     pub(crate) fn cache_insert(&mut self, key: K, fastest_index: usize) {
-        self.in_memory_cache.insert(key, InMemoryCacheEntry {
-            checksum_checked: true,
-            fastest_index,
-        });
+        self.in_memory_cache.insert(
+            key,
+            InMemoryCacheEntry {
+                checksum_checked: true,
+                fastest_index,
+            },
+        );
     }
 
     #[cfg(feature = "autotune-persistent-cache")]
@@ -132,10 +143,13 @@ impl<K: AutotuneKey> TuneCache<K> {
         checksum: String,
         fastest_index: usize,
     ) {
-        self.persistent_cache.insert(key, PersistentCacheEntry {
-            checksum,
-            fastest_index,
-        });
+        self.persistent_cache.insert(
+            key,
+            PersistentCacheEntry {
+                checksum,
+                fastest_index,
+            },
+        );
     }
 
     /// Load the persistent cache data from disk
@@ -163,10 +177,13 @@ impl<K: AutotuneKey> TuneCache<K> {
             }
         }?;
         for (key, entry) in self.persistent_cache.iter() {
-            self.in_memory_cache.insert(key.clone(), InMemoryCacheEntry {
-                checksum_checked: false,
-                fastest_index: entry.fastest_index,
-            });
+            self.in_memory_cache.insert(
+                key.clone(),
+                InMemoryCacheEntry {
+                    checksum_checked: false,
+                    fastest_index: entry.fastest_index,
+                },
+            );
         }
         Ok(())
     }
