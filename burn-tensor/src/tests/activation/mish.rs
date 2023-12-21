@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_mish() {
         let data = Data::from([[-0.4240, -0.9574, -0.2215], [-0.5767, 0.7218, -0.1620]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let data_actual = activation::mish(tensor).to_data();
 
