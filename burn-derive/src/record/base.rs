@@ -14,7 +14,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> proc_macro::TokenStream {
     quote! {
         mod #module_name {
             use super::*;
-            use burn::serde;
+            use burn::serde as serde;
 
             #item_struct
             #record_impl
