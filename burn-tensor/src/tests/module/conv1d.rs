@@ -19,7 +19,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([
+        test.assert_output(TestTensor::from([
             [[43., 67., 82., 49.], [104., 176., 227., 158.]],
             [[139., 187., 202., 113.], [392., 584., 635., 414.]],
         ]));
@@ -39,7 +39,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([
+        test.assert_output(TestTensor::from([
             [[62., 38.], [159., 111.]],
             [[158., 102.], [447., 367.]],
         ]));
@@ -59,7 +59,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([
+        test.assert_output(TestTensor::from([
             [[2., 5., 8., 3.], [42., 63., 75., 47.]],
             [[26., 29., 32., 11.], [114., 159., 171., 103.]],
         ]));

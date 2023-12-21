@@ -5,10 +5,12 @@ mod tests {
 
     #[test]
     fn test_softplus_d2() {
-        let data = Data::from([[-0.4240, -0.9574, -0.2215], [-0.5767, 0.7218, -0.1620]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from([
+            [-0.4240, -0.9574, -0.2215],
+            [-0.5767, 0.7218, -0.1620],
+        ]);
 
-        let data_actual_beta1 = activation::softplus(tensor.clone(), 1.0).to_data();
+        let data_actual_beta1 = activation::softplus(tensor.clone(), 1.0).into_data();
         let data_expected_beta1 = Data::from([[0.5034, 0.3249, 0.5885], [0.4458, 1.1178, 0.6154]]);
         data_actual_beta1.assert_approx_eq(&data_expected_beta1, 4);
 

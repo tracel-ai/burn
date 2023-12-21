@@ -7,8 +7,8 @@ mod tests {
     fn test_embedding_forward() {
         let weights = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let indices = Data::from([[0, 1], [1, 1]]);
-        let weights = Tensor::<TestBackend, 2>::from_data_devauto(weights);
-        let indices = Tensor::<TestBackend, 2, Int>::from_data_devauto(indices);
+        let weights = Tensor::<TestBackend, 2>::from(weights);
+        let indices = Tensor::<TestBackend, 2, Int>::from(indices);
 
         let output = embedding(weights, indices);
         let expected = Data::from([

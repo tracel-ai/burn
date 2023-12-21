@@ -19,6 +19,7 @@ mod tests {
     type TestBackend = crate::LibTorch<f32>;
     type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();
