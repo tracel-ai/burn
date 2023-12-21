@@ -50,7 +50,7 @@ impl<K: AutotuneKey> TuneCache<K> {
                 persistent_cache: HashMap::new(),
             };
             if let Err(e) = cache.load() {
-                eprintln!(
+                log::warn!(
                     "Unable to load autotune cache. Cache will be ignored ({}).",
                     e
                 );
