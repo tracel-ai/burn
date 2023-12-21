@@ -197,34 +197,40 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
 #[serial]
 #[cfg(feature = "std")]
 fn autotune_cache_different_checksums_return_a_cache_miss() {
-    // we use two clients in order to have freshly initialized autotune caches
-    let client1 = client(&DummyDevice);
     let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
-    let client2 = compute.client(&DummyDevice, dummy::init_client);
+    let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test both shapes [1,3] and [1,4] end up with the same key name
     // which is 'cache_test-1,4'
     let shapes_1 = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
-    let lhs_1 = client1.create(&[0, 1, 2]);
-    let rhs_1 = client1.create(&[4, 4, 4]);
-    let out_1 = client1.empty(3);
+    let lhs_1 = client.create(&[0, 1, 2]);
+    let rhs_1 = client.create(&[4, 4, 4]);
+    let out_1 = client.empty(3);
     let handles_1 = vec![lhs_1, rhs_1, out_1];
+    let cache_test_autotune_kernel_1 =
+        dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_1, handles_1);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_1));
+    client.sync();
+
+    // we use a second compute client in order to have freshly initialized autotune cache
+    // and test invalidation of the cache when the checksum of the operation set is
+    // different
+    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let client = compute.client(&DummyDevice, dummy::init_client);
 
     let shapes_2 = vec![vec![1, 4], vec![1, 4], vec![1, 4]];
-    let lhs_2 = client2.create(&[0, 1, 2, 3]);
-    let rhs_2 = client2.create(&[5, 6, 7, 8]);
-    let out_2 = client2.empty(4);
+    let lhs_2 = client.create(&[0, 1, 2, 3]);
+    let rhs_2 = client.create(&[5, 6, 7, 8]);
+    let out_2 = client.empty(4);
     let handles_2 = vec![lhs_2, rhs_2, out_2.clone()];
 
-    let cache_test_autotune_kernel_1 =
-        dummy::CacheTestAutotuneOperationSet::new(client1.clone(), shapes_1, handles_1);
     let mut cache_test_autotune_kernel_2 =
-        dummy::CacheTestAutotuneOperationSet::new(client2.clone(), shapes_2, handles_2);
-    client1.execute_autotune(Box::new(cache_test_autotune_kernel_1));
+        dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes_2, handles_2);
     cache_test_autotune_kernel_2.generate_random_checksum = true;
-    client2.execute_autotune(Box::new(cache_test_autotune_kernel_2));
+    client.execute_autotune(Box::new(cache_test_autotune_kernel_2));
+    client.sync();
 
-    let obtained_resource = client2.read(&out_2);
+    let obtained_resource = client.read(&out_2);
 
     // Cache should be missed because the checksum on 4 is generated randomly
     // and thus is always different,
