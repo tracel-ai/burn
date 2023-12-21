@@ -3,6 +3,7 @@ mod clone_invariance;
 mod module;
 mod ops;
 mod stats;
+mod api;
 
 #[allow(missing_docs)]
 #[macro_export]
@@ -85,5 +86,8 @@ macro_rules! testgen_all {
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
+
+        // test padding
+        burn_tensor::testgen_padding!();
     };
 }

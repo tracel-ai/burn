@@ -13,7 +13,7 @@ use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
 
 use crate::{
-    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind,
+    backend::Backend, check, check::TensorCheck, Bool, Data, Float, Int, Shape, TensorKind, Element
 };
 
 /// A tensor with a given backend, shape and data type.
@@ -291,6 +291,11 @@ where
         self.reshape(shape)
     }
 
+
+
+
+
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
@@ -552,7 +557,183 @@ where
 
         tensors
     }
+
+
+
+/// Pads the tensor according to the specified padding configuration and mode.
+///
+/// This method pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
+/// Currently, only constant padding mode is implemented, which pads the tensor with a constant value.
+///
+/// # Arguments
+///
+/// * `pad` - A `Padding` struct specifying the size of padding in each dimension.
+/// * `pad_mode` - The padding mode, determining how the padding is applied. Currently, only `PadMode::Constant` is supported.
+/// * `value` - The value to be used for padding in constant mode.
+///
+/// # Returns
+///
+/// A new `Tensor<B, D, K>` instance with the specified padding applied.
+///
+/// # Example
+///
+/// ```rust
+/// use burn_tensor::backend::Backend;
+/// use burn_tensor::{Tensor, Padding, PadMode, TensorKind, BasicOps,Element};
+///
+/// fn pad_example<B: Backend>()
+/// {
+///    let value = 1.1;
+///    let tensor = Tensor::<B, 4>::ones([1,1,3,3]);
+///    let padding = Padding::uniform(2);
+///
+///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(value));
+///    
+/// 
+/// 
+/// ```
+/// Pads the tensor with the specified padding configuration and padding mode.
+    pub fn pad_tensor(self, pad: Padding, pad_mode: PadMode,value:Option<K::Elem>) -> Tensor<B, D, K> 
+        where
+        K::Elem: Element,
+    {    
+        match pad_mode {
+            PadMode::Constant => {
+                let padding_value = value.expect("Padding value required for Constant mode");
+                let mut padded_dims: [usize; D] = self.dims();
+    
+                // Update the last two dimensions with padding
+                padded_dims[D - 2] += pad.top + pad.bottom;
+                padded_dims[D - 1] += pad.left + pad.right;
+    
+                // Initialize ranges for all dimensions
+                let ranges: [Range<usize>;D] = padded_dims
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &dim)| {
+                        if i == D - 2 { // Second last dimension
+                            pad.top..dim - pad.bottom
+                        } else if i == D - 1 { // Last dimension
+                            pad.left..dim - pad.right
+                        } else {
+                            0..dim // Other dimensions remain unchanged
+                        }
+                    }).collect::<Vec<Range<usize>>>()
+                    .try_into()
+                    .unwrap();
+    
+                // Create the padded tensor
+                let padded_shape = Shape::from(padded_dims);
+                let padded_data = Data::full(padded_shape, padding_value);
+                let padded_tensor = Tensor::<B, D, K>::from_data(padded_data);
+    
+                // Assign the original tensor data to the appropriate slice of the padded tensor
+                padded_tensor.slice_assign(ranges, self)
+            },
+            // Other padding modes
+        }
+    }
 }
+
+/// Represents the different modes of padding that can be applied to a tensor.
+pub enum PadMode
+{
+    /// Pads the tensor with a constant value.
+    Constant,
+    // Reflect,
+    // Replicate,
+    // Other modes can be added here
+}
+
+/// Represents padding quantity for a tensor.
+pub struct Padding {
+    /// The number of padding elements at the top of the tensor (beginning of 1st dimension of padding).
+    pub top: usize,
+    /// The number of padding elements at the bottom of the tensor (end of 1st dimension of padding).
+    pub bottom: usize,
+    /// The number of padding elements at the left of the tensor (beginning of 2nd dimension of padding).
+    pub left: usize,
+    /// The number of padding elements at the right of the tensor (end of 2nd dimension of padding).
+    pub right: usize,
+}
+
+impl Padding {
+    /// Creates a padding configuration with uniform padding on all sides.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The number of elements to pad on all sides.
+    ///
+    /// # Returns
+    ///
+    /// A `Padding` configuration with uniform padding on all sides.
+    pub fn uniform(value: usize) -> Self {
+        Self {
+            top: value,
+            bottom: value,
+            left: value,
+            right: value,
+        }
+    }
+
+    /// Creates a padding configuration with asymmetric padding on each side.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - An array of size 4 representing the padding values for top, bottom, left, and right sides respectively.
+    ///
+    /// # Returns
+    ///
+    /// A `Padding` configuration with asymmetric padding on each side.
+    pub fn asymmetric(value: [usize; 4]) -> Self {
+        Self {
+            top: value[0],
+            bottom: value[1],
+            left: value[2],
+            right: value[3],
+        }
+    }
+
+    /// Creates a padding configuration with padding applied only to the height dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - An array of size 2 representing the padding values for the top and bottom sides respectively.
+    ///
+    /// # Returns
+    ///
+    /// A `Padding` configuration with padding applied only to the height dimension.
+    pub fn height(value: [usize; 2]) -> Self {
+        Self {
+            top: value[0],
+            bottom: value[1],
+            left: 0,
+            right: 0,
+        }
+    }
+
+    /// Creates a padding configuration with padding applied only to the width dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - An array of size 2 representing the padding values for the left and right sides respectively.
+    ///
+    /// # Returns
+    ///
+    /// A `Padding` configuration with padding applied only to the width dimension.
+    pub fn width(value: [usize; 2]) -> Self {
+        Self {
+            top: 0,
+            bottom: 0,
+            left: value[0],
+            right: value[1],
+        }
+    }
+
+}
+
+
+
 
 /// Iterator given by (Tensor::iter_dim).
 pub struct DimIter<B, const D: usize, K>
