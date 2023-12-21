@@ -2,7 +2,9 @@ mod dummy;
 
 use std::sync::Arc;
 
-use crate::dummy::{client, client2, DummyDevice, DummyElementwiseAddition};
+use burn_compute::Compute;
+
+use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
 
 use serial_test::serial;
 
@@ -197,7 +199,8 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
 fn autotune_cache_different_checksums_return_a_cache_miss() {
     // we use two clients in order to have freshly initialized autotune caches
     let client1 = client(&DummyDevice);
-    let client2 = client2(&DummyDevice);
+    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let client2 = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test both shapes [1,3] and [1,4] end up with the same key name
     // which is 'cache_test-1,4'
