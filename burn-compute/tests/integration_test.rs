@@ -163,6 +163,41 @@ fn autotune_cache_empty_cache_return_a_cache_miss() {
 #[test]
 #[serial]
 #[cfg(feature = "std")]
+fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
+    // delete the cache file
+    let file_path = burn_compute::tune::get_persistent_cache_file_path();
+    let parent_dir = file_path
+        .parent()
+        .expect("Cache file should have a parent directory");
+    // Delete the cache file's parent directory
+    let _ = std::fs::remove_dir_all(parent_dir);
+
+    let client = client(&DummyDevice);
+
+    // in this test shapes [1,3] and [1,5] ends up with different key names
+    // which are 'cache_test-1,4' and 'cache_test-1,8'
+    let shapes = vec![vec![1, 3], vec![1, 3], vec![1, 3]];
+    let lhs = client.create(&[0, 1, 2]);
+    let rhs = client.create(&[4, 4, 4]);
+    let out = client.empty(3);
+    let handles = vec![lhs, rhs, out];
+
+    let cache_test_autotune_kernel =
+        dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes, handles);
+    client.execute_autotune(Box::new(cache_test_autotune_kernel));
+    // ensure that the autotune operations are run and cached
+    client.sync();
+
+    assert!(
+        parent_dir.exists(),
+        "Parent directory of the cache file should exist"
+    );
+    assert!(file_path.exists(), "Cache file should exist");
+}
+
+#[test]
+#[serial]
+#[cfg(feature = "std")]
 fn autotune_cache_different_keys_return_a_cache_miss() {
     let client = client(&DummyDevice);
 
