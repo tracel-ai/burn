@@ -85,12 +85,12 @@ impl ConfigStructAnalyzer {
         });
 
         quote! {
-            impl burn::serde::Serialize for #name {
+            impl serde::Serialize for #name {
 
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
-                    S: burn::serde::Serializer {
-                    #[derive(burn::serde::Serialize)]
+                    S: serde::Serializer {
+                    #[derive(serde::Serialize)]
                     #struct_gen
 
                     let serde_state = #struct_name {
@@ -116,11 +116,11 @@ impl ConfigStructAnalyzer {
         });
 
         quote! {
-            impl<'de> burn::serde::Deserialize<'de> for #name {
+            impl<'de> serde::Deserialize<'de> for #name {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
-                    D: burn::serde::Deserializer<'de> {
-                    #[derive(burn::serde::Deserialize)]
+                    D: serde::Deserializer<'de> {
+                    #[derive(serde::Deserialize)]
                     #struct_gen
 
                     let serde_state = #struct_name::deserialize(deserializer)?;
@@ -146,6 +146,10 @@ impl ConfigStructAnalyzer {
 }
 
 impl ConfigAnalyzer for ConfigStructAnalyzer {
+    fn name(&self) -> Ident {
+        self.name.clone()
+    }
+
     fn gen_new_fn(&self) -> TokenStream {
         let mut body = quote! {};
         let mut names = Vec::new();

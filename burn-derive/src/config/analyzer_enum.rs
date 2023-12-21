@@ -80,10 +80,10 @@ impl ConfigEnumAnalyzer {
         let name = &self.name;
 
         quote! {
-            impl burn::serde::Serialize for #name {
+            impl serde::Serialize for #name {
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
-                    S: burn::serde::Serializer {
+                    S: serde::Serializer {
                     let serde_state = match self {
                         #(#variants),*
                     };
@@ -105,10 +105,10 @@ impl ConfigEnumAnalyzer {
         let name = &self.name;
 
         quote! {
-            impl<'de> burn::serde::Deserialize<'de> for #name {
+            impl<'de> serde::Deserialize<'de> for #name {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
-                    D: burn::serde::Deserializer<'de> {
+                    D: serde::Deserializer<'de> {
                     let serde_state = #enum_name::deserialize(deserializer)?;
                     Ok(match serde_state {
                         #(#variants),*
@@ -121,6 +121,10 @@ impl ConfigEnumAnalyzer {
 }
 
 impl ConfigAnalyzer for ConfigEnumAnalyzer {
+    fn name(&self) -> Ident {
+        self.name.clone()
+    }
+
     fn gen_serde_impl(&self) -> TokenStream {
         let struct_gen = self.gen_serde_enum();
         let serialize_gen = self.gen_serialize_fn();

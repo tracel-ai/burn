@@ -8,6 +8,14 @@ use syn::{Field, Ident};
 pub struct ConfigAnalyzerFactory {}
 
 pub trait ConfigAnalyzer {
+    fn name(&self) -> Ident;
+    fn module_name(&self) -> Ident {
+        let name = self.name();
+        Ident::new(
+            format!("_{}_codegen", name.to_string().to_lowercase()).as_str(),
+            name.span(),
+        )
+    }
     fn gen_new_fn(&self) -> TokenStream {
         quote! {}
     }
