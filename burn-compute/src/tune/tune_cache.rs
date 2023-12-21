@@ -119,7 +119,7 @@ impl<K: AutotuneKey> TuneCache<K> {
     #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn load(&mut self) -> Result<(), io::Error> {
         let file_path = get_persistent_cache_file_path();
-        // note: reading file ro memory is faster than using
+        // note: reading file from memory is faster than using
         // serde from_reader with a buffered reader
         // see issue:
         // https://github.com/serde-rs/json/issues/160
