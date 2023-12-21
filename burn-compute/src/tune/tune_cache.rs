@@ -6,9 +6,11 @@ mod std_imports {
     pub use std::path::Path;
     pub use std::path::PathBuf;
 }
-
 #[cfg(feature = "autotune-persistent-cache")]
 use std_imports::*;
+
+#[cfg(feature = "autotune-persistent-cache")]
+use serde::{Serialize, Deserialize};
 
 use super::AutotuneKey;
 use super::AutotuneOperation;
@@ -25,12 +27,27 @@ pub fn get_persistent_cache_file_path() -> PathBuf {
     path.join("autotune-cache.json")
 }
 
+/// In-memory cache entry
+#[derive(Debug)]
+pub(crate) struct InMemoryCacheEntry {
+    checksum_checked: bool,
+    fastest_index: usize,
+}
+
+/// Persistent cache entry
+#[cfg(feature = "autotune-persistent-cache")]
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct PersistentCacheEntry {
+    checksum: String,
+    fastest_index: usize,
+}
+
 /// Use to find and reuse the best kernel for some input
 #[derive(Debug)]
 pub(crate) struct TuneCache<K> {
-    cache: HashMap<K, (bool, usize)>,
+    in_memory_cache: HashMap<K, InMemoryCacheEntry>,
     #[cfg(feature = "autotune-persistent-cache")]
-    persistent_cache: HashMap<K, (String, usize)>,
+    persistent_cache: HashMap<K, PersistentCacheEntry>,
 }
 
 /// Result of the cache try
@@ -46,7 +63,7 @@ impl<K: AutotuneKey> TuneCache<K> {
         #[cfg(feature = "autotune-persistent-cache")]
         {
             let mut cache = TuneCache {
-                cache: HashMap::new(),
+                in_memory_cache: HashMap::new(),
                 persistent_cache: HashMap::new(),
             };
             if let Err(e) = cache.load() {
@@ -71,30 +88,30 @@ impl<K: AutotuneKey> TuneCache<K> {
         autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
     ) -> TuneCacheResult<K> {
         let key = autotune_operation_set.key();
-        let result = self.cache.get_mut(&key);
+        let result = self.in_memory_cache.get_mut(&key);
 
         #[cfg(feature = "autotune-persistent-cache")]
         {
-            if let Some((is_checked, index)) = result {
-                if !*is_checked {
+            if let Some(entry) = result {
+                if !entry.checksum_checked {
                     let checksum = autotune_operation_set.compute_checksum();
-                    let (expected_checksum, _) = self
+                    let persistent_entry = self
                         .persistent_cache
                         .get(&key)
                         .expect("Both caches should be in sync");
-                    if &checksum != expected_checksum {
+                    if checksum != persistent_entry.checksum {
                         return TuneCacheResult::Miss(autotune_operation_set);
                     }
-                    *is_checked = true;
+                    entry.checksum_checked = true;
                 }
-                return TuneCacheResult::Hit(autotune_operation_set.fastest(*index));
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(entry.fastest_index));
             }
         }
 
         #[cfg(not(feature = "autotune-persistent-cache"))]
         {
-            if let Some((_is_checked, index)) = result {
-                return TuneCacheResult::Hit(autotune_operation_set.fastest(*index));
+            if let Some(entry) = result {
+                return TuneCacheResult::Hit(autotune_operation_set.fastest(entry.fastest_index));
             }
         }
 
@@ -102,7 +119,10 @@ impl<K: AutotuneKey> TuneCache<K> {
     }
 
     pub(crate) fn cache_insert(&mut self, key: K, fastest_index: usize) {
-        self.cache.insert(key, (true, fastest_index));
+        self.in_memory_cache.insert(key, InMemoryCacheEntry {
+            checksum_checked: true,
+            fastest_index,
+        });
     }
 
     #[cfg(feature = "autotune-persistent-cache")]
@@ -112,7 +132,10 @@ impl<K: AutotuneKey> TuneCache<K> {
         checksum: String,
         fastest_index: usize,
     ) {
-        self.persistent_cache.insert(key, (checksum, fastest_index));
+        self.persistent_cache.insert(key, PersistentCacheEntry {
+            checksum,
+            fastest_index,
+        });
     }
 
     /// Load the persistent cache data from disk
@@ -125,7 +148,7 @@ impl<K: AutotuneKey> TuneCache<K> {
         // https://github.com/serde-rs/json/issues/160
         match fs::read_to_string(file_path) {
             Ok(data) => {
-                let data: Vec<(K, (String, usize))> = serde_json::from_str(&data)?;
+                let data: Vec<(K, PersistentCacheEntry)> = serde_json::from_str(&data)?;
                 for (key, value) in data.into_iter() {
                     self.persistent_cache.insert(key, value);
                 }
@@ -139,8 +162,11 @@ impl<K: AutotuneKey> TuneCache<K> {
                 }
             }
         }?;
-        for (key, (_checksum, index)) in self.persistent_cache.iter() {
-            self.cache.insert(key.clone(), (false, *index));
+        for (key, entry) in self.persistent_cache.iter() {
+            self.in_memory_cache.insert(key.clone(), InMemoryCacheEntry {
+                checksum_checked: false,
+                fastest_index: entry.fastest_index,
+            });
         }
         Ok(())
     }
