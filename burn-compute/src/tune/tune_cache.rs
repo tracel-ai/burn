@@ -66,7 +66,6 @@ impl<K: AutotuneKey> TuneCache<K> {
         }
     }
 
-    #[allow(clippy::borrowed_box)]
     pub(crate) fn try_cache(
         &mut self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
