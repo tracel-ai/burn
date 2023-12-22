@@ -91,7 +91,8 @@ fn autotune_basic_multiplication_execution() {
 #[serial]
 #[cfg(feature = "std")]
 fn autotune_cache_same_key_return_a_cache_hit() {
-    let client = client(&DummyDevice);
+    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let client = compute.client(&DummyDevice, dummy::init_client);
 
     // note: the key name depends on the shapes of the operation set
     // see log_shape_input_key for more info.
@@ -126,12 +127,13 @@ fn autotune_cache_same_key_return_a_cache_hit() {
 #[test]
 #[serial]
 #[cfg(feature = "std")]
-fn autotune_cache_empty_cache_return_a_cache_miss() {
+fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     // delete the cache file
     let file_path = burn_compute::tune::get_persistent_cache_file_path(TUNER_DEVICE_ID);
     let _ = std::fs::remove_file(file_path);
 
-    let client = client(&DummyDevice);
+    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test shapes [1,3] and [1,5] ends up with different key names
     // which are 'cache_test-1,4' and 'cache_test-1,8'
@@ -154,6 +156,7 @@ fn autotune_cache_empty_cache_return_a_cache_miss() {
     client.execute_autotune(Box::new(cache_test_autotune_kernel_1));
     client.execute_autotune(Box::new(cache_test_autotune_kernel_2));
 
+    // read the resource which should update the cache on disk
     let obtained_resource = client.read(&out_2);
 
     // Cache should be missed, so CacheTestSlowOn3 (but faster on 5) should be used, returning rhs
@@ -172,7 +175,8 @@ fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // Delete the cache file's parent directory
     let _ = std::fs::remove_dir_all(parent_dir);
 
-    let client = client(&DummyDevice);
+    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test shapes [1,3] and [1,5] ends up with different key names
     // which are 'cache_test-1,4' and 'cache_test-1,8'
@@ -180,13 +184,13 @@ fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     let lhs = client.create(&[0, 1, 2]);
     let rhs = client.create(&[4, 4, 4]);
     let out = client.empty(3);
-    let handles = vec![lhs, rhs, out];
+    let handles = vec![lhs, rhs, out.clone()];
 
     let cache_test_autotune_kernel =
         dummy::CacheTestAutotuneOperationSet::new(client.clone(), shapes, handles);
     client.execute_autotune(Box::new(cache_test_autotune_kernel));
     // ensure that the autotune operations are run and cached
-    client.sync();
+    let _obtained_resource = client.read(&out);
 
     assert!(
         parent_dir.exists(),
