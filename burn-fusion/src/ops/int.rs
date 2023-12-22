@@ -434,7 +434,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let tensor_first = tensors.get(0).unwrap();
+        let tensor_first = tensors.first().unwrap();
         let client = tensor_first.client.clone();
 
         // Calculate the output shape

@@ -219,7 +219,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -262,7 +262,7 @@ pub fn gather_config(curr: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -355,7 +355,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -390,7 +390,7 @@ pub fn softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -417,7 +417,7 @@ pub fn concat_config(node: &Node) -> usize {
     let mut axis: i64 = 1;
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
