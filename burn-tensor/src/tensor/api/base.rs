@@ -15,7 +15,7 @@ use core::{fmt::Debug, ops::Range};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind,Element};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -603,7 +603,7 @@ where
                 // Create the padded tensor
                 let padded_shape = Shape::from(padded_dims);
                 let padded_data = Data::full(padded_shape, padding_value);
-                let padded_tensor = Tensor::<B, D, K>::from_data(padded_data);
+                let padded_tensor = Tensor::<B, D, K>::from_data_devauto(padded_data);
     
                 // Assign the original tensor data to the appropriate slice of the padded tensor
                 padded_tensor.slice_assign(ranges, self)

@@ -8,7 +8,7 @@ mod tests {
     
         let unpadded_data = [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]];
         let data = Data::from(unpadded_data);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
         let insert_num = 1.1;
     
         println!("Tensor from slice: {}", tensor);
@@ -41,7 +41,7 @@ mod tests {
             ],
         ];
         let data = Data::from(unpadded_data);
-        let tensor = Tensor::<TestBackend, 4>::from_data(data);
+        let tensor = Tensor::<TestBackend, 4>::from_data_devauto(data);
         let insert_num = 1.1;
 
         println!("Tensor from slice: {}", tensor);
@@ -80,7 +80,7 @@ mod tests {
             ],
         ];
         let data = Data::from(unpadded_data);
-        let tensor = Tensor::<TestBackend, 4>::from_data(data);
+        let tensor = Tensor::<TestBackend, 4>::from_data_devauto(data);
         let insert_num = 1.1;
 
         println!("Tensor from slice: {}", tensor);
@@ -118,7 +118,7 @@ mod tests {
             ],
         ];
         let data = Data::from(unpadded_data);
-        let tensor = Tensor::<TestBackend, 4,Int>::from_data(data);
+        let tensor = Tensor::<TestBackend, 4,Int>::from_data_devauto(data);
         let insert_num = 6;
 
         println!("Tensor from slice: {}", tensor);
