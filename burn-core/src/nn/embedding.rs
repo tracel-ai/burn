@@ -28,7 +28,7 @@ pub struct EmbeddingConfig {
 ///     `N(0, 1)`
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
+    pub weight: Param<Tensor<B, 2>>,
 }
 
 impl EmbeddingConfig {
