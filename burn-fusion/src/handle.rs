@@ -30,11 +30,13 @@ impl<B: FusionBackend> HandleContainer<B> {
 
     /// Register a handle for the given [tensor id](TensorId).
     pub fn register_handle(&mut self, id: TensorId, handle: B::Handle) {
+        // log::info!("Register handle {:?}", id);
         self.handles.insert(id, Handle::Existing(handle));
     }
 
     /// Get the handle for the given [tensor id](TensorId).
     pub fn get_handle(&mut self, tensor: &TensorDescription) -> B::Handle {
+        // log::info!("Pop handle {:?} - {:?}", tensor.id, tensor.status);
         let (id, handle) = self
             .handles
             .remove_entry(&tensor.id)
@@ -46,7 +48,11 @@ impl<B: FusionBackend> HandleContainer<B> {
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
                 }
-                TensorStatus::ReadWrite => handle,
+                TensorStatus::ReadWrite => {
+                    self.handles.insert(id, Handle::Existing(handle.clone()));
+                    handle
+                }
+
                 TensorStatus::NotInit => panic!("Cannot get uninitialized tensor."),
             },
             Handle::NotInit => panic!("Cannot get uninitialized handle."),
@@ -86,6 +92,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         id: &TensorId,
         tensor: B::TensorPrimitive<D>,
     ) {
+        // log::info!("Register tensor {:?}", id);
         let handle = B::float_tensor_handle(tensor);
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
@@ -96,6 +103,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         id: &TensorId,
         tensor: B::IntTensorPrimitive<D>,
     ) {
+        // log::info!("Register tensor {:?}", id);
         let handle = B::int_tensor_handle(tensor);
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
@@ -106,6 +114,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         id: &TensorId,
         tensor: B::BoolTensorPrimitive<D>,
     ) {
+        // log::info!("Register tensor {:?}", id);
         let handle = B::bool_tensor_handle(tensor);
         self.handles.insert(id.clone(), Handle::Existing(handle));
     }
@@ -113,6 +122,7 @@ impl<B: FusionBackend> HandleContainer<B> {
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
     pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
+        // log::info!("Init empty {:?}", id);
         self.counter += 1;
         self.handles.insert(id.clone(), Handle::NotInit);
 
@@ -124,6 +134,7 @@ impl<B: FusionBackend> HandleContainer<B> {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
             TensorStatus::ReadWrite => {
+                // log::info!("Free tensor {:?}", &tensor.id);
                 self.handles.remove(&tensor.id);
             }
         }
@@ -137,6 +148,7 @@ impl<B: FusionBackend> HandleContainer<B> {
             if remaining.contains(&&id) {
                 handles_orphan.push(id);
             } else {
+                // log::info!("Free orphan {:?}", id);
                 self.handles.remove(&id);
             }
         }

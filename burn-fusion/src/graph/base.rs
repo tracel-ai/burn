@@ -55,11 +55,12 @@ impl<B: FusionBackend> Graph<B> {
         handles: &mut HandleContainer<B>,
         optimization: &mut dyn Optimization<B>,
     ) {
-        let num_keep = optimization.len();
+        let num_fused = optimization.len();
+        // log::info!("Execute optimization num_fused={num_fused}");
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
 
-        self.cleanup_partial(num_keep, handles);
+        self.cleanup_partial(num_fused, handles);
     }
 
     pub(crate) fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
@@ -71,6 +72,7 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     fn cleanup_total(&mut self, handles: &mut HandleContainer<B>) {
+        // log::info!("Clean Total");
         self.global
             .iter()
             .flat_map(|desc| desc.nodes())
@@ -82,13 +84,14 @@ impl<B: FusionBackend> Graph<B> {
         self.cleanup_relative_graph();
     }
 
-    fn cleanup_partial(&mut self, num_keep: usize, handles: &mut HandleContainer<B>) {
-        self.global[0..num_keep]
+    fn cleanup_partial(&mut self, num_fused: usize, handles: &mut HandleContainer<B>) {
+        // log::info!("Clean partial");
+        self.global[0..num_fused]
             .iter()
             .flat_map(|desc| desc.nodes())
             .for_each(|tensor| handles.free(tensor));
 
-        self.global.drain(0..num_keep);
+        self.global.drain(0..num_fused);
 
         handles.free_orphans(
             &self
@@ -99,7 +102,7 @@ impl<B: FusionBackend> Graph<B> {
                 .collect::<Vec<_>>(),
         );
 
-        self.ops.drain(0..num_keep);
+        self.ops.drain(0..num_fused);
 
         // Rebuild the relative graph when partially removing the global graph.
         self.cleanup_relative_graph();
