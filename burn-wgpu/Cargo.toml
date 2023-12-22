@@ -12,7 +12,6 @@ version.workspace = true
 
 [features]
 default = ["autotune", "std"]
-# default = ["std"]
 std = []
 autotune = []
 fusion = ["burn-fusion"]

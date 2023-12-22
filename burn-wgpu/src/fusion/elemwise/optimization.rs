@@ -94,7 +94,6 @@ where
 {
     fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         if let Some(kernel) = self.cache.get(&self.id) {
-            // log::info!("Execute cache {}", self.id);
             kernel::execute_fusion(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
@@ -105,9 +104,7 @@ where
                 self.device.clone(),
             );
         } else {
-            // log::info!("Compile new id {}", self.id);
             let shader = self.compile();
-            // log::info!("Shader {:?}", self.operators);
 
             kernel::execute_fusion(
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
@@ -187,7 +184,6 @@ mod tests {
         ) -> Data<f32, 2> {
             let x = Tensor::<B, 2>::from_data(data1.convert(), &Default::default());
             let y = Tensor::<B, 2, Int>::from_data(data2.convert(), &Default::default());
-            B::sync(&x.device());
 
             let x_1 = x.clone().powf(2.0);
             let x_1 = x_1 + x;

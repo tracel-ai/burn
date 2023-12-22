@@ -56,7 +56,6 @@ impl<B: FusionBackend> Graph<B> {
         optimization: &mut dyn Optimization<B>,
     ) {
         let num_fused = optimization.len();
-        // log::info!("Execute optimization num_fused={num_fused}");
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
 
@@ -72,7 +71,6 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     fn cleanup_total(&mut self, handles: &mut HandleContainer<B>) {
-        // log::info!("Clean Total");
         self.global
             .iter()
             .flat_map(|desc| desc.nodes())
@@ -85,7 +83,6 @@ impl<B: FusionBackend> Graph<B> {
     }
 
     fn cleanup_partial(&mut self, num_fused: usize, handles: &mut HandleContainer<B>) {
-        // log::info!("Clean partial");
         self.global[0..num_fused]
             .iter()
             .flat_map(|desc| desc.nodes())
