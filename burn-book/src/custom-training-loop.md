@@ -7,8 +7,8 @@ training loop instead of using a pre-built one in general.
 
 Burn's got you covered!
 
-We will start from the same example shown in the [basic workflow](./basic-workflow)
-section, but without using the `Learner` struct.
+We will start from the same example shown in the [basic workflow](./basic-workflow) section, but
+without using the `Learner` struct.
 
 ```rust, ignore
 #[derive(Config)]
@@ -27,7 +27,7 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: &B::Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -36,7 +36,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init();
+    let mut model = config.model.init(device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
@@ -144,7 +144,8 @@ specifically `MNISTBatcher<B::InnerBackend>`; not using `model.valid()` will res
 error.
 
 You can find the code above available as an
-[example](https://github.com/burn-rs/burn/tree/main/examples/custom-training-loop) for you to test.
+[example](https://github.com/tracel-ai/burn/tree/main/examples/custom-training-loop) for you to
+test.
 
 ## Custom Type
 
@@ -207,7 +208,7 @@ This will result in the following compilation error:
    unconstrained type parameter [E0207]
 ```
 
-To resolve this issue, you have two options. The first one is to make your function is generic over
+To resolve this issue, you have two options. The first one is to make your function generic over
 the backend and add your trait constraint within its definition:
 
 ```rust, ignore

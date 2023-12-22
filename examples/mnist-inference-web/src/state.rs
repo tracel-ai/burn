@@ -1,4 +1,6 @@
 use crate::model::Model;
+#[cfg(feature = "wgpu")]
+use burn::backend::wgpu::WgpuDevice;
 use burn::module::Module;
 use burn::record::BinBytesRecorder;
 use burn::record::FullPrecisionSettings;
@@ -20,7 +22,7 @@ pub async fn build_and_load_model() -> Model<Backend> {
     #[cfg(feature = "wgpu")]
     init_async::<AutoGraphicsApi>(&WgpuDevice::default()).await;
 
-    let model: Model<Backend> = Model::new();
+    let model: Model<Backend> = Model::new(&Default::default());
     let record = BinBytesRecorder::<FullPrecisionSettings>::default()
         .load(STATE_ENCODED.to_vec())
         .expect("Failed to decode state");

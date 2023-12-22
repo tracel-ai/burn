@@ -68,16 +68,10 @@ mod tests {
         let shape: Shape<2> = [40, 40].into();
         let device = WgpuDevice::default();
 
-        let tensor_1 = Tensor::<TestBackend, 2>::random_device(
-            shape.clone(),
-            Distribution::Bernoulli(0.5),
-            &device,
-        );
-        let tensor_2 = Tensor::<TestBackend, 2>::random_device(
-            shape.clone(),
-            Distribution::Bernoulli(0.5),
-            &device,
-        );
+        let tensor_1 =
+            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
+        let tensor_2 =
+            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
         let mut diff_exists = false;
         for i in 0..shape.num_elements() {
             if tensor_1.to_data().value[i] != tensor_2.to_data().value[i] {
@@ -96,11 +90,8 @@ mod tests {
         let device = WgpuDevice::default();
         let prob = 0.7;
 
-        let tensor_1 = Tensor::<TestBackend, 2>::random_device(
-            shape.clone(),
-            Distribution::Bernoulli(prob),
-            &device,
-        );
+        let tensor_1 =
+            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(prob), &device);
 
         // High bound slightly over 1 so 1.0 is included in second bin
         let bin_stats = calculate_bin_stats(tensor_1.into_data().value, 2, 0., 1.1);
@@ -116,8 +107,7 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = WgpuDevice::default();
-        let tensor =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Bernoulli(0.5), &device);
+        let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Bernoulli(0.5), &device);
 
         let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 2, 0., 1.1);

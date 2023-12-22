@@ -8,8 +8,8 @@ mod tests {
         let data_1 = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_2 = Data::from([[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]]);
         let data_expected = Data::from([[-6.0, -6.0, -6.0], [-6.0, -6.0, -6.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data_devauto(data_2);
 
         let data_actual = (tensor_1 - tensor_2).into_data();
 
@@ -20,8 +20,8 @@ mod tests {
     fn test_sub_broadcast() {
         let data_1 = Data::from([[0.0, 1.0, 2.0]]);
         let data_2 = Data::from([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]);
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data_devauto(data_2);
 
         let data_actual = (tensor_1 - tensor_2).into_data();
 
@@ -33,7 +33,7 @@ mod tests {
     fn should_support_sub_scalar_ops() {
         let data = Data::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let scalar = 2.0;
-        let tensor = Tensor::<TestBackend, 2>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2>::from_data_devauto(data);
 
         let output = tensor - scalar;
 
@@ -47,8 +47,8 @@ mod tests {
         let data_1 = Data::from([[0, 1, 2], [3, 4, 5]]);
         let data_2 = Data::from([[6, 7, 8], [9, 10, 11]]);
         let data_expected = Data::from([[-6, -6, -6], [-6, -6, -6]]);
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data_devauto(data_2);
 
         let data_actual = (tensor_1 - tensor_2).into_data();
 
@@ -59,8 +59,8 @@ mod tests {
     fn test_sub_broadcast_int() {
         let data_1 = Data::from([[0, 1, 2]]);
         let data_2 = Data::from([[3, 4, 5], [6, 7, 8]]);
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data(data_1);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2);
+        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data_devauto(data_1);
+        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data_devauto(data_2);
 
         let data_actual = (tensor_1 - tensor_2).into_data();
 
@@ -72,7 +72,7 @@ mod tests {
     fn should_support_sub_scalar_ops_int() {
         let data = Data::from([[0, 1, 2], [3, 4, 5]]);
         let scalar = 2;
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data);
+        let tensor = Tensor::<TestBackend, 2, Int>::from_data_devauto(data);
 
         let output = tensor - scalar;
 

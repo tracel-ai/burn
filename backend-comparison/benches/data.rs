@@ -24,7 +24,7 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
     }
 
     fn prepare(&self) -> Self::Args {
-        Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
+        Tensor::random(self.shape.clone(), Distribution::Default, &self.device)
     }
 
     fn sync(&self) {
@@ -48,7 +48,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 
     fn execute(&self, (data, device): Self::Args) {
         for _ in 0..self.num_repeats {
-            let _data = Tensor::<B, D>::from_data_device(data.clone(), &device);
+            let _data = Tensor::<B, D>::from_data(data.clone(), &device);
         }
     }
 

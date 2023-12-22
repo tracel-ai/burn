@@ -1,20 +1,16 @@
 # Model
 
-The first step is to create a project and add the different Burn dependencies. In a `Cargo.toml`
-file, add the `burn`, `burn-wgpu`, `burn-dataset`, `burn-autodiff` and `burn-train`. Note that the
-`serde` dependency is necessary for serialization and is mandatory for the time being.
+The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml`
+file, add the `burn` dependency with `train` and `wgpu` features.
 
 ```toml
 [package]
-edition = "2021"
 name = "my-first-burn-model"
 version = "0.1.0"
+edition = "2021"
 
 [dependencies]
-burn = { version = "0.10.0", features=["train", "wgpu"]}
-
-# Serialization
-serde = "1"
+burn = { version = "0.12.0", features=["train", "wgpu"]}
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -24,7 +20,6 @@ pooling and ReLU activations. We will also use dropout to improve training perfo
 Let us start by creating a model in a file `model.rs`.
 
 ```rust , ignore
-// Import required for the model.rs file
 use burn::{
     config::Config,
     module::Module,
@@ -61,9 +56,9 @@ There are two major things going on in this code sample.
    backend. Contrary to other frameworks, the backend abstraction isn't determined by a compilation
    flag or a device type. This is important because you can extend the functionalities of a specific
    backend (see [backend extension section](../advanced/backend-extension)), and it allows for an
-   innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during runtime, for instance to compute
-   training metrics on a cpu backend while using a gpu one only to train the model. In our example,
-   the backend in use will be determined later on.
+   innovative [autodiff system](../building-blocks/autodiff.md). You can also change backend during
+   runtime, for instance to compute training metrics on a cpu backend while using a gpu one only to
+   train the model. In our example, the backend in use will be determined later on.
 
 Next, we need to instantiate the model for training.
 
@@ -78,14 +73,14 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self) -> Model<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
         Model {
-            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(),
-            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(),
+            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
+            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
             activation: ReLU::new(),
-            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(),
-            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(),
+            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
+            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
         }
     }

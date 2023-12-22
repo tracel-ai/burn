@@ -25,7 +25,7 @@ macro_rules! test_model {
             let model: $mod_name::Model<Backend> = $mod_name::Model::default();
 
             // Run the model with pi as input for easier testing
-            let input = Tensor::<Backend, 3>::full([6, 4, 10], consts::PI);
+            let input = Tensor::<Backend, 3>::full_devauto([6, 4, 10], consts::PI);
 
             let output = model.forward(input);
 

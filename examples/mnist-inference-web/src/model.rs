@@ -22,17 +22,17 @@ pub struct Model<B: Backend> {
 const NUM_CLASSES: usize = 10;
 
 impl<B: Backend> Model<B> {
-    pub fn new() -> Self {
-        let conv1 = ConvBlock::new([1, 8], [3, 3]); // out: [Batch,8,26,26]
-        let conv2 = ConvBlock::new([8, 16], [3, 3]); // out: [Batch,16,24x24]
-        let conv3 = ConvBlock::new([16, 24], [3, 3]); // out: [Batch,24,22x22]
+    pub fn new(device: &B::Device) -> Self {
+        let conv1 = ConvBlock::new([1, 8], [3, 3], device); // out: [Batch,8,26,26]
+        let conv2 = ConvBlock::new([8, 16], [3, 3], device); // out: [Batch,16,24x24]
+        let conv3 = ConvBlock::new([16, 24], [3, 3], device); // out: [Batch,24,22x22]
         let hidden_size = 24 * 22 * 22;
         let fc1 = nn::LinearConfig::new(hidden_size, 32)
             .with_bias(false)
-            .init();
+            .init(device);
         let fc2 = nn::LinearConfig::new(32, NUM_CLASSES)
             .with_bias(false)
-            .init();
+            .init(device);
 
         let dropout = nn::DropoutConfig::new(0.5).init();
 
@@ -74,11 +74,11 @@ pub struct ConvBlock<B: Backend> {
 }
 
 impl<B: Backend> ConvBlock<B> {
-    pub fn new(channels: [usize; 2], kernel_size: [usize; 2]) -> Self {
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &B::Device) -> Self {
         let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
-            .init();
-        let norm = nn::BatchNormConfig::new(channels[1]).init();
+            .init(device);
+        let norm = nn::BatchNormConfig::new(channels[1]).init(device);
 
         Self {
             conv,

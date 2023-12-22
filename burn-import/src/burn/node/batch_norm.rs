@@ -70,7 +70,8 @@ macro_rules! batch_norm_serialize {
     }};
 
     ($self:expr, $serializer:expr, $dim:expr) => {{
-        let record: BatchNormRecord<SerializationBackend, $dim> = batch_norm_serialize!(record $self);
+        let record: BatchNormRecord<SerializationBackend, $dim> =
+            batch_norm_serialize!(record $self);
         let item = Record::into_item::<PS>(record);
 
         item.serialize($serializer)
@@ -80,19 +81,19 @@ macro_rules! batch_norm_serialize {
         BatchNormRecord {
             gamma: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert()),
+                Tensor::from_data_devauto($self.gamma.clone().convert()),
             ),
             beta: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert()),
+                Tensor::from_data_devauto($self.beta.clone().convert()),
             ),
             running_mean: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_mean.clone().convert()),
+                Tensor::from_data_devauto($self.running_mean.clone().convert()),
             ),
             running_var: Param::new(
                 ParamId::new(),
-                Tensor::from_data($self.running_var.clone().convert()),
+                Tensor::from_data_devauto($self.running_var.clone().convert()),
             ),
             epsilon: ConstantRecord::new(),
             momentum: ConstantRecord::new(),
@@ -122,7 +123,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 
@@ -210,7 +211,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.norm.forward(input);
 

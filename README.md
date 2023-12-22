@@ -1,11 +1,11 @@
 <div align="center">
-<img src="./assets/logo-burn-neutral.webp" width="350px"/>
+<img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/logo-burn-neutral.webp" width="350px"/>
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
-[![Test Status](https://github.com/burn-rs/burn/actions/workflows/test.yml/badge.svg)](https://github.com/burn-rs/burn/actions/workflows/test.yml)
-[![CodeCov](https://codecov.io/gh/burn-rs/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/burn-rs/burn)
+[![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
+[![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
 [![Rust Version](https://img.shields.io/badge/Rust-1.71.0+-blue)](https://releases.rs/docs/1.71.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
@@ -21,7 +21,7 @@
 ## Performance
 
 <div align="left">
-<img align="right" src="./assets/ember-blazingly-fast.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-blazingly-fast.png" height="96px"/>
 
 Because we believe the goal of a deep learning framework is to convert computation into useful intelligence, we have made performance a core pillar of Burn.
 We strive to achieve top efficiency by leveraging multiple optimization techniques described below.
@@ -156,7 +156,7 @@ See [this section](https://burn.dev/book/advanced/backend-extension/index.html) 
 ## Training & Inference
 
 <div align="left">
-<img align="right" src="./assets/ember-wall.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-wall.png" height="96px"/>
 
 The whole deep learning workflow is made easy with Burn, as you can monitor your training progress with an ergonomic dashboard, and run inference everywhere from embedded devices to large GPU clusters.
 
@@ -169,7 +169,7 @@ Burn was built from the ground up with training and inference in mind. It's also
 <br />
 
 <a href="https://www.youtube.com/watch?v=N9RM5CQbNQc" target="_blank">
-    <img src="./assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
+    <img src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/burn-train-tui.png" alt="Burn Train TUI" width="75%">
   </a>
 </div>
 
@@ -238,7 +238,7 @@ Burn's core components support [no_std](https://docs.rust-embedded.org/book/intr
 ## Backends
 
 <div align="left">
-<img align="right" src="./assets/backend-chip.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
 We believe this flexibility is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
 </div>
@@ -379,7 +379,7 @@ fn main() {
 
 ```
 
-Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operations, which will work gracefully with the fusion backend to make your code run even faster during training, see [this issue](https://github.com/burn-rs/burn/issues/936).
+Of note, we plan to implement automatic gradient checkpointing based on compute bound and memory bound operations, which will work gracefully with the fusion backend to make your code run even faster during training, see [this issue](https://github.com/tracel-ai/burn/issues/936).
 
 See the [Fusion Backend README](./burn-fusion/README.md) for more details.
 
@@ -390,7 +390,7 @@ See the [Fusion Backend README](./burn-fusion/README.md) for more details.
 ## Getting Started
 
 <div align="left">
-<img align="right" src="./assets/ember-walking.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-walking.png" height="96px"/>
 
 Just heard of Burn? You are at the right place! Just continue reading this section and we hope you can get on board really quickly.
 
@@ -456,7 +456,7 @@ Pre-trained Models 🤖
 </summary>
 <br />
 
-We keep an updated and curated list of models and examples built with Burn, see the [burn-rs/models repository](https://github.com/burn-rs/models) for more details.
+We keep an updated and curated list of models and examples built with Burn, see the [tracel-ai/models repository](https://github.com/tracel-ai/models) for more details.
 
 Don't see the model you want? Don't hesitate to open an issue, and we may prioritize it.
 Built a model using Burn and want to share it?
@@ -491,7 +491,7 @@ Although Rust has the reputation of being a difficult language at first, we stro
 ## Community
 
 <div align="left">
-<img align="right" src="./assets/ember-community.png" height="96px"/>
+<img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/ember-community.png" height="96px"/>
 
 If you are excited about the project, don't hesitate to join our [Discord](https://discord.gg/uPEBbYYDB6)!
 We try to be as welcoming as possible to everybody from any background.
@@ -504,9 +504,9 @@ You can ask your questions and share what you built with the community!
 **Contributing**
 
 Before contributing, please take a moment to review our
-[code of conduct](https://github.com/burn-rs/burn/tree/main/CODE-OF-CONDUCT.md).
+[code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md).
 It's also highly recommended to read our
-[architecture document](https://github.com/burn-rs/burn/tree/main/ARCHITECTURE.md), which explains some of our architectural decisions.
+[architecture document](https://github.com/tracel-ai/burn/tree/main/ARCHITECTURE.md), which explains some of our architectural decisions.
 Refer to out [contributing guide](/CONTRIBUTING.md) for more details.
 
 ## Status

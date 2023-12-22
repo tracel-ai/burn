@@ -182,8 +182,8 @@ mod tests {
 
     #[test]
     fn reduction_sum_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
 
         let val = Tensor::<TestBackend, 1>::from_primitive(sum(tensor.into_primitive()));
         let val_ref = tensor_ref.sum();
@@ -193,8 +193,8 @@ mod tests {
 
     #[test]
     fn reduction_sum_dim_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 1024], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
@@ -210,8 +210,8 @@ mod tests {
 
     #[test]
     fn reduction_args_dim_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 1024], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
 
         let val = Tensor::<TestBackend, 2, Int>::from_primitive(argmax(tensor.into_primitive(), 1));
         let val_ref = tensor_ref.argmax(1);

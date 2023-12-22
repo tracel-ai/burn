@@ -107,8 +107,9 @@ mod tests {
 
     #[test]
     fn avg_pool2d_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(tensor.to_data());
         let kernel_size = [3, 4];
         let stride = [1, 2];
         let padding = [1, 2];
@@ -127,8 +128,9 @@ mod tests {
     fn avg_pool2d_backward_should_work_with_multiple_invocations() {
         TestBackend::seed(0);
         ReferenceBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 4>::random_devauto([32, 32, 32, 32], Distribution::Default);
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(tensor.to_data());
         let kernel_size = [3, 3];
         let stride = [1, 1];
         let padding = [1, 1];
@@ -142,8 +144,10 @@ mod tests {
             count_include_pad,
         )
         .shape();
-        let grad_output = Tensor::<TestBackend, 4>::random(shape_out, Distribution::Default);
-        let grad_output_ref = Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data());
+        let grad_output =
+            Tensor::<TestBackend, 4>::random_devauto(shape_out, Distribution::Default);
+        let grad_output_ref =
+            Tensor::<ReferenceBackend, 4>::from_data_devauto(grad_output.to_data());
 
         let grad: Tensor<TestBackend, 4> =
             Tensor::from_primitive(TestBackend::avg_pool2d_backward(

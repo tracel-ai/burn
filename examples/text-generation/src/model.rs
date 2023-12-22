@@ -33,13 +33,13 @@ pub struct TextGenerationModel<B: Backend> {
 }
 
 impl TextGenerationModelConfig {
-    pub fn init<B: Backend>(&self) -> TextGenerationModel<B> {
-        let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init();
-        let transformer = self.transformer.init();
+    pub fn init<B: Backend>(&self, device: &B::Device) -> TextGenerationModel<B> {
+        let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init(device);
+        let transformer = self.transformer.init(device);
         let embedding_token =
-            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init(device);
         let embedding_pos =
-            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init();
+            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init(device);
 
         TextGenerationModel {
             transformer,
@@ -64,7 +64,7 @@ impl<B: Backend> TextGenerationModel<B> {
         let targets = item.targets.to_device(device);
         let mask_pad = item.mask_pad.to_device(device);
 
-        let index_positions = Tensor::arange_device(0..seq_length, device)
+        let index_positions = Tensor::arange(0..seq_length, device)
             .reshape([1, seq_length])
             .repeat(0, batch_size);
 

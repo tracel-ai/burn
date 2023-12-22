@@ -33,15 +33,21 @@ impl<B: FusionBackend> HandleContainer<B> {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
-    /// Get the handle for the given [tensor id](TensorId).
-    pub fn get_handle(&mut self, tensor: &TensorDescription) -> B::Handle {
+    /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
+    /// tensor should be popped out of the current tensor map, necessary for inplace operations.
+    ///
+    /// # Warnings
+    ///
+    /// Make sure the status corresponds to the operation you want to execute the handle on,
+    /// otherwise you might remove a tensor handle that will be required in the future.
+    pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> B::Handle {
         let (id, handle) = self
             .handles
-            .remove_entry(&tensor.id)
-            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", tensor.id));
+            .remove_entry(id)
+            .unwrap_or_else(|| panic!("Should have handle for tensor {:?}", id));
 
         match handle {
-            Handle::Existing(handle) => match tensor.status {
+            Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
@@ -59,7 +65,10 @@ impl<B: FusionBackend> HandleContainer<B> {
         &mut self,
         tensor: &TensorDescription,
     ) -> B::TensorPrimitive<D> {
-        B::float_tensor(self.get_handle(tensor), Shape::from(&tensor.shape))
+        B::float_tensor(
+            self.get_handle(&tensor.id, &tensor.status),
+            Shape::from(&tensor.shape),
+        )
     }
 
     /// Get the [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) corresponding to the
@@ -68,7 +77,10 @@ impl<B: FusionBackend> HandleContainer<B> {
         &mut self,
         tensor: &TensorDescription,
     ) -> B::IntTensorPrimitive<D> {
-        B::int_tensor(self.get_handle(tensor), Shape::from(&tensor.shape))
+        B::int_tensor(
+            self.get_handle(&tensor.id, &tensor.status),
+            Shape::from(&tensor.shape),
+        )
     }
 
     /// Get the [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) corresponding to the
@@ -77,7 +89,10 @@ impl<B: FusionBackend> HandleContainer<B> {
         &mut self,
         tensor: &TensorDescription,
     ) -> B::BoolTensorPrimitive<D> {
-        B::bool_tensor(self.get_handle(tensor), Shape::from(&tensor.shape))
+        B::bool_tensor(
+            self.get_handle(&tensor.id, &tensor.status),
+            Shape::from(&tensor.shape),
+        )
     }
 
     /// Register a new [float tensor](burn_tensor::backend::Backend::TensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -119,7 +134,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         Arc::new(id)
     }
 
-    pub(crate) fn cleanup(&mut self, tensor: &TensorDescription) {
+    pub(crate) fn free(&mut self, tensor: &TensorDescription) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),
@@ -129,9 +144,18 @@ impl<B: FusionBackend> HandleContainer<B> {
         }
     }
 
-    pub(crate) fn cleanup_orphans(&mut self) {
+    pub(crate) fn free_orphans(&mut self, remaining: &[&TensorId]) {
+        let mut handles_orphan = Vec::new();
+
+        // TODO: Optimization => Change the for loop order depending of the length of each.
         for id in self.handles_orphan.drain(..) {
-            self.handles.remove(&id);
+            if remaining.contains(&&id) {
+                handles_orphan.push(id);
+            } else {
+                self.handles.remove(&id);
+            }
         }
+
+        self.handles_orphan = handles_orphan;
     }
 }

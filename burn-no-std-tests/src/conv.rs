@@ -22,10 +22,10 @@ pub struct ConvBlockConfig {
 }
 
 impl<B: Backend> ConvBlock<B> {
-    pub fn new(config: &ConvBlockConfig) -> Self {
+    pub fn new(config: &ConvBlockConfig, device: &B::Device) -> Self {
         let conv = nn::conv::Conv2dConfig::new(config.channels, config.kernel_size)
             .with_padding(nn::PaddingConfig2d::Same)
-            .init();
+            .init(device);
         let pool = nn::pool::MaxPool2dConfig::new(config.kernel_size)
             .with_padding(nn::PaddingConfig2d::Same)
             .init();

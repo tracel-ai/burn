@@ -26,7 +26,7 @@ pub struct Data<E, const D: usize> {
 }
 
 /// Distribution for random value of a tensor.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Distribution {
     /// Uniform distribution from 0 (inclusive) to 1 (exclusive).
     Default,
@@ -321,7 +321,8 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
-                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance {tolerance}"
+                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
                     )
                     .as_str();
                 }

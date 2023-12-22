@@ -33,16 +33,23 @@ pub struct Embedding<B: Backend> {
 
 impl EmbeddingConfig {
     /// Initialize a new [embedding](Embedding) module.
-    pub fn init<B: Backend>(&self) -> Embedding<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Embedding<B> {
         let weight = self
             .initializer
-            .init([self.n_embedding, self.d_model])
+            .init([self.n_embedding, self.d_model], device)
             .require_grad();
 
         Embedding {
             weight: Param::from(weight),
         }
     }
+
+    /// Initialize a new [embedding](Embedding) module on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> Embedding<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
     pub fn init_with<B: Backend>(&self, record: EmbeddingRecord<B>) -> Embedding<B> {
         Embedding {
@@ -74,7 +81,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = EmbeddingConfig::new(100, 10);
-        let embed = config.init::<TestBackend>();
+        let embed = config.init_devauto::<TestBackend>();
         let weights = embed.weight.val().reshape([1000]);
         let (var_act, mean_act) = weights.var_mean(0);
 
@@ -96,7 +103,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = EmbeddingConfig::new(5, 5).with_initializer(Initializer::Zeros);
-        let embed = config.init::<TestBackend>();
+        let embed = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
         embed

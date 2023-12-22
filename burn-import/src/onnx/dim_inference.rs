@@ -62,38 +62,44 @@ pub fn dim_inference(
         updater.update_tensor_inputs(node);
 
         match node.node_type {
+            NodeType::Add => same_as_input(node),
+            NodeType::AveragePool2d => same_as_input(node),
+            NodeType::BatchNormalization => same_as_input(node),
+            NodeType::Cast => cast_update_outputs(node),
+            NodeType::Clip => same_as_input(node),
+            NodeType::Concat => concat_update_outputs(node),
+            NodeType::Constant => constant_update_outputs(node),
             NodeType::Conv1d => conv1d_update_outputs(node),
             NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::MaxPool2d => same_as_input(node),
-            NodeType::Linear => linear_update_outputs(node),
-            NodeType::Flatten => flatten_update_outputs(node),
-            NodeType::GatherElements => same_as_input(node),
-            NodeType::Relu => same_as_input(node),
-            NodeType::LogSoftmax => same_as_input(node),
-            NodeType::BatchNormalization => same_as_input(node),
-            NodeType::Add => same_as_input(node),
-            NodeType::Sub => same_as_input(node),
-            NodeType::Mul => same_as_input(node),
-            NodeType::Cast => cast_update_outputs(node),
+            NodeType::Cos => same_as_input(node),
             NodeType::Div => same_as_input(node),
-            NodeType::Erf => same_as_input(node),
-            NodeType::Sqrt => same_as_input(node),
-            NodeType::Tanh => same_as_input(node),
-            NodeType::Reciprocal => same_as_input(node),
-            NodeType::Softmax => same_as_input(node),
-            NodeType::ReduceMean => mean_update_outputs(node),
-            NodeType::Constant => constant_update_outputs(node),
-            NodeType::Equal => equal_update_outputs(node),
-            NodeType::Shape => shape_update_outputs(node),
-            NodeType::Unsqueeze => unsqueeze_update_outputs(node),
-            NodeType::Sigmoid => same_as_input(node),
-            NodeType::Transpose => same_as_input(node),
-            NodeType::Concat => concat_update_outputs(node),
-            NodeType::Reshape => reshape_update_outputs(node),
             NodeType::Dropout => same_as_input(node),
+            NodeType::Equal => equal_update_outputs(node),
+            NodeType::Erf => same_as_input(node),
+            NodeType::Exp => same_as_input(node),
+            NodeType::Flatten => flatten_update_outputs(node),
+            NodeType::Gelu => same_as_input(node),
+            NodeType::GatherElements => same_as_input(node),
             NodeType::GlobalAveragePool => same_as_input(node),
-            NodeType::AveragePool2d => same_as_input(node),
-            NodeType::Clip => same_as_input(node),
+            NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+            NodeType::Linear => linear_update_outputs(node),
+            NodeType::Log => same_as_input(node),
+            NodeType::LogSoftmax => same_as_input(node),
+            NodeType::MaxPool2d => same_as_input(node),
+            NodeType::Mul => same_as_input(node),
+            NodeType::Neg => same_as_input(node),
+            NodeType::Reciprocal => same_as_input(node),
+            NodeType::ReduceMean => mean_update_outputs(node),
+            NodeType::Relu => same_as_input(node),
+            NodeType::Reshape => reshape_update_outputs(node),
+            NodeType::Shape => shape_update_outputs(node),
+            NodeType::Sigmoid => same_as_input(node),
+            NodeType::Softmax => same_as_input(node),
+            NodeType::Sqrt => same_as_input(node),
+            NodeType::Sub => same_as_input(node),
+            NodeType::Tanh => same_as_input(node),
+            NodeType::Transpose => same_as_input(node),
+            NodeType::Unsqueeze => unsqueeze_update_outputs(node),
             // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
             _ => temporary_pass_through_stub(node),
         }
@@ -310,7 +316,7 @@ fn same_as_input(node: &mut Node) {
 }
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
-fn temporary_pass_through_stub(node: &mut Node) {
+fn temporary_pass_through_stub(node: &Node) {
     log::warn!(
         "Must implement dimension inference for {:?}",
         node.node_type
@@ -389,6 +395,16 @@ fn conv1d_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 fn conv2d_update_outputs(node: &mut Node) {
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
+
+/// Infers the shape of a ConvTranspose2d node and replaces the shape of the output tensor.
+fn conv_transpose2d_update_outputs(node: &mut Node) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);

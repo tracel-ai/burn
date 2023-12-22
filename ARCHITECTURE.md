@@ -1,21 +1,29 @@
-<!-- 
+<!--
 TODO: Add the following sections:
 # Tenets
-# Design Philosophy 
+# Design Philosophy
 -->
 
 # Architecture
 
 This file documents most major architectural decisions with the reasoning behind them.
 
-__Sections__
+**Sections**
 
-* [Module](#module)
-  * [Optimization](#optimization)
-  * [Serialization](#serialization)
-* [Tensor](#tensor)
-    * [Backend](#backend)
-    * [Autodiff](#autodiff)
+- [Architecture](#architecture)
+  - [Module](#module)
+    - [Optimization](#optimization)
+      - [Constraints](#constraints)
+      - [Solution](#solution)
+    - [Serialization](#serialization)
+      - [Constraints](#constraints-1)
+      - [Solution](#solution-1)
+        - [Pros](#pros)
+        - [Cons](#cons)
+        - [Compatibility](#compatibility)
+    - [Tensor](#tensor)
+      - [Backend](#backend)
+      - [Autodiff](#autodiff)
 
 ## Module
 
@@ -30,13 +38,13 @@ Optimization is normally done with gradient descent (or ascent for reinforcement
 
 #### Constraints
 
-1. __Users should be able to control what is optimized.__ 
-    Modules can contain anything for maximum flexibility, but not everything needs to be optimized.
-2. __Optimizers should have a serializable state that is updated during training.__
-    Many optimizers keep track of previous gradients to implement some form of momentum.
-    However, the state can be anything, not just tensors, allowing for easy implementation of any kind of optimizer.
-3. __The learning rate can be updated during training.__
-    Learning rate schedulers are often used during training and should be considered as a key aspect.
+1. **Users should be able to control what is optimized.**
+   Modules can contain anything for maximum flexibility, but not everything needs to be optimized.
+2. **Optimizers should have a serializable state that is updated during training.**
+   Many optimizers keep track of previous gradients to implement some form of momentum.
+   However, the state can be anything, not just tensors, allowing for easy implementation of any kind of optimizer.
+3. **The learning rate can be updated during training.**
+   Learning rate schedulers are often used during training and should be considered as a key aspect.
 
 #### Solution
 
@@ -54,12 +62,12 @@ The `Module` trait has two ways to navigate over parameters.
 The first one is the `map` function, which returns `Self` and makes it easy to implement any transformation and mutate all parameters.
 The second one is the `visit` function, which has a similar signature but does not mutate the parameter tensors.
 
-__SimpleOptimizer__
+**SimpleOptimizer**
 
 The `SimpleOptimizer` has two major assumptions:
 
 1. The state of the optimizer is linked to each parameter.
-In other words, each parameter has its own optimizer state, decoupled from the other parameters.
+   In other words, each parameter has its own optimizer state, decoupled from the other parameters.
 2. The state of the optimizer implements `Record`, `Clone`, and has a `'static` lifetime.
 
 The benefits of those assumptions materialize in simplicity with little loss in flexibility.
@@ -67,7 +75,7 @@ The state associative type is also generic over the dimension, making it extreme
 
 To wrap a simple optimizer into the more general `Optimizer` trait, the `OptimizerAdaptor` struct is used.
 
-__OptimizerAdaptor__
+**OptimizerAdaptor**
 
 The `OptimizerAdaptor` is a simple struct composed of a `SimpleOptimizer` and a hashmap with all records associated with each parameter ID.
 When performing an optimization step, the adaptor handles the following:
@@ -75,7 +83,7 @@ When performing an optimization step, the adaptor handles the following:
 1. Updates each parameter tensor in the given module using the `Module::map` function.
 2. Checks if a gradient for the current tensor exists.
 3. Makes sure that the gradient, the tensor, and the optimizer state associated with the current parameter are on the same device.
-The device can be different if the state is loaded from disk to restart training.
+   The device can be different if the state is loaded from disk to restart training.
 4. Performs the simple optimizer step using the inner tensor since the operations done by the optimizer should not be tracked in the autodiff graph.
 5. Updates the state for the current parameter and returns the updated tensor, making sure it's properly registered into the autodiff graph if gradients are marked as required.
 
@@ -89,23 +97,23 @@ Despite appearing as a simple feature, it involves numerous constraints that req
 
 #### Constraints
 
-1. __Users should be able to declare the precision of the model to be saved, independent of the backend in use.__
+1. **Users should be able to declare the precision of the model to be saved, independent of the backend in use.**
 
-    The modules should not be duplicated in RAM in another precision to support this.
-    Conversion should be done lazily during (de)serialization.
+   The modules should not be duplicated in RAM in another precision to support this.
+   Conversion should be done lazily during (de)serialization.
 
-2. __Users should be able to add any field to a module, even fields that are not serializable.__
+2. **Users should be able to add any field to a module, even fields that are not serializable.**
 
-    This can include constants, database connections, other module references, or any other information.
-    Only parameters should be serialized since the structure of the module itself should be encapsulated with module configurations (hyper-parameters).
+   This can include constants, database connections, other module references, or any other information.
+   Only parameters should be serialized since the structure of the module itself should be encapsulated with module configurations (hyper-parameters).
 
-3. __Users should be able to declare the format in which the module should be saved.__
+3. **Users should be able to declare the format in which the module should be saved.**
 
-    This can involve saving to a compressed JSON file or directly to bytes in memory for `no-std` environments.
+   This can involve saving to a compressed JSON file or directly to bytes in memory for `no-std` environments.
 
-4. __Users should be able to create a module with its saved parameters without having to initialize the module first.__
+4. **Users should be able to create a module with its saved parameters without having to initialize the module first.**
 
-    This will avoid unnecessary module initialization and tensor loading, resulting in reduced cold start when dealing with inference.
+   This will avoid unnecessary module initialization and tensor loading, resulting in reduced cold start when dealing with inference.
 
 In addition to all of these constraints, the solution should be easy to use.
 
@@ -143,20 +151,20 @@ In addition, you can extend the current system with your own `Recorder` and `Pre
 
 ##### Pros
 
-* All constraints are respected.
-* The code is simple and easy to maintain, with very few conditional statements.
-It is just recursive data structures, where all the complexity is handled by the framework in primitive implementations.
-* The user API is simple and small, with only two derives (`Record` and `Module`) and no additional attributes.
-* Users can create their own `Module` and `Record` primitive types, which gives them the flexibility to control how their data is serialized without having to fork the framework.
+- All constraints are respected.
+- The code is simple and easy to maintain, with very few conditional statements.
+  It is just recursive data structures, where all the complexity is handled by the framework in primitive implementations.
+- The user API is simple and small, with only two derives (`Record` and `Module`) and no additional attributes.
+- Users can create their own `Module` and `Record` primitive types, which gives them the flexibility to control how their data is serialized without having to fork the framework.
 
 ##### Cons
 
-* There are more types, but most of them are automatically generated and single-purpose, so users don't need to interact with them for common use cases.
-However, they can do so if necessary.
-* When instantiating a new record manually, each field must be set to something, even if the type itself is `()`, which represents no value.
-Since the code generation step uses associative types, it doesn't know that a field type is actually nothing.
-Creating a record manually without using the generated function `into_record` or loading it from a file is only useful to load a set of parameters into a module from an arbitrary source.
-Using the record may not be the optimal solution to this problem, and another API could be created in the future.
+- There are more types, but most of them are automatically generated and single-purpose, so users don't need to interact with them for common use cases.
+  However, they can do so if necessary.
+- When instantiating a new record manually, each field must be set to something, even if the type itself is `()`, which represents no value.
+  Since the code generation step uses associative types, it doesn't know that a field type is actually nothing.
+  Creating a record manually without using the generated function `into_record` or loading it from a file is only useful to load a set of parameters into a module from an arbitrary source.
+  Using the record may not be the optimal solution to this problem, and another API could be created in the future.
 
 ##### Compatibility
 
@@ -171,34 +179,34 @@ The tensor API abstracts away backend implementation details and focuses on usab
 To make it as easy as possible to use, there is only one tensor type, which is different from multiple tensor and deep learning crates in Rust.
 Generic parameters are used instead to specialize the tensor type.
 
-* __B: Backend:__
-The first argument is the backend on which the tensor implementation lies.
-* __const D: usize:__
-The second argument is the dimensionality of the tensor.
-* __K: TensorKind:__
-The third argument is the tensor kind, which can be either Float, Int or Bool.
-By default, the tensor kind is set to Float, so for most tensors, the kind argument is not necessary.
+- **B: Backend:**
+  The first argument is the backend on which the tensor implementation lies.
+- **const D: usize:**
+  The second argument is the dimensionality of the tensor.
+- **K: TensorKind:**
+  The third argument is the tensor kind, which can be either Float, Int or Bool.
+  By default, the tensor kind is set to Float, so for most tensors, the kind argument is not necessary.
 
 Having one struct for tensors reduces the complexity of the tensor API, which also means less duplicated documentation to write and maintain.
 
 Tensors are thread-safe, which means that you can send a tensor to another thread, and everything will work, including auto-differentiation.
 Note that there are no in-place tensor operations since all tensor operations take owned tensors as parameters, which make it possible to mutate them.
 Tensors can be shared simply by cloning them, but if there is only one reference to a tensor, the backend implementation is free to reuse the tensor's allocated data.
-For more information about how it is done, you can have a look at this [blog post](https://burn-rs.github.io/blog/burn-rusty-approach-to-tensor-handling).
+For more information about how it is done, you can have a look at this [blog post](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).
 
 #### Backend
 
 The Backend trait abstracts multiple things:
 
-* Device type
-* Float tensor type
-* Bool tensor type
-* Int tensor type
-* Float element type
-* Int element type
-* Float tensor operations (kernels)
-* Int tensor operations (kernels)
-* Bool tensor operations (kernels)
+- Device type
+- Float tensor type
+- Bool tensor type
+- Int tensor type
+- Float element type
+- Int element type
+- Float tensor operations (kernels)
+- Int tensor operations (kernels)
+- Bool tensor operations (kernels)
 
 Even though having one type for tensors is convenient for the tensor API, it can be cumbersome when implementing a backend.
 Therefore, backends can decide, through associated types, what types they want to use for their int, float, and bool tensors.
@@ -219,4 +227,4 @@ Note that Burn is a dynamic graph deep learning framework, so backends may have 
 As of now, there is only one backend decorator that supports autodiff.
 It follows the decorator pattern, making any backend differentiable.
 However, the `AutodiffBackend` trait abstracts how gradients are calculated, and other approaches to autodiff might be added later.
-For more information about how the current autodiff backend works, you can read this [blog post](https://burn-rs.github.io/blog/burn-rusty-approach-to-tensor-handling).
+For more information about how the current autodiff backend works, you can read this [blog post](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).

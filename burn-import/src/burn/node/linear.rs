@@ -68,7 +68,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 
@@ -85,12 +85,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         let record = LinearRecord::<SerializationBackend> {
             weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert()),
+                Tensor::from_data_devauto(self.data_weights.clone().convert()),
             ),
-            bias: self
-                .data_bias
-                .as_ref()
-                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+            bias: self.data_bias.as_ref().map(|bias| {
+                Param::new(
+                    ParamId::new(),
+                    Tensor::from_data_devauto(bias.clone().convert()),
+                )
+            }),
         };
 
         let item = Record::into_item::<PS>(record);
@@ -164,7 +166,7 @@ mod tests {
                         phantom: core::marker::PhantomData,
                     }
                 }
-                #[allow(clippy::let_and_return)]
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
                     let output = self.linear.forward(input);
 

@@ -77,9 +77,9 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 1 },
         ))
-        .devices(vec![device])
+        .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
-        .build(Model::new(), config.optimizer.init(), 1e-4);
+        .build(Model::new(&device), config.optimizer.init(), 1e-4);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

@@ -106,32 +106,32 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::zeros_device(shape, &B::Device::default())
+    pub fn zeros_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::zeros(shape, &B::Device::default())
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::ones_device(shape, &B::Device::default())
+    pub fn ones_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
+        Self::ones(shape, &B::Device::default())
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::ones(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
-        Self::full_device(shape, fill_value, &B::Device::default())
+    pub fn full_devauto<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
+        Self::full(shape, fill_value, &B::Device::default())
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full_device<S: Into<Shape<D>>, E: ElementConversion>(
+    pub fn full<S: Into<Shape<D>>, E: ElementConversion>(
         shape: S,
         fill_value: E,
         device: &B::Device,
@@ -335,7 +335,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -380,7 +380,7 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -462,6 +462,97 @@ where
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
+
+    /// Returns the triangular part of a matrix (2-D tensor) or batch of matrices,
+    /// based on the specified comparison method, zeroing out the other elements.
+    ///
+    /// # Parameters
+    ///
+    /// - `diagonal`: The diagonal from which the triangular part is computed.
+    /// - `compare`: A comparison function determining which part of the triangle to zero out.
+    ///              Use `Tensor::<B, D, Int>::greater_elem` for upper triangular
+    ///              and `Tensor::<B, D, Int>::lower_elem` for lower triangular.
+    ///
+    pub(crate) fn tri_compare<F>(self, diagonal: i64, compare: F) -> Self
+    where
+        F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
+    {
+        check!(TensorCheck::tri::<{ D }>());
+
+        let shape = self.shape();
+        let height = shape.dims[D - 2];
+        let width = shape.dims[D - 1];
+
+        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height, &self.device());
+        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width, &self.device());
+
+        let mut row_shape = [1; D];
+        row_shape[D - 2] = height;
+        let mut col_shape = [1; D];
+        col_shape[D - 1] = width;
+
+        let row_broadcast = row_indices.reshape(Shape::new(row_shape));
+        let col_broadcast = col_indices.reshape(Shape::new(col_shape));
+
+        let mask = compare(row_broadcast - (col_broadcast - diagonal), 0).unsqueeze();
+
+        self.mask_fill(mask, 0)
+    }
+
+    /// Returns the upper triangular part of a matrix (2-D tensor) or batch of matrices input,
+    /// the other elements of the result tensor out are set to 0.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
+    ///    let tensor = tensor.triu(1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [
+    ///    //   [0, 2, 3],
+    ///    //   [0, 0, 6],
+    ///    //   [0, 0, 0]
+    ///    // ], ... }
+    /// }
+    /// ```
+    pub fn triu(self, diagonal: i64) -> Self {
+        self.tri_compare(diagonal, Tensor::greater_elem)
+    }
+
+    /// Returns the lower triangular part of a matrix (2-D tensor) or batch of matrices input,
+    /// the other elements of the result tensor out are set to 0.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example<B: Backend>() {
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
+    ///      [1, 2, 3],
+    ///      [4, 5, 6],
+    ///      [7, 8, 9]
+    ///    ]);
+    ///
+    ///    let tensor = tensor.tril(-1);
+    ///    println!("{}", tensor);
+    ///    // Tensor { data: [
+    ///    //   [0, 0, 0],
+    ///    //   [4, 0, 0],
+    ///    //   [7, 8, 0]
+    ///    // ], ... }
+    /// }
+    /// ```
+    pub fn tril(self, diagonal: i64) -> Self {
+        self.tri_compare(diagonal, Tensor::lower_elem)
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>
@@ -475,10 +566,10 @@ where
     /// # Arguments
     ///
     /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize) -> Self {
-        let indices = Tensor::<B, 1, Int>::arange(0..size).unsqueeze();
-        let ones = K::ones([1, size].into(), &B::Device::default());
-        let zeros = K::zeros([size, size].into(), &B::Device::default());
+    pub fn diagonal(size: usize, device: &B::Device) -> Self {
+        let indices = Tensor::<B, 1, Int>::arange(0..size, device).unsqueeze();
+        let ones = K::ones([1, size].into(), device);
+        let zeros = K::zeros([size, size].into(), device);
         Self::new(K::scatter(0, zeros, indices, ones))
     }
 }

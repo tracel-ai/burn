@@ -42,8 +42,9 @@ represent the corresponding Burn Op.
 | [Conv1d][34]                     |       ✅       |      ✅      |
 | [Conv2d][34]                     |       ✅       |      ✅      |
 | [ConvInteger][37]                |       ❌       |      ❌      |
-| [ConvTranspose][38]              |       ❌       |      ✅      |
-| [Cos][39]                        |       ❌       |      ✅      |
+| [ConvTranspose1d][38]            |       ❌       |      ✅      |
+| [ConvTranspose2d][38]            |       ✅       |      ✅      |
+| [Cos][39]                        |       ✅       |      ✅      |
 | [Cosh][40]                       |       ❌       |      ❌      |
 | [CumSum][41]                     |       ❌       |      ❌      |
 | [DepthToSpace][42]               |       ❌       |      ❌      |
@@ -57,7 +58,7 @@ represent the corresponding Burn Op.
 | [Elu][50]                        |       ❌       |      ❌      |
 | [Equal][51]                      |       ✅       |      ✅      |
 | [Erf][52]                        |       ✅       |      ✅      |
-| [Exp][53]                        |       ❌       |      ✅      |
+| [Exp][53]                        |       ✅       |      ✅      |
 | [Expand][54]                     |       ❌       |      ❌      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
@@ -65,7 +66,7 @@ represent the corresponding Burn Op.
 | [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ❌       |      ❌      |
 | [GatherND][60]                   |       ❌       |      ❌      |
-| [Gelu][61]                       |       ❌       |      ✅      |
+| [Gelu][61]                       |       ✅       |      ✅      |
 | [Gemm][62]                       |       ❌       |      ❌      |
 | [GlobalAveragePool][63]          |       ✅       |      ✅      |
 | [GlobalLpPool][64]               |       ❌       |      ❌      |
@@ -91,7 +92,7 @@ represent the corresponding Burn Op.
 | [Less][84]                       |       ❌       |      ✅      |
 | [LessOrEqual][85]                |       ❌       |      ✅      |
 | Linear                           |       ✅       |      ✅      |
-| [Log][87]                        |       ❌       |      ✅      |
+| [Log][87]                        |       ✅       |      ✅      |
 | [LogSoftmax][88]                 |       ✅       |      ✅      |
 | [Loop][89]                       |       ❌       |      ❌      |
 | [LpNormalization][90]            |       ❌       |      ❌      |
@@ -113,7 +114,7 @@ represent the corresponding Burn Op.
 | [Mod][106]                       |       ❌       |      ❌      |
 | [Mul][107]                       |       ❌       |      ✅      |
 | [Multinomial][108]               |       ❌       |      ❌      |
-| [Neg][109]                       |       ❌       |      ✅      |
+| [Neg][109]                       |       ✅       |      ✅      |
 | [NegativeLogLikelihoodLoss][110] |       ❌       |      ❌      |
 | [NonMaxSuppression][112]         |       ❌       |      ❌      |
 | [NonZero][113]                   |       ❌       |      ❌      |
@@ -191,7 +192,7 @@ represent the corresponding Burn Op.
 | [Tile][185]                      |       ❌       |      ❌      |
 | [TopK][186]                      |       ❌       |      ❌      |
 | [Transpose][187]                 |       ✅       |      ✅      |
-| [Trilu][188]                     |       ❌       |      ❌      |
+| [Trilu][188]                     |       ❌       |      ✅      |
 | [Unique][189]                    |       ❌       |      ❌      |
 | [Upsample][190]                  |       ❌       |      ❌      |
 | [Where][191]                     |       ❌       |      ✅      |

@@ -109,4 +109,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
+
+    fn bool_narrow<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> BoolTensor<Self, D> {
+        super::base::narrow(tensor, dim, start, length)
+    }
+
+    fn bool_chunk<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<BoolTensor<Self, D>> {
+        super::base::chunk(tensor, chunks, dim)
+    }
 }

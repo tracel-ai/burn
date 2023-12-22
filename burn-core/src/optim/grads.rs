@@ -99,11 +99,12 @@ mod tests {
 
     #[test]
     fn test_convert_grads() {
-        let layer_1 = layer();
+        let device = Default::default();
+        let layer_1 = layer::<TestAutodiffBackend>(&device);
         let mut layer_2 = layer_1.clone();
-        layer_2 = layer_2.fork(&<TestAutodiffBackend as Backend>::Device::default());
-        let loss_1 = layer_1.forward(random_tensor());
-        let loss_2 = layer_2.forward(random_tensor());
+        layer_2 = layer_2.fork(&device);
+        let loss_1 = layer_1.forward(random_tensor(&device));
+        let loss_2 = layer_2.forward(random_tensor(&device));
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer_1);
         let grads_2 = GradientsParams::from_grads(loss_2.backward(), &layer_2);
 
@@ -115,11 +116,11 @@ mod tests {
         assert_eq!(grads_2.len(), param_ids_2.len());
     }
 
-    fn layer() -> Linear<TestAutodiffBackend> {
-        LinearConfig::new(20, 20).with_bias(true).init()
+    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+        LinearConfig::new(20, 20).with_bias(true).init(device)
     }
 
-    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
-        Tensor::<TestAutodiffBackend, 2>::random([2, 20], Distribution::Default)
+    fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
+        Tensor::<B, 2>::random([2, 20], Distribution::Default, device)
     }
 }

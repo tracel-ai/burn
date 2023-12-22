@@ -10,8 +10,10 @@ macro_rules! testgen_all {
     () => {
         // test activation
         burn_tensor::testgen_gelu!();
+        burn_tensor::testgen_mish!();
         burn_tensor::testgen_relu!();
         burn_tensor::testgen_softmax!();
+        burn_tensor::testgen_softplus!();
         burn_tensor::testgen_sigmoid!();
         burn_tensor::testgen_silu!();
         burn_tensor::testgen_tanh_activation!();
@@ -38,6 +40,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_arg!();
         burn_tensor::testgen_cast!();
         burn_tensor::testgen_cat!();
+        burn_tensor::testgen_chunk!();
         burn_tensor::testgen_clamp!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_create_like!();
@@ -67,12 +70,14 @@ macro_rules! testgen_all {
         burn_tensor::testgen_select!();
         burn_tensor::testgen_sin!();
         burn_tensor::testgen_slice!();
+        burn_tensor::testgen_stack!();
         burn_tensor::testgen_sqrt!();
         burn_tensor::testgen_abs!();
         burn_tensor::testgen_squeeze!();
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_tanh!();
         burn_tensor::testgen_transpose!();
+        burn_tensor::testgen_tri!();
 
         // test stats
         burn_tensor::testgen_var!();

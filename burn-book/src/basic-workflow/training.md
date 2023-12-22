@@ -91,7 +91,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))
-        .expect("Save without error");
+        .expect("Config should be saved successfully");
 
     B::seed(config.seed);
 
@@ -128,14 +128,14 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Failed to save trained model");
+        .expect("Trained model should be saved successfully");
 }
 ```
 
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under the this directory. We then initialize our dataloaders using our previously created batcher.
+under this directory. We then initialize our dataloaders using our previously created batcher.
 Since no automatic differentiation is needed during the validation phase, the backend used for the
 corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
 are available through a type system, making it nearly impossible to forget to deactivate gradient

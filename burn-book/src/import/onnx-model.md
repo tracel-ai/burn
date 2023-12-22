@@ -102,15 +102,16 @@ Here's how to use the imported model in your application:
 mod model;
 
 use burn::tensor;
-use burn_ndarray::NdArray;
+use burn_ndarray::{NdArray, NdArrayDevice};
 use model::mnist::Model;
 
 fn main() {
     // Initialize a new model instance
-    let model: Model<NdArray<f32>> = Model::new();
+    let device = NdArrayDevice::default();
+    let model: Model<NdArray<f32>> = Model::new(&device);
 
     // Create a sample input tensor (zeros for demonstration)
-    let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28]);
+    let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28], &device);
 
     // Perform inference
     let output = model.forward(input);
@@ -124,8 +125,8 @@ fn main() {
 
 For practical examples, please refer to:
 
-1. [MNIST Inference Example](https://github.com/burn-rs/burn/tree/main/examples/onnx-inference)
-2. [SqueezeNet Image Classification](https://github.com/burn-rs/models/tree/main/squeezenet-burn)
+1. [MNIST Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
+2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
 
 By combining ONNX's robustness with Burn's unique features, you'll have the flexibility and power to
 streamline your deep learning workflows like never before.
@@ -133,4 +134,4 @@ streamline your deep learning workflows like never before.
 ---
 
 > 🚨**Note**: `burn-import` crate is in active development and currently supports a
-> [limited set of ONNX operators](https://github.com/burn-rs/burn/blob/main/burn-import/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](https://github.com/tracel-ai/burn/blob/main/burn-import/SUPPORTED-ONNX-OPS.md).
