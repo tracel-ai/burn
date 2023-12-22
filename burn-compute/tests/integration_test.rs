@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use burn_compute::Compute;
 
-use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
+use crate::dummy::{client, DummyDevice, DummyElementwiseAddition, TUNER_DEVICE_ID};
 
 use serial_test::serial;
 
@@ -128,7 +128,7 @@ fn autotune_cache_same_key_return_a_cache_hit() {
 #[cfg(feature = "std")]
 fn autotune_cache_empty_cache_return_a_cache_miss() {
     // delete the cache file
-    let file_path = burn_compute::tune::get_persistent_cache_file_path();
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(TUNER_DEVICE_ID);
     let _ = std::fs::remove_file(file_path);
 
     let client = client(&DummyDevice);
@@ -165,7 +165,7 @@ fn autotune_cache_empty_cache_return_a_cache_miss() {
 #[cfg(feature = "std")]
 fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // delete the cache file
-    let file_path = burn_compute::tune::get_persistent_cache_file_path();
+    let file_path = burn_compute::tune::get_persistent_cache_file_path(TUNER_DEVICE_ID);
     let parent_dir = file_path
         .parent()
         .expect("Cache file should have a parent directory");

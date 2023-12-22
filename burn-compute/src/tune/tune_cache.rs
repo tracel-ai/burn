@@ -18,13 +18,14 @@ use super::AutotuneOperationSet;
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 
-/// Return the file path for the persistent cache on disk
 #[cfg(feature = "autotune-persistent-cache")]
-pub fn get_persistent_cache_file_path() -> PathBuf {
+/// Return the file path for the persistent cache on disk
+/// prefix should be the device id computed at the backend level
+pub fn get_persistent_cache_file_path(prefix: &str) -> PathBuf {
     let home_dir = dirs::home_dir().expect("An home directory should exist");
     let path_dir = home_dir.join(".cache").join("burn").join("autotune");
     let path = Path::new(&path_dir);
-    path.join("autotune-cache.json")
+    path.join(format!("{}-autotune-cache.json", prefix))
 }
 
 /// In-memory cache entry
@@ -49,6 +50,8 @@ pub(crate) struct TuneCache<K> {
     in_memory_cache: HashMap<K, InMemoryCacheEntry>,
     #[cfg(feature = "autotune-persistent-cache")]
     persistent_cache: HashMap<K, PersistentCacheEntry>,
+    #[cfg(feature = "autotune-persistent-cache")]
+    device_id: String,
 }
 
 /// Result of the cache try
@@ -60,12 +63,13 @@ pub enum TuneCacheResult<K> {
 }
 
 impl<K: AutotuneKey> TuneCache<K> {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(device_id: &str) -> Self {
         #[cfg(feature = "autotune-persistent-cache")]
         {
             let mut cache = TuneCache {
                 in_memory_cache: HashMap::new(),
                 persistent_cache: HashMap::new(),
+                device_id: device_id.to_string(),
             };
             if let Err(e) = cache.load() {
                 log::warn!(
@@ -153,7 +157,7 @@ impl<K: AutotuneKey> TuneCache<K> {
     /// Load the persistent cache data from disk
     #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn load(&mut self) -> Result<(), io::Error> {
-        let file_path = get_persistent_cache_file_path();
+        let file_path = self.get_persistent_cache_file_path();
         // note: reading file from memory is faster than using
         // serde from_reader with a buffered reader
         // see issue:
@@ -189,21 +193,29 @@ impl<K: AutotuneKey> TuneCache<K> {
     /// Save the persistent cache on disk
     #[cfg(feature = "autotune-persistent-cache")]
     pub(crate) fn save(&self) {
-        let file_path = get_persistent_cache_file_path();
+        let file_path = self.get_persistent_cache_file_path();
         if let Some(parent_dir) = file_path.parent() {
             if !parent_dir.exists() {
-                fs::create_dir_all(parent_dir).expect(&format!(
+                let msg = format!(
                     "Should be able to create directory '{}' for autotune persistent cache file",
                     parent_dir.to_str().unwrap()
-                ));
+                );
+                fs::create_dir_all(parent_dir).expect(&msg);
             }
         }
-        let file = File::create(file_path.clone()).expect(&format!(
+        let msg = format!(
             "Should be able to open autotune persistent cache file: {:?}",
             &file_path.to_str().unwrap()
-        ));
+        );
+        let file = File::create(file_path.clone()).expect(&msg);
         let data = self.persistent_cache.iter().collect::<Vec<_>>();
         serde_json::to_writer_pretty(file, &data)
             .expect("Should be able to write to autotune persistent cache");
+    }
+
+    /// Return the file path for the persistent cache on disk
+    #[cfg(feature = "autotune-persistent-cache")]
+    pub fn get_persistent_cache_file_path(&self) -> PathBuf {
+        get_persistent_cache_file_path(&self.device_id)
     }
 }

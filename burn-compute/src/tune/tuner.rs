@@ -25,9 +25,9 @@ pub struct Tuner<S: ComputeServer, C> {
 #[allow(clippy::new_without_default)]
 impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
     /// Returns a tuner with cache initialized from persistent cache
-    pub fn new() -> Self {
+    pub fn new(device_id: &str) -> Self {
         Self {
-            tune_cache: TuneCache::new(),
+            tune_cache: TuneCache::new(device_id),
             _channel: PhantomData,
         }
     }

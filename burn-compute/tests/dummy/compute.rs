@@ -17,6 +17,7 @@ pub type DummyChannel = MutexComputeChannel<DummyServer>;
 pub type DummyClient = ComputeClient<DummyServer, DummyChannel>;
 
 static COMPUTE: Compute<DummyDevice, DummyServer, DummyChannel> = Compute::new();
+pub static TUNER_DEVICE_ID: &str = "tests/dummy-device";
 
 pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServer>> {
     let storage = BytesStorage::default();
@@ -24,7 +25,7 @@ pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServ
         SimpleMemoryManagement::new(storage, DeallocStrategy::Never, SliceStrategy::Never);
     let server = DummyServer::new(memory_management);
     let channel = MutexComputeChannel::new(server);
-    let tuner = Arc::new(Mutex::new(Tuner::new()));
+    let tuner = Arc::new(Mutex::new(Tuner::new(TUNER_DEVICE_ID)));
     ComputeClient::new(channel, tuner)
 }
 
