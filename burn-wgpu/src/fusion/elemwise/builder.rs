@@ -16,7 +16,7 @@ use burn_fusion::{
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
-use super::optimization::FloatElementWise;
+use super::optimization::ElementWise;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FloatElementWiseBuilder<G, F, I>
@@ -56,6 +56,12 @@ where
                     return;
                 }
             }
+            TensorOpsDescription::BaseOpsInt(ops) => {
+                if !self.register_base::<I>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
                     self.status = OptimizationStatus::Closed;
@@ -63,7 +69,13 @@ where
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
-                if !self.register_numeric(ops) {
+                if !self.register_numeric::<F, _>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
+            TensorOpsDescription::NumericOpsInt(ops) => {
+                if !self.register_numeric::<I, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -85,13 +97,15 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(FloatElementWise {
+        Box::new(ElementWise {
             id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
             operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
+            scalars_u32: self.scalars_u32,
+            scalars_i32: self.scalars_i32,
             device: self.device.clone(),
             cache: KernelCompilationCache::default(),
         })
@@ -115,10 +129,7 @@ where
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = match self.status {
-            OptimizationStatus::Closed => false,
-            OptimizationStatus::Open => self.operators.len() > 1,
-        };
+        let ready = self.operators.len() > 1;
 
         OptimizationProperties {
             ready,
@@ -449,7 +460,10 @@ where
         }
     }
 
-    fn register_numeric<E: WgpuElement>(&mut self, ops: &NumericOpsDescription<E>) -> bool {
+    fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
+        &mut self,
+        ops: &NumericOpsDescription<EDesc>,
+    ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc) => self.register_binary_ops(
                 desc,
