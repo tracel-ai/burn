@@ -28,6 +28,8 @@ pub struct EmbeddingConfig {
 ///     `N(0, 1)`
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {
+    /// The learnable weights of the module of shape [n_embedding, d_model] initialized
+    /// from a normal distribution `N(0, 1)`.
     pub weight: Param<Tensor<B, 2>>,
 }
 
