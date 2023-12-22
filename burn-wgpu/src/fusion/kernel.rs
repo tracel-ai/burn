@@ -41,10 +41,10 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
         let status = &tensor.status; // Important to take the status of the relative graph and not
                                      // the global graph, since the status of the global graph
                                      // might be of a later operation on the same tensor id.
-        let tensor = context.tensors.get(&tensor.id).unwrap().clone();
-        let handle = context.handles.get_handle(&tensor.id, &status);
+        let tensor = context.tensors.get(&tensor.id).unwrap();
+        let handle = context.handles.get_handle(&tensor.id, status);
 
-        register_info_tensor(&tensor, &handle);
+        register_info_tensor(tensor, &handle);
         handles.push(handle.handle);
     }
 

@@ -33,12 +33,12 @@ impl<B: FusionBackend> HandleContainer<B> {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
-    /// Get the handle for the given [tensor id](TensorId). The status is used to know if the
-    /// tensor should be pop out of the current tensor map, necessary for inplace operations.
+    /// Get the handle for the given [tensor id](TensorId). The status is used to determine if the
+    /// tensor should be popped out of the current tensor map, necessary for inplace operations.
     ///
     /// # Warnings
     ///
-    /// Make sure the status correspond to the operation you want ot execute the handles one,
+    /// Make sure the status corresponds to the operation you want to execute the handle on,
     /// otherwise you might remove a tensor handle that will be required in the future.
     pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> B::Handle {
         let (id, handle) = self
