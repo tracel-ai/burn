@@ -15,7 +15,7 @@ use core::{fmt::Debug, ops::Range};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind,Element};
+use crate::{backend::Backend, check, Bool, Data, Element, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -303,11 +303,6 @@ where
         self.reshape(shape)
     }
 
-
-
-
-
-
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
@@ -536,86 +531,91 @@ where
             .collect()
     }
 
-
-
-/// Pads the tensor according to the specified padding configuration and mode.
-///
-/// This method pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
-/// Currently, only constant padding mode is implemented, which pads the tensor with a constant value.
-///
-/// # Arguments
-///
-/// * `pad` - A `Padding` struct specifying the size of padding in each dimension.
-/// * `pad_mode` - The padding mode, determining how the padding is applied. Currently, only `PadMode::Constant` is supported.
-/// * `value` - The value to be used for padding in constant mode.
-///
-/// # Returns
-///
-/// A new `Tensor<B, D, K>` instance with the specified padding applied.
-///
-/// # Example
-///
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{Tensor, Padding, PadMode, TensorKind, BasicOps,Element};
-///
-/// fn pad_example<B: Backend>()
-/// {
-///    let value = 1.1;
-///    let tensor = Tensor::<B, 4>::ones([1,1,3,3]);
-///    let padding = Padding::uniform(2);
-///
-///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(value));
-///    
-/// 
-/// 
-/// ```
-/// Pads the tensor with the specified padding configuration and padding mode.
-    pub fn pad_tensor(self, pad: Padding, pad_mode: PadMode,value:Option<K::Elem>) -> Tensor<B, D, K> 
-        where
+    /// Pads the tensor according to the specified padding configuration and mode.
+    ///
+    /// This method pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
+    /// Currently, only constant padding mode is implemented, which pads the tensor with a constant value.
+    ///
+    /// # Arguments
+    ///
+    /// * `pad` - A `Padding` struct specifying the size of padding in each dimension.
+    /// * `pad_mode` - The padding mode, determining how the padding is applied. Currently, only `PadMode::Constant` is supported.
+    /// * `value` - The value to be used for padding in constant mode.
+    ///
+    /// # Returns
+    ///
+    /// A new `Tensor<B, D, K>` instance with the specified padding applied.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Padding, PadMode, TensorKind, BasicOps,Element};
+    ///
+    /// fn pad_example<B: Backend>()
+    /// {
+    ///    let value = 1.1;
+    ///    let tensor = Tensor::<B, 4>::ones([1,1,3,3]);
+    ///    let padding = Padding::uniform(2);
+    ///
+    ///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(value));
+    ///    
+    ///
+    ///
+    /// ```
+    /// Pads the tensor with the specified padding configuration and padding mode.
+    pub fn pad_tensor(
+        self,
+        pad: Padding,
+        pad_mode: PadMode,
+        value: Option<K::Elem>,
+    ) -> Tensor<B, D, K>
+    where
         K::Elem: Element,
-    {    
+    {
         match pad_mode {
             PadMode::Constant => {
                 let padding_value = value.expect("Padding value required for Constant mode");
                 let mut padded_dims: [usize; D] = self.dims();
-    
+
                 // Update the last two dimensions with padding
                 padded_dims[D - 2] += pad.top + pad.bottom;
                 padded_dims[D - 1] += pad.left + pad.right;
-    
+
                 // Initialize ranges for all dimensions
-                let ranges: [Range<usize>;D] = padded_dims
+                let ranges: [Range<usize>; D] = padded_dims
                     .iter()
                     .enumerate()
                     .map(|(i, &dim)| {
-                        if i == D - 2 { // Second last dimension
+                        if i == D - 2 {
+                            // Second last dimension
                             pad.top..dim - pad.bottom
-                        } else if i == D - 1 { // Last dimension
+                        } else if i == D - 1 {
+                            // Last dimension
                             pad.left..dim - pad.right
                         } else {
                             0..dim // Other dimensions remain unchanged
                         }
-                    }).collect::<Vec<Range<usize>>>()
+                    })
+                    .collect::<Vec<Range<usize>>>()
                     .try_into()
                     .unwrap();
-    
+
                 // Create the padded tensor
                 let padded_shape = Shape::from(padded_dims);
                 let padded_data = Data::full(padded_shape, padding_value);
                 let padded_tensor = Tensor::<B, D, K>::from_data_devauto(padded_data);
-    
+
                 // Assign the original tensor data to the appropriate slice of the padded tensor
                 padded_tensor.slice_assign(ranges, self)
-            },
+            }
             // Other padding modes
         }
     }
 }
 
 /// Represents the different modes of padding that can be applied to a tensor.
-pub enum PadMode
-{
+pub enum PadMode {
     /// Pads the tensor with a constant value.
     Constant,
     // Reflect,
@@ -707,11 +707,7 @@ impl Padding {
             right: value[1],
         }
     }
-
 }
-
-
-
 
 /// Iterator given by (Tensor::iter_dim).
 pub struct DimIter<B, const D: usize, K>

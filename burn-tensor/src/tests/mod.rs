@@ -1,9 +1,9 @@
 mod activation;
+mod api;
 mod clone_invariance;
 mod module;
 mod ops;
 mod stats;
-mod api;
 
 #[allow(missing_docs)]
 #[macro_export]
