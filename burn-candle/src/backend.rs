@@ -50,7 +50,7 @@ impl From<candle_core::Device> for CandleDevice {
         match device.location() {
             DeviceLocation::Cpu => CandleDevice::Cpu,
             DeviceLocation::Cuda { gpu_id } => CandleDevice::Cuda(gpu_id),
-            DeviceLocation::Metal => panic!("Metal unsupported"),
+            _ => panic!("Device unsupported: {device:?}"),
         }
     }
 }

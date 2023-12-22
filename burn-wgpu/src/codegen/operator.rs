@@ -164,7 +164,12 @@ impl Display for Operator {
             Operator::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
             Operator::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
             Operator::Tanh { input, out } => {
-                f.write_fmt(format_args!("let {out} = tanh({input});"))
+                #[cfg(target_os = "macos")]
+                let result = f.write_fmt(format_args!("let {out} = safe_tanh({input});"));
+                #[cfg(not(target_os = "macos"))]
+                let result = f.write_fmt(format_args!("let {out} = tanh({input});"));
+
+                result
             }
             Operator::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
             Operator::Recip { input, out } => {

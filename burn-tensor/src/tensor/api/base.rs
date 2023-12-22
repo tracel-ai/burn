@@ -27,6 +27,17 @@ where
     pub(crate) primitive: K::Primitive<D>,
 }
 
+impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    T: Into<Data<K::Elem, D>>,
+{
+    fn from(value: T) -> Self {
+        Tensor::from_data(value.into(), &Default::default())
+    }
+}
+
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,

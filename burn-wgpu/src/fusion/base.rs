@@ -128,6 +128,8 @@ mod tests {
     pub type TestBackend = Fusion<Wgpu>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();

@@ -15,7 +15,7 @@ mod tests {
             width_out: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [
                 [3.5000, 4.5000, 6.5000, 7.5000],
                 [15.5000, 16.5000, 18.5000, 19.5000],
@@ -42,7 +42,7 @@ mod tests {
             width_out: 2,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [[5.0000, 8.0000], [15.5000, 18.5000], [26.0000, 29.0000]],
             [[40.0000, 43.0000], [50.5000, 53.5000], [61.0000, 64.0000]],
         ]]));
@@ -59,7 +59,7 @@ mod tests {
             width_out: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [
                 [0.0000, 0.5000, 1.5000, 2.0000],
                 [1.5000, 2.0000, 3.0000, 3.5000],
@@ -89,7 +89,7 @@ mod tests {
     impl AdaptiveAvgPool2dTestCase {
         fn assert_output(self, y: TestTensor<4>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-            let x = TestTensor::from_data_devauto(
+            let x = TestTensor::from(
                 TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
