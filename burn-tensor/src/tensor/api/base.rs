@@ -608,8 +608,7 @@ where
 
                 // Assign the original tensor data to the appropriate slice of the padded tensor
                 padded_tensor.slice_assign(ranges, self)
-            }
-            // Other padding modes
+            } // Other padding modes
         }
     }
 }
