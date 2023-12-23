@@ -24,6 +24,8 @@ mod tests {
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;

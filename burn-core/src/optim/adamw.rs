@@ -208,8 +208,9 @@ mod tests {
 
     #[test]
     fn test_adamw_optimizer_save_load_state() {
-        let linear = nn::LinearConfig::new(6, 6).init();
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default);
+        let device = Default::default();
+        let linear = nn::LinearConfig::new(6, 6).init(&device);
+        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -243,12 +244,12 @@ mod tests {
             ]),
             Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats([
+        let x_1 = Tensor::from_floats_devauto([
             [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
             [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
         ])
         .require_grad();
-        let x_2 = Tensor::from_floats([
+        let x_2 = Tensor::from_floats_devauto([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
@@ -313,7 +314,7 @@ mod tests {
             Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
 
-        let x = Tensor::from_floats([
+        let x = Tensor::from_floats_devauto([
             [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
             [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
         ])
@@ -343,8 +344,8 @@ mod tests {
         bias: Data<f32, 1>,
     ) -> nn::Linear<TestAutodiffBackend> {
         let record = nn::LinearRecord {
-            weight: Param::from(Tensor::from_data(weight)),
-            bias: Some(Param::from(Tensor::from_data(bias))),
+            weight: Param::from(Tensor::from_data_devauto(weight)),
+            bias: Some(Param::from(Tensor::from_data_devauto(bias))),
         };
 
         nn::LinearConfig::new(6, 6).init_with(record)

@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn test_load_record_setting() {
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3]);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones_devauto([3, 3]);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
@@ -253,7 +253,8 @@ mod tests {
     #[test]
     fn test_init_with_record_setting() {
         let config = LinearConfig::new(32, 32);
-        let module_init = config.init::<TestAutodiffBackend>();
+        let device = Default::default();
+        let module_init = config.init::<TestAutodiffBackend>(&device);
 
         let record = module_init.clone().into_record();
         let module_init_with = config.init_with::<TestAutodiffBackend>(record);

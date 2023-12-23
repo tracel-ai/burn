@@ -4,13 +4,13 @@ authors = [
   "Nathaniel Simard (@nathanielsimard)",
 ]
 description = "Library for importing datamodels into the Burn framework"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 name = "burn-import"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-import"
 
-version = "0.12.0"
+version.workspace = true
 
 [features]
 default = ["onnx"]
@@ -33,8 +33,8 @@ serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 syn = { workspace = true, features = ["parsing"] }
-tracing-subscriber.workspace = true
-tracing-core.workspace = true
+tracing-subscriber = { workspace = true }
+tracing-core = { workspace = true }
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }

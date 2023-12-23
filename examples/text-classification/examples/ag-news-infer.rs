@@ -1,5 +1,4 @@
-use burn::tensor::backend::AutodiffBackend;
-
+use burn::tensor::backend::Backend;
 use text_classification::AgNewsDataset;
 
 #[cfg(not(feature = "f16"))]
@@ -8,15 +7,25 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: AutodiffBackend>(device: B::Device) {
+pub fn launch<B: Backend>(device: B::Device) {
     text_classification::inference::infer::<B, AgNewsDataset>(
         device,
         "/tmp/text-classification-ag-news",
         // Samples from the test dataset, but you are free to test with your own text.
         vec![
-            "Jays power up to take finale Contrary to popular belief, the power never really snapped back at SkyDome on Sunday. The lights came on after an hour delay, but it took some extra time for the batting orders to provide some extra wattage.".to_string(),
-            "Yemen Sentences 15 Militants on Terror Charges A court in Yemen has sentenced one man to death and 14 others to prison terms for a series of attacks and terrorist plots in 2002, including the bombing of a French oil tanker.".to_string(),
-            "IBM puts grids to work at U.S. Open IBM will put a collection of its On Demand-related products and technologies to this test next week at the U.S. Open tennis championships, implementing a grid-based infrastructure capable of running multiple workloads including two not associated with the tournament.".to_string(),
+            "Jays power up to take finale Contrary to popular belief, the power never really \
+             snapped back at SkyDome on Sunday. The lights came on after an hour delay, but it \
+             took some extra time for the batting orders to provide some extra wattage."
+                .to_string(),
+            "Yemen Sentences 15 Militants on Terror Charges A court in Yemen has sentenced one \
+             man to death and 14 others to prison terms for a series of attacks and terrorist \
+             plots in 2002, including the bombing of a French oil tanker."
+                .to_string(),
+            "IBM puts grids to work at U.S. Open IBM will put a collection of its On \
+             Demand-related products and technologies to this test next week at the U.S. Open \
+             tennis championships, implementing a grid-based infrastructure capable of running \
+             multiple workloads including two not associated with the tournament."
+                .to_string(),
         ],
     );
 }
@@ -29,21 +38,18 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
 ))]
 mod ndarray {
     use burn::backend::ndarray::{NdArray, NdArrayDevice};
-    use burn::backend::Autodiff;
 
     use crate::{launch, ElemType};
 
     pub fn run() {
-        launch::<Autodiff<NdArrayBackend<ElemType>>>(NdArrayDevice::Cpu);
+        launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
-
     use crate::{launch, ElemType};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -51,31 +57,28 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<Autodiff<LibTorch<ElemType>>>(device);
+        launch::<LibTorch<ElemType>>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
-
     use crate::{launch, ElemType};
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     pub fn run() {
-        launch::<Autodiff<LibTorch<ElemType>>>(LibTorchDevice::Cpu);
+        launch::<LibTorch<ElemType>>(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
-    use burn::backend::Autodiff;
-
     use crate::{launch, ElemType};
+    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+    use burn::backend::Fusion;
 
     pub fn run() {
-        launch::<Autodiff<Wgpu<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
+        launch::<Fusion<Wgpu<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
     }
 }
 

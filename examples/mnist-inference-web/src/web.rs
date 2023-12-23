@@ -11,6 +11,11 @@ use crate::state::{build_and_load_model, Backend};
 
 use burn::tensor::Tensor;
 
+#[cfg_attr(target_family = "wasm", wasm_bindgen(start))]
+pub fn start() {
+    console_error_panic_hook::set_once();
+}
+
 /// Mnist structure that corresponds to JavaScript class.
 /// See:[exporting-rust-struct](https://rustwasm.github.io/wasm-bindgen/contributing/design/exporting-rust-struct.html)
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -23,6 +28,7 @@ impl Mnist {
     /// Constructor called by JavaScripts with the new keyword.
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
+        console_error_panic_hook::set_once();
         Self { model: None }
     }
 
@@ -46,7 +52,7 @@ impl Mnist {
         let model = self.model.as_ref().unwrap();
 
         // Reshape from the 1D array to 3d tensor [batch, height, width]
-        let input: Tensor<Backend, 3> = Tensor::from_floats(input).reshape([1, 28, 28]);
+        let input: Tensor<Backend, 3> = Tensor::from_floats_devauto(input).reshape([1, 28, 28]);
 
         // Normalize input: make between [0,1] and make the mean=0 and std=1
         // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example

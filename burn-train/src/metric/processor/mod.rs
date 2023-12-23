@@ -20,7 +20,7 @@ pub(crate) mod test_utils {
 
     impl<B: Backend> Adaptor<LossInput<B>> for f64 {
         fn adapt(&self) -> LossInput<B> {
-            LossInput::new(Tensor::from_data([self.elem()]))
+            LossInput::new(Tensor::from_data_devauto([self.elem()]))
         }
     }
 

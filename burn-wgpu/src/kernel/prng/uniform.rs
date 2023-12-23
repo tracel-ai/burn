@@ -93,10 +93,8 @@ mod tests {
         let shape = [4, 5];
         let device = WgpuDevice::default();
 
-        let tensor_1 =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
-        let tensor_2 =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
+        let tensor_1 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
+        let tensor_2 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
         for i in 0..20 {
             assert!(tensor_1.to_data().value[i] != tensor_2.to_data().value[i]);
         }
@@ -109,7 +107,7 @@ mod tests {
         let shape = [24, 24];
         let device = WgpuDevice::default();
 
-        let tensor = Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
+        let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
         tensor.to_data().assert_within_range(0..1);
     }
 
@@ -121,7 +119,7 @@ mod tests {
         let device = WgpuDevice::default();
 
         let tensor =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Uniform(5., 17.), &device);
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(5., 17.), &device);
         tensor.to_data().assert_within_range(5..17);
     }
 
@@ -132,11 +130,8 @@ mod tests {
         let shape = [64, 64];
         let device = WgpuDevice::default();
 
-        let tensor = Tensor::<TestBackend, 2>::random_device(
-            shape,
-            Distribution::Uniform(-5., 10.),
-            &device,
-        );
+        let tensor =
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device);
         let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 3, -5., 10.);
         assert!(stats[0].count >= 1);
@@ -150,7 +145,7 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = WgpuDevice::default();
-        let tensor = Tensor::<TestBackend, 2>::random_device(shape, Distribution::Default, &device);
+        let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
 
         let numbers = tensor.into_data().value;
         let stats = calculate_bin_stats(numbers, 2, 0., 1.);

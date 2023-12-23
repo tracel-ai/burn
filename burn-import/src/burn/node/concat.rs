@@ -93,7 +93,11 @@ mod tests {
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 4>, tensor2: Tensor<B, 4>) -> Tensor<B, 4> {
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 4>,
+                    tensor2: Tensor<B, 4>
+                ) -> Tensor<B, 4> {
                     let tensor3 = burn::tensor::Tensor::cat([tensor1, tensor2].into(), 1);
 
                     tensor3

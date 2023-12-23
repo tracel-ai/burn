@@ -5,7 +5,7 @@ use std::fmt::Display;
 ///
 /// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
 /// X and Y, but with Z=1.
-#[derive(Hash, new)]
+#[derive(new)]
 pub struct Body {
     operators: Vec<Operator>,
 }

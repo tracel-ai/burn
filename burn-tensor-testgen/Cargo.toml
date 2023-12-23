@@ -1,12 +1,12 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 description = "Test generation crate for burn-tensor"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 name = "burn-tensor-testgen"
-readme = "README.md"
+readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-tensor-testgen"
-version = "0.12.0"
+version.workspace = true
 
 [lib]
 proc-macro = true

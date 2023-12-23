@@ -231,7 +231,7 @@ impl UnaryNode {
                 // TODO: Implement this after tensor Int is implemented (@antimora 8/2/2023)
                 // TODO: If the input is scalar and the output type is a tensor,
                 // we should generate another code block. (@antimora 8/4/2023)
-                // Tensor::from_data(Data::from([#input]).convert()).unsqueeze();
+                // Tensor::from_data_devauto(Data::from([#input]).convert()).unsqueeze();
                 todo!()
             }
 

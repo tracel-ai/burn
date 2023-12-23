@@ -47,7 +47,10 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn collect_devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+            fn collect_devices(
+                &self,
+                devices: burn::module::Devices<B>
+            ) -> burn::module::Devices<B> {
                 #body
 
                 devices

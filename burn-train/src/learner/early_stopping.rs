@@ -63,7 +63,16 @@ impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
                 let should_stop = epoch - self.best_epoch >= n_epochs;
 
                 if should_stop {
-                    log::info!("Stopping training loop, no improvement since epoch {}, {}: {},  current epoch {}, {}: {}", self.best_epoch, self.metric_name, self.best_value, epoch, self.metric_name, current_value);
+                    log::info!(
+                        "Stopping training loop, no improvement since epoch {}, {}: {},  current \
+                         epoch {}, {}: {}",
+                        self.best_epoch,
+                        self.metric_name,
+                        self.best_value,
+                        epoch,
+                        self.metric_name,
+                        current_value
+                    );
                 }
 
                 should_stop

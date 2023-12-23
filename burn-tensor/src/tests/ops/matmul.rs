@@ -5,8 +5,8 @@ mod tests {
 
     #[test]
     fn test_matmul_d2() {
-        let tensor_1 = TestTensor::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
-        let tensor_2 = TestTensor::from_floats([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]]);
+        let tensor_2 = TestTensor::from_floats_devauto([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -18,8 +18,8 @@ mod tests {
 
     #[test]
     fn test_matmul_d3() {
-        let tensor_1 = TestTensor::from_floats([[[1.0, 7.0], [2.0, 3.0]]]);
-        let tensor_2 = TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[[1.0, 7.0], [2.0, 3.0]]]);
+        let tensor_2 = TestTensor::from_floats_devauto([[[4.0, 7.0], [2.0, 3.0]]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -31,9 +31,9 @@ mod tests {
 
     #[test]
     fn test_matmul_broadcast_1() {
-        let tensor_1 = TestTensor::from_floats([[[1.0, 7.0], [2.0, 3.0]]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[[1.0, 7.0], [2.0, 3.0]]]);
         let tensor_2 =
-            TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]]);
+            TestTensor::from_floats_devauto([[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -45,8 +45,8 @@ mod tests {
 
     #[test]
     fn test_matmul_simple_1() {
-        let tensor_1 = TestTensor::from_floats([[5.0, 14.0], [14.0, 50.0]]);
-        let tensor_2 = TestTensor::from_floats([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[5.0, 14.0], [14.0, 50.0]]);
+        let tensor_2 = TestTensor::from_floats_devauto([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -58,8 +58,8 @@ mod tests {
 
     #[test]
     fn test_matmul_simple_2() {
-        let tensor_1 = TestTensor::from_floats([[1.0, 2.0, 3.0, 4.0]]);
-        let tensor_2 = TestTensor::from_floats([[3.0], [4.0], [5.0], [6.0]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[1.0, 2.0, 3.0, 4.0]]);
+        let tensor_2 = TestTensor::from_floats_devauto([[3.0], [4.0], [5.0], [6.0]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -68,10 +68,14 @@ mod tests {
 
     #[test]
     fn test_matmul_simple_3() {
-        let tensor_1 =
-            TestTensor::from_floats([[3., 3., 3.], [4., 4., 4.], [5., 5., 5.], [6., 6., 6.]]);
+        let tensor_1 = TestTensor::from_floats_devauto([
+            [3., 3., 3.],
+            [4., 4., 4.],
+            [5., 5., 5.],
+            [6., 6., 6.],
+        ]);
         let tensor_2 =
-            TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
+            TestTensor::from_floats_devauto([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -89,9 +93,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_when_inner_dimensions_are_not_equal() {
-        let tensor_1 = TestTensor::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
+        let tensor_1 = TestTensor::from_floats_devauto([[3., 3.], [4., 4.], [5., 5.], [6., 6.]]);
         let tensor_2 =
-            TestTensor::from_floats([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
+            TestTensor::from_floats_devauto([[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]]);
 
         let tensor_3 = tensor_1.matmul(tensor_2);
 

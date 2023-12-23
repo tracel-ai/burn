@@ -53,7 +53,9 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationTrainingBatch
         // Tokenize text and create label tensor for each item
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels_list.push(Tensor::from_data(Data::from([(item.label as i64).elem()])));
+            labels_list.push(Tensor::from_data_devauto(Data::from([
+                (item.label as i64).elem()
+            ])));
         }
 
         // Generate padding mask for tokenized text

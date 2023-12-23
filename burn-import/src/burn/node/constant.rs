@@ -137,7 +137,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
                     Some(quote! {
                         let #name: burn::module::Param<#ty> = burn::module::Param::new(
                             burn::module::ParamId::new(),
-                            Tensor::<B, #dim>::zeros(#shape).set_require_grad(false),
+                            Tensor::<B, #dim>::zeros(#shape, device).set_require_grad(false),
                         );
                     })
                 }
