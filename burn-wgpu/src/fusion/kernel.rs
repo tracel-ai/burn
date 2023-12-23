@@ -13,6 +13,7 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     scalars_f32: usize,
+    scalars_i32: usize,
     kernel: FusedKernelSource,
     context: &mut Context<'_, Wgpu<G, F, I>>,
     device: Device<Wgpu<G, F, I>>,
@@ -37,8 +38,11 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
 
     // We start by registering the inputs.
     for tensor in inputs.iter() {
+        let status = &tensor.status; // Important to take the status of the relative graph and not
+                                     // the global graph, since the status of the global graph
+                                     // might be of a later operation on the same tensor id.
         let tensor = context.tensors.get(&tensor.id).unwrap();
-        let handle = context.handles.get_handle(tensor);
+        let handle = context.handles.get_handle(&tensor.id, status);
 
         register_info_tensor(tensor, &handle);
         handles.push(handle.handle);
@@ -74,6 +78,10 @@ pub fn execute_fusion<G: GraphicsApi, F: FloatElement, I: IntElement>(
     // Finally we finish with the named bindings.
     if scalars_f32 > 0 {
         handles.push(client.create(bytemuck::cast_slice(&context.scalar_floats[0..scalars_f32])));
+    }
+
+    if scalars_i32 > 0 {
+        handles.push(client.create(bytemuck::cast_slice(&context.scalar_ints[0..scalars_i32])));
     }
 
     let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);

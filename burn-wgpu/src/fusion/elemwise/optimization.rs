@@ -12,7 +12,7 @@ use crate::{
 use burn_fusion::{graph::Context, Optimization, TensorDescription};
 use burn_tensor::Device;
 
-pub(crate) struct FloatElementWise<G, F, I>
+pub(crate) struct ElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -24,11 +24,13 @@ where
     pub(crate) locals: Vec<u16>,
     pub(crate) operators: Vec<Operator>,
     pub(crate) scalars_f32: usize,
+    pub(crate) scalars_u32: usize,
+    pub(crate) scalars_i32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
     pub(crate) cache: KernelCompilationCache,
 }
 
-impl<G, F, I> FloatElementWise<G, F, I>
+impl<G, F, I> ElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -62,6 +64,20 @@ where
             })
         }
 
+        if self.scalars_u32 > 0 {
+            inputs.push(Input::Scalar {
+                elem: Elem::U32,
+                size: self.scalars_u32,
+            })
+        }
+
+        if self.scalars_i32 > 0 {
+            inputs.push(Input::Scalar {
+                elem: Elem::I32,
+                size: self.scalars_i32,
+            })
+        }
+
         ElemWiseKernelCodegen::new()
             .inputs(&inputs)
             .body(&self.operators)
@@ -70,7 +86,7 @@ where
     }
 }
 
-impl<G, F, I> Optimization<Wgpu<G, F, I>> for FloatElementWise<G, F, I>
+impl<G, F, I> Optimization<Wgpu<G, F, I>> for ElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -82,6 +98,7 @@ where
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
+                self.scalars_i32,
                 kernel,
                 context,
                 self.device.clone(),
@@ -93,6 +110,7 @@ where
                 &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
                 self.scalars_f32,
+                self.scalars_i32,
                 FusedKernelSource::NewKernel {
                     id: self.id.to_string(),
                     shader,
@@ -115,6 +133,7 @@ mod tests {
     use super::*;
     use burn_fusion::graph::Ops;
     use burn_fusion::{Fusion, FusionBackend};
+    use burn_tensor::Int;
     use burn_tensor::{backend::Backend, Data, Tensor};
 
     #[test]
@@ -139,6 +158,48 @@ mod tests {
             data_2.clone(),
             ImplementationDetails::Variant1,
         );
+
+        result_ref.assert_approx_eq(&result_fused, 3);
+    }
+
+    #[test]
+    fn test_fusion_same_behavior_int() {
+        let data_1 = Tensor::<FusedBackend, 2>::random(
+            [32, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data();
+        let data_2 = Tensor::<Backend, 2>::random(
+            [32, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data()
+        .convert();
+
+        fn func<B: burn_tensor::backend::Backend>(
+            data1: Data<f32, 2>,
+            data2: Data<i32, 2>,
+        ) -> Data<f32, 2> {
+            let x = Tensor::<B, 2>::from_data(data1.convert(), &Default::default());
+            let y = Tensor::<B, 2, Int>::from_data(data2.convert(), &Default::default());
+
+            let x_1 = x.clone().powf(2.0);
+            let x_1 = x_1 + x;
+            let y_1 = y * 6;
+            let y_1 = y_1 + 4;
+
+            let z = x_1 * y_1.float();
+
+            z.into_data().convert()
+        }
+
+        type Backend = Wgpu;
+        type FusedBackend = Fusion<Wgpu>;
+
+        let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
+        let result_ref = func::<Backend>(data_1.clone(), data_2.clone());
 
         result_ref.assert_approx_eq(&result_fused, 3);
     }

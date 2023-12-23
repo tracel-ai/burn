@@ -85,12 +85,13 @@ impl ConfigStructAnalyzer {
         });
 
         quote! {
-            impl serde::Serialize for #name {
+            impl burn::serde::Serialize for #name {
 
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
-                    S: serde::Serializer {
-                    #[derive(serde::Serialize)]
+                    S: burn::serde::Serializer {
+                    #[derive(burn::serde::Serialize)]
+                    #[serde(crate = "burn::serde")]
                     #struct_gen
 
                     let serde_state = #struct_name {
@@ -116,11 +117,12 @@ impl ConfigStructAnalyzer {
         });
 
         quote! {
-            impl<'de> serde::Deserialize<'de> for #name {
+            impl<'de> burn::serde::Deserialize<'de> for #name {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
-                    D: serde::Deserializer<'de> {
-                    #[derive(serde::Deserialize)]
+                    D: burn::serde::Deserializer<'de> {
+                    #[derive(burn::serde::Deserialize)]
+                    #[serde(crate = "burn::serde")]
                     #struct_gen
 
                     let serde_state = #struct_name::deserialize(deserializer)?;
