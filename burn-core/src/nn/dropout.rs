@@ -64,7 +64,7 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn with_ad_backend_should_mark_input() {
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones(Shape::new([100, 100]));
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones_devauto(Shape::new([100, 100]));
         let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn without_ad_backend_should_not_change_input() {
-        let tensor = Tensor::<TestBackend, 2>::ones(Shape::new([100, 100]));
+        let tensor = Tensor::<TestBackend, 2>::ones_devauto(Shape::new([100, 100]));
         let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());

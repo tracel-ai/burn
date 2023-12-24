@@ -190,17 +190,30 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         lhs: TchTensor<i64, D>,
         rhs: TchTensor<i64, D>,
     ) -> TchTensor<i64, D> {
-        TchOps::div(lhs, rhs)
+        let copy = false;
+        let non_blocking = true;
+        let lhs: TchTensor<f64, D> =
+            TchTensor::new(lhs.tensor.to_dtype(tch::Kind::Float, non_blocking, copy));
+        let rhs: TchTensor<f64, D> =
+            TchTensor::new(rhs.tensor.to_dtype(tch::Kind::Float, non_blocking, copy));
+
+        let out = TchOps::div(lhs, rhs);
+
+        TchTensor::<i64, D>::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
     }
 
     fn int_div_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
+        let copy = false;
+        let non_blocking = true;
         let lhs: TchTensor<f64, D> =
-            TchTensor::new(lhs.tensor.to_dtype(tch::Kind::Float, true, false));
-        let output: TchTensor<i64, D> = lhs.unary_ops(
+            TchTensor::new(lhs.tensor.to_dtype(tch::Kind::Float, non_blocking, copy));
+
+        let out: TchTensor<f64, D> = lhs.unary_ops(
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
         );
-        TchTensor::<i64, D>::new(output.tensor.to_dtype(tch::Kind::Int64, true, false))
+
+        TchTensor::<i64, D>::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {
@@ -387,5 +400,22 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         dim2: usize,
     ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
         TchOps::swap_dims(tensor, dim1, dim2)
+    }
+
+    fn int_narrow<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<i64, D> {
+        TchOps::narrow(tensor, dim, start, length)
+    }
+
+    fn int_chunk<const D: usize>(
+        tensor: TchTensor<i64, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<TchTensor<i64, D>> {
+        TchOps::chunk(tensor, chunks, dim)
     }
 }

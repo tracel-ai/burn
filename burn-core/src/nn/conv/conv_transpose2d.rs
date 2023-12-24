@@ -62,8 +62,15 @@ pub struct ConvTranspose2d<B: Backend> {
 }
 
 impl ConvTranspose2dConfig {
+    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module
+    /// on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> ConvTranspose2d<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [conv transpose 2d](ConvTranspose2d) module.
-    pub fn init<B: Backend>(&self) -> ConvTranspose2d<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> ConvTranspose2d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
 
         let shape = [
@@ -74,13 +81,15 @@ impl ConvTranspose2dConfig {
         ];
 
         let fan_in = self.channels[1] / self.groups * self.kernel_size.iter().product::<usize>();
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
+        let weight = self
+            .initializer
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
             bias = Some(
                 self.initializer
-                    .init_with([self.channels[1]], Some(fan_in), None),
+                    .init_with([self.channels[1]], Some(fan_in), None, device),
             );
         }
 
@@ -147,7 +156,7 @@ mod tests {
         let config = ConvTranspose2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[1] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init::<TestBackend>();
+        let conv = config.init_devauto::<TestBackend>();
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
@@ -158,7 +167,7 @@ mod tests {
 
         let config =
             ConvTranspose2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight

@@ -1,5 +1,4 @@
 use super::{DataLoader, DataLoaderIterator, Progress};
-use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -24,7 +23,7 @@ struct MultiThreadsDataloaderIterator<O> {
     num_done: usize,
     workers: Vec<thread::JoinHandle<()>>,
     receiver: mpsc::Receiver<Message<O>>,
-    progresses: HashMap<usize, Progress>,
+    progresses: Vec<Progress>,
 }
 
 impl<O> MultiThreadDataLoader<O> {
@@ -49,6 +48,8 @@ where
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
 
+        let mut progresses = Vec::with_capacity(self.dataloaders.len());
+
         let handlers: Vec<_> = self
             .dataloaders
             .clone()
@@ -57,6 +58,7 @@ where
             .map(|(index, dataloader)| {
                 let dataloader_cloned = dataloader;
                 let sender_cloned = sender.clone();
+                progresses.push(Progress::new(0, dataloader_cloned.num_items()));
 
                 thread::spawn(move || {
                     let mut iterator = dataloader_cloned.iter();
@@ -76,17 +78,27 @@ where
             })
             .collect();
 
-        Box::new(MultiThreadsDataloaderIterator::new(receiver, handlers))
+        Box::new(MultiThreadsDataloaderIterator::new(
+            receiver, handlers, progresses,
+        ))
+    }
+
+    fn num_items(&self) -> usize {
+        self.dataloaders.iter().map(|dl| dl.num_items()).sum()
     }
 }
 
 impl<O> MultiThreadsDataloaderIterator<O> {
-    pub fn new(receiver: mpsc::Receiver<Message<O>>, workers: Vec<thread::JoinHandle<()>>) -> Self {
+    pub fn new(
+        receiver: mpsc::Receiver<Message<O>>,
+        workers: Vec<thread::JoinHandle<()>>,
+        progresses: Vec<Progress>,
+    ) -> Self {
         MultiThreadsDataloaderIterator {
             num_done: 0,
             workers,
             receiver,
-            progresses: HashMap::new(),
+            progresses,
         }
     }
 }
@@ -95,15 +107,12 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
         let mut items_total = 0;
         let mut items_processed = 0;
 
-        for progress in self.progresses.values() {
+        for progress in self.progresses.iter() {
             items_total += progress.items_total;
             items_processed += progress.items_processed;
         }
 
-        Progress {
-            items_processed,
-            items_total,
-        }
+        Progress::new(items_processed, items_total)
     }
 }
 
@@ -121,7 +130,9 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
 
             match item {
                 Message::Batch(index, item, progress) => {
-                    self.progresses.insert(index, progress);
+                    if let Some(current) = self.progresses.get_mut(index) {
+                        *current = progress;
+                    }
                     return Some(item);
                 }
                 Message::Done => {

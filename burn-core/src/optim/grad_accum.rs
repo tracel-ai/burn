@@ -81,13 +81,14 @@ mod tests {
         nn::{Linear, LinearConfig},
         TestAutodiffBackend,
     };
-    use burn_tensor::Distribution;
+    use burn_tensor::{backend::Backend, Distribution};
 
     #[test]
     fn test_accumulate_gradients_one_step() {
+        let device = Default::default();
         let mut accumulator = GradientsAccumulator::new();
-        let layer = layer();
-        let loss = layer.forward(random_tensor());
+        let layer = layer::<TestAutodiffBackend>(&device);
+        let loss = layer.forward(random_tensor::<TestAutodiffBackend>(&device));
         let grads = GradientsParams::from_grads(loss.backward(), &layer);
 
         accumulator.accumulate(&layer, grads);
@@ -98,10 +99,11 @@ mod tests {
 
     #[test]
     fn test_accumulate_gradients_two_steps() {
+        let device = Default::default();
         let mut accumulator = GradientsAccumulator::new();
-        let layer = layer();
-        let loss_1 = layer.forward(random_tensor());
-        let loss_2 = layer.forward(random_tensor());
+        let layer = layer::<TestAutodiffBackend>(&device);
+        let loss_1 = layer.forward(random_tensor(&device));
+        let loss_2 = layer.forward(random_tensor(&device));
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer);
         let grads_2 = GradientsParams::from_grads(loss_2.backward(), &layer);
 
@@ -112,11 +114,11 @@ mod tests {
         assert_eq!(grads.len(), 2)
     }
 
-    fn layer() -> Linear<TestAutodiffBackend> {
-        LinearConfig::new(20, 20).with_bias(true).init()
+    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+        LinearConfig::new(20, 20).with_bias(true).init(device)
     }
 
-    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
-        Tensor::<TestAutodiffBackend, 2>::random([2, 20], Distribution::Default)
+    fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
+        Tensor::<B, 2>::random([2, 20], Distribution::Default, device)
     }
 }

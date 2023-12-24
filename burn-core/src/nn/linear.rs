@@ -37,17 +37,24 @@ pub struct Linear<B: Backend> {
 }
 
 impl LinearConfig {
+    /// Initialize a new [linear](Linear) module on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> Linear<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [linear](Linear) module.
-    pub fn init<B: Backend>(&self) -> Linear<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
         let shape = [self.d_input, self.d_output];
-        let weight = self
-            .initializer
-            .init_with(shape, Some(self.d_input), Some(self.d_output));
+        let weight =
+            self.initializer
+                .init_with(shape, Some(self.d_input), Some(self.d_output), device);
         let bias = if self.bias {
             Some(self.initializer.init_with(
                 [self.d_output],
                 Some(self.d_input),
                 Some(self.d_output),
+                device,
             ))
         } else {
             None
@@ -98,7 +105,7 @@ mod tests {
 
         let config = LinearConfig::new(5, 5);
         let k = sqrt(1.0 / config.d_input as f64) as f32;
-        let linear = config.init::<TestBackend>();
+        let linear = config.init_devauto::<TestBackend>();
 
         assert_eq!(
             config.initializer,
@@ -115,7 +122,8 @@ mod tests {
         TestBackend::seed(0);
 
         let config = LinearConfig::new(5, 5).with_initializer(Initializer::Zeros);
-        let linear = config.init::<TestBackend>();
+        let device = Default::default();
+        let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         linear
@@ -132,11 +140,12 @@ mod tests {
         let config = LinearConfig::new(2, 3)
             .with_initializer(Initializer::Constant { value })
             .with_bias(false);
-        let linear = config.init();
+        let device = Default::default();
+        let linear = config.init::<TestBackend>(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data([[4., 4., 4.]]);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[4., 4., 4.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }
@@ -145,13 +154,15 @@ mod tests {
     fn test_linear_forward_with_bias() {
         TestBackend::seed(0);
 
+        let device = Default::default();
+
         let value = 2.;
         let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
-        let linear = config.init();
+        let linear = config.init::<TestBackend>(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]));
+        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]]);
+        let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }

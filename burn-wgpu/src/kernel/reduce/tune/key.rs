@@ -6,6 +6,7 @@ use burn_tensor::Shape;
 /// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
     reduce_dim_length: usize,
+    reduce_dim_stride: usize,
     others_product: usize,
 }
 
@@ -13,8 +14,8 @@ impl Display for ReduceAutotuneKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
-                "Reduce - reduce_dim_length: {:?} others_product: {:?}",
-                self.reduce_dim_length, self.others_product
+                "Reduce - reduce_dim_length: {:?} reduce_dim_stride: {:?} others_product: {:?}",
+                self.reduce_dim_length, self.reduce_dim_stride, self.others_product
             )
             .as_str(),
         )
@@ -23,8 +24,9 @@ impl Display for ReduceAutotuneKey {
 
 impl ReduceAutotuneKey {
     /// Create a reduce autotune key from the input shape and reduce dim
-    pub fn new<const D: usize>(shape: &Shape<D>, reduce_dim: usize) -> Self {
+    pub fn new<const D: usize>(shape: &Shape<D>, strides: &[usize; D], reduce_dim: usize) -> Self {
         let reduce_dim_length = shape.dims[reduce_dim];
+        let reduce_dim_stride = strides[reduce_dim];
         let mut others_product = 1;
         for d in 0..D {
             if d != reduce_dim {
@@ -33,6 +35,7 @@ impl ReduceAutotuneKey {
         }
         Self {
             reduce_dim_length: anchor(reduce_dim_length, None),
+            reduce_dim_stride: anchor(reduce_dim_stride, None),
             others_product: anchor(others_product, None),
         }
     }

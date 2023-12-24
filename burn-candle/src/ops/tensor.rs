@@ -137,7 +137,17 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        CandleTensor::new(lhs.tensor.broadcast_matmul(&rhs.tensor).unwrap())
+        let lhs_contiguous = if !lhs.tensor.is_contiguous() {
+            lhs.tensor.contiguous().unwrap()
+        } else {
+            lhs.tensor
+        };
+        let rhs_contiguous = if !rhs.tensor.is_contiguous() {
+            rhs.tensor.contiguous().unwrap()
+        } else {
+            rhs.tensor
+        };
+        CandleTensor::new(lhs_contiguous.broadcast_matmul(&rhs_contiguous).unwrap())
     }
 
     fn swap_dims<const D: usize>(
@@ -446,5 +456,22 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
 
     fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.recip().unwrap())
+    }
+
+    fn narrow<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> FloatTensor<Self, D> {
+        super::base::narrow(tensor, dim, start, length)
+    }
+
+    fn chunk<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<FloatTensor<Self, D>> {
+        super::base::chunk(tensor, chunks, dim)
     }
 }

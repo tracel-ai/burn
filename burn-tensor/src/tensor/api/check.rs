@@ -102,8 +102,10 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start exceeds the size of the tensor along this dimension (Size={})",
-                    dim, tensor.shape().dims[dim]
+                    "Can't narrow at dimension {}, start exceeds the size of the tensor along \
+                     this dimension (Size={})",
+                    dim,
+                    tensor.shape().dims[dim]
                 )),
             );
         }
@@ -112,8 +114,10 @@ impl TensorCheck {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
-                    "Can't narrow at dimension {}, start + length exceeds the size of the tensor along this dimension (Size={})",
-                    dim, tensor.shape().dims[dim]
+                    "Can't narrow at dimension {}, start + length exceeds the size of the tensor \
+                     along this dimension (Size={})",
+                    dim,
+                    tensor.shape().dims[dim]
                 )),
             );
         }
@@ -128,13 +132,17 @@ impl TensorCheck {
         let mut check = Self::Ok;
 
         if original.num_elements() != target.num_elements() {
-            check = check.register("Reshape", TensorError::new(
-                "The given shape doesn't have the same number of elements as the current tensor.",
-            )
-            .details(format!(
-                "Current shape: {:?}, target shape: {:?}.",
-                original.dims, target.dims
-            )));
+            check = check.register(
+                "Reshape",
+                TensorError::new(
+                    "The given shape doesn't have the same number of elements as the current \
+                     tensor.",
+                )
+                .details(format!(
+                    "Current shape: {:?}, target shape: {:?}.",
+                    original.dims, target.dims
+                )),
+            );
         }
 
         check
@@ -199,8 +207,8 @@ impl TensorCheck {
             check = check.register(
                 "Flatten",
                 TensorError::new(format!(
-                    "The destination dimension ({D2}) must be large enough to accommodate the flattening operation."
-
+                    "The destination dimension ({D2}) must be large enough to accommodate the \
+                     flattening operation."
                 )),
             );
         }
@@ -307,7 +315,8 @@ impl TensorCheck {
             check = check.register(
                 "Matmul",
                 TensorError::new(format!(
-                    "The inner dimension of matmul should be the same, but got {dim_lhs} and {dim_rhs}."
+                    "The inner dimension of matmul should be the same, but got {dim_lhs} and \
+                     {dim_rhs}."
                 ))
                 .details(format!(
                     "Lhs shape {:?}, rhs shape {:?}.",
@@ -344,7 +353,7 @@ impl TensorCheck {
             );
         }
 
-        let shape_reference = tensors.get(0).unwrap().shape();
+        let shape_reference = tensors.first().unwrap().shape();
 
         for tensor in tensors {
             let shape = tensor.shape();
@@ -389,7 +398,7 @@ impl TensorCheck {
             );
         }
 
-        let mut shape_reference = tensors.get(0).unwrap().shape();
+        let mut shape_reference = tensors.first().unwrap().shape();
         shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
                                        // concatenation happens.
 
@@ -400,13 +409,15 @@ impl TensorCheck {
             if shape_reference != shape {
                 return check.register(
                     "Cat",
-                    TensorError::new("Can't concatenate tensors with different shapes, except for the provided dimension").details(
-                        format!(
-                            "Provided dimension ({}), tensors shapes: {:?}",
-                            dim,
-                            tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
-                        ),
-                    ),
+                    TensorError::new(
+                        "Can't concatenate tensors with different shapes, except for the provided \
+                         dimension",
+                    )
+                    .details(format!(
+                        "Provided dimension ({}), tensors shapes: {:?}",
+                        dim,
+                        tensors.iter().map(Tensor::shape).collect::<Vec<_>>()
+                    )),
                 );
             }
         }
@@ -423,13 +434,18 @@ impl TensorCheck {
         let n_dims_ranges = D2;
 
         if n_dims_tensor < n_dims_ranges {
-            check = check.register("Slice", 
-                TensorError::new ("The provided ranges array has a higher number of dimensions than the current tensor.")
-                .details(
-                    format!(
-                    "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {n_dims_tensor}, ranges array length {n_dims_ranges}."
-                )));
+            check = check.register(
+                "Slice",
+                TensorError::new(
+                    "The provided ranges array has a higher number of dimensions than the current \
+                     tensor.",
+                )
+                .details(format!(
+                    "The ranges array must be smaller or equal to the tensor number of \
+                     dimensions. Tensor number of dimensions: {n_dims_tensor}, ranges array \
+                     length {n_dims_ranges}."
+                )),
+            );
         }
 
         for i in 0..usize::min(D1, D2) {
@@ -439,32 +455,31 @@ impl TensorCheck {
             if range.end > d_tensor {
                 check = check.register(
                     "Slice",
-                    TensorError::new("The provided ranges array has a range that exceeds the current tensor size.")
+                    TensorError::new(
+                        "The provided ranges array has a range that exceeds the current tensor \
+                         size.",
+                    )
                     .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                        Tensor shape {:?}, provided ranges {:?}.",
-                        range.start,
-                        range.end,
-                        d_tensor,
-                        i,
-                        shape.dims,
-                        ranges,
-                    )));
+                         Tensor shape {:?}, provided ranges {:?}.",
+                        range.start, range.end, d_tensor, i, shape.dims, ranges,
+                    )),
+                );
             }
 
             if range.start >= range.end {
                 check = check.register(
                     "Slice",
-                    TensorError::new("The provided range array has a range where the start index is bigger or equal to its end.")
+                    TensorError::new(
+                        "The provided range array has a range where the start index is bigger or \
+                         equal to its end.",
+                    )
                     .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
-                        Tensor shape {:?}, provided ranges {:?}.",
-                        i,
-                        range.start,
-                        range.end,
-                        shape.dims,
-                        ranges,
-                    )));
+                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
+                         its end '{}'. Tensor shape {:?}, provided ranges {:?}.",
+                        i, range.start, range.end, shape.dims, ranges,
+                    )),
+                );
             }
         }
 
@@ -479,13 +494,17 @@ impl TensorCheck {
         let mut check = Self::Ok;
 
         if D1 < D2 {
-            check = check.register("Slice Assign",
-                TensorError::new ("The provided ranges array has a higher number of dimensions than the current tensor.")
-                .details(
-                    format!(
-                    "The ranges array must be smaller or equal to the tensor number of dimensions. \
-                    Tensor number of dimensions: {D1}, ranges array length {D2}."
-                )));
+            check = check.register(
+                "Slice Assign",
+                TensorError::new(
+                    "The provided ranges array has a higher number of dimensions than the current \
+                     tensor.",
+                )
+                .details(format!(
+                    "The ranges array must be smaller or equal to the tensor number of \
+                     dimensions. Tensor number of dimensions: {D1}, ranges array length {D2}."
+                )),
+            );
         }
 
         for i in 0..usize::min(D1, D2) {
@@ -496,27 +515,29 @@ impl TensorCheck {
             if range.end > d_tensor {
                 check = check.register(
                     "Range Assign",
-                    TensorError::new("The provided ranges array has a range that exceeds the current tensor size.")
+                    TensorError::new(
+                        "The provided ranges array has a range that exceeds the current tensor \
+                         size.",
+                    )
                     .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
-                        Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
-                        range.start,
-                        range.end,
-                        d_tensor,
-                        i,
-                        shape.dims,
-                        shape_value.dims,
-                        ranges,
-                    )));
+                         Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
+                        range.start, range.end, d_tensor, i, shape.dims, shape_value.dims, ranges,
+                    )),
+                );
             }
 
             if range.end - range.start != d_tensor_value {
                 check = check.register(
                     "Slice Assign",
-                    TensorError::new("The value tensor must match the amount of elements selected with the ranges array")
+                    TensorError::new(
+                        "The value tensor must match the amount of elements selected with the \
+                         ranges array",
+                    )
                     .details(format!(
-                        "The range ({}..{}) doesn't match the number of elements of the value tensor ({}) at dimension {}. \
-                        Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
+                        "The range ({}..{}) doesn't match the number of elements of the value \
+                         tensor ({}) at dimension {}. Current tensor shape {:?}, value tensor \
+                         shape {:?}, provided ranges {:?}.",
                         range.start,
                         range.end,
                         d_tensor_value,
@@ -524,23 +545,24 @@ impl TensorCheck {
                         shape.dims,
                         shape_value.dims,
                         ranges,
-                    )));
+                    )),
+                );
             }
 
             if range.start >= range.end {
                 check = check.register(
                     "Slice Assign",
-                    TensorError::new("The provided ranges array has a range where the start index is bigger or equal to its end.")
+                    TensorError::new(
+                        "The provided ranges array has a range where the start index is bigger or \
+                         equal to its end.",
+                    )
                     .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to its end '{}'. \
-                        Current tensor shape {:?}, value tensor shape {:?}, provided ranges {:?}.",
-                        i,
-                        range.start,
-                        range.end,
-                        shape.dims,
-                        shape_value.dims,
-                        ranges,
-                    )));
+                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
+                         its end '{}'. Current tensor shape {:?}, value tensor shape {:?}, \
+                         provided ranges {:?}.",
+                        i, range.start, range.end, shape.dims, shape_value.dims, ranges,
+                    )),
+                );
             }
         }
 
@@ -697,17 +719,16 @@ impl TensorCheck {
                     continue;
                 }
 
-                check = check.register(ops,
-                    TensorError::new("The provided tensors have incompatible shapes.")
-                    .details(format!(
-                    "Incompatible size at dimension '{}' => '{} != {}', which can't be broadcasted. \
-                    Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
-                    i,
-                    d_lhs,
-                    d_rhs,
-                    lhs.dims,
-                    rhs.dims,
-                 )));
+                check = check.register(
+                    ops,
+                    TensorError::new("The provided tensors have incompatible shapes.").details(
+                        format!(
+                            "Incompatible size at dimension '{}' => '{} != {}', which can't be \
+                             broadcasted. Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
+                            i, d_lhs, d_rhs, lhs.dims, rhs.dims,
+                        ),
+                    ),
+                );
             }
         }
 

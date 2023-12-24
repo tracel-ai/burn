@@ -91,7 +91,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     std::fs::create_dir_all(artifact_dir).ok();
     config
         .save(format!("{artifact_dir}/config.json"))
-        .expect("Save without error");
+        .expect("Config should be saved successfully");
 
     B::seed(config.seed);
 
@@ -128,7 +128,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     model_trained
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Failed to save trained model");
+        .expect("Trained model should be saved successfully");
 }
 ```
 

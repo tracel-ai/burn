@@ -1,13 +1,11 @@
 use burn::nn::{
     conv::Conv1dConfig,
-    conv::Conv2dConfig,
+    conv::{Conv2dConfig, ConvTranspose2dConfig},
     pool::{AvgPool2dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LinearConfig, PaddingConfig1d, PaddingConfig2d,
 };
 
-use crate::onnx::ir::Data;
-
-use super::ir::{ArgType, Node};
+use super::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -123,6 +121,59 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
 
+pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
+    let mut attrs = curr.attrs.clone();
+    let kernel_shape = attrs
+        .remove("kernel_shape")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_default();
+    let stride = attrs
+        .remove("strides")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let pads = attrs
+        .remove("pads")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
+    let dilations = attrs
+        .remove("dilations")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1, 1]);
+    let group = attrs
+        .remove("group")
+        .map(AttributeValue::into_i64)
+        .unwrap_or(1);
+
+    // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
+    if !attrs.is_empty() {
+        panic!("Not all attributes are used: {attrs:?}");
+    }
+
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
+        weight
+    } else {
+        panic!("ConvTranspose2d: weight tensor must be present");
+    };
+
+    // check if the bias is present
+    let bias = curr.inputs.len() == 3;
+
+    // the channels are inverted in the weight tensor
+    let shape = weight.shape.clone().unwrap();
+    let channels: [usize; 2] = [shape[1], shape[0]];
+
+    ConvTranspose2dConfig::new(
+        channels,
+        [kernel_shape[0] as usize, kernel_shape[1] as usize],
+    )
+    .with_stride([stride[0] as usize, stride[1] as usize])
+    .with_padding([pads[0] as usize, pads[1] as usize])
+    .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_groups(group as usize)
+    .with_bias(bias)
+}
+
 /// Create a AvgPool2dConfig from the attributes of the node
 pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
     let mut kernel_shape = Vec::new();
@@ -168,7 +219,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -211,7 +262,7 @@ pub fn gather_config(curr: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.get(0).unwrap().clone().ty {
+    let tensor = match curr.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -304,7 +355,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -339,7 +390,7 @@ pub fn softmax_config(node: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };
@@ -366,7 +417,7 @@ pub fn concat_config(node: &Node) -> usize {
     let mut axis: i64 = 1;
 
     // extract the shape of the input tensor
-    let tensor = match node.inputs.get(0).unwrap().clone().ty {
+    let tensor = match node.inputs.first().unwrap().clone().ty {
         ArgType::Tensor(tensor) => tensor,
         _ => panic!("Only tensor input is valid"),
     };

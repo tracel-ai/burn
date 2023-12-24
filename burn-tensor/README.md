@@ -1,33 +1,33 @@
 # Burn Tensor
 
-> [Burn](https://github.com/burn-rs/burn) Tensor Library 
+> [Burn](https://github.com/tracel-ai/burn) Tensor Library
 
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn-tensor.svg)](https://crates.io/crates/burn-tensor)
-[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/burn-rs/burn-tensor/blob/master/README.md)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](https://github.com/tracel-ai/burn-tensor/blob/master/README.md)
 
 This library provides multiple tensor implementations hidden behind an easy to use API that supports reverse mode automatic differentiation.
 
 ## Features
 
-* Flexible ✨
-* CPU + GPU 🙏
-* Multi-Threads 🚀
-* Intuitive Usage 😌
-* No Global State 🚫
-* Multiple Backends 🦾
-* Reverse Mode Autodiff 🔥
+- Flexible ✨
+- CPU + GPU 🙏
+- Multi-Threads 🚀
+- Intuitive Usage 😌
+- No Global State 🚫
+- Multiple Backends 🦾
+- Reverse Mode Autodiff 🔥
 
 ### Backends
 
-For now, three backends are implemented, and some more are planned. 
+For now, three backends are implemented, and some more are planned.
 
-* [X] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
-* [X] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
-* [X] [WGPU](https://github.com/gfx-rs/wgpu) backend
-* [ ] [Candle](https://github.com/huggingface/candle) backend
-* [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
-* [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
-* [ ] ...
+- [x] Pytorch using [tch-rs](https://github.com/LaurentMazare/tch-rs)
+- [x] 100% Rust backend using [ndarray](https://github.com/rust-ndarray/ndarray)
+- [x] [WGPU](https://github.com/gfx-rs/wgpu) backend
+- [ ] [Candle](https://github.com/huggingface/candle) backend
+- [ ] Tensorflow using [tensorflow-rust](https://github.com/tensorflow/rust)
+- [ ] CuDNN using RustCUDA[tensorflow-rust](https://github.com/Rust-GPU/Rust-CUDA)
+- [ ] ...
 
 ### Autodiff
 
@@ -56,12 +56,10 @@ To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
 
 This crate can be used alone without the entire burn stack and with only selected backends for smaller binaries.
 
-
 ## Feature Flags
 
 This crate can be used without the standard library (`#![no_std]`) with `alloc` by disabling
 the default `std` feature.
 
-* `std` - enables the standard library.
-* `burn-tensor-testgen` - enables test macros for generating tensor tests. 
-
+- `std` - enables the standard library.
+- `burn-tensor-testgen` - enables test macros for generating tensor tests.

@@ -13,7 +13,7 @@ pub trait Ops<B: FusionBackend>: Send + Sync {
 }
 
 /// Describe all tensor operations possible.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum TensorOpsDescription {
     /// Basic operation on a float tensor.
     BaseOpsFloat(BaseOpsDescription),
@@ -36,7 +36,7 @@ pub enum TensorOpsDescription {
 }
 
 /// Operation description specific to a float tensor.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum FloatOpsDescription {
     /// Operation corresponding to [exp](burn_tensor::ops::TensorOps::exp).
     Exp(UnaryOpsDescription),
@@ -61,13 +61,13 @@ pub enum FloatOpsDescription {
     /// Operation corresponding to [matmul](burn_tensor::ops::TensorOps::matmul).
     Matmul(BinaryOpsDescription),
     /// Operation corresponding to [random](burn_tensor::ops::TensorOps::random).
-    Random((TensorDescription, Distribution)),
+    Random(RandomOpsDescription),
     /// Operation corresponding to [recip](burn_tensor::ops::TensorOps::recip).
     Recip(UnaryOpsDescription),
 }
 
 /// Operation description specific to module.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum ModuleOpsDescription {
     /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
     Embedding(EmbeddingDescription),
@@ -124,7 +124,7 @@ pub enum ModuleOpsDescription {
 }
 
 /// Basic operations that can be done on any tensor type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum BaseOpsDescription {
     /// Operation corresponding to:
     ///
@@ -177,8 +177,8 @@ pub enum BaseOpsDescription {
 }
 
 /// Numeric operations on int and float tensors.
-#[derive(Clone, Debug)]
-pub enum NumericOpsDescription<E: Element> {
+#[derive(Clone, Debug, PartialEq)]
+pub enum NumericOpsDescription<E> {
     /// Operation corresponding to:
     ///
     /// Float => [add](burn_tensor::ops::TensorOps::add).
@@ -379,27 +379,17 @@ pub enum NumericOpsDescription<E: Element> {
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpsDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [clamp max](burn_tensor::ops::TensorOps::clamp_max).
-    /// Int => [clamp max](burn_tensor::ops::IntTensorOps::int_clamp_max).
-    ClampMax(ScalarOpsDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [clamp min](burn_tensor::ops::TensorOps::clamp_min).
-    /// Int => [cleamp min](burn_tensor::ops::IntTensorOps::int_clamp_min).
-    ClampMin(ScalarOpsDescription<E>),
 }
 
 /// Operation description specific to an int tensor.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum IntOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOpsDescription),
 }
 
 /// Operation description specific to a bool tensor.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum BoolOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(UnaryOpsDescription),
@@ -409,7 +399,7 @@ pub enum BoolOpsDescription {
     Not(UnaryOpsDescription),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 /// Swap dim operation description.
 pub struct SwapDimsDescription {
     /// Input tensor description.
@@ -422,15 +412,21 @@ pub struct SwapDimsDescription {
     pub dim2: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+#[allow(missing_docs)]
+pub struct RandomOpsDescription {
+    pub out: TensorDescription,
+    pub distribution: Distribution,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
-    pub shape: Vec<usize>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
@@ -438,14 +434,14 @@ pub struct BinaryOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct UnaryOpsDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub struct ScalarOpsDescription<E> {
     pub lhs: TensorDescription,
@@ -453,7 +449,7 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct GatherOpsDescription {
     pub tensor: TensorDescription,
@@ -462,7 +458,7 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct ScatterOpsDescription {
     pub tensor: TensorDescription,
@@ -472,7 +468,7 @@ pub struct ScatterOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct SelectOpsDescription {
     pub tensor: TensorDescription,
@@ -481,7 +477,7 @@ pub struct SelectOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct SelectAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -491,7 +487,7 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct SliceOpsDescription {
     pub tensor: TensorDescription,
@@ -499,7 +495,7 @@ pub struct SliceOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct SliceAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -508,7 +504,7 @@ pub struct SliceAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaskWhereOpsDescription {
     pub tensor: TensorDescription,
@@ -517,7 +513,7 @@ pub struct MaskWhereOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaskFillOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -526,7 +522,7 @@ pub struct MaskFillOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub struct ClampOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -535,17 +531,16 @@ pub struct ClampOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct RepeatOpsDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
     pub times: usize,
-    pub shape: Vec<usize>,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct CatOpsDescription {
     pub tensors: Vec<TensorDescription>,
@@ -553,7 +548,7 @@ pub struct CatOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct ReduceDimWithIndicesDescription {
     pub tensor: TensorDescription,
@@ -562,7 +557,7 @@ pub struct ReduceDimWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct EmbeddingDescription {
     pub weights: TensorDescription,
@@ -570,7 +565,7 @@ pub struct EmbeddingDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct EmbeddingBackwardDescription {
     pub weights: TensorDescription,
@@ -579,7 +574,7 @@ pub struct EmbeddingBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct Conv1dDescription {
     pub x: TensorDescription,
@@ -589,7 +584,7 @@ pub struct Conv1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct Conv2dDescription {
     pub x: TensorDescription,
@@ -599,7 +594,7 @@ pub struct Conv2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
@@ -609,7 +604,7 @@ pub struct ConvTranspose1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct ConvTranspose2dDescription {
     pub x: TensorDescription,
@@ -619,7 +614,7 @@ pub struct ConvTranspose2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AvgPool1dDescription {
     pub x: TensorDescription,
@@ -630,7 +625,7 @@ pub struct AvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AvgPool2dDescription {
     pub x: TensorDescription,
@@ -641,7 +636,7 @@ pub struct AvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -653,7 +648,7 @@ pub struct AvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -665,7 +660,7 @@ pub struct AvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dDescription {
     pub x: TensorDescription,
@@ -673,7 +668,7 @@ pub struct AdaptiveAvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dDescription {
     pub x: TensorDescription,
@@ -681,7 +676,7 @@ pub struct AdaptiveAvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -689,7 +684,7 @@ pub struct AdaptiveAvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -697,7 +692,7 @@ pub struct AdaptiveAvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaxPool1dDescription {
     pub x: TensorDescription,
@@ -708,7 +703,7 @@ pub struct MaxPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesDescription {
     pub x: TensorDescription,
@@ -720,7 +715,7 @@ pub struct MaxPool1dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -733,7 +728,7 @@ pub struct MaxPool1dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaxPool2dDescription {
     pub x: TensorDescription,
@@ -744,8 +739,8 @@ pub struct MaxPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
 #[allow(missing_docs)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub struct MaxPool2dWithIndicesDescription {
     pub x: TensorDescription,
     pub kernel_size: [usize; 2],
@@ -756,7 +751,7 @@ pub struct MaxPool2dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -771,344 +766,368 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
 
 impl TensorOpsDescription {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub(crate) fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            TensorOpsDescription::BaseOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BaseOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BaseOpsBool(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::NumericOpsFloat(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::NumericOpsInt(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::BoolOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::IntOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::FloatOps(ops) => ops.cleanup_tensor(handles),
-            TensorOpsDescription::ModuleOps(ops) => ops.cleanup_tensor(handles),
+            TensorOpsDescription::BaseOpsFloat(ops) => ops.nodes(),
+            TensorOpsDescription::BaseOpsInt(ops) => ops.nodes(),
+            TensorOpsDescription::BaseOpsBool(ops) => ops.nodes(),
+            TensorOpsDescription::NumericOpsFloat(ops) => ops.nodes(),
+            TensorOpsDescription::NumericOpsInt(ops) => ops.nodes(),
+            TensorOpsDescription::BoolOps(ops) => ops.nodes(),
+            TensorOpsDescription::IntOps(ops) => ops.nodes(),
+            TensorOpsDescription::FloatOps(ops) => ops.nodes(),
+            TensorOpsDescription::ModuleOps(ops) => ops.nodes(),
         }
-
-        // Cleanup tensor handles that were outputted, but ignored.
-        handles.cleanup_orphans();
     }
 }
 
 impl BaseOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            BaseOpsDescription::ToDevice(_) => (),
+            BaseOpsDescription::ToDevice(desc) => vec![desc],
             BaseOpsDescription::Reshape(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             BaseOpsDescription::SwapDims(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             BaseOpsDescription::Slice(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out]
             }
             BaseOpsDescription::SliceAssign(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.value, &desc.out]
             }
             BaseOpsDescription::Equal(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             BaseOpsDescription::Repeat(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out]
             }
-            BaseOpsDescription::Cat(desc) => {
-                for t in desc.tensors.iter() {
-                    handles.cleanup(t);
-                }
-            }
+            BaseOpsDescription::Cat(desc) => desc.tensors.iter().collect(),
         }
     }
 }
 
 impl<E: Element> NumericOpsDescription<E> {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             NumericOpsDescription::Add(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::AddScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Sub(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::SubScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Mul(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::MulScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Div(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::DivScalar(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
-            NumericOpsDescription::Ones(_) => {}
+            NumericOpsDescription::Ones(desc) => vec![desc],
             NumericOpsDescription::Gather(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
+                vec![&desc.tensor, &desc.indices, &desc.out]
             }
             NumericOpsDescription::Scatter(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
             NumericOpsDescription::Select(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
+                vec![&desc.tensor, &desc.indices, &desc.out]
             }
             NumericOpsDescription::SelectAssign(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.indices);
-                handles.cleanup(&desc.value);
+                vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
             NumericOpsDescription::MaskWhere(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.value);
-                handles.cleanup(&desc.mask);
+                vec![&desc.tensor, &desc.mask, &desc.value, &desc.out]
             }
             NumericOpsDescription::MaskFill(desc) => {
-                handles.cleanup(&desc.tensor);
-                handles.cleanup(&desc.mask);
+                vec![&desc.tensor, &desc.mask, &desc.out]
             }
             NumericOpsDescription::EqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::GreaterElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::GreaterEqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::LowerElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::LowerEqualElem(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Greater(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::GreaterEqual(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::Lower(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::LowerEqual(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOpsDescription::ArgMax(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::ArgMin(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Clamp(desc) => {
-                handles.cleanup(&desc.tensor);
-            }
-            NumericOpsDescription::ClampMin(desc) => {
-                handles.cleanup(&desc.lhs);
-            }
-            NumericOpsDescription::ClampMax(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.tensor, &desc.out]
             }
             NumericOpsDescription::Abs(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
-            NumericOpsDescription::Zeros(_) => {}
-            NumericOpsDescription::Full(_) => {}
+            NumericOpsDescription::Zeros(desc) => vec![desc],
+            NumericOpsDescription::Full(desc) => vec![&desc.0],
             NumericOpsDescription::MeanDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Mean(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::Sum(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::SumDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::Max(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::MaxDimWithIndices(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
             NumericOpsDescription::MinDimWithIndices(desc) => {
-                handles.cleanup(&desc.tensor);
+                vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
             NumericOpsDescription::Min(desc) => {
-                handles.cleanup(&desc.input);
+                vec![&desc.input, &desc.out]
             }
             NumericOpsDescription::MaxDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
             NumericOpsDescription::MinDim(desc) => {
-                handles.cleanup(&desc.lhs);
+                vec![&desc.lhs, &desc.out]
             }
         }
     }
 }
 
 impl FloatOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             FloatOpsDescription::Matmul(desc) => {
-                handles.cleanup(&desc.lhs);
-                handles.cleanup(&desc.rhs);
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            FloatOpsDescription::Random(_) => {}
-            FloatOpsDescription::Exp(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Log1p(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Erf(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Recip(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Powf(desc) => handles.cleanup(&desc.lhs),
-            FloatOpsDescription::Sqrt(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Cos(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Sin(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::Tanh(desc) => handles.cleanup(&desc.input),
-            FloatOpsDescription::IntoInt(desc) => handles.cleanup(&desc.input),
+            FloatOpsDescription::Random(desc) => vec![&desc.out],
+            FloatOpsDescription::Exp(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Log(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Log1p(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Erf(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Recip(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Powf(desc) => vec![&desc.lhs, &desc.out],
+            FloatOpsDescription::Sqrt(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Cos(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Sin(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOpsDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl IntOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            IntOpsDescription::IntoFloat(desc) => {
-                handles.cleanup(&desc.input);
-            }
+            IntOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl BoolOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
-            BoolOpsDescription::IntoFloat(desc) => {
-                handles.cleanup(&desc.input);
-            }
-            BoolOpsDescription::IntoInt(desc) => {
-                handles.cleanup(&desc.input);
-            }
-            BoolOpsDescription::Not(desc) => {
-                handles.cleanup(&desc.input);
-            }
+            BoolOpsDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            BoolOpsDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
+            BoolOpsDescription::Not(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
 impl ModuleOpsDescription {
-    fn cleanup_tensor<B: FusionBackend>(&self, handles: &mut HandleContainer<B>) {
+    fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             ModuleOpsDescription::Embedding(desc) => {
-                handles.cleanup(&desc.weights);
-                handles.cleanup(&desc.indices);
+                vec![&desc.weights, &desc.indices, &desc.out]
             }
             ModuleOpsDescription::EmbeddingBackward(desc) => {
-                handles.cleanup(&desc.weights);
-                handles.cleanup(&desc.out_grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.weights, &desc.out_grad, &desc.indices, &desc.out]
             }
             ModuleOpsDescription::Conv1d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::Conv2d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::ConvTranspose1d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::ConvTranspose2d(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.weight);
-
                 if let Some(bias) = &desc.bias {
-                    handles.cleanup(bias);
+                    vec![&desc.x, &desc.weight, &bias, &desc.out]
+                } else {
+                    vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
             ModuleOpsDescription::AvgPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AvgPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AvgPool1dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AvgPool2dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AdaptiveAvgPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AdaptiveAvgPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::AdaptiveAvgPool1dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::AdaptiveAvgPool2dBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
+                vec![&desc.x, &desc.out, &desc.grad]
             }
             ModuleOpsDescription::MaxPool1d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::MaxPool1dWithIndices(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out, &desc.out_indices]
             }
             ModuleOpsDescription::MaxPool1dWithIndicesBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
             ModuleOpsDescription::MaxPool2d(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out]
             }
             ModuleOpsDescription::MaxPool2dWithIndices(desc) => {
-                handles.cleanup(&desc.x);
+                vec![&desc.x, &desc.out, &desc.out_indices]
             }
             ModuleOpsDescription::MaxPool2dWithIndicesBackward(desc) => {
-                handles.cleanup(&desc.x);
-                handles.cleanup(&desc.grad);
-                handles.cleanup(&desc.indices);
+                vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
+        }
+    }
+}
+impl core::hash::Hash for RandomOpsDescription {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.out.hash(state);
+
+        match self.distribution {
+            Distribution::Default => 1u8.hash(state),
+            Distribution::Bernoulli(_) => 2u8.hash(state),
+            Distribution::Uniform(_, _) => 3u8.hash(state),
+            Distribution::Normal(_, _) => 4u8.hash(state),
+        }
+    }
+}
+impl<E> core::hash::Hash for ScalarOpsDescription<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.lhs.hash(state);
+        self.out.hash(state);
+    }
+}
+
+impl<E> core::hash::Hash for MaskFillOpsDescription<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.tensor.hash(state);
+        self.mask.hash(state);
+        self.out.hash(state);
+    }
+}
+
+impl<E> core::hash::Hash for ClampOpsDescription<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.tensor.hash(state);
+        self.out.hash(state);
+    }
+}
+
+impl<E> core::hash::Hash for NumericOpsDescription<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            NumericOpsDescription::Add(desc) => desc.hash(state),
+            NumericOpsDescription::AddScalar(desc) => desc.hash(state),
+            NumericOpsDescription::Sub(desc) => desc.hash(state),
+            NumericOpsDescription::SubScalar(desc) => desc.hash(state),
+            NumericOpsDescription::Div(desc) => desc.hash(state),
+            NumericOpsDescription::DivScalar(desc) => desc.hash(state),
+            NumericOpsDescription::Mul(desc) => desc.hash(state),
+            NumericOpsDescription::MulScalar(desc) => desc.hash(state),
+            NumericOpsDescription::Abs(desc) => desc.hash(state),
+            NumericOpsDescription::Ones(desc) => desc.hash(state),
+            NumericOpsDescription::Zeros(desc) => desc.hash(state),
+            NumericOpsDescription::Full(desc) => desc.0.hash(state),
+            NumericOpsDescription::Gather(desc) => desc.hash(state),
+            NumericOpsDescription::Scatter(desc) => desc.hash(state),
+            NumericOpsDescription::Select(desc) => desc.hash(state),
+            NumericOpsDescription::SelectAssign(desc) => desc.hash(state),
+            NumericOpsDescription::MaskWhere(desc) => desc.hash(state),
+            NumericOpsDescription::MaskFill(desc) => desc.hash(state),
+            NumericOpsDescription::MeanDim(desc) => desc.hash(state),
+            NumericOpsDescription::Mean(desc) => desc.hash(state),
+            NumericOpsDescription::Sum(desc) => desc.hash(state),
+            NumericOpsDescription::SumDim(desc) => desc.hash(state),
+            NumericOpsDescription::EqualElem(desc) => desc.hash(state),
+            NumericOpsDescription::Greater(desc) => desc.hash(state),
+            NumericOpsDescription::GreaterElem(desc) => desc.hash(state),
+            NumericOpsDescription::GreaterEqual(desc) => desc.hash(state),
+            NumericOpsDescription::GreaterEqualElem(desc) => desc.hash(state),
+            NumericOpsDescription::Lower(desc) => desc.hash(state),
+            NumericOpsDescription::LowerElem(desc) => desc.hash(state),
+            NumericOpsDescription::LowerEqual(desc) => desc.hash(state),
+            NumericOpsDescription::LowerEqualElem(desc) => desc.hash(state),
+            NumericOpsDescription::ArgMax(desc) => desc.hash(state),
+            NumericOpsDescription::ArgMin(desc) => desc.hash(state),
+            NumericOpsDescription::Max(desc) => desc.hash(state),
+            NumericOpsDescription::MaxDimWithIndices(desc) => desc.hash(state),
+            NumericOpsDescription::MinDimWithIndices(desc) => desc.hash(state),
+            NumericOpsDescription::Min(desc) => desc.hash(state),
+            NumericOpsDescription::MaxDim(desc) => desc.hash(state),
+            NumericOpsDescription::MinDim(desc) => desc.hash(state),
+            NumericOpsDescription::Clamp(desc) => desc.hash(state),
         }
     }
 }

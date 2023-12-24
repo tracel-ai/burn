@@ -42,7 +42,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             tensor = tensor.narrow(i as i64, start, length);
         }
 
-        TchTensor::from_existing(tensor, storage)
+        TchTensor::partial(tensor, storage)
     }
 
     pub fn slice_assign<const D1: usize, const D2: usize>(
@@ -50,8 +50,12 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         ranges: [Range<usize>; D2],
         value: TchTensor<E, D1>,
     ) -> TchTensor<E, D1> {
-        let tensor_original = tensor.tensor.copy();
         let tch_shape = TchShape::from(tensor.shape());
+
+        // Copy the input tensor if we can't mutate it.
+        let tensor_original: TchTensor<E, D1> =
+            tensor.unary_ops(|tensor| tensor, |tensor| tensor.copy());
+        let tensor_original = tensor_original.tensor;
 
         let mut tensor = tensor_original.view_(tch_shape.dims);
 
@@ -408,5 +412,31 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     ) -> TchTensor<E, D> {
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
         TchTensor::new(tensor)
+    }
+
+    pub fn narrow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(
+            tensor
+                .tensor
+                .narrow(dim as i64, start as i64, length as i64),
+        )
+    }
+
+    pub fn chunk<const D: usize>(
+        tensor: TchTensor<E, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<TchTensor<E, D>> {
+        tensor
+            .tensor
+            .chunk(chunks as i64, dim as i64)
+            .into_iter()
+            .map(|tensor| TchTensor::new(tensor))
+            .collect()
     }
 }

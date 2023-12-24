@@ -11,6 +11,7 @@ mod tests {
     use burn_core as burn;
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
+    use burn_ndarray::NdArrayDevice;
 
     type TestBackend = burn_ndarray::NdArray<f32>;
 
@@ -175,9 +176,14 @@ mod tests {
             .unwrap();
     }
 
+    #[inline(always)]
+    fn file_path(filename: String) -> PathBuf {
+        std::env::temp_dir().join(filename)
+    }
+
     #[test]
     fn test_tensor_serde() {
-        let tensor: burn_tensor::Tensor<TestBackend, 1> = burn_tensor::Tensor::ones([1]);
+        let tensor: burn_tensor::Tensor<TestBackend, 1> = burn_tensor::Tensor::ones([1], &NdArrayDevice::default());
         let encoded = serde_json::to_string(&tensor).unwrap();
         let decoded: burn_tensor::Tensor<TestBackend, 1> = serde_json::from_str(&encoded).unwrap();
         assert_eq!(tensor.into_data(), decoded.into_data());
@@ -187,12 +193,13 @@ mod tests {
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_optional_field-{name}").into();
+        let device = Default::default();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_optional_field-{name}"));
         let model = Model {
             single_const: 32.0,
-            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
             array_const: [2, 2],
-            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
         };
 
         recorder
@@ -212,13 +219,14 @@ mod tests {
     where
         R: FileRecorder,
     {
+        let device = Default::default();
         let file_path: PathBuf =
-            format!("/tmp/deserialize_with_removed_optional_field-{name}").into();
+            file_path(format!("deserialize_with_removed_optional_field-{name}"));
         let model = ModelNewOptionalField {
             single_const: 32.0,
-            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
             array_const: [2, 2],
-            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
             new_field: None,
         };
 
@@ -236,12 +244,13 @@ mod tests {
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_constant_field-{name}").into();
+        let device = Default::default();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_constant_field-{name}"));
         let model = Model {
             single_const: 32.0,
             array_const: [2, 2],
-            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
-            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
         };
 
         recorder
@@ -261,13 +270,14 @@ mod tests {
     where
         R: FileRecorder,
     {
+        let device = Default::default();
         let file_path: PathBuf =
-            format!("/tmp/deserialize_with_removed_constant_field-{name}").into();
+            file_path(format!("deserialize_with_removed_constant_field-{name}"));
         let model = ModelNewConstantField {
             single_const: 32.0,
             array_const: [2, 2],
-            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
-            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
             new_field: 0,
         };
 
@@ -285,12 +295,13 @@ mod tests {
     where
         R: FileRecorder,
     {
-        let file_path: PathBuf = format!("/tmp/deserialize_with_new_field_order-{name}").into();
+        let device = Default::default();
+        let file_path: PathBuf = file_path(format!("deserialize_with_new_field_order-{name}"));
         let model = Model {
             array_const: [2, 2],
             single_const: 32.0,
-            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
-            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(),
+            linear1: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
+            linear2: nn::LinearConfig::new(20, 20).init::<TestBackend>(&device),
         };
 
         recorder

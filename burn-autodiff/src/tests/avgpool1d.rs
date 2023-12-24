@@ -16,7 +16,7 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats([[[
+        test.assert_output(TestTensor::from_floats_devauto([[[
             0.3333, 0.6667, 1.0000, 1.0000, 0.6667, 0.3333,
         ]]]));
     }
@@ -33,7 +33,7 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.3333, 0.6667, 0.3333, 0.6667, 0.3333, 0.3333],
             [0.3333, 0.6667, 0.3333, 0.6667, 0.3333, 0.3333],
         ]]));
@@ -51,7 +51,7 @@ mod tests {
             count_include_pad: false,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from_floats_devauto([[
             [0.5000, 0.8333, 0.3333, 0.6667, 0.3333, 0.3333],
             [0.5000, 0.8333, 0.3333, 0.6667, 0.3333, 0.3333],
         ]]));
@@ -70,8 +70,8 @@ mod tests {
     impl AvgPool1dTestCase {
         fn assert_output(self, x_grad: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.length]);
-            let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestAutodiffTensor::from_data_devauto(
+                TestTensorInt::arange_devauto(0..shape_x.num_elements())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

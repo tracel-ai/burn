@@ -5,7 +5,7 @@ The example can be run like so:
 ## CUDA users
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.
@@ -16,7 +16,7 @@ cargo run --example text-generation --release
 ## Mac users
 
 ```bash
-git clone https://github.com/burn-rs/burn.git
+git clone https://github.com/tracel-ai/burn.git
 cd burn
 
 # Use the --release flag to really speed up training.

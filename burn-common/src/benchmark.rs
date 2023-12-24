@@ -4,8 +4,10 @@ use alloc::vec::Vec;
 use core::fmt::Display;
 use core::time::Duration;
 
-#[cfg(feature = "std")]
+#[cfg(all(not(target_family = "wasm"), feature = "std"))]
 use std::time::Instant;
+#[cfg(all(target_family = "wasm", feature = "std"))]
+use web_time::Instant;
 
 /// Results of a benchmark run.
 #[derive(new, Debug)]
