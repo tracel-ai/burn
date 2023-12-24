@@ -550,16 +550,18 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Padding, PadMode, TensorKind, BasicOps,Element};
+    /// use burn_tensor::{Data,PadMode,Padding,Shape,Tensor};
     ///
     /// fn pad_example<B: Backend>()
+    /// where
+    ///     B::FloatElem: From<f32>, // Ensure that FloatElem can be created from a floating-point number
     /// {
-    ///    let value = 1.1;
-    ///    let tensor = Tensor::<B, 4>::ones([1,1,3,3]);
+    ///    let pad_const = 1.1;
+    ///    let tensor = Tensor::<B, 4>::ones_devauto(Shape::new([2, 3, 4, 5]));
     ///    let padding = Padding::uniform(2);
     ///
-    ///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(value));
-    ///    
+    ///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(pad_const.into()));
+    /// }    
     ///
     ///
     /// ```
