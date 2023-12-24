@@ -112,11 +112,13 @@ fn run_cargo_with_path<P: AsRef<Path>>(
         params
     );
 
-    // Run cargo
-    let mut cargo = Command::new("cargo");
+    // Run cargo through rustup
+    let mut cargo = Command::new("rustup");
     cargo
         .env("CARGO_INCREMENTAL", "0")
+        .arg("run")
         .args(nightly)
+        .arg("cargo")
         .arg(command)
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
