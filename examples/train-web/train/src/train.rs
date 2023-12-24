@@ -127,12 +127,12 @@ pub fn train<B: AutodiffBackend>(
         .metric_valid_numeric(LossMetric::new())
         // .with_file_checkpointer(CompactRecorder::new())
         .log_to_file(false)
-        .devices(vec![device])
+        .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
         .num_epochs(config.num_epochs)
         .build(
-            config.model.init::<B>(),
+            config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
         );
