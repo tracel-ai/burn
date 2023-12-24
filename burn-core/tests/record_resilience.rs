@@ -9,9 +9,9 @@ mod tests {
         },
     };
     use burn_core as burn;
+    use burn_ndarray::NdArrayDevice;
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
-    use burn_ndarray::NdArrayDevice;
 
     type TestBackend = burn_ndarray::NdArray<f32>;
 
@@ -183,7 +183,8 @@ mod tests {
 
     #[test]
     fn test_tensor_serde() {
-        let tensor: burn_tensor::Tensor<TestBackend, 1> = burn_tensor::Tensor::ones([1], &NdArrayDevice::default());
+        let tensor: burn_tensor::Tensor<TestBackend, 1> =
+            burn_tensor::Tensor::ones([1], &NdArrayDevice::default());
         let encoded = serde_json::to_string(&tensor).unwrap();
         let decoded: burn_tensor::Tensor<TestBackend, 1> = serde_json::from_str(&encoded).unwrap();
         assert_eq!(tensor.into_data(), decoded.into_data());
