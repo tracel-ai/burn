@@ -27,7 +27,7 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run<B: AutodiffBackend>(device: &B::Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
@@ -36,7 +36,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init();
+    let mut model = config.model.init(device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.

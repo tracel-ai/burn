@@ -55,6 +55,15 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
             phantom: PhantomData,
         }
     }
+
+    /// Create a tensor that uses a part of its parent tensor such as slice and narrow.
+    pub fn partial(tensor: tch::Tensor, storage_parent: StorageRef) -> Self {
+        Self {
+            tensor,
+            storage: storage_parent,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
@@ -273,7 +282,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats_devauto([4.0, 4.0]);
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
@@ -283,7 +292,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats_devauto([4.0, 4.0]);
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);

@@ -122,6 +122,10 @@ impl<I: Send + Sync + Clone + 'static, O: Send + Sync> DataLoader<O> for BatchDa
             self.batcher.clone(),
         ))
     }
+
+    fn num_items(&self) -> usize {
+        self.dataset.len()
+    }
 }
 
 impl<I, O> BatchDataloaderIterator<I, O> {
@@ -173,10 +177,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
 
 impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
     fn progress(&self) -> Progress {
-        Progress {
-            items_processed: self.current_index,
-            items_total: self.dataset.len(),
-        }
+        Progress::new(self.current_index, self.dataset.len())
     }
 }
 

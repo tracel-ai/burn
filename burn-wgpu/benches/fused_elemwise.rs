@@ -43,8 +43,8 @@ impl<B: Backend> Benchmark for ElemWiseBenchmark<B> {
 
     fn prepare(&self) -> Self::Args {
         B::seed(10);
-        let lhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
-        let rhs = Tensor::random_device(self.shape.clone(), Distribution::Default, &self.device);
+        let lhs = Tensor::random(self.shape.clone(), Distribution::Default, &self.device);
+        let rhs = Tensor::random(self.shape.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
     }

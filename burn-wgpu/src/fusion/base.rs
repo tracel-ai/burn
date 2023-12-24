@@ -81,14 +81,6 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     strides
 }
 
-pub fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
-    let mut num_elems = 1;
-    for i in shape.iter() {
-        num_elems *= i;
-    }
-    num_elems
-}
-
 #[derive(new, Debug, Clone)]
 /// Handle to be used when fusing operations.
 pub struct WgpuFusionHandle {
@@ -136,6 +128,8 @@ mod tests {
     pub type TestBackend = Fusion<Wgpu>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();

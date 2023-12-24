@@ -1,8 +1,9 @@
-use super::Variable;
+use super::variable::Variable;
 use std::fmt::Display;
 
 /// All operators that can be fused in a WGSL compute shader.
-#[derive(Debug, Hash, Clone)]
+#[derive(Debug, Clone)]
+#[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operator {
     Add {
         lhs: Variable,
@@ -57,6 +58,10 @@ pub enum Operator {
         rhs: Variable,
         out: Variable,
     },
+    Sqrt {
+        input: Variable,
+        out: Variable,
+    },
     Erf {
         input: Variable,
         out: Variable,
@@ -73,6 +78,12 @@ pub enum Operator {
     Lower {
         lhs: Variable,
         rhs: Variable,
+        out: Variable,
+    },
+    Clamp {
+        input: Variable,
+        min_value: Variable,
+        max_value: Variable,
         out: Variable,
     },
     Greater {
@@ -100,10 +111,18 @@ pub enum Operator {
         input: Variable,
         out: Variable,
     },
+    AssignLocal {
+        input: Variable,
+        out: Variable,
+    },
     ReadGlobal {
         variable: Variable,
-        position: usize,
-        position_out: usize,
+    },
+    /// Read the tensor in a way to be compatible with another tensor layout.
+    ReadGlobalWithLayout {
+        variable: Variable,
+        tensor_read_pos: usize,
+        tensor_layout_pos: usize,
     },
 }
 
@@ -125,8 +144,19 @@ impl Display for Operator {
             Operator::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
             Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
             Operator::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operator::Clamp {
+                input,
+                min_value,
+                max_value,
+                out,
+            } => f.write_fmt(format_args!(
+                "let {out} = clamp({input}, {min_value}, {max_value});"
+            )),
             Operator::Powf { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
+            }
+            Operator::Sqrt { input, out } => {
+                f.write_fmt(format_args!("let {out} = sqrt({input});"))
             }
             Operator::Log1p { input, out } => {
                 f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
@@ -134,7 +164,12 @@ impl Display for Operator {
             Operator::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
             Operator::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
             Operator::Tanh { input, out } => {
-                f.write_fmt(format_args!("let {out} = tanh({input});"))
+                #[cfg(target_os = "macos")]
+                let result = f.write_fmt(format_args!("let {out} = safe_tanh({input});"));
+                #[cfg(not(target_os = "macos"))]
+                let result = f.write_fmt(format_args!("let {out} = tanh({input});"));
+
+                result
             }
             Operator::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
             Operator::Recip { input, out } => {
@@ -159,10 +194,24 @@ impl Display for Operator {
                 let elem = out.elem();
                 f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
             }
-            Operator::ReadGlobal {
+            Operator::AssignLocal { input, out } => {
+                let elem = out.elem();
+                f.write_fmt(format_args!("let {out} = {elem}({input});"))
+            }
+            Operator::ReadGlobal { variable } => match variable {
+                Variable::Input(number, _elem) => f.write_fmt(format_args!(
+                    "let input_{number} = input_{number}_global[id];"
+                )),
+                Variable::Local(_, _) => panic!("can't read global local variable."),
+                Variable::Output(number, _elem) => f.write_fmt(format_args!(
+                    "let output_{number} = output_{number}_global[id];"
+                )),
+                Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+            },
+            Operator::ReadGlobalWithLayout {
                 variable,
-                position,
-                position_out,
+                tensor_read_pos: position,
+                tensor_layout_pos: position_out,
             } => {
                 let (global, local, elem) = match variable {
                     Variable::Input(number, elem) => (

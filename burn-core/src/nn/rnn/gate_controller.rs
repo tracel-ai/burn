@@ -23,7 +23,13 @@ pub struct GateController<B: Backend> {
 
 impl<B: Backend> GateController<B> {
     /// Initialize a new [gate_controller](GateController) module.
-    pub fn new(d_input: usize, d_output: usize, bias: bool, initializer: Initializer) -> Self {
+    pub fn new(
+        d_input: usize,
+        d_output: usize,
+        bias: bool,
+        initializer: Initializer,
+        device: &B::Device,
+    ) -> Self {
         Self {
             input_transform: LinearConfig {
                 d_input,
@@ -31,14 +37,14 @@ impl<B: Backend> GateController<B> {
                 bias,
                 initializer: initializer.clone(),
             }
-            .init(),
+            .init(device),
             hidden_transform: LinearConfig {
                 d_input: d_output,
                 d_output,
                 bias,
                 initializer,
             }
-            .init(),
+            .init(device),
         }
     }
 

@@ -60,8 +60,14 @@ pub struct Conv1d<B: Backend> {
 }
 
 impl Conv1dConfig {
+    /// Initialize a new [conv1d](Conv1d) module on an automatically selected device.
+    pub fn init_devauto<B: Backend>(&self) -> Conv1d<B> {
+        let device = B::Device::default();
+        self.init(&device)
+    }
+
     /// Initialize a new [conv1d](Conv1d) module.
-    pub fn init<B: Backend>(&self) -> Conv1d<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
         checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
 
         let shape = [
@@ -71,14 +77,17 @@ impl Conv1dConfig {
         ];
 
         let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
-        let weight = self.initializer.init_with(shape, Some(fan_in), None);
+        let weight = self
+            .initializer
+            .init_with(shape, Some(fan_in), None, device);
         let mut bias = None;
 
         if self.bias {
-            bias = Some(
-                self.initializer
-                    .init_with([self.channels_out], Some(fan_in), None),
-            );
+            bias =
+                Some(
+                    self.initializer
+                        .init_with([self.channels_out], Some(fan_in), None, device),
+                );
         }
 
         Conv1d {
@@ -140,7 +149,7 @@ mod tests {
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init::<TestBackend>();
+        let conv = config.init_devauto::<TestBackend>();
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
@@ -150,7 +159,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = Conv1dConfig::new(5, 5, 5).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight

@@ -1,4 +1,8 @@
 use core::marker::PhantomData;
+#[cfg(target_family = "wasm")]
+use web_time::Duration;
+
+#[cfg(not(target_family = "wasm"))]
 use core::time::Duration;
 
 use alloc::boxed::Box;

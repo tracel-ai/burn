@@ -1,8 +1,10 @@
 use crate::{
+    codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::codegen::{Elem, Operator, Variable},
+    fusion::cache::KernelCompilationCache,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
+use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
@@ -14,7 +16,7 @@ use burn_fusion::{
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
-use super::optimization::FloatElementWise;
+use super::optimization::ElementWise;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FloatElementWiseBuilder<G, F, I>
@@ -54,6 +56,12 @@ where
                     return;
                 }
             }
+            TensorOpsDescription::BaseOpsInt(ops) => {
+                if !self.register_base::<I>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
                     self.status = OptimizationStatus::Closed;
@@ -61,7 +69,13 @@ where
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
-                if !self.register_numeric(ops) {
+                if !self.register_numeric::<F, _>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
+            TensorOpsDescription::NumericOpsInt(ops) => {
+                if !self.register_numeric::<I, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -83,13 +97,17 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(FloatElementWise {
+        Box::new(ElementWise {
+            id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
             operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
+            scalars_u32: self.scalars_u32,
+            scalars_i32: self.scalars_i32,
             device: self.device.clone(),
+            cache: KernelCompilationCache::default(),
         })
     }
 
@@ -111,10 +129,7 @@ where
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = match self.status {
-            OptimizationStatus::Closed => false,
-            OptimizationStatus::Open => self.operators.len() > 1,
-        };
+        let ready = self.operators.len() > 1;
 
         OptimizationProperties {
             ready,
@@ -183,11 +198,17 @@ where
                 Operator::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::ReadGlobal {
+                Operator::AssignLocal { input: _, out: _ } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobalWithLayout {
                     variable: _,
-                    position: _,
-                    position_out: _,
+                    tensor_read_pos: _,
+                    tensor_layout_pos: _,
                 } => {
+                    // Nothing to do here.
+                }
+                Operator::ReadGlobal { variable: _ } => {
                     // Nothing to do here.
                 }
                 Operator::Add { lhs, rhs, out } => {
@@ -242,6 +263,15 @@ where
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
+                Operator::Clamp {
+                    input,
+                    min_value: _,
+                    max_value: _,
+                    out,
+                } => {
+                    mark(input, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
                 Operator::Powf { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
@@ -285,6 +315,10 @@ where
                     mark(cond, &mut local_tensor_ids_input);
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
+                    mark(out, &mut local_tensor_ids_output);
+                }
+                Operator::Sqrt { input, out } => {
+                    mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
             }
@@ -426,7 +460,10 @@ where
         }
     }
 
-    fn register_numeric<E: WgpuElement>(&mut self, ops: &NumericOpsDescription<E>) -> bool {
+    fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
+        &mut self,
+        ops: &NumericOpsDescription<EDesc>,
+    ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc) => self.register_binary_ops(
                 desc,

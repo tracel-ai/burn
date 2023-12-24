@@ -94,13 +94,13 @@ mod tests {
     fn test_accuracy_without_padding() {
         let mut metric = AccuracyMetric::<TestBackend>::new();
         let input = AccuracyInput::new(
-            Tensor::from_data([
+            Tensor::from_data_devauto([
                 [0.0, 0.2, 0.8], // 2
                 [1.0, 2.0, 0.5], // 1
                 [0.4, 0.1, 0.2], // 0
                 [0.6, 0.7, 0.2], // 1
             ]),
-            Tensor::from_data([2, 2, 1, 1]),
+            Tensor::from_data_devauto([2, 2, 1, 1]),
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
@@ -111,7 +111,7 @@ mod tests {
     fn test_accuracy_with_padding() {
         let mut metric = AccuracyMetric::<TestBackend>::new().with_pad_token(3);
         let input = AccuracyInput::new(
-            Tensor::from_data([
+            Tensor::from_data_devauto([
                 [0.0, 0.2, 0.8, 0.0], // 2
                 [1.0, 2.0, 0.5, 0.0], // 1
                 [0.4, 0.1, 0.2, 0.0], // 0
@@ -120,7 +120,7 @@ mod tests {
                 [0.0, 0.1, 0.2, 0.0], // Error on padding should not count
                 [0.6, 0.0, 0.2, 0.0], // Error on padding should not count
             ]),
-            Tensor::from_data([2, 2, 1, 1, 3, 3, 3]),
+            Tensor::from_data_devauto([2, 2, 1, 1, 3, 3, 3]),
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());

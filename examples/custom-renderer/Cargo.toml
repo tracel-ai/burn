@@ -1,11 +1,11 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>", "Ankitects Pty Ltd"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
+edition.workspace = true
+license.workspace = true
 name = "custom-renderer"
 description = "Example of how to render training progress outside of the tui"
 publish = false
-version = "0.12.0"
+version.workspace = true
 
 [dependencies]
 burn = {path = "../../burn", features=["autodiff", "wgpu", "train", "dataset"], default-features=false}

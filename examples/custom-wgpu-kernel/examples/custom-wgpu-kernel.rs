@@ -4,9 +4,9 @@ use custom_wgpu_kernel::{
 };
 
 fn inference<B: Backend>() {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default);
-    let rhs = Tensor::random([32, 32, 32], Distribution::Default);
-    let bias = Tensor::random([32, 32, 32], Distribution::Default);
+    let lhs = Tensor::<B, 3>::random_devauto([1, 32, 32], Distribution::Default);
+    let rhs = Tensor::random_devauto([32, 32, 32], Distribution::Default);
+    let bias = Tensor::random_devauto([32, 32, 32], Distribution::Default);
 
     let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone())
         .into_data()
@@ -21,9 +21,9 @@ fn inference<B: Backend>() {
 }
 
 fn autodiff<B: AutodiffBackend>() {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default).require_grad();
-    let rhs = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
-    let bias = Tensor::random([32, 32, 32], Distribution::Default).require_grad();
+    let lhs = Tensor::<B, 3>::random_devauto([1, 32, 32], Distribution::Default).require_grad();
+    let rhs = Tensor::random_devauto([32, 32, 32], Distribution::Default).require_grad();
+    let bias = Tensor::random_devauto([32, 32, 32], Distribution::Default).require_grad();
 
     let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone());
 

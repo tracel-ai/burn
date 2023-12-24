@@ -1,7 +1,7 @@
 use super::Elem;
 use std::fmt::Display;
 
-#[derive(Debug, Hash, Clone)]
+#[derive(Debug, Clone)]
 pub enum Variable {
     Input(u16, Elem),
     Scalar(u16, Elem),

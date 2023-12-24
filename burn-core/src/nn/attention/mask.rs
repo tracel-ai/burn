@@ -10,10 +10,10 @@ pub fn generate_autoregressive_mask<B: Backend>(
     seq_length: usize,
     device: &B::Device,
 ) -> Tensor<B, 3, Bool> {
-    let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length]);
+    let mut mask = Tensor::<B, 3, Int>::zeros([1, seq_length, seq_length], device);
 
     for i in 0..(seq_length - 1) {
-        let values = Tensor::<B, 3, Int>::ones([1, 1, seq_length - (i + 1)]);
+        let values = Tensor::<B, 3, Int>::ones_devauto([1, 1, seq_length - (i + 1)]);
         mask = mask.slice_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }
 
@@ -54,7 +54,7 @@ pub fn generate_padding_mask<B: Backend>(
         }
     }
 
-    let mut tensor = Tensor::zeros([batch_size, max_size]);
+    let mut tensor = Tensor::zeros([batch_size, max_size], device);
     tensor = tensor.add_scalar(pad_token as i64);
 
     for (index, tokens) in tokens_list.into_iter().enumerate() {
@@ -70,7 +70,7 @@ pub fn generate_padding_mask<B: Backend>(
 
         tensor = tensor.slice_assign(
             [index..index + 1, 0..tokens.len()],
-            Tensor::from_data(Data::new(
+            Tensor::from_data_devauto(Data::new(
                 tokens.into_iter().map(|e| (e as i64).elem()).collect(),
                 Shape::new([1, seq_length]),
             )),
