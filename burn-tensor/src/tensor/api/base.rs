@@ -16,7 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind, DataSerialize};
+use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
