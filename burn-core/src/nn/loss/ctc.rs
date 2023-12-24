@@ -94,18 +94,14 @@ impl<B: Backend> CTCLoss<B> {
         // There is no need to reserve alpha for each time step; only reserved_seq_length
         // is needed. For instance, if the input length is all the same, the reserved_seq_length
         // value will be set to 1, which is adequate.
-        let log_alphas = Tensor::<B, 3>::empty_device(
+        let log_alphas = Tensor::<B, 3>::empty(
             [batch_size, reserved_seq_length, target_with_blank_length],
             &device,
         );
         // initialize value at t0
         let log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..target_with_blank_length],
-            Tensor::<B, 3>::full_device(
-                [batch_size, 1, target_with_blank_length],
-                NEG_INF,
-                &device,
-            ),
+            Tensor::<B, 3>::full([batch_size, 1, target_with_blank_length], NEG_INF, &device),
         );
         let log_alphas = log_alphas.slice_assign(
             [0..batch_size, 0..1, 0..1],
@@ -135,10 +131,8 @@ impl<B: Backend> CTCLoss<B> {
                 .clone()
                 .slice([0..batch_size, 0..seq_length, self.blank..self.blank + 1]);
         // Shape: [batch_size, seq_length, 2 * max_target_length + 1]
-        let log_probs_available = Tensor::<B, 3>::zeros_device(
-            [batch_size, seq_length, target_with_blank_length],
-            &device,
-        );
+        let log_probs_available =
+            Tensor::<B, 3>::zeros([batch_size, seq_length, target_with_blank_length], &device);
         let log_probs_available = log_probs_available.slice_assign(
             [0..batch_size, 0..seq_length, 0..1],
             log_probs_blank_available.clone(),
@@ -156,7 +150,7 @@ impl<B: Backend> CTCLoss<B> {
             )
             .reshape([batch_size, seq_length, 2 * max_target_length]),
         );
-        let mut neg_log_likelihood = Tensor::<B, 1>::zeros_device([batch_size], &device);
+        let mut neg_log_likelihood = Tensor::<B, 1>::zeros([batch_size], &device);
 
         // s != s-2
         let mask_la3_letter = targets_pad
@@ -170,8 +164,7 @@ impl<B: Backend> CTCLoss<B> {
             )
             .bool_not()
             .float();
-        let mask_la3_blank =
-            Tensor::<B, 2>::zeros_device([batch_size, max_target_length - 1], &device);
+        let mask_la3_blank = Tensor::<B, 2>::zeros([batch_size, max_target_length - 1], &device);
         let mask_la3: Tensor<B, 3> = pad(
             // interlace mask_la3_letter and mask_la3_blank
             Tensor::stack::<3>([mask_la3_letter, mask_la3_blank].to_vec(), 2)
@@ -280,11 +273,8 @@ impl<B: Backend> CTCLoss<B> {
     ) -> Tensor<B, 2, Int> {
         let [batch_size] = target_lengths.dims();
 
-        let mut targets_pad = Tensor::<B, 2, Int>::full_device(
-            [batch_size, max_target_length],
-            blank as i32,
-            &device,
-        );
+        let mut targets_pad =
+            Tensor::<B, 2, Int>::full([batch_size, max_target_length], blank as i32, &device);
         let mut start = 0usize;
         for (batch, length) in target_lengths.iter_dim(0).enumerate() {
             let length = length.into_scalar().elem::<u32>() as usize;
@@ -364,7 +354,7 @@ where
         assign_range.push(left_pad..(left_pad + origin_len));
     }
 
-    let padded = Tensor::<B, D, K>::full_device(pad_shape, fill_value, &device);
+    let padded = Tensor::<B, D, K>::full(pad_shape, fill_value, &device);
 
     padded.slice_assign::<D>(assign_range.try_into().unwrap(), tensor)
 }
@@ -374,7 +364,7 @@ fn one_hot<B: Backend>(tensor: Tensor<B, 2, Int>, num_classes: usize) -> Tensor<
     let shape = tensor.dims();
 
     let labels: Tensor<B, 3, Int> = tensor.unsqueeze_dim(2).repeat(2, num_classes);
-    let indices = Tensor::<B, 1, Int>::arange_device(0..num_classes, &device)
+    let indices = Tensor::<B, 1, Int>::arange(0..num_classes, &device)
         .reshape([1, 1, num_classes])
         .repeat(1, shape[1])
         .repeat(0, shape[0]);
@@ -392,101 +382,106 @@ mod test {
 
     #[test]
     fn test_ctc_loss() {
-        let input = Tensor::<TestBackend, 3>::from_data([[
-            [
-                -0.785, -3.471, -2.531, -3.948, -2.373, -3.042, -2.029, -2.255, -4.228, -3.810,
-            ],
-            [
-                -3.548, -1.692, -0.967, -2.519, -2.806, -2.760, -2.434, -2.762, -3.638, -3.669,
-            ],
-            [
-                -3.904, -1.799, -1.312, -2.530, -2.267, -3.169, -3.838, -2.073, -2.484, -2.418,
-            ],
-            [
-                -0.890, -2.506, -3.405, -3.038, -2.483, -2.861, -2.749, -3.086, -1.960, -3.336,
-            ],
-            [
-                -1.113, -3.557, -2.580, -1.465, -3.884, -1.993, -3.574, -3.466, -2.669, -2.985,
-            ],
-            [
-                -3.948, -0.828, -1.805, -2.842, -2.767, -3.891, -2.825, -1.783, -5.566, -5.072,
-            ],
-            [
-                -1.677, -1.703, -4.191, -3.862, -1.726, -2.616, -2.366, -2.324, -2.767, -2.418,
-            ],
-            [
-                -1.511, -1.125, -3.526, -3.007, -2.975, -3.358, -2.037, -2.093, -4.137, -3.900,
-            ],
-            [
-                -1.850, -2.767, -1.718, -2.185, -2.890, -1.998, -3.661, -3.997, -2.738, -1.671,
-            ],
-            [
-                -2.621, -1.234, -3.499, -3.494, -1.612, -1.713, -2.179, -2.884, -4.122, -4.581,
-            ],
-            [
-                -1.519, -3.283, -1.287, -3.217, -2.544, -3.128, -2.061, -3.039, -2.388, -3.272,
-            ],
-            [
-                -1.112, -1.258, -3.206, -3.103, -3.918, -2.577, -4.399, -4.488, -2.187, -2.663,
-            ],
-            [
-                -1.889, -2.344, -3.232, -2.781, -3.312, -0.911, -2.864, -4.825, -3.180, -2.243,
-            ],
-            [
-                -4.368, -1.471, -1.308, -2.950, -3.211, -2.692, -1.923, -2.020, -3.859, -3.601,
-            ],
-            [
-                -4.254, -3.291, -1.539, -2.622, -2.281, -1.427, -1.712, -3.082, -2.653, -3.809,
-            ],
-            [
-                -3.322, -2.904, -0.942, -3.157, -2.987, -3.736, -1.208, -4.155, -4.383, -2.583,
-            ],
-            [
-                -2.827, -2.293, -3.109, -3.196, -3.297, -2.451, -2.136, -3.423, -1.012, -2.146,
-            ],
-            [
-                -1.803, -1.666, -1.780, -4.024, -3.083, -4.520, -2.674, -2.527, -3.365, -1.516,
-            ],
-            [
-                -2.199, -2.340, -2.009, -3.736, -3.363, -2.721, -2.350, -1.951, -1.815, -2.009,
-            ],
-            [
-                -1.721, -3.726, -1.701, -3.503, -2.153, -3.242, -2.284, -1.838, -2.646, -2.329,
-            ],
-            [
-                -3.655, -2.916, -2.913, -1.197, -3.060, -2.154, -1.776, -3.404, -1.823, -3.310,
-            ],
-            [
-                -2.671, -2.592, -2.929, -1.416, -2.007, -2.886, -2.781, -2.597, -1.738, -2.862,
-            ],
-            [
-                -1.686, -4.173, -0.884, -5.493, -5.498, -1.707, -3.573, -5.085, -2.060, -3.352,
-            ],
-            [
-                -2.114, -2.478, -2.178, -3.457, -3.264, -2.659, -2.653, -1.222, -2.375, -2.475,
-            ],
-            [
-                -2.136, -3.563, -2.325, -3.081, -2.035, -3.154, -1.122, -3.486, -1.951, -3.270,
-            ],
-            [
-                -3.206, -3.031, -3.913, -2.652, -2.985, -2.635, -1.153, -3.122, -3.256, -1.203,
-            ],
-            [
-                -2.104, -1.719, -2.141, -2.695, -2.448, -2.991, -1.542, -2.646, -3.090, -3.066,
-            ],
-            [
-                -3.320, -5.098, -1.085, -1.335, -2.588, -3.098, -2.466, -2.951, -3.911, -2.538,
-            ],
-            [
-                -3.756, -1.814, -2.752, -2.410, -3.305, -2.387, -2.112, -1.720, -2.616, -1.843,
-            ],
-            [
-                -3.985, -2.489, -2.305, -1.454, -2.533, -5.091, -1.759, -2.180, -3.673, -1.779,
-            ],
-        ]]);
-        let target = Tensor::<TestBackend, 1, Int>::from_data([1, 9, 6, 9, 4]);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([30]);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([5]);
+        let device = Default::default();
+
+        let input = Tensor::<TestBackend, 3>::from_data(
+            [[
+                [
+                    -0.785, -3.471, -2.531, -3.948, -2.373, -3.042, -2.029, -2.255, -4.228, -3.810,
+                ],
+                [
+                    -3.548, -1.692, -0.967, -2.519, -2.806, -2.760, -2.434, -2.762, -3.638, -3.669,
+                ],
+                [
+                    -3.904, -1.799, -1.312, -2.530, -2.267, -3.169, -3.838, -2.073, -2.484, -2.418,
+                ],
+                [
+                    -0.890, -2.506, -3.405, -3.038, -2.483, -2.861, -2.749, -3.086, -1.960, -3.336,
+                ],
+                [
+                    -1.113, -3.557, -2.580, -1.465, -3.884, -1.993, -3.574, -3.466, -2.669, -2.985,
+                ],
+                [
+                    -3.948, -0.828, -1.805, -2.842, -2.767, -3.891, -2.825, -1.783, -5.566, -5.072,
+                ],
+                [
+                    -1.677, -1.703, -4.191, -3.862, -1.726, -2.616, -2.366, -2.324, -2.767, -2.418,
+                ],
+                [
+                    -1.511, -1.125, -3.526, -3.007, -2.975, -3.358, -2.037, -2.093, -4.137, -3.900,
+                ],
+                [
+                    -1.850, -2.767, -1.718, -2.185, -2.890, -1.998, -3.661, -3.997, -2.738, -1.671,
+                ],
+                [
+                    -2.621, -1.234, -3.499, -3.494, -1.612, -1.713, -2.179, -2.884, -4.122, -4.581,
+                ],
+                [
+                    -1.519, -3.283, -1.287, -3.217, -2.544, -3.128, -2.061, -3.039, -2.388, -3.272,
+                ],
+                [
+                    -1.112, -1.258, -3.206, -3.103, -3.918, -2.577, -4.399, -4.488, -2.187, -2.663,
+                ],
+                [
+                    -1.889, -2.344, -3.232, -2.781, -3.312, -0.911, -2.864, -4.825, -3.180, -2.243,
+                ],
+                [
+                    -4.368, -1.471, -1.308, -2.950, -3.211, -2.692, -1.923, -2.020, -3.859, -3.601,
+                ],
+                [
+                    -4.254, -3.291, -1.539, -2.622, -2.281, -1.427, -1.712, -3.082, -2.653, -3.809,
+                ],
+                [
+                    -3.322, -2.904, -0.942, -3.157, -2.987, -3.736, -1.208, -4.155, -4.383, -2.583,
+                ],
+                [
+                    -2.827, -2.293, -3.109, -3.196, -3.297, -2.451, -2.136, -3.423, -1.012, -2.146,
+                ],
+                [
+                    -1.803, -1.666, -1.780, -4.024, -3.083, -4.520, -2.674, -2.527, -3.365, -1.516,
+                ],
+                [
+                    -2.199, -2.340, -2.009, -3.736, -3.363, -2.721, -2.350, -1.951, -1.815, -2.009,
+                ],
+                [
+                    -1.721, -3.726, -1.701, -3.503, -2.153, -3.242, -2.284, -1.838, -2.646, -2.329,
+                ],
+                [
+                    -3.655, -2.916, -2.913, -1.197, -3.060, -2.154, -1.776, -3.404, -1.823, -3.310,
+                ],
+                [
+                    -2.671, -2.592, -2.929, -1.416, -2.007, -2.886, -2.781, -2.597, -1.738, -2.862,
+                ],
+                [
+                    -1.686, -4.173, -0.884, -5.493, -5.498, -1.707, -3.573, -5.085, -2.060, -3.352,
+                ],
+                [
+                    -2.114, -2.478, -2.178, -3.457, -3.264, -2.659, -2.653, -1.222, -2.375, -2.475,
+                ],
+                [
+                    -2.136, -3.563, -2.325, -3.081, -2.035, -3.154, -1.122, -3.486, -1.951, -3.270,
+                ],
+                [
+                    -3.206, -3.031, -3.913, -2.652, -2.985, -2.635, -1.153, -3.122, -3.256, -1.203,
+                ],
+                [
+                    -2.104, -1.719, -2.141, -2.695, -2.448, -2.991, -1.542, -2.646, -3.090, -3.066,
+                ],
+                [
+                    -3.320, -5.098, -1.085, -1.335, -2.588, -3.098, -2.466, -2.951, -3.911, -2.538,
+                ],
+                [
+                    -3.756, -1.814, -2.752, -2.410, -3.305, -2.387, -2.112, -1.720, -2.616, -1.843,
+                ],
+                [
+                    -3.985, -2.489, -2.305, -1.454, -2.533, -5.091, -1.759, -2.180, -3.673, -1.779,
+                ],
+            ]],
+            &device,
+        );
+        let target = Tensor::<TestBackend, 1, Int>::from_data([1, 9, 6, 9, 4], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([30], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([5], &device);
         let expected_res = Data::from([50.3788948059082]);
 
         let ctc_loss = CTCLoss::<TestBackend>::new(0);
