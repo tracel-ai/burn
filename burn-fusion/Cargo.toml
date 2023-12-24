@@ -20,3 +20,4 @@ burn-common = {path = "../burn-common", version = "0.12.0" }
 hashbrown = { workspace = true }
 derive-new = {workspace = true}
 spin = {workspace = true}
+log = {workspace = true}

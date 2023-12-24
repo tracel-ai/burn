@@ -124,7 +124,7 @@ impl<LC: LearnerComponents> Learner<LC> {
     {
         log::info!("Fitting {}", self.model.to_string());
         // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.get(0) {
+        if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
         }
 

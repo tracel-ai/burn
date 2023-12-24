@@ -22,7 +22,8 @@ impl ConfigEnumAnalyzer {
         let data = &self.data.variants;
 
         quote! {
-            #[derive(serde::Serialize, serde::Deserialize)]
+            #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
+            #[serde(crate = "burn::serde")]
             enum #enum_name {
                 #data
             }
@@ -80,10 +81,10 @@ impl ConfigEnumAnalyzer {
         let name = &self.name;
 
         quote! {
-            impl serde::Serialize for #name {
+            impl burn::serde::Serialize for #name {
                 fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
                 where
-                    S: serde::Serializer {
+                    S: burn::serde::Serializer {
                     let serde_state = match self {
                         #(#variants),*
                     };
@@ -105,10 +106,10 @@ impl ConfigEnumAnalyzer {
         let name = &self.name;
 
         quote! {
-            impl<'de> serde::Deserialize<'de> for #name {
+            impl<'de> burn::serde::Deserialize<'de> for #name {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
-                    D: serde::Deserializer<'de> {
+                    D: burn::serde::Deserializer<'de> {
                     let serde_state = #enum_name::deserialize(deserializer)?;
                     Ok(match serde_state {
                         #(#variants),*

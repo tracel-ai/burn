@@ -353,7 +353,7 @@ impl TensorCheck {
             );
         }
 
-        let shape_reference = tensors.get(0).unwrap().shape();
+        let shape_reference = tensors.first().unwrap().shape();
 
         for tensor in tensors {
             let shape = tensor.shape();
@@ -398,7 +398,7 @@ impl TensorCheck {
             );
         }
 
-        let mut shape_reference = tensors.get(0).unwrap().shape();
+        let mut shape_reference = tensors.first().unwrap().shape();
         shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
                                        // concatenation happens.
 
