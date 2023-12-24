@@ -560,15 +560,15 @@ where
     ///    let tensor = Tensor::<B, 4>::ones_devauto(Shape::new([2, 3, 4, 5]));
     ///    let padding = Padding::uniform(2);
     ///
-    ///    let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(pad_const.into()));
+    ///    let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(pad_const.into()));
     /// }    
     ///
     ///
     /// ```
     /// Pads the tensor with the specified padding configuration and padding mode.
-    pub fn pad_tensor(
+    pub fn pad(
         self,
-        pad: Padding,
+        pad_amount: Padding,
         pad_mode: PadMode,
         value: Option<K::Elem>,
     ) -> Tensor<B, D, K>
@@ -581,8 +581,8 @@ where
                 let mut padded_dims: [usize; D] = self.dims();
 
                 // Update the last two dimensions with padding
-                padded_dims[D - 2] += pad.top + pad.bottom;
-                padded_dims[D - 1] += pad.left + pad.right;
+                padded_dims[D - 2] += pad_amount.top + pad_amount.bottom;
+                padded_dims[D - 1] += pad_amount.left + pad_amount.right;
 
                 // Initialize ranges for all dimensions
                 let ranges: [Range<usize>; D] = padded_dims
@@ -591,10 +591,10 @@ where
                     .map(|(i, &dim)| {
                         if i == D - 2 {
                             // Second last dimension
-                            pad.top..dim - pad.bottom
+                            pad_amount.top..dim - pad_amount.bottom
                         } else if i == D - 1 {
                             // Last dimension
-                            pad.left..dim - pad.right
+                            pad_amount.left..dim - pad_amount.right
                         } else {
                             0..dim // Other dimensions remain unchanged
                         }

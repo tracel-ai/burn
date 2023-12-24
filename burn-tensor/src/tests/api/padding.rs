@@ -13,7 +13,7 @@ mod tests {
         println!("Tensor from slice: {}", tensor);
 
         let padding = Padding::uniform(2);
-        let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(insert_num));
+        let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(insert_num));
 
         let padded_primitive_data_expected = [
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
@@ -50,7 +50,7 @@ mod tests {
         println!("Tensor from slice: {}", tensor);
 
         let padding = Padding::uniform(2);
-        let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(insert_num));
+        let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(insert_num));
 
         let padded_primitive_data_expected = [
             //1
@@ -95,7 +95,7 @@ mod tests {
         println!("Tensor from slice: {}", tensor);
 
         let padding = Padding::asymmetric([4, 3, 2, 1]);
-        let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(insert_num));
+        let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(insert_num));
 
         let padded_primitive_data_expected = [
             //1
@@ -139,7 +139,7 @@ mod tests {
         println!("Tensor from slice: {}", tensor);
 
         let padding = Padding::asymmetric([4, 3, 2, 1]);
-        let padded_tensor = tensor.pad_tensor(padding, PadMode::Constant, Some(insert_num));
+        let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(insert_num));
 
         let padded_primitive_data_expected = [
             //1
