@@ -213,9 +213,10 @@ impl<B: Backend> CTCLoss<B> {
                 ],
                 ((la1 - lamax.clone()).exp()
                     + (la2 - lamax.clone()).exp()
-                    + (la3 - lamax.clone()).exp().mul(mask_la3.clone()))
-                .log()
-                .clamp_min(NEG_INF)
+                    + (la3 - lamax.clone()).exp().mul(mask_la3.clone())
+                    + 1e-15)
+                    .log()
+                    .clamp_min(NEG_INF)
                     + lamax
                     + log_probs_available.clone().slice([
                         0..batch_size,
@@ -252,7 +253,7 @@ impl<B: Backend> CTCLoss<B> {
         // for the logsumexp calculation
         let m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
         let m = m.clone().clamp_min(NEG_INF);
-        let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp()).log() + m;
+        let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp() + 1e-15).log() + m;
         neg_log_likelihood = neg_log_likelihood.slice_assign([0..batch_size], -log_likelihood);
 
         match reduction {
