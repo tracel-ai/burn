@@ -7,6 +7,8 @@ use burn_tensor::{backend::Backend, Element, ElementConversion, Int, Numeric, Te
 use super::Reduction;
 
 const NEG_INF: f32 = -1e5;
+// a small value used to prevent the occurrence of log(0)
+const DELTA: f32 = -1e-5;
 
 /// The Connectionist Temporal Classification loss.
 #[derive(Clone, Debug)]
@@ -214,7 +216,7 @@ impl<B: Backend> CTCLoss<B> {
                 ((la1 - lamax.clone()).exp()
                     + (la2 - lamax.clone()).exp()
                     + (la3 - lamax.clone()).exp().mul(mask_la3.clone())
-                    + 1e-15)
+                    + DELTA)
                     .log()
                     .clamp_min(NEG_INF)
                     + lamax
@@ -253,7 +255,7 @@ impl<B: Backend> CTCLoss<B> {
         // for the logsumexp calculation
         let m = Tensor::cat([l1.clone(), l2.clone()].to_vec(), 0).max();
         let m = m.clone().clamp_min(NEG_INF);
-        let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp() + 1e-15).log() + m;
+        let log_likelihood = ((l1 - m.clone()).exp() + (l2 - m.clone()).exp() + DELTA).log() + m;
         neg_log_likelihood = neg_log_likelihood.slice_assign([0..batch_size], -log_likelihood);
 
         match reduction {
