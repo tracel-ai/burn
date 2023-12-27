@@ -8,7 +8,7 @@ use super::Reduction;
 
 const NEG_INF: f32 = -1e5;
 // a small value used to prevent the occurrence of log(0)
-const DELTA: f32 = -1e-5;
+const DELTA: f32 = 1e-5;
 
 /// The Connectionist Temporal Classification loss.
 #[derive(Clone, Debug)]
