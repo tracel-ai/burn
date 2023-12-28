@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::io::{self, Stdout, Write};
-use std::process::{Command, Stdio, Child};
+use std::process::{Child, Command, Stdio};
 
 #[cfg(feature = "tui")]
 use ratatui::{
@@ -31,9 +31,7 @@ struct Args {
 
 fn execute_cargo_bench(backend: &str, bench: &str) -> io::Result<()> {
     let mut cargo = Command::new("cargo");
-    cargo.arg("bench")
-        .arg("--bench")
-        .arg(bench);
+    cargo.arg("bench").arg("--bench").arg(bench);
     if !backend.is_empty() {
         cargo.args(&["--features", backend]);
     }
@@ -42,7 +40,6 @@ fn execute_cargo_bench(backend: &str, bench: &str) -> io::Result<()> {
     // io::stdout().write_all(&output.stdout).unwrap();
     // io::stderr().write_all(&output.stderr).unwrap();
     Ok(())
-
 }
 
 fn execute_bench(bench: &String, backend: &String, terminal_ui: bool) {
@@ -113,7 +110,6 @@ fn main() -> io::Result<()> {
 
     Ok(())
 }
-
 
 #[cfg(feature = "tui")]
 fn setup_terminal() -> io::Result<Terminal<CrosstermBackend<io::Stdout>>> {

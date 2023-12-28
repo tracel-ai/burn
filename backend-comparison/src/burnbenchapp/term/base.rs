@@ -4,13 +4,11 @@ use crate::burnbenchapp::Application;
 pub struct TermApplication;
 
 impl Application for TermApplication {
-    fn init(&mut self)  {
-    }
+    fn init(&mut self) {}
 
     fn run(&mut self) {
         println!("Hello World !")
     }
 
-    fn cleanup(&mut self) {
-    }
+    fn cleanup(&mut self) {}
 }

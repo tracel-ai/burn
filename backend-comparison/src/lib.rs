@@ -1,5 +1,5 @@
-pub mod persistence;
 pub mod burnbenchapp;
+pub mod persistence;
 
 #[macro_use]
 extern crate derive_new;

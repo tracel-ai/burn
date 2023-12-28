@@ -1,4 +1,4 @@
-use ratatui::{widgets::StatefulWidget, layout::Rect, buffer::Buffer, style::Style};
+use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::StatefulWidget};
 
 #[derive(Default)]
 pub(crate) struct CustomCheckBoxState {
@@ -23,7 +23,7 @@ impl StatefulWidget for CustomCheckBox {
             area.x,
             area.y,
             format!("{} {}", checkbox_char, self.label),
-            Style::default()
+            Style::default(),
         );
     }
 }

@@ -1,4 +1,4 @@
-
+use burn_common::benchmark::BenchmarkDurations;
 
 enum Backends {
     WgpuFusion,
@@ -9,7 +9,6 @@ enum Backends {
     NdarrayBlasNetLib,
     NdarrayBlasOpenblas,
     NdarrayBlasAccelerate,
-    
 }
 
 enum Benches {
@@ -26,7 +25,9 @@ enum AppState {
 }
 
 struct Result {
-    
+    backend: Backends,
+    bench: Benches,
+    durations: BenchmarkDurations,
 }
 
 #[derive(new)]
@@ -36,18 +37,16 @@ struct Model {
     selected_backends: Vec<String>,
     selected_benchmarks: Vec<String>,
     state: AppState,
-    results: String,
+    results: Vec<Result>,
     completed_benches: u8,
 }
-
 
 impl Model {
     pub fn benches_to_run_count(&self) -> usize {
         self.selected_backends.len() * self.selected_benchmarks.len()
-
     }
 
     pub fn bench_complete(&mut self) {
-       self.completed_benches += 1;
+        self.completed_benches += 1;
     }
 }

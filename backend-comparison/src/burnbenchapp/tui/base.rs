@@ -1,21 +1,21 @@
-use std::{io, time::Duration};
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    Terminal,
-    prelude::Frame,
-    buffer::Buffer,
     backend::CrosstermBackend,
-    widgets::{StatefulWidget, Paragraph, Block, Borders, block::Position, Padding},
+    buffer::Buffer,
+    layout::{Alignment, Direction, Layout, Rect, Margin},
+    prelude::Frame,
     style::Style,
-    layout::{Alignment, Rect}
+    widgets::{block::Position, Block, Borders, Padding, Paragraph, StatefulWidget},
+    Terminal,
 };
+use std::{io, time::Duration};
 
 use crate::burnbenchapp::{
-    tui::components::checkbox::*,
+    tui::components::{checkbox::*, regions::*},
     Application,
 };
 
@@ -26,8 +26,7 @@ pub struct TuiApplication {
 }
 
 impl Application for TuiApplication {
-    fn init(&mut self)  {
-    }
+    fn init(&mut self) {}
 
     fn run(&mut self) {
         loop {
@@ -52,7 +51,6 @@ impl TuiApplication {
         }
     }
 
-
     fn setup_terminal() -> BenchTerminal {
         let mut stdout = io::stdout();
         enable_raw_mode().expect("enable terminal raw mode");
@@ -61,29 +59,29 @@ impl TuiApplication {
     }
 
     fn render_app(frame: &mut Frame) {
-        let greeting = Paragraph::new("Hello World! (press 'q' to quit)");
-        let block = Block::default()
-            .title("Burn Bench")
-            .title_position(Position::Top)
-            .title_alignment(Alignment::Center)
-            .borders(Borders::all())
-            .border_style(Style::default().fg(ratatui::style::Color::DarkGray))
-            .border_type(ratatui::widgets::BorderType::Double)
-            .padding(Padding { left: 10, right: 10, top: 2, bottom: 2 })
-            .style(Style::default().bg(ratatui::style::Color::Black));
-        // frame.render_widget(greeting.block(block), frame.size());
-        let checkbox = CustomCheckBox::new(String::from("My checkbox"));
-        let mut checkbox_state = CustomCheckBoxState::default();
-        frame.render_stateful_widget(checkbox, frame.size(), &mut checkbox_state);
+        let regions = Regions::new(frame);
+        regions.draw(frame);
+        let greeting = Paragraph::new("Hello World! (press 'q' to quit)")
+            .alignment(Alignment::Center);
+        frame.render_widget(
+            greeting,
+            regions.right.get_rect(RightRegionPosition::Top).inner(&Margin {horizontal: 1, vertical: 10}),
+        );
+        // let checkbox = CustomCheckBox::new(String::from("My checkbox"));
+        // let mut checkbox_state = CustomCheckBoxState::default();
+        // frame.render_stateful_widget(
+        //     checkbox,
+        //     regions.right.get_rect(RightRegionPosition::Bottom),
+        //     &mut checkbox_state,
+        // );
     }
 
     fn should_quit() -> bool {
         if event::poll(Duration::from_millis(250)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                return KeyCode::Char('q')  == key.code
+                return KeyCode::Char('q') == key.code;
             }
         }
         false
     }
-
 }
