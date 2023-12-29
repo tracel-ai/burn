@@ -9,6 +9,7 @@ burn = { path = "../../burn" }
 burn-ndarray = { path = "../../burn-ndarray" }
 serde = { workspace = true }
 float-cmp = { workspace = true }
+burn-import = { path = "../", features = ["pytorch"] }
 
 [build-dependencies]
 burn-import = { path = "../", features = ["pytorch"] }

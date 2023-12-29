@@ -2,7 +2,7 @@ use std::{marker::PhantomData, path::PathBuf};
 
 use crate::pytorch::RecordType;
 
-use super::{converter::NestedValue, Converter};
+use super::{reader::NestedValue, Converter};
 
 use burn::{
     module::ParamId,
@@ -162,6 +162,7 @@ impl<PS: PrecisionSettings> serde::Serialize for StructMap<PS> {
                 }
                 vec_serializer.end()
             }
+            NestedValue::Default | NestedValue::String(_) => unreachable!(),
         }
     }
 }

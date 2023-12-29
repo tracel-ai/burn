@@ -142,6 +142,9 @@ pub enum RecorderError {
     /// File not found.
     FileNotFound(String),
 
+    /// Failed to read file.
+    DeserializeError(String),
+
     /// Other error.
     Unknown(String),
 }
@@ -161,7 +164,7 @@ pub(crate) fn bin_config() -> bincode::config::Configuration {
 }
 
 /// Metadata of a record.
-#[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct BurnMetadata {
     /// Float type used to record the item.
     pub float: String,

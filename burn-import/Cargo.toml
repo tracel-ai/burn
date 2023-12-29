@@ -41,6 +41,7 @@ serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 syn = { workspace = true, features = ["parsing"] }
+thiserror = { workspace = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
 

@@ -12,6 +12,8 @@ use crate::logger::init_log;
 use candle_core::{pickle, Tensor as CandleTensor};
 use clap::ValueEnum;
 
+use super::reader::NestedValue;
+
 /// Type of the record to be saved.
 ///
 /// Only the record types that support name/value for struct fields can be used.
@@ -194,14 +196,6 @@ impl Converter {
     }
 }
 
-/// A nested map/vector of tensors.
-#[derive(Debug, Clone)]
-pub enum NestedValue {
-    Tensor(CandleTensor),
-    Map(HashMap<String, NestedValue>),
-    Vec(Vec<NestedValue>),
-}
-
 /// Helper function to insert a value into a nested map/vector of tensors.
 fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedValue) {
     if keys.is_empty() {
@@ -237,7 +231,7 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
 }
 
 /// Convert a vector of Candle tensors to a nested map/vector of tensors.
-fn reverse_flatten(input: HashMap<String, CandleTensor>) -> NestedValue {
+pub fn reverse_flatten(input: HashMap<String, CandleTensor>) -> NestedValue {
     let mut result = NestedValue::Map(HashMap::new());
 
     for (key, value) in input {
