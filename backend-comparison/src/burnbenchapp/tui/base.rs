@@ -23,6 +23,7 @@ type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
 pub struct TuiApplication {
     terminal: BenchTerminal,
+    regions: Regions<LeftRegion, RightRegion>,
 }
 
 impl Application for TuiApplication {
@@ -30,7 +31,7 @@ impl Application for TuiApplication {
 
     fn run(&mut self) {
         loop {
-            self.terminal.draw(Self::render_app);
+            self.terminal.draw(|f| TuiApplication::render_app(&mut self.regions, f));
             if Self::should_quit() {
                 break;
             }
@@ -48,6 +49,7 @@ impl TuiApplication {
     pub fn new() -> Self {
         TuiApplication {
             terminal: Self::setup_terminal(),
+            regions: Regions::new(),
         }
     }
 
@@ -58,8 +60,39 @@ impl TuiApplication {
         BenchTerminal::new(CrosstermBackend::new(stdout)).unwrap()
     }
 
-    fn render_app(frame: &mut Frame) {
-        let regions = Regions::new(frame);
+    // fn handle_event() -> Result<Option<Message>, String> {
+    //     if event::poll(Duration::from_millis(250)).unwrap() {
+    //         if let Event::Key(key) = event::read()? {
+    //             if key.kind == event::KeyEventKind::Press {
+    //                 return Ok(handle_key(key));
+    //             }
+    //         }
+    //     }
+    // }
+
+    // fn handle_focus_key(key: event::KeyEvent) -> Option<FocusMessage> {
+    //     match key.code {
+    //         KeyCode::Char(c) => {
+    //             if c == LeftRegion::Top.get_rect_info().hotkey {
+    //                 Some()
+    //             } else if c == LeftRegion::Middle.get_rect_info().hotkey {
+    //                 Some()
+    //             } else if c == LeftRegion::Bottom.get_rect_info().hotkey {
+
+    //                 Some()
+    //             } else if c == RightRegion::Top.get_rect_info().hotkey {
+    //                 Some()
+    //             } else if c == RightRegion::Bottom.get_rect_info().hotkey {
+    //                 Some()
+    //             } else {
+    //                 None
+    //             }
+    //         },
+    //         _ => None,
+    //     }
+    // }
+
+    fn render_app(regions: &mut Regions<LeftRegion, RightRegion>, frame: &mut Frame) {
         regions.draw(frame);
         let greeting =
             Paragraph::new("Hello World! (press 'q' to quit)").alignment(Alignment::Center);

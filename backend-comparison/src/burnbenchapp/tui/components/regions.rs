@@ -23,21 +23,21 @@ struct RegionRectInfo {
     pub hotkey: char,
 }
 
-trait GetRegionInfo {
+pub trait GetRegionInfo {
     fn get_region_info() -> RegionInfo;
     fn get_rect_info(&self) -> RegionRectInfo;
 }
 
 pub(crate) struct Region<T: GetRegionInfo> {
-    rects: Rc<[Rect]>,
+    rects: Option<Rc<[Rect]>>,
     info: RegionInfo,
     _t: PhantomData<T>,
 }
 
 impl<T: GetRegionInfo> Region<T> {
-    pub fn new(rects: Rc<[Rect]>) -> Self {
+    pub fn new() -> Self {
         Self {
-            rects,
+            rects: None,
             info: T::get_region_info(),
             _t: PhantomData,
         }
@@ -59,7 +59,7 @@ impl GetRegionInfo for LeftRegion {
         }
     }
 
-    fn get_rect_info(&self) -> RegionRectInfo {
+   fn get_rect_info(&self) -> RegionRectInfo {
         match self {
             LeftRegion::Top => RegionRectInfo {
                 index: 0,
@@ -123,7 +123,18 @@ pub(crate) struct Regions<L: GetRegionInfo, R: GetRegionInfo> {
 }
 
 impl Regions<LeftRegion, RightRegion> {
-    pub fn new(frame: &Frame) -> Self {
+    pub fn new() -> Self {
+        Self {
+            left: Region::<LeftRegion>::new(),
+            right: Region::<RightRegion>::new(),
+        }
+    }
+
+    // pub fn update(frame: &Frame) -> Self {
+    // }
+
+    pub fn draw(&mut self, frame: &mut Frame) {
+        // compute rects boundaries and update the regions accordingly
         let outer_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
@@ -146,55 +157,53 @@ impl Regions<LeftRegion, RightRegion> {
                 Constraint::Percentage(RightRegion::Bottom.get_rect_info().height_percentage),
             ])
             .split(outer_layout[1]);
-        Self::new_with_rect(left_rects, right_rects)
-    }
-
-    pub fn draw(&self, frame: &mut Frame) {
-        // Left region
-        frame.render_widget(
-            self.left.block(LeftRegion::Top),
-            self.left.rect(LeftRegion::Top),
-        );
-        frame.render_widget(
-            self.left.block(LeftRegion::Middle),
-            self.left.rect(LeftRegion::Middle),
-        );
-        frame.render_widget(
-            self.left.block(LeftRegion::Bottom),
-            self.left.rect(LeftRegion::Bottom),
-        );
-        // Right region
-        frame.render_widget(
-            self.right.block(RightRegion::Top),
-            self.right.rect(RightRegion::Top),
-        );
-        frame.render_widget(
-            self.right.block(RightRegion::Bottom),
-            self.right.rect(RightRegion::Bottom),
-        );
-    }
-}
-
-impl<L: GetRegionInfo, R: GetRegionInfo> Regions<L, R> {
-    fn new_with_rect(left_rects: Rc<[Rect]>, right_rects: Rc<[Rect]>) -> Self {
-        Self {
-            left: Region {
-                rects: left_rects,
-                info: L::get_region_info(),
-                _t: PhantomData,
+        self.set_rects(left_rects, right_rects);
+        // Draw left region
+        match self.left.rects {
+            Some(_) => {
+                frame.render_widget(
+                    self.left.block(LeftRegion::Top),
+                    self.left.rect(LeftRegion::Top),
+                );
+                frame.render_widget(
+                    self.left.block(LeftRegion::Middle),
+                    self.left.rect(LeftRegion::Middle),
+                );
+                frame.render_widget(
+                    self.left.block(LeftRegion::Bottom),
+                    self.left.rect(LeftRegion::Bottom),
+                );
             },
-            right: Region {
-                rects: right_rects,
-                info: R::get_region_info(),
-                _t: PhantomData,
-            },
+            None => {},
         }
+        // Draw right region
+        match self.left.rects {
+            Some(_) => {
+                frame.render_widget(
+                    self.right.block(RightRegion::Top),
+                    self.right.rect(RightRegion::Top),
+                );
+                frame.render_widget(
+                    self.right.block(RightRegion::Bottom),
+                    self.right.rect(RightRegion::Bottom),
+                );
+            },
+            None => {},
+        }
+    }
+
+    fn set_rects(&mut self, left_rects: Rc<[Rect]>, right_rects: Rc<[Rect]>) {
+        self.left.rects = Some(left_rects);
+        self.right.rects = Some(right_rects);
     }
 }
 
 impl<P: GetRegionInfo> Region<P> {
     pub fn rect(&self, position: P) -> Rect {
-        self.rects[position.get_rect_info().index]
+        match &self.rects {
+            Some(rects) => rects[position.get_rect_info().index],
+            None => Rect::new(0, 0, 0, 0),
+        }
     }
 
     /// Widget to draw the style of a region
