@@ -1,115 +1,149 @@
+/// Define a left and a right region for the application.
+/// Each region is divided in vertically stacked rectangles.
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect, Alignment},
-    widgets::{Block, BorderType, Borders, Padding, block::Position},
-    Frame, style::{Color, Style},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    widgets::{block::Position, Block, BorderType, Borders, Padding},
+    Frame,
 };
 
-trait RegionRectInfo {
-    /// Returns the index of the rectangle in the region
-    fn index(&self) -> usize;
+// Region Base ---------------------------------------------------------------
 
-    /// Returns the title of the rectangle
-    fn title(&self) -> &'static str;
-
-    /// Returns the height percentage of the frame for the rectangle
-    fn height_percentage(&self) -> u16;
+struct RegionInfo {
+    pub width_percentage: u16,
 }
 
-pub(crate) enum LeftRegionPosition {
+struct RegionRectInfo {
+    pub index: usize,
+    pub title: &'static str,
+    pub height_percentage: u16,
+    pub hotkey: char,
+}
+
+trait GetRegionInfo {
+    fn get_region_info() -> RegionInfo;
+    fn get_rect_info(&self) -> RegionRectInfo;
+}
+
+pub(crate) struct Region<T: GetRegionInfo> {
+    rects: Rc<[Rect]>,
+    info: RegionInfo,
+    _t: PhantomData<T>,
+}
+
+impl<T: GetRegionInfo> Region<T> {
+    pub fn new(rects: Rc<[Rect]>) -> Self {
+        Self {
+            rects,
+            info: T::get_region_info(),
+            _t: PhantomData,
+        }
+    }
+}
+
+// Left Region --------------------------------------------------------------
+
+pub(crate) enum LeftRegion {
     Top,
     Middle,
     Bottom,
 }
 
-impl RegionRectInfo for LeftRegionPosition {
-    fn index(&self) -> usize {
-        match self {
-            LeftRegionPosition::Top => 0,
-            LeftRegionPosition::Middle => 1,
-            LeftRegionPosition::Bottom => 2,
+impl GetRegionInfo for LeftRegion {
+    fn get_region_info() -> RegionInfo {
+        RegionInfo {
+            width_percentage: 25,
         }
     }
 
-    fn title(&self) -> &'static str {
+    fn get_rect_info(&self) -> RegionRectInfo {
         match self {
-            LeftRegionPosition::Top => "Backend",
-            LeftRegionPosition::Middle => "Benches",
-            LeftRegionPosition::Bottom => "Action",
-        }
-    }
-
-    fn height_percentage(&self) -> u16 {
-        match self {
-            LeftRegionPosition::Top => 45,
-            LeftRegionPosition::Middle => 45,
-            LeftRegionPosition::Bottom => 10,
+            LeftRegion::Top => RegionRectInfo {
+                index: 0,
+                title: "Backend",
+                height_percentage: 30,
+                hotkey: 'b',
+            },
+            LeftRegion::Middle => RegionRectInfo {
+                index: 1,
+                title: "Benches",
+                height_percentage: 60,
+                hotkey: 'n',
+            },
+            LeftRegion::Bottom => RegionRectInfo {
+                index: 2,
+                title: "Action",
+                height_percentage: 10,
+                hotkey: 'a',
+            },
         }
     }
 }
 
-pub(crate) enum RightRegionPosition {
+// Right Region --------------------------------------------------------------
+
+pub(crate) enum RightRegion {
     Top,
     Bottom,
 }
 
-impl RegionRectInfo for RightRegionPosition {
-    fn index(&self) -> usize {
-        match self {
-            RightRegionPosition::Top => 0,
-            RightRegionPosition::Bottom => 1,
+impl GetRegionInfo for RightRegion {
+    fn get_region_info() -> RegionInfo {
+        RegionInfo {
+            width_percentage: 100 - LeftRegion::get_region_info().width_percentage,
         }
     }
 
-    fn title(&self) -> &'static str {
+    fn get_rect_info(&self) -> RegionRectInfo {
         match self {
-            RightRegionPosition::Top => "Results",
-            RightRegionPosition::Bottom => "Progress",
-        }
-    }
-
-    fn height_percentage(&self) -> u16 {
-        match self {
-            RightRegionPosition::Top => 90,
-            RightRegionPosition::Bottom => 10,
+            RightRegion::Top => RegionRectInfo {
+                index: 0,
+                title: "Results",
+                height_percentage: 90,
+                hotkey: 'r',
+            },
+            RightRegion::Bottom => RegionRectInfo {
+                index: 1,
+                title: "Progress",
+                height_percentage: 10,
+                hotkey: 'p',
+            },
         }
     }
 }
 
-pub(crate) struct Region<P: RegionRectInfo> {
-    rects: Rc<[Rect]>,
-    _p: PhantomData<P>,
-}
+// Regions definition --------------------------------------------------------
 
-pub(crate) struct Regions<L: RegionRectInfo, R: RegionRectInfo> {
+pub(crate) struct Regions<L: GetRegionInfo, R: GetRegionInfo> {
     pub left: Region<L>,
     pub right: Region<R>,
 }
 
-impl Regions<LeftRegionPosition, RightRegionPosition> {
+impl Regions<LeftRegion, RightRegion> {
     pub fn new(frame: &Frame) -> Self {
         let outer_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Percentage(Region::<LeftRegionPosition>::width_percentage()),
-                Constraint::Percentage(Region::<RightRegionPosition>::width_percentage())
+                Constraint::Percentage(LeftRegion::get_region_info().width_percentage),
+                Constraint::Percentage(RightRegion::get_region_info().width_percentage),
             ])
             .split(frame.size());
         let left_rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(LeftRegionPosition::Top.height_percentage()),
-                Constraint::Percentage(LeftRegionPosition::Middle.height_percentage()),
-                Constraint::Percentage(LeftRegionPosition::Bottom.height_percentage()),
+                Constraint::Percentage(LeftRegion::Top.get_rect_info().height_percentage),
+                Constraint::Percentage(LeftRegion::Middle.get_rect_info().height_percentage),
+                Constraint::Percentage(LeftRegion::Bottom.get_rect_info().height_percentage),
             ])
             .split(outer_layout[0]);
         let right_rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(RightRegionPosition::Top.height_percentage()),
-                Constraint::Percentage(RightRegionPosition::Bottom.height_percentage()),
+                Constraint::Percentage(RightRegion::Top.get_rect_info().height_percentage),
+                Constraint::Percentage(RightRegion::Bottom.get_rect_info().height_percentage),
             ])
             .split(outer_layout[1]);
         Self::new_with_rect(left_rects, right_rects)
@@ -118,65 +152,59 @@ impl Regions<LeftRegionPosition, RightRegionPosition> {
     pub fn draw(&self, frame: &mut Frame) {
         // Left region
         frame.render_widget(
-            self.left.block(LeftRegionPosition::Top),
-            self.left.get_rect(LeftRegionPosition::Top),
+            self.left.block(LeftRegion::Top),
+            self.left.rect(LeftRegion::Top),
         );
         frame.render_widget(
-            self.left.block(LeftRegionPosition::Middle),
-            self.left.get_rect(LeftRegionPosition::Middle),
+            self.left.block(LeftRegion::Middle),
+            self.left.rect(LeftRegion::Middle),
         );
         frame.render_widget(
-            self.left.block(LeftRegionPosition::Bottom),
-            self.left.get_rect(LeftRegionPosition::Bottom),
+            self.left.block(LeftRegion::Bottom),
+            self.left.rect(LeftRegion::Bottom),
         );
         // Right region
         frame.render_widget(
-            self.right.block(RightRegionPosition::Top),
-            self.right.get_rect(RightRegionPosition::Top),
+            self.right.block(RightRegion::Top),
+            self.right.rect(RightRegion::Top),
         );
         frame.render_widget(
-            self.right.block(RightRegionPosition::Bottom),
-            self.right.get_rect(RightRegionPosition::Bottom),
+            self.right.block(RightRegion::Bottom),
+            self.right.rect(RightRegion::Bottom),
         );
     }
 }
 
-impl<L: RegionRectInfo, R: RegionRectInfo> Regions<L, R> {
+impl<L: GetRegionInfo, R: GetRegionInfo> Regions<L, R> {
     fn new_with_rect(left_rects: Rc<[Rect]>, right_rects: Rc<[Rect]>) -> Self {
         Self {
             left: Region {
                 rects: left_rects,
-                _p: PhantomData,
+                info: L::get_region_info(),
+                _t: PhantomData,
             },
             right: Region {
                 rects: right_rects,
-                _p: PhantomData,
+                info: R::get_region_info(),
+                _t: PhantomData,
             },
         }
     }
 }
 
-impl Region<LeftRegionPosition> {
-    pub fn width_percentage() -> u16 {
-        25
-    }
-}
-
-impl Region<RightRegionPosition> {
-    pub fn width_percentage() -> u16 {
-        100 - Region::<LeftRegionPosition>::width_percentage()
-    }
-}
-
-impl<P: RegionRectInfo> Region<P> {
-    pub fn get_rect(&self, position: P) -> Rect {
-        self.rects[position.index()]
+impl<P: GetRegionInfo> Region<P> {
+    pub fn rect(&self, position: P) -> Rect {
+        self.rects[position.get_rect_info().index]
     }
 
     /// Widget to draw the style of a region
     fn block(&self, position: P) -> Block {
         Block::default()
-            .title(position.title())
+            .title(format!(
+                "{} ({})",
+                position.get_rect_info().title,
+                position.get_rect_info().hotkey
+            ))
             .title_position(Position::Top)
             .title_alignment(Alignment::Center)
             .borders(Borders::all())

@@ -6,7 +6,7 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     buffer::Buffer,
-    layout::{Alignment, Direction, Layout, Rect, Margin},
+    layout::{Alignment, Direction, Layout, Margin, Rect},
     prelude::Frame,
     style::Style,
     widgets::{block::Position, Block, Borders, Padding, Paragraph, StatefulWidget},
@@ -61,11 +61,14 @@ impl TuiApplication {
     fn render_app(frame: &mut Frame) {
         let regions = Regions::new(frame);
         regions.draw(frame);
-        let greeting = Paragraph::new("Hello World! (press 'q' to quit)")
-            .alignment(Alignment::Center);
+        let greeting =
+            Paragraph::new("Hello World! (press 'q' to quit)").alignment(Alignment::Center);
         frame.render_widget(
             greeting,
-            regions.right.get_rect(RightRegionPosition::Top).inner(&Margin {horizontal: 1, vertical: 10}),
+            regions.right.rect(RightRegion::Top).inner(&Margin {
+                horizontal: 1,
+                vertical: 10,
+            }),
         );
         // let checkbox = CustomCheckBox::new(String::from("My checkbox"));
         // let mut checkbox_state = CustomCheckBoxState::default();
