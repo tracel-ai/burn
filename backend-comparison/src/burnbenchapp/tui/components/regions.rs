@@ -12,35 +12,64 @@ use ratatui::{
 
 // Region Base ---------------------------------------------------------------
 
-struct RegionInfo {
-    pub width_percentage: u16,
+pub(crate) struct RegionInfo {
+    width_percentage: u16,
 }
 
-struct RegionRectInfo {
-    pub index: usize,
-    pub title: &'static str,
-    pub height_percentage: u16,
-    pub hotkey: char,
+pub(crate) struct RegionRectInfo {
+    index: usize,
+    title: &'static str,
+    height_percentage: u16,
+    hotkey: char,
 }
 
-pub trait GetRegionInfo {
+pub(crate) trait GetRegionInfo {
     fn get_region_info() -> RegionInfo;
     fn get_rect_info(&self) -> RegionRectInfo;
 }
 
-pub(crate) struct Region<T: GetRegionInfo> {
+pub(crate) struct Region<I: GetRegionInfo> {
     rects: Option<Rc<[Rect]>>,
     info: RegionInfo,
-    _t: PhantomData<T>,
+    _i: PhantomData<I>,
 }
 
-impl<T: GetRegionInfo> Region<T> {
-    pub fn new() -> Self {
+impl<I: GetRegionInfo> Region<I> {
+    fn new() -> Self {
         Self {
             rects: None,
-            info: T::get_region_info(),
-            _t: PhantomData,
+            info: I::get_region_info(),
+            _i: PhantomData,
         }
+    }
+
+    pub fn rect(&self, info: I) -> Rect {
+        match &self.rects {
+            Some(rects) => rects[info.get_rect_info().index],
+            None => Rect::new(0, 0, 0, 0),
+        }
+    }
+
+    /// Widget to draw the style of a region
+    fn block(&self, info: I) -> Block {
+        Block::default()
+            .title(format!(
+                "{} ({})",
+                info.get_rect_info().title,
+                info.get_rect_info().hotkey
+            ))
+            .title_position(Position::Top)
+            .title_alignment(Alignment::Center)
+            .borders(Borders::all())
+            .border_style(Style::default().fg(Color::DarkGray))
+            .border_type(BorderType::Rounded)
+            .padding(Padding {
+                left: 10,
+                right: 10,
+                top: 2,
+                bottom: 2,
+            })
+            .style(Style::default().bg(Color::Black))
     }
 }
 
@@ -59,7 +88,7 @@ impl GetRegionInfo for LeftRegion {
         }
     }
 
-   fn get_rect_info(&self) -> RegionRectInfo {
+    fn get_rect_info(&self) -> RegionRectInfo {
         match self {
             LeftRegion::Top => RegionRectInfo {
                 index: 0,
@@ -138,8 +167,8 @@ impl Regions<LeftRegion, RightRegion> {
         let outer_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Percentage(LeftRegion::get_region_info().width_percentage),
-                Constraint::Percentage(RightRegion::get_region_info().width_percentage),
+                Constraint::Percentage(self.left.info.width_percentage),
+                Constraint::Percentage(self.right.info.width_percentage),
             ])
             .split(frame.size());
         let left_rects = Layout::default()
@@ -173,8 +202,8 @@ impl Regions<LeftRegion, RightRegion> {
                     self.left.block(LeftRegion::Bottom),
                     self.left.rect(LeftRegion::Bottom),
                 );
-            },
-            None => {},
+            }
+            None => {}
         }
         // Draw right region
         match self.left.rects {
@@ -187,8 +216,8 @@ impl Regions<LeftRegion, RightRegion> {
                     self.right.block(RightRegion::Bottom),
                     self.right.rect(RightRegion::Bottom),
                 );
-            },
-            None => {},
+            }
+            None => {}
         }
     }
 
@@ -196,39 +225,4 @@ impl Regions<LeftRegion, RightRegion> {
         self.left.rects = Some(left_rects);
         self.right.rects = Some(right_rects);
     }
-}
-
-impl<P: GetRegionInfo> Region<P> {
-    pub fn rect(&self, position: P) -> Rect {
-        match &self.rects {
-            Some(rects) => rects[position.get_rect_info().index],
-            None => Rect::new(0, 0, 0, 0),
-        }
-    }
-
-    /// Widget to draw the style of a region
-    fn block(&self, position: P) -> Block {
-        Block::default()
-            .title(format!(
-                "{} ({})",
-                position.get_rect_info().title,
-                position.get_rect_info().hotkey
-            ))
-            .title_position(Position::Top)
-            .title_alignment(Alignment::Center)
-            .borders(Borders::all())
-            .border_style(Style::default().fg(Color::DarkGray))
-            .border_type(BorderType::Rounded)
-            .padding(Padding {
-                left: 10,
-                right: 10,
-                top: 2,
-                bottom: 2,
-            })
-            .style(Style::default().bg(Color::Black))
-    }
-}
-
-fn create_region_block(title: &str) -> Block {
-    todo!()
 }

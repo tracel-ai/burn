@@ -5,19 +5,14 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    buffer::Buffer,
-    layout::{Alignment, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Margin},
     prelude::Frame,
-    style::Style,
-    widgets::{block::Position, Block, Borders, Padding, Paragraph, StatefulWidget},
+    widgets::Paragraph,
     Terminal,
 };
 use std::{io, time::Duration};
 
-use crate::burnbenchapp::{
-    tui::components::{checkbox::*, regions::*},
-    Application,
-};
+use crate::burnbenchapp::{tui::components::regions::*, Application};
 
 type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
@@ -31,7 +26,9 @@ impl Application for TuiApplication {
 
     fn run(&mut self) {
         loop {
-            self.terminal.draw(|f| TuiApplication::render_app(&mut self.regions, f));
+            self.terminal
+                .draw(|f| TuiApplication::render_app(&mut self.regions, f))
+                .expect("frame should be drawn");
             if Self::should_quit() {
                 break;
             }
@@ -39,9 +36,10 @@ impl Application for TuiApplication {
     }
 
     fn cleanup(&mut self) {
-        disable_raw_mode();
-        execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
-        self.terminal.show_cursor();
+        disable_raw_mode().expect("Terminal raw mode should be disabled");
+        execute!(self.terminal.backend_mut(), LeaveAlternateScreen)
+            .expect("Alternate screen should be disabled");
+        self.terminal.show_cursor().expect("Terminal cursor should be made visible");
     }
 }
 
@@ -56,7 +54,7 @@ impl TuiApplication {
     fn setup_terminal() -> BenchTerminal {
         let mut stdout = io::stdout();
         enable_raw_mode().expect("enable terminal raw mode");
-        execute!(stdout, EnterAlternateScreen);
+        execute!(stdout, EnterAlternateScreen).expect("Alternate screen should be enabled");
         BenchTerminal::new(CrosstermBackend::new(stdout)).unwrap()
     }
 

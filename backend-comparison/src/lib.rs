@@ -1,9 +1,6 @@
 pub mod burnbenchapp;
 pub mod persistence;
 
-#[macro_use]
-extern crate derive_new;
-
 #[macro_export]
 macro_rules! bench_on_backend {
     () => {
