@@ -7,14 +7,18 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Margin},
     prelude::Frame,
-    widgets::Paragraph,
-    Terminal,
+    widgets::{Paragraph, ListState, List, Block, Borders},
+    Terminal, style::{Style, Modifier},
 };
 use std::{io, time::Duration};
 
 use crate::burnbenchapp::{tui::components::regions::*, Application};
 
 type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
+
+enum Message {
+    QuitApplication,
+}
 
 pub struct TuiApplication {
     terminal: BenchTerminal,
@@ -29,6 +33,11 @@ impl Application for TuiApplication {
             self.terminal
                 .draw(|f| TuiApplication::render_app(&mut self.regions, f))
                 .expect("frame should be drawn");
+            let mut current_msg = self.handle_event();
+            while current_msg.is_some() {
+                current_msg = self.update(current_msg.unwrap());
+            }
+
             if Self::should_quit() {
                 break;
             }
@@ -39,7 +48,9 @@ impl Application for TuiApplication {
         disable_raw_mode().expect("Terminal raw mode should be disabled");
         execute!(self.terminal.backend_mut(), LeaveAlternateScreen)
             .expect("Alternate screen should be disabled");
-        self.terminal.show_cursor().expect("Terminal cursor should be made visible");
+        self.terminal
+            .show_cursor()
+            .expect("Terminal cursor should be made visible");
     }
 }
 
@@ -58,49 +69,57 @@ impl TuiApplication {
         BenchTerminal::new(CrosstermBackend::new(stdout)).unwrap()
     }
 
-    // fn handle_event() -> Result<Option<Message>, String> {
-    //     if event::poll(Duration::from_millis(250)).unwrap() {
-    //         if let Event::Key(key) = event::read()? {
-    //             if key.kind == event::KeyEventKind::Press {
-    //                 return Ok(handle_key(key));
-    //             }
-    //         }
-    //     }
-    // }
+    fn handle_event(&mut self) -> Option<Message> {
+        if event::poll(Duration::from_millis(250)).unwrap() {
+            if let Event::Key(key) = event::read().unwrap() {
+                self.regions.set_focus(key.code);
+            }
+        }
+        None
+    }
 
-    // fn handle_focus_key(key: event::KeyEvent) -> Option<FocusMessage> {
-    //     match key.code {
-    //         KeyCode::Char(c) => {
-    //             if c == LeftRegion::Top.get_rect_info().hotkey {
-    //                 Some()
-    //             } else if c == LeftRegion::Middle.get_rect_info().hotkey {
-    //                 Some()
-    //             } else if c == LeftRegion::Bottom.get_rect_info().hotkey {
-
-    //                 Some()
-    //             } else if c == RightRegion::Top.get_rect_info().hotkey {
-    //                 Some()
-    //             } else if c == RightRegion::Bottom.get_rect_info().hotkey {
-    //                 Some()
-    //             } else {
-    //                 None
-    //             }
-    //         },
-    //         _ => None,
-    //     }
-    // }
+    fn update(&mut self, msg: Message) -> Option<Message> {
+        None
+    }
 
     fn render_app(regions: &mut Regions<LeftRegion, RightRegion>, frame: &mut Frame) {
         regions.draw(frame);
         let greeting =
-            Paragraph::new("Hello World! (press 'q' to quit)").alignment(Alignment::Center);
+            Paragraph::new("Hello World! \n\n(press 'q' to quit)").alignment(Alignment::Center);
         frame.render_widget(
             greeting,
-            regions.right.rect(RightRegion::Top).inner(&Margin {
+            regions.right.rect(&RightRegion::Top).inner(&Margin {
                 horizontal: 1,
                 vertical: 10,
             }),
         );
+        let mut state = ListState::default();
+        let items = ["Item 1", "Item 2", "Item 3"];
+        let list = List::new(items)
+            .block(Block::default())
+            .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+            .highlight_symbol(">>")
+            .repeat_highlight_symbol(true);
+        state.select(Some(0));
+        frame.render_stateful_widget(
+            list,
+            regions.left.rect(&LeftRegion::Top).inner(&Margin { horizontal: 5, vertical: 1 }),
+            &mut state);
+
+        let mut state2 = ListState::default();
+        let items2 = ["Item 1", "Item 2", "Item 3"];
+        let list2 = List::new(items)
+            .block(Block::default())
+            .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+            .highlight_symbol(">>")
+            .repeat_highlight_symbol(true);
+        state2.select(Some(1));
+        frame.render_stateful_widget(
+            list2,
+            regions.left.rect(&LeftRegion::Middle).inner(&Margin { horizontal: 5, vertical: 1 }),
+            &mut state2);
+
+
         // let checkbox = CustomCheckBox::new(String::from("My checkbox"));
         // let mut checkbox_state = CustomCheckBoxState::default();
         // frame.render_stateful_widget(

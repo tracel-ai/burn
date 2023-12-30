@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
@@ -20,7 +21,7 @@ pub(crate) struct RegionRectInfo {
     index: usize,
     title: &'static str,
     height_percentage: u16,
-    hotkey: char,
+    pub hotkey: char,
 }
 
 pub(crate) trait GetRegionInfo {
@@ -34,34 +35,39 @@ pub(crate) struct Region<I: GetRegionInfo> {
     _i: PhantomData<I>,
 }
 
-impl<I: GetRegionInfo> Region<I> {
+impl<T: GetRegionInfo> Region<T> {
     fn new() -> Self {
         Self {
             rects: None,
-            info: I::get_region_info(),
+            info: T::get_region_info(),
             _i: PhantomData,
         }
     }
 
-    pub fn rect(&self, info: I) -> Rect {
+    pub fn rect(&self, region_section: &T) -> Rect {
         match &self.rects {
-            Some(rects) => rects[info.get_rect_info().index],
+            Some(rects) => rects[region_section.get_rect_info().index],
             None => Rect::new(0, 0, 0, 0),
         }
     }
 
     /// Widget to draw the style of a region
-    fn block(&self, info: I) -> Block {
+    fn block(&self, region_section: &T, is_focused: bool) -> Block {
+        let border_color = if is_focused {
+            Color::LightRed
+        } else {
+            Color::DarkGray
+        };
         Block::default()
             .title(format!(
                 "{} ({})",
-                info.get_rect_info().title,
-                info.get_rect_info().hotkey
+                region_section.get_rect_info().title,
+                region_section.get_rect_info().hotkey
             ))
             .title_position(Position::Top)
             .title_alignment(Alignment::Center)
             .borders(Borders::all())
-            .border_style(Style::default().fg(Color::DarkGray))
+            .border_style(Style::default().fg(border_color))
             .border_type(BorderType::Rounded)
             .padding(Padding {
                 left: 10,
@@ -75,10 +81,17 @@ impl<I: GetRegionInfo> Region<I> {
 
 // Left Region --------------------------------------------------------------
 
+#[derive(PartialEq)]
 pub(crate) enum LeftRegion {
     Top,
     Middle,
     Bottom,
+}
+
+impl LeftRegion {
+    fn variants() -> [LeftRegion; 3] {
+        [LeftRegion::Top, LeftRegion::Middle, LeftRegion::Bottom]
+    }
 }
 
 impl GetRegionInfo for LeftRegion {
@@ -114,9 +127,16 @@ impl GetRegionInfo for LeftRegion {
 
 // Right Region --------------------------------------------------------------
 
+#[derive(PartialEq)]
 pub(crate) enum RightRegion {
     Top,
     Bottom,
+}
+
+impl RightRegion {
+    fn variants() -> [RightRegion; 2] {
+        [RightRegion::Top, RightRegion::Bottom]
+    }
 }
 
 impl GetRegionInfo for RightRegion {
@@ -146,9 +166,15 @@ impl GetRegionInfo for RightRegion {
 
 // Regions definition --------------------------------------------------------
 
+pub enum FocusedRegion<L: GetRegionInfo, R: GetRegionInfo> {
+    Left(L),
+    Right(R),
+}
+
 pub(crate) struct Regions<L: GetRegionInfo, R: GetRegionInfo> {
     pub left: Region<L>,
     pub right: Region<R>,
+    focused_region: FocusedRegion<L, R>,
 }
 
 impl Regions<LeftRegion, RightRegion> {
@@ -156,11 +182,26 @@ impl Regions<LeftRegion, RightRegion> {
         Self {
             left: Region::<LeftRegion>::new(),
             right: Region::<RightRegion>::new(),
+            focused_region: FocusedRegion::Left(LeftRegion::Top),
         }
     }
 
-    // pub fn update(frame: &Frame) -> Self {
-    // }
+    pub fn set_focus(&mut self, key: KeyCode) -> bool {
+        self.focused_region = if key == KeyCode::Char(LeftRegion::Top.get_rect_info().hotkey) {
+            FocusedRegion::Left(LeftRegion::Top)
+        } else if key == KeyCode::Char(LeftRegion::Middle.get_rect_info().hotkey) {
+            FocusedRegion::Left(LeftRegion::Middle)
+        } else if key == KeyCode::Char(LeftRegion::Bottom.get_rect_info().hotkey) {
+            FocusedRegion::Left(LeftRegion::Bottom)
+        } else if key == KeyCode::Char(RightRegion::Top.get_rect_info().hotkey) {
+            FocusedRegion::Right(RightRegion::Top)
+        } else if key == KeyCode::Char(RightRegion::Bottom.get_rect_info().hotkey) {
+            FocusedRegion::Right(RightRegion::Bottom)
+        } else {
+            return false;
+        };
+        true
+    }
 
     pub fn draw(&mut self, frame: &mut Frame) {
         // compute rects boundaries and update the regions accordingly
@@ -190,32 +231,26 @@ impl Regions<LeftRegion, RightRegion> {
         // Draw left region
         match self.left.rects {
             Some(_) => {
-                frame.render_widget(
-                    self.left.block(LeftRegion::Top),
-                    self.left.rect(LeftRegion::Top),
-                );
-                frame.render_widget(
-                    self.left.block(LeftRegion::Middle),
-                    self.left.rect(LeftRegion::Middle),
-                );
-                frame.render_widget(
-                    self.left.block(LeftRegion::Bottom),
-                    self.left.rect(LeftRegion::Bottom),
-                );
+                for region_variant in LeftRegion::variants() {
+                    let is_focused = matches!(&self.focused_region, FocusedRegion::Left(ref lr) if *lr == region_variant);
+                    frame.render_widget(
+                        self.left.block(&region_variant, is_focused),
+                        self.left.rect(&region_variant),
+                    );
+                }
             }
             None => {}
         }
         // Draw right region
-        match self.left.rects {
+        match self.right.rects {
             Some(_) => {
-                frame.render_widget(
-                    self.right.block(RightRegion::Top),
-                    self.right.rect(RightRegion::Top),
-                );
-                frame.render_widget(
-                    self.right.block(RightRegion::Bottom),
-                    self.right.rect(RightRegion::Bottom),
-                );
+                for region_variant in RightRegion::variants() {
+                    let is_focused = matches!(&self.focused_region, FocusedRegion::Right(ref rr) if *rr == region_variant);
+                    frame.render_widget(
+                        self.right.block(&region_variant, is_focused),
+                        self.right.rect(&region_variant),
+                    );
+                }
             }
             None => {}
         }
