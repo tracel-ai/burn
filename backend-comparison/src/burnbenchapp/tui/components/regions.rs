@@ -17,7 +17,7 @@ pub(crate) struct RegionInfo {
     width_percentage: u16,
 }
 
-pub(crate) struct RegionRectInfo {
+pub(crate) struct RegionSectionInfo {
     index: usize,
     title: &'static str,
     height_percentage: u16,
@@ -26,11 +26,11 @@ pub(crate) struct RegionRectInfo {
 
 pub(crate) trait GetRegionInfo {
     fn get_region_info() -> RegionInfo;
-    fn get_rect_info(&self) -> RegionRectInfo;
+    fn get_section_info(&self) -> RegionSectionInfo;
 }
 
 pub(crate) struct Region<I: GetRegionInfo> {
-    rects: Option<Rc<[Rect]>>,
+    rects: Rc<[Rect]>,
     info: RegionInfo,
     _i: PhantomData<I>,
 }
@@ -38,17 +38,14 @@ pub(crate) struct Region<I: GetRegionInfo> {
 impl<T: GetRegionInfo> Region<T> {
     fn new() -> Self {
         Self {
-            rects: None,
+            rects: [].into(),
             info: T::get_region_info(),
             _i: PhantomData,
         }
     }
 
     pub fn rect(&self, region_section: &T) -> Rect {
-        match &self.rects {
-            Some(rects) => rects[region_section.get_rect_info().index],
-            None => Rect::new(0, 0, 0, 0),
-        }
+        self.rects[region_section.get_section_info().index]
     }
 
     /// Widget to draw the style of a region
@@ -61,8 +58,8 @@ impl<T: GetRegionInfo> Region<T> {
         Block::default()
             .title(format!(
                 "{} ({})",
-                region_section.get_rect_info().title,
-                region_section.get_rect_info().hotkey
+                region_section.get_section_info().title,
+                region_section.get_section_info().hotkey
             ))
             .title_position(Position::Top)
             .title_alignment(Alignment::Center)
@@ -101,21 +98,21 @@ impl GetRegionInfo for LeftRegion {
         }
     }
 
-    fn get_rect_info(&self) -> RegionRectInfo {
+    fn get_section_info(&self) -> RegionSectionInfo {
         match self {
-            LeftRegion::Top => RegionRectInfo {
+            LeftRegion::Top => RegionSectionInfo {
                 index: 0,
                 title: "Backend",
                 height_percentage: 30,
                 hotkey: 'b',
             },
-            LeftRegion::Middle => RegionRectInfo {
+            LeftRegion::Middle => RegionSectionInfo {
                 index: 1,
                 title: "Benches",
                 height_percentage: 60,
                 hotkey: 'n',
             },
-            LeftRegion::Bottom => RegionRectInfo {
+            LeftRegion::Bottom => RegionSectionInfo {
                 index: 2,
                 title: "Action",
                 height_percentage: 10,
@@ -146,15 +143,15 @@ impl GetRegionInfo for RightRegion {
         }
     }
 
-    fn get_rect_info(&self) -> RegionRectInfo {
+    fn get_section_info(&self) -> RegionSectionInfo {
         match self {
-            RightRegion::Top => RegionRectInfo {
+            RightRegion::Top => RegionSectionInfo {
                 index: 0,
                 title: "Results",
                 height_percentage: 90,
                 hotkey: 'r',
             },
-            RightRegion::Bottom => RegionRectInfo {
+            RightRegion::Bottom => RegionSectionInfo {
                 index: 1,
                 title: "Progress",
                 height_percentage: 10,
@@ -187,15 +184,15 @@ impl Regions<LeftRegion, RightRegion> {
     }
 
     pub fn set_focus(&mut self, key: KeyCode) -> bool {
-        self.focused_region = if key == KeyCode::Char(LeftRegion::Top.get_rect_info().hotkey) {
+        self.focused_region = if key == KeyCode::Char(LeftRegion::Top.get_section_info().hotkey) {
             FocusedRegion::Left(LeftRegion::Top)
-        } else if key == KeyCode::Char(LeftRegion::Middle.get_rect_info().hotkey) {
+        } else if key == KeyCode::Char(LeftRegion::Middle.get_section_info().hotkey) {
             FocusedRegion::Left(LeftRegion::Middle)
-        } else if key == KeyCode::Char(LeftRegion::Bottom.get_rect_info().hotkey) {
+        } else if key == KeyCode::Char(LeftRegion::Bottom.get_section_info().hotkey) {
             FocusedRegion::Left(LeftRegion::Bottom)
-        } else if key == KeyCode::Char(RightRegion::Top.get_rect_info().hotkey) {
+        } else if key == KeyCode::Char(RightRegion::Top.get_section_info().hotkey) {
             FocusedRegion::Right(RightRegion::Top)
-        } else if key == KeyCode::Char(RightRegion::Bottom.get_rect_info().hotkey) {
+        } else if key == KeyCode::Char(RightRegion::Bottom.get_section_info().hotkey) {
             FocusedRegion::Right(RightRegion::Bottom)
         } else {
             return false;
@@ -215,49 +212,39 @@ impl Regions<LeftRegion, RightRegion> {
         let left_rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(LeftRegion::Top.get_rect_info().height_percentage),
-                Constraint::Percentage(LeftRegion::Middle.get_rect_info().height_percentage),
-                Constraint::Percentage(LeftRegion::Bottom.get_rect_info().height_percentage),
+                Constraint::Percentage(LeftRegion::Top.get_section_info().height_percentage),
+                Constraint::Percentage(LeftRegion::Middle.get_section_info().height_percentage),
+                Constraint::Percentage(LeftRegion::Bottom.get_section_info().height_percentage),
             ])
             .split(outer_layout[0]);
         let right_rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Percentage(RightRegion::Top.get_rect_info().height_percentage),
-                Constraint::Percentage(RightRegion::Bottom.get_rect_info().height_percentage),
+                Constraint::Percentage(RightRegion::Top.get_section_info().height_percentage),
+                Constraint::Percentage(RightRegion::Bottom.get_section_info().height_percentage),
             ])
             .split(outer_layout[1]);
         self.set_rects(left_rects, right_rects);
         // Draw left region
-        match self.left.rects {
-            Some(_) => {
-                for region_variant in LeftRegion::variants() {
-                    let is_focused = matches!(&self.focused_region, FocusedRegion::Left(ref lr) if *lr == region_variant);
-                    frame.render_widget(
-                        self.left.block(&region_variant, is_focused),
-                        self.left.rect(&region_variant),
-                    );
-                }
-            }
-            None => {}
+        for region_variant in LeftRegion::variants() {
+            let is_focused = matches!(&self.focused_region, FocusedRegion::Left(ref lr) if *lr == region_variant);
+            frame.render_widget(
+                self.left.block(&region_variant, is_focused),
+                self.left.rect(&region_variant),
+            );
         }
         // Draw right region
-        match self.right.rects {
-            Some(_) => {
-                for region_variant in RightRegion::variants() {
-                    let is_focused = matches!(&self.focused_region, FocusedRegion::Right(ref rr) if *rr == region_variant);
-                    frame.render_widget(
-                        self.right.block(&region_variant, is_focused),
-                        self.right.rect(&region_variant),
-                    );
-                }
-            }
-            None => {}
+        for region_variant in RightRegion::variants() {
+            let is_focused = matches!(&self.focused_region, FocusedRegion::Right(ref rr) if *rr == region_variant);
+            frame.render_widget(
+                self.right.block(&region_variant, is_focused),
+                self.right.rect(&region_variant),
+            );
         }
     }
 
     fn set_rects(&mut self, left_rects: Rc<[Rect]>, right_rects: Rc<[Rect]>) {
-        self.left.rects = Some(left_rects);
-        self.right.rects = Some(right_rects);
+        self.left.rects = left_rects;
+        self.right.rects = right_rects;
     }
 }
