@@ -533,14 +533,13 @@ where
 
     /// Pads the tensor according to the specified padding configuration and mode.
     ///
-    /// This method pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
+    /// Pads the last two dimensions of a Float or Int tensor with a given padding size and value, according to the specified padding mode.
     /// Currently, only constant padding mode is implemented, which pads the tensor with a constant value.
     ///
     /// # Arguments
     ///
-    /// * `pad` - A `Padding` struct specifying the size of padding in each dimension.
-    /// * `pad_mode` - The padding mode, determining how the padding is applied. Currently, only `PadMode::Constant` is supported.
-    /// * `value` - The value to be used for padding in constant mode.
+    /// * `pad_size` - A `PadSize` struct specifying the size of padding in each dimension.
+    /// * `pad_mode` - The padding mode, determining how the padding is applied.
     ///
     /// # Returns
     ///
@@ -565,7 +564,7 @@ where
     ///
     /// ```
 
-    pub fn pad(self, pad_amount: PadSize, pad_mode: PadMode<K, B>) -> Tensor<B, D, K>
+    pub fn pad(self, pad_size: PadSize, pad_mode: PadMode<K, B>) -> Tensor<B, D, K>
     where
         K::Elem: Element,
         K: Numeric<B>,
@@ -575,22 +574,20 @@ where
                 let mut padded_dims: [usize; D] = self.dims();
 
                 // Update the last two dimensions with padding
-                padded_dims[D - 2] += pad_amount.top + pad_amount.bottom;
-                padded_dims[D - 1] += pad_amount.left + pad_amount.right;
+                padded_dims[D - 2] += pad_size.top + pad_size.bottom;
+                padded_dims[D - 1] += pad_size.left + pad_size.right;
 
-                // Initialize ranges for all dimensions
+                // Create the ranges for the padded tensor
                 let ranges: [Range<usize>; D] = padded_dims
                     .iter()
                     .enumerate()
                     .map(|(i, &dim)| {
                         if i == D - 2 {
-                            // Second last dimension
-                            pad_amount.top..dim - pad_amount.bottom
+                            pad_size.top..dim - pad_size.bottom
                         } else if i == D - 1 {
-                            // Last dimension
-                            pad_amount.left..dim - pad_amount.right
+                            pad_size.left..dim - pad_size.right
                         } else {
-                            0..dim // Other dimensions remain unchanged
+                            0..dim
                         }
                     })
                     .collect::<Vec<Range<usize>>>()
@@ -603,7 +600,7 @@ where
 
                 // Assign the original tensor data to the appropriate slice of the padded tensor
                 padded_tensor.slice_assign(ranges, self)
-            } // Other padding modes
+            }
         }
     }
 }
@@ -617,8 +614,6 @@ where
 {
     /// Pads the tensor with a constant value.
     Constant(K::Elem),
-    // Reflect,
-    // Replicate,
     // Other modes can be added here
 }
 
