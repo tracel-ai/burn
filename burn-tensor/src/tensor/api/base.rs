@@ -15,7 +15,7 @@ use core::{fmt::Debug, ops::Range};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, Element, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, check, Bool, Data, Element, Float, Int, Numeric, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -550,34 +550,28 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Data,PadMode,Padding,Shape,Tensor};
+    /// use burn_tensor::{Data,PadMode,PadSize,Shape,Tensor};
     ///
     /// fn pad_example<B: Backend>()
     /// where
-    ///     B::FloatElem: From<f32>, // Ensure that FloatElem can be created from a floating-point number
+    ///     B::FloatElem: From<f32>,
     /// {
     ///    let pad_const = 1.1;
     ///    let tensor = Tensor::<B, 4>::ones_devauto(Shape::new([2, 3, 4, 5]));
-    ///    let padding = Padding::uniform(2);
     ///
-    ///    let padded_tensor = tensor.pad(padding, PadMode::Constant, Some(pad_const.into()));
+    ///    let padded_tensor = tensor.pad(PadSize::uniform(2), PadMode::Constant(pad_const.into()));
     /// }    
     ///
     ///
     /// ```
-    /// Pads the tensor with the specified padding configuration and padding mode.
-    pub fn pad(
-        self,
-        pad_amount: Padding,
-        pad_mode: PadMode,
-        value: Option<K::Elem>,
-    ) -> Tensor<B, D, K>
+
+    pub fn pad(self, pad_amount: PadSize, pad_mode: PadMode<K, B>) -> Tensor<B, D, K>
     where
         K::Elem: Element,
+        K: Numeric<B>,
     {
         match pad_mode {
-            PadMode::Constant => {
-                let padding_value = value.expect("Padding value required for Constant mode");
+            PadMode::Constant(value) => {
                 let mut padded_dims: [usize; D] = self.dims();
 
                 // Update the last two dimensions with padding
@@ -605,8 +599,7 @@ where
 
                 // Create the padded tensor
                 let padded_shape = Shape::from(padded_dims);
-                let padded_data = Data::full(padded_shape, padding_value);
-                let padded_tensor = Tensor::<B, D, K>::from_data_devauto(padded_data);
+                let padded_tensor = Tensor::full_devauto(padded_shape, value);
 
                 // Assign the original tensor data to the appropriate slice of the padded tensor
                 padded_tensor.slice_assign(ranges, self)
@@ -616,16 +609,21 @@ where
 }
 
 /// Represents the different modes of padding that can be applied to a tensor.
-pub enum PadMode {
+pub enum PadMode<K, B>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Element,
+{
     /// Pads the tensor with a constant value.
-    Constant,
+    Constant(K::Elem),
     // Reflect,
     // Replicate,
     // Other modes can be added here
 }
 
 /// Represents padding quantity for a tensor.
-pub struct Padding {
+pub struct PadSize {
     /// The number of padding elements at the top of the tensor (beginning of 1st dimension of padding).
     pub top: usize,
     /// The number of padding elements at the bottom of the tensor (end of 1st dimension of padding).
@@ -636,7 +634,7 @@ pub struct Padding {
     pub right: usize,
 }
 
-impl Padding {
+impl PadSize {
     /// Creates a padding configuration with uniform padding on all sides.
     ///
     /// # Arguments
