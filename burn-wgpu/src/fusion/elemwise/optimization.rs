@@ -9,7 +9,10 @@ use crate::{
     },
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
-use burn_fusion::{graph::Context, Optimization, TensorDescription};
+use burn_fusion::{
+    graph::{Context, OptimizationId},
+    Optimization, TensorDescription,
+};
 use burn_tensor::Device;
 
 pub(crate) struct ElementWise<G, F, I>
@@ -18,7 +21,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) id: String,
+    pub(crate) id: OptimizationId,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
@@ -112,7 +115,7 @@ where
                 self.scalars_f32,
                 self.scalars_i32,
                 FusedKernelSource::NewKernel {
-                    id: self.id.to_string(),
+                    id: optimization_id_to_kernel_id(&self.id),
                     shader,
                 },
                 context,
@@ -126,6 +129,10 @@ where
     fn len(&self) -> usize {
         self.operators.len()
     }
+}
+
+pub(crate) fn optimization_id_to_kernel_id(id: &OptimizationId) -> String {
+    format!("ElementWise-{}", id)
 }
 
 #[cfg(test)]

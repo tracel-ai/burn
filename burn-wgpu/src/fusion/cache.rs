@@ -2,7 +2,10 @@ use crate::{
     codegen::ComputeShader,
     kernel::{DynamicKernelSource, SourceTemplate},
 };
+use burn_fusion::graph::OptimizationId;
 use hashbrown::HashSet;
+
+use super::optimization_id_to_kernel_id;
 
 /// This cache ensures that the generation of the source code is only done once when the kernel is
 /// executed for the first time. Following, we only include the ID in the dynamic kernel source,
@@ -12,7 +15,7 @@ use hashbrown::HashSet;
 /// cloning.
 #[derive(Default, Debug)]
 pub struct KernelCompilationCache {
-    already_compiled_ids: HashSet<String>,
+    already_compiled_ids: HashSet<OptimizationId>,
 }
 
 #[derive(new)]
@@ -43,15 +46,17 @@ impl DynamicKernelSource for FusedKernelSource {
 }
 
 impl KernelCompilationCache {
-    pub fn get(&self, id: &str) -> Option<FusedKernelSource> {
+    pub fn get(&self, id: &OptimizationId) -> Option<FusedKernelSource> {
         if self.already_compiled_ids.contains(id) {
-            return Some(FusedKernelSource::AlreadyCompiled { id: id.to_string() });
+            return Some(FusedKernelSource::AlreadyCompiled {
+                id: optimization_id_to_kernel_id(id),
+            });
         }
 
         None
     }
 
-    pub fn insert(&mut self, id: String) {
+    pub fn insert(&mut self, id: OptimizationId) {
         self.already_compiled_ids.insert(id);
     }
 }

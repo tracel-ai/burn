@@ -153,15 +153,15 @@ impl<O> OptimizationCache<O> {
             return &mut optimization.value;
         };
 
-        self.starters
-            .insert(graph.first().unwrap(), self.optimizations.len());
+        let new_id = self.optimizations.len();
+        self.starters.insert(graph.first().unwrap(), new_id);
         let optimization = OptimizationItem {
             graph,
             end_conditions: match next_ops {
                 Some(val) => vec![val],
                 None => Vec::new(),
             },
-            value: factory.create(),
+            value: factory.create(new_id),
         };
 
         self.optimizations.push(optimization);
@@ -217,10 +217,11 @@ impl<'a, T> core::fmt::Debug for CacheResult<'a, T> {
 /// Create an optimization.
 pub(crate) trait OptimizationFactory<T> {
     /// Call only when a new optimization is found.
-    fn create(&self) -> T;
+    fn create(&self, id: OptimizationId) -> T;
 }
 
-pub(super) type OptimizationId = usize;
+/// Type used to identify unique optimization.
+pub type OptimizationId = usize;
 
 struct OptimizationItem<O> {
     graph: Vec<TensorOpsDescription>,
@@ -248,7 +249,7 @@ mod tests {
         // Register the action.
         let optimization = path.complete(&Optimization1, graph.edges[0..2].to_vec(), None);
 
-        assert_eq!(optimization, &Optimization1.create());
+        assert_eq!(optimization, &Optimization1.create(0));
 
         // Second following on the same ops.
         path.reset();
@@ -260,7 +261,7 @@ mod tests {
 
         let result3 = path.follow(&graph.edges[0..2], Condition::Sync);
         match result3 {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -287,13 +288,13 @@ mod tests {
 
         let result = path.follow(&graph.edges[0..1], Condition::NextOps(&graph.edges[1]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
             _ => panic!("Should have found the cached operation"),
         }
 
         let result = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
             _ => panic!("Should have found the cached operation"),
         }
     }
@@ -314,7 +315,7 @@ mod tests {
             Some(graph.edges[2].clone()),
         );
 
-        assert_eq!(optimization, &Optimization1.create());
+        assert_eq!(optimization, &Optimization1.create(0));
 
         // Second following on the same ops.
         path.reset();
@@ -326,7 +327,7 @@ mod tests {
 
         let result3 = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result3 {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -367,7 +368,7 @@ mod tests {
         );
         assert_eq!(
             optimization,
-            &Optimization1.create(),
+            &Optimization1.create(0),
             "Optimization 1 should still be returned, since same graph but not same end condition."
         );
     }
@@ -432,7 +433,7 @@ mod tests {
 
         let result = path.follow(&graph1.edges[0..2], Condition::NextOps(&graph1.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
             _ => panic!("Should have found the cached operation"),
         };
 
@@ -447,7 +448,7 @@ mod tests {
 
         let result = path.follow(&graph2.edges[0..2], Condition::NextOps(&graph2.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization2.create()),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization2.create(0)),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -525,13 +526,13 @@ mod tests {
     struct Optimization2;
 
     impl OptimizationFactory<String> for Optimization1 {
-        fn create(&self) -> String {
+        fn create(&self, _id: OptimizationId) -> String {
             "Optimization1".to_string()
         }
     }
 
     impl OptimizationFactory<String> for Optimization2 {
-        fn create(&self) -> String {
+        fn create(&self, _id: OptimizationId) -> String {
             "Optimization2".to_string()
         }
     }

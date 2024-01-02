@@ -1,7 +1,7 @@
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
-    fusion::FloatElementWiseBuilder,
+    fusion::ElementWiseBuilder,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -32,7 +32,7 @@ where
     type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
-        vec![Box::new(FloatElementWiseBuilder::new(device.clone()))]
+        vec![Box::new(ElementWiseBuilder::new(device.clone()))]
     }
 
     fn float_tensor<const D: usize>(
