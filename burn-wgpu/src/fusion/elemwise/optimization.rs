@@ -141,12 +141,18 @@ mod tests {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
 
-        let data_1 =
-            Tensor::<FusedBackend, 2>::random_devauto([1, 32], burn_tensor::Distribution::Default)
-                .into_data();
-        let data_2 =
-            Tensor::<Backend, 2>::random_devauto([32, 32], burn_tensor::Distribution::Default)
-                .into_data();
+        let data_1 = Tensor::<FusedBackend, 2>::random(
+            [1, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data();
+        let data_2 = Tensor::<Backend, 2>::random(
+            [32, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data();
 
         let result_ref = execute::<Backend>(
             data_1.clone(),
@@ -209,12 +215,18 @@ mod tests {
         type Backend = Wgpu;
         type FusedBackend = Fusion<Wgpu>;
 
-        let data_1 =
-            Tensor::<FusedBackend, 2>::random_devauto([1, 32], burn_tensor::Distribution::Default)
-                .into_data();
-        let data_2 =
-            Tensor::<Backend, 2>::random_devauto([32, 32], burn_tensor::Distribution::Default)
-                .into_data();
+        let data_1 = Tensor::<FusedBackend, 2>::random(
+            [1, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data();
+        let data_2 = Tensor::<Backend, 2>::random(
+            [32, 32],
+            burn_tensor::Distribution::Default,
+            &Default::default(),
+        )
+        .into_data();
 
         let result_ref = execute::<Backend>(
             data_1.clone(),
@@ -239,8 +251,9 @@ mod tests {
     #[test]
     fn test_end_condition_scalar_ops() {
         type Backend = Fusion<Wgpu>;
-        let tensor1 = Tensor::<Backend, 2>::ones_devauto([32, 32]);
-        let tensor2 = Tensor::<Backend, 2>::ones_devauto([32, 42]);
+        let device = Default::default();
+        let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
+        let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);
         let output = tensor1.exp().log();
 
         // This will add a scalar to the context, even if the actual operation can't be fused with
@@ -270,8 +283,9 @@ mod tests {
         data_2: Data<f32, 2>,
         variant: ImplementationDetails,
     ) -> Data<f32, 2> {
-        let tensor_1 = Tensor::<B, 2>::from_data_devauto(data_1.convert());
-        let tensor_2 = Tensor::<B, 2>::from_data_devauto(data_2.convert());
+        let device = B::Device::default();
+        let tensor_1 = Tensor::<B, 2>::from_data(data_1.convert(), &device);
+        let tensor_2 = Tensor::<B, 2>::from_data(data_2.convert(), &device);
         let tensor_3 = tensor_1.clone() + tensor_2;
         let tensor_4 = tensor_3.clone() - tensor_1;
         let mut tensor_5 = tensor_4.clone() + 5.0;
