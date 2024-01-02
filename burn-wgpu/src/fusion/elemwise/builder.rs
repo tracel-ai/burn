@@ -2,7 +2,7 @@ use super::optimization::ElementWise;
 use crate::{
     codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::cache::KernelCompilationCache,
+    fusion::{cache::KernelCompilationCache, WgpuOptimization},
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
@@ -10,8 +10,7 @@ use burn_fusion::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         OptimizationId, ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    Optimization, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
-    TensorDescription, TensorId,
+    OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
@@ -87,7 +86,7 @@ where
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self, id: OptimizationId) -> Box<dyn Optimization<Wgpu<G, F, I>>> {
+    fn build(&self, id: OptimizationId) -> WgpuOptimization<G, F, I> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -95,7 +94,7 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(ElementWise {
+        let op = ElementWise {
             id,
             inputs,
             outputs,
@@ -106,7 +105,9 @@ where
             scalars_i32: self.scalars_i32,
             device: self.device.clone(),
             cache: KernelCompilationCache::default(),
-        })
+        };
+
+        WgpuOptimization::ElementWise(op)
     }
 
     fn reset(&mut self) {

@@ -1,3 +1,4 @@
+use super::ElementWise;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
@@ -8,6 +9,30 @@ use crate::{
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
+
+/// Fusion optimizations for WGPU.
+///
+/// More optimizations can be added here.
+pub enum WgpuOptimization<G: GraphicsApi, F: FloatElement, I: IntElement> {
+    /// Optimization that only fused element wise operators.
+    ElementWise(ElementWise<G, F, I>),
+}
+
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<Wgpu<G, F, I>>
+    for WgpuOptimization<G, F, I>
+{
+    fn execute(&mut self, context: &mut burn_fusion::graph::Context<'_, Wgpu<G, F, I>>) {
+        match self {
+            Self::ElementWise(op) => op.execute(context),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::ElementWise(op) => op.len(),
+        }
+    }
+}
 
 impl FusionDevice for WgpuDevice {
     fn id(&self) -> DeviceId {
@@ -27,6 +52,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
+    type Optimization = WgpuOptimization<G, F, I>;
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;

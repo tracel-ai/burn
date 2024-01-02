@@ -15,7 +15,7 @@ use burn_fusion::{
 };
 use burn_tensor::Device;
 
-pub(crate) struct ElementWise<G, F, I>
+pub struct ElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
