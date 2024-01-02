@@ -108,8 +108,8 @@ impl NumericMetricsState {
     pub(crate) fn on_event(&mut self, event: &Event) {
         if let Event::Key(key) = event {
             match key.kind {
-                KeyEventKind::Press | KeyEventKind::Repeat => (),
-                KeyEventKind::Release => return,
+                KeyEventKind::Release | KeyEventKind::Repeat => (),
+                KeyEventKind::Press => return,
             }
             match key.code {
                 KeyCode::Right => self.next_metric(),
