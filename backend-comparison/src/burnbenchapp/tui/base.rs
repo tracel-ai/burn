@@ -7,12 +7,18 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Margin},
     prelude::Frame,
-    widgets::{Paragraph, ListState, List, Block, Borders},
-    Terminal, style::{Style, Modifier},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Paragraph},
+    Terminal,
 };
 use std::{io, time::Duration};
 
-use crate::burnbenchapp::{tui::components::regions::*, Application};
+use crate::burnbenchapp::{
+    tui::components::{multilist::*, regions::*},
+    Application,
+};
+
+use super::components::checkboxes::Checkboxes;
 
 type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
@@ -93,32 +99,60 @@ impl TuiApplication {
                 vertical: 10,
             }),
         );
-        let mut state = ListState::default();
-        let items = ["Item 1", "Item 2", "Item 3"];
-        let list = List::new(items)
-            .block(Block::default())
-            .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
-            .highlight_symbol(">>")
-            .repeat_highlight_symbol(true);
-        state.select(Some(0));
-        frame.render_stateful_widget(
-            list,
-            regions.left.rect(&LeftRegion::Top).inner(&Margin { horizontal: 5, vertical: 1 }),
-            &mut state);
 
-        let mut state2 = ListState::default();
-        let items2 = ["Item 1", "Item 2", "Item 3"];
-        let list2 = List::new(items)
-            .block(Block::default())
-            .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
-            .highlight_symbol(">>")
-            .repeat_highlight_symbol(true);
-        state2.select(Some(1));
-        frame.render_stateful_widget(
-            list2,
-            regions.left.rect(&LeftRegion::Middle).inner(&Margin { horizontal: 5, vertical: 1 }),
-            &mut state2);
+        let checkboxes = Checkboxes::new()
 
+        // let mut state = ListState::default();
+        // let items = [
+        //     ListItem::new("wgpu"),
+        //     ListItem::new("wgpu-fusion"),
+        //     ListItem::new("tch"),
+        //     ListItem::new("tch-cpu"),
+        //     ListItem::new("wgpu"),
+        //     ListItem::new("wgpu-fusion"),
+        //     ListItem::new("tch"),
+        //     ListItem::new("tch-cpu"),
+        //     ListItem::new("wgpu"),
+        //     ListItem::new("wgpu-fusion"),
+        //     ListItem::new("tch"),
+        //     ListItem::new("tch-cpu"),
+        //     ListItem::new("wgpu"),
+        //     ListItem::new("wgpu-fusion"),
+        //     ListItem::new("tch"),
+        //     ListItem::new("tch-cpu"),
+        //     ListItem::new("wgpu"),
+        //     ListItem::new("wgpu-fusion"),
+        //     ListItem::new("tch"),
+        //     ListItem::new("tch-cpu"),
+        // ]
+        // .to_vec();
+        // let list = List::new(items)
+        //     .block(Block::default())
+        //     .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+        //     .highlight_symbol(">>  ");
+        // state.select(1);
+        // state.select(2);
+        // frame.render_stateful_widget(
+        //     list,
+        //     regions.left.rect(&LeftRegion::Top).inner(&Margin {
+        //         horizontal: 5,
+        //         vertical: 1,
+        //     }),
+        //     &mut state,
+        // );
+
+        // let mut state2 = ListState::default();
+        // let items2 = ["Item 1", "Item 2", "Item 3"];
+        // let list2 = List::new(items)
+        //     .block(Block::default())
+        //     .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
+        //     .highlight_symbol(">>")
+        //     .repeat_highlight_symbol(true);
+        // state2.select(Some(1));
+        // frame.render_stateful_widget(
+        //     list2,
+        //     regions.left.rect(&LeftRegion::Middle).inner(&Margin { horizontal: 5, vertical: 1 }),
+        //     &mut state2);
 
         // let checkbox = CustomCheckBox::new(String::from("My checkbox"));
         // let mut checkbox_state = CustomCheckBoxState::default();

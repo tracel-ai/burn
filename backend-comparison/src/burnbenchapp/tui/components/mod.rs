@@ -6,6 +6,8 @@
 // pub(crate) mod checkbox;
 // pub(crate) mod ok_button;
 // mod progress;
+pub(crate) mod checkboxes;
+pub(crate) mod multilist;
 pub(crate) mod regions;
 // mod results;
 
