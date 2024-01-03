@@ -73,11 +73,11 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 50_000));
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 5_000));
 
     // Initialize optimizer
@@ -91,15 +91,15 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
 
     // Initialize learner
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train(CUDAMetric::new())
-        .metric_valid(CUDAMetric::new())
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
+        // .metric_train(CUDAMetric::new())
+        // .metric_valid(CUDAMetric::new())
+        // .metric_train_numeric(AccuracyMetric::new())
+        // .metric_valid_numeric(AccuracyMetric::new())
+        // .metric_train_numeric(LossMetric::new())
+        // .metric_valid_numeric(LossMetric::new())
+        // .metric_train_numeric(LossMetric::new())
+        // .metric_valid_numeric(LossMetric::new())
+        // .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .devices(devices)
         .num_epochs(config.num_epochs)

@@ -42,6 +42,7 @@ impl FusionClientLocator {
                 None => {
                     let client = C::new(device.clone());
                     let any = Box::new(client.clone());
+                    println!("Register client.");
                     clients.insert(client_id, any);
                     client
                 }
@@ -64,6 +65,7 @@ impl FusionClientLocator {
                 panic!("Client already created for device {:?}", key);
             }
 
+            println!("Register client.");
             clients.insert(key, Box::new(client));
         }
     }

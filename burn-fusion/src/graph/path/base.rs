@@ -36,28 +36,28 @@ impl<O> OptimizationCache<O> {
 
         log::info!("Save optimization cache.");
         self.saved = true;
-        // let cache = OptimizationCache {
-        //     candidates: self.candidates.clone(),
-        //     availables: self.availables.clone(),
-        //     optimizations: self
-        //         .optimizations
-        //         .iter()
-        //         .map(|op| OptimizationItem {
-        //             graph: op.graph.clone(),
-        //             end_conditions: op.end_conditions.clone(),
-        //             value: op.value.to_state(),
-        //         })
-        //         .collect(),
-        //     starters: self.starters.clone(),
-        //     found: None,
-        //     saved: false,
-        // };
+        let cache = OptimizationCache {
+            candidates: self.candidates.clone(),
+            availables: self.availables.clone(),
+            optimizations: self
+                .optimizations
+                .iter()
+                .map(|op| OptimizationItem {
+                    graph: op.graph.clone(),
+                    end_conditions: op.end_conditions.clone(),
+                    value: op.value.to_state(),
+                })
+                .collect(),
+            starters: self.starters.clone(),
+            found: None,
+            saved: false,
+        };
 
-        // std::fs::write(
-        //     "/tmp/test.json",
-        //     serde_json::to_string_pretty(&cache).unwrap(),
-        // )
-        // .unwrap();
+        std::fs::write(
+            "/tmp/test.json",
+            serde_json::to_string_pretty(&cache).unwrap(),
+        )
+        .unwrap();
     }
 }
 
@@ -206,7 +206,7 @@ impl<O> OptimizationCache<O> {
         };
 
         self.optimizations.push(optimization);
-        log::info!("New optimization {:?}", self.optimizations.len());
+        // log::info!("New optimization {:?}", self.optimizations.len());
         self.saved = false;
 
         let last_index = self.optimizations.len() - 1;
