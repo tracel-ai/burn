@@ -1,8 +1,9 @@
 use super::variable::Variable;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 /// All operators that can be fused in a WGSL compute shader.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operator {
     Add {

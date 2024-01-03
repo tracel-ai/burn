@@ -1,19 +1,16 @@
+use std::sync::Arc;
+
 use crate::{
     codegen::{
         ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
         Visibility,
     },
-    fusion::{
-        cache::{FusedKernelSource, KernelCompilationCache},
-        kernel,
-    },
-    FloatElement, GraphicsApi, IntElement, Wgpu,
+    fusion::{cache::FusedKernelSource, kernel},
+    FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
-use burn_fusion::{
-    graph::{Context, OptimizationId},
-    Optimization, TensorDescription,
-};
+use burn_fusion::{graph::Context, TensorDescription};
 use burn_tensor::Device;
+use serde::{Deserialize, Serialize};
 
 pub struct ElementWise<G, F, I>
 where
@@ -21,7 +18,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) id: OptimizationId,
+    pub(crate) id: String,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
@@ -30,7 +27,20 @@ where
     pub(crate) scalars_u32: usize,
     pub(crate) scalars_i32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
-    pub(crate) cache: KernelCompilationCache,
+    pub(crate) source: Option<FusedKernelSource>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ElementWiseState {
+    pub(crate) id: String,
+    pub(crate) inputs: Vec<(TensorDescription, Elem)>,
+    pub(crate) outputs: Vec<(TensorDescription, Elem)>,
+    pub(crate) locals: Vec<u16>,
+    pub(crate) operators: Vec<Operator>,
+    pub(crate) scalars_f32: usize,
+    pub(crate) scalars_u32: usize,
+    pub(crate) scalars_i32: usize,
+    pub(crate) shader: ComputeShader,
 }
 
 impl<G, F, I> ElementWise<G, F, I>
@@ -39,7 +49,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub fn compile(&mut self) -> ComputeShader {
+    pub(crate) fn compile(&mut self) -> ComputeShader {
         let mut inputs = self
             .inputs
             .iter()
@@ -89,50 +99,65 @@ where
     }
 }
 
-impl<G, F, I> Optimization<Wgpu<G, F, I>> for ElementWise<G, F, I>
+impl<G, F, I> ElementWise<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        if let Some(kernel) = self.cache.get(&self.id) {
-            kernel::execute_fusion(
-                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                self.scalars_f32,
-                self.scalars_i32,
-                kernel,
-                context,
-                self.device.clone(),
-            );
-        } else {
-            let shader = self.compile();
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
+        let source = match &mut self.source {
+            Some(value) => value.clone(),
+            None => {
+                let source = FusedKernelSource::new(self.id.clone(), Arc::new(self.compile()));
+                self.source = Some(source.clone());
+                source
+            }
+        };
 
-            kernel::execute_fusion(
-                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                self.scalars_f32,
-                self.scalars_i32,
-                FusedKernelSource::NewKernel {
-                    id: optimization_id_to_kernel_id(&self.id),
-                    shader,
-                },
-                context,
-                self.device.clone(),
-            );
+        kernel::execute_fusion(
+            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            self.scalars_f32,
+            self.scalars_i32,
+            source,
+            context,
+            self.device.clone(),
+        )
+    }
 
-            self.cache.insert(self.id.clone());
+    pub(crate) fn len(&self) -> usize {
+        self.operators.len()
+    }
+
+    pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
+        Self {
+            id: state.id.clone(),
+            inputs: state.inputs,
+            outputs: state.outputs,
+            locals: state.locals,
+            operators: state.operators,
+            scalars_f32: state.scalars_f32,
+            scalars_u32: state.scalars_u32,
+            scalars_i32: state.scalars_i32,
+            device: device.clone(),
+            source: Some(FusedKernelSource::new(state.id, Arc::new(state.shader))),
         }
     }
 
-    fn len(&self) -> usize {
-        self.operators.len()
+    pub(crate) fn to_state(&self) -> ElementWiseState {
+        ElementWiseState {
+            id: self.id.clone(),
+            inputs: self.inputs.clone(),
+            outputs: self.outputs.clone(),
+            locals: self.locals.clone(),
+            operators: self.operators.clone(),
+            scalars_f32: self.scalars_f32.clone(),
+            scalars_u32: self.scalars_u32.clone(),
+            scalars_i32: self.scalars_i32.clone(),
+            shader: self.source.as_ref().unwrap().shader.as_ref().clone(),
+        }
     }
-}
-
-pub(crate) fn optimization_id_to_kernel_id(id: &OptimizationId) -> String {
-    format!("ElementWise-{}", id)
 }
 
 #[cfg(test)]

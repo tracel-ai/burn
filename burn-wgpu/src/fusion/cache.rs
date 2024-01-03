@@ -2,10 +2,8 @@ use crate::{
     codegen::ComputeShader,
     kernel::{DynamicKernelSource, SourceTemplate},
 };
-use burn_fusion::graph::OptimizationId;
-use hashbrown::HashSet;
-
-use super::optimization_id_to_kernel_id;
+use hashbrown::HashMap;
+use std::sync::Arc;
 
 /// This cache ensures that the generation of the source code is only done once when the kernel is
 /// executed for the first time. Following, we only include the ID in the dynamic kernel source,
@@ -15,48 +13,45 @@ use super::optimization_id_to_kernel_id;
 /// cloning.
 #[derive(Default, Debug)]
 pub struct KernelCompilationCache {
-    already_compiled_ids: HashSet<OptimizationId>,
+    already_compiled_ids: HashMap<String, Arc<ComputeShader>>,
 }
 
-#[derive(new)]
-pub enum FusedKernelSource {
-    AlreadyCompiled { id: String },
-    NewKernel { id: String, shader: ComputeShader },
+#[derive(new, Clone)]
+pub struct FusedKernelSource {
+    id: String,
+    pub(crate) shader: Arc<ComputeShader>,
 }
 
 impl DynamicKernelSource for FusedKernelSource {
     fn source(&self) -> SourceTemplate {
-        match self {
-            FusedKernelSource::AlreadyCompiled { id: _ } => {
-                panic!("Can't get the source of an already compiled kernel.")
-            }
-            FusedKernelSource::NewKernel {
-                id: _,
-                shader: source,
-            } => SourceTemplate::new(source.to_string()),
-        }
+        SourceTemplate::new(self.shader.to_string())
     }
 
     fn id(&self) -> String {
-        match self {
-            FusedKernelSource::AlreadyCompiled { id } => id.clone(),
-            FusedKernelSource::NewKernel { id, shader: _ } => id.clone(),
-        }
+        self.id.clone()
     }
 }
 
 impl KernelCompilationCache {
-    pub fn get(&self, id: &OptimizationId) -> Option<FusedKernelSource> {
-        if self.already_compiled_ids.contains(id) {
-            return Some(FusedKernelSource::AlreadyCompiled {
-                id: optimization_id_to_kernel_id(id),
-            });
+    pub fn to_state(&self) -> HashMap<String, ComputeShader> {
+        let mut state = HashMap::with_capacity(self.already_compiled_ids.len());
+
+        for (key, value) in self.already_compiled_ids.iter() {
+            state.insert(key.clone(), value.as_ref().clone());
+        }
+
+        state
+    }
+
+    pub fn get(&self, id: &str) -> Option<FusedKernelSource> {
+        if let Some(value) = self.already_compiled_ids.get(id) {
+            return Some(FusedKernelSource::new(id.to_string(), value.clone()));
         }
 
         None
     }
 
-    pub fn insert(&mut self, id: OptimizationId) {
-        self.already_compiled_ids.insert(id);
+    pub fn insert(&mut self, id: String, code: Arc<ComputeShader>) {
+        self.already_compiled_ids.insert(id, code);
     }
 }

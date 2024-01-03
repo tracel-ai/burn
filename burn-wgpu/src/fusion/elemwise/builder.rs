@@ -2,13 +2,14 @@ use super::optimization::ElementWise;
 use crate::{
     codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::{cache::KernelCompilationCache, WgpuOptimization},
+    fusion::WgpuOptimization,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
+use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
-        OptimizationId, ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
+        ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
     OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
@@ -86,7 +87,7 @@ where
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self, id: OptimizationId) -> WgpuOptimization<G, F, I> {
+    fn build(&self) -> WgpuOptimization<G, F, I> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -95,7 +96,7 @@ where
             .collect::<Vec<_>>();
 
         let op = ElementWise {
-            id,
+            id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
@@ -104,7 +105,7 @@ where
             scalars_u32: self.scalars_u32,
             scalars_i32: self.scalars_i32,
             device: self.device.clone(),
-            cache: KernelCompilationCache::default(),
+            source: None,
         };
 
         WgpuOptimization::ElementWise(op)

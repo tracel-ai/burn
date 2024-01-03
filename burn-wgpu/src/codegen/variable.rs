@@ -1,7 +1,8 @@
 use super::Elem;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Variable {
     Input(u16, Elem),
     Scalar(u16, Elem),

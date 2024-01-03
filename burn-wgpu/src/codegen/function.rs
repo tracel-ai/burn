@@ -1,8 +1,9 @@
 use super::Elem;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Function {
     Powf(Elem),
     Erf(Elem),

@@ -1,7 +1,5 @@
 use super::{CacheResult, Condition, Graph, OptimizationCache, TensorOpsDescription};
-use crate::{
-    FusionBackend, HandleContainer, Optimization, OptimizationBuilder, OptimizationStatus,
-};
+use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct GraphExecution<B: FusionBackend> {
@@ -184,7 +182,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 }
 
 enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a mut dyn Optimization<B>),
+    ExecuteOptimization(&'a mut B::Optimization),
     ExecuteOperations,
     ContinueBuilding,
 }

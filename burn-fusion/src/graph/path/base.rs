@@ -161,7 +161,7 @@ impl<O> OptimizationCache<O> {
                 Some(val) => vec![val],
                 None => Vec::new(),
             },
-            value: factory.create(new_id),
+            value: factory.create(),
         };
 
         self.optimizations.push(optimization);
@@ -217,7 +217,7 @@ impl<'a, T> core::fmt::Debug for CacheResult<'a, T> {
 /// Create an optimization.
 pub(crate) trait OptimizationFactory<T> {
     /// Call only when a new optimization is found.
-    fn create(&self, id: OptimizationId) -> T;
+    fn create(&self) -> T;
 }
 
 /// Type used to identify unique optimization.
@@ -249,7 +249,7 @@ mod tests {
         // Register the action.
         let optimization = path.complete(&Optimization1, graph.edges[0..2].to_vec(), None);
 
-        assert_eq!(optimization, &Optimization1.create(0));
+        assert_eq!(optimization, &Optimization1.create());
 
         // Second following on the same ops.
         path.reset();
@@ -261,7 +261,7 @@ mod tests {
 
         let result3 = path.follow(&graph.edges[0..2], Condition::Sync);
         match result3 {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -288,13 +288,13 @@ mod tests {
 
         let result = path.follow(&graph.edges[0..1], Condition::NextOps(&graph.edges[1]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         }
 
         let result = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         }
     }
@@ -315,7 +315,7 @@ mod tests {
             Some(graph.edges[2].clone()),
         );
 
-        assert_eq!(optimization, &Optimization1.create(0));
+        assert_eq!(optimization, &Optimization1.create());
 
         // Second following on the same ops.
         path.reset();
@@ -327,7 +327,7 @@ mod tests {
 
         let result3 = path.follow(&graph.edges[0..2], Condition::NextOps(&graph.edges[2]));
         match result3 {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -368,7 +368,7 @@ mod tests {
         );
         assert_eq!(
             optimization,
-            &Optimization1.create(0),
+            &Optimization1.create(),
             "Optimization 1 should still be returned, since same graph but not same end condition."
         );
     }
@@ -433,7 +433,7 @@ mod tests {
 
         let result = path.follow(&graph1.edges[0..2], Condition::NextOps(&graph1.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization1.create()),
             _ => panic!("Should have found the cached operation"),
         };
 
@@ -448,7 +448,7 @@ mod tests {
 
         let result = path.follow(&graph2.edges[0..2], Condition::NextOps(&graph2.edges[2]));
         match result {
-            CacheResult::Found(ops) => assert_eq!(ops, &Optimization2.create(0)),
+            CacheResult::Found(ops) => assert_eq!(ops, &Optimization2.create()),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -526,13 +526,13 @@ mod tests {
     struct Optimization2;
 
     impl OptimizationFactory<String> for Optimization1 {
-        fn create(&self, _id: OptimizationId) -> String {
+        fn create(&self) -> String {
             "Optimization1".to_string()
         }
     }
 
     impl OptimizationFactory<String> for Optimization2 {
-        fn create(&self, _id: OptimizationId) -> String {
+        fn create(&self) -> String {
             "Optimization2".to_string()
         }
     }

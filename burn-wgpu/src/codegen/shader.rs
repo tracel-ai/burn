@@ -1,21 +1,22 @@
 use super::{Body, Function};
 use crate::kernel::WORKGROUP_DEFAULT;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Visibility {
     Read,
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub enum Elem {
     F32,
     I32,
@@ -23,7 +24,7 @@ pub enum Elem {
     Bool,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
@@ -31,7 +32,7 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct WorkgroupSize {
     pub x: usize,
     pub y: usize,
@@ -48,6 +49,7 @@ impl Default for WorkgroupSize {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,

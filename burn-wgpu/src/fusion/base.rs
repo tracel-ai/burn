@@ -1,4 +1,4 @@
-use super::ElementWise;
+use super::{ElementWise, ElementWiseState};
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
@@ -9,6 +9,7 @@ use crate::{
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
+use serde::{Deserialize, Serialize};
 
 /// Fusion optimizations for WGPU.
 ///
@@ -16,6 +17,15 @@ use core::marker::PhantomData;
 pub enum WgpuOptimization<G: GraphicsApi, F: FloatElement, I: IntElement> {
     /// Optimization that only fused element wise operators.
     ElementWise(ElementWise<G, F, I>),
+}
+
+/// Fusion optimizations for WGPU.
+///
+/// More optimizations can be added here.
+#[derive(Serialize, Deserialize)]
+pub enum WgpuOptimizationState {
+    /// Optimization that only fused element wise operators.
+    ElementWise(ElementWiseState),
 }
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<Wgpu<G, F, I>>
@@ -30,6 +40,20 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<W
     fn len(&self) -> usize {
         match self {
             Self::ElementWise(op) => op.len(),
+        }
+    }
+
+    fn to_state(&self) -> WgpuOptimizationState {
+        match self {
+            Self::ElementWise(value) => WgpuOptimizationState::ElementWise(value.to_state()),
+        }
+    }
+
+    fn from_state(device: &WgpuDevice, state: WgpuOptimizationState) -> Self {
+        match state {
+            WgpuOptimizationState::ElementWise(state) => {
+                Self::ElementWise(ElementWise::from_state(device, state))
+            }
         }
     }
 }
@@ -52,6 +76,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
+    type OptimizationState = WgpuOptimizationState;
     type Optimization = WgpuOptimization<G, F, I>;
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
