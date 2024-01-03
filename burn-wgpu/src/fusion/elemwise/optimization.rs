@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     codegen::{
         ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
@@ -11,6 +9,7 @@ use crate::{
 use burn_fusion::{graph::Context, TensorDescription};
 use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub struct ElementWise<G, F, I>
 where

@@ -43,6 +43,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                     match self.build(graph, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
                             graph.execute_optimization(handles, ops);
+                            self.optimization_cache.save();
                             self.reset(graph);
                         }
                         BuildAction::ExecuteOperations => {

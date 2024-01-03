@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    graph::{Context, OptimizationFactory, OptimizationId, TensorOpsDescription},
+    graph::{Context, OptimizationFactory, TensorOpsDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};

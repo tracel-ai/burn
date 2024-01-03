@@ -22,3 +22,4 @@ derive-new = {workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
