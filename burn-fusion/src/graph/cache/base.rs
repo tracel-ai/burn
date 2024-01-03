@@ -1,5 +1,5 @@
 use super::starter::Starters;
-use crate::{graph::TensorOpsDescription, FusionBackend, Optimization};
+use crate::graph::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 
 /// The cache works by keeping track of all possible optimizations for the current graph path.
@@ -14,51 +14,12 @@ use serde::{Deserialize, Serialize};
 /// Therefore, the overhead is very minimal, since the time-complexity of checking the cache
 /// scales with the number of concurrent potential optimizations for the current path, which isn't
 /// supposed to be big at any time.
-#[derive(Serialize, Deserialize)]
 pub(crate) struct OptimizationCache<O> {
-    candidates: Vec<OptimizationId>,
-    availables: Vec<(OptimizationId, usize)>,
-    optimizations: Vec<OptimizationItem<O>>,
-    starters: Starters,
-    found: Option<OptimizationId>,
-    saved: bool,
-}
-
-impl<O> OptimizationCache<O> {
-    pub fn save<B: FusionBackend>(&mut self)
-    where
-        O: Optimization<B>,
-    {
-        if self.saved {
-            log::info!("Already saved optimization cache.");
-            return;
-        }
-
-        log::info!("Save optimization cache.");
-        self.saved = true;
-        let cache = OptimizationCache {
-            candidates: self.candidates.clone(),
-            availables: self.availables.clone(),
-            optimizations: self
-                .optimizations
-                .iter()
-                .map(|op| OptimizationItem {
-                    graph: op.graph.clone(),
-                    end_conditions: op.end_conditions.clone(),
-                    value: op.value.to_state(),
-                })
-                .collect(),
-            starters: self.starters.clone(),
-            found: None,
-            saved: false,
-        };
-
-        std::fs::write(
-            "/tmp/test.json",
-            serde_json::to_string_pretty(&cache).unwrap(),
-        )
-        .unwrap();
-    }
+    pub(super) candidates: Vec<OptimizationId>,
+    pub(super) availables: Vec<(OptimizationId, usize)>,
+    pub(super) optimizations: Vec<OptimizationItem<O>>,
+    pub(super) starters: Starters,
+    pub(super) found: Option<OptimizationId>,
 }
 
 impl<O> OptimizationCache<O> {
@@ -69,7 +30,6 @@ impl<O> OptimizationCache<O> {
             optimizations: Vec::new(),
             starters: Starters::default(),
             found: None,
-            saved: true,
         }
     }
 
@@ -206,8 +166,6 @@ impl<O> OptimizationCache<O> {
         };
 
         self.optimizations.push(optimization);
-        // log::info!("New optimization {:?}", self.optimizations.len());
-        self.saved = false;
 
         let last_index = self.optimizations.len() - 1;
         &mut self.optimizations[last_index].value
@@ -267,10 +225,10 @@ pub(crate) trait OptimizationFactory<T> {
 pub type OptimizationId = usize;
 
 #[derive(Serialize, Deserialize)]
-struct OptimizationItem<O> {
-    graph: Vec<TensorOpsDescription>,
-    end_conditions: Vec<TensorOpsDescription>,
-    value: O,
+pub(super) struct OptimizationItem<O> {
+    pub(super) graph: Vec<TensorOpsDescription>,
+    pub(super) end_conditions: Vec<TensorOpsDescription>,
+    pub(super) value: O,
 }
 
 #[cfg(test)]

@@ -151,9 +151,9 @@ where
             outputs: self.outputs.clone(),
             locals: self.locals.clone(),
             operators: self.operators.clone(),
-            scalars_f32: self.scalars_f32.clone(),
-            scalars_u32: self.scalars_u32.clone(),
-            scalars_i32: self.scalars_i32.clone(),
+            scalars_f32: self.scalars_f32,
+            scalars_u32: self.scalars_u32,
+            scalars_i32: self.scalars_i32,
             shader: self.source.as_ref().unwrap().shader.as_ref().clone(),
         }
     }

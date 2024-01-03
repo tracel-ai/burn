@@ -632,6 +632,7 @@ pub struct Conv2dOptionsDescription {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ConvTranspose1dOptionsDescription {
     pub stride: [usize; 1],
     pub padding: [usize; 1],
@@ -641,6 +642,7 @@ pub struct ConvTranspose1dOptionsDescription {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ConvTranspose2dOptionsDescription {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
@@ -695,48 +697,48 @@ impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
     }
 }
 
-impl Into<ConvOptions<1>> for Conv1dOptionsDescription {
-    fn into(self) -> ConvOptions<1> {
+impl From<Conv1dOptionsDescription> for ConvOptions<1> {
+    fn from(val: Conv1dOptionsDescription) -> Self {
         ConvOptions {
-            stride: self.stride,
-            padding: self.padding,
-            dilation: self.dilation,
-            groups: self.groups,
+            stride: val.stride,
+            padding: val.padding,
+            dilation: val.dilation,
+            groups: val.groups,
         }
     }
 }
 
-impl Into<ConvOptions<2>> for Conv2dOptionsDescription {
-    fn into(self) -> ConvOptions<2> {
+impl From<Conv2dOptionsDescription> for ConvOptions<2> {
+    fn from(val: Conv2dOptionsDescription) -> Self {
         ConvOptions {
-            stride: self.stride,
-            padding: self.padding,
-            dilation: self.dilation,
-            groups: self.groups,
+            stride: val.stride,
+            padding: val.padding,
+            dilation: val.dilation,
+            groups: val.groups,
         }
     }
 }
 
-impl Into<ConvTransposeOptions<1>> for ConvTranspose1dOptionsDescription {
-    fn into(self) -> ConvTransposeOptions<1> {
+impl From<ConvTranspose1dOptionsDescription> for ConvTransposeOptions<1> {
+    fn from(val: ConvTranspose1dOptionsDescription) -> Self {
         ConvTransposeOptions {
-            stride: self.stride,
-            padding: self.padding,
-            padding_out: self.padding_out,
-            dilation: self.dilation,
-            groups: self.groups,
+            stride: val.stride,
+            padding: val.padding,
+            padding_out: val.padding_out,
+            dilation: val.dilation,
+            groups: val.groups,
         }
     }
 }
 
-impl Into<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
-    fn into(self) -> ConvTransposeOptions<2> {
+impl From<ConvTranspose2dOptionsDescription> for ConvTransposeOptions<2> {
+    fn from(val: ConvTranspose2dOptionsDescription) -> Self {
         ConvTransposeOptions {
-            stride: self.stride,
-            padding: self.padding,
-            padding_out: self.padding_out,
-            dilation: self.dilation,
-            groups: self.groups,
+            stride: val.stride,
+            padding: val.padding,
+            padding_out: val.padding_out,
+            dilation: val.dilation,
+            groups: val.groups,
         }
     }
 }
