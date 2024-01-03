@@ -221,8 +221,7 @@ pub(crate) trait OptimizationFactory<T> {
     fn create(&self) -> T;
 }
 
-/// Type used to identify unique optimization.
-pub type OptimizationId = usize;
+pub(crate) type OptimizationId = usize;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct OptimizationItem<O> {

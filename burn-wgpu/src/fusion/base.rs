@@ -11,20 +11,20 @@ use burn_tensor::Shape;
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
-/// Fusion optimizations for WGPU.
+/// Fusion optimization type for WGPU.
 ///
-/// More optimizations can be added here.
+/// More optimization variants should be added here.
 pub enum WgpuOptimization<G: GraphicsApi, F: FloatElement, I: IntElement> {
-    /// Optimization that only fused element wise operators.
+    /// Element wise optimization.
     ElementWise(ElementWise<G, F, I>),
 }
 
-/// Fusion optimizations for WGPU.
+/// Fusion optimization state type for WGPU.
 ///
-/// More optimizations can be added here.
+/// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
 pub enum WgpuOptimizationState {
-    /// Optimization that only fused element wise operators.
+    /// Element wise state.
     ElementWise(ElementWiseState),
 }
 

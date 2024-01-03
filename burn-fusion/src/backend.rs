@@ -137,7 +137,7 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend: Backend {
-    /// The state that can be serialized for this optimization.
+    /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;

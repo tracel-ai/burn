@@ -3,7 +3,7 @@ use crate::{
         ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
         Visibility,
     },
-    fusion::{cache::FusedKernelSource, kernel},
+    fusion::{kernel, source::FusedKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_fusion::{graph::Context, TensorDescription};
