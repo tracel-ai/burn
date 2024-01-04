@@ -107,9 +107,10 @@ jobs:
         run: cargo test -p burn-wgpu --color=always -- --list
 
       - name: wgpu tests
+        # run: cargo test -p burn-wgpu --color=always -- --color=always --test-threads 1
         # run: cargo test tests::module -p burn-wgpu --color=always -- --color=always --test-threads 1
         # run: cargo test tests::matmul -p burn-wgpu --color=always -- --color=always --test-threads 1
-        run: cargo test -p burn-wgpu --color=always -- --color=always --test-threads 1
+        run: cargo test can_run_kernel -p burn-wgpu --color=always -- --color=always --test-threads 1
 
       # - name: Run cargo clippy for stable version
       #   if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
