@@ -102,6 +102,10 @@ jobs:
           sudo add-apt-repository ppa:kisak/kisak-mesa -y
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
+      - name: dummy wgpu tests --list
+        run: cargo test -p burn-wgpu --color=always -- --list
+
       - name: wgpu tests
         # run: cargo test tests::module -p burn-wgpu --color=always -- --color=always --test-threads 1
         # run: cargo test tests::matmul -p burn-wgpu --color=always -- --color=always --test-threads 1
