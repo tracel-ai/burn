@@ -196,18 +196,19 @@ impl<K: AutotuneKey> TuneCache<K> {
         let file_path = self.get_persistent_cache_file_path();
         if let Some(parent_dir) = file_path.parent() {
             if !parent_dir.exists() {
-                let msg = format!(
+                fs::create_dir_all(parent_dir).unwrap_or_else(|_| {
+                    panic!(
                     "Should be able to create directory '{}' for autotune persistent cache file",
-                    parent_dir.to_str().unwrap()
-                );
-                fs::create_dir_all(parent_dir).expect(&msg);
+                    parent_dir.to_str().unwrap())
+                });
             }
         }
-        let msg = format!(
-            "Should be able to open autotune persistent cache file: {:?}",
-            &file_path.to_str().unwrap()
-        );
-        let file = File::create(file_path.clone()).expect(&msg);
+        let file = File::create(file_path.clone()).unwrap_or_else(|_| {
+            panic!(
+                "Should be able to open autotune persistent cache file '{}'",
+                file_path.to_str().unwrap()
+            )
+        });
         let data = self.persistent_cache.iter().collect::<Vec<_>>();
         serde_json::to_writer_pretty(file, &data)
             .expect("Should be able to write to autotune persistent cache");
