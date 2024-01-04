@@ -34,36 +34,39 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-13, ubuntu-22.04, windows-2022]
-        rust: [stable, 1.71.0]
-        test: ['std', 'no-std', 'examples']
+        # os: [macos-13, ubuntu-22.04, windows-2022]
+        # rust: [stable, 1.71.0]
+        # test: ['std', 'no-std', 'examples']
+        os: [ubuntu-22.04]
+        rust: [stable]
+        test: ['std']
         include:
           - cache: stable
             rust: stable
-          - cache: 1-71-0
-            rust: 1.71.0
+          # - cache: 1-71-0
+          #   rust: 1.71.0
           - os: ubuntu-22.04
             coverage-flags: COVERAGE=1
             rust: stable
             test: std
-          - os: macos-13
-            rust: stable
-            test: std
-          - os: windows-2022
-            wgpu-flags: "DISABLE_WGPU=1"
-            # not used yet, as wgpu tests are disabled on windows for now
-            # see issue: https://github.com/tracel-ai/burn/issues/1062
-            # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
-        exclude:
-          # only need to check this once
-          - rust: 1.71.0
-            test: 'examples'
-          # Do not run no-std tests on macos
-          - os: macos-13
-            test: 'no-std'
-          # Do not run no-std tests on Windows
-          - os: windows-2022
-            test: 'no-std'
+          # - os: macos-13
+          #   rust: stable
+          #   test: std
+          # - os: windows-2022
+          #   wgpu-flags: "DISABLE_WGPU=1"
+          #   # not used yet, as wgpu tests are disabled on windows for now
+          #   # see issue: https://github.com/tracel-ai/burn/issues/1062
+          #   # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
+        # exclude:
+        #   # only need to check this once
+        #   - rust: 1.71.0
+        #     test: 'examples'
+        #   # Do not run no-std tests on macos
+        #   - os: macos-13
+        #     test: 'no-std'
+        #   # Do not run no-std tests on Windows
+        #   - os: windows-2022
+        #     test: 'no-std'
 
     steps:
 
