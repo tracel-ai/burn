@@ -1,3 +1,4 @@
+#[cfg(feature = "autotune-persistent-cache")]
 use rand::{distributions::Alphanumeric, Rng};
 use std::sync::Arc;
 
@@ -24,6 +25,7 @@ pub struct AdditionAutotuneOperationSet {
 }
 
 impl AdditionAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
@@ -73,6 +75,7 @@ pub struct MultiplicationAutotuneOperationSet {
 }
 
 impl MultiplicationAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
@@ -122,6 +125,7 @@ pub struct CacheTestAutotuneOperationSet {
 }
 
 impl CacheTestAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,

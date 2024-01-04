@@ -63,7 +63,10 @@ pub enum TuneCacheResult<K> {
 }
 
 impl<K: AutotuneKey> TuneCache<K> {
-    pub(crate) fn new(device_id: &str) -> Self {
+    pub(crate) fn new(
+        #[cfg_attr(not(feature = "autotune-persistent-cache"), allow(unused_variables))]
+        device_id: &str,
+    ) -> Self {
         #[cfg(feature = "autotune-persistent-cache")]
         {
             let mut cache = TuneCache {

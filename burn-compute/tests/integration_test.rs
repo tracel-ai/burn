@@ -2,10 +2,9 @@ mod dummy;
 
 use std::sync::Arc;
 
-use burn_compute::Compute;
+use crate::dummy::{client, DummyDevice, DummyElementwiseAddition};
 
-use crate::dummy::{client, DummyDevice, DummyElementwiseAddition, TUNER_DEVICE_ID};
-
+#[allow(unused)]
 use serial_test::serial;
 
 #[test]
@@ -91,7 +90,8 @@ fn autotune_basic_multiplication_execution() {
 #[serial]
 #[cfg(feature = "std")]
 fn autotune_cache_same_key_return_a_cache_hit() {
-    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let compute: burn_compute::Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> =
+        burn_compute::Compute::new();
     let client = compute.client(&DummyDevice, dummy::init_client);
 
     // note: the key name depends on the shapes of the operation set
@@ -129,10 +129,12 @@ fn autotune_cache_same_key_return_a_cache_hit() {
 #[cfg(feature = "std")]
 fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
     // delete the cache file
-    let file_path = burn_compute::tune::get_persistent_cache_file_path(TUNER_DEVICE_ID);
+    let file_path =
+        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
     let _ = std::fs::remove_file(file_path);
 
-    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let compute: burn_compute::Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> =
+        burn_compute::Compute::new();
     let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test shapes [1,3] and [1,5] ends up with different key names
@@ -168,14 +170,16 @@ fn autotune_cache_no_cache_on_disk_return_a_cache_miss() {
 #[cfg(feature = "std")]
 fn autotune_cache_file_path_creation_works_when_path_does_not_exist_yet() {
     // delete the cache file
-    let file_path = burn_compute::tune::get_persistent_cache_file_path(TUNER_DEVICE_ID);
+    let file_path =
+        burn_compute::tune::get_persistent_cache_file_path(crate::dummy::TUNER_DEVICE_ID);
     let parent_dir = file_path
         .parent()
         .expect("Cache file should have a parent directory");
     // Delete the cache file's parent directory
     let _ = std::fs::remove_dir_all(parent_dir);
 
-    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let compute: burn_compute::Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> =
+        burn_compute::Compute::new();
     let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test shapes [1,3] and [1,5] ends up with different key names
@@ -236,7 +240,8 @@ fn autotune_cache_different_keys_return_a_cache_miss() {
 #[serial]
 #[cfg(feature = "std")]
 fn autotune_cache_different_checksums_return_a_cache_miss() {
-    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let compute: burn_compute::Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> =
+        burn_compute::Compute::new();
     let client = compute.client(&DummyDevice, dummy::init_client);
 
     // in this test both shapes [1,3] and [1,4] end up with the same key name
@@ -254,7 +259,8 @@ fn autotune_cache_different_checksums_return_a_cache_miss() {
     // we use a second compute client in order to have freshly initialized autotune cache
     // and test invalidation of the cache when the checksum of the operation set is
     // different
-    let compute: Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> = Compute::new();
+    let compute: burn_compute::Compute<DummyDevice, dummy::DummyServer, dummy::DummyChannel> =
+        burn_compute::Compute::new();
     let client = compute.client(&DummyDevice, dummy::init_client);
 
     let shapes_2 = vec![vec![1, 4], vec![1, 4], vec![1, 4]];
