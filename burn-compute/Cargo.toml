@@ -43,10 +43,10 @@ dirs = { workspace = true , optional = true}
 serde = { workspace = true, optional = true}
 serde_json = { workspace = true, features=["std"], optional = true}
 md5 = { version = "0.7.0", optional = true }
-rand.workspace = true
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 web-time = { version = "0.2.3" }
 
 [dev-dependencies]
 serial_test = "2.0.0"
+rand = { workspace = true }
