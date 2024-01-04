@@ -458,6 +458,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 }
             }
 
+            #[allow(dead_code)]
             pub fn new_devauto() -> Self {
                 let device = B::Device::default();
                 Self::new(&device)
