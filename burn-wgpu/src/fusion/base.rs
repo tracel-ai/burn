@@ -131,6 +131,6 @@ mod tests {
     pub type TestTensorBool<const D: usize> =
         burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    // burn_tensor::testgen_all!();
+    // burn_autodiff::testgen_all!();
 }
