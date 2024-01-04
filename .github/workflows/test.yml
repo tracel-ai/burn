@@ -41,14 +41,14 @@ jobs:
         rust: [1.71.0]
         test: ['std']
         include:
-          - cache: stable
-            rust: stable
-          # - cache: 1-71-0
-          #   rust: 1.71.0
-          - os: ubuntu-22.04
-            coverage-flags: COVERAGE=1
-            rust: stable
-            test: std
+          # - cache: stable
+          #   rust: stable
+          - cache: 1-71-0
+            rust: 1.71.0
+          # - os: ubuntu-22.04
+          #   coverage-flags: COVERAGE=1
+          #   rust: stable
+          #   test: std
           # - os: macos-13
           #   rust: stable
           #   test: std
@@ -79,11 +79,11 @@ jobs:
           components: rustfmt, clippy
           toolchain: ${{ matrix.rust }}
 
-      - name: caching
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ runner.os }}-${{ matrix.cache }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.toml') }}
-          prefix-key: "v5-rust"
+      # - name: caching
+      #   uses: Swatinem/rust-cache@v2
+      #   with:
+      #     key: ${{ runner.os }}-${{ matrix.cache }}-${{ matrix.test}}-${{ hashFiles('**/Cargo.toml') }}
+      #     prefix-key: "v5-rust"
 
       - name: free disk space
         if: runner.os == 'Linux'
