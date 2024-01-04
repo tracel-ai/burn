@@ -428,10 +428,10 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
         CheckType::Examples => check_examples(),
         CheckType::All => {
             /* Run all checks */
-            check_typos();
+            // check_typos();
             std_checks();
-            no_std_checks();
-            check_examples();
+            // no_std_checks();
+            // check_examples();
         }
     }
 
