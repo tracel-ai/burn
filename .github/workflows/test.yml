@@ -104,7 +104,8 @@ jobs:
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
       - name: wgpu tests
         # run: cargo test tests::module -p burn-wgpu --color=always -- --color=always --test-threads 1
-        run: cargo test tests::matmul -p burn-wgpu --color=always -- --color=always --test-threads 1
+        # run: cargo test tests::matmul -p burn-wgpu --color=always -- --color=always --test-threads 1
+        run: cargo test -p burn-wgpu --color=always -- --color=always --test-threads 1
 
       # - name: Run cargo clippy for stable version
       #   if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'

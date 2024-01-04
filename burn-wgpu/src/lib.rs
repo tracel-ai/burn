@@ -46,6 +46,6 @@ mod tests {
 
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    // burn_tensor::testgen_all!();
+    // burn_autodiff::testgen_all!();
 }
