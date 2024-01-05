@@ -103,6 +103,12 @@ jobs:
           sudo apt-get update
           sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
 
+      - name: (temp) run wgpu-info
+        run: |
+          cargo install wgpu-info
+          which wgpu-info
+          wgpu-info
+
       - name: dummy wgpu tests --list
         run: cargo test -p burn-wgpu --color=always -- --list
 
