@@ -99,6 +99,21 @@ jobs:
           df -h
           cargo clean --package burn-tch
 
+      - name: (linux) install vulkan sdk
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -e
+
+          sudo apt-get update -y -qq
+
+          # vulkan sdk
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+
+          sudo apt-get update
+          sudo apt install -y vulkan-sdk
+
       - name: (linux) install mesa
         if: runner.os == 'Linux'
         shell: bash
@@ -119,15 +134,6 @@ jobs:
           echo "VK_DRIVER_FILES=$PWD/icd.json" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$PWD/mesa/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
           echo "LIBGL_DRIVERS_PATH=$PWD/mesa/lib/x86_64-linux-gnu/dri" >> "$GITHUB_ENV"
-
-      - name: (temp) run wgpu-info
-        run: |
-          cargo install wgpu-info --version 0.17.0
-          which wgpu-info
-          wgpu-info
-
-      - name: dummy wgpu tests --list
-        run: cargo test -p burn-wgpu --color=always -- --list
 
       - name: wgpu tests
         # run: cargo test -p burn-wgpu --color=always -- --color=always --test-threads 1
