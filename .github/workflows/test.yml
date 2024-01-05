@@ -25,6 +25,10 @@ on:
       - '!LICENSE-APACHE'
       - '!LICENSE-MIT'
 
+env:
+  MESA_VERSION: "23.3.1"
+  CI_BINARY_BUILD: "build18"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -37,7 +41,7 @@ jobs:
         # os: [macos-13, ubuntu-22.04, windows-2022]
         # rust: [stable, 1.71.0]
         # test: ['std', 'no-std', 'examples']
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04]
         rust: [stable]
         test: ['std']
         include:
@@ -95,13 +99,26 @@ jobs:
           df -h
           cargo clean --package burn-tch
 
-      - name: install llvmpipe and lavapipe
+      - name: (linux) install mesa
         if: runner.os == 'Linux'
+        shell: bash
         run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:kisak/kisak-mesa -y
-          sudo apt-get update
-          sudo apt install -y libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+          set -e
+          curl -L --retry 5 https://github.com/gfx-rs/ci-build/releases/download/$CI_BINARY_BUILD/mesa-$MESA_VERSION-linux-x86_64.tar.xz -o mesa.tar.xz
+          mkdir mesa
+          tar xpf mesa.tar.xz -C mesa
+          cat <<- EOF > icd.json
+          {
+            "ICD": {
+                "api_version": "1.1.255",
+                "library_path": "$PWD/mesa/lib/x86_64-linux-gnu/libvulkan_lvp.so"
+            },
+            "file_format_version": "1.0.0"
+          }
+          EOF
+          echo "VK_DRIVER_FILES=$PWD/icd.json" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PWD/mesa/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "LIBGL_DRIVERS_PATH=$PWD/mesa/lib/x86_64-linux-gnu/dri" >> "$GITHUB_ENV"
 
       - name: (temp) run wgpu-info
         run: |
