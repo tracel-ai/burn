@@ -28,15 +28,12 @@ where
     where
         Init: Fn() -> ComputeClient<Server, Channel>,
     {
-        println!("dbg 4_1");
         let mut clients = self.clients.lock();
 
-        println!("dbg 4_2");
         if clients.is_none() {
             Self::register_inner(device, init(), &mut clients);
         }
 
-        println!("dbg 4_3");
         match clients.deref_mut() {
             Some(clients) => match clients.get(device) {
                 Some(client) => client.clone(),
@@ -71,18 +68,16 @@ where
         client: ComputeClient<Server, Channel>,
         clients: &mut Option<HashMap<Device, ComputeClient<Server, Channel>>>,
     ) {
-        println!("dbg 8_1");
         if clients.is_none() {
             *clients = Some(HashMap::new());
         }
-        println!("dbg 8_2");
+
         if let Some(clients) = clients {
             if clients.contains_key(device) {
                 panic!("Client already created for device {:?}", device);
             }
-            println!("dbg 8_3");
+
             clients.insert(device.clone(), client);
-            println!("dbg 8_4");
         }
     }
 }

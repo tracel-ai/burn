@@ -78,7 +78,6 @@ impl GraphicsApi for WebGpu {
 
 impl GraphicsApi for AutoGraphicsApi {
     fn backend() -> wgpu::Backend {
-        println!("dbg 2_1");
         // Allow overriding AutoGraphicsApi backend with ENV var in std test environments
         #[cfg(not(no_std))]
         #[cfg(test)]
@@ -99,7 +98,6 @@ impl GraphicsApi for AutoGraphicsApi {
             }
         }
 
-        println!("dbg 2_2");
         // In a no_std environment or if the environment variable is not set
         #[cfg(target_os = "macos")]
         return wgpu::Backend::Metal;
