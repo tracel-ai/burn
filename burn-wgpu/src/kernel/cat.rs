@@ -14,7 +14,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<E, D>>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    let first_input = inputs.get(0).unwrap();
+    let first_input = inputs.first().unwrap();
     let client = &first_input.client;
     let mut shape_output = first_input.shape.clone();
     shape_output.dims[dim] = inputs.iter().map(|input| input.shape.dims[dim]).sum();
