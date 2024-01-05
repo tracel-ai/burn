@@ -105,7 +105,7 @@ jobs:
 
       - name: (temp) run wgpu-info
         run: |
-          cargo install wgpu-info
+          cargo install wgpu-info --version 0.17.0
           which wgpu-info
           wgpu-info
 
