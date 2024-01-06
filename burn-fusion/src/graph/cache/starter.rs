@@ -1,11 +1,12 @@
 use super::OptimizationId;
 use crate::graph::TensorOpsDescription;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
 };
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub(crate) struct Starters {
     starter_indices: HashMap<u64, Vec<(TensorOpsDescription, usize)>>,
     starters: Vec<Vec<OptimizationId>>,

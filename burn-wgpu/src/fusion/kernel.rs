@@ -1,4 +1,4 @@
-use super::cache::FusedKernelSource;
+use super::source::FusedKernelSource;
 use crate::codegen::calculate_num_elems_dyn_rank;
 use crate::compute::{compute_client, DynamicKernel};
 use crate::fusion::strides_dyn_rank;

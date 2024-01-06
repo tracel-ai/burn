@@ -1,11 +1,9 @@
 use super::{CacheResult, Condition, Graph, OptimizationCache, TensorOpsDescription};
-use crate::{
-    FusionBackend, HandleContainer, Optimization, OptimizationBuilder, OptimizationStatus,
-};
+use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct GraphExecution<B: FusionBackend> {
-    optimization_cache: OptimizationCache<Box<dyn Optimization<B>>>,
+    optimization_cache: OptimizationCache<B::Optimization>,
     optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
@@ -71,7 +69,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                     };
                 }
                 CacheResult::Found(ops) => {
-                    graph.execute_optimization(handles, ops.as_mut());
+                    graph.execute_optimization(handles, ops);
                     self.reset(graph);
                 }
             };
@@ -114,7 +112,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                 let ops = self
                     .optimization_cache
                     .complete(optimization, relative, next_ops);
-                BuildAction::ExecuteOptimization(ops.as_mut())
+                BuildAction::ExecuteOptimization(ops)
             }
             None => {
                 // TODO: Cache this result too.
@@ -144,7 +142,7 @@ impl<B: FusionBackend> GraphExecution<B> {
         &'a mut self,
         graph: &Graph<B>,
         mode: ExecutionMode,
-    ) -> CacheResult<'a, Box<dyn Optimization<B>>> {
+    ) -> CacheResult<'a, B::Optimization> {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
         let action = self.optimization_cache.follow(graph, end_condition);
@@ -184,7 +182,7 @@ impl<B: FusionBackend> GraphExecution<B> {
 }
 
 enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a mut dyn Optimization<B>),
+    ExecuteOptimization(&'a mut B::Optimization),
     ExecuteOperations,
     ContinueBuilding,
 }

@@ -1,7 +1,8 @@
+use super::optimization::ElementWise;
 use crate::{
     codegen::{Elem, Operator, Variable},
     element::WgpuElement,
-    fusion::cache::KernelCompilationCache,
+    fusion::WgpuOptimization,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_common::id::IdGenerator;
@@ -10,16 +11,13 @@ use burn_fusion::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    Optimization, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
-    TensorDescription, TensorId,
+    OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
-use super::optimization::ElementWise;
-
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct FloatElementWiseBuilder<G, F, I>
+pub(crate) struct ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -38,7 +36,7 @@ where
     pub(crate) device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for FloatElementWiseBuilder<G, F, I>
+impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -89,7 +87,7 @@ where
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self) -> Box<dyn Optimization<Wgpu<G, F, I>>> {
+    fn build(&self) -> WgpuOptimization<G, F, I> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -97,7 +95,7 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(ElementWise {
+        let op = ElementWise {
             id: IdGenerator::generate(),
             inputs,
             outputs,
@@ -107,8 +105,10 @@ where
             scalars_u32: self.scalars_u32,
             scalars_i32: self.scalars_i32,
             device: self.device.clone(),
-            cache: KernelCompilationCache::default(),
-        })
+            source: None,
+        };
+
+        WgpuOptimization::ElementWise(op)
     }
 
     fn reset(&mut self) {
@@ -138,7 +138,7 @@ where
     }
 }
 
-impl<G, F, I> FloatElementWiseBuilder<G, F, I>
+impl<G, F, I> ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
