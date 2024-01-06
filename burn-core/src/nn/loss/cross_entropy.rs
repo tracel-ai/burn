@@ -37,14 +37,14 @@ pub struct CrossEntropyLossConfig {
 
 impl CrossEntropyLossConfig {
     /// Initialize [Cross-entropy loss](CrossEntropyLoss).
-    pub fn init<B: Backend>(&self) -> CrossEntropyLoss<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> CrossEntropyLoss<B> {
         self.assertions();
         CrossEntropyLoss {
             pad_tokens: self.pad_tokens.clone(),
             weights: self
                 .weights
                 .as_ref()
-                .map(|e| Tensor::<B, 1>::from_floats_devauto(e.as_slice())),
+                .map(|e| Tensor::<B, 1>::from_floats(e.as_slice(), device)),
             smoothing: self.smoothing,
             logits: self.logits,
         }
@@ -77,18 +77,12 @@ pub struct CrossEntropyLoss<B: Backend> {
     logits: bool,
 }
 
-impl<B: Backend> Default for CrossEntropyLoss<B> {
-    fn default() -> Self {
-        CrossEntropyLossConfig::new().init()
-    }
-}
-
 impl<B: Backend> CrossEntropyLoss<B> {
     /// For backward compatibility.
-    pub fn new(pad_index: Option<usize>) -> Self {
+    pub fn new(pad_index: Option<usize>, device: &B::Device) -> Self {
         CrossEntropyLossConfig::new()
             .with_pad_tokens(pad_index.map(|e| vec![e]))
-            .init()
+            .init(device)
     }
 
     /// Compute the criterion on the input tensor.
@@ -226,18 +220,23 @@ mod tests {
     macro_rules! setup {
         () => {{
             let [batch_size, num_targets] = [4, 5];
-            let logits = Tensor::<TestBackend, 2>::random_devauto(
+            let device = Default::default();
+            let logits = Tensor::<TestBackend, 2>::random(
                 [batch_size, num_targets],
                 Distribution::Normal(0., 1.0),
+                &device,
             );
             let targets =
-                Tensor::<TestBackend, 1, Int>::from_data_devauto(Data::from([2, 0, 4, 1]));
-            let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
-                [0.0, 0.0, 1.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 1.0],
-                [0.0, 1.0, 0.0, 0.0, 0.0],
-            ]));
+                Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1]), &device);
+            let targets_logits = Tensor::<TestBackend, 2>::from_data(
+                Data::from([
+                    [0.0, 0.0, 1.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 1.0],
+                    [0.0, 1.0, 0.0, 0.0, 0.0],
+                ]),
+                &device,
+            );
             (logits, targets, targets_logits)
         }};
     }
@@ -245,19 +244,25 @@ mod tests {
     macro_rules! setup_padded {
         () => {{
             let [batch_size, num_targets, pad_index] = [4, 5, 1];
-            let logits = Tensor::<TestBackend, 2>::random_devauto(
+            let device = Default::default();
+            let logits = Tensor::<TestBackend, 2>::random(
                 [batch_size, num_targets],
                 Distribution::Normal(0., 1.0),
+                &device,
             );
-            let targets = Tensor::<TestBackend, 1, Int>::from_data_devauto(
+            let targets = Tensor::<TestBackend, 1, Int>::from_data(
                 Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
+                &device,
             );
-            let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
-                [0.0, 0.0, 0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.0, 0.0, 0.0, 1.0],
-                [0.0, 0.0, 0.0, 0.0, 0.0],
-            ]));
+            let targets_logits = Tensor::<TestBackend, 2>::from_data(
+                Data::from([
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.0, 0.0],
+                ]),
+                &device,
+            );
             (logits, targets, targets_logits)
         }};
     }
@@ -266,14 +271,15 @@ mod tests {
     fn test_cross_entropy_loss_with_weights() {
         let (logits, targets, targets_logits) = setup!();
         let weights = vec![1.0, 2., 3., 4., 5.];
+        let device = Default::default();
         let loss_1 = CrossEntropyLossConfig::new()
             .with_weights(Some(weights.clone()))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets);
         let tensor = log_softmax(logits, 1);
         let loss_2 = tensor
             * targets_logits
-            * Tensor::<TestBackend, 1>::from_floats_devauto(weights.as_slice())
+            * Tensor::<TestBackend, 1>::from_floats(weights.as_slice(), &device)
                 .unsqueeze()
                 .repeat(0, 4);
         let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
@@ -283,15 +289,16 @@ mod tests {
     #[test]
     fn test_label_smoothing_with_weights_and_alpha_zero() {
         let (logits, targets, _) = setup!();
+        let device = Default::default();
         let weights = vec![1.0, 2., 3., 4., 5.];
         let loss_1 = CrossEntropyLossConfig::new()
             .with_weights(Some(weights.clone()))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets.clone());
         let loss_2 = CrossEntropyLossConfig::new()
             .with_weights(Some(weights.clone()))
             .with_smoothing(Some(0.))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets);
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
@@ -299,8 +306,9 @@ mod tests {
     #[test]
     fn test_cross_entropy_loss() {
         let (logits, targets, targets_logits) = setup!();
+        let device = Default::default();
         let loss_1 = CrossEntropyLossConfig::new()
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
@@ -310,12 +318,13 @@ mod tests {
     #[test]
     fn test_label_smoothing_alpha_equal_zero() {
         let (logits, targets, _) = setup!();
+        let device = Default::default();
         let loss_1 = CrossEntropyLossConfig::new()
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets.clone());
         let loss_2 = CrossEntropyLossConfig::new()
             .with_smoothing(Some(0.))
-            .init()
+            .init(&device)
             .forward(logits, targets);
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
@@ -328,7 +337,7 @@ mod tests {
 
         let loss_1 = CrossEntropyLossConfig::new()
             .with_pad_tokens(Some(vec![pad_index, 2]))
-            .init()
+            .init(&logits.device())
             .forward(logits.clone(), targets);
         let loss_2 = cross_entropy_with_logits(logits, targets_logits);
 
@@ -342,12 +351,12 @@ mod tests {
 
         let loss_1 = CrossEntropyLossConfig::new()
             .with_pad_tokens(Some(vec![pad_index, 2]))
-            .init()
+            .init(&logits.device())
             .forward(logits.clone(), targets.clone());
         let loss_2 = CrossEntropyLossConfig::new()
             .with_pad_tokens(Some(vec![pad_index, 2]))
             .with_smoothing(Some(0.))
-            .init()
+            .init(&logits.device())
             .forward(logits.clone(), targets);
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
@@ -358,12 +367,15 @@ mod tests {
         let (logits, targets, _) = setup!();
         let smoothed_targets =
             CrossEntropyLoss::compute_smoothed_targets(logits.dims(), targets, 0.05);
-        let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
-            [0.01, 0.01, 0.96, 0.01, 0.01],
-            [0.96, 0.01, 0.01, 0.01, 0.01],
-            [0.01, 0.01, 0.01, 0.01, 0.96],
-            [0.01, 0.96, 0.01, 0.01, 0.01],
-        ]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(
+            Data::from([
+                [0.01, 0.01, 0.96, 0.01, 0.01],
+                [0.96, 0.01, 0.01, 0.01, 0.01],
+                [0.01, 0.01, 0.01, 0.01, 0.96],
+                [0.01, 0.96, 0.01, 0.01, 0.01],
+            ]),
+            &Default::default(),
+        );
         smoothed_targets
             .into_data()
             .assert_approx_eq(&targets_logits.into_data(), 3);
@@ -372,16 +384,20 @@ mod tests {
     #[test]
     fn test_label_smoothing() {
         let (logits, targets, _) = setup!();
+        let device = Default::default();
         let loss_1 = CrossEntropyLossConfig::new()
             .with_smoothing(Some(0.05))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets);
-        let targets_logits = Tensor::<TestBackend, 2>::from_data_devauto(Data::from([
-            [0.01, 0.01, 0.96, 0.01, 0.01],
-            [0.96, 0.01, 0.01, 0.01, 0.01],
-            [0.01, 0.01, 0.01, 0.01, 0.96],
-            [0.01, 0.96, 0.01, 0.01, 0.01],
-        ]));
+        let targets_logits = Tensor::<TestBackend, 2>::from_data(
+            Data::from([
+                [0.01, 0.01, 0.96, 0.01, 0.01],
+                [0.96, 0.01, 0.01, 0.01, 0.01],
+                [0.01, 0.01, 0.01, 0.01, 0.96],
+                [0.01, 0.96, 0.01, 0.01, 0.01],
+            ]),
+            &device,
+        );
 
         let x = log_softmax(logits, 1);
         let loss_2 = (x * targets_logits).sum_dim(1).mean().neg();
