@@ -8,8 +8,9 @@ mod tests {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, 7.0], [2.0, 3.0]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data_devauto(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data_devauto(data_2).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().transpose());
         let tensor_4 = tensor_3.transpose();
@@ -24,15 +25,16 @@ mod tests {
 
     #[test]
     fn should_diff_swap_dims() {
-        let tensor_1 = TestAutodiffTensor::from_floats_devauto([
-            [[0.0, 1.0], [3.0, 4.0]],
-            [[6.0, 7.0], [9.0, 10.0]],
-        ])
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_floats(
+            [[[0.0, 1.0], [3.0, 4.0]], [[6.0, 7.0], [9.0, 10.0]]],
+            &device,
+        )
         .require_grad();
-        let tensor_2 = TestAutodiffTensor::from_floats_devauto([
-            [[1.0, 4.0], [2.0, 5.0]],
-            [[7.0, 10.0], [8.0, 11.0]],
-        ])
+        let tensor_2 = TestAutodiffTensor::from_floats(
+            [[[1.0, 4.0], [2.0, 5.0]], [[7.0, 10.0], [8.0, 11.0]]],
+            &device,
+        )
         .require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().swap_dims(0, 2));

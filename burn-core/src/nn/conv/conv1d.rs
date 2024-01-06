@@ -60,12 +60,6 @@ pub struct Conv1d<B: Backend> {
 }
 
 impl Conv1dConfig {
-    /// Initialize a new [conv1d](Conv1d) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Conv1d<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
         checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
@@ -149,7 +143,7 @@ mod tests {
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init_devauto::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
     }

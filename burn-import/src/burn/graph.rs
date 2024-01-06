@@ -457,12 +457,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     phantom: core::marker::PhantomData,
                 }
             }
-
-            #[allow(dead_code)]
-            pub fn new_devauto() -> Self {
-                let device = B::Device::default();
-                Self::new(&device)
-            }
         }
     }
     fn codegen_new_record(&self) -> TokenStream {

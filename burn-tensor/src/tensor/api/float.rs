@@ -91,23 +91,6 @@ where
         Self::new(B::tanh(self.primitive))
     }
 
-    /// Create a tensor from floats (f32).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let _ = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
-    ///     let _ = Tensor::<B, 2>::from_floats_devauto([[1.0, 2.0], [3.0, 4.0]]);
-    /// }
-    /// ```
-    pub fn from_floats_devauto<A: Into<Data<f32, D>>>(floats: A) -> Self {
-        Self::from_data_devauto(floats.into().convert())
-    }
-
     /// Create a tensor from floats (f32) on a given device.
     ///
     /// # Example
@@ -136,7 +119,8 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let float_tensor = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
+    ///     let device = Default::default();
+    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0], &device);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
@@ -169,21 +153,22 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10);
+    ///     let device = Default::default();
+    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10, &device);
     ///     println!("{}", one_hot.to_data());
     ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     /// }
     /// ```
-    pub fn one_hot(index: usize, num_classes: usize) -> Self {
+    pub fn one_hot(index: usize, num_classes: usize, device: &B::Device) -> Self {
         let mut dims = [1; D];
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
-        let tensor = Tensor::zeros_devauto(shape);
+        let tensor = Tensor::zeros(shape, device);
         let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
-        tensor.slice_assign(ranges, Tensor::ones_devauto(Shape::new([1; D])))
+        tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D]), device))
     }
 
     /// Applies the matrix multiplication operation.
@@ -220,13 +205,6 @@ where
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
-    }
-
-    /// Create a random tensor of the given shape where each element is sampled from the given
-    /// distribution.
-    pub fn random_devauto<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
-        let tensor = B::random(shape.into(), distribution, &B::Device::default());
-        Self::new(tensor)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is
