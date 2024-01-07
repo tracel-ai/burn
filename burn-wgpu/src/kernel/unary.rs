@@ -40,15 +40,15 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
                     .inputs(&[$crate::codegen::Input::Array {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -60,15 +60,15 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
                     .inputs(&[$crate::codegen::Input::Array {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -92,10 +92,10 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            ty: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
@@ -106,7 +106,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -118,10 +118,10 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            ty: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
@@ -132,7 +132,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -202,13 +202,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::{Operator, Variable};
+    use crate::codegen::{Item, Operator, Variable};
     use crate::tests::{ReferenceBackend, TestBackend};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(|elem| Operator::Tanh {
-        input: Variable::Input(0, elem),
-        out: Variable::Local(0, elem),
+        input: Variable::Input(0, Item::Scalar(elem)),
+        out: Variable::Local(0, Item::Scalar(elem)),
     });
 
     #[test]

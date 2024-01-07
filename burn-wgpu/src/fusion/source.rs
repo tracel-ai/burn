@@ -2,12 +2,11 @@ use crate::{
     codegen::ComputeShader,
     kernel::{DynamicKernelSource, SourceTemplate},
 };
-use std::sync::Arc;
 
 #[derive(new, Clone)]
 pub struct FusedKernelSource {
-    id: String,
-    pub(crate) shader: Arc<ComputeShader>,
+    pub(crate) id: String,
+    pub(crate) shader: ComputeShader,
 }
 
 impl DynamicKernelSource for FusedKernelSource {

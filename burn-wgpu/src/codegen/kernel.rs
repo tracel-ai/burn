@@ -7,6 +7,8 @@ use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
+use super::Item;
+
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
 /// Kernel creation body phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
@@ -15,6 +17,14 @@ pub struct BodyPhase;
 pub struct OutputPhase;
 /// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct CompilationPhase;
+
+#[derive(Copy, Clone)]
+pub enum Vectorize {
+    Vec4,
+    Vec3,
+    Vec2,
+    Scalar,
+}
 
 /// Allows to create custom wgsl kernels based on configured inputs, body and outputs.
 ///
@@ -37,12 +47,13 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
+    vectorize: Vectorize,
     _phase: PhantomData<Phase>,
 }
 
 pub enum Input {
     Array {
-        elem: Elem,
+        ty: Item,
         visibility: Visibility,
         strategy: ReadingStrategy,
     },
@@ -60,19 +71,20 @@ pub enum ReadingStrategy {
 }
 
 pub enum Output {
-    Array { elem: Elem, local: u16 },
-    Input { elem: Elem, input: u16, local: u16 },
+    Array { ty: Item, local: u16 },
+    Input { ty: Item, input: u16, local: u16 },
 }
 
 impl ElemWiseKernelCodegen<InputPhase> {
     /// Create a new fusion kernel on the given device.
-    pub fn new() -> Self {
+    pub fn new(vectorize: Vectorize) -> Self {
         Self {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
+            vectorize,
             _phase: PhantomData,
         }
     }
@@ -84,12 +96,14 @@ impl ElemWiseKernelCodegen<InputPhase> {
         for input in inputs {
             match input {
                 Input::Array {
-                    elem,
+                    ty,
                     visibility,
                     strategy,
                 } => {
+                    let ty = vectorize(*ty, self.vectorize);
+
                     self.input_bindings.push(Binding {
-                        elem: bool_elem(*elem),
+                        ty: bool_numeric(ty),
                         visibility: *visibility,
                         location: Location::Storage,
                         size: None,
@@ -98,7 +112,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     match strategy {
                         ReadingStrategy::OutputLayout => {
                             self.operations.push(Operator::ReadGlobalWithLayout {
-                                variable: Variable::Input(index, *elem),
+                                variable: Variable::Input(index, ty),
                                 tensor_read_pos: index as usize,
                                 tensor_layout_pos: 0, // Will set the right value during the output
                                                       // phase.
@@ -106,7 +120,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                         }
                         ReadingStrategy::Plain => {
                             self.operations.push(Operator::ReadGlobal {
-                                variable: Variable::Input(index, *elem),
+                                variable: Variable::Input(index, ty),
                             });
                         }
                     }
@@ -119,7 +133,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            elem,
+                            ty: Item::Scalar(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(*size),
@@ -135,6 +149,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
+            vectorize: self.vectorize,
             _phase: PhantomData,
         }
     }
@@ -157,10 +172,16 @@ impl ElemWiseKernelCodegen<BodyPhase> {
                     rhs: _,
                     out: _,
                 } => {
-                    register_function(Function::Powf(Elem::F32));
+                    register_function(Function::Powf(vectorize(
+                        Item::Scalar(Elem::F32),
+                        self.vectorize,
+                    )));
                 }
                 Operator::Erf { input: _, out: _ } => {
-                    register_function(Function::Erf(Elem::F32));
+                    register_function(Function::Erf(vectorize(
+                        Item::Scalar(Elem::F32),
+                        self.vectorize,
+                    )));
                 }
                 #[cfg(target_os = "macos")]
                 Operator::Tanh { input: _, out: _ } => {
@@ -168,7 +189,7 @@ impl ElemWiseKernelCodegen<BodyPhase> {
                 }
                 _ => {}
             }
-            self.operations.push(ops.clone());
+            self.operations.push(ops.vectorize(self.vectorize));
         }
 
         ElemWiseKernelCodegen {
@@ -176,6 +197,7 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
+            vectorize: self.vectorize,
             functions: self.functions,
             _phase: PhantomData,
         }
@@ -194,17 +216,19 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 
         for array in outputs {
             match array {
-                Output::Array { elem, local } => {
-                    let elem_adapted = bool_elem(*elem);
+                Output::Array { ty, local } => {
+                    let ty = vectorize(*ty, self.vectorize);
+
+                    let elem_adapted = bool_numeric(ty);
 
                     self.output_bindings.push(Binding {
-                        elem: elem_adapted,
+                        ty: elem_adapted,
                         visibility: Visibility::ReadWrite,
                         location: Location::Storage,
                         size: None,
                     });
                     self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, *elem),
+                        input: Variable::Local(*local, ty),
                         out: Variable::Output(index, elem_adapted),
                     });
                     index += 1;
@@ -214,10 +238,12 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                                                                   // new array for the output.
                     }
                 }
-                Output::Input { elem, input, local } => {
+                Output::Input { ty, input, local } => {
+                    let ty = vectorize(*ty, self.vectorize);
+
                     self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, *elem),
-                        out: Variable::Input(*input, bool_elem(*elem)),
+                        input: Variable::Local(*local, ty),
+                        out: Variable::Input(*input, bool_numeric(ty)),
                     });
                     position_out = *input as usize; // Input number when we use inplace operation.
                 }
@@ -244,6 +270,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
+            vectorize: self.vectorize,
             _phase: PhantomData,
         }
     }
@@ -259,7 +286,7 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
         named.push((
             "info".to_string(),
             Binding {
-                elem: Elem::U32,
+                ty: Item::Scalar(Elem::U32),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -377,6 +404,23 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
         num_elems *= i;
     }
     num_elems
+}
+
+fn vectorize(ty: Item, vectorize: Vectorize) -> Item {
+    match vectorize {
+        Vectorize::Vec4 => Item::Vec4(ty.elem()),
+        Vectorize::Vec3 => Item::Vec3(ty.elem()),
+        Vectorize::Vec2 => Item::Vec2(ty.elem()),
+        Vectorize::Scalar => Item::Scalar(ty.elem()),
+    }
+}
+fn bool_numeric(ty: Item) -> Item {
+    match ty {
+        Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
+        Item::Vec3(elem) => Item::Vec3(bool_elem(elem)),
+        Item::Vec2(elem) => Item::Vec2(bool_elem(elem)),
+        Item::Scalar(elem) => Item::Scalar(bool_elem(elem)),
+    }
 }
 
 fn bool_elem(elem: Elem) -> Elem {

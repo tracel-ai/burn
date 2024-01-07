@@ -1,6 +1,6 @@
 use super::source::FusedKernelSource;
-use crate::codegen::calculate_num_elems_dyn_rank;
-use crate::compute::{compute_client, DynamicKernel, Kernel, WorkGroup};
+use crate::codegen::{calculate_num_elems_dyn_rank, ComputeShader};
+use crate::compute::{compute_client, DynamicKernel, Kernel};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
@@ -8,9 +8,11 @@ use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_fusion::graph::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
+use std::sync::Arc;
 
+#[derive(new, Clone)]
 pub struct FusionKernels {
-    sources: Vec<Box<dyn FusionKernelSelection>>,
+    sources: Vec<Arc<dyn FusionKernelSelection>>,
 }
 
 pub enum Priority {
@@ -18,15 +20,16 @@ pub enum Priority {
     Unavailable,
 }
 
-pub trait FusionKernelSelection {
+pub trait FusionKernelSelection: Send + Sync {
     fn priority(&self, input_indices: &[usize], output_indices: &[usize], info: &[u32])
         -> Priority;
-    fn select(
+    fn kernel(
         &self,
         input_indices: &[usize],
         output_indices: &[usize],
         info: &[u32],
     ) -> Box<dyn Kernel>;
+    fn shader(&self) -> ComputeShader;
 }
 
 impl FusionKernels {
@@ -130,13 +133,13 @@ impl FusionKernels {
             )
             .collect::<Vec<_>>();
 
-        selected.sort_by(|(_, pririty_a), (_, pririty_b)| pririty_b.cmp(pririty_a));
+        selected.sort_by(|(_, pririty_a), (_, pririty_b)| pririty_a.cmp(pririty_b));
 
         let kernel = selected
             .pop()
             .unwrap()
             .0
-            .select(&input_indices, &output_indices, &info);
+            .kernel(&input_indices, &output_indices, &info);
 
         client.execute(kernel, &handles.iter().collect::<Vec<_>>());
     }

@@ -1,9 +1,10 @@
+use super::kernel::{ScalarElemenWiseKernelSelection, Vec4ElemenWiseKernelSelection};
 use crate::{
     codegen::{
-        ComputeShader, Elem, ElemWiseKernelCodegen, Input, Operator, Output, ReadingStrategy,
+        Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorize,
         Visibility,
     },
-    fusion::{kernel, source::FusedKernelSource},
+    fusion::{kernel::FusionKernels, source::FusedKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_fusion::{graph::Context, TensorDescription};
@@ -26,7 +27,7 @@ where
     pub(crate) scalars_u32: usize,
     pub(crate) scalars_i32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
-    pub(crate) source: Option<FusedKernelSource>,
+    pub(crate) kernels: Option<FusionKernels>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,7 +40,7 @@ pub struct ElementWiseState {
     pub(crate) scalars_f32: usize,
     pub(crate) scalars_u32: usize,
     pub(crate) scalars_i32: usize,
-    pub(crate) shader: ComputeShader,
+    // pub(crate) shader: Vec<(String, ComputeShader)>,
 }
 
 impl<G, F, I> ElementWise<G, F, I>
@@ -48,12 +49,12 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) fn compile(&mut self) -> ComputeShader {
+    pub(crate) fn compile(&mut self) -> FusionKernels {
         let mut inputs = self
             .inputs
             .iter()
             .map(|(_tensor, elem)| Input::Array {
-                elem: *elem,
+                ty: Item::Scalar(*elem),
                 visibility: Visibility::Read,
                 strategy: ReadingStrategy::OutputLayout,
             })
@@ -64,7 +65,7 @@ where
             .iter()
             .zip(self.locals.iter())
             .map(|((_tensor, elem), local)| Output::Array {
-                elem: *elem,
+                ty: Item::Scalar(*elem),
                 local: *local,
             })
             .collect::<Vec<_>>();
@@ -90,11 +91,24 @@ where
             })
         }
 
-        ElemWiseKernelCodegen::new()
-            .inputs(&inputs)
-            .body(&self.operators)
-            .outputs(&outputs)
-            .compile()
+        let scalar = ScalarElemenWiseKernelSelection::new(FusedKernelSource::new(
+            self.id.clone() + "scalar",
+            ElemWiseKernelCodegen::new(Vectorize::Scalar)
+                .inputs(&inputs)
+                .body(&self.operators)
+                .outputs(&outputs)
+                .compile(),
+        ));
+        let vec4 = Vec4ElemenWiseKernelSelection::new(FusedKernelSource::new(
+            self.id.clone() + "vec4",
+            ElemWiseKernelCodegen::new(Vectorize::Vec4)
+                .inputs(&inputs)
+                .body(&self.operators)
+                .outputs(&outputs)
+                .compile(),
+        ));
+
+        FusionKernels::new(vec![Arc::new(scalar), Arc::new(vec4)])
     }
 }
 
@@ -105,21 +119,20 @@ where
     I: IntElement,
 {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        let source = match &mut self.source {
+        let source = match &mut self.kernels {
             Some(value) => value.clone(),
             None => {
-                let source = FusedKernelSource::new(self.id.clone(), Arc::new(self.compile()));
-                self.source = Some(source.clone());
+                let source = self.compile();
+                self.kernels = Some(source.clone());
                 source
             }
         };
 
-        kernel::execute_fusion(
+        source.execute(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             self.scalars_f32,
             self.scalars_i32,
-            source,
             context,
             self.device.clone(),
         )
@@ -140,7 +153,7 @@ where
             scalars_u32: state.scalars_u32,
             scalars_i32: state.scalars_i32,
             device: device.clone(),
-            source: Some(FusedKernelSource::new(state.id, Arc::new(state.shader))),
+            kernels: None,
         }
     }
 
@@ -154,7 +167,6 @@ where
             scalars_f32: self.scalars_f32,
             scalars_u32: self.scalars_u32,
             scalars_i32: self.scalars_i32,
-            shader: self.source.as_ref().unwrap().shader.as_ref().clone(),
         }
     }
 }

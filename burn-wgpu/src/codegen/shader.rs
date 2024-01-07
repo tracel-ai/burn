@@ -24,11 +24,30 @@ pub enum Elem {
     Bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+pub enum Item {
+    Vec4(Elem),
+    Vec3(Elem),
+    Vec2(Elem),
+    Scalar(Elem),
+}
+
+impl Item {
+    pub fn elem(&self) -> Elem {
+        match self {
+            Self::Vec4(elem) => *elem,
+            Self::Vec3(elem) => *elem,
+            Self::Vec2(elem) => *elem,
+            Self::Scalar(elem) => *elem,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
-    pub elem: Elem,
+    pub ty: Item,
     pub size: Option<usize>,
 }
 
@@ -140,8 +159,8 @@ impl ComputeShader {
         num_entry: usize,
     ) -> core::fmt::Result {
         let ty = match binding.size {
-            Some(size) => format!("array<{}, {}>", binding.elem, size),
-            None => format!("array<{}>", binding.elem),
+            Some(size) => format!("array<{}, {}>", binding.ty, size),
+            None => format!("array<{}>", binding.ty),
         };
 
         f.write_fmt(format_args!(
@@ -181,6 +200,17 @@ impl Display for Visibility {
         match self {
             Visibility::Read => f.write_str("read"),
             Visibility::ReadWrite => f.write_str("read_write"),
+        }
+    }
+}
+
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Item::Vec4(elem) => f.write_fmt(format_args!("vec4<{elem}>")),
+            Item::Vec3(elem) => f.write_fmt(format_args!("vec3<{elem}>")),
+            Item::Vec2(elem) => f.write_fmt(format_args!("vec2<{elem}>")),
+            Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
 }
