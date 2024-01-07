@@ -402,6 +402,7 @@ let {local} = {elem}({global}[index_{local} / {offset}u]);
                         let rhs1 = rhs.index(1);
                         let rhs2 = rhs.index(2);
                         let rhs3 = rhs.index(3);
+
                         f.write_fmt(format_args!(
                             "
 var {out}: {elem};
@@ -428,8 +429,57 @@ if {cond}[3] {{
 "
                         ))
                     }
-                    Item::Vec3(_) => todo!(),
-                    Item::Vec2(_) => todo!(),
+                    Item::Vec3(_) => {
+                        let lhs0 = lhs.index(0);
+                        let lhs1 = lhs.index(1);
+                        let lhs2 = lhs.index(2);
+                        let rhs0 = rhs.index(0);
+                        let rhs1 = rhs.index(1);
+                        let rhs2 = rhs.index(2);
+
+                        f.write_fmt(format_args!(
+                            "
+var {out}: {elem};
+if {cond}[0] {{
+    {out}[0] = {lhs0};
+}} else {{
+    {out}[0] = {rhs0};
+}}
+if {cond}[1] {{
+    {out}[1] = {lhs1};
+}} else {{
+    {out}[1] = {rhs1};
+}}
+if {cond}[2] {{
+    {out}[2] = {lhs2};
+}} else {{
+    {out}[2] = {rhs2};
+}}
+"
+                        ))
+                    }
+                    Item::Vec2(_) => {
+                        let lhs0 = lhs.index(0);
+                        let lhs1 = lhs.index(1);
+                        let rhs0 = rhs.index(0);
+                        let rhs1 = rhs.index(1);
+
+                        f.write_fmt(format_args!(
+                            "
+var {out}: {elem};
+if {cond}[0] {{
+    {out}[0] = {lhs0};
+}} else {{
+    {out}[0] = {rhs0};
+}}
+if {cond}[1] {{
+    {out}[1] = {lhs1};
+}} else {{
+    {out}[1] = {rhs1};
+}}
+"
+                        ))
+                    }
                     Item::Scalar(_) => f.write_fmt(format_args!(
                         "
 var {out}: {elem};
@@ -453,24 +503,49 @@ fn comparison(
     op: &str,
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
-    match lhs.item() {
-        Item::Vec4(_) => match rhs.item() {
-            Item::Vec4(_) => f.write_fmt(format_args!(
-            "
-let {out} = vec4({lhs}[0] {op} {rhs}[0], {lhs}[1] {op} {rhs}[1], {lhs}[2] {op} {rhs}[2], {lhs}[3] {op} {rhs}[3]);
-"
-)),
-            Item::Vec3(_) => panic!("Can't compare a vec4 with a vec3"),
-            Item::Vec2(_) => panic!("Can't compare a vec4 with a vec2"),
-            Item::Scalar(_) => f.write_fmt(format_args!(
-            "
-let {out} = vec4({lhs}[0] {op} {rhs}, {lhs}[1] {op} {rhs}, {lhs}[2] {op} {rhs}, {lhs}[3] {op} {rhs});
-"
-)),
+    match out.item() {
+        Item::Vec4(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let lhs2 = lhs.index(2);
+            let lhs3 = lhs.index(3);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+            let rhs3 = rhs.index(3);
 
-        },
-        Item::Vec3(_) => todo!(),
-        Item::Vec2(_) => todo!(),
+            f.write_fmt(format_args!(
+                "
+let {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
+"
+            ))
+        }
+        Item::Vec3(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let lhs2 = lhs.index(2);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+
+            f.write_fmt(format_args!(
+                "
+let {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
+"
+            ))
+        }
+        Item::Vec2(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+
+            f.write_fmt(format_args!(
+                "
+let {out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
+"
+            ))
+        }
         Item::Scalar(_) => match rhs.item() {
             Item::Scalar(_) => f.write_fmt(format_args!("let {out} = {lhs} {op} {rhs};")),
             _ => panic!("Can only compare a scalar when the output is a scalar"),

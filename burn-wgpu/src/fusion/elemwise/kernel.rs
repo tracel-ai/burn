@@ -13,7 +13,7 @@ pub struct ScalarElemenWiseKernelSelection {
 }
 
 #[derive(new)]
-pub struct Vec4ElemenWiseKernelSelection {
+pub struct VecElemenWiseKernelSelection<const D: u8> {
     pub(crate) source: FusedKernelSource,
 }
 
@@ -53,7 +53,7 @@ impl FusionKernelSelection for ScalarElemenWiseKernelSelection {
     }
 }
 
-impl FusionKernelSelection for Vec4ElemenWiseKernelSelection {
+impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
     fn kernel(
         &self,
         _input_indices: &[usize],
@@ -88,7 +88,7 @@ impl FusionKernelSelection for Vec4ElemenWiseKernelSelection {
             let end = start + rank;
 
             for i in info[start..end].iter() {
-                if i % 4 != 0 {
+                if i % D as u32 != 0 {
                     return false;
                 }
             }
@@ -108,7 +108,7 @@ impl FusionKernelSelection for Vec4ElemenWiseKernelSelection {
             }
         }
 
-        Priority::Available(1)
+        Priority::Available(D)
     }
 
     fn shader(&self) -> crate::codegen::ComputeShader {

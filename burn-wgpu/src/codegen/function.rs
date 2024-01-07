@@ -1,4 +1,4 @@
-use super::{Elem, Item};
+use super::Item;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -150,7 +150,6 @@ fn erf(x: {ty}) -> {ty} {{
     return vec2(
        erf_scalar(x[0]),
        erf_scalar(x[1]),
-       erf_scalar(x[2]),
     );
 }}
                 "

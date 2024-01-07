@@ -1,4 +1,4 @@
-use super::kernel::{ScalarElemenWiseKernelSelection, Vec4ElemenWiseKernelSelection};
+use super::kernel::{ScalarElemenWiseKernelSelection, VecElemenWiseKernelSelection};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorize,
@@ -99,7 +99,23 @@ where
                 .outputs(&outputs)
                 .compile(),
         ));
-        let vec4 = Vec4ElemenWiseKernelSelection::new(FusedKernelSource::new(
+        let vec2 = VecElemenWiseKernelSelection::<2>::new(FusedKernelSource::new(
+            self.id.clone() + "vec2",
+            ElemWiseKernelCodegen::new(Vectorize::Vec2)
+                .inputs(&inputs)
+                .body(&self.operators)
+                .outputs(&outputs)
+                .compile(),
+        ));
+        let vec3 = VecElemenWiseKernelSelection::<3>::new(FusedKernelSource::new(
+            self.id.clone() + "vec3",
+            ElemWiseKernelCodegen::new(Vectorize::Vec3)
+                .inputs(&inputs)
+                .body(&self.operators)
+                .outputs(&outputs)
+                .compile(),
+        ));
+        let vec4 = VecElemenWiseKernelSelection::<4>::new(FusedKernelSource::new(
             self.id.clone() + "vec4",
             ElemWiseKernelCodegen::new(Vectorize::Vec4)
                 .inputs(&inputs)
@@ -108,7 +124,12 @@ where
                 .compile(),
         ));
 
-        FusionKernels::new(vec![Arc::new(scalar), Arc::new(vec4)])
+        FusionKernels::new(vec![
+            Arc::new(scalar),
+            Arc::new(vec2),
+            Arc::new(vec3),
+            Arc::new(vec4),
+        ])
     }
 }
 
