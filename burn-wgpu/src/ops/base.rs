@@ -27,6 +27,7 @@ pub fn bool_into_data<const D: usize>(tensor: WgpuTensor<u32, D>) -> Reader<Data
     let tensor = kernel::into_contiguous(tensor);
 
     tensor.client.read(&tensor.handle).map(|bytes| {
+        println!("Bytes {:?}", u32::from_bytes(&bytes));
         Data::new(
             u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
             tensor.shape,

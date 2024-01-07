@@ -1,4 +1,4 @@
-use super::{variable::Variable, Item, Vectorize};
+use super::{variable::Variable, Item, Vectorization};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -128,7 +128,7 @@ pub enum Operator {
 }
 
 impl Operator {
-    pub fn vectorize(&self, vectorize: Vectorize) -> Self {
+    pub fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
             Operator::Add { lhs, rhs, out } => Operator::Add {
                 lhs: lhs.vectorize(vectorize),
@@ -321,8 +321,42 @@ impl Display for Operator {
             Operator::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Operator::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
             Operator::AssignGlobal { input, out } => {
-                let elem = out.item();
-                f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
+                let elem_out = out.item();
+                let elem_in = input.item();
+
+                if elem_out != elem_in {
+                    match elem_out {
+                        Item::Vec4(elem) => f.write_fmt(format_args!(
+                            "
+{out}_global[id] = vec4(
+    {elem}({input}[0]),
+    {elem}({input}[1]),
+    {elem}({input}[2]),
+    {elem}({input}[3]),
+);"
+                        )),
+                        Item::Vec3(elem) => f.write_fmt(format_args!(
+                            "
+{out}_global[id] = vec3(
+    {elem}({input}[0]),
+    {elem}({input}[1]),
+    {elem}({input}[2]),
+);"
+                        )),
+                        Item::Vec2(elem) => f.write_fmt(format_args!(
+                            "
+{out}_global[id] = vec2(
+    {elem}({input}[0]),
+    {elem}({input}[1]),
+);"
+                        )),
+                        Item::Scalar(elem) => {
+                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
+                        }
+                    }
+                } else {
+                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});"))
+                }
             }
             Operator::AssignLocal { input, out } => {
                 let elem = out.item();
@@ -380,7 +414,7 @@ for (var i: u32 = 1u; i <= rank; i++) {{
     index_{local} += (id * {offset}u) / stride_out % shape * stride;
 }}
 
-let {local} = {elem}({global}[index_{local} / {offset}u]);
+let {local} = {elem}({global}[index_{local} /  {offset}u]);
 "
                 ))
             }

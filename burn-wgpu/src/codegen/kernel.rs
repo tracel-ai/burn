@@ -18,11 +18,16 @@ pub struct OutputPhase;
 /// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct CompilationPhase;
 
+/// Define a vectorization scheme.
 #[derive(Copy, Clone)]
-pub enum Vectorize {
+pub enum Vectorization {
+    /// Use vec4 for vectorization.
     Vec4,
+    /// Use vec3 for vectorization.
     Vec3,
+    /// Use vec2 for vectorization.
     Vec2,
+    /// Don't vectorize.
     Scalar,
 }
 
@@ -47,7 +52,7 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
-    vectorize: Vectorize,
+    vectorize: Vectorization,
     _phase: PhantomData<Phase>,
 }
 
@@ -77,7 +82,7 @@ pub enum Output {
 
 impl ElemWiseKernelCodegen<InputPhase> {
     /// Create a new fusion kernel on the given device.
-    pub fn new(vectorize: Vectorize) -> Self {
+    pub fn new(vectorize: Vectorization) -> Self {
         Self {
             operations: Vec::new(),
             input_bindings: Vec::new(),
@@ -406,12 +411,12 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     num_elems
 }
 
-fn vectorize(ty: Item, vectorize: Vectorize) -> Item {
+fn vectorize(ty: Item, vectorize: Vectorization) -> Item {
     match vectorize {
-        Vectorize::Vec4 => Item::Vec4(ty.elem()),
-        Vectorize::Vec3 => Item::Vec3(ty.elem()),
-        Vectorize::Vec2 => Item::Vec2(ty.elem()),
-        Vectorize::Scalar => Item::Scalar(ty.elem()),
+        Vectorization::Vec4 => Item::Vec4(ty.elem()),
+        Vectorization::Vec3 => Item::Vec3(ty.elem()),
+        Vectorization::Vec2 => Item::Vec2(ty.elem()),
+        Vectorization::Scalar => Item::Scalar(ty.elem()),
     }
 }
 fn bool_numeric(ty: Item) -> Item {

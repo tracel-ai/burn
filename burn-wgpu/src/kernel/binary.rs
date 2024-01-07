@@ -45,7 +45,7 @@ macro_rules! binary {
             O: $crate::element::WgpuElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             ty: $crate::codegen::Item::Scalar(I::elem_type()),
@@ -77,7 +77,7 @@ macro_rules! binary {
             O: $crate::element::WgpuElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             ty: $crate::codegen::Item::Scalar(I::elem_type()),
@@ -110,7 +110,7 @@ macro_rules! binary {
             O: $crate::element::WgpuElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorize::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             ty: $crate::codegen::Item::Scalar(I::elem_type()),

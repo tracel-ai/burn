@@ -1,7 +1,7 @@
 use super::kernel::{ScalarElemenWiseKernelSelection, VecElemenWiseKernelSelection};
 use crate::{
     codegen::{
-        Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorize,
+        Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorization,
         Visibility,
     },
     fusion::{kernel::FusionKernels, source::FusedKernelSource},
@@ -93,7 +93,7 @@ where
 
         let scalar = ScalarElemenWiseKernelSelection::new(FusedKernelSource::new(
             self.id.clone() + "scalar",
-            ElemWiseKernelCodegen::new(Vectorize::Scalar)
+            ElemWiseKernelCodegen::new(Vectorization::Scalar)
                 .inputs(&inputs)
                 .body(&self.operators)
                 .outputs(&outputs)
@@ -101,15 +101,7 @@ where
         ));
         let vec2 = VecElemenWiseKernelSelection::<2>::new(FusedKernelSource::new(
             self.id.clone() + "vec2",
-            ElemWiseKernelCodegen::new(Vectorize::Vec2)
-                .inputs(&inputs)
-                .body(&self.operators)
-                .outputs(&outputs)
-                .compile(),
-        ));
-        let vec3 = VecElemenWiseKernelSelection::<3>::new(FusedKernelSource::new(
-            self.id.clone() + "vec3",
-            ElemWiseKernelCodegen::new(Vectorize::Vec3)
+            ElemWiseKernelCodegen::new(Vectorization::Vec2)
                 .inputs(&inputs)
                 .body(&self.operators)
                 .outputs(&outputs)
@@ -117,19 +109,14 @@ where
         ));
         let vec4 = VecElemenWiseKernelSelection::<4>::new(FusedKernelSource::new(
             self.id.clone() + "vec4",
-            ElemWiseKernelCodegen::new(Vectorize::Vec4)
+            ElemWiseKernelCodegen::new(Vectorization::Vec4)
                 .inputs(&inputs)
                 .body(&self.operators)
                 .outputs(&outputs)
                 .compile(),
         ));
 
-        FusionKernels::new(vec![
-            Arc::new(scalar),
-            Arc::new(vec2),
-            Arc::new(vec3),
-            Arc::new(vec4),
-        ])
+        FusionKernels::new(vec![Arc::new(scalar), Arc::new(vec2), Arc::new(vec4)])
     }
 }
 
@@ -206,13 +193,13 @@ mod tests {
         type FusedBackend = Fusion<Wgpu>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
-            [1, 32],
+            [1, 2048],
             burn_tensor::Distribution::Default,
             &Default::default(),
         )
         .into_data();
         let data_2 = Tensor::<Backend, 2>::random(
-            [32, 32],
+            [2048, 2048],
             burn_tensor::Distribution::Default,
             &Default::default(),
         )
@@ -230,6 +217,7 @@ mod tests {
         );
 
         result_ref.assert_approx_eq(&result_fused, 3);
+        // panic!("aa");
     }
 
     #[test]

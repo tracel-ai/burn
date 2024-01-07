@@ -1,4 +1,4 @@
-use super::{Item, Vectorize};
+use super::{Item, Vectorization};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -40,27 +40,27 @@ impl Display for IndexedVariable {
 }
 
 impl Variable {
-    pub fn vectorize(&self, vectorize: Vectorize) -> Self {
+    pub fn vectorize(&self, vectorize: Vectorization) -> Self {
         match vectorize {
-            Vectorize::Vec4 => match self {
+            Vectorization::Vec4 => match self {
                 Variable::Input(id, ty) => Variable::Input(*id, Item::Vec4(ty.elem())),
                 Variable::Local(id, ty) => Variable::Local(*id, Item::Vec4(ty.elem())),
                 Variable::Output(id, ty) => Variable::Output(*id, Item::Vec4(ty.elem())),
                 _ => self.clone(),
             },
-            Vectorize::Vec3 => match self {
+            Vectorization::Vec3 => match self {
                 Variable::Input(id, ty) => Variable::Input(*id, Item::Vec3(ty.elem())),
                 Variable::Local(id, ty) => Variable::Local(*id, Item::Vec3(ty.elem())),
                 Variable::Output(id, ty) => Variable::Output(*id, Item::Vec3(ty.elem())),
                 _ => self.clone(),
             },
-            Vectorize::Vec2 => match self {
+            Vectorization::Vec2 => match self {
                 Variable::Input(id, ty) => Variable::Input(*id, Item::Vec2(ty.elem())),
                 Variable::Local(id, ty) => Variable::Local(*id, Item::Vec2(ty.elem())),
                 Variable::Output(id, ty) => Variable::Output(*id, Item::Vec2(ty.elem())),
                 _ => self.clone(),
             },
-            Vectorize::Scalar => match self {
+            Vectorization::Scalar => match self {
                 Variable::Input(id, ty) => Variable::Input(*id, Item::Scalar(ty.elem())),
                 Variable::Local(id, ty) => Variable::Local(*id, Item::Scalar(ty.elem())),
                 Variable::Output(id, ty) => Variable::Output(*id, Item::Scalar(ty.elem())),

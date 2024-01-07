@@ -70,7 +70,8 @@ impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
             num_elems *= *i as usize;
         }
 
-        let workgroup = elemwise_workgroup(num_elems / 4, WORKGROUP_DEFAULT);
+        let workgroup = elemwise_workgroup(num_elems / D as usize, WORKGROUP_DEFAULT);
+        println!("Workgroup {workgroup:?}");
 
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
@@ -83,27 +84,32 @@ impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
     ) -> Priority {
         let rank = info[0] as usize;
 
-        let check = |index: &usize| {
-            let start = index + rank; // shape after strides.
-            let end = start + rank;
+        // TODO: More checks to do with regard to strides.
+        let is_unavailable = |index: &usize| {
+            let start_shape = index + rank;
+            let end_shape = start_shape + rank;
 
-            for i in info[start..end].iter() {
-                if i % D as u32 != 0 {
-                    return false;
+            if info[index + rank - 1] != 1 {
+                return true;
+            }
+
+            for shape in info[end_shape - 1..end_shape].iter() {
+                if shape % D as u32 != 0 {
+                    return true;
                 }
             }
 
-            true
+            false
         };
 
         for index in input_indices {
-            if !check(index) {
+            if is_unavailable(index) {
                 return Priority::Unavailable;
             }
         }
 
         for index in output_indices {
-            if !check(index) {
+            if is_unavailable(index) {
                 return Priority::Unavailable;
             }
         }
