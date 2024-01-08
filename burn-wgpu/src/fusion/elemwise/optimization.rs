@@ -1,12 +1,13 @@
-use super::kernel::{ScalarElemenWiseKernelSelection, VecElemenWiseKernelSelection};
+use super::kernel::{ScalarElemenWise, VecElemenWise};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorization,
         Visibility,
     },
-    fusion::{kernel::FusionKernels, source::FusedKernelSource},
+    fusion::{kernel::FusionKernelSet, source::FusedKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
+use burn_common::id::IdGenerator;
 use burn_fusion::{graph::Context, TensorDescription};
 use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
@@ -18,7 +19,6 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) id: String,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
@@ -27,12 +27,11 @@ where
     pub(crate) scalars_u32: usize,
     pub(crate) scalars_i32: usize,
     pub(crate) device: Device<Wgpu<G, F, I>>,
-    pub(crate) kernels: Option<FusionKernels>,
+    pub(crate) kernels: Option<FusionKernelSet>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ElementWiseState {
-    pub(crate) id: String,
     pub(crate) inputs: Vec<(TensorDescription, Elem)>,
     pub(crate) outputs: Vec<(TensorDescription, Elem)>,
     pub(crate) locals: Vec<u16>,
@@ -40,7 +39,6 @@ pub struct ElementWiseState {
     pub(crate) scalars_f32: usize,
     pub(crate) scalars_u32: usize,
     pub(crate) scalars_i32: usize,
-    // pub(crate) shader: Vec<(String, ComputeShader)>,
 }
 
 impl<G, F, I> ElementWise<G, F, I>
@@ -49,7 +47,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) fn compile(&mut self) -> FusionKernels {
+    pub(crate) fn compile(&mut self) -> FusionKernelSet {
         let mut inputs = self
             .inputs
             .iter()
@@ -91,24 +89,24 @@ where
             })
         }
 
-        let scalar = ScalarElemenWiseKernelSelection::new(FusedKernelSource::new(
-            self.id.clone() + "scalar",
+        let scalar = ScalarElemenWise::new(FusedKernelSource::new(
+            IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Scalar)
                 .inputs(&inputs)
                 .body(&self.operators)
                 .outputs(&outputs)
                 .compile(),
         ));
-        let vec2 = VecElemenWiseKernelSelection::<2>::new(FusedKernelSource::new(
-            self.id.clone() + "vec2",
+        let vec2 = VecElemenWise::<2>::new(FusedKernelSource::new(
+            IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec2)
                 .inputs(&inputs)
                 .body(&self.operators)
                 .outputs(&outputs)
                 .compile(),
         ));
-        let vec4 = VecElemenWiseKernelSelection::<4>::new(FusedKernelSource::new(
-            self.id.clone() + "vec4",
+        let vec4 = VecElemenWise::<4>::new(FusedKernelSource::new(
+            IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec4)
                 .inputs(&inputs)
                 .body(&self.operators)
@@ -116,7 +114,7 @@ where
                 .compile(),
         ));
 
-        FusionKernels::new(vec![Arc::new(scalar), Arc::new(vec2), Arc::new(vec4)])
+        FusionKernelSet::new(vec![Arc::new(scalar), Arc::new(vec2), Arc::new(vec4)])
     }
 }
 
@@ -152,7 +150,6 @@ where
 
     pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
         Self {
-            id: state.id.clone(),
             inputs: state.inputs,
             outputs: state.outputs,
             locals: state.locals,
@@ -167,7 +164,6 @@ where
 
     pub(crate) fn to_state(&self) -> ElementWiseState {
         ElementWiseState {
-            id: self.id.clone(),
             inputs: self.inputs.clone(),
             outputs: self.outputs.clone(),
             locals: self.locals.clone(),
@@ -193,13 +189,13 @@ mod tests {
         type FusedBackend = Fusion<Wgpu>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
-            [1, 2048],
+            [1, 32],
             burn_tensor::Distribution::Default,
             &Default::default(),
         )
         .into_data();
         let data_2 = Tensor::<Backend, 2>::random(
-            [2048, 2048],
+            [32, 32],
             burn_tensor::Distribution::Default,
             &Default::default(),
         )
@@ -217,7 +213,6 @@ mod tests {
         );
 
         result_ref.assert_approx_eq(&result_fused, 3);
-        // panic!("aa");
     }
 
     #[test]

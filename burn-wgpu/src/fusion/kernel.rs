@@ -1,4 +1,4 @@
-use crate::codegen::{calculate_num_elems_dyn_rank, ComputeShader};
+use crate::codegen::calculate_num_elems_dyn_rank;
 use crate::compute::{compute_client, Kernel};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
@@ -8,29 +8,48 @@ use burn_fusion::TensorDescription;
 use burn_tensor::Device;
 use std::sync::Arc;
 
+/// Many kernels can be used for the same set of tensor operations fused into one.
+///
+/// This type makes it easy to group those potential kernels and execute the best one depending on
+/// the context.
 #[derive(new, Clone)]
-pub struct FusionKernels {
-    sources: Vec<Arc<dyn FusionKernelSelection>>,
+pub struct FusionKernelSet {
+    kernels: Vec<Arc<dyn FusionKernel>>,
 }
 
+/// The priority of a kernel.
 pub enum Priority {
+    /// When a kernel can be executed in the specified context with its priority, higher is better.
     Available(u8),
+    /// When a kernel can't be executed in the specified context.
     Unavailable,
 }
 
-pub trait FusionKernelSelection: Send + Sync {
-    fn priority(&self, input_indices: &[usize], output_indices: &[usize], info: &[u32])
+pub trait FusionKernel: Send + Sync {
+    /// Return the priority of this kernel based on the input and output informations.
+    ///
+    /// # Notes
+    ///
+    /// The indices indicate the start of each entry in the info buffer.
+    /// Each entry starts with the strides then the shape.
+    fn priority(&self, indices_input: &[usize], indices_output: &[usize], info: &[u32])
         -> Priority;
+    /// Return a [kernel](Kernel) that can be executed by the compute server.
+    ///
+    /// # Notes
+    ///
+    /// The indices indicate the start of each entry in the info buffer.
+    /// Each entry starts with the strides then the shape.
     fn kernel(
         &self,
-        input_indices: &[usize],
-        output_indices: &[usize],
+        indices_input: &[usize],
+        indices_output: &[usize],
         info: &[u32],
     ) -> Box<dyn Kernel>;
-    fn shader(&self) -> ComputeShader;
 }
 
-impl FusionKernels {
+impl FusionKernelSet {
+    /// Execute the best kernel based on the given information.
     pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
         inputs: &[&TensorDescription],
@@ -120,8 +139,9 @@ impl FusionKernels {
             handles.push(client.create(bytemuck::cast_slice(&context.scalar_ints[0..scalars_i32])));
         }
 
+        // For now we simply select the kernel with the highest priority.
         let mut selected = self
-            .sources
+            .kernels
             .iter()
             .filter_map(
                 |source| match source.priority(&input_indices, &output_indices, &info) {
@@ -139,6 +159,7 @@ impl FusionKernels {
             .0
             .kernel(&input_indices, &output_indices, &info);
 
+        // Execute the kernel.
         client.execute(kernel, &handles.iter().collect::<Vec<_>>());
     }
 }

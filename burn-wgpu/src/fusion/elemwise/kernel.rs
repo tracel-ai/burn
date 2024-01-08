@@ -1,23 +1,23 @@
 use crate::{
     compute::DynamicKernel,
     fusion::{
-        kernel::{FusionKernelSelection, Priority},
+        kernel::{FusionKernel, Priority},
         source::FusedKernelSource,
     },
     kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
 };
 
 #[derive(new)]
-pub struct ScalarElemenWiseKernelSelection {
+pub struct ScalarElemenWise {
     pub(crate) source: FusedKernelSource,
 }
 
 #[derive(new)]
-pub struct VecElemenWiseKernelSelection<const D: u8> {
+pub struct VecElemenWise<const D: u8> {
     pub(crate) source: FusedKernelSource,
 }
 
-impl FusionKernelSelection for ScalarElemenWiseKernelSelection {
+impl FusionKernel for ScalarElemenWise {
     fn kernel(
         &self,
         _input_indices: &[usize],
@@ -47,13 +47,9 @@ impl FusionKernelSelection for ScalarElemenWiseKernelSelection {
     ) -> Priority {
         Priority::Available(0)
     }
-
-    fn shader(&self) -> crate::codegen::ComputeShader {
-        self.source.shader.clone()
-    }
 }
 
-impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
+impl<const D: u8> FusionKernel for VecElemenWise<D> {
     fn kernel(
         &self,
         _input_indices: &[usize],
@@ -71,7 +67,6 @@ impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
         }
 
         let workgroup = elemwise_workgroup(num_elems / D as usize, WORKGROUP_DEFAULT);
-        println!("Workgroup {workgroup:?}");
 
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
@@ -84,19 +79,18 @@ impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
     ) -> Priority {
         let rank = info[0] as usize;
 
-        // TODO: More checks to do with regard to strides.
         let is_unavailable = |index: &usize| {
-            let start_shape = index + rank;
-            let end_shape = start_shape + rank;
+            let last_stride_index = index + rank - 1;
+            let last_shape_index = index + (2 * rank) - 1;
 
-            if info[index + rank - 1] != 1 {
+            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+            if info[last_stride_index] != 1 {
                 return true;
             }
 
-            for shape in info[end_shape - 1..end_shape].iter() {
-                if shape % D as u32 != 0 {
-                    return true;
-                }
+            // The last dimension should be a multiple of the vector size.
+            if info[last_shape_index] % D as u32 != 0 {
+                return true;
             }
 
             false
@@ -115,9 +109,5 @@ impl<const D: u8> FusionKernelSelection for VecElemenWiseKernelSelection<D> {
         }
 
         Priority::Available(D)
-    }
-
-    fn shader(&self) -> crate::codegen::ComputeShader {
-        self.source.shader.clone()
     }
 }

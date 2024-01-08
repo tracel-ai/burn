@@ -5,7 +5,6 @@ use crate::{
     fusion::WgpuOptimization,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
-use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
@@ -96,7 +95,6 @@ where
             .collect::<Vec<_>>();
 
         let op = ElementWise {
-            id: IdGenerator::generate(),
             inputs,
             outputs,
             locals,
