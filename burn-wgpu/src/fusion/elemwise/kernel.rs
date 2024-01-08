@@ -6,15 +6,16 @@ use crate::{
     },
     kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
 };
+use std::sync::Arc;
 
 #[derive(new)]
 pub struct ScalarElemenWise {
-    pub(crate) source: FusedKernelSource,
+    pub(crate) source: Arc<FusedKernelSource>,
 }
 
 #[derive(new)]
 pub struct VecElemenWise<const D: u8> {
-    pub(crate) source: FusedKernelSource,
+    pub(crate) source: Arc<FusedKernelSource>,
 }
 
 impl FusionKernel for ScalarElemenWise {
@@ -46,6 +47,10 @@ impl FusionKernel for ScalarElemenWise {
         _info: &[u32],
     ) -> Priority {
         Priority::Available(0)
+    }
+
+    fn source(&self) -> FusedKernelSource {
+        self.source.as_ref().clone()
     }
 }
 
@@ -109,5 +114,9 @@ impl<const D: u8> FusionKernel for VecElemenWise<D> {
         }
 
         Priority::Available(D)
+    }
+
+    fn source(&self) -> FusedKernelSource {
+        self.source.as_ref().clone()
     }
 }

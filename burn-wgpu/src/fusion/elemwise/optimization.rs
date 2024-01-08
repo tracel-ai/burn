@@ -13,41 +13,52 @@ use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub struct ElementWise<G, F, I>
+#[derive(new)]
+pub struct ElementWise<G, F, I, Phase = ExecutionPhase>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) inputs: Vec<(TensorDescription, Elem)>,
-    pub(crate) outputs: Vec<(TensorDescription, Elem)>,
-    pub(crate) locals: Vec<u16>,
-    pub(crate) operators: Vec<Operator>,
-    pub(crate) scalars_f32: usize,
-    pub(crate) scalars_u32: usize,
-    pub(crate) scalars_i32: usize,
-    pub(crate) device: Device<Wgpu<G, F, I>>,
-    pub(crate) kernels: Option<FusionKernelSet>,
+    inputs: Vec<(TensorDescription, Elem)>,
+    outputs: Vec<(TensorDescription, Elem)>,
+    scalars_f32: usize,
+    scalars_u32: usize,
+    scalars_i32: usize,
+    device: Device<Wgpu<G, F, I>>,
+    phase: Phase,
+}
+
+#[derive(new)]
+pub struct CompilationPhase {
+    locals: Vec<u16>,
+    operators: Vec<Operator>,
+}
+
+#[derive(new)]
+pub struct ExecutionPhase {
+    operation_len: usize,
+    kernel_set: FusionKernelSet,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ElementWiseState {
-    pub(crate) inputs: Vec<(TensorDescription, Elem)>,
-    pub(crate) outputs: Vec<(TensorDescription, Elem)>,
-    pub(crate) locals: Vec<u16>,
-    pub(crate) operators: Vec<Operator>,
-    pub(crate) scalars_f32: usize,
-    pub(crate) scalars_u32: usize,
-    pub(crate) scalars_i32: usize,
+    inputs: Vec<(TensorDescription, Elem)>,
+    outputs: Vec<(TensorDescription, Elem)>,
+    operation_len: usize,
+    scalars_f32: usize,
+    scalars_u32: usize,
+    scalars_i32: usize,
+    kernels: Vec<FusedKernelSource>,
 }
 
-impl<G, F, I> ElementWise<G, F, I>
+impl<G, F, I> ElementWise<G, F, I, CompilationPhase>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) fn compile(&mut self) -> FusionKernelSet {
+    pub(crate) fn compile(self) -> ElementWise<G, F, I, ExecutionPhase> {
         let mut inputs = self
             .inputs
             .iter()
@@ -61,7 +72,7 @@ where
         let outputs = self
             .outputs
             .iter()
-            .zip(self.locals.iter())
+            .zip(self.phase.locals.iter())
             .map(|((_tensor, elem), local)| Output::Array {
                 ty: Item::Scalar(*elem),
                 local: *local,
@@ -89,52 +100,54 @@ where
             })
         }
 
-        let scalar = ScalarElemenWise::new(FusedKernelSource::new(
+        let scalar = ScalarElemenWise::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Scalar)
                 .inputs(&inputs)
-                .body(&self.operators)
+                .body(&self.phase.operators)
                 .outputs(&outputs)
                 .compile(),
-        ));
-        let vec2 = VecElemenWise::<2>::new(FusedKernelSource::new(
+        )));
+        let vec2 = VecElemenWise::<2>::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec2)
                 .inputs(&inputs)
-                .body(&self.operators)
+                .body(&self.phase.operators)
                 .outputs(&outputs)
                 .compile(),
-        ));
-        let vec4 = VecElemenWise::<4>::new(FusedKernelSource::new(
+        )));
+        let vec4 = VecElemenWise::<4>::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec4)
                 .inputs(&inputs)
-                .body(&self.operators)
+                .body(&self.phase.operators)
                 .outputs(&outputs)
                 .compile(),
-        ));
+        )));
 
-        FusionKernelSet::new(vec![Arc::new(scalar), Arc::new(vec2), Arc::new(vec4)])
+        let kernel_set =
+            FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
+
+        ElementWise {
+            inputs: self.inputs,
+            outputs: self.outputs,
+            scalars_f32: self.scalars_f32,
+            scalars_i32: self.scalars_i32,
+            scalars_u32: self.scalars_u32,
+            device: self.device,
+            phase: ExecutionPhase::new(self.phase.operators.len(), kernel_set),
+        }
     }
 }
 
-impl<G, F, I> ElementWise<G, F, I>
+impl<G, F, I> ElementWise<G, F, I, ExecutionPhase>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        let source = match &mut self.kernels {
-            Some(value) => value.clone(),
-            None => {
-                let source = self.compile();
-                self.kernels = Some(source.clone());
-                source
-            }
-        };
-
-        source.execute(
+        self.phase.kernel_set.execute(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             self.scalars_f32,
@@ -145,20 +158,32 @@ where
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.operators.len()
+        self.phase.operation_len
     }
 
-    pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
+    pub(crate) fn from_state(device: &WgpuDevice, mut state: ElementWiseState) -> Self {
+        // The order is hardcoded from the list, not clear how to properly invalidate the cache
+        // other than the burn version. TODO: Find a way to invalidate the cache.
+        let vec4 = state.kernels.pop().unwrap();
+        let vec2 = state.kernels.pop().unwrap();
+        let scalar = state.kernels.pop().unwrap();
+
+        let scalar =
+            ScalarElemenWise::new(Arc::new(FusedKernelSource::new(scalar.id, scalar.shader)));
+        let vec2 = VecElemenWise::<2>::new(Arc::new(FusedKernelSource::new(vec2.id, vec2.shader)));
+        let vec4 = VecElemenWise::<4>::new(Arc::new(FusedKernelSource::new(vec4.id, vec4.shader)));
+
+        let kernel_set =
+            FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
+
         Self {
             inputs: state.inputs,
             outputs: state.outputs,
-            locals: state.locals,
-            operators: state.operators,
             scalars_f32: state.scalars_f32,
             scalars_u32: state.scalars_u32,
             scalars_i32: state.scalars_i32,
             device: device.clone(),
-            kernels: None,
+            phase: ExecutionPhase::new(state.operation_len, kernel_set),
         }
     }
 
@@ -166,11 +191,11 @@ where
         ElementWiseState {
             inputs: self.inputs.clone(),
             outputs: self.outputs.clone(),
-            locals: self.locals.clone(),
-            operators: self.operators.clone(),
             scalars_f32: self.scalars_f32,
+            operation_len: self.phase.operation_len,
             scalars_u32: self.scalars_u32,
             scalars_i32: self.scalars_i32,
+            kernels: self.phase.kernel_set.state(),
         }
     }
 }

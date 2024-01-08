@@ -1,4 +1,4 @@
-use super::optimization::ElementWise;
+use super::{optimization::ElementWise, CompilationPhase};
 use crate::{
     codegen::{Elem, Item, Operator, Variable},
     element::WgpuElement,
@@ -94,19 +94,17 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        let op = ElementWise {
+        let op = ElementWise::new(
             inputs,
             outputs,
-            locals,
-            operators: self.operators.clone(),
-            scalars_f32: self.scalars_f32,
-            scalars_u32: self.scalars_u32,
-            scalars_i32: self.scalars_i32,
-            device: self.device.clone(),
-            kernels: None,
-        };
+            self.scalars_f32,
+            self.scalars_u32,
+            self.scalars_i32,
+            self.device.clone(),
+            CompilationPhase::new(locals, self.operators.clone()),
+        );
 
-        WgpuOptimization::ElementWise(op)
+        WgpuOptimization::ElementWise(op.compile())
     }
 
     fn reset(&mut self) {

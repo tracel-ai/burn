@@ -1,3 +1,4 @@
+use super::source::FusedKernelSource;
 use crate::codegen::calculate_num_elems_dyn_rank;
 use crate::compute::{compute_client, Kernel};
 use crate::fusion::strides_dyn_rank;
@@ -6,15 +7,14 @@ use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_fusion::graph::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
-use std::sync::Arc;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
 ///
 /// This type makes it easy to group those potential kernels and execute the best one depending on
 /// the context.
-#[derive(new, Clone)]
+#[derive(new)]
 pub struct FusionKernelSet {
-    kernels: Vec<Arc<dyn FusionKernel>>,
+    kernels: Vec<Box<dyn FusionKernel>>,
 }
 
 /// The priority of a kernel.
@@ -26,7 +26,7 @@ pub enum Priority {
 }
 
 pub trait FusionKernel: Send + Sync {
-    /// Return the priority of this kernel based on the input and output informations.
+    /// Returns the priority of this kernel based on the input and output informations.
     ///
     /// # Notes
     ///
@@ -34,7 +34,7 @@ pub trait FusionKernel: Send + Sync {
     /// Each entry starts with the strides then the shape.
     fn priority(&self, indices_input: &[usize], indices_output: &[usize], info: &[u32])
         -> Priority;
-    /// Return a [kernel](Kernel) that can be executed by the compute server.
+    /// Returns a [kernel](Kernel) that can be executed by the compute server.
     ///
     /// # Notes
     ///
@@ -46,9 +46,15 @@ pub trait FusionKernel: Send + Sync {
         indices_output: &[usize],
         info: &[u32],
     ) -> Box<dyn Kernel>;
+    /// Returns the source for this kernel, to be used for serialization.
+    fn source(&self) -> FusedKernelSource;
 }
 
 impl FusionKernelSet {
+    pub fn state(&self) -> Vec<FusedKernelSource> {
+        self.kernels.iter().map(|kernel| kernel.source()).collect()
+    }
+
     /// Execute the best kernel based on the given information.
     pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
