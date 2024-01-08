@@ -47,7 +47,7 @@ impl Item {
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
-    pub ty: Item,
+    pub item: Item,
     pub size: Option<usize>,
 }
 
@@ -159,8 +159,8 @@ impl ComputeShader {
         num_entry: usize,
     ) -> core::fmt::Result {
         let ty = match binding.size {
-            Some(size) => format!("array<{}, {}>", binding.ty, size),
-            None => format!("array<{}>", binding.ty),
+            Some(size) => format!("array<{}, {}>", binding.item, size),
+            None => format!("array<{}>", binding.item),
         };
 
         f.write_fmt(format_args!(

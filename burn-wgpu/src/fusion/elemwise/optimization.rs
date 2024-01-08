@@ -63,7 +63,7 @@ where
             .inputs
             .iter()
             .map(|(_tensor, elem)| Input::Array {
-                ty: Item::Scalar(*elem),
+                item: Item::Scalar(*elem),
                 visibility: Visibility::Read,
                 strategy: ReadingStrategy::OutputLayout,
             })
@@ -74,7 +74,7 @@ where
             .iter()
             .zip(self.phase.locals.iter())
             .map(|((_tensor, elem), local)| Output::Array {
-                ty: Item::Scalar(*elem),
+                item: Item::Scalar(*elem),
                 local: *local,
             })
             .collect::<Vec<_>>();

@@ -42,13 +42,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[$crate::codegen::Input::Array {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -62,13 +62,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[$crate::codegen::Input::Array {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -95,7 +95,7 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                            item: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
@@ -106,7 +106,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -121,7 +121,7 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                            item: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
@@ -132,7 +132,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        ty: $crate::codegen::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
