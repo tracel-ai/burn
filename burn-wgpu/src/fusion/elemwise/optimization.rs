@@ -1,4 +1,4 @@
-use super::kernel::{ScalarElemenWise, VecElemenWise};
+use super::kernel::{ScalarElementWise, VecElementWise};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, Input, Item, Operator, Output, ReadingStrategy, Vectorization,
@@ -100,7 +100,7 @@ where
             })
         }
 
-        let scalar = ScalarElemenWise::new(Arc::new(FusedKernelSource::new(
+        let scalar = ScalarElementWise::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Scalar)
                 .inputs(&inputs)
@@ -108,7 +108,7 @@ where
                 .outputs(&outputs)
                 .compile(),
         )));
-        let vec2 = VecElemenWise::<2>::new(Arc::new(FusedKernelSource::new(
+        let vec2 = VecElementWise::<2>::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec2)
                 .inputs(&inputs)
@@ -116,7 +116,7 @@ where
                 .outputs(&outputs)
                 .compile(),
         )));
-        let vec4 = VecElemenWise::<4>::new(Arc::new(FusedKernelSource::new(
+        let vec4 = VecElementWise::<4>::new(Arc::new(FusedKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new(Vectorization::Vec4)
                 .inputs(&inputs)
@@ -169,9 +169,9 @@ where
         let scalar = state.kernels.pop().unwrap();
 
         let scalar =
-            ScalarElemenWise::new(Arc::new(FusedKernelSource::new(scalar.id, scalar.shader)));
-        let vec2 = VecElemenWise::<2>::new(Arc::new(FusedKernelSource::new(vec2.id, vec2.shader)));
-        let vec4 = VecElemenWise::<4>::new(Arc::new(FusedKernelSource::new(vec4.id, vec4.shader)));
+            ScalarElementWise::new(Arc::new(FusedKernelSource::new(scalar.id, scalar.shader)));
+        let vec2 = VecElementWise::<2>::new(Arc::new(FusedKernelSource::new(vec2.id, vec2.shader)));
+        let vec4 = VecElementWise::<4>::new(Arc::new(FusedKernelSource::new(vec4.id, vec4.shader)));
 
         let kernel_set =
             FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);

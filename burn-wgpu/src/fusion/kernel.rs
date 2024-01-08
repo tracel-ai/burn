@@ -26,7 +26,7 @@ pub enum Priority {
 }
 
 pub trait FusionKernel: Send + Sync {
-    /// Returns the priority of this kernel based on the input and output informations.
+    /// Returns the priority of this kernel based on the input and output information.
     ///
     /// # Notes
     ///
@@ -157,7 +157,7 @@ impl FusionKernelSet {
             )
             .collect::<Vec<_>>();
 
-        selected.sort_by(|(_, pririty_a), (_, pririty_b)| pririty_a.cmp(pririty_b));
+        selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
 
         let kernel = selected
             .pop()

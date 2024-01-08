@@ -9,16 +9,16 @@ use crate::{
 use std::sync::Arc;
 
 #[derive(new)]
-pub struct ScalarElemenWise {
+pub struct ScalarElementWise {
     pub(crate) source: Arc<FusedKernelSource>,
 }
 
 #[derive(new)]
-pub struct VecElemenWise<const D: u8> {
+pub struct VecElementWise<const D: u8> {
     pub(crate) source: Arc<FusedKernelSource>,
 }
 
-impl FusionKernel for ScalarElemenWise {
+impl FusionKernel for ScalarElementWise {
     fn kernel(
         &self,
         _input_indices: &[usize],
@@ -54,7 +54,7 @@ impl FusionKernel for ScalarElemenWise {
     }
 }
 
-impl<const D: u8> FusionKernel for VecElemenWise<D> {
+impl<const D: u8> FusionKernel for VecElementWise<D> {
     fn kernel(
         &self,
         _input_indices: &[usize],

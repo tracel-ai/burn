@@ -165,11 +165,13 @@ fn erf(x: {ty}) -> {ty} {{
 }
 
 #[cfg(target_os = "macos")]
-fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, elem: &Item) -> core::fmt::Result {
+fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+    let elem = item.elem();
+
     f.write_fmt(format_args!(
         "
 /// Metal has a weird numerical behaviour with tanh for inputs over 43.0
-fn safe_tanh(x: {elem}) -> {elem} {{
+fn safe_tanh_scalar(x: {elem}) -> {elem} {{
     if x > 43.0 {{
         return 1.0;
     }} else {{
@@ -177,5 +179,48 @@ fn safe_tanh(x: {elem}) -> {elem} {{
     }}
 }}
 "
-    ))
+    ))?;
+
+    match item {
+        Item::Vec4(_) => f.write_fmt(format_args!(
+            "
+fn safe_tanh(x: {item}) -> {item} {{
+    return vec4(
+        safe_tanh_scalar(x[0]),
+        safe_tanh_scalar(x[1]),
+        safe_tanh_scalar(x[2]),
+        safe_tanh_scalar(x[3]),
+    );
+}}
+"
+        )),
+        Item::Vec3(_) => f.write_fmt(format_args!(
+            "
+fn safe_tanh(x: {item}) -> {item} {{
+    return vec3(
+        safe_tanh_scalar(x[0]),
+        safe_tanh_scalar(x[1]),
+        safe_tanh_scalar(x[2]),
+    );
+}}
+"
+        )),
+        Item::Vec2(_) => f.write_fmt(format_args!(
+            "
+fn safe_tanh(x: {item}) -> {item} {{
+    return vec2(
+        safe_tanh_scalar(x[0]),
+        safe_tanh_scalar(x[1]),
+    );
+}}
+"
+        )),
+        Item::Scalar(_) => f.write_fmt(format_args!(
+            "
+fn safe_tanh(x: {item}) -> {item} {{
+    return safe_tanh_scalar(x);
+}}
+"
+        )),
+    }
 }

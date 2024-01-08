@@ -189,9 +189,9 @@ impl ElemWiseKernelCodegen<BodyPhase> {
                     )));
                 }
                 #[cfg(target_os = "macos")]
-                Operator::Tanh { input: _, out: _ } => {
-                    register_function(Function::SafeTanh(Elem::F32))
-                }
+                Operator::Tanh { input: _, out: _ } => register_function(Function::SafeTanh(
+                    vectorize(Item::Scalar(Elem::F32), self.vectorize),
+                )),
                 _ => {}
             }
             self.operations.push(ops.vectorize(self.vectorize));
