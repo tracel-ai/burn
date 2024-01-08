@@ -1,6 +1,6 @@
 use crate::{
     binary,
-    codegen::{Elem, Operator, Variable},
+    codegen::{Elem, Item, Operator, Variable},
     element::WgpuElement,
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
@@ -37,9 +37,9 @@ pub fn equal<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         binary: |elem: Elem| Operator::Equal {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -52,9 +52,9 @@ pub fn greater<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         binary: |elem: Elem| Operator::Greater {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -67,9 +67,9 @@ pub fn greater_equal<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         binary: |elem: Elem| Operator::GreaterEqual {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -82,9 +82,9 @@ pub fn lower<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         binary: |elem: Elem| Operator::Lower {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -97,9 +97,9 @@ pub fn lower_equal<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         binary: |elem: Elem| Operator::LowerEqual {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Input(1, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -112,9 +112,9 @@ pub fn equal_elem<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         unary: |elem: Elem| Operator::Equal {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Scalar(0, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Scalar(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -127,9 +127,9 @@ pub fn greater_elem<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         unary: |elem: Elem| Operator::Greater {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Scalar(0, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Scalar(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -142,9 +142,9 @@ pub fn lower_elem<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         unary: |elem: Elem| Operator::Lower {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Scalar(0, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Scalar(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -157,9 +157,9 @@ pub fn greater_equal_elem<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         unary: |elem: Elem| Operator::GreaterEqual {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Scalar(0, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Scalar(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E
@@ -172,9 +172,9 @@ pub fn lower_equal_elem<E: WgpuElement, const D: usize>(
 ) -> WgpuTensor<u32, D> {
     comparison!(
         unary: |elem: Elem| Operator::LowerEqual {
-            lhs: Variable::Input(0, elem),
-            rhs: Variable::Scalar(0, elem),
-            out: Variable::Local(0, Elem::Bool),
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Scalar(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         },
         input: lhs; rhs,
         elem: E

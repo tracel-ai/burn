@@ -1,16 +1,18 @@
+use std::sync::Arc;
+
 use crate::{
     codegen::ComputeShader,
     kernel::{DynamicKernelSource, SourceTemplate},
 };
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
-#[derive(new, Clone)]
+#[derive(new, Clone, Serialize, Deserialize)]
 pub struct FusedKernelSource {
-    id: String,
-    pub(crate) shader: Arc<ComputeShader>,
+    pub(crate) id: String,
+    pub(crate) shader: ComputeShader,
 }
 
-impl DynamicKernelSource for FusedKernelSource {
+impl DynamicKernelSource for Arc<FusedKernelSource> {
     fn source(&self) -> SourceTemplate {
         SourceTemplate::new(self.shader.to_string())
     }

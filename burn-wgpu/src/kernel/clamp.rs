@@ -1,6 +1,6 @@
 use super::unary;
 use crate::{
-    codegen::{Operator, Variable},
+    codegen::{Item, Operator, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,
@@ -8,10 +8,10 @@ use crate::{
 
 unary!(
     |elem| Operator::Clamp {
-        input: Variable::Input(0, elem),
-        min_value: Variable::Scalar(0, elem),
-        max_value: Variable::Scalar(1, elem),
-        out: Variable::Local(0, elem),
+        input: Variable::Input(0, Item::Scalar(elem)),
+        min_value: Variable::Scalar(0, Item::Scalar(elem)),
+        max_value: Variable::Scalar(1, Item::Scalar(elem)),
+        out: Variable::Local(0, Item::Scalar(elem)),
     },
     scalar 2
 );
