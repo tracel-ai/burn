@@ -468,7 +468,7 @@ where
     /// # Panics
     ///
     /// If all tensors don't have the same shape.
-    /// Given dimension is not with range of 0..=D2
+    /// Given dimension is not with range of 0..D2
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
