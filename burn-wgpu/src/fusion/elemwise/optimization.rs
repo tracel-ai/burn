@@ -1,12 +1,12 @@
-use super::kernel::{InplaceElementWise, ScalarElementWise, VecElementWise};
+use super::kernel::{ScalarElementWise, VecElementWise};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
         ReadingStrategy, Vectorization, Visibility,
     },
     fusion::{
-        kernel::{FusionKernel, FusionKernelSet},
-        source::FusedKernelSource,
+        kernel::{FusionKernelSource, FusionOperationSet},
+        source::DynKernelSource,
     },
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -41,7 +41,7 @@ pub struct CompilationPhase {
 #[derive(new)]
 pub struct ExecutionPhase {
     operation_len: usize,
-    kernel_set: FusionKernelSet,
+    kernel_set: FusionOperationSet,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,7 +52,7 @@ pub struct ElementWiseState {
     scalars_f32: usize,
     scalars_u32: usize,
     scalars_i32: usize,
-    kernels: Vec<FusedKernelSource>,
+    kernels: Vec<FusionKernelSource>,
 }
 
 impl<G, F, I> ElementWise<G, F, I, CompilationPhase>
@@ -103,33 +103,6 @@ where
             })
         }
 
-        let scalar = ScalarElementWise::new(Arc::new(FusedKernelSource::new(
-            IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .inputs(&inputs)
-                .body(&self.phase.operators)
-                .outputs(&outputs)
-                .compile(),
-        )));
-        let vec2 = VecElementWise::<2>::new(Arc::new(FusedKernelSource::new(
-            IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec2)
-                .inputs(&inputs)
-                .body(&self.phase.operators)
-                .outputs(&outputs)
-                .compile(),
-        )));
-        let vec4 = VecElementWise::<4>::new(Arc::new(FusedKernelSource::new(
-            IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec4)
-                .inputs(&inputs)
-                .body(&self.phase.operators)
-                .outputs(&outputs)
-                .compile(),
-        )));
-
         let mut potential_inplace = self
             .inputs
             .iter()
@@ -142,9 +115,6 @@ where
             })
             .map(|(pos, ((desc, elem), input))| (pos, desc, elem, input))
             .collect::<Vec<_>>();
-
-        let mut kernel_set: Vec<Box<dyn FusionKernel>> =
-            vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)];
 
         let mapping = self
             .outputs
@@ -178,8 +148,16 @@ where
             })
             .collect::<Vec<_>>();
 
-        if !mapping.is_empty() {
-            let scalar = ScalarElementWise::new(Arc::new(FusedKernelSource::new(
+        let scalar = ScalarElementWise::new(
+            Arc::new(DynKernelSource::new(
+                IdGenerator::generate(),
+                ElemWiseKernelCodegen::new()
+                    .inputs(&inputs)
+                    .body(&self.phase.operators)
+                    .outputs(&outputs)
+                    .compile(),
+            )),
+            Arc::new(DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .inputs(&inputs)
@@ -187,8 +165,21 @@ where
                     .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
-            )));
-            let vec2 = VecElementWise::<2>::new(Arc::new(FusedKernelSource::new(
+            )),
+            mapping.clone(),
+        );
+
+        let vec2 = VecElementWise::<2>::new(
+            Arc::new(DynKernelSource::new(
+                IdGenerator::generate(),
+                ElemWiseKernelCodegen::new()
+                    .vectorize(Vectorization::Vec2)
+                    .inputs(&inputs)
+                    .body(&self.phase.operators)
+                    .outputs(&outputs)
+                    .compile(),
+            )),
+            Arc::new(DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec2)
@@ -197,8 +188,20 @@ where
                     .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
-            )));
-            let vec4 = VecElementWise::<4>::new(Arc::new(FusedKernelSource::new(
+            )),
+            mapping.clone(),
+        );
+        let vec4 = VecElementWise::<4>::new(
+            Arc::new(DynKernelSource::new(
+                IdGenerator::generate(),
+                ElemWiseKernelCodegen::new()
+                    .vectorize(Vectorization::Vec4)
+                    .inputs(&inputs)
+                    .body(&self.phase.operators)
+                    .outputs(&outputs)
+                    .compile(),
+            )),
+            Arc::new(DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec4)
@@ -207,23 +210,12 @@ where
                     .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
-            )));
+            )),
+            mapping.clone(),
+        );
 
-            kernel_set.push(Box::new(InplaceElementWise::new(
-                Box::new(scalar),
-                mapping.clone(),
-            )));
-            kernel_set.push(Box::new(InplaceElementWise::new(
-                Box::new(vec2),
-                mapping.clone(),
-            )));
-            kernel_set.push(Box::new(InplaceElementWise::new(
-                Box::new(vec4),
-                mapping.clone(),
-            )));
-        }
-
-        let kernel_set = FusionKernelSet::new(kernel_set);
+        let kernel_set =
+            FusionOperationSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
 
         ElementWise {
             inputs: self.inputs,
@@ -265,23 +257,24 @@ where
         let vec2 = state.kernels.pop().unwrap();
         let scalar = state.kernels.pop().unwrap();
 
-        let scalar =
-            ScalarElementWise::new(Arc::new(FusedKernelSource::new(scalar.id, scalar.shader)));
-        let vec2 = VecElementWise::<2>::new(Arc::new(FusedKernelSource::new(vec2.id, vec2.shader)));
-        let vec4 = VecElementWise::<4>::new(Arc::new(FusedKernelSource::new(vec4.id, vec4.shader)));
+        todo!()
+        // let scalar =
+        //     ScalarElementWise::new(Arc::new(DynKernelSource::new(scalar.id, scalar.shader)));
+        // let vec2 = VecElementWise::<2>::new(Arc::new(DynKernelSource::new(vec2.id, vec2.shader)));
+        // let vec4 = VecElementWise::<4>::new(Arc::new(DynKernelSource::new(vec4.id, vec4.shader)));
 
-        let kernel_set =
-            FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
+        // let kernel_set =
+        //     FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
 
-        Self {
-            inputs: state.inputs,
-            outputs: state.outputs,
-            scalars_f32: state.scalars_f32,
-            scalars_u32: state.scalars_u32,
-            scalars_i32: state.scalars_i32,
-            device: device.clone(),
-            phase: ExecutionPhase::new(state.operation_len, kernel_set),
-        }
+        // Self {
+        //     inputs: state.inputs,
+        //     outputs: state.outputs,
+        //     scalars_f32: state.scalars_f32,
+        //     scalars_u32: state.scalars_u32,
+        //     scalars_i32: state.scalars_i32,
+        //     device: device.clone(),
+        //     phase: ExecutionPhase::new(state.operation_len, kernel_set),
+        // }
     }
 
     pub(crate) fn to_state(&self) -> ElementWiseState {

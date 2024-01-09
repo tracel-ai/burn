@@ -125,7 +125,7 @@ where
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = self.operators.len() > 1;
+        let ready = self.operators.len() >= 1;
 
         OptimizationProperties {
             ready,

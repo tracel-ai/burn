@@ -7,12 +7,12 @@ use crate::{
 use serde::{Deserialize, Serialize};
 
 #[derive(new, Clone, Serialize, Deserialize)]
-pub struct FusedKernelSource {
+pub struct DynKernelSource {
     pub(crate) id: String,
     pub(crate) shader: ComputeShader,
 }
 
-impl DynamicKernelSource for Arc<FusedKernelSource> {
+impl DynamicKernelSource for Arc<DynKernelSource> {
     fn source(&self) -> SourceTemplate {
         SourceTemplate::new(self.shader.to_string())
     }
