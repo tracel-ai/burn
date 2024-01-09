@@ -1,9 +1,12 @@
+use burn_fusion::TensorDescription;
+
 use crate::{
     codegen::InplaceMapping,
     compute::{DynamicKernel, Kernel},
     fusion::{
         kernel::{FusionKernel, Priority},
         source::FusedKernelSource,
+        WgpuFusionHandle,
     },
     kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
 };
@@ -42,7 +45,7 @@ impl FusionKernel for ScalarElementWise {
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
 
-    fn priority(&self, _num_inputs: usize, _info: &[u32]) -> Priority {
+    fn priority(&self, _handles_input: &[(WgpuFusionHandle, &TensorDescription)]) -> Priority {
         Priority::Available(0)
     }
 
@@ -68,29 +71,25 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
 
-    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority {
-        let rank = info[0] as usize;
-
-        let is_unavailable = |index: usize| {
-            let last_stride_index = index + rank - 1;
-            let last_shape_index = index + (2 * rank) - 1;
+    fn priority(&self, handles_input: &[(WgpuFusionHandle, &TensorDescription)]) -> Priority {
+        let is_unavailable = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
+            let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-            if info[last_stride_index] != 1 {
+            if handle.strides[rank - 1] != 1 {
                 return true;
             }
 
             // The last dimension should be a multiple of the vector size.
-            if info[last_shape_index] % D as u32 != 0 {
+            if desc.shape[rank - 1] % D as usize != 0 {
                 return true;
             }
 
             false
         };
 
-        for pos in 0..num_inputs {
-            let index = pos * rank + 1;
-            if is_unavailable(index) {
+        for handle in handles_input {
+            if is_unavailable(&handle.0, handle.1) {
                 return Priority::Unavailable;
             }
         }
@@ -108,20 +107,21 @@ impl FusionKernel for InplaceElementWise {
         self.kernel.kernel(position, info)
     }
 
-    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority {
-        let priotity = self.kernel.priority(num_inputs, info);
+    fn priority(&self, handles_input: &[(WgpuFusionHandle, &TensorDescription)]) -> Priority {
+        return Priority::Unavailable;
+        let priotity = self.kernel.priority(handles_input);
 
         match priotity {
             Priority::Available(score) => {
-                let rank = info[0] as usize;
-
                 for mapping in self.mapping.iter() {
-                    let index_input = mapping.position_input * (2 * rank) + 1;
+                    let handle = &handles_input[mapping.position_input];
 
-                    let strides_input = &info[index_input..index_input + rank];
+                    if !handle.0.handle.can_mut() {
+                        return Priority::Unavailable;
+                    }
 
                     let mut current = 0;
-                    for stride in strides_input.iter().rev() {
+                    for stride in handle.0.strides.iter().rev() {
                         if current > *stride {
                             return Priority::Unavailable;
                         }

@@ -34,7 +34,7 @@ pub trait FusionKernel: Send + Sync {
     ///
     /// The indices indicate the start of each entry in the info buffer.
     /// Each entry starts with the strides then the shape.
-    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority;
+    fn priority(&self, handles_input: &[(WgpuFusionHandle, &TensorDescription)]) -> Priority;
     /// Returns a [kernel](Kernel) that can be executed by the compute server.
     ///
     /// # Notes
@@ -67,6 +67,7 @@ impl FusionKernelSet {
     ) {
         let client = compute_client::<G>(&device);
         let mut info = Vec::new();
+        let mut handles_input = Vec::new();
         let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
 
         // Inner function to fill the info buffer.
@@ -93,18 +94,22 @@ impl FusionKernelSet {
             let handle = context.handles.get_handle(&tensor.id, status);
 
             register_info_tensor(&mut info, tensor, &handle);
-            handles.push(handle.handle);
+            handles_input.push((handle, tensor));
         }
 
         // For now we simply select the kernel with the highest priority.
         let mut selected = self
             .kernels
             .iter()
-            .filter_map(|source| match source.priority(inputs.len(), &info) {
+            .filter_map(|source| match source.priority(&handles_input) {
                 Priority::Available(priority) => Some((source, priority)),
                 Priority::Unavailable => None,
             })
             .collect::<Vec<_>>();
+
+        for handle in handles_input {
+            handles.push(handle.0.handle);
+        }
 
         selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
 
