@@ -18,6 +18,12 @@ pub struct OutputPhase;
 /// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct CompilationPhase;
 
+#[derive(new, Clone, Copy)]
+pub struct InplaceMapping {
+    pub position_input: usize,
+    pub position_output: usize,
+}
+
 /// Define a vectorization scheme.
 #[derive(Copy, Clone)]
 pub enum Vectorization {
@@ -53,6 +59,7 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
     vectorization: Vectorization,
+    inplace_mappings: Vec<InplaceMapping>,
     _phase: PhantomData<Phase>,
 }
 
@@ -75,23 +82,35 @@ pub enum ReadingStrategy {
     Plain,
 }
 
+#[derive(Clone)]
 pub enum Output {
     Array { item: Item, local: u16 },
     Input { item: Item, input: u16, local: u16 },
 }
 
-impl ElemWiseKernelCodegen<InputPhase> {
-    /// Create a new fusion kernel on the given device.
-    pub fn new(vectorize: Vectorization) -> Self {
+impl Default for ElemWiseKernelCodegen<InputPhase> {
+    fn default() -> Self {
         Self {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
-            vectorization: vectorize,
+            vectorization: Vectorization::Scalar,
+            inplace_mappings: Vec::new(),
             _phase: PhantomData,
         }
+    }
+}
+
+impl ElemWiseKernelCodegen<InputPhase> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
+        self.vectorization = vectorization;
+        self
     }
 
     /// Register the inputs used by the kernel.
@@ -155,6 +174,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
             named_bindings: self.named_bindings,
             functions: self.functions,
             vectorization: self.vectorization,
+            inplace_mappings: self.inplace_mappings,
             _phase: PhantomData,
         }
     }
@@ -202,12 +222,17 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             named_bindings: self.named_bindings,
             vectorization: self.vectorization,
             functions: self.functions,
+            inplace_mappings: self.inplace_mappings,
             _phase: PhantomData,
         }
     }
 }
 
 impl ElemWiseKernelCodegen<OutputPhase> {
+    pub fn inplace_mapping(mut self, mapping: &[InplaceMapping]) -> Self {
+        self.inplace_mappings = mapping.to_vec();
+        self
+    }
     /// Register the outputs with their local variable index.
     ///
     /// Note that the index corresponds to the registered [operator](Operator) number at the
@@ -217,7 +242,33 @@ impl ElemWiseKernelCodegen<OutputPhase> {
         let mut index = 0;
         let mut position_out = 0;
 
-        for array in outputs {
+        let mut outputs = outputs.to_vec();
+
+        for mapping in self.inplace_mappings.iter() {
+            match outputs.get_mut(mapping.position_output) {
+                Some(output) => match output {
+                    Output::Array { item, local } => {
+                        *output = Output::Input {
+                            item: *item,
+                            input: mapping.position_input as u16,
+                            local: *local,
+                        };
+                    }
+                    Output::Input {
+                        item: _,
+                        input: _,
+                        local: _,
+                    } => continue,
+                },
+                None => continue,
+            }
+
+            if let Some(binding) = self.input_bindings.get_mut(mapping.position_input) {
+                binding.visibility = Visibility::ReadWrite
+            }
+        }
+
+        for array in &outputs {
             match array {
                 Output::Array { item, local } => {
                     let item = item.vectorize(self.vectorization);
@@ -273,6 +324,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             named_bindings: self.named_bindings,
             functions: self.functions,
             vectorization: self.vectorization,
+            inplace_mappings: self.inplace_mappings,
             _phase: PhantomData,
         }
     }

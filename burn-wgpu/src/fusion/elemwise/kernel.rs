@@ -1,5 +1,6 @@
 use crate::{
-    compute::DynamicKernel,
+    codegen::InplaceMapping,
+    compute::{DynamicKernel, Kernel},
     fusion::{
         kernel::{FusionKernel, Priority},
         source::FusedKernelSource,
@@ -18,16 +19,17 @@ pub struct VecElementWise<const D: u8> {
     pub(crate) source: Arc<FusedKernelSource>,
 }
 
+#[derive(new)]
+pub struct InplaceElementWise {
+    pub(crate) kernel: Box<dyn FusionKernel>,
+    pub(crate) mapping: Vec<InplaceMapping>,
+}
+
 impl FusionKernel for ScalarElementWise {
-    fn kernel(
-        &self,
-        _input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
-    ) -> Box<dyn crate::compute::Kernel> {
+    fn kernel(&self, position: usize, info: &[u32]) -> Box<dyn Kernel> {
         let rank = info[0] as usize;
         let mut num_elems: usize = 1;
-        let index = output_indices[0];
+        let index = position * rank + 1;
         let start = index + rank; // shape after strides.
         let end = start + rank;
 
@@ -40,12 +42,7 @@ impl FusionKernel for ScalarElementWise {
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
 
-    fn priority(
-        &self,
-        _input_indices: &[usize],
-        _output_indices: &[usize],
-        _info: &[u32],
-    ) -> Priority {
+    fn priority(&self, _num_inputs: usize, _info: &[u32]) -> Priority {
         Priority::Available(0)
     }
 
@@ -55,15 +52,10 @@ impl FusionKernel for ScalarElementWise {
 }
 
 impl<const D: u8> FusionKernel for VecElementWise<D> {
-    fn kernel(
-        &self,
-        _input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
-    ) -> Box<dyn crate::compute::Kernel> {
+    fn kernel(&self, position: usize, info: &[u32]) -> Box<dyn Kernel> {
         let rank = info[0] as usize;
         let mut num_elems: usize = 1;
-        let index = output_indices[0];
+        let index = position * rank + 1;
         let start = index + rank; // shape after strides.
         let end = start + rank;
 
@@ -76,15 +68,10 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
         Box::new(DynamicKernel::new(self.source.clone(), workgroup))
     }
 
-    fn priority(
-        &self,
-        input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
-    ) -> Priority {
+    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority {
         let rank = info[0] as usize;
 
-        let is_unavailable = |index: &usize| {
+        let is_unavailable = |index: usize| {
             let last_stride_index = index + rank - 1;
             let last_shape_index = index + (2 * rank) - 1;
 
@@ -101,13 +88,8 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
             false
         };
 
-        for index in input_indices {
-            if is_unavailable(index) {
-                return Priority::Unavailable;
-            }
-        }
-
-        for index in output_indices {
+        for pos in 0..num_inputs {
+            let index = pos * rank + 1;
             if is_unavailable(index) {
                 return Priority::Unavailable;
             }
@@ -118,5 +100,46 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
 
     fn source(&self) -> FusedKernelSource {
         self.source.as_ref().clone()
+    }
+}
+
+impl FusionKernel for InplaceElementWise {
+    fn kernel(&self, position: usize, info: &[u32]) -> Box<dyn Kernel> {
+        self.kernel.kernel(position, info)
+    }
+
+    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority {
+        let priotity = self.kernel.priority(num_inputs, info);
+
+        match priotity {
+            Priority::Available(score) => {
+                let rank = info[0] as usize;
+
+                for mapping in self.mapping.iter() {
+                    let index_input = mapping.position_input * (2 * rank) + 1;
+
+                    let strides_input = &info[index_input..index_input + rank];
+
+                    let mut current = 0;
+                    for stride in strides_input.iter().rev() {
+                        if current > *stride {
+                            return Priority::Unavailable;
+                        }
+                        current = *stride;
+                    }
+                }
+
+                Priority::Available(score + 1)
+            }
+            Priority::Unavailable => Priority::Unavailable,
+        }
+    }
+
+    fn source(&self) -> FusedKernelSource {
+        self.kernel.source()
+    }
+
+    fn inplace_mappings(&self) -> &[InplaceMapping] {
+        &self.mapping
     }
 }

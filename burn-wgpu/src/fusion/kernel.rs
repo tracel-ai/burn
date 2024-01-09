@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use super::source::FusedKernelSource;
-use crate::codegen::calculate_num_elems_dyn_rank;
+use crate::codegen::{calculate_num_elems_dyn_rank, InplaceMapping};
 use crate::compute::{compute_client, Kernel};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
@@ -32,22 +34,20 @@ pub trait FusionKernel: Send + Sync {
     ///
     /// The indices indicate the start of each entry in the info buffer.
     /// Each entry starts with the strides then the shape.
-    fn priority(&self, indices_input: &[usize], indices_output: &[usize], info: &[u32])
-        -> Priority;
+    fn priority(&self, num_inputs: usize, info: &[u32]) -> Priority;
     /// Returns a [kernel](Kernel) that can be executed by the compute server.
     ///
     /// # Notes
     ///
     /// The indices indicate the start of each entry in the info buffer.
     /// Each entry starts with the strides then the shape.
-    fn kernel(
-        &self,
-        indices_input: &[usize],
-        indices_output: &[usize],
-        info: &[u32],
-    ) -> Box<dyn Kernel>;
+    fn kernel(&self, position: usize, info: &[u32]) -> Box<dyn Kernel>;
     /// Returns the source for this kernel, to be used for serialization.
     fn source(&self) -> FusedKernelSource;
+
+    fn inplace_mappings(&self) -> &[InplaceMapping] {
+        &[]
+    }
 }
 
 impl FusionKernelSet {
@@ -65,28 +65,16 @@ impl FusionKernelSet {
         context: &mut Context<'_, Wgpu<G, F, I>>,
         device: Device<Wgpu<G, F, I>>,
     ) {
-        enum InfoType {
-            Input,
-            Output,
-        }
-
         let client = compute_client::<G>(&device);
         let mut info = Vec::new();
-        let mut input_indices = Vec::new();
-        let mut output_indices = Vec::new();
         let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
 
         // Inner function to fill the info buffer.
-        let mut register_info_tensor =
-            |tensor: &TensorDescription, handle: &WgpuFusionHandle, ty: InfoType| {
+        let register_info_tensor =
+            |info: &mut Vec<u32>, tensor: &TensorDescription, handle: &WgpuFusionHandle| {
                 if info.is_empty() {
                     info.push(handle.strides.len() as u32);
                 }
-
-                match ty {
-                    InfoType::Input => input_indices.push(info.len()),
-                    InfoType::Output => output_indices.push(info.len()),
-                };
 
                 for s in handle.strides.iter() {
                     info.push(*s as u32);
@@ -104,33 +92,77 @@ impl FusionKernelSet {
             let tensor = context.tensors.get(&tensor.id).unwrap();
             let handle = context.handles.get_handle(&tensor.id, status);
 
-            register_info_tensor(tensor, &handle, InfoType::Input);
+            register_info_tensor(&mut info, tensor, &handle);
             handles.push(handle.handle);
         }
 
-        let mut num_elems_output = 0;
+        // For now we simply select the kernel with the highest priority.
+        let mut selected = self
+            .kernels
+            .iter()
+            .filter_map(|source| match source.priority(inputs.len(), &info) {
+                Priority::Available(priority) => Some((source, priority)),
+                Priority::Unavailable => None,
+            })
+            .collect::<Vec<_>>();
+
+        selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
+
+        let selected = selected.pop().unwrap().0;
+        let mapping = selected.inplace_mappings();
+        let output2input: HashMap<usize, usize> = HashMap::from_iter(
+            mapping
+                .iter()
+                .map(|mapping| (mapping.position_output, mapping.position_input)),
+        );
+
+        let mut position = None;
 
         // Then we follow with the outputs.
-        for tensor in outputs.iter() {
+        let mut pos_output = 0usize;
+        for (i, tensor) in outputs.iter().enumerate() {
             let tensor = context.tensors.get(&tensor.id).unwrap();
 
-            let num_elems = calculate_num_elems_dyn_rank(&tensor.shape);
-            if num_elems > num_elems_output {
-                num_elems_output = num_elems;
-            }
-            let handle_fusion = WgpuFusionHandle {
-                client: client.clone(),
-                device: device.clone(),
-                strides: strides_dyn_rank(&tensor.shape),
-                handle: client.empty(core::mem::size_of::<F>() * num_elems),
+            match output2input.get(&i) {
+                Some(position_input) => {
+                    if position.is_none() {
+                        position = Some(*position_input);
+                    }
+                    let handle = handles.get(*position_input).unwrap().clone();
+                    let handle_fusion = WgpuFusionHandle {
+                        client: client.clone(),
+                        device: device.clone(),
+                        strides: strides_dyn_rank(&tensor.shape),
+                        handle,
+                    };
+                    context
+                        .handles
+                        .register_handle(tensor.id.clone(), handle_fusion);
+                }
+                None => {
+                    if position.is_none() {
+                        position = Some(pos_output);
+                    }
+
+                    pos_output += 1;
+
+                    let num_elems = calculate_num_elems_dyn_rank(&tensor.shape);
+                    let handle_fusion = WgpuFusionHandle {
+                        client: client.clone(),
+                        device: device.clone(),
+                        strides: strides_dyn_rank(&tensor.shape),
+                        // TODO: Change size_of for the real type, can create bug.
+                        handle: client.empty(core::mem::size_of::<F>() * num_elems),
+                    };
+
+                    register_info_tensor(&mut info, tensor, &handle_fusion);
+
+                    handles.push(handle_fusion.handle.clone());
+                    context
+                        .handles
+                        .register_handle(tensor.id.clone(), handle_fusion);
+                }
             };
-
-            register_info_tensor(tensor, &handle_fusion, InfoType::Output);
-
-            handles.push(handle_fusion.handle.clone());
-            context
-                .handles
-                .register_handle(tensor.id.clone(), handle_fusion);
         }
 
         handles.push(client.create(bytemuck::cast_slice(&info)));
@@ -145,27 +177,8 @@ impl FusionKernelSet {
             handles.push(client.create(bytemuck::cast_slice(&context.scalar_ints[0..scalars_i32])));
         }
 
-        // For now we simply select the kernel with the highest priority.
-        let mut selected = self
-            .kernels
-            .iter()
-            .filter_map(
-                |source| match source.priority(&input_indices, &output_indices, &info) {
-                    Priority::Available(priority) => Some((source, priority)),
-                    Priority::Unavailable => None,
-                },
-            )
-            .collect::<Vec<_>>();
-
-        selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
-
-        let kernel = selected
-            .pop()
-            .unwrap()
-            .0
-            .kernel(&input_indices, &output_indices, &info);
-
         // Execute the kernel.
+        let kernel = selected.kernel(position.unwrap(), &info);
         client.execute(kernel, &handles.iter().collect::<Vec<_>>());
     }
 }
