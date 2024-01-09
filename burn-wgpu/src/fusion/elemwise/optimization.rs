@@ -5,7 +5,7 @@ use crate::{
         ReadingStrategy, Vectorization, Visibility,
     },
     fusion::{
-        kernel::{FusionKernelSource, FusionOperationSet},
+        kernel::{FusionKernelSet, FusionKernelSource},
         source::DynKernelSource,
     },
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
@@ -41,7 +41,7 @@ pub struct CompilationPhase {
 #[derive(new)]
 pub struct ExecutionPhase {
     operation_len: usize,
-    kernel_set: FusionOperationSet,
+    kernel_set: FusionKernelSet,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -116,7 +116,7 @@ where
             .map(|(pos, ((desc, elem), input))| (pos, desc, elem, input))
             .collect::<Vec<_>>();
 
-        let mapping = self
+        let mappings = self
             .outputs
             .iter()
             .zip(outputs.iter())
@@ -160,13 +160,13 @@ where
             Arc::new(DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
+                    .inplace(&mappings)
                     .inputs(&inputs)
                     .body(&self.phase.operators)
-                    .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
             )),
-            mapping.clone(),
+            mappings.clone(),
         );
 
         let vec2 = VecElementWise::<2>::new(
@@ -183,13 +183,13 @@ where
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec2)
+                    .inplace(&mappings)
                     .inputs(&inputs)
                     .body(&self.phase.operators)
-                    .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
             )),
-            mapping.clone(),
+            mappings.clone(),
         );
         let vec4 = VecElementWise::<4>::new(
             Arc::new(DynKernelSource::new(
@@ -205,17 +205,17 @@ where
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec4)
+                    .inplace(&mappings)
                     .inputs(&inputs)
                     .body(&self.phase.operators)
-                    .inplace_mapping(&mapping)
                     .outputs(&outputs)
                     .compile(),
             )),
-            mapping.clone(),
+            mappings.clone(),
         );
 
         let kernel_set =
-            FusionOperationSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
+            FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
 
         ElementWise {
             inputs: self.inputs,

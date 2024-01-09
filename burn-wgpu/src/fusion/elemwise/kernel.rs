@@ -2,7 +2,7 @@ use crate::{
     codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
-        kernel::{FusionKernelSource, FusionOperation, KernelVariant, Priority},
+        kernel::{FusionKernel, FusionKernelSource, KernelVariant, Priority},
         source::DynKernelSource,
         WgpuFusionHandle,
     },
@@ -25,7 +25,7 @@ pub struct VecElementWise<const D: u8> {
     pub(crate) mappings: Vec<InplaceMapping>,
 }
 
-impl FusionOperation for ScalarElementWise {
+impl FusionKernel for ScalarElementWise {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -69,7 +69,7 @@ impl FusionOperation for ScalarElementWise {
     }
 }
 
-impl<const D: u8> FusionOperation for VecElementWise<D> {
+impl<const D: u8> FusionKernel for VecElementWise<D> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],

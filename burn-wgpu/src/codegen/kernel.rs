@@ -59,7 +59,7 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
     vectorization: Vectorization,
-    inplace_mappings: Vec<InplaceMapping>,
+    mappings_inplace: Vec<InplaceMapping>,
     _phase: PhantomData<Phase>,
 }
 
@@ -97,7 +97,7 @@ impl Default for ElemWiseKernelCodegen<InputPhase> {
             named_bindings: Vec::new(),
             functions: Vec::new(),
             vectorization: Vectorization::Scalar,
-            inplace_mappings: Vec::new(),
+            mappings_inplace: Vec::new(),
             _phase: PhantomData,
         }
     }
@@ -110,6 +110,11 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
         self.vectorization = vectorization;
+        self
+    }
+
+    pub fn inplace(mut self, mappings: &[InplaceMapping]) -> Self {
+        self.mappings_inplace = mappings.to_vec();
         self
     }
 
@@ -174,7 +179,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
             named_bindings: self.named_bindings,
             functions: self.functions,
             vectorization: self.vectorization,
-            inplace_mappings: self.inplace_mappings,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
@@ -222,17 +227,13 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             named_bindings: self.named_bindings,
             vectorization: self.vectorization,
             functions: self.functions,
-            inplace_mappings: self.inplace_mappings,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
 }
 
 impl ElemWiseKernelCodegen<OutputPhase> {
-    pub fn inplace_mapping(mut self, mapping: &[InplaceMapping]) -> Self {
-        self.inplace_mappings = mapping.to_vec();
-        self
-    }
     /// Register the outputs with their local variable index.
     ///
     /// Note that the index corresponds to the registered [operator](Operator) number at the
@@ -244,7 +245,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 
         let mut outputs = outputs.to_vec();
 
-        for mapping in self.inplace_mappings.iter() {
+        for mapping in self.mappings_inplace.iter() {
             match outputs.get_mut(mapping.position_output) {
                 Some(output) => match output {
                     Output::Array { item, local } => {
@@ -324,7 +325,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             named_bindings: self.named_bindings,
             functions: self.functions,
             vectorization: self.vectorization,
-            inplace_mappings: self.inplace_mappings,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
