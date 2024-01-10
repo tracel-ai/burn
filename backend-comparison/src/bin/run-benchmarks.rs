@@ -1,6 +1,6 @@
 use clap::Parser;
-use std::io::{self, Stdout, Write};
-use std::process::{Child, Command, Stdio};
+use std::io::{self, Write};
+use std::process::Command;
 
 #[cfg(feature = "tui")]
 use ratatui::{
@@ -36,43 +36,10 @@ fn execute_cargo_bench(backend: &str, bench: &str) -> io::Result<()> {
         cargo.args(&["--features", backend]);
     }
     let output = cargo.output().expect("cargo bench executed successfully");
-    // println!("{}", output.status);
-    // io::stdout().write_all(&output.stdout).unwrap();
-    // io::stderr().write_all(&output.stderr).unwrap();
+    println!("{}", output.status);
+    io::stdout().write_all(&output.stdout).unwrap();
+    io::stderr().write_all(&output.stderr).unwrap();
     Ok(())
-}
-
-fn execute_bench(bench: &String, backend: &String, terminal_ui: bool) {
-    let mut command = Command::new("cargo");
-    command.arg("bench").arg("--bench").arg(bench);
-
-    if !backend.is_empty() {
-        command.args(&["--features", backend]);
-    }
-
-    if !terminal_ui {
-        println!(
-            "Running: cargo bench --bench {} --features {}",
-            bench, backend
-        );
-    }
-    // Execute the command
-    let status = command.status();
-    if !terminal_ui {
-        match status {
-            Ok(status) if status.success() => {
-                println!("Benchmark {} with backend {} complete.", bench, backend)
-            }
-            Ok(status) => println!(
-                "Error! Benchmark {} with backend {} exited with code {}",
-                bench, backend, status
-            ),
-            Err(e) => println!(
-                "Error! Failed to run benchmark {} with backend {}: {}",
-                bench, backend, e
-            ),
-        }
-    }
 }
 
 fn main() -> io::Result<()> {
@@ -103,7 +70,7 @@ fn main() -> io::Result<()> {
         // Iterate over each combination of backend and bench
         for backend in backends.iter() {
             for bench in benches.iter() {
-                execute_cargo_bench(backend, bench);
+                execute_cargo_bench(backend, bench).unwrap();
             }
         }
     }

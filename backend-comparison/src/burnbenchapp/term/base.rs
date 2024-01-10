@@ -1,5 +1,7 @@
 use crate::burnbenchapp::Application;
 
+use derive_new::new;
+
 #[derive(new)]
 pub struct TermApplication;
 
