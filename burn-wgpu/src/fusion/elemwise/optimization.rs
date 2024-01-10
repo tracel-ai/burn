@@ -11,7 +11,6 @@ use burn_common::id::IdGenerator;
 use burn_fusion::{graph::Context, TensorDescription};
 use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 #[derive(new)]
 pub struct ElementWise<G, F, I, Phase = ExecutionPhase>
@@ -22,13 +21,18 @@ where
 {
     inputs: Vec<(TensorDescription, Elem)>,
     outputs: Vec<(TensorDescription, Elem)>,
-    scalars_f32: usize,
-    scalars_u32: usize,
-    scalars_i32: usize,
-    device: Device<Wgpu<G, F, I>>,
     locals: Vec<u16>,
+    scalars: Scalars,
     operators: Vec<Operator>,
+    device: Device<Wgpu<G, F, I>>,
     phase: Phase,
+}
+
+#[derive(new, Clone, Serialize, Deserialize)]
+pub struct Scalars {
+    num_f32: usize,
+    num_u32: usize,
+    num_i32: usize,
 }
 
 pub struct CompilationPhase;
@@ -42,9 +46,7 @@ pub struct ExecutionPhase {
 pub struct ElementWiseState {
     inputs: Vec<(TensorDescription, Elem)>,
     outputs: Vec<(TensorDescription, Elem)>,
-    scalars_f32: usize,
-    scalars_u32: usize,
-    scalars_i32: usize,
+    scalars: Scalars,
     operators: Vec<Operator>,
     locals: Vec<u16>,
 }
@@ -76,24 +78,24 @@ where
             })
             .collect::<Vec<_>>();
 
-        if self.scalars_f32 > 0 {
+        if self.scalars.num_f32 > 0 {
             inputs.push(Input::Scalar {
                 elem: Elem::F32,
-                size: self.scalars_f32,
+                size: self.scalars.num_f32,
             })
         }
 
-        if self.scalars_u32 > 0 {
+        if self.scalars.num_u32 > 0 {
             inputs.push(Input::Scalar {
                 elem: Elem::U32,
-                size: self.scalars_u32,
+                size: self.scalars.num_u32,
             })
         }
 
-        if self.scalars_i32 > 0 {
+        if self.scalars.num_i32 > 0 {
             inputs.push(Input::Scalar {
                 elem: Elem::I32,
-                size: self.scalars_i32,
+                size: self.scalars.num_i32,
             })
         }
 
@@ -143,15 +145,15 @@ where
             .collect::<Vec<_>>();
 
         let scalar = ScalarElementWise::new(
-            Arc::new(DynKernelSource::new(
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .inputs(&inputs)
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
-            Arc::new(DynKernelSource::new(
+            ),
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .inplace(&mappings)
@@ -159,12 +161,13 @@ where
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
+            ),
             mappings.clone(),
+            outputs.len(),
         );
 
         let vec2 = VecElementWise::<2>::new(
-            Arc::new(DynKernelSource::new(
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec2)
@@ -172,8 +175,8 @@ where
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
-            Arc::new(DynKernelSource::new(
+            ),
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec2)
@@ -182,11 +185,12 @@ where
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
+            ),
             mappings.clone(),
+            outputs.len(),
         );
         let vec4 = VecElementWise::<4>::new(
-            Arc::new(DynKernelSource::new(
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec4)
@@ -194,8 +198,8 @@ where
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
-            Arc::new(DynKernelSource::new(
+            ),
+            DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec4)
@@ -204,8 +208,9 @@ where
                     .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
-            )),
-            mappings.clone(),
+            ),
+            mappings,
+            outputs.len(),
         );
 
         let kernel_set =
@@ -214,9 +219,7 @@ where
         ElementWise {
             inputs: self.inputs,
             outputs: self.outputs,
-            scalars_f32: self.scalars_f32,
-            scalars_i32: self.scalars_i32,
-            scalars_u32: self.scalars_u32,
+            scalars: self.scalars,
             device: self.device,
             operators: self.operators,
             locals: self.locals,
@@ -235,8 +238,8 @@ where
         self.phase.kernel_set.execute(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars_f32,
-            self.scalars_i32,
+            self.scalars.num_f32,
+            self.scalars.num_i32,
             context,
             self.device.clone(),
         )
@@ -255,9 +258,7 @@ where
         ElementWise {
             inputs: state.inputs,
             outputs: state.outputs,
-            scalars_f32: state.scalars_f32,
-            scalars_u32: state.scalars_u32,
-            scalars_i32: state.scalars_i32,
+            scalars: state.scalars,
             device: device.clone(),
             locals: state.locals,
             operators: state.operators,
@@ -270,9 +271,7 @@ where
         ElementWiseState {
             inputs: self.inputs.clone(),
             outputs: self.outputs.clone(),
-            scalars_f32: self.scalars_f32,
-            scalars_u32: self.scalars_u32,
-            scalars_i32: self.scalars_i32,
+            scalars: self.scalars.clone(),
             operators: self.operators.clone(),
             locals: self.locals.clone(),
         }

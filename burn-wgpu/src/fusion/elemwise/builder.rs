@@ -1,4 +1,4 @@
-use super::{optimization::ElementWise, CompilationPhase};
+use super::{optimization::ElementWise, CompilationPhase, Scalars};
 use crate::{
     codegen::{Elem, Item, Operator, Variable},
     element::WgpuElement,
@@ -97,12 +97,10 @@ where
         let op = ElementWise::new(
             inputs,
             outputs,
-            self.scalars_f32,
-            self.scalars_u32,
-            self.scalars_i32,
-            self.device.clone(),
             locals,
+            Scalars::new(self.scalars_f32, self.scalars_u32, self.scalars_i32),
             self.operators.clone(),
+            self.device.clone(),
             CompilationPhase,
         );
 

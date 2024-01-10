@@ -2,7 +2,7 @@ use crate::{
     codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
-        kernel::{FusionKernel, KernelVariant, Priority},
+        kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
         source::DynKernelSource,
         WgpuFusionHandle,
     },
@@ -11,18 +11,12 @@ use crate::{
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-#[derive(new)]
 pub struct ScalarElementWise {
-    pub(crate) source_normal: Arc<DynKernelSource>,
-    pub(crate) source_inplace: Arc<DynKernelSource>,
-    pub(crate) mappings: Vec<InplaceMapping>,
+    source: ElementWiseSource,
 }
 
-#[derive(new)]
 pub struct VecElementWise<const D: u8> {
-    pub(crate) source_normal: Arc<DynKernelSource>,
-    pub(crate) source_inplace: Arc<DynKernelSource>,
-    pub(crate) mappings: Vec<InplaceMapping>,
+    source: ElementWiseSource,
 }
 
 impl FusionKernel for ScalarElementWise {
@@ -31,25 +25,8 @@ impl FusionKernel for ScalarElementWise {
         handles_inputs: &[WgpuFusionHandle],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
-    ) -> KernelVariant {
-        match inplace_available(&self.mappings, handles_inputs) {
-            true => {
-                let reference_tensor = inputs[self.mappings[0].position_input];
-                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
-                let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
-
-                KernelVariant::Inplace(kernel, self.mappings.clone())
-            }
-            false => {
-                let reference_tensor = outputs[0];
-                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
-                let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
-
-                KernelVariant::Normal(kernel)
-            }
-        }
+    ) -> SelectedKernel {
+        self.source.kernel(handles_inputs, inputs, outputs)
     }
 
     fn priority(
@@ -68,26 +45,10 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
         handles_inputs: &[WgpuFusionHandle],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
-    ) -> KernelVariant {
-        match inplace_available(&self.mappings, handles_inputs) {
-            true => {
-                let reference_tensor = inputs[self.mappings[0].position_input];
-                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / D as usize, WORKGROUP_DEFAULT);
-                let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
-
-                KernelVariant::Inplace(kernel, self.mappings.clone())
-            }
-            false => {
-                let reference_tensor = outputs[0];
-                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
-                let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
-
-                KernelVariant::Normal(kernel)
-            }
-        }
+    ) -> SelectedKernel {
+        self.source.kernel(handles_inputs, inputs, outputs)
     }
+
     fn priority(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -117,6 +78,112 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
         }
 
         Priority::Available(D)
+    }
+}
+
+impl ElementWiseSource {
+    fn kernel(
+        &self,
+        handles_inputs: &[WgpuFusionHandle],
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+    ) -> SelectedKernel {
+        match inplace_available(&self.mappings, handles_inputs) {
+            true => {
+                let reference_tensor = inputs[self.mappings[0].position_input];
+                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
+                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
+                let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
+                let output_infos =
+                    self.inplace_output2input
+                        .iter()
+                        .enumerate()
+                        .map(|(output_pos, input_pos)| match input_pos {
+                            Some(input_index) => OutputInfo::Inplace {
+                                input_index: *input_index,
+                            },
+                            None => {
+                                // Always use the source normal, since the inplace will not have
+                                // binding alignement.
+                                let elem =
+                                    self.source_normal.shader.outputs[output_pos].item.elem();
+                                let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
+                                    * elem.size();
+                                OutputInfo::Array { size }
+                            }
+                        });
+
+                SelectedKernel::new(kernel, output_infos.collect())
+            }
+            false => {
+                let reference_tensor = outputs[0];
+                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
+                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
+                let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
+                let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
+                    let elem = self.source_normal.shader.outputs[pos].item.elem();
+                    let size = calculate_num_elems_dyn_rank(&tensor.shape) * elem.size();
+                    OutputInfo::Array { size }
+                });
+
+                SelectedKernel::new(kernel, output_infos.collect())
+            }
+        }
+    }
+}
+
+struct ElementWiseSource {
+    source_normal: Arc<DynKernelSource>,
+    source_inplace: Arc<DynKernelSource>,
+    mappings: Vec<InplaceMapping>,
+    inplace_output2input: Vec<Option<usize>>,
+}
+
+impl ElementWiseSource {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+    ) -> Self {
+        let mut inplace_output2input = vec![None; num_output];
+
+        for mapping in mappings.iter() {
+            inplace_output2input[mapping.position_output] = Some(mapping.position_input);
+        }
+
+        Self {
+            source_normal: Arc::new(normal),
+            source_inplace: Arc::new(inplace),
+            mappings,
+            inplace_output2input,
+        }
+    }
+}
+
+impl ScalarElementWise {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+    ) -> Self {
+        Self {
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output),
+        }
+    }
+}
+
+impl<const D: u8> VecElementWise<D> {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+    ) -> Self {
+        Self {
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output),
+        }
     }
 }
 
