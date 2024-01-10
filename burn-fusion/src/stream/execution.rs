@@ -1,9 +1,11 @@
-use super::{CacheResult, Condition, Graph, OptimizationCache, TensorOpsDescription};
+use super::{
+    Condition, OptimizationCache, OptimizationResult, Stream, StreamOptimizer, TensorOpsDescription,
+};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
-pub(crate) struct GraphExecution<B: FusionBackend> {
-    optimization_cache: OptimizationCache<B::Optimization>,
+pub(crate) struct StreamExecutor<B: FusionBackend> {
+    optimizer: StreamOptimizer<B::Optimization>,
     optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
@@ -16,11 +18,11 @@ pub(crate) enum ExecutionMode {
     Sync,
 }
 
-impl<B: FusionBackend> GraphExecution<B> {
+impl<B: FusionBackend> StreamExecutor<B> {
     /// Create a new graph execution with the given optimization builders.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
-            optimization_cache: OptimizationCache::new(),
+            optimizer: StreamOptimizer::new(),
             optimizations,
             num_skipped: 0,
         }
@@ -29,25 +31,26 @@ impl<B: FusionBackend> GraphExecution<B> {
     /// Execute the graph with the provided mode.
     pub fn execute(
         &mut self,
-        graph: &mut Graph<B>,
+        stream: &mut Stream<B>,
+        cache: &mut OptimizationCache<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
         loop {
-            if graph.is_empty() {
+            if stream.is_empty() {
                 break;
             }
 
-            match self.cache(graph, mode) {
-                CacheResult::Miss => {
-                    match self.build(graph, mode) {
+            match self.cache(cache, stream, mode) {
+                OptimizationResult::NoneAvailable => {
+                    match self.build(cache, stream, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
-                            graph.execute_optimization(handles, ops);
-                            self.reset(graph);
+                            stream.execute_optimization(handles, ops);
+                            self.reset(cache, stream);
                         }
                         BuildAction::ExecuteOperations => {
-                            graph.execute_operations(handles);
-                            self.reset(graph);
+                            stream.execute_operations(handles);
+                            self.reset(cache, stream);
                         }
                         BuildAction::ContinueBuilding => {
                             if let ExecutionMode::Sync = mode {
@@ -60,7 +63,7 @@ impl<B: FusionBackend> GraphExecution<B> {
                         break;
                     }
                 }
-                CacheResult::OnPath => {
+                OptimizationResult::SomeAvailable => {
                     self.num_skipped += 1;
 
                     match mode {
@@ -68,9 +71,9 @@ impl<B: FusionBackend> GraphExecution<B> {
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                CacheResult::Found(ops) => {
-                    graph.execute_optimization(handles, ops);
-                    self.reset(graph);
+                OptimizationResult::Found(ops) => {
+                    stream.execute_optimization(handles, ops);
+                    self.reset(cache, stream);
                 }
             };
 
@@ -80,7 +83,12 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn build(&mut self, graph: &Graph<B>, mode: ExecutionMode) -> BuildAction<'_, B> {
+    fn build<'a>(
+        &'a mut self,
+        cache: &'a mut OptimizationCache<B::Optimization>,
+        graph: &Stream<B>,
+        mode: ExecutionMode,
+    ) -> BuildAction<'_, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // graph even when there is no skipped operation.
         let offset = match mode {
@@ -109,9 +117,9 @@ impl<B: FusionBackend> GraphExecution<B> {
             Some(index) => {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let optimization = &self.optimizations[index];
-                let ops = self
-                    .optimization_cache
-                    .complete(optimization, relative, next_ops);
+                let ops =
+                    self.optimizer
+                        .new_optimization_found(cache, optimization, relative, next_ops);
                 BuildAction::ExecuteOptimization(ops)
             }
             None => {
@@ -121,17 +129,18 @@ impl<B: FusionBackend> GraphExecution<B> {
         }
     }
 
-    fn reset(&mut self, graph: &Graph<B>) {
+    fn reset(&mut self, cache: &mut OptimizationCache<B::Optimization>, graph: &Stream<B>) {
         for ops in self.optimizations.iter_mut() {
             ops.reset();
         }
         self.num_skipped = graph.relative.len();
 
-        self.optimization_cache.reset();
+        self.optimizer.reset();
 
         // Reset the policy state.
         for i in 0..self.num_skipped {
-            let _ = self.optimization_cache.follow(
+            let _ = self.optimizer.new_operation_added(
+                cache,
                 &graph.relative[0..i],
                 Condition::NextOps(&graph.relative[i]),
             );
@@ -140,25 +149,28 @@ impl<B: FusionBackend> GraphExecution<B> {
 
     fn cache<'a>(
         &'a mut self,
-        graph: &Graph<B>,
+        cache: &'a mut OptimizationCache<B::Optimization>,
+        graph: &Stream<B>,
         mode: ExecutionMode,
-    ) -> CacheResult<'a, B::Optimization> {
+    ) -> OptimizationResult<'a, B::Optimization> {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
-        let action = self.optimization_cache.follow(graph, end_condition);
+        let action = self
+            .optimizer
+            .new_operation_added(cache, graph, end_condition);
 
         match mode {
             ExecutionMode::NewOps => action,
             ExecutionMode::Sync => match action {
-                CacheResult::Miss => CacheResult::Miss,
-                CacheResult::OnPath => CacheResult::Miss,
-                CacheResult::Found(ops) => CacheResult::Found(ops),
+                OptimizationResult::NoneAvailable => OptimizationResult::NoneAvailable,
+                OptimizationResult::SomeAvailable => OptimizationResult::NoneAvailable,
+                OptimizationResult::Found(ops) => OptimizationResult::Found(ops),
             },
         }
     }
 
     fn split_relative_graph_owned(
-        graph: &Graph<B>,
+        graph: &Stream<B>,
         mode: ExecutionMode,
     ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
         match mode {
@@ -171,7 +183,7 @@ impl<B: FusionBackend> GraphExecution<B> {
     }
 
     fn split_relative_graph_ref(
-        graph: &Graph<B>,
+        graph: &Stream<B>,
         mode: ExecutionMode,
     ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         match mode {

@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    graph::{Context, OptimizationFactory, TensorOpsDescription},
+    stream::{Context, OptimizationFactory, TensorOpsDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -86,6 +86,8 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
     fn register(&mut self, ops: &TensorOpsDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> B::Optimization;
+    /// Create a new builder with an empty state.
+    fn new_empty(&self) -> Box<dyn OptimizationBuilder<B>>;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).

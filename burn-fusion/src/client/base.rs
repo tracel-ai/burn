@@ -1,5 +1,5 @@
 use crate::{
-    graph::{Ops, TensorOpsDescription},
+    stream::{Ops, TensorOpsDescription},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{

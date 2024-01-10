@@ -1,12 +1,12 @@
 use crate::{
     client::FusionClient,
     get_client,
-    graph::{
+    ops::binary::binary_ops_shape,
+    stream::{
         BaseOpsDescription, BinaryOpsDescription, BoolOpsDescription, CatOpsDescription, Ops,
         ReshapeDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
         TensorOpsDescription, UnaryOpsDescription,
     },
-    ops::binary::binary_ops_shape,
     Fusion, FusionBackend,
 };
 use burn_tensor::{
@@ -348,7 +348,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            TensorOpsDescription::BoolOps(crate::graph::BoolOpsDescription::Not(desc.clone())),
+            TensorOpsDescription::BoolOps(crate::stream::BoolOpsDescription::Not(desc.clone())),
             NotOps::<D>::new(desc),
         );
 

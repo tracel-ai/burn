@@ -52,8 +52,6 @@ impl<O> OptimizationCache<O> {
         O: Optimization<B>,
     {
         Self {
-            candidates: Vec::new(),
-            availables: Vec::new(),
             optimizations: state
                 .optimizations
                 .into_iter()
@@ -64,7 +62,6 @@ impl<O> OptimizationCache<O> {
                 })
                 .collect(),
             starters: state.starters,
-            found: None,
         }
     }
 }

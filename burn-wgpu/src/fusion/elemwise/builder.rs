@@ -6,7 +6,7 @@ use crate::{
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
-    graph::{
+    stream::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
@@ -105,6 +105,10 @@ where
         );
 
         WgpuOptimization::ElementWise(op.compile())
+    }
+
+    fn new_empty(&self) -> Box<dyn OptimizationBuilder<Wgpu<G, F, I>>> {
+        Box::new(Self::new(self.device.clone()))
     }
 
     fn reset(&mut self) {

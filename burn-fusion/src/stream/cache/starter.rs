@@ -1,5 +1,5 @@
 use super::OptimizationId;
-use crate::graph::TensorOpsDescription;
+use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},

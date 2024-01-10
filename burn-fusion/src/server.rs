@@ -1,7 +1,7 @@
 use crate::{
-    graph::{
-        execution::{ExecutionMode, GraphExecution},
-        Graph, Ops, TensorOpsDescription,
+    stream::{
+        execution::{ExecutionMode, StreamExecutor},
+        Ops, OptimizationCache, Stream, TensorOpsDescription,
     },
     FusionBackend, HandleContainer, TensorId,
 };
@@ -12,8 +12,9 @@ pub struct FusionServer<B>
 where
     B: FusionBackend,
 {
-    execution: GraphExecution<B>,
-    graph: Graph<B>,
+    streams: StreamExecutor<B>,
+    cache: OptimizationCache<B::Optimization>,
+    graph: Stream<B>,
     pub(crate) handles: HandleContainer<B>,
     pub device: B::FusionDevice,
     pub num_skipped: usize,
@@ -25,8 +26,9 @@ where
 {
     pub fn new(device: B::FusionDevice) -> Self {
         Self {
-            execution: GraphExecution::new(B::optimizations(&device.clone().into())),
-            graph: Graph::new(),
+            streams: StreamExecutor::new(B::optimizations(&device.clone().into())),
+            cache: OptimizationCache::new(),
+            graph: Stream::new(),
             handles: HandleContainer::new(device.clone()),
             num_skipped: 0,
             device,
@@ -35,14 +37,22 @@ where
 
     pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
         self.graph.add(ops_desc, ops);
-        self.execution
-            .execute(&mut self.graph, &mut self.handles, ExecutionMode::NewOps);
+        self.streams.execute(
+            &mut self.graph,
+            &mut self.cache,
+            &mut self.handles,
+            ExecutionMode::NewOps,
+        );
     }
 
     pub fn drain_graph(&mut self) {
         // Check if we can execute.
-        self.execution
-            .execute(&mut self.graph, &mut self.handles, ExecutionMode::Sync);
+        self.streams.execute(
+            &mut self.graph,
+            &mut self.cache,
+            &mut self.handles,
+            ExecutionMode::Sync,
+        );
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {

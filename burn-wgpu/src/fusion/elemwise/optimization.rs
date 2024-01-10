@@ -8,7 +8,7 @@ use crate::{
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
-use burn_fusion::{graph::Context, TensorDescription};
+use burn_fusion::{stream::Context, TensorDescription};
 use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
 
@@ -283,7 +283,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_fusion::graph::Ops;
+    use burn_fusion::stream::Ops;
     use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Int;
     use burn_tensor::{backend::Backend, Data, Tensor};

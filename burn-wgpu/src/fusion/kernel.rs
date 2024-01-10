@@ -2,7 +2,7 @@ use crate::compute::{compute_client, Kernel};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
-use burn_fusion::graph::Context;
+use burn_fusion::stream::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
 

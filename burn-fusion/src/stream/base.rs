@@ -5,14 +5,14 @@ use crate::Optimization;
 use crate::{FusionBackend, HandleContainer};
 
 /// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
-pub struct Graph<B: FusionBackend> {
+pub struct Stream<B: FusionBackend> {
     pub(crate) global: Vec<TensorOpsDescription>,
     pub(crate) relative: Vec<TensorOpsDescription>,
     converter: RelativeGraphConverter,
     ops: Vec<Box<dyn Ops<B>>>,
 }
 
-impl<B: FusionBackend> Graph<B> {
+impl<B: FusionBackend> Stream<B> {
     pub(crate) fn new() -> Self {
         Self {
             global: Vec::new(),
