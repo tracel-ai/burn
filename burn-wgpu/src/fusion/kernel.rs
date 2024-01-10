@@ -43,7 +43,7 @@ pub trait FusionKernel: Send + Sync {
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> Priority;
-    /// Returns a [seleted kernel](SelectedKernel) that can be executed by the compute server.
+    /// Returns a [selected kernel](SelectedKernel) that can be executed by the compute server.
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
