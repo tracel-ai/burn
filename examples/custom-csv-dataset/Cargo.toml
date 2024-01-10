@@ -1,0 +1,23 @@
+[package]
+authors = ["guillaumelagrange <lagrange.guillaume.1@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "custom-csv-dataset"
+description = "Example implementation for loading a custom CSV dataset from disk"
+publish = false
+version.workspace = true
+
+[features]
+default = ["burn/dataset"]
+
+[dependencies]
+burn = {path = "../../burn"}
+
+# File download
+reqwest = {workspace = true, features = ["blocking"]}
+tempfile = {workspace = true}
+# indicatif = {workspace = true}
+
+# CSV parsing
+csv = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}
