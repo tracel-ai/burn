@@ -60,7 +60,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::from_data(data, device)`        | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
-| `Tensor::stack(tensors, dim)`            | torch.stack(tensors, dim)`           |
+| `Tensor::stack(tensors, dim)`            | `torch.stack(tensors, dim)`           |
 
 ### Numeric Operations
 
