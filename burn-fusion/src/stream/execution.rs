@@ -1,11 +1,12 @@
 use super::{
-    Condition, OptimizationCache, OptimizationResult, Stream, StreamOptimizer, TensorOpsDescription,
+    Condition, ExistingOptimizations, OptimizationAnalysis, OptimizationAnalyzer, Stream,
+    TensorOpsDescription,
 };
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct StreamExecutor<B: FusionBackend> {
-    optimizer: StreamOptimizer<B::Optimization>,
+    optimizer: OptimizationAnalyzer<B::Optimization>,
     optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
@@ -22,7 +23,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
     /// Create a new graph execution with the given optimization builders.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
-            optimizer: StreamOptimizer::new(),
+            optimizer: OptimizationAnalyzer::new(),
             optimizations,
             num_skipped: 0,
         }
@@ -32,7 +33,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
     pub fn execute(
         &mut self,
         stream: &mut Stream<B>,
-        cache: &mut OptimizationCache<B::Optimization>,
+        cache: &mut ExistingOptimizations<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
@@ -42,7 +43,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
             }
 
             match self.cache(cache, stream, mode) {
-                OptimizationResult::NoneAvailable => {
+                OptimizationAnalysis::NoneAvailable => {
                     match self.build(cache, stream, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
                             stream.execute_optimization(handles, ops);
@@ -63,7 +64,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         break;
                     }
                 }
-                OptimizationResult::SomeAvailable => {
+                OptimizationAnalysis::FutureAvailable => {
                     self.num_skipped += 1;
 
                     match mode {
@@ -71,7 +72,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                OptimizationResult::Found(ops) => {
+                OptimizationAnalysis::Found(ops) => {
                     stream.execute_optimization(handles, ops);
                     self.reset(cache, stream);
                 }
@@ -85,7 +86,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
     fn build<'a>(
         &'a mut self,
-        cache: &'a mut OptimizationCache<B::Optimization>,
+        cache: &'a mut ExistingOptimizations<B::Optimization>,
         graph: &Stream<B>,
         mode: ExecutionMode,
     ) -> BuildAction<'_, B> {
@@ -129,7 +130,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
         }
     }
 
-    fn reset(&mut self, cache: &mut OptimizationCache<B::Optimization>, graph: &Stream<B>) {
+    fn reset(&mut self, cache: &mut ExistingOptimizations<B::Optimization>, graph: &Stream<B>) {
         for ops in self.optimizations.iter_mut() {
             ops.reset();
         }
@@ -149,10 +150,10 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
     fn cache<'a>(
         &'a mut self,
-        cache: &'a mut OptimizationCache<B::Optimization>,
+        cache: &'a mut ExistingOptimizations<B::Optimization>,
         graph: &Stream<B>,
         mode: ExecutionMode,
-    ) -> OptimizationResult<'a, B::Optimization> {
+    ) -> OptimizationAnalysis<'a, B::Optimization> {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
         let action = self
@@ -162,9 +163,9 @@ impl<B: FusionBackend> StreamExecutor<B> {
         match mode {
             ExecutionMode::NewOps => action,
             ExecutionMode::Sync => match action {
-                OptimizationResult::NoneAvailable => OptimizationResult::NoneAvailable,
-                OptimizationResult::SomeAvailable => OptimizationResult::NoneAvailable,
-                OptimizationResult::Found(ops) => OptimizationResult::Found(ops),
+                OptimizationAnalysis::NoneAvailable => OptimizationAnalysis::NoneAvailable,
+                OptimizationAnalysis::FutureAvailable => OptimizationAnalysis::NoneAvailable,
+                OptimizationAnalysis::Found(ops) => OptimizationAnalysis::Found(ops),
             },
         }
     }

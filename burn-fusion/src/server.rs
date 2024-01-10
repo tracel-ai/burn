@@ -1,7 +1,7 @@
 use crate::{
     stream::{
         execution::{ExecutionMode, StreamExecutor},
-        Ops, OptimizationCache, Stream, TensorOpsDescription,
+        ExistingOptimizations, Ops, Stream, TensorOpsDescription,
     },
     FusionBackend, HandleContainer, TensorId,
 };
@@ -13,7 +13,7 @@ where
     B: FusionBackend,
 {
     streams: StreamExecutor<B>,
-    cache: OptimizationCache<B::Optimization>,
+    cache: ExistingOptimizations<B::Optimization>,
     graph: Stream<B>,
     pub(crate) handles: HandleContainer<B>,
     pub device: B::FusionDevice,
@@ -27,7 +27,7 @@ where
     pub fn new(device: B::FusionDevice) -> Self {
         Self {
             streams: StreamExecutor::new(B::optimizations(&device.clone().into())),
-            cache: OptimizationCache::new(),
+            cache: ExistingOptimizations::new(),
             graph: Stream::new(),
             handles: HandleContainer::new(device.clone()),
             num_skipped: 0,

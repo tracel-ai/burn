@@ -1,4 +1,5 @@
-use super::{starter::Starters, OptimizationCache, OptimizationItem};
+use super::{starter::Starters, ExistingOptimizations};
+use crate::stream::OptimizationItem;
 use crate::{FusionBackend, Optimization};
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +9,7 @@ struct OptimizationCacheState<O> {
     starters: Starters,
 }
 
-impl<O> OptimizationCache<O> {
+impl<O> ExistingOptimizations<O> {
     #[allow(dead_code)]
     /// TODO: save the cache state.
     pub(crate) fn save<B: FusionBackend>(&self, _device: &B::Device)
@@ -20,7 +21,7 @@ impl<O> OptimizationCache<O> {
                 .optimizations
                 .iter()
                 .map(|op| OptimizationItem {
-                    graph: op.graph.clone(),
+                    stream: op.stream.clone(),
                     end_conditions: op.end_conditions.clone(),
                     value: op.value.to_state(),
                 })
@@ -56,7 +57,7 @@ impl<O> OptimizationCache<O> {
                 .optimizations
                 .into_iter()
                 .map(|state| OptimizationItem {
-                    graph: state.graph,
+                    stream: state.stream,
                     end_conditions: state.end_conditions,
                     value: O::from_state(device, state.value),
                 })
