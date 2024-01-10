@@ -101,7 +101,9 @@ where
             self.scalars_u32,
             self.scalars_i32,
             self.device.clone(),
-            CompilationPhase::new(locals, self.operators.clone()),
+            locals,
+            self.operators.clone(),
+            CompilationPhase,
         );
 
         WgpuOptimization::ElementWise(op.compile())
@@ -125,7 +127,7 @@ where
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = self.operators.len() >= 1;
+        let ready = !self.operators.is_empty();
 
         OptimizationProperties {
             ready,

@@ -4,10 +4,7 @@ use crate::{
         Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
         ReadingStrategy, Vectorization, Visibility,
     },
-    fusion::{
-        kernel::{FusionKernelSet, FusionKernelSource},
-        source::DynKernelSource,
-    },
+    fusion::{kernel::FusionKernelSet, source::DynKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
@@ -29,18 +26,15 @@ where
     scalars_u32: usize,
     scalars_i32: usize,
     device: Device<Wgpu<G, F, I>>,
+    locals: Vec<u16>,
+    operators: Vec<Operator>,
     phase: Phase,
 }
 
-#[derive(new)]
-pub struct CompilationPhase {
-    locals: Vec<u16>,
-    operators: Vec<Operator>,
-}
+pub struct CompilationPhase;
 
 #[derive(new)]
 pub struct ExecutionPhase {
-    operation_len: usize,
     kernel_set: FusionKernelSet,
 }
 
@@ -48,11 +42,11 @@ pub struct ExecutionPhase {
 pub struct ElementWiseState {
     inputs: Vec<(TensorDescription, Elem)>,
     outputs: Vec<(TensorDescription, Elem)>,
-    operation_len: usize,
     scalars_f32: usize,
     scalars_u32: usize,
     scalars_i32: usize,
-    kernels: Vec<FusionKernelSource>,
+    operators: Vec<Operator>,
+    locals: Vec<u16>,
 }
 
 impl<G, F, I> ElementWise<G, F, I, CompilationPhase>
@@ -75,7 +69,7 @@ where
         let outputs = self
             .outputs
             .iter()
-            .zip(self.phase.locals.iter())
+            .zip(self.locals.iter())
             .map(|((_tensor, elem), local)| Output::Array {
                 item: Item::Scalar(*elem),
                 local: *local,
@@ -153,7 +147,7 @@ where
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -162,7 +156,7 @@ where
                 ElemWiseKernelCodegen::new()
                     .inplace(&mappings)
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -175,7 +169,7 @@ where
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec2)
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -185,7 +179,7 @@ where
                     .vectorize(Vectorization::Vec2)
                     .inplace(&mappings)
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -197,7 +191,7 @@ where
                 ElemWiseKernelCodegen::new()
                     .vectorize(Vectorization::Vec4)
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -207,7 +201,7 @@ where
                     .vectorize(Vectorization::Vec4)
                     .inplace(&mappings)
                     .inputs(&inputs)
-                    .body(&self.phase.operators)
+                    .body(&self.operators)
                     .outputs(&outputs)
                     .compile(),
             )),
@@ -224,7 +218,9 @@ where
             scalars_i32: self.scalars_i32,
             scalars_u32: self.scalars_u32,
             device: self.device,
-            phase: ExecutionPhase::new(self.phase.operators.len(), kernel_set),
+            operators: self.operators,
+            locals: self.locals,
+            phase: ExecutionPhase::new(kernel_set),
         }
     }
 }
@@ -247,34 +243,27 @@ where
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.phase.operation_len
+        self.operators.len()
     }
 
-    pub(crate) fn from_state(device: &WgpuDevice, mut state: ElementWiseState) -> Self {
-        // The order is hardcoded from the list, not clear how to properly invalidate the cache
-        // other than the burn version. TODO: Find a way to invalidate the cache.
-        let vec4 = state.kernels.pop().unwrap();
-        let vec2 = state.kernels.pop().unwrap();
-        let scalar = state.kernels.pop().unwrap();
-
-        todo!()
-        // let scalar =
-        //     ScalarElementWise::new(Arc::new(DynKernelSource::new(scalar.id, scalar.shader)));
-        // let vec2 = VecElementWise::<2>::new(Arc::new(DynKernelSource::new(vec2.id, vec2.shader)));
-        // let vec4 = VecElementWise::<4>::new(Arc::new(DynKernelSource::new(vec4.id, vec4.shader)));
-
-        // let kernel_set =
-        //     FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
-
-        // Self {
-        //     inputs: state.inputs,
-        //     outputs: state.outputs,
-        //     scalars_f32: state.scalars_f32,
-        //     scalars_u32: state.scalars_u32,
-        //     scalars_i32: state.scalars_i32,
-        //     device: device.clone(),
-        //     phase: ExecutionPhase::new(state.operation_len, kernel_set),
-        // }
+    pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
+        // We don't save the compiled kernel structs since it's quick to compile and the output is
+        // very large.
+        //
+        // It is still unclear if the deserialization would be that much faster than
+        // simply recompiling it.
+        ElementWise {
+            inputs: state.inputs,
+            outputs: state.outputs,
+            scalars_f32: state.scalars_f32,
+            scalars_u32: state.scalars_u32,
+            scalars_i32: state.scalars_i32,
+            device: device.clone(),
+            locals: state.locals,
+            operators: state.operators,
+            phase: CompilationPhase,
+        }
+        .compile()
     }
 
     pub(crate) fn to_state(&self) -> ElementWiseState {
@@ -282,10 +271,10 @@ where
             inputs: self.inputs.clone(),
             outputs: self.outputs.clone(),
             scalars_f32: self.scalars_f32,
-            operation_len: self.phase.operation_len,
             scalars_u32: self.scalars_u32,
             scalars_i32: self.scalars_i32,
-            kernels: self.phase.kernel_set.state(),
+            operators: self.operators.clone(),
+            locals: self.locals.clone(),
         }
     }
 }

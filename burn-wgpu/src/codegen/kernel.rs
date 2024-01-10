@@ -25,6 +25,7 @@ pub struct InplaceMapping {
 }
 
 /// Define a vectorization scheme.
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
@@ -108,11 +109,13 @@ impl ElemWiseKernelCodegen<InputPhase> {
         Self::default()
     }
 
+    #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
         self.vectorization = vectorization;
         self
     }
 
+    #[allow(dead_code)]
     pub fn inplace(mut self, mappings: &[InplaceMapping]) -> Self {
         self.mappings_inplace = mappings.to_vec();
         self

@@ -1,4 +1,3 @@
-use super::source::DynKernelSource;
 use crate::codegen::{calculate_num_elems_dyn_rank, InplaceMapping};
 use crate::compute::{compute_client, Kernel};
 use crate::fusion::strides_dyn_rank;
@@ -7,7 +6,6 @@ use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_fusion::graph::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
@@ -25,12 +23,6 @@ pub enum Priority {
     Available(u8),
     /// When a kernel can't be executed in the specified context.
     Unavailable,
-}
-
-#[derive(new, Serialize, Deserialize)]
-pub struct FusionKernelSource {
-    pub normal: DynKernelSource,
-    pub inplace: Option<DynKernelSource>,
 }
 
 #[derive(new)]
@@ -64,15 +56,9 @@ pub trait FusionKernel: Send + Sync {
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> KernelVariant;
-    /// Returns the source for this kernel, to be used for serialization.
-    fn source(&self) -> FusionKernelSource;
 }
 
 impl FusionKernelSet {
-    pub fn state(&self) -> Vec<FusionKernelSource> {
-        self.kernels.iter().map(|kernel| kernel.source()).collect()
-    }
-
     /// Execute the best kernel based on the given information.
     pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
@@ -170,7 +156,7 @@ impl FusionKernelSet {
             .kernels
             .iter()
             .filter_map(
-                |source| match source.priority(&handles_input, &inputs, &outputs) {
+                |source| match source.priority(handles_input, inputs, outputs) {
                     Priority::Available(priority) => Some((source, priority)),
                     Priority::Unavailable => None,
                 },
@@ -180,7 +166,7 @@ impl FusionKernelSet {
         selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
 
         let selected = selected.pop().unwrap().0;
-        let kernel = selected.kernel(&handles_input, &inputs, &outputs);
+        let kernel = selected.kernel(handles_input, inputs, outputs);
 
         match kernel {
             KernelVariant::Normal(kernel) => (kernel, HashMap::default()),

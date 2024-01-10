@@ -2,7 +2,7 @@ use crate::{
     codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
-        kernel::{FusionKernel, FusionKernelSource, KernelVariant, Priority},
+        kernel::{FusionKernel, KernelVariant, Priority},
         source::DynKernelSource,
         WgpuFusionHandle,
     },
@@ -59,13 +59,6 @@ impl FusionKernel for ScalarElementWise {
         _outputs: &[&TensorDescription],
     ) -> Priority {
         Priority::Available(0)
-    }
-
-    fn source(&self) -> FusionKernelSource {
-        FusionKernelSource::new(
-            self.source_normal.as_ref().clone(),
-            Some(self.source_inplace.as_ref().clone()),
-        )
     }
 }
 
@@ -124,13 +117,6 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
         }
 
         Priority::Available(D)
-    }
-
-    fn source(&self) -> FusionKernelSource {
-        FusionKernelSource::new(
-            self.source_normal.as_ref().clone(),
-            Some(self.source_inplace.as_ref().clone()),
-        )
     }
 }
 
