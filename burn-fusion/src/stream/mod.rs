@@ -3,10 +3,10 @@ pub(crate) mod optim;
 
 mod base;
 mod context;
-mod description;
+mod multi;
 mod ops;
 
 pub use base::*;
 pub use context::*;
-pub use description::*;
+pub use multi::*;
 pub use ops::*;

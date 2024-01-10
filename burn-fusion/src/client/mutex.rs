@@ -47,7 +47,7 @@ where
     }
 
     fn drain_graph(&self) {
-        self.server.lock().drain_graph();
+        self.server.lock().drain_streams();
     }
 
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
@@ -103,7 +103,7 @@ where
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_graph();
+        server_current.drain_streams();
 
         let id = server_current.change_server_float::<D>(&tensor, &device, &mut server_other);
 
@@ -121,7 +121,7 @@ where
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_graph();
+        server_current.drain_streams();
 
         let id = server_current.change_server_int::<D>(&tensor, &device, &mut server_other);
 
@@ -140,7 +140,7 @@ where
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_graph();
+        server_current.drain_streams();
 
         let id = server_current.change_server_bool::<D>(&tensor, &device, &mut server_other);
 

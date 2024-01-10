@@ -1,5 +1,5 @@
 use crate::{
-    stream::{MultiStreams, Ops, TensorOpsDescription},
+    stream::{MultiStream, Ops, TensorOpsDescription},
     FusionBackend, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
@@ -9,10 +9,9 @@ pub struct FusionServer<B>
 where
     B: FusionBackend,
 {
-    multi_streams: MultiStreams<B>,
+    streams: MultiStream<B>,
     pub(crate) handles: HandleContainer<B>,
     pub device: B::FusionDevice,
-    pub num_skipped: usize,
 }
 
 impl<B> FusionServer<B>
@@ -21,20 +20,18 @@ where
 {
     pub fn new(device: B::FusionDevice) -> Self {
         Self {
-            multi_streams: MultiStreams::new(device.clone()),
+            streams: MultiStream::new(device.clone()),
             handles: HandleContainer::new(device.clone()),
-            num_skipped: 0,
             device,
         }
     }
 
     pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        self.multi_streams
-            .register(ops_desc, ops, &mut self.handles)
+        self.streams.register(ops_desc, ops, &mut self.handles)
     }
 
-    pub fn drain_graph(&mut self) {
-        self.multi_streams.drain_graph(&mut self.handles)
+    pub fn drain_streams(&mut self) {
+        self.streams.drain(&mut self.handles)
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
@@ -47,7 +44,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_graph();
+        self.drain_streams();
 
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
@@ -59,7 +56,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_graph();
+        self.drain_streams();
 
         let tensor = self.handles.get_int_tensor(&tensor);
         B::int_into_data(tensor)
@@ -71,7 +68,7 @@ where
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_graph();
+        self.drain_streams();
 
         let tensor = self.handles.get_bool_tensor(&tensor);
         B::bool_into_data(tensor)

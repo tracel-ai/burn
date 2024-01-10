@@ -107,10 +107,6 @@ where
         WgpuOptimization::ElementWise(op.compile())
     }
 
-    fn new_empty(&self) -> Box<dyn OptimizationBuilder<Wgpu<G, F, I>>> {
-        Box::new(Self::new(self.device.clone()))
-    }
-
     fn reset(&mut self) {
         self.inputs.clear();
         self.locals.drain();

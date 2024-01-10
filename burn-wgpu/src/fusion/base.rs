@@ -82,8 +82,8 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;
 
-    fn optimizations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
-        vec![Box::new(ElementWiseBuilder::new(device.clone()))]
+    fn optimizations(device: WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
+        vec![Box::new(ElementWiseBuilder::new(device))]
     }
 
     fn float_tensor<const D: usize>(

@@ -1,4 +1,4 @@
-use super::starter::Starters;
+use super::{starter::Starters, StreamAnalysis};
 use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 
@@ -29,22 +29,15 @@ impl<O> StreamOptimizations<O> {
         self.starters.get(ops)
     }
 
-    pub fn get_optimization_mut_unckecked<'a>(&'a mut self, id: OptimizationId) -> &'a mut O {
-        &mut self.optimizations[id].value
-    }
-
-    pub fn get_item_mut_unckecked<'a>(
-        &'a mut self,
-        id: OptimizationId,
-    ) -> &'a mut OptimizationItem<O> {
+    pub fn get_mut_unchecked<'a>(&'a mut self, id: OptimizationId) -> &'a mut OptimizationItem<O> {
         &mut self.optimizations[id]
     }
 
-    pub fn get_item_unckecked<'a>(&'a self, id: OptimizationId) -> &'a OptimizationItem<O> {
+    pub fn get_unchecked<'a>(&'a self, id: OptimizationId) -> &'a OptimizationItem<O> {
         &self.optimizations[id]
     }
 
-    pub fn add_new_optimization(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
+    pub fn add(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
         let new_id = self.optimizations.len();
 
         self.starters
@@ -52,6 +45,11 @@ impl<O> StreamOptimizations<O> {
         self.optimizations.push(optimization);
 
         new_id
+    }
+
+    /// Add a new end condition for an optimization.
+    pub fn add_end_condition(&mut self, id: OptimizationId, end_condition: TensorOpsDescription) {
+        self.optimizations[id].end_conditions.push(end_condition)
     }
 }
 /// Create an optimization.
