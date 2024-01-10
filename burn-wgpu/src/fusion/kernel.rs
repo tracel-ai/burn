@@ -37,23 +37,13 @@ pub enum OutputInfo {
 
 pub trait FusionKernel: Send + Sync {
     /// Returns the priority of this kernel based on the input and output information.
-    ///
-    /// # Notes
-    ///
-    /// The indices indicate the start of each entry in the info buffer.
-    /// Each entry starts with the strides then the shape.
     fn priority(
         &self,
         handles_inputs: &[WgpuFusionHandle],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> Priority;
-    /// Returns a [kernel](Kernel) that can be executed by the compute server.
-    ///
-    /// # Notes
-    ///
-    /// The indices indicate the start of each entry in the info buffer.
-    /// Each entry starts with the strides then the shape.
+    /// Returns a [seleted kernel](SelectedKernel) that can be executed by the compute server.
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],

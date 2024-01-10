@@ -104,7 +104,7 @@ impl ElementWiseSource {
                             },
                             None => {
                                 // Always use the source normal, since the inplace will not have
-                                // binding alignement.
+                                // binding alignment.
                                 let elem =
                                     self.source_normal.shader.outputs[output_pos].item.elem();
                                 let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
