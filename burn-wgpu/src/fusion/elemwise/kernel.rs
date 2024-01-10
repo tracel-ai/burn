@@ -15,7 +15,7 @@ pub struct ScalarElementWise {
     source: ElementWiseSource,
 }
 
-pub struct VecElementWise<const D: u8> {
+pub struct VecElementWise {
     source: ElementWiseSource,
 }
 
@@ -39,7 +39,7 @@ impl FusionKernel for ScalarElementWise {
     }
 }
 
-impl<const D: u8> FusionKernel for VecElementWise<D> {
+impl FusionKernel for VecElementWise {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -64,7 +64,7 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
             }
 
             // The last dimension should be a multiple of the vector size.
-            if desc.shape[rank - 1] % D as usize != 0 {
+            if desc.shape[rank - 1] % self.source.factor != 0 {
                 return true;
             }
 
@@ -77,7 +77,7 @@ impl<const D: u8> FusionKernel for VecElementWise<D> {
             }
         }
 
-        Priority::Available(D)
+        Priority::Available(self.source.factor as u8)
     }
 }
 
@@ -92,7 +92,7 @@ impl ElementWiseSource {
             true => {
                 let reference_tensor = inputs[self.mappings[0].position_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
                 let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
                 let output_infos =
                     self.inplace_output2input
@@ -118,7 +118,7 @@ impl ElementWiseSource {
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
                 let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let elem = self.source_normal.shader.outputs[pos].item.elem();
@@ -137,6 +137,7 @@ struct ElementWiseSource {
     source_inplace: Arc<DynKernelSource>,
     mappings: Vec<InplaceMapping>,
     inplace_output2input: Vec<Option<usize>>,
+    factor: usize,
 }
 
 impl ElementWiseSource {
@@ -145,6 +146,7 @@ impl ElementWiseSource {
         inplace: DynKernelSource,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
+        factor: usize,
     ) -> Self {
         let mut inplace_output2input = vec![None; num_output];
 
@@ -157,6 +159,7 @@ impl ElementWiseSource {
             source_inplace: Arc::new(inplace),
             mappings,
             inplace_output2input,
+            factor,
         }
     }
 }
@@ -169,20 +172,21 @@ impl ScalarElementWise {
         num_output: usize,
     ) -> Self {
         Self {
-            source: ElementWiseSource::new(normal, inplace, mappings, num_output),
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output, 1),
         }
     }
 }
 
-impl<const D: u8> VecElementWise<D> {
+impl VecElementWise {
     pub fn new(
         normal: DynKernelSource,
         inplace: DynKernelSource,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
+        factor: usize,
     ) -> Self {
         Self {
-            source: ElementWiseSource::new(normal, inplace, mappings, num_output),
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output, factor),
         }
     }
 }

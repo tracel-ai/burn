@@ -166,7 +166,7 @@ where
             outputs.len(),
         );
 
-        let vec2 = VecElementWise::<2>::new(
+        let vec2 = VecElementWise::new(
             DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
@@ -188,8 +188,9 @@ where
             ),
             mappings.clone(),
             outputs.len(),
+            2,
         );
-        let vec4 = VecElementWise::<4>::new(
+        let vec4 = VecElementWise::new(
             DynKernelSource::new(
                 IdGenerator::generate(),
                 ElemWiseKernelCodegen::new()
@@ -211,6 +212,7 @@ where
             ),
             mappings,
             outputs.len(),
+            4,
         );
 
         let kernel_set =
