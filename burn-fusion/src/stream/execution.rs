@@ -1,13 +1,13 @@
-use super::{
-    Condition, ExistingOptimizations, OptimizationAnalysis, OptimizationAnalyzer, Stream,
-    TensorOpsDescription,
+use super::{StreamDescription, TensorOpsDescription};
+use crate::stream::optim::{
+    Condition, OptimizationAnalysis, OptimizationAnalyzer, StreamOptimizations,
 };
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
 pub(crate) struct StreamExecutor<B: FusionBackend> {
-    optimizer: OptimizationAnalyzer<B::Optimization>,
-    optimizations: Vec<Box<dyn OptimizationBuilder<B>>>,
+    analyzer: OptimizationAnalyzer<B::Optimization>,
+    builders: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
 
@@ -23,8 +23,8 @@ impl<B: FusionBackend> StreamExecutor<B> {
     /// Create a new graph execution with the given optimization builders.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
-            optimizer: OptimizationAnalyzer::new(),
-            optimizations,
+            analyzer: OptimizationAnalyzer::new(),
+            builders: optimizations,
             num_skipped: 0,
         }
     }
@@ -32,8 +32,8 @@ impl<B: FusionBackend> StreamExecutor<B> {
     /// Execute the graph with the provided mode.
     pub fn execute(
         &mut self,
-        stream: &mut Stream<B>,
-        cache: &mut ExistingOptimizations<B::Optimization>,
+        stream: &mut StreamDescription<B>,
+        cache: &mut StreamOptimizations<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
@@ -73,6 +73,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                     };
                 }
                 OptimizationAnalysis::Found(ops) => {
+                    let ops = cache.get_optimization_mut_unckecked(ops);
                     stream.execute_optimization(handles, ops);
                     self.reset(cache, stream);
                 }
@@ -86,8 +87,8 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
     fn build<'a>(
         &'a mut self,
-        cache: &'a mut ExistingOptimizations<B::Optimization>,
-        graph: &Stream<B>,
+        cache: &'a mut StreamOptimizations<B::Optimization>,
+        graph: &StreamDescription<B>,
         mode: ExecutionMode,
     ) -> BuildAction<'_, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
@@ -101,7 +102,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
             let index = graph.relative.len() - 1 - i;
             let relative = &graph.relative[index];
 
-            for ops in self.optimizations.iter_mut() {
+            for ops in self.builders.iter_mut() {
                 ops.register(relative);
             }
         }
@@ -109,19 +110,20 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
         // Can only be lazy when not sync.
         if let ExecutionMode::NewOps = mode {
-            if still_optimizing(&self.optimizations) {
+            if still_optimizing(&self.builders) {
                 return BuildAction::ContinueBuilding;
             }
         }
 
-        match find_best_optimization_index(&mut self.optimizations) {
+        match find_best_optimization_index(&mut self.builders) {
             Some(index) => {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
-                let optimization = &self.optimizations[index];
-                let ops =
-                    self.optimizer
-                        .new_optimization_found(cache, optimization, relative, next_ops);
-                BuildAction::ExecuteOptimization(ops)
+                let optimization = &self.builders[index];
+                let id =
+                    self.analyzer
+                        .new_optimization_built(cache, optimization, relative, next_ops);
+                let op = cache.get_optimization_mut_unckecked(id);
+                BuildAction::ExecuteOptimization(op)
             }
             None => {
                 // TODO: Cache this result too.
@@ -130,17 +132,21 @@ impl<B: FusionBackend> StreamExecutor<B> {
         }
     }
 
-    fn reset(&mut self, cache: &mut ExistingOptimizations<B::Optimization>, graph: &Stream<B>) {
-        for ops in self.optimizations.iter_mut() {
+    fn reset(
+        &mut self,
+        cache: &mut StreamOptimizations<B::Optimization>,
+        graph: &StreamDescription<B>,
+    ) {
+        for ops in self.builders.iter_mut() {
             ops.reset();
         }
         self.num_skipped = graph.relative.len();
 
-        self.optimizer.reset();
+        self.analyzer.reset();
 
         // Reset the policy state.
         for i in 0..self.num_skipped {
-            let _ = self.optimizer.new_operation_added(
+            let _ = self.analyzer.new_operation_added(
                 cache,
                 &graph.relative[0..i],
                 Condition::NextOps(&graph.relative[i]),
@@ -150,14 +156,14 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
     fn cache<'a>(
         &'a mut self,
-        cache: &'a mut ExistingOptimizations<B::Optimization>,
-        graph: &Stream<B>,
+        cache: &'a mut StreamOptimizations<B::Optimization>,
+        graph: &StreamDescription<B>,
         mode: ExecutionMode,
-    ) -> OptimizationAnalysis<'a, B::Optimization> {
+    ) -> OptimizationAnalysis {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops.map(Condition::NextOps).unwrap_or(Condition::Sync);
         let action = self
-            .optimizer
+            .analyzer
             .new_operation_added(cache, graph, end_condition);
 
         match mode {
@@ -171,7 +177,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
     }
 
     fn split_relative_graph_owned(
-        graph: &Stream<B>,
+        graph: &StreamDescription<B>,
         mode: ExecutionMode,
     ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
         match mode {
@@ -184,7 +190,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
     }
 
     fn split_relative_graph_ref(
-        graph: &Stream<B>,
+        graph: &StreamDescription<B>,
         mode: ExecutionMode,
     ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         match mode {

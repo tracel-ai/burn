@@ -1,117 +1,82 @@
-use super::Ops;
-use super::RelativeGraphConverter;
-use super::TensorOpsDescription;
-use crate::Optimization;
+use super::{
+    execution::{ExecutionMode, StreamExecutor},
+    optim::StreamOptimizations,
+    Ops, StreamDescription, TensorOpsDescription,
+};
 use crate::{FusionBackend, HandleContainer};
 
-/// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
-pub struct Stream<B: FusionBackend> {
-    pub(crate) global: Vec<TensorOpsDescription>,
-    pub(crate) relative: Vec<TensorOpsDescription>,
-    converter: RelativeGraphConverter,
-    ops: Vec<Box<dyn Ops<B>>>,
+pub struct MultiStreams<B: FusionBackend> {
+    streams: Vec<Stream<B>>,
+    optimizations: StreamOptimizations<B::Optimization>,
+}
+
+struct Stream<B: FusionBackend> {
+    executor: StreamExecutor<B>,
+    description: StreamDescription<B>,
+}
+
+impl<B: FusionBackend> MultiStreams<B> {
+    pub fn new(device: B::FusionDevice) -> Self {
+        Self {
+            streams: vec![Stream::new(device)],
+            optimizations: StreamOptimizations::new(),
+        }
+    }
+
+    pub fn register(
+        &mut self,
+        ops_desc: TensorOpsDescription,
+        ops: Box<dyn Ops<B>>,
+        handles: &mut HandleContainer<B>,
+    ) {
+        // TODO: Support more than only one stream.
+        self.streams
+            .first_mut()
+            .map(|stream| stream.register(ops_desc, ops, &mut self.optimizations, handles));
+    }
+
+    pub fn drain_graph(&mut self, handles: &mut HandleContainer<B>) {
+        self.streams
+            .iter_mut()
+            .for_each(|stream| stream.drain_graph(&mut self.optimizations, handles));
+    }
 }
 
 impl<B: FusionBackend> Stream<B> {
-    pub(crate) fn new() -> Self {
+    fn new(device: B::FusionDevice) -> Self {
         Self {
-            global: Vec::new(),
-            relative: Vec::new(),
-            converter: RelativeGraphConverter::default(),
-            ops: Vec::new(),
+            executor: StreamExecutor::new(B::optimizations(&device.into())),
+            description: StreamDescription::new(),
         }
     }
 
-    pub(crate) fn split_relative_graph(
-        &self,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
-        let len = self.relative.len();
-        if len < 1 {
-            return (&self.relative, None);
-        }
-
-        (&self.relative[0..len - 1], self.relative.last())
-    }
-
-    pub(crate) fn add(&mut self, global: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
-        let relative = global.to_relative(&mut self.converter);
-        self.relative.push(relative);
-        self.global.push(global);
-        self.ops.push(ops);
-    }
-
-    /// The size of the graph.
-    pub(crate) fn len(&self) -> usize {
-        self.global.len()
-    }
-
-    /// If the graph is empty.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub(crate) fn execute_optimization(
+    fn register(
         &mut self,
+        ops_desc: TensorOpsDescription,
+        ops: Box<dyn Ops<B>>,
+        optimizations: &mut StreamOptimizations<B::Optimization>,
         handles: &mut HandleContainer<B>,
-        optimization: &mut B::Optimization,
     ) {
-        let num_fused = optimization.len();
-        let mut context = self.converter.context(handles);
-        optimization.execute(&mut context);
-
-        self.cleanup_partial(num_fused, handles);
-    }
-
-    pub(crate) fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
-        for ops in self.ops.drain(..) {
-            ops.execute(handles);
-        }
-
-        self.cleanup_total(handles);
-    }
-
-    fn cleanup_total(&mut self, handles: &mut HandleContainer<B>) {
-        self.global
-            .iter()
-            .flat_map(|desc| desc.nodes())
-            .for_each(|tensor| handles.free(tensor));
-        handles.free_orphans(&[]);
-
-        self.global.clear();
-        self.ops.clear();
-        self.cleanup_relative_graph();
-    }
-
-    fn cleanup_partial(&mut self, num_fused: usize, handles: &mut HandleContainer<B>) {
-        self.global[0..num_fused]
-            .iter()
-            .flat_map(|desc| desc.nodes())
-            .for_each(|tensor| handles.free(tensor));
-
-        self.global.drain(0..num_fused);
-
-        handles.free_orphans(
-            &self
-                .global
-                .iter()
-                .flat_map(|desc| desc.nodes())
-                .map(|tensor| &tensor.id)
-                .collect::<Vec<_>>(),
+        self.description.add(ops_desc, ops);
+        self.executor.execute(
+            &mut self.description,
+            optimizations,
+            handles,
+            ExecutionMode::NewOps,
         );
-
-        self.ops.drain(0..num_fused);
-
-        // Rebuild the relative graph when partially removing the global graph.
-        self.cleanup_relative_graph();
-
-        for node in self.global.iter() {
-            let relative = node.to_relative(&mut self.converter);
-            self.relative.push(relative);
-        }
     }
 
-    fn cleanup_relative_graph(&mut self) {
-        self.relative.clear();
-        self.converter.clear();
+    fn drain_graph(
+        &mut self,
+        optimizations: &mut StreamOptimizations<B::Optimization>,
+        handles: &mut HandleContainer<B>,
+    ) {
+        // Check if we can execute.
+        self.executor.execute(
+            &mut self.description,
+            optimizations,
+            handles,
+            ExecutionMode::Sync,
+        );
     }
 }

@@ -1,13 +1,23 @@
 use super::starter::Starters;
-use crate::stream::{OptimizationId, OptimizationItem, TensorOpsDescription};
+use crate::stream::TensorOpsDescription;
+use serde::{Deserialize, Serialize};
 
 #[derive(Default)]
-pub(crate) struct ExistingOptimizations<O> {
+pub(crate) struct StreamOptimizations<O> {
     pub(super) optimizations: Vec<OptimizationItem<O>>,
     pub(super) starters: Starters,
 }
 
-impl<O> ExistingOptimizations<O> {
+pub(crate) type OptimizationId = usize;
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct OptimizationItem<O> {
+    pub(crate) stream: Vec<TensorOpsDescription>,
+    pub(crate) end_conditions: Vec<TensorOpsDescription>,
+    pub(crate) value: O,
+}
+
+impl<O> StreamOptimizations<O> {
     pub fn new() -> Self {
         Self {
             optimizations: Vec::new(),
@@ -43,4 +53,9 @@ impl<O> ExistingOptimizations<O> {
 
         new_id
     }
+}
+/// Create an optimization.
+pub(crate) trait OptimizationFactory<T> {
+    /// Call only when a new optimization is found.
+    fn create(&self) -> T;
 }

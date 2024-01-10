@@ -1,5 +1,5 @@
-use crate::stream::{ExistingOptimizations, TensorOpsDescription};
-use serde::{Deserialize, Serialize};
+use super::{OptimizationFactory, OptimizationId, OptimizationItem};
+use crate::stream::{optim::StreamOptimizations, TensorOpsDescription};
 use std::marker::PhantomData;
 
 /// The stream optimizer works by keeping track of all possible optimizations for the current graph path.
@@ -35,12 +35,12 @@ impl<O> OptimizationAnalyzer<O> {
     ///
     /// It is assumed that this function will be called for each new edge added to the graph (for
     /// each new operation). Only one graph can be cached at a time.
-    pub(crate) fn new_operation_added<'a>(
+    pub fn new_operation_added(
         &mut self,
-        cache: &'a mut ExistingOptimizations<O>,
+        cache: &mut StreamOptimizations<O>,
         stream: &[TensorOpsDescription],
         condition: Condition,
-    ) -> OptimizationAnalysis<'a, O> {
+    ) -> OptimizationAnalysis {
         if stream.is_empty() {
             // When the graph is empty, we use the condition as the first operation to determine
             // the new possible opitmizations.
@@ -58,7 +58,7 @@ impl<O> OptimizationAnalyzer<O> {
         }
 
         if let Some(candidate) = self.found {
-            return OptimizationAnalysis::Found(cache.get_optimization_mut_unckecked(candidate));
+            return OptimizationAnalysis::Found(candidate);
         }
 
         // Invalidate candidates.
@@ -103,7 +103,7 @@ impl<O> OptimizationAnalyzer<O> {
         }
 
         if let Some(id) = self.found {
-            return OptimizationAnalysis::Found(cache.get_optimization_mut_unckecked(id));
+            return OptimizationAnalysis::Found(id);
         }
 
         let mut updated_candidates = Vec::new();
@@ -130,13 +130,13 @@ impl<O> OptimizationAnalyzer<O> {
     /// condition will be registered, but the old optimization will be used in following call. This
     /// is intended since we want to factory to be called only once per graph, but reused as much as
     /// possible.
-    pub fn new_optimization_found<'a, Factory: OptimizationFactory<O>>(
+    pub fn new_optimization_built<Factory: OptimizationFactory<O>>(
         &mut self,
-        cache: &'a mut ExistingOptimizations<O>,
+        cache: &mut StreamOptimizations<O>,
         factory: &Factory,
         graph: Vec<TensorOpsDescription>,
         next_ops: Option<TensorOpsDescription>,
-    ) -> &'a mut O {
+    ) -> OptimizationId {
         let existing_optim = self
             .availables
             .iter()
@@ -149,7 +149,7 @@ impl<O> OptimizationAnalyzer<O> {
                 optimization.end_conditions.push(ops)
             };
 
-            return &mut optimization.value;
+            return *id;
         };
 
         let optimization = OptimizationItem {
@@ -161,8 +161,7 @@ impl<O> OptimizationAnalyzer<O> {
             value: factory.create(),
         };
 
-        let new_id = cache.add_new_optimization(optimization);
-        cache.get_optimization_mut_unckecked(new_id)
+        cache.add_new_optimization(optimization)
     }
 
     // Signal that a new path will begin.
@@ -177,7 +176,7 @@ impl<O> OptimizationAnalyzer<O> {
 mod tests {
     use super::*;
     use crate::{
-        stream::{FloatOpsDescription, UnaryOpsDescription},
+        stream::{optim::OptimizationFactory, FloatOpsDescription, UnaryOpsDescription},
         TensorDescription, TensorId, TensorStatus,
     };
 
@@ -185,21 +184,21 @@ mod tests {
     fn should_cache_optimization_end_condition_forced() {
         // A graph with 3 ops.
         let stream = TestStream::new(2);
-        let mut cache = ExistingOptimizations::default();
+        let mut cache = StreamOptimizations::default();
         let mut path = OptimizationAnalyzer::new();
 
         // First following
         stream.follow_misses(&mut cache, &mut path);
 
         // Register the action.
-        let optimization = path.new_optimization_found(
+        let optimization = path.new_optimization_built(
             &mut cache,
             &Optimization1,
             stream.edges[0..2].to_vec(),
             None,
         );
 
-        assert_eq!(optimization, &Optimization1.create());
+        assert_eq!(optimization, 1);
 
         // Second following on the same ops.
         path.reset();
@@ -216,7 +215,7 @@ mod tests {
 
         let result3 = path.new_operation_added(&mut cache, &stream.edges[0..2], Condition::Sync);
         match result3 {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 1),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -224,12 +223,12 @@ mod tests {
     #[test]
     fn once_found_perfect_should_always_return_found() {
         let mut stream = TestStream::new(2);
-        let mut cache = ExistingOptimizations::default();
+        let mut cache = StreamOptimizations::default();
         let mut path = OptimizationAnalyzer::new();
         stream.follow_misses(&mut cache, &mut path);
 
         // Register the action.
-        let _optimization = path.new_optimization_found(
+        let _optimization = path.new_optimization_built(
             &mut cache,
             &Optimization1,
             stream.edges[0..1].to_vec(),
@@ -250,7 +249,7 @@ mod tests {
             Condition::NextOps(&stream.edges[1]),
         );
         match result {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 1),
             _ => panic!("Should have found the cached operation"),
         }
 
@@ -260,7 +259,7 @@ mod tests {
             Condition::NextOps(&stream.edges[2]),
         );
         match result {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 1),
             _ => panic!("Should have found the cached operation"),
         }
     }
@@ -269,21 +268,21 @@ mod tests {
     fn should_cache_optimization_end_condition_next_ops() {
         // A graph with 4 ops.
         let stream = TestStream::new(3);
-        let mut cache = ExistingOptimizations::default();
+        let mut cache = StreamOptimizations::default();
         let mut path = OptimizationAnalyzer::new();
 
         // First following
         stream.follow_misses(&mut cache, &mut path);
 
         // Register the action.
-        let optimization = path.new_optimization_found(
+        let optimization = path.new_optimization_built(
             &mut cache,
             &Optimization1,
             stream.edges[0..2].to_vec(),
             Some(stream.edges[2].clone()),
         );
 
-        assert_eq!(optimization, &Optimization1.create());
+        assert_eq!(optimization, 1);
 
         // Second following on the same ops.
         path.reset();
@@ -304,14 +303,14 @@ mod tests {
             Condition::NextOps(&stream.edges[2]),
         );
         match result3 {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 1),
             _ => panic!("Should have found the cached operation"),
         };
     }
 
     #[test]
     fn should_support_many_different_end_conditions() {
-        let mut cache = ExistingOptimizations::default();
+        let mut cache = StreamOptimizations::default();
         let mut graph1 = TestStream::new(2);
         graph1.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc)));
 
@@ -323,7 +322,7 @@ mod tests {
 
         // Follow graph 1 with only misses.
         graph1.follow_misses(&mut cache, &mut path);
-        let _ = path.new_optimization_found(
+        let _ = path.new_optimization_built(
             &mut cache,
             &Optimization1,
             graph1.edges[0..last_edge_index].to_vec(),
@@ -349,15 +348,14 @@ mod tests {
         );
         assert_eq!(result, OptimizationAnalysis::NoneAvailable);
 
-        let optimization = path.new_optimization_found(
+        let optimization = path.new_optimization_built(
             &mut cache,
             &Optimization2,
             graph2.edges[0..last_edge_index].to_vec(),
             Some(graph2.edges[last_edge_index].clone()),
         );
         assert_eq!(
-            optimization,
-            &Optimization1.create(),
+            optimization, 1,
             "Optimization 1 should still be returned, since same graph but not same end condition."
         );
     }
@@ -365,7 +363,7 @@ mod tests {
     #[test]
     fn should_support_multiple_concurrent_paths() {
         // Two different graphs with a different second ops, but the same last ops.
-        let mut cache = ExistingOptimizations::default();
+        let mut cache = StreamOptimizations::default();
         let mut graph1 = TestStream::new(1);
         graph1.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc)));
         graph1.new_ops();
@@ -381,7 +379,7 @@ mod tests {
 
         // Register the opitmization 1 for graph 1.
         let last_edge_index = graph1.edges.len() - 1;
-        let _ = path.new_optimization_found(
+        let _ = path.new_optimization_built(
             &mut cache,
             &Optimization1,
             graph1.edges[0..last_edge_index].to_vec(),
@@ -414,7 +412,7 @@ mod tests {
         );
 
         // Register new optimization for path 2.
-        let _ = path.new_optimization_found(
+        let _ = path.new_optimization_built(
             &mut cache,
             &Optimization2,
             graph2.edges[0..last_edge_index].to_vec(),
@@ -443,7 +441,7 @@ mod tests {
             Condition::NextOps(&graph1.edges[2]),
         );
         match result {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization1.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 1),
             _ => panic!("Should have found the cached operation"),
         };
 
@@ -467,7 +465,7 @@ mod tests {
             Condition::NextOps(&graph2.edges[2]),
         );
         match result {
-            OptimizationAnalysis::Found(ops) => assert_eq!(ops, &Optimization2.create()),
+            OptimizationAnalysis::Found(ops) => assert_eq!(ops, 2),
             _ => panic!("Should have found the cached operation"),
         };
     }
@@ -492,7 +490,7 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn follow_misses(
             &self,
-            cache: &mut ExistingOptimizations<String>,
+            cache: &mut StreamOptimizations<String>,
             path: &mut OptimizationAnalyzer<String>,
         ) {
             for i in 0..self.edges.len() {
@@ -566,8 +564,8 @@ mod tests {
 }
 
 /// Action to be made depending on the graph.
-#[derive(PartialEq, Eq)]
-pub enum OptimizationAnalysis<'a, T> {
+#[derive(PartialEq, Eq, Debug)]
+pub enum OptimizationAnalysis {
     /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
     NoneAvailable,
     /// The current graph indicates that an optimization may be possible in the future, so the
@@ -578,7 +576,7 @@ pub enum OptimizationAnalysis<'a, T> {
     /// happens.
     FutureAvailable,
     /// An optimization has been found, and the best action is to execute it!
-    Found(&'a mut T),
+    Found(OptimizationId),
 }
 
 /// When checking if an optimization is possible, a start or an end condition ensures that this optimization is
@@ -589,29 +587,4 @@ pub enum Condition<'a> {
     NextOps(&'a TensorOpsDescription),
     /// When sync, we should execute the optimization if found no matter what comes next.
     Sync,
-}
-
-impl<'a, T> core::fmt::Debug for OptimizationAnalysis<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OptimizationAnalysis::NoneAvailable => f.write_str("CacheResult::Miss"),
-            OptimizationAnalysis::FutureAvailable => f.write_str("CacheResult::OnPath"),
-            OptimizationAnalysis::Found(_) => f.write_str("CacheResult::Found"),
-        }
-    }
-}
-
-/// Create an optimization.
-pub(crate) trait OptimizationFactory<T> {
-    /// Call only when a new optimization is found.
-    fn create(&self) -> T;
-}
-
-pub(crate) type OptimizationId = usize;
-
-#[derive(Serialize, Deserialize)]
-pub(crate) struct OptimizationItem<O> {
-    pub(crate) stream: Vec<TensorOpsDescription>,
-    pub(crate) end_conditions: Vec<TensorOpsDescription>,
-    pub(crate) value: O,
 }
