@@ -1,122 +1,216 @@
 use crate::{
+    codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
-        kernel::{FusionKernel, Priority},
-        source::FusedKernelSource,
+        kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
+        source::DynKernelSource,
+        WgpuFusionHandle,
     },
     kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
 };
+use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-#[derive(new)]
 pub struct ScalarElementWise {
-    pub(crate) source: Arc<FusedKernelSource>,
+    source: ElementWiseSource,
 }
 
-#[derive(new)]
-pub struct VecElementWise<const D: u8> {
-    pub(crate) source: Arc<FusedKernelSource>,
+pub struct VecElementWise {
+    source: ElementWiseSource,
 }
 
 impl FusionKernel for ScalarElementWise {
     fn kernel(
         &self,
-        _input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
-    ) -> Box<dyn crate::compute::Kernel> {
-        let rank = info[0] as usize;
-        let mut num_elems: usize = 1;
-        let index = output_indices[0];
-        let start = index + rank; // shape after strides.
-        let end = start + rank;
-
-        for i in info[start..end].iter() {
-            num_elems *= *i as usize;
-        }
-
-        let workgroup = elemwise_workgroup(num_elems, WORKGROUP_DEFAULT);
-
-        Box::new(DynamicKernel::new(self.source.clone(), workgroup))
+        handles_inputs: &[WgpuFusionHandle],
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+    ) -> SelectedKernel {
+        self.source.kernel(handles_inputs, inputs, outputs)
     }
 
     fn priority(
         &self,
-        _input_indices: &[usize],
-        _output_indices: &[usize],
-        _info: &[u32],
+        _handles_inputs: &[WgpuFusionHandle],
+        _inputs: &[&TensorDescription],
+        _outputs: &[&TensorDescription],
     ) -> Priority {
         Priority::Available(0)
     }
-
-    fn source(&self) -> FusedKernelSource {
-        self.source.as_ref().clone()
-    }
 }
 
-impl<const D: u8> FusionKernel for VecElementWise<D> {
+impl FusionKernel for VecElementWise {
     fn kernel(
         &self,
-        _input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
-    ) -> Box<dyn crate::compute::Kernel> {
-        let rank = info[0] as usize;
-        let mut num_elems: usize = 1;
-        let index = output_indices[0];
-        let start = index + rank; // shape after strides.
-        let end = start + rank;
-
-        for i in info[start..end].iter() {
-            num_elems *= *i as usize;
-        }
-
-        let workgroup = elemwise_workgroup(num_elems / D as usize, WORKGROUP_DEFAULT);
-
-        Box::new(DynamicKernel::new(self.source.clone(), workgroup))
+        handles_inputs: &[WgpuFusionHandle],
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+    ) -> SelectedKernel {
+        self.source.kernel(handles_inputs, inputs, outputs)
     }
 
     fn priority(
         &self,
-        input_indices: &[usize],
-        output_indices: &[usize],
-        info: &[u32],
+        handles_inputs: &[WgpuFusionHandle],
+        inputs: &[&TensorDescription],
+        _outputs: &[&TensorDescription],
     ) -> Priority {
-        let rank = info[0] as usize;
-
-        let is_unavailable = |index: &usize| {
-            let last_stride_index = index + rank - 1;
-            let last_shape_index = index + (2 * rank) - 1;
+        let is_unavailable = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
+            let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-            if info[last_stride_index] != 1 {
+            if handle.strides[rank - 1] != 1 {
                 return true;
             }
 
             // The last dimension should be a multiple of the vector size.
-            if info[last_shape_index] % D as u32 != 0 {
+            if desc.shape[rank - 1] % self.source.factor != 0 {
                 return true;
             }
 
             false
         };
 
-        for index in input_indices {
-            if is_unavailable(index) {
+        for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
+            if is_unavailable(handle, tensor) {
                 return Priority::Unavailable;
             }
         }
 
-        for index in output_indices {
-            if is_unavailable(index) {
-                return Priority::Unavailable;
+        Priority::Available(self.source.factor as u8)
+    }
+}
+
+impl ElementWiseSource {
+    fn kernel(
+        &self,
+        handles_inputs: &[WgpuFusionHandle],
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+    ) -> SelectedKernel {
+        match inplace_available(&self.mappings, handles_inputs) {
+            true => {
+                let reference_tensor = inputs[self.mappings[0].position_input];
+                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
+                let output_infos =
+                    self.inplace_output2input
+                        .iter()
+                        .enumerate()
+                        .map(|(output_pos, input_pos)| match input_pos {
+                            Some(input_index) => OutputInfo::Inplace {
+                                input_index: *input_index,
+                            },
+                            None => {
+                                // Always use the source normal, since the inplace will not have
+                                // binding alignment.
+                                let elem =
+                                    self.source_normal.shader.outputs[output_pos].item.elem();
+                                let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
+                                    * elem.size();
+                                OutputInfo::Array { size }
+                            }
+                        });
+
+                SelectedKernel::new(kernel, output_infos.collect())
+            }
+            false => {
+                let reference_tensor = outputs[0];
+                let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
+                let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
+                    let elem = self.source_normal.shader.outputs[pos].item.elem();
+                    let size = calculate_num_elems_dyn_rank(&tensor.shape) * elem.size();
+                    OutputInfo::Array { size }
+                });
+
+                SelectedKernel::new(kernel, output_infos.collect())
             }
         }
+    }
+}
 
-        Priority::Available(D)
+struct ElementWiseSource {
+    source_normal: Arc<DynKernelSource>,
+    source_inplace: Arc<DynKernelSource>,
+    mappings: Vec<InplaceMapping>,
+    inplace_output2input: Vec<Option<usize>>,
+    factor: usize,
+}
+
+impl ElementWiseSource {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+        factor: usize,
+    ) -> Self {
+        let mut inplace_output2input = vec![None; num_output];
+
+        for mapping in mappings.iter() {
+            inplace_output2input[mapping.position_output] = Some(mapping.position_input);
+        }
+
+        Self {
+            source_normal: Arc::new(normal),
+            source_inplace: Arc::new(inplace),
+            mappings,
+            inplace_output2input,
+            factor,
+        }
+    }
+}
+
+impl ScalarElementWise {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+    ) -> Self {
+        Self {
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output, 1),
+        }
+    }
+}
+
+impl VecElementWise {
+    pub fn new(
+        normal: DynKernelSource,
+        inplace: DynKernelSource,
+        mappings: Vec<InplaceMapping>,
+        num_output: usize,
+        factor: usize,
+    ) -> Self {
+        Self {
+            source: ElementWiseSource::new(normal, inplace, mappings, num_output, factor),
+        }
+    }
+}
+
+fn inplace_available(mappings: &[InplaceMapping], handles_inputs: &[WgpuFusionHandle]) -> bool {
+    if mappings.is_empty() {
+        return false;
     }
 
-    fn source(&self) -> FusedKernelSource {
-        self.source.as_ref().clone()
+    for mapping in mappings.iter() {
+        let handle = &handles_inputs[mapping.position_input];
+
+        if !handle.handle.can_mut() {
+            return false;
+        }
+
+        let mut current = 0;
+        for stride in handle.strides.iter().rev() {
+            if current > *stride {
+                return false;
+            }
+            current = *stride;
+        }
     }
+
+    true
 }
