@@ -16,7 +16,6 @@ burn = {path = "../../burn"}
 # File download
 reqwest = {workspace = true, features = ["blocking"]}
 tempfile = {workspace = true}
-# indicatif = {workspace = true}
 
 # CSV parsing
 csv = {workspace = true}
