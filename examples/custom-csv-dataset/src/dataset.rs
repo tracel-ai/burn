@@ -2,7 +2,7 @@ use burn::data::dataset::{Dataset, InMemDataset};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
-    io::{copy, BufReader},
+    io::copy,
     path::{Path, PathBuf},
 };
 
@@ -73,23 +73,11 @@ impl DiabetesDataset {
         // Download dataset csv file
         let path = DiabetesDataset::download();
 
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
+        // Build dataset from csv with tab ('\t') delimiter
+        let mut rdr = csv::ReaderBuilder::new();
+        let rdr = rdr.delimiter(b'\t');
 
-        // Build csv::Reader instance with tab ('\t') delimiter
-        let mut rdr = csv::ReaderBuilder::new()
-            .delimiter(b'\t')
-            .from_reader(reader);
-
-        let mut patients = Vec::new();
-
-        // Read each row into a `DiabetesPatient` instance
-        for result in rdr.deserialize() {
-            let patient: DiabetesPatient = result?;
-            patients.push(patient);
-        }
-
-        let dataset = InMemDataset::new(patients);
+        let dataset = InMemDataset::from_csv(path, rdr).unwrap();
 
         let dataset = Self { dataset };
 
