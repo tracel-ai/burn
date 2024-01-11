@@ -91,7 +91,6 @@ impl<O> StreamAnalysis<O> {
                         break;
                     }
                 };
-                println!("AA");
 
                 if item.end_conditions.contains(ops) {
                     self.found = Some(*id);
@@ -175,16 +174,12 @@ pub enum AnalysisMode<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
-
     use super::*;
     use crate::{
-        stream::{
-            optim::{OptimizationFactory, OptimizationItem},
-            FloatOpsDescription, UnaryOpsDescription,
-        },
+        stream::{optim::OptimizationItem, FloatOpsDescription, UnaryOpsDescription},
         TensorDescription, TensorId, TensorStatus,
     };
+    use std::ops::Range;
 
     #[test]
     fn given_no_optimization_should_explore() {
@@ -210,7 +205,7 @@ mod tests {
         let id = optimizations.add(OptimizationItem {
             stream: stream.operations.clone(),
             end_conditions: Vec::new(),
-            value: Optimization1.create(),
+            value: (),
         });
 
         stream.assert_updates(
@@ -239,7 +234,7 @@ mod tests {
         let id = optimizations.add(OptimizationItem {
             stream: stream.operations[0..2].to_vec(),
             end_conditions: stream.operations[2..3].to_vec(),
-            value: Optimization1.create(),
+            value: (),
         });
 
         stream.assert_updates(
@@ -259,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_many_different_end_conditions() {
+    fn should_support_multiple_end_conditions() {
         let mut optimizations = StreamOptimizations::default();
         let mut analysis1 = StreamAnalysis::new();
         let mut analysis2 = StreamAnalysis::new();
@@ -276,7 +271,7 @@ mod tests {
         let id = optimizations.add(OptimizationItem {
             stream: stream1.operations[0..2].to_vec(),
             end_conditions: vec![stream1.operations[2].clone(), stream2.operations[2].clone()],
-            value: Optimization1.create(),
+            value: (),
         });
 
         stream1.assert_updates(
@@ -310,165 +305,98 @@ mod tests {
         );
     }
 
-    //
-    //     #[test]
-    //     fn should_support_many_different_end_conditions() {
-    //         let mut cache = StreamOptimizations::default();
-    //         let mut graph1 = TestStream::new(2);
-    //         graph1.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc)));
-    //
-    //         let mut graph2 = TestStream::new(2);
-    //         graph2.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Log(desc)));
-    //
-    //         let mut path = StreamAnalysis::<String>::new();
-    //         let last_edge_index = graph1.edges.len() - 1;
-    //
-    //         // Follow graph 1 with only misses.
-    //         graph1.follow_misses(&mut cache, &mut path);
-    //         let _ = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization1,
-    //             graph1.edges[0..last_edge_index].to_vec(),
-    //             Some(graph1.edges[last_edge_index].clone()),
-    //         );
-    //
-    //         // Follow graph 2.
-    //         let result = path.update(&mut cache, &[], ExecutionMode::Lazy(&graph2.edges[0]));
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..1],
-    //             ExecutionMode::Lazy(&graph2.edges[1]),
-    //         );
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..2],
-    //             ExecutionMode::Lazy(&graph2.edges[2]),
-    //         );
-    //         assert_eq!(result, StreamAnalysisUpdate::ExploreOptimization);
-    //
-    //         let optimization = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization2,
-    //             graph2.edges[0..last_edge_index].to_vec(),
-    //             Some(graph2.edges[last_edge_index].clone()),
-    //         );
-    //         assert_eq!(
-    //             optimization, 1,
-    //             "Optimization 1 should still be returned, since same graph but not same end condition."
-    //         );
-    //     }
-    //
-    //     #[test]
-    //     fn should_support_multiple_concurrent_paths() {
-    //         // Two different graphs with a different second ops, but the same last ops.
-    //         let mut cache = StreamOptimizations::default();
-    //         let mut graph1 = TestStream::new(1);
-    //         graph1.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc)));
-    //         graph1.new_ops();
-    //
-    //         let mut graph2 = TestStream::new(1);
-    //         graph2.register_ops(|desc| TensorOpsDescription::FloatOps(FloatOpsDescription::Cos(desc)));
-    //         graph2.new_ops();
-    //
-    //         let mut path = StreamAnalysis::<String>::new();
-    //
-    //         // Follow graph 1 with only misses.
-    //         graph1.follow_misses(&mut cache, &mut path);
-    //
-    //         // Register the opitmization 1 for graph 1.
-    //         let last_edge_index = graph1.edges.len() - 1;
-    //         let _ = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization1,
-    //             graph1.edges[0..last_edge_index].to_vec(),
-    //             Some(graph1.edges[last_edge_index].clone()),
-    //         );
-    //
-    //         // Follow graph 2 and register a new optimization.
-    //         path.reset();
-    //
-    //         let result = path.update(&mut cache, &[], ExecutionMode::Lazy(&graph2.edges[0]));
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..1],
-    //             ExecutionMode::Lazy(&graph2.edges[1]),
-    //         );
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..2],
-    //             ExecutionMode::Lazy(&graph2.edges[2]),
-    //         );
-    //         assert_eq!(
-    //             result,
-    //             StreamAnalysisUpdate::ExploreOptimization,
-    //             "Should invalidate the second operation"
-    //         );
-    //
-    //         // Register new optimization for path 2.
-    //         let _ = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization2,
-    //             graph2.edges[0..last_edge_index].to_vec(),
-    //             Some(graph2.edges[last_edge_index].clone()),
-    //         );
-    //
-    //         // Now let's validate that the cache works.
-    //
-    //         // New path instance on graph 1.
-    //         path.reset();
-    //
-    //         let result = path.update(&mut cache, &[], ExecutionMode::Lazy(&graph1.edges[0]));
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph1.edges[0..1],
-    //             ExecutionMode::Lazy(&graph1.edges[1]),
-    //         );
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph1.edges[0..2],
-    //             ExecutionMode::Lazy(&graph1.edges[2]),
-    //         );
-    //         match result {
-    //             StreamAnalysisUpdate::ExecuteOptimization(ops) => assert_eq!(ops, 1),
-    //             _ => panic!("Should have found the cached operation"),
-    //         };
-    //
-    //         // New path instance on graph 2.
-    //         path.reset();
-    //
-    //         let result = path.update(&mut cache, &[], ExecutionMode::Lazy(&graph2.edges[0]));
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..1],
-    //             ExecutionMode::Lazy(&graph2.edges[1]),
-    //         );
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &graph2.edges[0..2],
-    //             ExecutionMode::Lazy(&graph2.edges[2]),
-    //         );
-    //         match result {
-    //             StreamAnalysisUpdate::ExecuteOptimization(ops) => assert_eq!(ops, 2),
-    //             _ => panic!("Should have found the cached operation"),
-    //         };
-    //     }
-    //
+    #[test]
+    fn should_select_right_optimization() {
+        let mut optimizations = StreamOptimizations::default();
+        let mut analysis1 = StreamAnalysis::new();
+        let mut analysis2 = StreamAnalysis::new();
+
+        let mut stream1 = TestStream::new(2);
+        let mut stream2 = TestStream::new(2);
+
+        // Create different streams after op 2.
+        stream1.new_ops(4);
+        stream1.new_ops(5);
+
+        stream2.new_ops(5);
+        stream2.new_ops(6);
+
+        let optimization_stream1 = optimizations.add(OptimizationItem {
+            stream: stream1.operations[0..3].to_vec(),
+            end_conditions: stream1.operations[3..4].to_vec(),
+            value: (),
+        });
+        let optimization_stream2 = optimizations.add(OptimizationItem {
+            stream: stream2.operations[0..3].to_vec(),
+            end_conditions: stream2.operations[3..4].to_vec(),
+            value: (),
+        });
+        assert_ne!(optimization_stream1, optimization_stream2);
+
+        stream1.assert_updates(
+            &mut optimizations,
+            &mut analysis1,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis2,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+
+        stream1.assert_updates(
+            &mut optimizations,
+            &mut analysis1,
+            AssertUpdatesOptions::OperationsIndex(3..4),
+            StreamAnalysisUpdate::ExecuteOptimization(optimization_stream1),
+            false, // Async
+        );
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis2,
+            AssertUpdatesOptions::OperationsIndex(3..4),
+            StreamAnalysisUpdate::ExecuteOptimization(optimization_stream2),
+            false, // Async
+        );
+    }
+
+    #[test]
+    fn should_invalidate_wrong_optimizations() {
+        let mut optimizations = StreamOptimizations::default();
+        let stream1 = TestStream::new(4);
+        let mut stream2 = TestStream::new(2);
+        stream2.new_ops(6);
+        stream2.new_ops(7);
+
+        optimizations.add(OptimizationItem {
+            stream: stream1.operations[0..3].to_vec(),
+            end_conditions: stream1.operations[3..4].to_vec(),
+            value: (),
+        });
+
+        let mut analysis = StreamAnalysis::new();
+        // Same path as stream 1
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+
+        // But is different.
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(3..4),
+            StreamAnalysisUpdate::ExploreOptimization,
+            false, // Async
+        );
+    }
 
     #[derive(Default, Debug)]
     struct TestStream {
@@ -495,8 +423,8 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn assert_updates(
             &self,
-            optimizations: &mut StreamOptimizations<String>,
-            analysis: &mut StreamAnalysis<String>,
+            optimizations: &mut StreamOptimizations<()>,
+            analysis: &mut StreamAnalysis<()>,
             options: AssertUpdatesOptions,
             update: StreamAnalysisUpdate,
             sync: bool,
@@ -553,21 +481,6 @@ mod tests {
                 input: self.tensors[size - 2].clone(),
                 out: self.tensors[size - 1].clone(),
             }
-        }
-    }
-
-    struct Optimization1;
-    struct Optimization2;
-
-    impl OptimizationFactory<String> for Optimization1 {
-        fn create(&self) -> String {
-            "Optimization1".to_string()
-        }
-    }
-
-    impl OptimizationFactory<String> for Optimization2 {
-        fn create(&self) -> String {
-            "Optimization2".to_string()
         }
     }
 }
