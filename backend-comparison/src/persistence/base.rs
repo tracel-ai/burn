@@ -1,7 +1,4 @@
-use std::{
-    fs,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs;
 
 use burn::{
     serde::{ser::SerializeStruct, Serialize, Serializer},
@@ -10,6 +7,7 @@ use burn::{
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
+use uuid::Uuid;
 
 #[derive(Default)]
 pub struct BenchmarkRecord {
@@ -45,6 +43,7 @@ pub struct BenchmarkRecord {
 /// ]
 /// ```
 pub fn save<B: Backend>(
+    name: &str,
     benches: Vec<BenchmarkResult>,
     device: &B::Device,
 ) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
@@ -57,17 +56,9 @@ pub fn save<B: Backend>(
         fs::create_dir_all(&cache_dir)?;
     }
 
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let timestamp = format!(
-        "{}{:03}",
-        since_the_epoch.as_secs(),
-        since_the_epoch.subsec_millis()
-    );
-
-    let file_name = format!("benchmarks_{}.json", timestamp);
+    let uuid = Uuid::new_v4().simple().to_string();
+    let short_uuid = &uuid[..8];
+    let file_name = format!("benchmarks_{}_{}.json", name, short_uuid);
     let file_path = cache_dir.join(file_name);
 
     let records: Vec<BenchmarkRecord> = benches

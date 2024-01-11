@@ -94,6 +94,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let from_benchmark = FromDataBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
     save::<B>(
+        "data",
         vec![run_benchmark(to_benchmark), run_benchmark(from_benchmark)],
         device,
     )

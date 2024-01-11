@@ -49,7 +49,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>("unary", vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

@@ -67,7 +67,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
 
-    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>("matmul", vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

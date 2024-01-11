@@ -50,7 +50,7 @@ fn bench<B: Backend>(device: &B::Device) {
         device: device.clone(),
     };
 
-    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>("binary", vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

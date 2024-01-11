@@ -109,6 +109,7 @@ fn bench<B: Backend>(device: &B::Device) {
         CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf);
 
     save::<B>(
+        "gelu",
         vec![
             run_benchmark(reference_gelu),
             run_benchmark(reference_erf_gelu),
