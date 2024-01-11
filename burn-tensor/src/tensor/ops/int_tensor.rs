@@ -1,4 +1,4 @@
-use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -457,6 +457,64 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The result of the addition.
     fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
+
+    /// Elementwise power.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the power of the elements of `rhs`.
+    fn int_pow<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
+
+    /// Elementwise power with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn int_pow_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
+
+    /// Elementwise power with a floatTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side floatTensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn int_pow_float<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: FloatTensor<B, D>,
+    ) -> IntTensor<B, D> {
+        Self::int_pow(lhs, B::into_int(rhs))
+    }
+
+    /// Elementwise power with a floatTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn int_pow_float_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> IntTensor<B, D> {
+        Self::int_pow_scalar(lhs, B::IntElem::from_elem(rhs))
+    }
 
     /// Clamps a tensor under a minimum value.
     ///
