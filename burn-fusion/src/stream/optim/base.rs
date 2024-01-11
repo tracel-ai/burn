@@ -39,7 +39,6 @@ impl<O> StreamOptimizations<O> {
 
     pub fn add(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
         let new_id = self.optimizations.len();
-
         self.starters
             .insert(optimization.stream.first().unwrap(), new_id);
         self.optimizations.push(optimization);

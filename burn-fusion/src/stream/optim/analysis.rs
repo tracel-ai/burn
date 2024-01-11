@@ -51,41 +51,36 @@ impl<O> StreamAnalysis<O> {
             return self.initialize_state(mode, optimizations);
         }
 
-        if let Some((candidate, _length)) = self.found {
-            return StreamAnalysisAction::ExecuteOptimization(candidate);
+        if let Some((id, _length)) = self.found {
+            return StreamAnalysisAction::ExecuteOptimization(id);
         }
 
         let (next_ops, length) = match mode {
-            AnalysisMode::LazyExecution { next_ops } => {
-                // assert_eq!(self.num_operations_analyzed, stream.len());
-                (next_ops, stream.len())
-            }
-            AnalysisMode::Sync => {
-                // assert_eq!(self.num_operations_analyzed, stream.len() - 1);
-                (
-                    stream
-                        .last()
-                        .expect("The stream should have at least 1 operation when sync"),
-                    stream.len() - 1,
-                )
-            }
+            // Nest ops counts in the length of the stream.
+            AnalysisMode::LazyExecution { next_ops } => (next_ops, stream.len() + 1),
+            AnalysisMode::Sync => (
+                stream
+                    .last()
+                    .expect("The stream should have at least 1 operation when sync"),
+                stream.len(),
+            ),
         };
 
         self.analyze_candidates(optimizations, next_ops, length);
 
-        if let Some((candidate, _length)) = self.found {
-            return StreamAnalysisAction::ExecuteOptimization(candidate);
-        }
-
-        if self.candidates.is_empty() {
-            // Even if there are optimizations available, we aren't sure if they are the best ones
-            // we can use. Exploring more optimizations might find a new `end_condition` or
-            // even find a better optimization.
-            return StreamAnalysisAction::ExploreOptimization;
+        if let Some((id, _length)) = self.found {
+            return StreamAnalysisAction::ExecuteOptimization(id);
         }
 
         match mode {
             AnalysisMode::LazyExecution { next_ops: _ } => {
+                if self.candidates.is_empty() {
+                    // Even if there are optimizations available, we aren't sure if they are the best ones
+                    // we can use. Exploring more optimizations might find a new `end_condition` or
+                    // even find a better optimization.
+                    return StreamAnalysisAction::ExploreOptimization;
+                }
+
                 StreamAnalysisAction::WaitForOptimization
             }
             AnalysisMode::Sync => {
@@ -110,59 +105,6 @@ impl<O> StreamAnalysis<O> {
                 StreamAnalysisAction::ExploreOptimization
             }
         }
-
-        // Invalidate candidates.
-        // let mut invalidated_candidate = Vec::new();
-        // for id in self.candidates.iter() {
-        //     let item = optimizations.get_unchecked(*id);
-        //     let next_ops = stream.last().expect("Validated earlier");
-        //     let next_ops_index = stream.len() - 1;
-        //     let next_ops_candidate = match item.stream.get(next_ops_index) {
-        //         Some(val) => val,
-        //         None => {
-        //             // Graph of different size, invalidated.
-        //             invalidated_candidate.push(*id);
-        //             continue;
-        //         }
-        //     };
-
-        //     if next_ops_candidate != next_ops {
-        //         // Graph with different node at the current position, invalidated.
-        //         invalidated_candidate.push(*id);
-        //         continue;
-        //     }
-
-        //     // Is it optimal?
-        //     if item.stream.len() == stream.len() {
-        //         let ops = match mode {
-        //             AnalysisMode::LazyExecution { next_ops } => next_ops,
-        //             AnalysisMode::Sync => {
-        //                 self.found = Some(*id);
-        //                 break;
-        //             }
-        //         };
-
-        //         if item.end_conditions.contains(ops) {
-        //             self.found = Some(*id);
-        //             break;
-        //         } else {
-        //             self.availables.push((*id, stream.len()));
-        //             invalidated_candidate.push(*id);
-        //         }
-        //     }
-        // }
-
-        // if let Some(id) = self.found {
-        //     return StreamAnalysisAction::ExecuteOptimization(id);
-        // }
-
-        // let mut updated_candidates = Vec::new();
-        // core::mem::swap(&mut updated_candidates, &mut self.candidates);
-
-        // self.candidates = updated_candidates
-        //     .into_iter()
-        //     .filter(|candidate| !invalidated_candidate.contains(candidate))
-        //     .collect();
     }
 
     /// Did the analysis find an optimization that can be applied for the current stream.
@@ -220,12 +162,14 @@ impl<O> StreamAnalysis<O> {
         next_ops: &TensorOpsDescription,
         stream_length: usize,
     ) {
+        // The index starts at zero.
+        let next_ops_index = stream_length - 1;
         let mut invalidated_candidates = Vec::new();
 
         for id in self.candidates.iter() {
             let item = optimizations.get_unchecked(*id);
 
-            if item.stream.len() == stream_length {
+            if item.stream.len() == next_ops_index {
                 if item.end_conditions.contains(next_ops) {
                     self.found = Some((*id, item.stream.len()));
                     break;
@@ -239,7 +183,7 @@ impl<O> StreamAnalysis<O> {
                 }
             };
 
-            let next_ops_candidate = match item.stream.get(stream_length) {
+            let next_ops_candidate = match item.stream.get(next_ops_index) {
                 Some(val) => val,
                 None => {
                     // Graph of different size, invalidated.
