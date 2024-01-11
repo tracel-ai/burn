@@ -444,6 +444,6 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(value))
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
     }
 }

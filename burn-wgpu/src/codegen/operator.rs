@@ -125,6 +125,11 @@ pub enum Operator {
         tensor_read_pos: usize,
         tensor_layout_pos: usize,
     },
+    Pow {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
 }
 
 impl Operator {
@@ -261,6 +266,11 @@ impl Operator {
                 variable: variable.vectorize(vectorize),
                 tensor_read_pos: *tensor_read_pos,
                 tensor_layout_pos: *tensor_layout_pos,
+            },
+            Operator::Pow { lhs, rhs, out } => Operator::Pow {
+                lhs: lhs.vectorize(vectorize),
+                rhs: rhs.vectorize(vectorize),
+                out: out.vectorize(vectorize),
             },
         }
     }
@@ -525,6 +535,9 @@ if {cond} {{
 "
                     )),
                 }
+            }
+            Operator::Pow { lhs, rhs, out } => {
+                f.write_fmt(format_args!("let {out} = {lhs} ^ {rhs};"))
             }
         }
     }

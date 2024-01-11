@@ -439,4 +439,16 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             .map(|tensor| TchTensor::new(tensor))
             .collect()
     }
+    pub fn pow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        exponent: TchTensor<E, D>,
+    ) -> TchTensor<E, D> {
+        TchTensor::binary_ops_tensor(
+            tensor,
+            exponent,
+            |lhs, rhs| lhs.f_pow_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_pow_tensor_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_pow(rhs).unwrap(),
+        )
+    }
 }

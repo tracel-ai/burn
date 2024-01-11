@@ -1587,4 +1587,27 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         (out, out_indices)
     }
+
+    fn pow<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        binary_float_ops!(PowOps, B::mul);
+
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        let desc = BinaryOpsDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Pow(desc.clone())),
+            PowOps::<D>::new(desc),
+        );
+
+        out
+    }
 }

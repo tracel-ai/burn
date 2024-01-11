@@ -474,4 +474,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
     ) -> Vec<FloatTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
     }
+
+    fn pow<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        todo!()
+    }
 }

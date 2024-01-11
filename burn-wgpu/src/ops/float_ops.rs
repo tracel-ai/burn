@@ -509,4 +509,11 @@ where
     ) -> FloatTensor<Self, D> {
         kernel::repeat(tensor, dim, times)
     }
+
+    fn pow<const D: usize>(
+        lhs: FloatTensor<Wgpu<G, F, I>, D>,
+        rhs: FloatTensor<Wgpu<G, F, I>, D>,
+    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        numeric::pow(lhs, rhs)
+    }
 }

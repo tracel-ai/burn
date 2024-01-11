@@ -378,18 +378,24 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_pow<const D: usize>(
+    fn int_powi<const D: usize>(
         lhs: NdArrayTensor<i64, D>,
         rhs: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<i64, D> {
-        //I'm assuming mathops is used so that things can be shared
-        //between Tensor types, but in this case, we have to call
-        //powi or pow
-        let var_name: &dyn Fn(i64, i64) -> i64 = &|a: i64, b: i64| a.pow(b as u32);
         NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &i64| a.pow(*b as u32))
     }
 
-    fn int_powf<const D: usize>(lhs: NdArrayTensor<i64, D>, rhs: f32) -> NdArrayTensor<i64, D> {
+    fn int_powf<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &E| a.pow(b.elem::<u32>()))
+    }
+
+    fn int_powf_scalar<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: f32,
+    ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::elementwise_op_scalar(lhs, |a: i64| a.pow(rhs as u32))
     }
 }

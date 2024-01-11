@@ -195,3 +195,18 @@ pub fn div_scalar<E: WgpuElement, const D: usize>(
         elem: E
     )
 }
+
+pub fn pow<E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<E, D>,
+    rhs: WgpuTensor<E, D>,
+) -> WgpuTensor<E, D> {
+    binary!(
+        operator: |elem: Elem| Operator::Pow {
+            lhs: Variable::Input(0, Item::Scalar(elem)),
+            rhs: Variable::Input(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(elem)),
+        },
+        input: lhs; rhs,
+        elem: E
+    )
+}

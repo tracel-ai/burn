@@ -378,6 +378,11 @@ pub enum NumericOpsDescription<E> {
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpsDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Float => [pow](burn_tensor::ops::TensorOps::pow)
+    /// Int => [pow](burn_tensor::ops::IntTensorOps::int_powf)
+    Pow(BinaryOpsDescription),
 }
 
 /// Operation description specific to an int tensor.
@@ -1054,6 +1059,9 @@ impl<E: Element> NumericOpsDescription<E> {
             NumericOpsDescription::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
+            NumericOpsDescription::Pow(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
         }
     }
 }
@@ -1257,6 +1265,7 @@ impl<E> core::hash::Hash for NumericOpsDescription<E> {
             NumericOpsDescription::MaxDim(desc) => desc.hash(state),
             NumericOpsDescription::MinDim(desc) => desc.hash(state),
             NumericOpsDescription::Clamp(desc) => desc.hash(state),
+            NumericOpsDescription::Pow(desc) => desc.hash(state),
         }
     }
 }

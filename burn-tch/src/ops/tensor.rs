@@ -457,4 +457,11 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
     ) -> Vec<TchTensor<E, D>> {
         TchOps::chunk(tensor, chunks, dim)
     }
+
+    fn pow<const D: usize>(
+        lhs: burn_tensor::ops::FloatTensor<Self, D>,
+        rhs: burn_tensor::ops::FloatTensor<Self, D>,
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        TchOps::pow(lhs, rhs)
+    }
 }

@@ -1,9 +1,10 @@
-use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
+use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, TensorOps};
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
+use num_traits::ToPrimitive;
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -458,30 +459,18 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the addition.
     fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
-    /// Elementwise power.
+    /// Elementwise power with a IntTensor.
     ///
     /// # Arguments
     ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `lhs` - The left hand side IntTensor.
+    /// * `rhs` - The right hand side IntTensor.
     ///
     /// # Returns
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
-    fn int_pow<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
-
-    /// Elementwise power with a scalar.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`.
-    fn int_pow_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: i32) -> IntTensor<B, D> {
-        Self::int_powf(lhs, rhs as f32)
+    fn int_powi<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+        B::into_int(B::pow(B::int_into_float(lhs), B::int_into_float(rhs)))
     }
 
     /// Elementwise power with a floatTensor.
@@ -494,11 +483,22 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_pow_float<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> IntTensor<B, D> {
-        Self::int_pow(lhs, B::into_int(rhs))
+    fn int_powf<const D: usize>(lhs: IntTensor<B, D>, rhs: FloatTensor<B, D>) -> IntTensor<B, D> {
+        B::into_int(B::pow(B::int_into_float(lhs), rhs))
+    }
+
+    /// Elementwise power with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn int_powi_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D> {
+        B::into_int(B::powf(B::int_into_float(lhs), rhs.to_f32().unwrap()))
     }
 
     /// Elementwise power with a floatTensor.
@@ -511,7 +511,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf<const D: usize>(lhs: IntTensor<B, D>, rhs: f32) -> IntTensor<B, D>;
+    fn int_powf_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: f32) -> IntTensor<B, D> {
+        B::into_int(B::powf(B::int_into_float(lhs), rhs))
+    }
 
     /// Clamps a tensor under a minimum value.
     ///

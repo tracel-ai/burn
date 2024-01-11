@@ -682,6 +682,11 @@ impl<E: Element> NumericOpsDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOpsDescription::Pow(desc) => NumericOpsDescription::Pow(BinaryOpsDescription {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }
