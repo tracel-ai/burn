@@ -1,4 +1,4 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
@@ -19,6 +19,17 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
             "Matmul {:?} x {:?}",
             self.shape_lhs.dims, self.shape_rhs.dims
         )
+    }
+
+    fn operation(&self) -> Option<String> {
+        Some("matmul".to_string())
+    }
+
+    fn shapes(&self) -> Option<Vec<String>> {
+        Some(vec![
+            format!("{:?}", self.shape_lhs.dims),
+            format!("{:?}", self.shape_rhs.dims),
+        ])
     }
 
     fn num_samples(&self) -> usize {
@@ -55,7 +66,8 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape_rhs = [batch_size, k, n].into();
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
-    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
+
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

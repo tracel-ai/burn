@@ -34,6 +34,10 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Benchmark for TuneBenchmark<S, C> {
         "Autotune".to_string()
     }
 
+    fn operation(&self) -> Option<String> {
+        Some(self.operation.name().to_string())
+    }
+
     fn sync(&self) {
         self.client.sync();
     }

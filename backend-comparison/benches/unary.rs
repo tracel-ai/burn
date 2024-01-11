@@ -1,4 +1,4 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
@@ -15,6 +15,14 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
 
     fn name(&self) -> String {
         "Unary Ops".into()
+    }
+
+    fn operation(&self) -> Option<String> {
+        Some("unary".to_string())
+    }
+
+    fn shapes(&self) -> Option<Vec<String>> {
+        Some(vec![format!("{:?}", self.shape.dims)])
     }
 
     fn execute(&self, args: Self::Args) {
@@ -41,7 +49,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

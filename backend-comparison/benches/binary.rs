@@ -1,4 +1,4 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
@@ -13,6 +13,14 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
 
     fn name(&self) -> String {
         "Binary Ops".into()
+    }
+
+    fn operation(&self) -> Option<String> {
+        Some("binary".to_string())
+    }
+
+    fn shapes(&self) -> Option<Vec<String>> {
+        Some(vec![format!("{:?}", self.shape.dims)])
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
@@ -42,7 +50,7 @@ fn bench<B: Backend>(device: &B::Device) {
         device: device.clone(),
     };
 
-    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

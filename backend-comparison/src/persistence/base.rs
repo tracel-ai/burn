@@ -1,100 +1,114 @@
 use std::{
-    collections::HashMap,
-    fs::{create_dir_all, File},
-    path::PathBuf,
-    time::Duration,
+    fs,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
-use burn::tensor::backend::Backend;
+use burn::{
+    serde::{ser::SerializeStruct, Serialize, Serializer},
+    tensor::backend::Backend,
+};
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
 
-type BenchmarkCommitResults = HashMap<String, BenchmarkOpResults>;
-type BenchmarkOpResults = HashMap<String, BenchmarkBackendResults>;
-type BenchmarkBackendResults = HashMap<String, StampedBenchmarks>;
-type StampedBenchmarks = HashMap<u128, Vec<Duration>>;
-
 #[derive(Default)]
-pub struct Persistence {
-    results: BenchmarkCommitResults,
+pub struct BenchmarkRecord {
+    backend: String,
+    device: String,
+    results: BenchmarkResult,
 }
 
-impl Persistence {
-    /// Updates the cached backend comparison json file with new benchmarks results.
-    ///
-    /// The file has the following structure:
-    ///
-    ///  {
-    ///    "GIT_COMMIT_HASH":
-    ///      {
-    ///        "BENCHMARK_NAME (OP + SHAPE)": {
-    ///          "BACKEND_NAME-DEVICE": {
-    ///            "TIMESTAMP": \[
-    ///              DURATIONS
-    ///           \]
-    ///         }
-    ///       }
-    ///    }
-    ///  }
-    pub fn persist<B: Backend>(benches: Vec<BenchmarkResult>, device: &B::Device) {
-        for bench in benches.iter() {
-            println!("{}", bench);
-        }
-        let cache_file = dirs::home_dir()
-            .expect("Could not get home directory")
-            .join(".cache")
-            .join("backend-comparison")
-            .join("db.json");
+/// Save the benchmarks results on disk.
+///
+/// The structure is flat so that it can be easily queried from a database
+/// like MongoDB.
+///
+/// ```txt
+///  [
+///    {
+///      "backend": "backend name",
+///      "device": "device name",
+///      "git_hash": "hash",
+///      "name": "benchmark name",
+///      "operation": "operation name",
+///      "shapes": ["shape dimension", "shape dimension", ...],
+///      "timestamp": "timestamp",
+///      "numSamples": "number of samples",
+///      "min": "duration in seconds",
+///      "max": "duration in seconds",
+///      "median": "duration in seconds",
+///      "mean": "duration in seconds",
+///      "variance": "duration in seconds"
+///      "rawDurations": ["duration 1", "duration 2", ...],
+///    },
+///    { ... }
+/// ]
+/// ```
+pub fn save<B: Backend>(
+    benches: Vec<BenchmarkResult>,
+    device: &B::Device,
+) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
+    let cache_dir = dirs::home_dir()
+        .expect("Could not get home directory")
+        .join(".cache")
+        .join("backend-comparison");
 
-        let mut cache = Self::load(&cache_file);
-        cache.update::<B>(device, benches);
-        cache.save(&cache_file);
-        println!("Persisting to {:?}", cache_file);
+    if !cache_dir.exists() {
+        fs::create_dir_all(&cache_dir)?;
     }
 
-    /// Load the cache from disk.
-    fn load(path: &PathBuf) -> Self {
-        let results = match File::open(path) {
-            Ok(file) => serde_json::from_reader(file)
-                .expect("Should have parsed to BenchmarkCommitResults struct"),
-            Err(_) => HashMap::default(),
-        };
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let timestamp = format!(
+        "{}{:03}",
+        since_the_epoch.as_secs(),
+        since_the_epoch.subsec_millis()
+    );
 
-        Self { results }
-    }
+    let file_name = format!("benchmarks_{}.json", timestamp);
+    let file_path = cache_dir.join(file_name);
 
-    /// Save the cache on disk.
-    fn save(&self, path: &PathBuf) {
-        if let Some(parent) = path.parent() {
-            create_dir_all(parent).expect("Unable to create directory");
-        }
-        let file = File::create(path).expect("Unable to create backend comparison file");
+    let records: Vec<BenchmarkRecord> = benches
+        .into_iter()
+        .map(|bench| BenchmarkRecord {
+            backend: B::name().to_string(),
+            device: format!("{:?}", device),
+            results: bench,
+        })
+        .collect();
 
-        serde_json::to_writer_pretty(file, &self.results)
-            .expect("Unable to write to backend comparison file");
-    }
+    let file = fs::File::create(file_path).expect("Unable to create backend comparison file.");
+    serde_json::to_writer_pretty(file, &records).expect("Unable to save benchmark results.");
 
-    /// Update the cache with the given [benchmark results](BenchmarkResult).
-    ///
-    /// Assumes only that benches share the same backend and device.
-    /// It could run faster if we assumed they have the same git hash
-    fn update<B: Backend>(&mut self, device: &B::Device, benches: Vec<BenchmarkResult>) {
-        let backend_key = format!("{}-{:?}", B::name(), device);
+    Ok(records)
+}
 
-        for bench in benches {
-            let mut benchmark_op_results = self.results.remove(&bench.git_hash).unwrap_or_default();
-            let mut benchmark_backend_results =
-                benchmark_op_results.remove(&bench.name).unwrap_or_default();
-
-            let mut stamped_benchmarks = benchmark_backend_results
-                .remove(&backend_key)
-                .unwrap_or_default();
-
-            stamped_benchmarks.insert(bench.timestamp, bench.durations.durations);
-            benchmark_backend_results.insert(backend_key.clone(), stamped_benchmarks);
-            benchmark_op_results.insert(bench.name, benchmark_backend_results);
-            self.results.insert(bench.git_hash, benchmark_op_results);
-        }
+impl Serialize for BenchmarkRecord {
+    /// Flatten all the fields when serializing, i.e. we remove the nesting
+    /// under "results" and "computed".
+    /// Also format the fields to be compliant with MongoDB naming conventions.
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("BenchmarkRecord", 11)?;
+        state.serialize_field("backend", &self.backend)?;
+        state.serialize_field("device", &self.device)?;
+        // Serialize fields of BenchmarkResult
+        state.serialize_field("rawDurations", &self.results.raw.durations)?;
+        state.serialize_field("numSamples", &self.results.raw.durations.len())?;
+        state.serialize_field("mean", &self.results.computed.mean.as_secs_f64())?;
+        state.serialize_field("median", &self.results.computed.median.as_secs_f64())?;
+        state.serialize_field("variance", &self.results.computed.variance.as_secs_f64())?;
+        state.serialize_field("min", &self.results.computed.min.as_secs_f64())?;
+        state.serialize_field("max", &self.results.computed.max.as_secs_f64())?;
+        state.serialize_field("gitHash", &self.results.git_hash)?;
+        state.serialize_field("name", &self.results.name)?;
+        state.serialize_field("operation", &self.results.operation)?;
+        state.serialize_field("shapes", &self.results.shapes)?;
+        state.serialize_field("timestamp", &self.results.timestamp)?;
+        state.end()
     }
 }

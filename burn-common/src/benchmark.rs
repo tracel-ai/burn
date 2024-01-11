@@ -12,27 +12,30 @@ use std::time::Instant;
 use web_time::Instant;
 
 /// Results of a benchmark run.
-#[derive(new, Debug, Clone, Serialize, Deserialize)]
+#[derive(new, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct BenchmarkDurations {
     /// All durations of the run, in the order they were benchmarked
     pub durations: Vec<Duration>,
 }
 
 impl BenchmarkDurations {
-    /// Returns the median duration among all durations
-    pub fn median_duration(&self) -> Duration {
+    /// Returns a tuple of durations: (min, max, median)
+    fn min_max_median_durations(&self) -> (Duration, Duration, Duration) {
         let mut sorted = self.durations.clone();
         sorted.sort();
-        *sorted.get(sorted.len() / 2).unwrap()
+        let min = *sorted.first().unwrap();
+        let max = *sorted.last().unwrap();
+        let var = *sorted.get(sorted.len() / 2).unwrap();
+        (min, max, var)
     }
+
+    /// Returns the median duration among all durations
     pub(crate) fn mean_duration(&self) -> Duration {
         self.durations.iter().sum::<Duration>() / self.durations.len() as u32
     }
-}
 
-impl Display for BenchmarkDurations {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let mean = self.mean_duration();
+    /// Returns the variance durations for the durations
+    pub(crate) fn variance_duration(&self, mean: Duration) -> Duration {
         let var = self
             .durations
             .iter()
@@ -42,13 +45,20 @@ impl Display for BenchmarkDurations {
             })
             .sum::<Duration>()
             / self.durations.len() as u32;
+        var
+    }
+}
 
-        let mut sorted = self.durations.clone();
-        sorted.sort();
-
-        let min = sorted.first().unwrap();
-        let max = sorted.last().unwrap();
-        let median = sorted.get(sorted.len() / 2).unwrap();
+impl Display for BenchmarkDurations {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let computed = BenchmarkComputations::new(self);
+        let BenchmarkComputations {
+            mean,
+            median,
+            variance,
+            min,
+            max,
+        } = computed;
         let num_sample = self.durations.len();
 
         f.write_str(
@@ -57,7 +67,7 @@ impl Display for BenchmarkDurations {
 ―――――――― Result ―――――――――
   Samples     {num_sample}
   Mean        {mean:.3?}
-  Variance    {var:.3?}
+  Variance    {variance:.3?}
   Median      {median:.3?}
   Min         {min:.3?}
   Max         {max:.3?}
@@ -65,6 +75,36 @@ impl Display for BenchmarkDurations {
             )
             .as_str(),
         )
+    }
+}
+
+/// Computed values from benchmark durations.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct BenchmarkComputations {
+    /// Mean of all the durations.
+    pub mean: Duration,
+    /// Median of all the durations.
+    pub median: Duration,
+    /// Variance of all the durations.
+    pub variance: Duration,
+    /// Minimum duration amongst all durations.
+    pub min: Duration,
+    /// Maximum duration amongst all durations.
+    pub max: Duration,
+}
+
+impl BenchmarkComputations {
+    /// Compute duration values and return a BenchmarkComputations struct
+    pub fn new(durations: &BenchmarkDurations) -> Self {
+        let mean = durations.mean_duration();
+        let (min, max, median) = durations.min_max_median_durations();
+        Self {
+            mean,
+            median,
+            min,
+            max,
+            variance: durations.variance_duration(mean),
+        }
     }
 }
 
@@ -89,7 +129,15 @@ pub trait Benchmark {
     }
     /// Name of the benchmark.
     fn name(&self) -> String;
-    /// Wait for computations to be over
+    /// Operation name (i.e. matmul)
+    fn operation(&self) -> Option<String> {
+        None
+    }
+    /// Shapes dimensions
+    fn shapes(&self) -> Option<Vec<String>> {
+        None
+    }
+    /// Wait for computed to be over
     fn sync(&self);
     /// Run the benchmark a number of times.
     fn run(&self) -> BenchmarkDurations {
@@ -125,15 +173,22 @@ pub trait Benchmark {
 }
 
 /// Result of a benchmark run, with metadata
+#[derive(Default)]
 pub struct BenchmarkResult {
-    /// Individual results of the run
-    pub durations: BenchmarkDurations,
-    /// Time just before the run
-    pub timestamp: u128,
+    /// Individual raw results of the run
+    pub raw: BenchmarkDurations,
+    /// Computed values for the run
+    pub computed: BenchmarkComputations,
     /// Git commit hash of the commit in which the run occurred
     pub git_hash: String,
-    /// Name of the benchmark, normally with operation name and shapes
+    /// Name of the benchmark
     pub name: String,
+    /// Operation name
+    pub operation: Option<String>,
+    /// Shape dimensions
+    pub shapes: Option<Vec<String>>,
+    /// Time just before the run
+    pub timestamp: u128,
 }
 
 impl Display for BenchmarkResult {
@@ -145,7 +200,7 @@ impl Display for BenchmarkResult {
         Git Hash: {}
         Benchmarking - {}{}
         ",
-                self.timestamp, self.git_hash, self.name, self.durations
+                self.timestamp, self.git_hash, self.name, self.raw
             )
             .as_str(),
         )
@@ -167,10 +222,84 @@ where
         .output()
         .unwrap();
     let git_hash = String::from_utf8(output.stdout).unwrap().trim().to_string();
+    let durations = benchmark.run();
     BenchmarkResult {
-        timestamp,
+        raw: durations.clone(),
+        computed: BenchmarkComputations::new(&durations),
         git_hash,
         name: benchmark.name(),
-        durations: benchmark.run(),
+        operation: benchmark.operation(),
+        shapes: benchmark.shapes(),
+        timestamp,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn test_min_max_median_durations_even_number_of_samples() {
+        let durations = BenchmarkDurations {
+            durations: vec![
+                Duration::new(10, 0),
+                Duration::new(20, 0),
+                Duration::new(30, 0),
+                Duration::new(40, 0),
+                Duration::new(50, 0),
+            ],
+        };
+        let (min, max, median) = durations.min_max_median_durations();
+        assert_eq!(min, Duration::from_secs(10));
+        assert_eq!(max, Duration::from_secs(50));
+        assert_eq!(median, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_min_max_median_durations_odd_number_of_samples() {
+        let durations = BenchmarkDurations {
+            durations: vec![
+                Duration::new(18, 5),
+                Duration::new(20, 0),
+                Duration::new(30, 0),
+                Duration::new(40, 0),
+            ],
+        };
+        let (min, max, median) = durations.min_max_median_durations();
+        assert_eq!(min, Duration::from_nanos(18000000005_u64));
+        assert_eq!(max, Duration::from_secs(40));
+        assert_eq!(median, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_mean_duration() {
+        let durations = BenchmarkDurations {
+            durations: vec![
+                Duration::new(10, 0),
+                Duration::new(20, 0),
+                Duration::new(30, 0),
+                Duration::new(40, 0),
+                Duration::new(50, 0),
+            ],
+        };
+        let mean = durations.mean_duration();
+        assert_eq!(mean, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_variance_duration() {
+        let durations = BenchmarkDurations {
+            durations: vec![
+                Duration::new(10, 0),
+                Duration::new(20, 0),
+                Duration::new(30, 0),
+                Duration::new(40, 0),
+                Duration::new(50, 0),
+            ],
+        };
+        let mean = durations.mean_duration();
+        let variance = durations.variance_duration(mean);
+        assert_eq!(variance, Duration::from_secs(200));
     }
 }
