@@ -15,21 +15,11 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     type Args = (Tensor<B, D>, Tensor<B, D>);
 
     fn name(&self) -> String {
-        format!(
-            "Matmul {:?} x {:?}",
-            self.shape_lhs.dims, self.shape_rhs.dims
-        )
+        "matmul".into()
     }
 
-    fn operation(&self) -> Option<String> {
-        Some("matmul".to_string())
-    }
-
-    fn shapes(&self) -> Option<Vec<String>> {
-        Some(vec![
-            format!("{:?}", self.shape_lhs.dims),
-            format!("{:?}", self.shape_rhs.dims),
-        ])
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec!(self.shape_lhs.dims.into(), self.shape_rhs.dims.into())
     }
 
     fn num_samples(&self) -> usize {
@@ -67,7 +57,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
 
-    save::<B>("matmul", vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

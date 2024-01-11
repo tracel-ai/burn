@@ -127,15 +127,16 @@ pub trait Benchmark {
     fn num_samples(&self) -> usize {
         10
     }
-    /// Name of the benchmark.
+    /// Name of the benchmark, should be short and it should match the name
+    /// defined in the crate Cargo.toml
     fn name(&self) -> String;
-    /// Operation name (i.e. matmul)
-    fn operation(&self) -> Option<String> {
+    /// The options passed to the benchmark.
+    fn options(&self) -> Option<String> {
         None
     }
     /// Shapes dimensions
-    fn shapes(&self) -> Option<Vec<String>> {
-        None
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec!()
     }
     /// Wait for computed to be over
     fn sync(&self);
@@ -173,7 +174,7 @@ pub trait Benchmark {
 }
 
 /// Result of a benchmark run, with metadata
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BenchmarkResult {
     /// Individual raw results of the run
     pub raw: BenchmarkDurations,
@@ -183,10 +184,10 @@ pub struct BenchmarkResult {
     pub git_hash: String,
     /// Name of the benchmark
     pub name: String,
-    /// Operation name
-    pub operation: Option<String>,
+    /// Options passed to the benchmark
+    pub options: Option<String>,
     /// Shape dimensions
-    pub shapes: Option<Vec<String>>,
+    pub shapes: Vec<Vec<usize>>,
     /// Time just before the run
     pub timestamp: u128,
 }
@@ -228,7 +229,7 @@ where
         computed: BenchmarkComputations::new(&durations),
         git_hash,
         name: benchmark.name(),
-        operation: benchmark.operation(),
+        options: benchmark.options(),
         shapes: benchmark.shapes(),
         timestamp,
     }

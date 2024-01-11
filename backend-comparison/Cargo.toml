@@ -32,7 +32,6 @@ rand = { workspace = true }
 burn-common = { path = "../burn-common", version = "0.12.0" }
 serde_json = { workspace = true }
 dirs = "5.0.1"
-uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 

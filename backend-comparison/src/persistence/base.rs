@@ -7,9 +7,8 @@ use burn::{
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
-use uuid::Uuid;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BenchmarkRecord {
     backend: String,
     device: String,
@@ -43,7 +42,6 @@ pub struct BenchmarkRecord {
 /// ]
 /// ```
 pub fn save<B: Backend>(
-    name: &str,
     benches: Vec<BenchmarkResult>,
     device: &B::Device,
 ) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
@@ -56,11 +54,6 @@ pub fn save<B: Backend>(
         fs::create_dir_all(&cache_dir)?;
     }
 
-    let uuid = Uuid::new_v4().simple().to_string();
-    let short_uuid = &uuid[..8];
-    let file_name = format!("benchmarks_{}_{}.json", name, short_uuid);
-    let file_path = cache_dir.join(file_name);
-
     let records: Vec<BenchmarkRecord> = benches
         .into_iter()
         .map(|bench| BenchmarkRecord {
@@ -70,8 +63,15 @@ pub fn save<B: Backend>(
         })
         .collect();
 
-    let file = fs::File::create(file_path).expect("Unable to create backend comparison file.");
-    serde_json::to_writer_pretty(file, &records).expect("Unable to save benchmark results.");
+    for record in records.clone() {
+        let file_name = format!(
+            "bench_{}_{}.json",
+            record.results.name,
+            record.results.timestamp);
+        let file_path = cache_dir.join(file_name);
+        let file = fs::File::create(file_path).expect("Unable to create backend comparison file.");
+        serde_json::to_writer_pretty(file, &record).expect("Unable to save benchmark results.");
+    }
 
     Ok(records)
 }
@@ -101,18 +101,18 @@ impl Serialize for BenchmarkRecord {
             self,
             ("backend", &self.backend),
             ("device", &self.device),
-            ("rawDurations", &self.results.raw.durations),
-            ("numSamples", &self.results.raw.durations.len()),
-            ("mean", &self.results.computed.mean.as_secs_f64()),
-            ("median", &self.results.computed.median.as_secs_f64()),
-            ("variance", &self.results.computed.variance.as_secs_f64()),
-            ("min", &self.results.computed.min.as_secs_f64()),
-            ("max", &self.results.computed.max.as_secs_f64()),
             ("gitHash", &self.results.git_hash),
+            ("max", &self.results.computed.max.as_micros()),
+            ("mean", &self.results.computed.mean.as_micros()),
+            ("median", &self.results.computed.median.as_micros()),
+            ("min", &self.results.computed.min.as_micros()),
             ("name", &self.results.name),
-            ("operation", &self.results.operation),
+            ("numSamples", &self.results.raw.durations.len()),
+            ("options", &self.results.options),
+            ("rawDurations", &self.results.raw.durations),
             ("shapes", &self.results.shapes),
-            ("timestamp", &self.results.timestamp)
+            ("timestamp", &self.results.timestamp),
+            ("variance", &self.results.computed.variance.as_micros())
         )
     }
 }

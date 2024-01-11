@@ -14,15 +14,11 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        "Unary Ops".into()
+        "unary".into()
     }
 
-    fn operation(&self) -> Option<String> {
-        Some("unary".to_string())
-    }
-
-    fn shapes(&self) -> Option<Vec<String>> {
-        Some(vec![format!("{:?}", self.shape.dims)])
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec!(self.shape.dims.into())
     }
 
     fn execute(&self, args: Self::Args) {
@@ -49,7 +45,7 @@ fn bench<B: Backend>(device: &B::Device) {
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, num_repeats, device.clone());
 
-    save::<B>("unary", vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

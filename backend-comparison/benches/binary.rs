@@ -12,15 +12,11 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
     type Args = (Tensor<B, D>, Tensor<B, D>);
 
     fn name(&self) -> String {
-        "Binary Ops".into()
+        "binary".into()
     }
 
-    fn operation(&self) -> Option<String> {
-        Some("binary".to_string())
-    }
-
-    fn shapes(&self) -> Option<Vec<String>> {
-        Some(vec![format!("{:?}", self.shape.dims)])
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec!(self.shape.dims.into())
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
@@ -50,7 +46,7 @@ fn bench<B: Backend>(device: &B::Device) {
         device: device.clone(),
     };
 
-    save::<B>("binary", vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

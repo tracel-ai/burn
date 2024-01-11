@@ -24,19 +24,16 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        format!("Gelu {:?}", self.kind)
+        let kindstr = format!("{:?}", self.kind);
+        format!("gelu_{}", kindstr.to_lowercase())
     }
 
-    fn operation(&self) -> Option<String> {
-        match self.kind {
-            GeluKind::Reference => Some("gelu".to_string()),
-            GeluKind::WithReferenceErf => Some("gelu_custom".to_string()),
-            GeluKind::WithCustomErf => Some("gelu_custom".to_string()),
-        }
+    fn options(&self) -> Option<String> {
+        Some(format!("{:?}", self.kind))
     }
 
-    fn shapes(&self) -> Option<Vec<String>> {
-        Some(vec![format!("{:?}", self.shape.dims)])
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec!(self.shape.dims.into())
     }
 
     fn execute(&self, args: Self::Args) {
@@ -109,7 +106,6 @@ fn bench<B: Backend>(device: &B::Device) {
         CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf);
 
     save::<B>(
-        "gelu",
         vec![
             run_benchmark(reference_gelu),
             run_benchmark(reference_erf_gelu),
