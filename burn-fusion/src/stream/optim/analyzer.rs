@@ -91,6 +91,7 @@ impl<O> StreamAnalysis<O> {
                         break;
                     }
                 };
+                println!("AA");
 
                 if item.end_conditions.contains(ops) {
                     self.found = Some(*id);
@@ -174,6 +175,8 @@ pub enum AnalysisMode<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
     use super::*;
     use crate::{
         stream::{
@@ -184,132 +187,129 @@ mod tests {
     };
 
     #[test]
-    fn given_existing_optimization_should_wait_for_optimization() {
-        let stream = TestStream::new(2);
+    fn given_no_optimization_should_explore() {
         let mut optimizations = StreamOptimizations::default();
-        // Add an optimization with no end condition and the two first ops.
-        let id = optimizations.add(OptimizationItem {
-            stream: stream.operations[0..2].to_vec(),
-            end_conditions: vec![],
-            value: Optimization1.create(),
-        });
-        assert_eq!(id, 0, "New optimization has id=0");
-
-        // Second following on the same ops.
         let mut analysis = StreamAnalysis::new();
-        let result1 = analysis.update(
-            &mut optimizations,
-            &[],
-            AnalysisMode::LazyExecution {
-                next_ops: &stream.operations[0],
-            },
-        );
-        assert_eq!(result1, StreamAnalysisUpdate::WaitForOptimization);
+        let stream = TestStream::new(3);
 
-        let result2 = analysis.update(
+        stream.assert_updates(
             &mut optimizations,
-            &stream.operations[0..1],
-            AnalysisMode::LazyExecution {
-                next_ops: &stream.operations[0],
-            },
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            StreamAnalysisUpdate::ExploreOptimization,
+            false,
         );
-        assert_eq!(result2, StreamAnalysisUpdate::WaitForOptimization);
-
-        let result3 = analysis.update(&mut optimizations, &stream.operations[0..2], AnalysisMode::Sync);
-        match result3 {
-            StreamAnalysisUpdate::ExecuteOptimization(ops) => {
-                assert_eq!(ops, 0, "Use the first optimization created before")
-            }
-            _ => panic!("Should have found the cached operation"),
-        };
     }
 
-    //
-    //     #[test]
-    //     fn once_found_perfect_should_always_return_found() {
-    //         let mut stream = TestStream::new(2);
-    //         let mut cache = StreamOptimizations::default();
-    //         let mut path = StreamAnalysis::new();
-    //         stream.follow_misses(&mut cache, &mut path);
-    //
-    //         // Register the action.
-    //         let _optimization = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization1,
-    //             stream.edges[0..1].to_vec(),
-    //             Some(stream.edges[1].clone()),
-    //         );
-    //
-    //         path.reset();
-    //         stream.new_ops();
-    //         stream.new_ops();
-    //
-    //         let result = path.update(&mut cache, &[], ExecutionMode::Lazy(&stream.edges[0]));
-    //         assert_eq!(result, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &stream.edges[0..1],
-    //             ExecutionMode::Lazy(&stream.edges[1]),
-    //         );
-    //         match result {
-    //             StreamAnalysisUpdate::ExecuteOptimization(ops) => assert_eq!(ops, 1),
-    //             _ => panic!("Should have found the cached operation"),
-    //         }
-    //
-    //         let result = path.update(
-    //             &mut cache,
-    //             &stream.edges[0..2],
-    //             ExecutionMode::Lazy(&stream.edges[2]),
-    //         );
-    //         match result {
-    //             StreamAnalysisUpdate::ExecuteOptimization(ops) => assert_eq!(ops, 1),
-    //             _ => panic!("Should have found the cached operation"),
-    //         }
-    //     }
-    //
-    //     #[test]
-    //     fn should_cache_optimization_end_condition_next_ops() {
-    //         // A graph with 4 ops.
-    //         let stream = TestStream::new(3);
-    //         let mut cache = StreamOptimizations::default();
-    //         let mut path = StreamAnalysis::new();
-    //
-    //         // First following
-    //         stream.follow_misses(&mut cache, &mut path);
-    //
-    //         // Register the action.
-    //         let optimization = path.new_optimization_built(
-    //             &mut cache,
-    //             &Optimization1,
-    //             stream.edges[0..2].to_vec(),
-    //             Some(stream.edges[2].clone()),
-    //         );
-    //
-    //         assert_eq!(optimization, 1);
-    //
-    //         // Second following on the same ops.
-    //         path.reset();
-    //         let result1 = path.update(&mut cache, &[], ExecutionMode::Lazy(&stream.edges[0]));
-    //         assert_eq!(result1, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result2 = path.update(
-    //             &mut cache,
-    //             &stream.edges[0..1],
-    //             ExecutionMode::Lazy(&stream.edges[1]),
-    //         );
-    //         assert_eq!(result2, StreamAnalysisUpdate::WaitForOptimization);
-    //
-    //         let result3 = path.update(
-    //             &mut cache,
-    //             &stream.edges[0..2],
-    //             ExecutionMode::Lazy(&stream.edges[2]),
-    //         );
-    //         match result3 {
-    //             StreamAnalysisUpdate::ExecuteOptimization(ops) => assert_eq!(ops, 1),
-    //             _ => panic!("Should have found the cached operation"),
-    //         };
-    //     }
+    #[test]
+    fn given_existing_optimization_when_sync_should_execute_optim() {
+        let mut optimizations = StreamOptimizations::default();
+        let mut analysis = StreamAnalysis::new();
+
+        let stream = TestStream::new(2);
+        let id = optimizations.add(OptimizationItem {
+            stream: stream.operations.clone(),
+            end_conditions: Vec::new(),
+            value: Optimization1.create(),
+        });
+
+        stream.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(0..1),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+
+        stream.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(1..2),
+            StreamAnalysisUpdate::ExecuteOptimization(id),
+            true, // Sync
+        );
+    }
+
+    #[test]
+    fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
+        let mut optimizations = StreamOptimizations::default();
+        let mut analysis = StreamAnalysis::new();
+
+        let stream = TestStream::new(3);
+        let id = optimizations.add(OptimizationItem {
+            stream: stream.operations[0..2].to_vec(),
+            end_conditions: stream.operations[2..3].to_vec(),
+            value: Optimization1.create(),
+        });
+
+        stream.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+        stream.assert_updates(
+            &mut optimizations,
+            &mut analysis,
+            AssertUpdatesOptions::OperationsIndex(2..3),
+            StreamAnalysisUpdate::ExecuteOptimization(id),
+            false, // Async
+        );
+    }
+
+    #[test]
+    fn should_support_many_different_end_conditions() {
+        let mut optimizations = StreamOptimizations::default();
+        let mut analysis1 = StreamAnalysis::new();
+        let mut analysis2 = StreamAnalysis::new();
+
+        let mut stream1 = TestStream::new(2);
+        let mut stream2 = TestStream::new(2);
+
+        // Create different end operation for each stream.
+        let end_condition_id_1 = 5;
+        let end_condition_id_2 = 5;
+        stream1.new_ops(end_condition_id_1);
+        stream2.new_ops(end_condition_id_2);
+
+        let id = optimizations.add(OptimizationItem {
+            stream: stream1.operations[0..2].to_vec(),
+            end_conditions: vec![stream1.operations[2].clone(), stream2.operations[2].clone()],
+            value: Optimization1.create(),
+        });
+
+        stream1.assert_updates(
+            &mut optimizations,
+            &mut analysis1,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis2,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            StreamAnalysisUpdate::WaitForOptimization,
+            false, // Async
+        );
+
+        stream1.assert_updates(
+            &mut optimizations,
+            &mut analysis1,
+            AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
+            StreamAnalysisUpdate::ExecuteOptimization(id),
+            false, // Async
+        );
+        stream2.assert_updates(
+            &mut optimizations,
+            &mut analysis2,
+            AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
+            StreamAnalysisUpdate::ExecuteOptimization(id),
+            false, // Async
+        );
+    }
+
     //
     //     #[test]
     //     fn should_support_many_different_end_conditions() {
@@ -476,54 +476,61 @@ mod tests {
         operations: Vec<TensorOpsDescription>,
     }
 
+    #[derive(Debug)]
+    enum AssertUpdatesOptions {
+        OperationsIndex(Range<usize>),
+    }
+
     impl TestStream {
         /// Create a new test graph with `num_ops` operations registered.
         pub fn new(num_ops: usize) -> Self {
             let mut graph = Self::default();
-            for _ in 0..num_ops {
-                graph.new_ops();
+            for id in 0..num_ops {
+                graph.new_ops(id as u64 + 1);
             }
 
             graph
         }
 
         /// The first follow should only be cache miss.
-        pub fn follow_misses(
+        pub fn assert_updates(
             &self,
             optimizations: &mut StreamOptimizations<String>,
             analysis: &mut StreamAnalysis<String>,
+            options: AssertUpdatesOptions,
+            update: StreamAnalysisUpdate,
+            sync: bool,
         ) {
-            for i in 0..self.operations.len() {
-                let result = analysis.update(
-                    optimizations,
-                    &self.operations[0..i],
-                    AnalysisMode::LazyExecution {
-                        next_ops: &self.operations[i],
-                    },
-                );
-                assert_eq!(result, StreamAnalysisUpdate::ExploreOptimization);
+            match options {
+                AssertUpdatesOptions::OperationsIndex(range) => {
+                    let end = range.end;
+                    for i in range {
+                        let (mode, operations) = if sync && i == end - 1 {
+                            (AnalysisMode::Sync, &self.operations[0..i + 1])
+                        } else {
+                            (
+                                AnalysisMode::LazyExecution {
+                                    next_ops: &self.operations[i],
+                                },
+                                &self.operations[0..i],
+                            )
+                        };
+                        let result = analysis.update(optimizations, operations, mode);
+                        assert_eq!(result, update);
+                    }
+                }
             }
-        }
-
-        /// Register a unary operation in the graph.
-        pub fn register_ops<F>(&mut self, func: F)
-        where
-            F: Fn(UnaryOpsDescription) -> TensorOpsDescription,
-        {
-            self.new_empty_node();
-            let desc = self.unary_description();
-            self.operations.push(func(desc));
         }
 
         /// Add a simple operation to the graph.
-        pub fn new_ops(&mut self) {
+        pub fn new_ops(&mut self, out_id: u64) {
             if self.tensors.is_empty() {
                 // Root node.
-                self.new_empty_node();
+                self.new_empty_node(0);
             }
 
             // Out node.
-            self.new_empty_node();
+            self.new_empty_node(out_id);
 
             self.operations
                 .push(TensorOpsDescription::FloatOps(FloatOpsDescription::Log(
@@ -531,9 +538,9 @@ mod tests {
                 )));
         }
 
-        fn new_empty_node(&mut self) {
+        fn new_empty_node(&mut self, id: u64) {
             self.tensors.push(TensorDescription {
-                id: TensorId::new(self.tensors.len() as u64),
+                id: TensorId::new(id),
                 shape: vec![32, 32, 1],
                 status: TensorStatus::NotInit,
             });
