@@ -157,7 +157,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
             let _ = self.analysis.update(
                 cache,
                 &graph.relative[0..i],
-                AnalysisMode::Lazy {
+                AnalysisMode::LazyExecution {
                     next_ops: &graph.relative[i],
                 },
             );
@@ -172,7 +172,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
     ) -> StreamAnalysisUpdate {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops
-            .map(|next_ops| AnalysisMode::Lazy { next_ops })
+            .map(|next_ops| AnalysisMode::LazyExecution { next_ops })
             .unwrap_or(AnalysisMode::Sync);
         let action = self.analysis.update(cache, graph, end_condition);
 
