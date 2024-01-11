@@ -18,7 +18,7 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec!(self.shape.dims.into())
+        vec![self.shape.dims.into()]
     }
 
     fn num_repeats(&self) -> usize {
@@ -55,7 +55,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec!(self.shape.dims.into())
+        vec![self.shape.dims.into()]
     }
 
     fn num_repeats(&self) -> usize {

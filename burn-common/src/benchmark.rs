@@ -140,7 +140,7 @@ pub trait Benchmark {
     }
     /// Shapes dimensions
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec!()
+        vec![]
     }
     /// Wait for computed to be over
     fn sync(&self);
@@ -235,7 +235,7 @@ where
         computed: BenchmarkComputations::new(&durations),
         git_hash,
         name: benchmark.name(),
-        num_repeats:  benchmark.num_repeats(),
+        num_repeats: benchmark.num_repeats(),
         options: benchmark.options(),
         shapes: benchmark.shapes(),
         timestamp,

@@ -19,7 +19,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec!(self.shape_lhs.dims.into(), self.shape_rhs.dims.into())
+        vec![self.shape_lhs.dims.into(), self.shape_rhs.dims.into()]
     }
 
     fn num_samples(&self) -> usize {

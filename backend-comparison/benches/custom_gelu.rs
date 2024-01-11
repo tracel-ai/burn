@@ -33,7 +33,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec!(self.shape.dims.into())
+        vec![self.shape.dims.into()]
     }
 
     fn execute(&self, args: Self::Args) {
