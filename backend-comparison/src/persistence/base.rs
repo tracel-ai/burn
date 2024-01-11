@@ -76,30 +76,43 @@ pub fn save<B: Backend>(
     Ok(records)
 }
 
+/// Macro to easily serialize each field in a flatten manner.
+/// This macro automatically computes the number of fields to serialize
+/// and allows specifying a custom serialization key for each field.
+macro_rules! serialize_fields {
+    ($serializer:expr, $record:expr, $(($key:expr, $field:expr)),*) => {{
+        // Hacky way to get the fields count
+        let fields_count = [ $(stringify!($key),)+ ].len();
+        let mut state = $serializer.serialize_struct("BenchmarkRecord", fields_count)?;
+        $(
+            state.serialize_field($key, $field)?;
+        )*
+            state.end()
+    }};
+}
+
 impl Serialize for BenchmarkRecord {
-    /// Flatten all the fields when serializing, i.e. we remove the nesting
-    /// under "results" and "computed".
-    /// Also format the fields to be compliant with MongoDB naming conventions.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut state = serializer.serialize_struct("BenchmarkRecord", 11)?;
-        state.serialize_field("backend", &self.backend)?;
-        state.serialize_field("device", &self.device)?;
-        // Serialize fields of BenchmarkResult
-        state.serialize_field("rawDurations", &self.results.raw.durations)?;
-        state.serialize_field("numSamples", &self.results.raw.durations.len())?;
-        state.serialize_field("mean", &self.results.computed.mean.as_secs_f64())?;
-        state.serialize_field("median", &self.results.computed.median.as_secs_f64())?;
-        state.serialize_field("variance", &self.results.computed.variance.as_secs_f64())?;
-        state.serialize_field("min", &self.results.computed.min.as_secs_f64())?;
-        state.serialize_field("max", &self.results.computed.max.as_secs_f64())?;
-        state.serialize_field("gitHash", &self.results.git_hash)?;
-        state.serialize_field("name", &self.results.name)?;
-        state.serialize_field("operation", &self.results.operation)?;
-        state.serialize_field("shapes", &self.results.shapes)?;
-        state.serialize_field("timestamp", &self.results.timestamp)?;
-        state.end()
+        serialize_fields!(
+            serializer,
+            self,
+            ("backend", &self.backend),
+            ("device", &self.device),
+            ("rawDurations", &self.results.raw.durations),
+            ("numSamples", &self.results.raw.durations.len()),
+            ("mean", &self.results.computed.mean.as_secs_f64()),
+            ("median", &self.results.computed.median.as_secs_f64()),
+            ("variance", &self.results.computed.variance.as_secs_f64()),
+            ("min", &self.results.computed.min.as_secs_f64()),
+            ("max", &self.results.computed.max.as_secs_f64()),
+            ("gitHash", &self.results.git_hash),
+            ("name", &self.results.name),
+            ("operation", &self.results.operation),
+            ("shapes", &self.results.shapes),
+            ("timestamp", &self.results.timestamp)
+        )
     }
 }
