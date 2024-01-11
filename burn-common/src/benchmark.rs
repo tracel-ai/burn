@@ -123,9 +123,13 @@ pub trait Benchmark {
     fn prepare(&self) -> Self::Args;
     /// Execute the benchmark and returns the time it took to complete.
     fn execute(&self, args: Self::Args);
-    /// Number of samples required to have a statistical significance.
+    /// Number of samples per run required to have a statistical significance.
     fn num_samples(&self) -> usize {
         10
+    }
+    /// Number of executions per sample
+    fn num_repeats(&self) -> usize {
+        1
     }
     /// Name of the benchmark, should be short and it should match the name
     /// defined in the crate Cargo.toml
@@ -184,6 +188,8 @@ pub struct BenchmarkResult {
     pub git_hash: String,
     /// Name of the benchmark
     pub name: String,
+    /// Number of executions per sample
+    pub num_repeats: usize,
     /// Options passed to the benchmark
     pub options: Option<String>,
     /// Shape dimensions
@@ -229,6 +235,7 @@ where
         computed: BenchmarkComputations::new(&durations),
         git_hash,
         name: benchmark.name(),
+        num_repeats:  benchmark.num_repeats(),
         options: benchmark.options(),
         shapes: benchmark.shapes(),
         timestamp,

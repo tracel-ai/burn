@@ -19,8 +19,12 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
         vec!(self.shape.dims.into())
     }
 
+    fn num_repeats(&self) -> usize {
+        self.num_repeats
+    }
+
     fn execute(&self, (lhs, rhs): Self::Args) {
-        for _ in 0..self.num_repeats {
+        for _ in 0..self.num_repeats() {
             // Choice of add is arbitrary
             B::add(lhs.clone().into_primitive(), rhs.clone().into_primitive());
         }

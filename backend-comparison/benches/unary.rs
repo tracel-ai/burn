@@ -21,8 +21,12 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
         vec!(self.shape.dims.into())
     }
 
+    fn num_repeats(&self) -> usize {
+        self.num_repeats
+    }
+
     fn execute(&self, args: Self::Args) {
-        for _ in 0..self.num_repeats {
+        for _ in 0..self.num_repeats() {
             // Choice of tanh is arbitrary
             B::tanh(args.clone().into_primitive());
         }

@@ -21,8 +21,12 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
         vec!(self.shape.dims.into())
     }
 
+    fn num_repeats(&self) -> usize {
+        self.num_repeats
+    }
+
     fn execute(&self, args: Self::Args) {
-        for _ in 0..self.num_repeats {
+        for _ in 0..self.num_repeats() {
             let _data = args.to_data();
         }
     }
@@ -54,8 +58,12 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
         vec!(self.shape.dims.into())
     }
 
+    fn num_repeats(&self) -> usize {
+        self.num_repeats
+    }
+
     fn execute(&self, (data, device): Self::Args) {
-        for _ in 0..self.num_repeats {
+        for _ in 0..self.num_repeats() {
             let _data = Tensor::<B, D>::from_data(data.clone(), &device);
         }
     }

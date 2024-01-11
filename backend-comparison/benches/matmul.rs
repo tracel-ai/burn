@@ -26,8 +26,12 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
         10
     }
 
+    fn num_repeats(&self) -> usize {
+        self.num_repeats
+    }
+
     fn execute(&self, (lhs, rhs): Self::Args) {
-        for _ in 0..self.num_repeats {
+        for _ in 0..self.num_repeats() {
             lhs.clone().matmul(rhs.clone());
         }
     }
