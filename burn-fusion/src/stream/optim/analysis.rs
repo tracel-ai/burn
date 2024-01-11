@@ -2,7 +2,7 @@ use super::OptimizationId;
 use crate::stream::{optim::StreamOptimizations, TensorOpsDescription};
 use std::marker::PhantomData;
 
-/// The stream optimizer works by keeping track of all possible optimizations for the current graph path.
+/// The stream analysis keeps track of all possible optimizations for the current stream.
 ///
 /// # Details
 ///
@@ -13,9 +13,15 @@ use std::marker::PhantomData;
 /// optimizations scales with the number of concurrent potential optimizations for the current stream,
 /// which isn't supposed to be big at any time.
 pub(crate) struct StreamAnalysis<O> {
+    // The potential optimizations that we could apply to the current stream, but their streams
+    // still exceed the size of the current stream.
     candidates: Vec<OptimizationId>,
+    // Optimizations that we find during the analysis, but none of their `end_conditions` matches the
+    // current stream.
     availables: Vec<(OptimizationId, usize)>,
-    found: Option<OptimizationId>,
+    // Optimization that we find during the analysis where one of its `end_condition` matches the
+    // current stream.
+    found: Option<(OptimizationId, usize)>,
     _item_type: PhantomData<O>,
 }
 
@@ -29,81 +35,224 @@ impl<O> StreamAnalysis<O> {
         }
     }
 
-    /// Follow the current path on the provided graph with the start/end condition.
+    /// Update the analysis state and return the appropriate action.
     ///
     /// # Notes
     ///
-    /// It is assumed that this function will be called for each new edge added to the graph (for
-    /// each new operation). Only one graph can be cached at a time.
+    /// It is assumed that this function will be called for each new operation added to the graph (for
+    /// each new operation). Only one stream can be analyzed at a time.
     pub fn update(
         &mut self,
         optimizations: &StreamOptimizations<O>,
         stream: &[TensorOpsDescription],
         mode: AnalysisMode,
-    ) -> StreamAnalysisUpdate {
+    ) -> StreamAnalysisAction {
         if stream.is_empty() {
-            // When the graph is empty, we use the condition as the first operation to determine
-            // the new possible opitmizations.
-            let ops = match mode {
-                AnalysisMode::LazyExecution { next_ops } => next_ops,
-                AnalysisMode::Sync => return StreamAnalysisUpdate::ExploreOptimization, // Sync an empty graph doesn't make
-                                                                                        // sense.
-            };
-            let candidates = optimizations.find_starting_with(ops);
-            if candidates.is_empty() {
-                return StreamAnalysisUpdate::ExploreOptimization;
-            }
-            self.candidates = candidates;
-            return StreamAnalysisUpdate::WaitForOptimization;
+            return self.initialize_state(mode, optimizations);
         }
 
-        if let Some(candidate) = self.found {
-            return StreamAnalysisUpdate::ExecuteOptimization(candidate);
+        if let Some((candidate, _length)) = self.found {
+            return StreamAnalysisAction::ExecuteOptimization(candidate);
+        }
+
+        let (next_ops, length) = match mode {
+            AnalysisMode::LazyExecution { next_ops } => {
+                // assert_eq!(self.num_operations_analyzed, stream.len());
+                (next_ops, stream.len())
+            }
+            AnalysisMode::Sync => {
+                // assert_eq!(self.num_operations_analyzed, stream.len() - 1);
+                (
+                    stream
+                        .last()
+                        .expect("The stream should have at least 1 operation when sync"),
+                    stream.len() - 1,
+                )
+            }
+        };
+
+        self.analyze_candidates(optimizations, next_ops, length);
+
+        if let Some((candidate, _length)) = self.found {
+            return StreamAnalysisAction::ExecuteOptimization(candidate);
+        }
+
+        if self.candidates.is_empty() {
+            // Even if there are optimizations available, we aren't sure if they are the best ones
+            // we can use. Exploring more optimizations might find a new `end_condition` or
+            // even find a better optimization.
+            return StreamAnalysisAction::ExploreOptimization;
+        }
+
+        match mode {
+            AnalysisMode::LazyExecution { next_ops: _ } => {
+                StreamAnalysisAction::WaitForOptimization
+            }
+            AnalysisMode::Sync => {
+                // If an optimization covers the _whole_ stream, we return it, else we explore new
+                // optimizations.
+                for (id, length) in self.availables.iter() {
+                    if *length == stream.len() {
+                        return StreamAnalysisAction::ExecuteOptimization(*id);
+                    }
+                }
+
+                for candidate in self.candidates.iter() {
+                    let item = optimizations.get_unchecked(*candidate);
+
+                    // The candidate can actually be executed, since the stream is of the same
+                    // size.
+                    if item.stream.len() == stream.len() {
+                        return StreamAnalysisAction::ExecuteOptimization(*candidate);
+                    }
+                }
+
+                StreamAnalysisAction::ExploreOptimization
+            }
         }
 
         // Invalidate candidates.
-        let mut invalidated_candidate = Vec::new();
+        // let mut invalidated_candidate = Vec::new();
+        // for id in self.candidates.iter() {
+        //     let item = optimizations.get_unchecked(*id);
+        //     let next_ops = stream.last().expect("Validated earlier");
+        //     let next_ops_index = stream.len() - 1;
+        //     let next_ops_candidate = match item.stream.get(next_ops_index) {
+        //         Some(val) => val,
+        //         None => {
+        //             // Graph of different size, invalidated.
+        //             invalidated_candidate.push(*id);
+        //             continue;
+        //         }
+        //     };
+
+        //     if next_ops_candidate != next_ops {
+        //         // Graph with different node at the current position, invalidated.
+        //         invalidated_candidate.push(*id);
+        //         continue;
+        //     }
+
+        //     // Is it optimal?
+        //     if item.stream.len() == stream.len() {
+        //         let ops = match mode {
+        //             AnalysisMode::LazyExecution { next_ops } => next_ops,
+        //             AnalysisMode::Sync => {
+        //                 self.found = Some(*id);
+        //                 break;
+        //             }
+        //         };
+
+        //         if item.end_conditions.contains(ops) {
+        //             self.found = Some(*id);
+        //             break;
+        //         } else {
+        //             self.availables.push((*id, stream.len()));
+        //             invalidated_candidate.push(*id);
+        //         }
+        //     }
+        // }
+
+        // if let Some(id) = self.found {
+        //     return StreamAnalysisAction::ExecuteOptimization(id);
+        // }
+
+        // let mut updated_candidates = Vec::new();
+        // core::mem::swap(&mut updated_candidates, &mut self.candidates);
+
+        // self.candidates = updated_candidates
+        //     .into_iter()
+        //     .filter(|candidate| !invalidated_candidate.contains(candidate))
+        //     .collect();
+    }
+
+    /// Did the analysis find an optimization that can be applied for the current stream.
+    ///
+    /// # Important
+    ///
+    /// The optimization should optimize the _whole_ stream, not just part of it.
+    pub fn found_optimal_optimization(
+        &self,
+        stream: &[TensorOpsDescription],
+    ) -> Option<OptimizationId> {
+        // If the optimization is for a stream of the same length as provided, we return it.
+
+        if let Some((id, length)) = self.found {
+            if length == stream.len() {
+                return Some(id);
+            }
+        }
+
+        for (id, length) in self.availables.iter() {
+            if *length == stream.len() {
+                return Some(*id);
+            }
+        }
+
+        None
+    }
+
+    fn initialize_state(
+        &mut self,
+        mode: AnalysisMode,
+        optimizations: &StreamOptimizations<O>,
+    ) -> StreamAnalysisAction {
+        self.reset();
+
+        // When the graph is empty, we use the condition as the first operation to determine
+        // the new possible opitmizations.
+        let ops = match mode {
+            AnalysisMode::LazyExecution { next_ops } => next_ops,
+            AnalysisMode::Sync => return StreamAnalysisAction::ExploreOptimization, // Sync an empty graph doesn't make
+                                                                                    // sense.
+        };
+
+        self.candidates = optimizations.find_starting_with(ops);
+
+        if self.candidates.is_empty() {
+            return StreamAnalysisAction::ExploreOptimization;
+        }
+        return StreamAnalysisAction::WaitForOptimization;
+    }
+
+    fn analyze_candidates(
+        &mut self,
+        optimizations: &StreamOptimizations<O>,
+        next_ops: &TensorOpsDescription,
+        stream_length: usize,
+    ) {
+        let mut invalidated_candidates = Vec::new();
+
         for id in self.candidates.iter() {
             let item = optimizations.get_unchecked(*id);
-            let next_ops = stream.last().expect("Validated earlier");
-            let next_ops_index = stream.len() - 1;
-            let next_ops_candidate = match item.stream.get(next_ops_index) {
+
+            if item.stream.len() == stream_length {
+                if item.end_conditions.contains(next_ops) {
+                    self.found = Some((*id, item.stream.len()));
+                    break;
+                } else {
+                    // The optimization is available, but the current operation isn't an existing
+                    // end_condition for this optimization, so we may find a better optimization by
+                    // still growing the stream.
+                    self.availables.push((*id, item.stream.len()));
+                    invalidated_candidates.push(*id);
+                    continue;
+                }
+            };
+
+            let next_ops_candidate = match item.stream.get(stream_length) {
                 Some(val) => val,
                 None => {
                     // Graph of different size, invalidated.
-                    invalidated_candidate.push(*id);
+                    invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
             if next_ops_candidate != next_ops {
                 // Graph with different node at the current position, invalidated.
-                invalidated_candidate.push(*id);
+                invalidated_candidates.push(*id);
                 continue;
             }
-
-            // Is it optimal?
-            if item.stream.len() == stream.len() {
-                let ops = match mode {
-                    AnalysisMode::LazyExecution { next_ops } => next_ops,
-                    AnalysisMode::Sync => {
-                        self.found = Some(*id);
-                        break;
-                    }
-                };
-
-                if item.end_conditions.contains(ops) {
-                    self.found = Some(*id);
-                    break;
-                } else {
-                    self.availables.push((*id, stream.len()));
-                    invalidated_candidate.push(*id);
-                }
-            }
-        }
-
-        if let Some(id) = self.found {
-            return StreamAnalysisUpdate::ExecuteOptimization(id);
         }
 
         let mut updated_candidates = Vec::new();
@@ -111,31 +260,8 @@ impl<O> StreamAnalysis<O> {
 
         self.candidates = updated_candidates
             .into_iter()
-            .filter(|candidate| !invalidated_candidate.contains(candidate))
+            .filter(|candidate| !invalidated_candidates.contains(candidate))
             .collect();
-
-        if self.candidates.is_empty() {
-            StreamAnalysisUpdate::ExploreOptimization
-        } else {
-            StreamAnalysisUpdate::WaitForOptimization
-        }
-    }
-
-    pub fn found_optimization(&self, stream: &[TensorOpsDescription]) -> Option<OptimizationId> {
-        if let Some(id) = self.found {
-            return Some(id);
-        }
-
-        let existing_optim = self
-            .availables
-            .iter()
-            .find(|(_candidate, len)| *len == stream.len());
-
-        if let Some((id, _)) = existing_optim {
-            Some(*id)
-        } else {
-            None
-        }
     }
 
     // Signal that a new path will begin.
@@ -148,7 +274,7 @@ impl<O> StreamAnalysis<O> {
 
 /// Action to be made depending on the graph.
 #[derive(PartialEq, Eq, Debug)]
-pub enum StreamAnalysisUpdate {
+pub enum StreamAnalysisAction {
     /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
     ExploreOptimization,
     /// The current graph indicates that an optimization may be possible in the future, so the
@@ -191,7 +317,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisUpdate::ExploreOptimization,
+            StreamAnalysisAction::ExploreOptimization,
             false,
         );
     }
@@ -212,7 +338,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..1),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
 
@@ -220,7 +346,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(1..2),
-            StreamAnalysisUpdate::ExecuteOptimization(id),
+            StreamAnalysisAction::ExecuteOptimization(id),
             true, // Sync
         );
     }
@@ -241,14 +367,14 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..3),
-            StreamAnalysisUpdate::ExecuteOptimization(id),
+            StreamAnalysisAction::ExecuteOptimization(id),
             false, // Async
         );
     }
@@ -278,14 +404,14 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
 
@@ -293,14 +419,14 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
-            StreamAnalysisUpdate::ExecuteOptimization(id),
+            StreamAnalysisAction::ExecuteOptimization(id),
             false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
-            StreamAnalysisUpdate::ExecuteOptimization(id),
+            StreamAnalysisAction::ExecuteOptimization(id),
             false, // Async
         );
     }
@@ -337,14 +463,14 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisUpdate::WaitForOptimization,
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
 
@@ -352,14 +478,14 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            StreamAnalysisUpdate::ExecuteOptimization(optimization_stream1),
+            StreamAnalysisAction::ExecuteOptimization(optimization_stream1),
             false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            StreamAnalysisUpdate::ExecuteOptimization(optimization_stream2),
+            StreamAnalysisAction::ExecuteOptimization(optimization_stream2),
             false, // Async
         );
     }
@@ -383,8 +509,8 @@ mod tests {
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis,
-            AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisUpdate::WaitForOptimization,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            StreamAnalysisAction::WaitForOptimization,
             false, // Async
         );
 
@@ -392,8 +518,8 @@ mod tests {
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis,
-            AssertUpdatesOptions::OperationsIndex(3..4),
-            StreamAnalysisUpdate::ExploreOptimization,
+            AssertUpdatesOptions::OperationsIndex(2..4),
+            StreamAnalysisAction::ExploreOptimization,
             false, // Async
         );
     }
@@ -423,10 +549,10 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn assert_updates(
             &self,
-            optimizations: &mut StreamOptimizations<()>,
+            optimizations: &StreamOptimizations<()>,
             analysis: &mut StreamAnalysis<()>,
             options: AssertUpdatesOptions,
-            update: StreamAnalysisUpdate,
+            update: StreamAnalysisAction,
             sync: bool,
         ) {
             match options {

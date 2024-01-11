@@ -1,8 +1,8 @@
-mod analyzer;
+mod analysis;
 mod base;
 mod persistent;
 
-pub use analyzer::*;
+pub use analysis::*;
 pub(crate) use base::*;
 
 mod starter;

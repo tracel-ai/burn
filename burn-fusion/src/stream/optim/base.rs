@@ -1,4 +1,4 @@
-use super::{starter::Starters, StreamAnalysis};
+use super::starter::Starters;
 use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 

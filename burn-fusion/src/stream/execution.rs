@@ -1,6 +1,6 @@
 use super::{Stream, TensorOpsDescription};
 use crate::stream::optim::{
-    AnalysisMode, StreamAnalysis, StreamAnalysisUpdate, StreamOptimizations,
+    AnalysisMode, StreamAnalysis, StreamAnalysisAction, StreamOptimizations,
 };
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
@@ -43,7 +43,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
             }
 
             match self.analyze(optimizations, stream, mode) {
-                StreamAnalysisUpdate::ExploreOptimization => {
+                StreamAnalysisAction::ExploreOptimization => {
                     match self.build(optimizations, stream, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
                             stream.execute_optimization(handles, ops);
@@ -64,7 +64,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         break;
                     }
                 }
-                StreamAnalysisUpdate::WaitForOptimization => {
+                StreamAnalysisAction::WaitForOptimization => {
                     self.num_skipped += 1;
 
                     match mode {
@@ -72,7 +72,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                StreamAnalysisUpdate::ExecuteOptimization(ops) => {
+                StreamAnalysisAction::ExecuteOptimization(ops) => {
                     stream.execute_optimization(
                         handles,
                         &mut optimizations.get_mut_unchecked(ops).value,
@@ -122,7 +122,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let builder = &self.builders[index];
 
-                let id = if let Some(id) = self.analysis.found_optimization(&relative) {
+                let id = if let Some(id) = self.analysis.found_optimal_optimization(&relative) {
                     if let Some(next_ops) = next_ops {
                         optimizations.add_end_condition(id, next_ops);
                     }
@@ -169,7 +169,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
         cache: &'a mut StreamOptimizations<B::Optimization>,
         graph: &Stream<B>,
         mode: ExecutionMode,
-    ) -> StreamAnalysisUpdate {
+    ) -> StreamAnalysisAction {
         let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
         let end_condition = next_ops
             .map(|next_ops| AnalysisMode::LazyExecution { next_ops })
@@ -179,14 +179,14 @@ impl<B: FusionBackend> StreamExecutor<B> {
         match mode {
             ExecutionMode::Lazy => action,
             ExecutionMode::Sync => match action {
-                StreamAnalysisUpdate::ExploreOptimization => {
-                    StreamAnalysisUpdate::ExploreOptimization
+                StreamAnalysisAction::ExploreOptimization => {
+                    StreamAnalysisAction::ExploreOptimization
                 }
-                StreamAnalysisUpdate::WaitForOptimization => {
-                    StreamAnalysisUpdate::ExploreOptimization
+                StreamAnalysisAction::WaitForOptimization => {
+                    StreamAnalysisAction::ExploreOptimization
                 }
-                StreamAnalysisUpdate::ExecuteOptimization(ops) => {
-                    StreamAnalysisUpdate::ExecuteOptimization(ops)
+                StreamAnalysisAction::ExecuteOptimization(ops) => {
+                    StreamAnalysisAction::ExecuteOptimization(ops)
                 }
             },
         }
