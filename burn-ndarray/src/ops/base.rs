@@ -1,4 +1,3 @@
-
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
