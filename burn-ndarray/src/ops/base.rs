@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+
 use alloc::vec::Vec;
 use burn_tensor::Data;
 use burn_tensor::ElementConversion;
@@ -465,7 +465,7 @@ where
     pub(crate) fn elementwise_op<const D: usize, OtherE>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<OtherE, D>,
-        mut var_name: impl FnMut(&E, &OtherE) -> E,
+        var_name: impl FnMut(&E, &OtherE) -> E,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::new(
             Zip::from(lhs.array.view())

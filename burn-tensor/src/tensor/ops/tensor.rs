@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float, Int};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;

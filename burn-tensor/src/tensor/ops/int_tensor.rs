@@ -1,4 +1,4 @@
-use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, TensorOps};
+use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;

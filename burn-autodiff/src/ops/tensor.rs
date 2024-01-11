@@ -1518,8 +1518,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     }
 
     fn pow<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Pow;
