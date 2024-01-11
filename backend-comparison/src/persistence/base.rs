@@ -46,7 +46,7 @@ pub fn save<B: Backend>(
     device: &B::Device,
 ) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
     let cache_dir = dirs::home_dir()
-        .expect("Could not get home directory")
+        .expect("Home directory should exist")
         .join(".cache")
         .join("backend-comparison");
 
@@ -66,11 +66,12 @@ pub fn save<B: Backend>(
     for record in records.clone() {
         let file_name = format!(
             "bench_{}_{}.json",
-            record.results.name,
-            record.results.timestamp);
+            record.results.name, record.results.timestamp
+        );
         let file_path = cache_dir.join(file_name);
-        let file = fs::File::create(file_path).expect("Unable to create backend comparison file.");
-        serde_json::to_writer_pretty(file, &record).expect("Unable to save benchmark results.");
+        let file = fs::File::create(file_path).expect("Benchmark file should exist or be created");
+        serde_json::to_writer_pretty(file, &record)
+            .expect("Benchmark file should be updated with benchmark results");
     }
 
     Ok(records)
