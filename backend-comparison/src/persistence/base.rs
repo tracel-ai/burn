@@ -48,6 +48,7 @@ pub fn save<B: Backend>(
     let cache_dir = dirs::home_dir()
         .expect("Home directory should exist")
         .join(".cache")
+        .join("burn")
         .join("backend-comparison");
 
     if !cache_dir.exists() {
