@@ -439,4 +439,11 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }
+
+    fn pow<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(value))
+    }
 }

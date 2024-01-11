@@ -480,7 +480,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn int_pow_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
+    fn int_pow_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: i32) -> IntTensor<B, D> {
+        Self::int_powf(lhs, rhs as f32)
+    }
 
     /// Elementwise power with a floatTensor.
     ///
@@ -509,12 +511,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_pow_float_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> IntTensor<B, D> {
-        Self::int_pow_scalar(lhs, B::IntElem::from_elem(rhs))
-    }
+    fn int_powf<const D: usize>(lhs: IntTensor<B, D>, rhs: f32) -> IntTensor<B, D>;
 
     /// Clamps a tensor under a minimum value.
     ///

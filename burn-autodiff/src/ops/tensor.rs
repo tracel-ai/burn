@@ -1516,6 +1516,67 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         B::into_int(tensor.primitive)
     }
+
+    fn pow<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct Pow;
+        todo!("pow backward");
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for Pow {
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let (lhs, rhs, broadcast) = ops.state;
+                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
+
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        let rhs = rhs_4lhs.unwrap();
+                        let value = {};
+                        let grad = todo!("pow backward lhs");
+
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        let rhs = rhs_4rhs.unwrap();
+                        let lhs = lhs.unwrap();
+                        let value = B::div(B::neg(lhs), B::powf(rhs, 2.0));
+                        let grad = B::mul(grad, value);
+
+                        broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
+
+        let lhs_tracked = lhs.is_tracked();
+        let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+
+        match Pow
+            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    rhs_tracked.then(|| lhs.primitive.clone()),
+                    (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
+                    broadcast,
+                ),
+                B::div(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::div(lhs.primitive, rhs.primitive)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

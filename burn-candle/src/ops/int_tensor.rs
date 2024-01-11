@@ -376,4 +376,17 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     ) -> Vec<IntTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
     }
+
+    fn int_pow<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntTensor<Self, D>,
+    ) -> IntTensor<Self, D> {
+        //no broadcast_pow, and haven't figured out how to iterate yet
+        //CandleTensor::new(lhs.tensor.broadcast_pow(&rhs.tensor).unwrap())
+        todo!()
+    }
+
+    fn int_powf<const D: usize>(lhs: IntTensor<Self, D>, rhs: f32) -> IntTensor<Self, D> {
+        CandleTensor::new(lhs.tensor.powf(rhs as f64).unwrap())
+    }
 }

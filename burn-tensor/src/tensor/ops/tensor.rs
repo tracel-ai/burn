@@ -273,67 +273,6 @@ pub trait TensorOps<B: Backend> {
     /// The result of adding the scalar to the tensor.
     fn add_scalar<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatElem<B>) -> FloatTensor<B, D>;
 
-    /// Elementwise power.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the power of the elements of `rhs`.
-    fn elementwise_pow<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
-
-    /// Elementwise power with an intTensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side floatTensor.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn elementwise_pow_int<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: IntTensor<B, D>,
-    ) -> FloatTensor<B, D> {
-        Self::elementwise_pow(lhs, B::int_into_float::<D>(rhs))
-    }
-
-    /// raises a tensor to the power of a scalar.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`.
-    fn pow_scalar<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatElem<B>) -> FloatTensor<B, D>;
-
-    /// Elementwise power with a floatTensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn pow_int_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: IntElem<B>,
-    ) -> FloatTensor<B, D> {
-        Self::pow_scalar(lhs, B::FloatElem::from_elem(rhs))
-    }
-
     /// Clamps a tensor under a minimum value.
     ///
     /// # Arguments
@@ -931,6 +870,46 @@ pub trait TensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
     fn powf<const D: usize>(tensor: FloatTensor<B, D>, value: f32) -> FloatTensor<B, D>;
+
+    /// Elementwise power.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the power of the elements of `rhs`.
+    fn pow<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatTensor<B, D>) -> FloatTensor<B, D>;
+
+    /// Elementwise power with an intTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side floatTensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn pow_int<const D: usize>(lhs: FloatTensor<B, D>, rhs: IntTensor<B, D>) -> FloatTensor<B, D> {
+        Self::pow(lhs, B::int_into_float::<D>(rhs))
+    }
+
+    /// raises a tensor to the power of a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn powf_int<const D: usize>(lhs: FloatTensor<B, D>, rhs: i32) -> FloatTensor<B, D> {
+        Self::powf(lhs, rhs as f32)
+    }
 
     /// Returns a new tensor with square root values.
     ///

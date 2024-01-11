@@ -333,4 +333,18 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
         B::int_chunk(tensor, chunks, dim)
     }
+
+    fn int_pow<const D: usize>(
+        lhs: IntTensor<Autodiff<B>, D>,
+        rhs: IntTensor<Autodiff<B>, D>,
+    ) -> IntTensor<Autodiff<B>, D> {
+        B::int_pow(lhs, rhs)
+    }
+
+    fn int_powf<const D: usize>(
+        lhs: IntTensor<Autodiff<B>, D>,
+        rhs: f32,
+    ) -> IntTensor<Autodiff<B>, D> {
+        B::int_powf(lhs, rhs)
+    }
 }
