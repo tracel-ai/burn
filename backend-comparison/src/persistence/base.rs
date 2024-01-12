@@ -109,7 +109,6 @@ impl Serialize for BenchmarkRecord {
             ("median", &self.results.computed.median.as_micros()),
             ("min", &self.results.computed.min.as_micros()),
             ("name", &self.results.name),
-            ("numRepeats", &self.results.num_repeats),
             ("numSamples", &self.results.raw.durations.len()),
             ("options", &self.results.options),
             ("rawDurations", &self.results.raw.durations),

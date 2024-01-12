@@ -7,7 +7,6 @@ use derive_new::new;
 struct MatmulBenchmark<B: Backend, const D: usize> {
     shape_lhs: Shape<D>,
     shape_rhs: Shape<D>,
-    num_repeats: usize,
     device: B::Device,
 }
 
@@ -26,14 +25,8 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
         10
     }
 
-    fn num_repeats(&self) -> usize {
-        self.num_repeats
-    }
-
     fn execute(&self, (lhs, rhs): Self::Args) {
-        for _ in 0..self.num_repeats() {
-            lhs.clone().matmul(rhs.clone());
-        }
+        lhs.clone().matmul(rhs.clone());
     }
 
     fn prepare(&self) -> Self::Args {
@@ -51,7 +44,6 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
 #[allow(dead_code)]
 fn bench<B: Backend>(device: &B::Device) {
     const D: usize = 3;
-    let num_repeats = 3;
     let batch_size = 3;
     let m = 1024;
     let k = 2048;
@@ -59,7 +51,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 
-    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, num_repeats, device.clone());
+    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
 
     save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
