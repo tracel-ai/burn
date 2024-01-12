@@ -202,8 +202,12 @@ impl BiLstmConfig {
     /// Initialize a new [bidirectional LSTM](BiLstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
         BiLstm {
-            forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias).init(device),
-            reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias).init(device),
+            forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+                .with_initializer(self.initializer.clone())
+                .init(device),
+            reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+                .with_initializer(self.initializer.clone())
+                .init(device),
             d_hidden: self.d_hidden,
         }
     }
@@ -212,8 +216,10 @@ impl BiLstmConfig {
     pub fn init_with<B: Backend>(&self, record: BiLstmRecord<B>) -> BiLstm<B> {
         BiLstm {
             forward: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+                .with_initializer(self.initializer.clone())
                 .init_with(record.forward),
             reverse: LstmConfig::new(self.d_input, self.d_hidden, self.bias)
+                .with_initializer(self.initializer.clone())
                 .init_with(record.reverse),
             d_hidden: self.d_hidden,
         }
