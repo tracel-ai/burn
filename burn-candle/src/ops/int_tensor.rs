@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    Bool, Data, Device, Reader, Shape,
+    Bool, Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 
 use crate::{
@@ -375,5 +375,39 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         dim: usize,
     ) -> Vec<IntTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        let shape = &shape.dims;
+        let device = &(*device).into();
+        match distribution {
+            Distribution::Default => CandleTensor::new(
+                candle_core::Tensor::rand(0.elem::<F>(), 100.elem::<F>(), shape, device)
+                    .unwrap()
+                    .to_dtype(I::DTYPE)
+                    .unwrap(),
+            ),
+            Distribution::Bernoulli(prob) => CandleTensor::new(
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
+                    .unwrap()
+                    .to_dtype(I::DTYPE)
+                    .unwrap()
+                    .lt(&super::candle_utils::fill(prob, shape, I::DTYPE, device))
+                    .unwrap()
+                    .to_dtype(I::DTYPE)
+                    .unwrap(),
+            ),
+            Distribution::Uniform(from, to) => CandleTensor::new(
+                candle_core::Tensor::rand(from.elem::<F>(), to.elem::<F>(), shape, device).unwrap(),
+            ),
+            Distribution::Normal(mean, std) => CandleTensor::new(
+                candle_core::Tensor::randn(mean.elem::<F>(), std.elem::<F>(), shape, device)
+                    .unwrap(),
+            ),
+        }
     }
 }
