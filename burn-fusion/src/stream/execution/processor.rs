@@ -1,27 +1,27 @@
-use super::ExecutionMode;
+use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{OptimizationId, OptimizationItem, OptimizationStore};
 use crate::stream::{Stream, TensorOpsDescription};
-use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
+use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 
-/// Execute an optimization following a greedy algorithm.
+/// Process the [stream](Stream) following a [policy](Policy).
+///
+/// Explore and create new opitmizations using explorations
 pub(crate) struct Processor<B: FusionBackend> {
     policy: Policy<B::Optimization>,
-    builders: Vec<Box<dyn OptimizationBuilder<B>>>,
-    num_deferred: usize,
+    explorer: Explorer<B>,
 }
 
 impl<B: FusionBackend> Processor<B> {
-    /// Create a new graph execution with the given optimization builders.
+    /// Create a new stream processor.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
             policy: Policy::new(),
-            builders: optimizations,
-            num_deferred: 0,
+            explorer: Explorer::new(optimizations),
         }
     }
 
-    /// Execute the graph with the provided mode.
+    /// Process the [stream](Stream) with the provided mode.
     pub fn process(
         &mut self,
         stream: &mut Stream<B>,
@@ -36,29 +36,18 @@ impl<B: FusionBackend> Processor<B> {
 
             match self.action(optimizations, stream, mode) {
                 Action::Explore => {
-                    match self.explore(optimizations, stream, mode) {
-                        ExplorationAction::Execute(id) => {
-                            stream.execute(id, handles, optimizations);
-                            self.reset(optimizations, stream);
-                        }
-                        ExplorationAction::Continue => {
-                            if let ExecutionMode::Sync = mode {
-                                panic!("Can't continue exploring when sync.")
-                            }
-                        }
-                    };
+                    self.explore(stream, optimizations, handles, mode);
 
-                    if self.num_deferred == 0 {
-                        // Nothing more to do.
+                    if self.explorer.up_to_date() {
                         break;
                     }
                 }
                 Action::Defer => {
-                    self.num_deferred += 1;
+                    self.explorer.defer();
 
                     match mode {
                         ExecutionMode::Lazy => break,
-                        ExecutionMode::Sync => panic!("Can't wait while sync"),
+                        ExecutionMode::Sync => panic!("Can't defer while sync"),
                     };
                 }
                 Action::Execute(id) => {
@@ -73,151 +62,112 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn explore<'a>(
-        &'a mut self,
-        optimizations: &'a mut OptimizationStore<B::Optimization>,
-        graph: &Stream<B>,
+    fn explore(
+        &mut self,
+        stream: &mut Stream<B>,
+        optimizations: &mut OptimizationStore<B::Optimization>,
+        handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
-    ) -> ExplorationAction {
-        // When we are executing with the new ops mode, we need to register the last ops of the
-        // graph even when there is no skipped operation.
-        let offset = match mode {
-            ExecutionMode::Lazy => 1,
-            ExecutionMode::Sync => 0,
-        };
+    ) {
+        match self.explorer.explore(stream, mode) {
+            Exploration::NewOptimization(optim) => {
+                let id = optim.map(|optim| {
+                    Self::on_new_optimization(&self.policy, stream, optimizations, optim, mode)
+                });
 
-        for i in (0..self.num_deferred + offset).rev() {
-            let index = graph.relative.len() - 1 - i;
-            let relative = &graph.relative[index];
-
-            for builder in self.builders.iter_mut() {
-                builder.register(relative);
+                stream.execute(id, handles, optimizations);
+                self.reset(optimizations, stream);
             }
-        }
-        self.num_deferred = 0;
-
-        // Can only be lazy when not sync.
-        if let ExecutionMode::Lazy = mode {
-            if still_optimizing(&self.builders) {
-                return ExplorationAction::Continue;
-            }
-        }
-
-        match find_best_optimization_index(&mut self.builders) {
-            Some(index) => {
-                let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
-                let builder = &self.builders[index];
-
-                let id = if let Action::Execute(id) =
-                    self.policy
-                        .action(optimizations, &relative, ExecutionMode::Sync)
-                {
-                    if let Some(next_ops) = next_ops {
-                        optimizations.add_end_condition(id, next_ops);
-                    }
-                    id
-                } else {
-                    optimizations.add(OptimizationItem {
-                        stream: relative,
-                        end_conditions: next_ops.map(|op| vec![op]).unwrap_or_default(),
-                        value: builder.build(),
-                    })
-                };
-
-                ExplorationAction::Execute(Some(id))
-            }
-            None => {
-                // TODO: Cache this result too.
-                ExplorationAction::Execute(None)
+            Exploration::Continue => {
+                if let ExecutionMode::Sync = mode {
+                    panic!("Can't continue exploring when sync.")
+                }
             }
         }
     }
 
-    fn reset(&mut self, cache: &mut OptimizationStore<B::Optimization>, graph: &Stream<B>) {
-        for ops in self.builders.iter_mut() {
-            ops.reset();
-        }
-        self.num_deferred = graph.relative.len();
-
+    fn reset(&mut self, store: &mut OptimizationStore<B::Optimization>, stream: &Stream<B>) {
+        self.explorer.reset(stream);
         self.policy.reset();
 
         // Reset the policy state.
-        for i in 0..self.num_deferred {
-            self.policy
-                .update(cache, &graph.relative[0..i], &graph.relative[i]);
+        for i in 0..stream.relative.len() {
+            self.policy.update(store, &stream.relative[i]);
         }
     }
 
     fn action<'a>(
         &'a mut self,
-        cache: &'a mut OptimizationStore<B::Optimization>,
+        cache: &'a OptimizationStore<B::Optimization>,
         stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> Action {
-        let (stream, next_ops) = Self::split_relative_graph_ref(stream, mode);
+        let (stream, next_ops) = Self::split_stream_ref(stream, mode);
 
         if let Some(next_ops) = next_ops {
-            self.policy.update(cache, stream, next_ops)
+            self.policy.update(cache, next_ops)
         }
 
         self.policy.action(&cache, stream, mode)
     }
 
-    fn split_relative_graph_owned(
-        graph: &Stream<B>,
+    fn split_stream_owned(
+        stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
         match mode {
             ExecutionMode::Lazy => {
-                let graph = graph.split_relative_graph();
-                (graph.0.to_vec(), graph.1.cloned())
+                let stream = stream.split_relative_stream();
+                (stream.0.to_vec(), stream.1.cloned())
             }
-            ExecutionMode::Sync => (graph.relative.clone(), None),
+            ExecutionMode::Sync => (stream.relative.clone(), None),
         }
     }
 
-    fn split_relative_graph_ref(
-        graph: &Stream<B>,
+    fn split_stream_ref(
+        stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         match mode {
-            ExecutionMode::Lazy => graph.split_relative_graph(),
-            ExecutionMode::Sync => (graph.relative.as_slice(), None),
-        }
-    }
-}
-
-enum ExplorationAction {
-    Execute(Option<OptimizationId>),
-    Continue,
-}
-
-fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuilder<B>>]) -> bool {
-    let mut num_stopped = 0;
-
-    for optimization in optimizations.iter() {
-        if let OptimizationStatus::Closed = optimization.status() {
-            num_stopped += 1
+            ExecutionMode::Lazy => stream.split_relative_stream(),
+            ExecutionMode::Sync => (stream.relative.as_slice(), None),
         }
     }
 
-    num_stopped < optimizations.len()
-}
+    fn on_new_optimization(
+        policy: &Policy<B::Optimization>,
+        stream: &Stream<B>,
+        store: &mut OptimizationStore<B::Optimization>,
+        builder: &dyn OptimizationBuilder<B>,
+        mode: ExecutionMode,
+    ) -> OptimizationId {
+        let (stream_relative, next_ops) = Self::split_stream_owned(stream, mode);
 
-fn find_best_optimization_index<B: FusionBackend>(
-    optimizations: &mut [Box<dyn OptimizationBuilder<B>>],
-) -> Option<usize> {
-    let mut best_index = None;
-    let mut best_score = 0;
-
-    for (i, optimization) in optimizations.iter().enumerate() {
-        let properties = optimization.properties();
-
-        if properties.ready && properties.score >= best_score {
-            best_index = Some(i);
-            best_score = properties.score;
+        // Check if an optimization is available for this stream before creating a new opitmization.
+        //
+        // Specify a sync execution mode signaling that we want to know if an optimization is
+        // available right now even if it isn't the best one.
+        match policy.action(store, &stream_relative, ExecutionMode::Sync) {
+            Action::Execute(id) => {
+                // When we are in lazy mode, a next operation will be available.
+                //
+                // Since we are adding new opitmization only when the policy action is explore, we
+                // know the existing opitmization wasn't flagged as optimal, since the `next_ops'
+                // wasn't included in the `end_conditions`.
+                //
+                // But in this case, we aren't able to actually find a better opitmization, so we
+                // flag the next ops as a stopping criteria, so we won't enter exploration mode the
+                // next time we see a similar stream following the same pattern.
+                if let Some(next_ops) = next_ops {
+                    store.add_end_condition(id, next_ops);
+                }
+                id
+            }
+            _ => store.add(OptimizationItem {
+                stream: stream_relative,
+                end_conditions: next_ops.map(|op| vec![op]).unwrap_or_default(),
+                value: builder.build(),
+            }),
         }
     }
-
-    best_index
 }

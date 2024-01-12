@@ -3,7 +3,7 @@ use super::RelativeGraphConverter;
 use super::TensorOpsDescription;
 use crate::FusionBackend;
 
-/// The computational graph containing a list of [tensor operation descriptions](TensorOpsDescription).
+/// A growing list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Stream<B: FusionBackend> {
     pub(crate) global: Vec<TensorOpsDescription>,
     pub(crate) relative: Vec<TensorOpsDescription>,
@@ -21,7 +21,7 @@ impl<B: FusionBackend> Stream<B> {
         }
     }
 
-    pub(crate) fn split_relative_graph(
+    pub(crate) fn split_relative_stream(
         &self,
     ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
         let len = self.relative.len();
@@ -39,12 +39,12 @@ impl<B: FusionBackend> Stream<B> {
         self.ops.push(ops);
     }
 
-    /// The size of the graph.
+    /// The size of the stream.
     pub(crate) fn len(&self) -> usize {
         self.global.len()
     }
 
-    /// If the graph is empty.
+    /// If the stream is empty.
     pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }

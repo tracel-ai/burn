@@ -13,7 +13,7 @@ pub(crate) struct Starters {
 
 impl Starters {
     pub(crate) fn get(&self, ops: &TensorOpsDescription) -> Vec<OptimizationId> {
-        let key = self.graph_key(ops);
+        let key = self.stream_key(ops);
         let values = match self.starter_indices.get(&key) {
             Some(val) => val,
             None => return Vec::new(),
@@ -37,7 +37,7 @@ impl Starters {
     }
 
     pub(crate) fn insert(&mut self, ops: &TensorOpsDescription, new_id: OptimizationId) {
-        let key = self.graph_key(ops);
+        let key = self.stream_key(ops);
         let values = match self.starter_indices.get_mut(&key) {
             Some(val) => val,
             None => {
@@ -67,7 +67,7 @@ impl Starters {
             .push(new_id);
     }
 
-    fn graph_key(&self, ops: &TensorOpsDescription) -> u64 {
+    fn stream_key(&self, ops: &TensorOpsDescription) -> u64 {
         let mut hasher = DefaultHasher::new();
         ops.hash(&mut hasher);
         hasher.finish()

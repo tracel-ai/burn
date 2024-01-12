@@ -8,9 +8,7 @@ use crate::{
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ExecutionMode {
-    // Signal that we execute the graph after a new ops is added to the graph.
     Lazy,
-    // Signal that we execute the graph because of a sync without any new ops added to the graph.
     Sync,
 }
 
@@ -41,7 +39,7 @@ impl<B: FusionBackend> Stream<B> {
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
 
-        self.drain_graph(num_drained, handles);
+        self.drain_stream(num_drained, handles);
         self.ops.drain(0..num_drained);
     }
 
@@ -52,10 +50,10 @@ impl<B: FusionBackend> Stream<B> {
             ops.execute(handles);
         }
 
-        self.drain_graph(num_drained, handles);
+        self.drain_stream(num_drained, handles);
     }
 
-    fn drain_graph(&mut self, num_drained: usize, handles: &mut HandleContainer<B>) {
+    fn drain_stream(&mut self, num_drained: usize, handles: &mut HandleContainer<B>) {
         self.global[0..num_drained]
             .iter()
             .flat_map(|desc| desc.nodes())
