@@ -11,7 +11,7 @@ pub struct Explorer<B: FusionBackend> {
 ///
 /// Either a new optimization is found, or we just continue to explore further.
 pub enum Exploration<'a, B: FusionBackend> {
-    NewOptimization(Option<&'a dyn OptimizationBuilder<B>>),
+    OptimizationFound(Option<&'a dyn OptimizationBuilder<B>>),
     Continue,
 }
 
@@ -61,8 +61,8 @@ impl<B: FusionBackend> Explorer<B> {
         }
 
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => Exploration::NewOptimization(Some(self.builders[index].as_ref())),
-            None => Exploration::NewOptimization(None),
+            Some(index) => Exploration::OptimizationFound(Some(self.builders[index].as_ref())),
+            None => Exploration::OptimizationFound(None),
         }
     }
 

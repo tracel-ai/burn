@@ -2,7 +2,7 @@ use super::Starters;
 use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub(crate) struct OptimizationStore<O> {
     pub(super) optimizations: Vec<OptimizationItem<O>>,
     pub(super) starters: Starters,
@@ -29,11 +29,11 @@ impl<O> OptimizationStore<O> {
         self.starters.get(ops)
     }
 
-    pub fn get_mut_unchecked<'a>(&'a mut self, id: OptimizationId) -> &'a mut OptimizationItem<O> {
+    pub fn get_mut_unchecked(&mut self, id: OptimizationId) -> &mut OptimizationItem<O> {
         &mut self.optimizations[id]
     }
 
-    pub fn get_unchecked<'a>(&'a self, id: OptimizationId) -> &'a OptimizationItem<O> {
+    pub fn get_unchecked(&self, id: OptimizationId) -> &OptimizationItem<O> {
         &self.optimizations[id]
     }
 

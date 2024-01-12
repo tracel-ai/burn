@@ -34,7 +34,7 @@ impl<B: FusionBackend> MultiStream<B> {
         handles: &mut HandleContainer<B>,
     ) {
         // TODO: Support more than only one stream.
-        self.items.first_mut().map(|item| {
+        if let Some(item) = self.items.first_mut() {
             item.stream.add(ops_desc, ops);
             item.executor.process(
                 &mut item.stream,
@@ -42,7 +42,7 @@ impl<B: FusionBackend> MultiStream<B> {
                 handles,
                 ExecutionMode::Lazy,
             );
-        });
+        };
     }
 
     /// Drain the streams.

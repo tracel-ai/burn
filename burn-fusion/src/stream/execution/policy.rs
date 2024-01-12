@@ -206,12 +206,12 @@ mod tests {
 
     #[test]
     fn given_no_optimization_should_explore() {
-        let mut optimizations = OptimizationStore::default();
+        let store = OptimizationStore::default();
         let mut policy = Policy::new();
         let stream = TestStream::new(3);
 
         stream.assert_updates(
-            &mut optimizations,
+            &store,
             &mut policy,
             AssertUpdatesOptions::OperationsIndex(0..3),
             Action::Explore,
@@ -220,48 +220,48 @@ mod tests {
 
     #[test]
     fn given_existing_optimization_when_sync_should_execute_optim() {
-        let mut optimizations = OptimizationStore::default();
-        let mut analysis = Policy::new();
-
+        let mut store = OptimizationStore::default();
+        let mut policy = Policy::new();
         let stream = TestStream::new(2);
-        let id = optimizations.add(OptimizationItem {
+
+        let id = store.add(OptimizationItem {
             stream: stream.operations.clone(),
             end_conditions: Vec::new(),
             value: (),
         });
 
         stream.assert_updates(
-            &mut optimizations,
-            &mut analysis,
+            &store,
+            &mut policy,
             AssertUpdatesOptions::OperationsIndex(0..2),
             Action::Defer,
         );
 
-        let action = analysis.action(&optimizations, &stream.operations, ExecutionMode::Sync);
+        let action = policy.action(&store, &stream.operations, ExecutionMode::Sync);
         assert_eq!(action, Action::Execute(id));
     }
 
     #[test]
     fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
-        let mut optimizations = OptimizationStore::default();
-        let mut analysis = Policy::new();
+        let mut store = OptimizationStore::default();
+        let mut policy = Policy::new();
 
         let stream = TestStream::new(3);
-        let id = optimizations.add(OptimizationItem {
+        let id = store.add(OptimizationItem {
             stream: stream.operations[0..2].to_vec(),
             end_conditions: stream.operations[2..3].to_vec(),
             value: (),
         });
 
         stream.assert_updates(
-            &mut optimizations,
-            &mut analysis,
+            &store,
+            &mut policy,
             AssertUpdatesOptions::OperationsIndex(0..2),
             Action::Defer,
         );
         stream.assert_updates(
-            &mut optimizations,
-            &mut analysis,
+            &store,
+            &mut policy,
             AssertUpdatesOptions::OperationsIndex(2..3),
             Action::Execute(id),
         );
@@ -269,47 +269,50 @@ mod tests {
 
     #[test]
     fn should_support_multiple_end_conditions() {
-        let mut optimizations = OptimizationStore::default();
-        let mut analysis1 = Policy::new();
-        let mut analysis2 = Policy::new();
+        let mut store = OptimizationStore::default();
+        let mut policy_1 = Policy::new();
+        let mut policy_2 = Policy::new();
 
-        let mut stream1 = TestStream::new(2);
-        let mut stream2 = TestStream::new(2);
+        let mut stream_1 = TestStream::new(2);
+        let mut stream_2 = TestStream::new(2);
 
         // Create different end operation for each stream.
         let end_condition_id_1 = 5;
         let end_condition_id_2 = 5;
-        stream1.new_ops(end_condition_id_1);
-        stream2.new_ops(end_condition_id_2);
+        stream_1.new_ops(end_condition_id_1);
+        stream_2.new_ops(end_condition_id_2);
 
-        let id = optimizations.add(OptimizationItem {
-            stream: stream1.operations[0..2].to_vec(),
-            end_conditions: vec![stream1.operations[2].clone(), stream2.operations[2].clone()],
+        let id = store.add(OptimizationItem {
+            stream: stream_1.operations[0..2].to_vec(),
+            end_conditions: vec![
+                stream_1.operations[2].clone(),
+                stream_2.operations[2].clone(),
+            ],
             value: (),
         });
 
-        stream1.assert_updates(
-            &mut optimizations,
-            &mut analysis1,
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
             AssertUpdatesOptions::OperationsIndex(0..2),
             Action::Defer,
         );
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis2,
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
             AssertUpdatesOptions::OperationsIndex(0..2),
             Action::Defer,
         );
 
-        stream1.assert_updates(
-            &mut optimizations,
-            &mut analysis1,
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
             Action::Execute(id),
         );
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis2,
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
             Action::Execute(id),
         );
@@ -317,86 +320,86 @@ mod tests {
 
     #[test]
     fn should_select_right_optimization() {
-        let mut optimizations = OptimizationStore::default();
-        let mut analysis1 = Policy::new();
-        let mut analysis2 = Policy::new();
+        let mut store = OptimizationStore::default();
+        let mut policy_1 = Policy::new();
+        let mut policy_2 = Policy::new();
 
-        let mut stream1 = TestStream::new(2);
-        let mut stream2 = TestStream::new(2);
+        let mut stream_1 = TestStream::new(2);
+        let mut stream_2 = TestStream::new(2);
 
         // Create different streams after op 2.
-        stream1.new_ops(4);
-        stream1.new_ops(5);
+        stream_1.new_ops(4);
+        stream_1.new_ops(5);
 
-        stream2.new_ops(5);
-        stream2.new_ops(6);
+        stream_2.new_ops(5);
+        stream_2.new_ops(6);
 
-        let optimization_stream1 = optimizations.add(OptimizationItem {
-            stream: stream1.operations[0..3].to_vec(),
-            end_conditions: stream1.operations[3..4].to_vec(),
+        let optimization_stream_1 = store.add(OptimizationItem {
+            stream: stream_1.operations[0..3].to_vec(),
+            end_conditions: stream_1.operations[3..4].to_vec(),
             value: (),
         });
-        let optimization_stream2 = optimizations.add(OptimizationItem {
-            stream: stream2.operations[0..3].to_vec(),
-            end_conditions: stream2.operations[3..4].to_vec(),
+        let optimization_stream_2 = store.add(OptimizationItem {
+            stream: stream_2.operations[0..3].to_vec(),
+            end_conditions: stream_2.operations[3..4].to_vec(),
             value: (),
         });
-        assert_ne!(optimization_stream1, optimization_stream2);
+        assert_ne!(optimization_stream_1, optimization_stream_2);
 
-        stream1.assert_updates(
-            &mut optimizations,
-            &mut analysis1,
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
             AssertUpdatesOptions::OperationsIndex(0..3),
             Action::Defer,
         );
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis2,
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
             AssertUpdatesOptions::OperationsIndex(0..3),
             Action::Defer,
         );
 
-        stream1.assert_updates(
-            &mut optimizations,
-            &mut analysis1,
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            Action::Execute(optimization_stream1),
+            Action::Execute(optimization_stream_1),
         );
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis2,
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            Action::Execute(optimization_stream2),
+            Action::Execute(optimization_stream_2),
         );
     }
 
     #[test]
     fn should_invalidate_wrong_optimizations() {
-        let mut optimizations = OptimizationStore::default();
-        let stream1 = TestStream::new(4);
-        let mut stream2 = TestStream::new(2);
-        stream2.new_ops(6);
-        stream2.new_ops(7);
+        let mut store = OptimizationStore::default();
+        let stream_1 = TestStream::new(4);
+        let mut stream_2 = TestStream::new(2);
+        stream_2.new_ops(6);
+        stream_2.new_ops(7);
 
-        optimizations.add(OptimizationItem {
-            stream: stream1.operations[0..3].to_vec(),
-            end_conditions: stream1.operations[3..4].to_vec(),
+        store.add(OptimizationItem {
+            stream: stream_1.operations[0..3].to_vec(),
+            end_conditions: stream_1.operations[3..4].to_vec(),
             value: (),
         });
 
-        let mut analysis = Policy::new();
+        let mut policy = Policy::new();
         // Same path as stream 1
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis,
+        stream_2.assert_updates(
+            &store,
+            &mut policy,
             AssertUpdatesOptions::OperationsIndex(0..2),
             Action::Defer,
         );
 
         // But is different.
-        stream2.assert_updates(
-            &mut optimizations,
-            &mut analysis,
+        stream_2.assert_updates(
+            &store,
+            &mut policy,
             AssertUpdatesOptions::OperationsIndex(2..4),
             Action::Explore,
         );

@@ -70,7 +70,7 @@ impl<B: FusionBackend> Processor<B> {
         mode: ExecutionMode,
     ) {
         match self.explorer.explore(stream, mode) {
-            Exploration::NewOptimization(optim) => {
+            Exploration::OptimizationFound(optim) => {
                 let id = optim.map(|optim| {
                     Self::on_new_optimization(&self.policy, stream, optimizations, optim, mode)
                 });
@@ -108,7 +108,7 @@ impl<B: FusionBackend> Processor<B> {
             self.policy.update(cache, next_ops)
         }
 
-        self.policy.action(&cache, stream, mode)
+        self.policy.action(cache, stream, mode)
     }
 
     fn split_stream_owned(
