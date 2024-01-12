@@ -387,7 +387,7 @@ where
         )
     }
 
-    fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
+    fn powf_scalar<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
         unary!(
             operator: |elem: Elem| Operator::Powf {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -510,7 +510,7 @@ where
         kernel::repeat(tensor, dim, times)
     }
 
-    fn pow<const D: usize>(
+    fn powf<const D: usize>(
         lhs: FloatTensor<Wgpu<G, F, I>, D>,
         rhs: FloatTensor<Wgpu<G, F, I>, D>,
     ) -> FloatTensor<Wgpu<G, F, I>, D> {

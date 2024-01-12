@@ -301,7 +301,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                     grads,
                     |grad| {
                         let rhs = rhs_4lhs.unwrap();
-                        let value = B::powf(rhs, -1.0);
+                        let value = B::powf_scalar(rhs, -1.0);
                         let grad = B::mul(grad, value);
 
                         broadcast.backward_lhs::<B>(grad)
@@ -309,7 +309,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                     |grad| {
                         let rhs = rhs_4rhs.unwrap();
                         let lhs = lhs.unwrap();
-                        let value = B::div(B::neg(lhs), B::powf(rhs, 2.0));
+                        let value = B::div(B::neg(lhs), B::powf_scalar(rhs, 2.0));
                         let grad = B::mul(grad, value);
 
                         broadcast.backward_rhs::<B>(grad)
@@ -445,7 +445,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let tensor = ops.state;
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let tmp = B::powf(tensor, -2.0);
+                    let tmp = B::powf_scalar(tensor, -2.0);
                     let value = B::neg(tmp);
 
                     B::mul(grad, value)
@@ -1171,7 +1171,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::powf(ops.state, -1.0);
+                    let value = B::powf_scalar(ops.state, -1.0);
                     B::mul(grad, value)
                 });
             }
@@ -1195,7 +1195,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::add_scalar(ops.state, 1.elem());
-                    let value = B::powf(value, -1.0);
+                    let value = B::powf_scalar(value, -1.0);
 
                     B::mul(grad, value)
                 });
@@ -1210,7 +1210,10 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
+    fn powf_scalar<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        value: f32,
+    ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct PowF;
 
@@ -1221,7 +1224,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                 let (tensor, value) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let tmp = B::powf(tensor, value - 1.0);
+                    let tmp = B::powf_scalar(tensor, value - 1.0);
                     let value = B::mul_scalar(tmp, value.elem());
 
                     B::mul(grad, value)
@@ -1232,9 +1235,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         match PowF.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (tensor.primitive.clone(), value),
-                B::powf(tensor.primitive, value),
+                B::powf_scalar(tensor.primitive, value),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::powf(tensor.primitive, value)),
+            OpsKind::UnTracked(prep) => prep.finish(B::powf_scalar(tensor.primitive, value)),
         }
     }
 
@@ -1248,7 +1251,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let input = ops.state;
-                    let value = B::div_scalar(B::powf(input, -0.5), 2.elem());
+                    let value = B::div_scalar(B::powf_scalar(input, -0.5), 2.elem());
 
                     B::mul(grad, value)
                 });
@@ -1342,7 +1345,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::add_scalar(B::neg(B::powf(ops.state, 2.0)), 1.elem());
+                    let value = B::add_scalar(B::neg(B::powf_scalar(ops.state, 2.0)), 1.elem());
                     B::mul(grad, value)
                 });
             }
@@ -1366,7 +1369,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let exponent = B::neg(B::powf(ops.state, 2.0));
+                    let exponent = B::neg(B::powf_scalar(ops.state, 2.0));
                     let numerator = B::mul_scalar(B::exp(exponent), 2.0.elem());
                     let denominator = std::f64::consts::PI.sqrt().elem();
                     let value = B::div_scalar(numerator, denominator);
@@ -1517,67 +1520,75 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         B::into_int(tensor.primitive)
     }
 
-    fn pow<const D: usize>(
-        _lhs: FloatTensor<Self, D>,
-        _rhs: FloatTensor<Self, D>,
+    fn powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Pow;
         todo!("Implement backward for pow");
-        // impl<B: Backend, const D: usize> Backward<B, D, 2> for Pow {
-        //     type State = (
-        //         Option<B::TensorPrimitive<D>>,
-        //         Option<B::TensorPrimitive<D>>,
-        //         BinaryOpsBroadcast<D>,
-        //     );
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for Pow {
+            type State = (
+                Option<B::TensorPrimitive<D>>,
+                Option<B::TensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
-        //     fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-        //         let (lhs, rhs, broadcast) = ops.state;
-        //         //let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let (lhs, rhs, broadcast) = ops.state;
+                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
+                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, lhs);
 
-        //         binary::<B, D, D, D, _, _>(
-        //             ops.parents,
-        //             ops.node,
-        //             grads,
-        //             |grad| {
-        //                 let rhs = rhs.unwrap();
-        //                 let value = B::pow(
-        //                     rhs,
-        //                     B::sub_scalar(lhs.unwrap(), B::FloatElem::from_elem(1.0)),
-        //                 );
-        //                 let grad = B::mul(grad, value);
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        //lhs*(rhs.val**(lhs-1))*rhs.der
+                        let rhs = rhs_4lhs.unwrap();
+                        let lhs = lhs_4lhs.unwrap();
+                        let tmp = B::powf(
+                            rhs,
+                            B::sub_scalar(lhs.clone(), B::FloatElem::from_elem(1.0)),
+                        );
+                        let value = B::mul(tmp, lhs);
+                        let grad = B::mul(grad, value);
 
-        //                 broadcast.backward_lhs::<B>(grad)
-        //             },
-        //             |grad| {
-        //                 let lhs = lhs.unwrap();
-        //                 let value = B::div(B::neg(lhs), B::powf(lhs, 2.0));
-        //                 let grad = B::mul(grad, value);
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        //honestly no idea what I'm supposed to do here.
+                        let rhs = rhs_4rhs.unwrap();
+                        todo!("Implement backward for pow");
 
-        //                 broadcast.backward_rhs::<B>(grad)
-        //             },
-        //         );
-        //     }
-        // }
+                        // let lhs = lhs.unwrap();
+                        // let value = B::div(B::neg(lhs), B::powf(lhs, 2.0));
+                        // let grad = B::mul(grad, value);
 
-        // let lhs_tracked = lhs.is_tracked();
-        // let rhs_tracked = rhs.is_tracked();
-        // let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+                        // broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
 
-        // match Pow
-        //     .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-        //     .stateful()
-        // {
-        //     OpsKind::Tracked(prep) => prep.finish(
-        //         (
-        //             rhs_tracked.then(|| lhs.primitive.clone()),
-        //             (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
-        //             broadcast,
-        //         ),
-        //         B::div(lhs.primitive, rhs.primitive),
-        //     ),
-        //     OpsKind::UnTracked(prep) => prep.finish(B::div(lhs.primitive, rhs.primitive)),
-        // }
+        let lhs_tracked = lhs.is_tracked();
+        let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+
+        match Pow
+            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    rhs_tracked.then(|| lhs.primitive.clone()),
+                    (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
+                    broadcast,
+                ),
+                B::div(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::div(lhs.primitive, rhs.primitive)),
+        }
     }
 }
 

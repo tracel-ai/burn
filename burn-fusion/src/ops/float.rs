@@ -1210,8 +1210,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        scalar_float_ops!(PowfOps, B::powf, f32);
+    fn powf_scalar<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
+        scalar_float_ops!(PowfOps, B::powf_scalar, f32);
 
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
@@ -1588,7 +1588,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         (out, out_indices)
     }
 
-    fn pow<const D: usize>(
+    fn powf<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {

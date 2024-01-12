@@ -663,6 +663,12 @@ impl ONNXGraph {
         let output = node.outputs.first().unwrap().to_type();
         UnaryNode::neg(input, output)
     }
+    fn pow(node: Node) -> BinaryNode {
+        let lhs = node.inputs.first().unwrap().to_type();
+        let rhs = node.inputs.get(1).unwrap().to_type();
+        let output = node.outputs.first().unwrap().to_type();
+        BinaryNode::pow(lhs, rhs, output)
+    }
 }
 
 /// Extract data from node states and convert it to `DataSerialize`.

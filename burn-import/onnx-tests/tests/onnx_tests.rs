@@ -50,6 +50,8 @@ include_models!(
     tanh,
     transpose,
     conv_transpose2d
+    pow,
+    pow_int,
 );
 
 #[cfg(test)]
@@ -811,5 +813,31 @@ mod tests {
         output1.to_data().assert_approx_eq(&expected1, 4);
 
         assert_eq!(output2, expected2);
+    }
+    #[test]
+    fn pow_int_with_tensor_and_scalar() {
+        let device = Default::default();
+        let model: pow_int::Model<Backend> = pow_int::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 4, Int>::from_ints([[[[1, 2, 3, 4]]]], &device);
+        let input2 = 2f64;
+
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[[[1, 16, 729, 65536]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
+    }
+    #[test]
+    fn pow_with_tensor_and_scalar() {
+        let device = Default::default();
+        let model: pow::Model<Backend> = pow::Model::new(&device);
+
+        let input1 = Tensor::from_floats([[[[1., 2., 3., 4.]]]], &device);
+        let input2 = 2f64;
+
+        let output = model.forward(input1, input2);
+        let expected = Data::from([[[[1.0000e+00, 1.6000e+01, 7.2900e+02, 6.5536e+04]]]]);
+
+        output.to_data().assert_approx_eq(&expected, 4);
     }
 }

@@ -9,17 +9,17 @@ import torch.nn as nn
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
-        self.b = 5.0
+        # self.b = 5.0
 
     def forward(self, x, k):
-        # Add tensor inputs
+        # raise a tensor to tensor power
         x = x.pow(x)
 
         # raise a scalar constant to a power of a scalar
-        d = torch.pow(self.b, k)
+        # d = torch.pow(self.b, k)
 
         # raise a tensor input to a power of a scalar
-        torch.pow(x, k)
+        x = torch.pow(x, k)
 
         return x
 
@@ -29,7 +29,7 @@ def main():
     model = Model()
     model.eval()
     device = torch.device("cpu")
-    onnx_name = "add.onnx"
+    onnx_name = "pow.onnx"
     dummy_input = torch.randn(1, 2, 3, 4, device=device)
 
     scalar = 2.0

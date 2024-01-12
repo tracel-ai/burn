@@ -470,7 +470,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
-        B::into_int(B::pow(B::int_into_float(lhs), B::int_into_float(rhs)))
+        B::into_int(B::powf(B::int_into_float(lhs), B::int_into_float(rhs)))
     }
 
     /// Elementwise power with a floatTensor.
@@ -484,7 +484,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf<const D: usize>(lhs: IntTensor<B, D>, rhs: FloatTensor<B, D>) -> IntTensor<B, D> {
-        B::into_int(B::pow(B::int_into_float(lhs), rhs))
+        B::into_int(B::powf(B::int_into_float(lhs), rhs))
     }
 
     /// Elementwise power with a scalar.
@@ -498,7 +498,10 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D> {
-        B::into_int(B::powf(B::int_into_float(lhs), rhs.to_f32().unwrap()))
+        B::into_int(B::powf_scalar(
+            B::int_into_float(lhs),
+            rhs.to_f32().unwrap(),
+        ))
     }
 
     /// Elementwise power with a floatTensor.
@@ -512,7 +515,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: f32) -> IntTensor<B, D> {
-        B::into_int(B::powf(B::int_into_float(lhs), rhs))
+        B::into_int(B::powf_scalar(B::int_into_float(lhs), rhs))
     }
 
     /// Clamps a tensor under a minimum value.

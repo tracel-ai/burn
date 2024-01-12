@@ -870,7 +870,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
-    fn pow<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn powf<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Elementwise power with an IntTensor.
     ///
@@ -883,7 +883,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn powi<const D: usize>(lhs: FloatTensor<B, D>, rhs: IntTensor<B, D>) -> FloatTensor<B, D> {
-        Self::pow(lhs, B::int_into_float::<D>(rhs))
+        Self::powf(lhs, B::int_into_float::<D>(rhs))
     }
 
     /// raises a tensor to the power of a int scalar.
@@ -897,7 +897,7 @@ pub trait TensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn powi_scalar<const D: usize>(lhs: FloatTensor<B, D>, rhs: IntElem<B>) -> FloatTensor<B, D> {
-        Self::powf(lhs, rhs.to_f32().unwrap())
+        Self::powf_scalar(lhs, rhs.to_f32().unwrap())
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
@@ -910,7 +910,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn powf<const D: usize>(tensor: FloatTensor<B, D>, value: f32) -> FloatTensor<B, D>;
+    fn powf_scalar<const D: usize>(tensor: FloatTensor<B, D>, value: f32) -> FloatTensor<B, D>;
 
     /// Returns a new tensor with square root values.
     ///

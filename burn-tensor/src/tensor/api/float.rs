@@ -63,7 +63,7 @@ where
     ///
     /// `y = x^a`
     pub fn powf(self, value: f32) -> Self {
-        Self::new(B::powf(self.primitive, value))
+        Self::new(B::powf_scalar(self.primitive, value))
     }
 
     /// Applies element wise reciprocal operation.

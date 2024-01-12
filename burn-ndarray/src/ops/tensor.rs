@@ -351,7 +351,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
+    fn powf_scalar<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
         let array = if value == 2.0 {
             // Happens often and is faster.
             tensor.array.mapv_into(|a| a * a).into_shared()
@@ -440,7 +440,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor { array }
     }
 
-    fn pow<const D: usize>(
+    fn powf<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {

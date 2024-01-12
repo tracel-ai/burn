@@ -378,7 +378,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
-    fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
+    fn powf_scalar<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        value: f32,
+    ) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
     }
 
@@ -475,7 +478,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         super::base::chunk(tensor, chunks, dim)
     }
 
-    fn pow<const D: usize>(
+    fn powf<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {

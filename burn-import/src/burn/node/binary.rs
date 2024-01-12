@@ -1,6 +1,6 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, Type};
-use burn::record::PrecisionSettings;
+use burn::{record::PrecisionSettings, tensor::TensorKind};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::sync::Arc;
@@ -12,6 +12,7 @@ pub enum BinaryType {
     Mul,
     Div,
     Equal,
+    Pow,
 }
 
 impl BinaryType {
@@ -22,6 +23,7 @@ impl BinaryType {
             BinaryType::Mul => "mul",
             BinaryType::Div => "div",
             BinaryType::Equal => "equal",
+            BinaryType::Pow => "pow",
         }
     }
 }
@@ -153,6 +155,14 @@ impl BinaryNode {
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
+    pub(crate) fn pow(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powf_scalar(#rhs) },
+            _ => panic!("pow is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Pow, Arc::new(function))
+    }
 }
 
 #[cfg(test)]
@@ -272,6 +282,14 @@ mod tests {
     #[test]
     fn test_binary_codegen_mul_scalars() {
         test_binary_operator_on_scalar_and_scalar!(mul, *);
+    }
+    #[test]
+    fn test_binary_codegen_pow() {
+        test_binary_operator_on_tensors!(pow);
+    }
+    #[test]
+    fn test_binary_codegen_pow_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(pow, powf_scalar);
     }
 
     #[test]

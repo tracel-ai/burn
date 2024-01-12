@@ -379,7 +379,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         tensor.unary_ops(|mut tensor| tensor.log1p_(), |tensor| tensor.log1p())
     }
 
-    fn powf<const D: usize>(tensor: TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
+    fn powf_scalar<const D: usize>(tensor: TchTensor<E, D>, value: f32) -> TchTensor<E, D> {
         tensor.unary_ops(
             |mut tensor| tensor.f_pow_(value as f64).unwrap(),
             |tensor| tensor.pow_tensor_scalar(value as f64),
@@ -458,7 +458,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         TchOps::chunk(tensor, chunks, dim)
     }
 
-    fn pow<const D: usize>(
+    fn powf<const D: usize>(
         lhs: burn_tensor::ops::FloatTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
