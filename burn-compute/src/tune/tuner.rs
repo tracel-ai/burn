@@ -8,7 +8,7 @@ use core::time::Duration;
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use burn_common::benchmark::{Benchmark, BenchmarkDurations};
+use burn_common::benchmark::{Benchmark, BenchmarkComputations, BenchmarkDurations};
 
 use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
@@ -95,10 +95,10 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let mut fastest_tunable = None;
 
         for (i, result) in results.into_iter().enumerate() {
-            let duration = result.median_duration();
+            let computed = BenchmarkComputations::new(&result);
 
-            if duration < smallest_duration {
-                smallest_duration = duration;
+            if computed.median < smallest_duration {
+                smallest_duration = computed.median;
                 fastest_tunable = Some(i);
             }
         }
