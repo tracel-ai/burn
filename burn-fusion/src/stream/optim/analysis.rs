@@ -35,6 +35,32 @@ impl<O> StreamAnalysis<O> {
         }
     }
 
+    pub fn on_sync(
+        &self,
+        optimizations: &StreamOptimizations<O>,
+        stream: &[TensorOpsDescription],
+    ) -> StreamAnalysisAction {
+        // If an optimization covers the _whole_ stream, we return it, else we explore new
+        // optimizations.
+        for (id, length) in self.availables.iter() {
+            if *length == stream.len() {
+                return StreamAnalysisAction::ExecuteOptimization(*id);
+            }
+        }
+
+        for candidate in self.candidates.iter() {
+            let item = optimizations.get_unchecked(*candidate);
+
+            // The candidate can actually be executed, since the stream is of the same
+            // size.
+            if item.stream.len() == stream.len() {
+                return StreamAnalysisAction::ExecuteOptimization(*candidate);
+            }
+        }
+
+        StreamAnalysisAction::ExploreOptimization
+    }
+
     /// Update the analysis state and return the appropriate action.
     ///
     /// # Notes
@@ -45,66 +71,30 @@ impl<O> StreamAnalysis<O> {
         &mut self,
         optimizations: &StreamOptimizations<O>,
         stream: &[TensorOpsDescription],
-        mode: AnalysisMode,
+        next_ops: &TensorOpsDescription,
     ) -> StreamAnalysisAction {
         if stream.is_empty() {
-            return self.initialize_state(mode, optimizations);
+            return self.initialize_state(next_ops, optimizations);
         }
 
         if let Some((id, _length)) = self.found {
             return StreamAnalysisAction::ExecuteOptimization(id);
         }
 
-        let (next_ops, length) = match mode {
-            // Nest ops counts in the length of the stream.
-            AnalysisMode::LazyExecution { next_ops } => (next_ops, stream.len() + 1),
-            AnalysisMode::Sync => (
-                stream
-                    .last()
-                    .expect("The stream should have at least 1 operation when sync"),
-                stream.len(),
-            ),
-        };
-
-        self.analyze_candidates(optimizations, next_ops, length);
+        self.analyze_candidates(optimizations, next_ops, stream.len() + 1);
 
         if let Some((id, _length)) = self.found {
             return StreamAnalysisAction::ExecuteOptimization(id);
         }
 
-        match mode {
-            AnalysisMode::LazyExecution { next_ops: _ } => {
-                if self.candidates.is_empty() {
-                    // Even if there are optimizations available, we aren't sure if they are the best ones
-                    // we can use. Exploring more optimizations might find a new `end_condition` or
-                    // even find a better optimization.
-                    return StreamAnalysisAction::ExploreOptimization;
-                }
-
-                StreamAnalysisAction::WaitForOptimization
-            }
-            AnalysisMode::Sync => {
-                // If an optimization covers the _whole_ stream, we return it, else we explore new
-                // optimizations.
-                for (id, length) in self.availables.iter() {
-                    if *length == stream.len() {
-                        return StreamAnalysisAction::ExecuteOptimization(*id);
-                    }
-                }
-
-                for candidate in self.candidates.iter() {
-                    let item = optimizations.get_unchecked(*candidate);
-
-                    // The candidate can actually be executed, since the stream is of the same
-                    // size.
-                    if item.stream.len() == stream.len() {
-                        return StreamAnalysisAction::ExecuteOptimization(*candidate);
-                    }
-                }
-
-                StreamAnalysisAction::ExploreOptimization
-            }
+        if self.candidates.is_empty() {
+            // Even if there are optimizations available, we aren't sure if they are the best ones
+            // we can use. Exploring more optimizations might find a new `end_condition` or
+            // even find a better optimization.
+            return StreamAnalysisAction::ExploreOptimization;
         }
+
+        StreamAnalysisAction::WaitForOptimization
     }
 
     /// Did the analysis find an optimization that can be applied for the current stream.
@@ -135,18 +125,10 @@ impl<O> StreamAnalysis<O> {
 
     fn initialize_state(
         &mut self,
-        mode: AnalysisMode,
+        ops: &TensorOpsDescription,
         optimizations: &StreamOptimizations<O>,
     ) -> StreamAnalysisAction {
         self.reset();
-
-        // When the graph is empty, we use the condition as the first operation to determine
-        // the new possible opitmizations.
-        let ops = match mode {
-            AnalysisMode::LazyExecution { next_ops } => next_ops,
-            AnalysisMode::Sync => return StreamAnalysisAction::ExploreOptimization, // Sync an empty graph doesn't make
-                                                                                    // sense.
-        };
 
         self.candidates = optimizations.find_starting_with(ops);
 
@@ -232,16 +214,6 @@ pub enum StreamAnalysisAction {
     ExecuteOptimization(OptimizationId),
 }
 
-/// When checking if an optimization is possible, a start or an end condition ensures that this optimization is
-/// always optimal.
-#[derive(Clone)]
-pub enum AnalysisMode<'a> {
-    /// The next operation that signals the start or end of the operation.
-    LazyExecution { next_ops: &'a TensorOpsDescription },
-    /// When sync, we should execute the optimization if found no matter what comes next.
-    Sync,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -262,7 +234,6 @@ mod tests {
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..3),
             StreamAnalysisAction::ExploreOptimization,
-            false,
         );
     }
 
@@ -281,18 +252,12 @@ mod tests {
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
-            AssertUpdatesOptions::OperationsIndex(0..1),
+            AssertUpdatesOptions::OperationsIndex(0..2),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
 
-        stream.assert_updates(
-            &mut optimizations,
-            &mut analysis,
-            AssertUpdatesOptions::OperationsIndex(1..2),
-            StreamAnalysisAction::ExecuteOptimization(id),
-            true, // Sync
-        );
+        let action = analysis.on_sync(&optimizations, &stream.operations);
+        assert_eq!(action, StreamAnalysisAction::ExecuteOptimization(id));
     }
 
     #[test]
@@ -312,14 +277,12 @@ mod tests {
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..3),
             StreamAnalysisAction::ExecuteOptimization(id),
-            false, // Async
         );
     }
 
@@ -349,14 +312,12 @@ mod tests {
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..2),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..2),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
 
         stream1.assert_updates(
@@ -364,14 +325,12 @@ mod tests {
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
             StreamAnalysisAction::ExecuteOptimization(id),
-            false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
             StreamAnalysisAction::ExecuteOptimization(id),
-            false, // Async
         );
     }
 
@@ -408,14 +367,12 @@ mod tests {
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..3),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..3),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
 
         stream1.assert_updates(
@@ -423,14 +380,12 @@ mod tests {
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(3..4),
             StreamAnalysisAction::ExecuteOptimization(optimization_stream1),
-            false, // Async
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(3..4),
             StreamAnalysisAction::ExecuteOptimization(optimization_stream2),
-            false, // Async
         );
     }
 
@@ -455,7 +410,6 @@ mod tests {
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
             StreamAnalysisAction::WaitForOptimization,
-            false, // Async
         );
 
         // But is different.
@@ -464,7 +418,6 @@ mod tests {
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..4),
             StreamAnalysisAction::ExploreOptimization,
-            false, // Async
         );
     }
 
@@ -497,23 +450,15 @@ mod tests {
             analysis: &mut StreamAnalysis<()>,
             options: AssertUpdatesOptions,
             update: StreamAnalysisAction,
-            sync: bool,
         ) {
             match options {
                 AssertUpdatesOptions::OperationsIndex(range) => {
-                    let end = range.end;
                     for i in range {
-                        let (mode, operations) = if sync && i == end - 1 {
-                            (AnalysisMode::Sync, &self.operations[0..i + 1])
-                        } else {
-                            (
-                                AnalysisMode::LazyExecution {
-                                    next_ops: &self.operations[i],
-                                },
-                                &self.operations[0..i],
-                            )
-                        };
-                        let result = analysis.update(optimizations, operations, mode);
+                        let result = analysis.update(
+                            optimizations,
+                            &self.operations[0..i],
+                            &self.operations[i],
+                        );
                         assert_eq!(result, update);
                     }
                 }

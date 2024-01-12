@@ -1,7 +1,5 @@
 use super::{Stream, TensorOpsDescription};
-use crate::stream::optim::{
-    AnalysisMode, StreamAnalysis, StreamAnalysisAction, StreamOptimizations,
-};
+use crate::stream::optim::{StreamAnalysis, StreamAnalysisAction, StreamOptimizations};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
@@ -154,27 +152,24 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
         // Reset the policy state.
         for i in 0..self.num_skipped {
-            let _ = self.analysis.update(
-                cache,
-                &graph.relative[0..i],
-                AnalysisMode::LazyExecution {
-                    next_ops: &graph.relative[i],
-                },
-            );
+            let _ = self
+                .analysis
+                .update(cache, &graph.relative[0..i], &graph.relative[i]);
         }
     }
 
     fn analyze<'a>(
         &'a mut self,
         cache: &'a mut StreamOptimizations<B::Optimization>,
-        graph: &Stream<B>,
+        stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> StreamAnalysisAction {
-        let (graph, next_ops) = Self::split_relative_graph_ref(graph, mode);
-        let end_condition = next_ops
-            .map(|next_ops| AnalysisMode::LazyExecution { next_ops })
-            .unwrap_or(AnalysisMode::Sync);
-        let action = self.analysis.update(cache, graph, end_condition);
+        let (stream, next_ops) = Self::split_relative_graph_ref(stream, mode);
+
+        let action = match next_ops {
+            Some(next_ops) => self.analysis.update(cache, stream, next_ops),
+            None => self.analysis.on_sync(&cache, stream),
+        };
 
         match mode {
             ExecutionMode::Lazy => action,
