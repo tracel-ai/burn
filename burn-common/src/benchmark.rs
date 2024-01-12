@@ -26,8 +26,8 @@ impl BenchmarkDurations {
         sorted.sort();
         let min = *sorted.first().unwrap();
         let max = *sorted.last().unwrap();
-        let var = *sorted.get(sorted.len() / 2).unwrap();
-        (min, max, var)
+        let median = *sorted.get(sorted.len() / 2).unwrap();
+        (min, max, median)
     }
 
     /// Returns the median duration among all durations
