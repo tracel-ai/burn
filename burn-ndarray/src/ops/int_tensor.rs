@@ -1,8 +1,9 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_common::rand::get_seeded_rng;
 use burn_tensor::ops::IntTensorOps;
-use burn_tensor::Reader;
+use burn_tensor::{Distribution, Reader};
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
@@ -10,8 +11,8 @@ use core::ops::Range;
 // Current crate
 use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
-use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_tensor::{backend::Backend, Data, Shape};
@@ -376,5 +377,21 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         dim2: usize,
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &NdArrayDevice,
+    ) -> NdArrayTensor<i64, D> {
+        let mut seed = SEED.lock().unwrap();
+        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
+            rng_seeded.clone()
+        } else {
+            get_seeded_rng()
+        };
+        let tensor = Self::int_from_data(Data::random(shape, distribution, &mut rng), device);
+        *seed = Some(rng);
+        tensor
     }
 }
