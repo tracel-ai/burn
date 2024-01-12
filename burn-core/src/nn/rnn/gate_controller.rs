@@ -5,6 +5,7 @@ use crate::nn::Initializer;
 use crate::nn::Linear;
 use crate::nn::LinearConfig;
 use burn_tensor::backend::Backend;
+use burn_tensor::Tensor;
 
 /// A GateController represents a gate in an LSTM cell. An
 /// LSTM cell generally contains three gates: an input gate,
@@ -57,6 +58,19 @@ impl<B: Backend> GateController<B> {
             input_transform: l1,
             hidden_transform: l2,
         }
+    }
+
+    /// Helper function for performing weighted matrix product for a gate and adds
+    /// bias, if any.
+    ///
+    ///  Mathematically, performs `Wx*X + Wh*H + b`, where:
+    ///     Wx = weight matrix for the connection to input vector X
+    ///     Wh = weight matrix for the connection to hidden state H
+    ///     X = input vector
+    ///     H = hidden state
+    ///     b = bias terms
+    pub fn gate_product(&self, input: Tensor<B, 2>, hidden: Tensor<B, 2>) -> Tensor<B, 2> {
+        self.input_transform.forward(input) + self.hidden_transform.forward(hidden)
     }
 
     /// Used to initialize a gate controller with known weight layers,

@@ -132,28 +132,34 @@ impl<B: Backend> Lstm<B> {
         for (input_t, t) in input_timestep_iter {
             let input_t = input_t.squeeze(1);
             // f(orget)g(ate) tensors
-            let biased_fg_input_sum = self.gate_product(&input_t, &hidden_state, &self.forget_gate);
+            let biased_fg_input_sum = self
+                .forget_gate
+                .gate_product(input_t.clone(), hidden_state.clone());
             let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
 
             // i(nput)g(ate) tensors
-            let biased_ig_input_sum = self.gate_product(&input_t, &hidden_state, &self.input_gate);
+            let biased_ig_input_sum = self
+                .input_gate
+                .gate_product(input_t.clone(), hidden_state.clone());
             let add_values = activation::sigmoid(biased_ig_input_sum);
 
             // o(output)g(ate) tensors
-            let biased_og_input_sum = self.gate_product(&input_t, &hidden_state, &self.output_gate);
+            let biased_og_input_sum = self
+                .output_gate
+                .gate_product(input_t.clone(), hidden_state.clone());
             let output_values = activation::sigmoid(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
-            let biased_cg_input_sum = self.gate_product(&input_t, &hidden_state, &self.cell_gate);
+            let biased_cg_input_sum = self
+                .cell_gate
+                .gate_product(input_t.clone(), hidden_state.clone());
             let candidate_cell_values = biased_cg_input_sum.tanh();
 
             cell_state = forget_values * cell_state.clone() + add_values * candidate_cell_values;
             hidden_state = output_values * cell_state.clone().tanh();
 
-            let unsqueezed_shape = [cell_state.shape().dims[0], 1, cell_state.shape().dims[1]];
-
-            let unsqueezed_cell_state = cell_state.clone().reshape(unsqueezed_shape);
-            let unsqueezed_hidden_state = hidden_state.clone().reshape(unsqueezed_shape);
+            let unsqueezed_cell_state = cell_state.clone().unsqueeze_dim(1);
+            let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
 
             // store the state for this timestep
             batched_cell_state = batched_cell_state.slice_assign(
@@ -167,45 +173,6 @@ impl<B: Backend> Lstm<B> {
         }
 
         (batched_cell_state, batched_hidden_state)
-    }
-
-    /// Helper function for performing weighted matrix product for a gate and adds
-    /// bias, if any.
-    ///
-    ///  Mathematically, performs `Wx*X + Wh*H + b`, where:
-    ///     Wx = weight matrix for the connection to input vector X
-    ///     Wh = weight matrix for the connection to hidden state H
-    ///     X = input vector
-    ///     H = hidden state
-    ///     b = bias terms
-    fn gate_product(
-        &self,
-        input: &Tensor<B, 2>,
-        hidden: &Tensor<B, 2>,
-        gate: &GateController<B>,
-    ) -> Tensor<B, 2> {
-        let input_product = input.clone().matmul(gate.input_transform.weight.val());
-        let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
-
-        let input_bias = gate
-            .input_transform
-            .bias
-            .as_ref()
-            .map(|bias_param| bias_param.val());
-        let hidden_bias = gate
-            .hidden_transform
-            .bias
-            .as_ref()
-            .map(|bias_param| bias_param.val());
-
-        match (input_bias, hidden_bias) {
-            (Some(input_bias), Some(hidden_bias)) => {
-                input_product + input_bias.unsqueeze() + hidden_product + hidden_bias.unsqueeze()
-            }
-            (Some(input_bias), None) => input_product + input_bias.unsqueeze() + hidden_product,
-            (None, Some(hidden_bias)) => input_product + hidden_product + hidden_bias.unsqueeze(),
-            (None, None) => input_product + hidden_product,
-        }
     }
 }
 
@@ -232,12 +199,6 @@ pub struct BiLstm<B: Backend> {
 }
 
 impl BiLstmConfig {
-    /// Initialize a new [bidirectional LSTM](BiLstm) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> BiLstm<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [bidirectional LSTM](BiLstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
         BiLstm {
@@ -347,7 +308,7 @@ mod tests {
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let lstm = config.init::<TestBackend>(&Default::default());
+        let lstm = config.init(&Default::default());
 
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
@@ -372,7 +333,7 @@ mod tests {
         TestBackend::seed(0);
         let config = LstmConfig::new(1, 1, false);
         let device = Default::default();
-        let mut lstm = config.init_devauto::<TestBackend>();
+        let mut lstm = config.init(&device);
 
         fn create_gate_controller(
             weights: f32,
@@ -455,7 +416,7 @@ mod tests {
     #[test]
     fn test_batched_forward_pass() {
         let device = Default::default();
-        let lstm = LstmConfig::new(64, 1024, true).init::<TestBackend>(&device);
+        let lstm = LstmConfig::new(64, 1024, true).init(&device);
         let batched_input =
             Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
 
@@ -470,7 +431,7 @@ mod tests {
         TestBackend::seed(0);
         let config = BiLstmConfig::new(2, 4, true);
         let device = Default::default();
-        let mut lstm = config.init::<TestBackend>(&device);
+        let mut lstm = config.init(&device);
 
         fn create_gate_controller<const D1: usize, const D2: usize>(
             input_weights: [[f32; D1]; D2],
