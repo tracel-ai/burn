@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Reader, Shape};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Distribution, Reader, Shape};
 
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 
@@ -417,5 +417,34 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         dim: usize,
     ) -> Vec<TchTensor<i64, D>> {
         TchOps::chunk(tensor, chunks, dim)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &LibTorchDevice,
+    ) -> TchTensor<i64, D> {
+        match distribution {
+            Distribution::Default => {
+                let mut tensor = TchTensor::<i64, D>::empty(shape, *device);
+                tensor
+                    .mut_ops(|tensor| tensor.rand_like_out(tensor))
+                    .unwrap()
+            }
+            Distribution::Bernoulli(prob) => {
+                let mut tensor = TchTensor::<i64, D>::empty(shape, *device);
+                tensor
+                    .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
+                    .unwrap()
+            }
+            Distribution::Uniform(from, to) => {
+                let mut tensor = TchTensor::<i64, D>::empty(shape, *device);
+                tensor.mut_ops(|tensor| tensor.uniform_(from, to)).unwrap()
+            }
+            Distribution::Normal(mean, std) => {
+                let mut tensor = TchTensor::<i64, D>::empty(shape, *device);
+                tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
+            }
+        }
     }
 }
