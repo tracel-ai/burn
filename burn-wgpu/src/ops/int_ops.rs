@@ -7,8 +7,7 @@ use crate::{
     kernel, unary, GraphicsApi, Wgpu,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{ops::IntTensorOps, Data, Shape};
-use burn_tensor::{Distribution, ElementConversion, Reader};
+use burn_tensor::{ops::IntTensorOps, Data, Shape, Distribution, ElementConversion, Reader};
 use std::ops::Range;
 
 impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
