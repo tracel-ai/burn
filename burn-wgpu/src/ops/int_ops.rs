@@ -1,15 +1,15 @@
 use super::numeric;
 
 use crate::codegen::{Elem, Operator, Variable};
+use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},
     kernel, unary, GraphicsApi, Wgpu,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-
-use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
+use burn_tensor::{Distribution, ElementConversion, Reader};
 use std::ops::Range;
 
 impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
@@ -320,5 +320,26 @@ where
         times: usize,
     ) -> IntTensor<Self, D> {
         kernel::repeat(tensor, dim, times)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        let float_tensor = match distribution {
+            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
+            Distribution::Uniform(low, high) => {
+                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+            }
+            Distribution::Bernoulli(prob) => {
+                random_bernoulli::<G, F, D>(shape, device, prob.elem())
+            }
+            Distribution::Normal(mean, std) => {
+                random_normal::<G, F, D>(shape, device, mean.elem(), std.elem())
+            }
+        };
+
+        kernel::cast(float_tensor)
     }
 }
