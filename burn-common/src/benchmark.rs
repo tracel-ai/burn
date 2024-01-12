@@ -282,11 +282,10 @@ mod tests {
                 Duration::new(20, 0),
                 Duration::new(30, 0),
                 Duration::new(40, 0),
-                Duration::new(50, 0),
             ],
         };
         let mean = durations.mean_duration();
-        assert_eq!(mean, Duration::from_secs(30));
+        assert_eq!(mean, Duration::from_secs(25));
     }
 
     #[test]
