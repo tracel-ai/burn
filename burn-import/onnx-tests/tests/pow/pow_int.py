@@ -14,13 +14,13 @@ class Model(nn.Module):
 
     def forward(self, x, k):
         # raise a tensor to tensor power
-        x = x.pow(x).int()
+        x = x.pow(x)
 
         # raise a scalar constant to a power of a scalar
         # d = torch.pow(self.b, k).int()
 
         # raise a tensor input to a power of a scalar
-        x = torch.pow(x, k).int()
+        x = torch.pow(x, k)
 
         return x
 
@@ -33,7 +33,7 @@ def main():
     onnx_name = "pow_int.onnx"
     test_input = torch.tensor([[[[1, 2, 3, 4]]]], dtype=torch.int32)
 
-    scalar = 2.0
+    scalar = 2
 
     torch.onnx.export(
         model, (test_input, scalar), onnx_name, verbose=False, opset_version=16

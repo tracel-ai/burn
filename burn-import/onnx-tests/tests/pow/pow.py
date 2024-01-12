@@ -30,7 +30,7 @@ def main():
     model.eval()
     device = torch.device("cpu")
     onnx_name = "pow.onnx"
-    dummy_input = torch.randn(1, 2, 3, 4, device=device)
+    dummy_input = torch.randn(1, 2, 3, 4, dtype=torch.float32, device=device)
 
     scalar = 2.0
 

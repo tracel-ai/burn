@@ -1215,9 +1215,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         value: f32,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
-        struct PowF;
+        struct PowFScalar;
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for PowF {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for PowFScalar {
             type State = (B::TensorPrimitive<D>, f32);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
@@ -1232,7 +1232,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match PowF.prepare([tensor.node], [tensor.graph]).stateful() {
+        match PowFScalar.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(
                 (tensor.primitive.clone(), value),
                 B::powf_scalar(tensor.primitive, value),
@@ -1525,9 +1525,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
-        struct Pow;
-        todo!("Implement backward for pow");
-        impl<B: Backend, const D: usize> Backward<B, D, 2> for Pow {
+        struct PowF;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
             type State = (
                 Option<B::TensorPrimitive<D>>,
                 Option<B::TensorPrimitive<D>>,
@@ -1537,7 +1537,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let (lhs, rhs, broadcast) = ops.state;
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
-                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, lhs);
+                let [lhs_4lhs1, lhs_4rhs1] = duplicate(&ops.parents, lhs.clone());
+                let [lhs_4lhs2, lhs_4rhs2] = duplicate(&ops.parents, lhs);
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -1546,12 +1547,10 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                     |grad| {
                         //lhs*(rhs.val**(lhs-1))*rhs.der
                         let rhs = rhs_4lhs.unwrap();
-                        let lhs = lhs_4lhs.unwrap();
-                        let tmp = B::powf(
-                            rhs,
-                            B::sub_scalar(lhs.clone(), B::FloatElem::from_elem(1.0)),
-                        );
-                        let value = B::mul(tmp, lhs);
+                        let lhs1 = lhs_4lhs1.unwrap();
+                        let lhs2 = lhs_4lhs2.unwrap();
+                        let tmp = B::powf(lhs1, B::sub_scalar(rhs, B::FloatElem::from_elem(1.0)));
+                        let value = B::mul(tmp, lhs2);
                         let grad = B::mul(grad, value);
 
                         broadcast.backward_lhs::<B>(grad)
@@ -1559,13 +1558,17 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                     |grad| {
                         //honestly no idea what I'm supposed to do here.
                         let rhs = rhs_4rhs.unwrap();
-                        todo!("Implement backward for pow");
+                        let lhs1 = lhs_4rhs1.unwrap();
+                        let lhs2 = lhs_4rhs2.unwrap();
+                        let tmp = B::powf(rhs, lhs1);
+                        let value = B::mul(tmp, B::log(lhs2));
+                        let grad = B::mul(grad, value);
 
                         // let lhs = lhs.unwrap();
                         // let value = B::div(B::neg(lhs), B::powf(lhs, 2.0));
                         // let grad = B::mul(grad, value);
 
-                        // broadcast.backward_rhs::<B>(grad)
+                        broadcast.backward_rhs::<B>(grad)
                     },
                 );
             }
@@ -1575,7 +1578,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         let rhs_tracked = rhs.is_tracked();
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
-        match Pow
+        match PowF
             .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
             .stateful()
         {
@@ -1585,9 +1588,9 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                     (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
                     broadcast,
                 ),
-                B::div(lhs.primitive, rhs.primitive),
+                B::powf(lhs.primitive, rhs.primitive),
             ),
-            OpsKind::UnTracked(prep) => prep.finish(B::div(lhs.primitive, rhs.primitive)),
+            OpsKind::UnTracked(prep) => prep.finish(B::powf(lhs.primitive, rhs.primitive)),
         }
     }
 }
