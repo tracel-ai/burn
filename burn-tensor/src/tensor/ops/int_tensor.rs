@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -895,4 +895,20 @@ pub trait IntTensorOps<B: Backend> {
     ) -> Vec<IntTensor<B, D>> {
         chunk::<B, D, Int>(tensor, chunks, dim)
     }
+
+    /// Creates a new int tensor with random values.
+    ///
+    ///  # Arguments
+    ///  * `shape` - The shape of the tensor.
+    ///  * `distribution` - The distribution to sample from.
+    ///  * `device` - The device to create the tensor on.
+    ///
+    ///  # Returns
+    ///
+    ///  The tensor with the given shape and random values.
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<B>,
+    ) -> IntTensor<B, D>;
 }
