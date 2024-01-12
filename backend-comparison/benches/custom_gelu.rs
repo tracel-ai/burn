@@ -24,8 +24,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        let kindstr = format!("{:?}", self.kind);
-        format!("gelu_{}", kindstr.to_lowercase())
+        "gelu".into()
     }
 
     fn options(&self) -> Option<String> {
