@@ -1,9 +1,9 @@
-use super::starter::Starters;
+use super::Starters;
 use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default)]
-pub(crate) struct StreamOptimizations<O> {
+pub(crate) struct OptimizationStore<O> {
     pub(super) optimizations: Vec<OptimizationItem<O>>,
     pub(super) starters: Starters,
 }
@@ -17,7 +17,7 @@ pub(crate) struct OptimizationItem<O> {
     pub(crate) value: O,
 }
 
-impl<O> StreamOptimizations<O> {
+impl<O> OptimizationStore<O> {
     pub fn new() -> Self {
         Self {
             optimizations: Vec::new(),
@@ -50,9 +50,4 @@ impl<O> StreamOptimizations<O> {
     pub fn add_end_condition(&mut self, id: OptimizationId, end_condition: TensorOpsDescription) {
         self.optimizations[id].end_conditions.push(end_condition)
     }
-}
-/// Create an optimization.
-pub(crate) trait OptimizationFactory<T> {
-    /// Call only when a new optimization is found.
-    fn create(&self) -> T;
 }

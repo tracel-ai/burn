@@ -1,37 +1,31 @@
-use super::{Stream, TensorOpsDescription};
-use crate::stream::optim::{StreamAnalysis, StreamAnalysisAction, StreamOptimizations};
+use super::ExecutionMode;
+use crate::stream::execution::{ExecutionAction, Policy};
+use crate::stream::store::{OptimizationItem, OptimizationStore};
+use crate::stream::{Stream, TensorOpsDescription};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
 /// Execute an optimization following a greedy algorithm.
-pub(crate) struct StreamExecutor<B: FusionBackend> {
-    analysis: StreamAnalysis<B::Optimization>,
+pub(crate) struct Processor<B: FusionBackend> {
+    policy: Policy<B::Optimization>,
     builders: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_skipped: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum ExecutionMode {
-    // Signal that we execute the graph after a new ops is added to the graph.
-    Lazy,
-    // Signal that we execute the graph because of a sync without any new ops added to the graph.
-    Sync,
-}
-
-impl<B: FusionBackend> StreamExecutor<B> {
+impl<B: FusionBackend> Processor<B> {
     /// Create a new graph execution with the given optimization builders.
     pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
         Self {
-            analysis: StreamAnalysis::new(),
+            policy: Policy::new(),
             builders: optimizations,
             num_skipped: 0,
         }
     }
 
     /// Execute the graph with the provided mode.
-    pub fn execute(
+    pub fn process(
         &mut self,
         stream: &mut Stream<B>,
-        optimizations: &mut StreamOptimizations<B::Optimization>,
+        optimizations: &mut OptimizationStore<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
@@ -40,8 +34,8 @@ impl<B: FusionBackend> StreamExecutor<B> {
                 break;
             }
 
-            match self.analyze(optimizations, stream, mode) {
-                StreamAnalysisAction::ExploreOptimization => {
+            match self.analysis_action(optimizations, stream, mode) {
+                ExecutionAction::ExploreOptimization => {
                     match self.build(optimizations, stream, mode) {
                         BuildAction::ExecuteOptimization(ops) => {
                             stream.execute_optimization(handles, ops);
@@ -62,7 +56,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         break;
                     }
                 }
-                StreamAnalysisAction::WaitForOptimization => {
+                ExecutionAction::WaitForOptimization => {
                     self.num_skipped += 1;
 
                     match mode {
@@ -70,7 +64,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                StreamAnalysisAction::ExecuteOptimization(ops) => {
+                ExecutionAction::ExecuteOptimization(ops) => {
                     stream.execute_optimization(
                         handles,
                         &mut optimizations.get_mut_unchecked(ops).value,
@@ -87,7 +81,7 @@ impl<B: FusionBackend> StreamExecutor<B> {
 
     fn build<'a>(
         &'a mut self,
-        optimizations: &'a mut StreamOptimizations<B::Optimization>,
+        optimizations: &'a mut OptimizationStore<B::Optimization>,
         graph: &Stream<B>,
         mode: ExecutionMode,
     ) -> BuildAction<'_, B> {
@@ -120,13 +114,16 @@ impl<B: FusionBackend> StreamExecutor<B> {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let builder = &self.builders[index];
 
-                let id = if let Some(id) = self.analysis.found_optimal_optimization(&relative) {
+                let id = if let ExecutionAction::ExecuteOptimization(id) =
+                    self.policy
+                        .action(optimizations, &relative, ExecutionMode::Sync)
+                {
                     if let Some(next_ops) = next_ops {
                         optimizations.add_end_condition(id, next_ops);
                     }
                     id
                 } else {
-                    optimizations.add(super::optim::OptimizationItem {
+                    optimizations.add(OptimizationItem {
                         stream: relative,
                         end_conditions: next_ops.map(|op| vec![op]).unwrap_or_default(),
                         value: builder.build(),
@@ -142,49 +139,35 @@ impl<B: FusionBackend> StreamExecutor<B> {
         }
     }
 
-    fn reset(&mut self, cache: &mut StreamOptimizations<B::Optimization>, graph: &Stream<B>) {
+    fn reset(&mut self, cache: &mut OptimizationStore<B::Optimization>, graph: &Stream<B>) {
         for ops in self.builders.iter_mut() {
             ops.reset();
         }
         self.num_skipped = graph.relative.len();
 
-        self.analysis.reset();
+        self.policy.reset();
 
         // Reset the policy state.
         for i in 0..self.num_skipped {
             let _ = self
-                .analysis
+                .policy
                 .update(cache, &graph.relative[0..i], &graph.relative[i]);
         }
     }
 
-    fn analyze<'a>(
+    fn analysis_action<'a>(
         &'a mut self,
-        cache: &'a mut StreamOptimizations<B::Optimization>,
+        cache: &'a mut OptimizationStore<B::Optimization>,
         stream: &Stream<B>,
         mode: ExecutionMode,
-    ) -> StreamAnalysisAction {
+    ) -> ExecutionAction {
         let (stream, next_ops) = Self::split_relative_graph_ref(stream, mode);
 
-        let action = match next_ops {
-            Some(next_ops) => self.analysis.update(cache, stream, next_ops),
-            None => self.analysis.on_sync(&cache, stream),
-        };
-
-        match mode {
-            ExecutionMode::Lazy => action,
-            ExecutionMode::Sync => match action {
-                StreamAnalysisAction::ExploreOptimization => {
-                    StreamAnalysisAction::ExploreOptimization
-                }
-                StreamAnalysisAction::WaitForOptimization => {
-                    StreamAnalysisAction::ExploreOptimization
-                }
-                StreamAnalysisAction::ExecuteOptimization(ops) => {
-                    StreamAnalysisAction::ExecuteOptimization(ops)
-                }
-            },
+        if let Some(next_ops) = next_ops {
+            self.policy.update(cache, stream, next_ops)
         }
+
+        self.policy.action(&cache, stream, mode)
     }
 
     fn split_relative_graph_owned(

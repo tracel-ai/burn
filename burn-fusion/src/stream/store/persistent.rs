@@ -1,5 +1,5 @@
-use super::{starter::Starters, StreamOptimizations};
-use crate::stream::optim::OptimizationItem;
+use super::{starter::Starters, OptimizationStore};
+use crate::stream::store::OptimizationItem;
 use crate::{FusionBackend, Optimization};
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +9,7 @@ struct OptimizationCacheState<O> {
     starters: Starters,
 }
 
-impl<O> StreamOptimizations<O> {
+impl<O> OptimizationStore<O> {
     #[allow(dead_code)]
     /// TODO: save the cache state.
     pub(crate) fn save<B: FusionBackend>(&self, _device: &B::Device)

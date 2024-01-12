@@ -1,6 +1,6 @@
 use super::{
-    execution::{ExecutionMode, StreamExecutor},
-    optim::StreamOptimizations,
+    execution::{ExecutionMode, Processor},
+    store::OptimizationStore,
     Ops, Stream, TensorOpsDescription,
 };
 use crate::{FusionBackend, HandleContainer};
@@ -10,19 +10,19 @@ use crate::{FusionBackend, HandleContainer};
 /// TODO: Actually support multiple streams.
 pub struct MultiStream<B: FusionBackend> {
     items: Vec<Item<B>>,
-    optimizations: StreamOptimizations<B::Optimization>,
+    optimizations: OptimizationStore<B::Optimization>,
 }
 
 struct Item<B: FusionBackend> {
     stream: Stream<B>,
-    executor: StreamExecutor<B>,
+    executor: Processor<B>,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
     pub(crate) fn new(device: B::FusionDevice) -> Self {
         Self {
             items: vec![Item::new(device)],
-            optimizations: StreamOptimizations::new(),
+            optimizations: OptimizationStore::new(),
         }
     }
 
@@ -36,7 +36,7 @@ impl<B: FusionBackend> MultiStream<B> {
         // TODO: Support more than only one stream.
         self.items.first_mut().map(|item| {
             item.stream.add(ops_desc, ops);
-            item.executor.execute(
+            item.executor.process(
                 &mut item.stream,
                 &mut self.optimizations,
                 handles,
@@ -48,7 +48,7 @@ impl<B: FusionBackend> MultiStream<B> {
     /// Drain the streams.
     pub fn drain(&mut self, handles: &mut HandleContainer<B>) {
         self.items.iter_mut().for_each(|item| {
-            item.executor.execute(
+            item.executor.process(
                 &mut item.stream,
                 &mut self.optimizations,
                 handles,
@@ -61,7 +61,7 @@ impl<B: FusionBackend> MultiStream<B> {
 impl<B: FusionBackend> Item<B> {
     fn new(device: B::FusionDevice) -> Self {
         Self {
-            executor: StreamExecutor::new(B::optimizations(device.into())),
+            executor: Processor::new(B::optimizations(device.into())),
             stream: Stream::new(),
         }
     }

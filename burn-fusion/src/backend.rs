@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    stream::{optim::OptimizationFactory, Context, TensorOpsDescription},
+    stream::{Context, TensorOpsDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -108,15 +108,6 @@ pub trait Optimization<B: FusionBackend>: Send {
     fn to_state(&self) -> B::OptimizationState;
     /// Create the optimization from the state.
     fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
-}
-
-// We implement the OptimizationFactory for all boxed optimization to be used with the Optimization
-// Cache. The factory is only used to simplify types and allows better testing. It isn't a public
-// crate.
-impl<B: FusionBackend> OptimizationFactory<B::Optimization> for Box<dyn OptimizationBuilder<B>> {
-    fn create(&self) -> B::Optimization {
-        OptimizationBuilder::build(self.as_ref())
-    }
 }
 
 /// The device id.

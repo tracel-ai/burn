@@ -1,5 +1,8 @@
-use super::OptimizationId;
-use crate::stream::{optim::StreamOptimizations, TensorOpsDescription};
+use super::ExecutionMode;
+use crate::stream::{
+    store::{OptimizationId, OptimizationStore},
+    TensorOpsDescription,
+};
 use std::marker::PhantomData;
 
 /// The stream analysis keeps track of all possible optimizations for the current stream.
@@ -12,7 +15,7 @@ use std::marker::PhantomData;
 /// Therefore, the overhead is very minimal, since the time-complexity of checking for existing
 /// optimizations scales with the number of concurrent potential optimizations for the current stream,
 /// which isn't supposed to be big at any time.
-pub(crate) struct StreamAnalysis<O> {
+pub(crate) struct Policy<O> {
     // The potential optimizations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
     candidates: Vec<OptimizationId>,
@@ -25,7 +28,7 @@ pub(crate) struct StreamAnalysis<O> {
     _item_type: PhantomData<O>,
 }
 
-impl<O> StreamAnalysis<O> {
+impl<O> Policy<O> {
     pub(crate) fn new() -> Self {
         Self {
             candidates: Vec::new(),
@@ -35,30 +38,49 @@ impl<O> StreamAnalysis<O> {
         }
     }
 
-    pub fn on_sync(
+    pub fn action(
         &self,
-        optimizations: &StreamOptimizations<O>,
+        optimizations: &OptimizationStore<O>,
         stream: &[TensorOpsDescription],
-    ) -> StreamAnalysisAction {
-        // If an optimization covers the _whole_ stream, we return it, else we explore new
-        // optimizations.
-        for (id, length) in self.availables.iter() {
-            if *length == stream.len() {
-                return StreamAnalysisAction::ExecuteOptimization(*id);
-            }
+        mode: ExecutionMode,
+    ) -> ExecutionAction {
+        if let Some((id, _length)) = self.found {
+            return ExecutionAction::ExecuteOptimization(id);
         }
 
-        for candidate in self.candidates.iter() {
-            let item = optimizations.get_unchecked(*candidate);
+        match mode {
+            ExecutionMode::Lazy => {
+                if self.candidates.is_empty() {
+                    // Even if there are optimizations available, we aren't sure if they are the best ones
+                    // we can use. Exploring more optimizations might find a new `end_condition` or
+                    // even find a better optimization.
+                    return ExecutionAction::ExploreOptimization;
+                }
 
-            // The candidate can actually be executed, since the stream is of the same
-            // size.
-            if item.stream.len() == stream.len() {
-                return StreamAnalysisAction::ExecuteOptimization(*candidate);
+                ExecutionAction::WaitForOptimization
+            }
+            ExecutionMode::Sync => {
+                // If an optimization covers the _whole_ stream, we return it, else we explore new
+                // optimizations.
+                for (id, length) in self.availables.iter() {
+                    if *length == stream.len() {
+                        return ExecutionAction::ExecuteOptimization(*id);
+                    }
+                }
+
+                for candidate in self.candidates.iter() {
+                    let item = optimizations.get_unchecked(*candidate);
+
+                    // The candidate can actually be executed, since the stream is of the same
+                    // size.
+                    if item.stream.len() == stream.len() {
+                        return ExecutionAction::ExecuteOptimization(*candidate);
+                    }
+                }
+
+                ExecutionAction::ExploreOptimization
             }
         }
-
-        StreamAnalysisAction::ExploreOptimization
     }
 
     /// Update the analysis state and return the appropriate action.
@@ -67,80 +89,39 @@ impl<O> StreamAnalysis<O> {
     ///
     /// It is assumed that this function will be called for each new operation added to the graph (for
     /// each new operation). Only one stream can be analyzed at a time.
+    ///
+    /// TODO: Remove stream from the update, just the next ops and keep a counter.
     pub fn update(
         &mut self,
-        optimizations: &StreamOptimizations<O>,
+        optimizations: &OptimizationStore<O>,
         stream: &[TensorOpsDescription],
         next_ops: &TensorOpsDescription,
-    ) -> StreamAnalysisAction {
+    ) {
         if stream.is_empty() {
-            return self.initialize_state(next_ops, optimizations);
+            self.initialize_state(next_ops, optimizations);
+        } else {
+            self.analyze_candidates(optimizations, next_ops, stream.len() + 1);
         }
-
-        if let Some((id, _length)) = self.found {
-            return StreamAnalysisAction::ExecuteOptimization(id);
-        }
-
-        self.analyze_candidates(optimizations, next_ops, stream.len() + 1);
-
-        if let Some((id, _length)) = self.found {
-            return StreamAnalysisAction::ExecuteOptimization(id);
-        }
-
-        if self.candidates.is_empty() {
-            // Even if there are optimizations available, we aren't sure if they are the best ones
-            // we can use. Exploring more optimizations might find a new `end_condition` or
-            // even find a better optimization.
-            return StreamAnalysisAction::ExploreOptimization;
-        }
-
-        StreamAnalysisAction::WaitForOptimization
-    }
-
-    /// Did the analysis find an optimization that can be applied for the current stream.
-    ///
-    /// # Important
-    ///
-    /// The optimization should optimize the _whole_ stream, not just part of it.
-    pub fn found_optimal_optimization(
-        &self,
-        stream: &[TensorOpsDescription],
-    ) -> Option<OptimizationId> {
-        // If the optimization is for a stream of the same length as provided, we return it.
-
-        if let Some((id, length)) = self.found {
-            if length == stream.len() {
-                return Some(id);
-            }
-        }
-
-        for (id, length) in self.availables.iter() {
-            if *length == stream.len() {
-                return Some(*id);
-            }
-        }
-
-        None
     }
 
     fn initialize_state(
         &mut self,
         ops: &TensorOpsDescription,
-        optimizations: &StreamOptimizations<O>,
-    ) -> StreamAnalysisAction {
+        optimizations: &OptimizationStore<O>,
+    ) -> ExecutionAction {
         self.reset();
 
         self.candidates = optimizations.find_starting_with(ops);
 
         if self.candidates.is_empty() {
-            return StreamAnalysisAction::ExploreOptimization;
+            return ExecutionAction::ExploreOptimization;
         }
-        return StreamAnalysisAction::WaitForOptimization;
+        return ExecutionAction::WaitForOptimization;
     }
 
     fn analyze_candidates(
         &mut self,
-        optimizations: &StreamOptimizations<O>,
+        optimizations: &OptimizationStore<O>,
         next_ops: &TensorOpsDescription,
         stream_length: usize,
     ) {
@@ -200,7 +181,7 @@ impl<O> StreamAnalysis<O> {
 
 /// Action to be made depending on the graph.
 #[derive(PartialEq, Eq, Debug)]
-pub enum StreamAnalysisAction {
+pub enum ExecutionAction {
     /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
     ExploreOptimization,
     /// The current graph indicates that an optimization may be possible in the future, so the
@@ -218,29 +199,29 @@ pub enum StreamAnalysisAction {
 mod tests {
     use super::*;
     use crate::{
-        stream::{optim::OptimizationItem, FloatOpsDescription, UnaryOpsDescription},
+        stream::{store::OptimizationItem, FloatOpsDescription, UnaryOpsDescription},
         TensorDescription, TensorId, TensorStatus,
     };
     use std::ops::Range;
 
     #[test]
     fn given_no_optimization_should_explore() {
-        let mut optimizations = StreamOptimizations::default();
-        let mut analysis = StreamAnalysis::new();
+        let mut optimizations = OptimizationStore::default();
+        let mut analysis = Policy::new();
         let stream = TestStream::new(3);
 
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisAction::ExploreOptimization,
+            ExecutionAction::ExploreOptimization,
         );
     }
 
     #[test]
     fn given_existing_optimization_when_sync_should_execute_optim() {
-        let mut optimizations = StreamOptimizations::default();
-        let mut analysis = StreamAnalysis::new();
+        let mut optimizations = OptimizationStore::default();
+        let mut analysis = Policy::new();
 
         let stream = TestStream::new(2);
         let id = optimizations.add(OptimizationItem {
@@ -253,17 +234,17 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
 
-        let action = analysis.on_sync(&optimizations, &stream.operations);
-        assert_eq!(action, StreamAnalysisAction::ExecuteOptimization(id));
+        let action = analysis.action(&optimizations, &stream.operations, ExecutionMode::Sync);
+        assert_eq!(action, ExecutionAction::ExecuteOptimization(id));
     }
 
     #[test]
     fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
-        let mut optimizations = StreamOptimizations::default();
-        let mut analysis = StreamAnalysis::new();
+        let mut optimizations = OptimizationStore::default();
+        let mut analysis = Policy::new();
 
         let stream = TestStream::new(3);
         let id = optimizations.add(OptimizationItem {
@@ -276,21 +257,21 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..3),
-            StreamAnalysisAction::ExecuteOptimization(id),
+            ExecutionAction::ExecuteOptimization(id),
         );
     }
 
     #[test]
     fn should_support_multiple_end_conditions() {
-        let mut optimizations = StreamOptimizations::default();
-        let mut analysis1 = StreamAnalysis::new();
-        let mut analysis2 = StreamAnalysis::new();
+        let mut optimizations = OptimizationStore::default();
+        let mut analysis1 = Policy::new();
+        let mut analysis2 = Policy::new();
 
         let mut stream1 = TestStream::new(2);
         let mut stream2 = TestStream::new(2);
@@ -311,34 +292,34 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
 
         stream1.assert_updates(
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
-            StreamAnalysisAction::ExecuteOptimization(id),
+            ExecutionAction::ExecuteOptimization(id),
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
-            StreamAnalysisAction::ExecuteOptimization(id),
+            ExecutionAction::ExecuteOptimization(id),
         );
     }
 
     #[test]
     fn should_select_right_optimization() {
-        let mut optimizations = StreamOptimizations::default();
-        let mut analysis1 = StreamAnalysis::new();
-        let mut analysis2 = StreamAnalysis::new();
+        let mut optimizations = OptimizationStore::default();
+        let mut analysis1 = Policy::new();
+        let mut analysis2 = Policy::new();
 
         let mut stream1 = TestStream::new(2);
         let mut stream2 = TestStream::new(2);
@@ -366,32 +347,32 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
 
         stream1.assert_updates(
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            StreamAnalysisAction::ExecuteOptimization(optimization_stream1),
+            ExecutionAction::ExecuteOptimization(optimization_stream1),
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            StreamAnalysisAction::ExecuteOptimization(optimization_stream2),
+            ExecutionAction::ExecuteOptimization(optimization_stream2),
         );
     }
 
     #[test]
     fn should_invalidate_wrong_optimizations() {
-        let mut optimizations = StreamOptimizations::default();
+        let mut optimizations = OptimizationStore::default();
         let stream1 = TestStream::new(4);
         let mut stream2 = TestStream::new(2);
         stream2.new_ops(6);
@@ -403,13 +384,13 @@ mod tests {
             value: (),
         });
 
-        let mut analysis = StreamAnalysis::new();
+        let mut analysis = Policy::new();
         // Same path as stream 1
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            StreamAnalysisAction::WaitForOptimization,
+            ExecutionAction::WaitForOptimization,
         );
 
         // But is different.
@@ -417,7 +398,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..4),
-            StreamAnalysisAction::ExploreOptimization,
+            ExecutionAction::ExploreOptimization,
         );
     }
 
@@ -446,20 +427,20 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn assert_updates(
             &self,
-            optimizations: &StreamOptimizations<()>,
-            analysis: &mut StreamAnalysis<()>,
+            optimizations: &OptimizationStore<()>,
+            analysis: &mut Policy<()>,
             options: AssertUpdatesOptions,
-            update: StreamAnalysisAction,
+            action: ExecutionAction,
         ) {
             match options {
                 AssertUpdatesOptions::OperationsIndex(range) => {
                     for i in range {
-                        let result = analysis.update(
-                            optimizations,
-                            &self.operations[0..i],
-                            &self.operations[i],
-                        );
-                        assert_eq!(result, update);
+                        let stream = &self.operations[0..i];
+                        let next_ops = &self.operations[i];
+                        analysis.update(optimizations, stream, next_ops);
+                        let result = analysis.action(optimizations, stream, ExecutionMode::Lazy);
+
+                        assert_eq!(result, action);
                     }
                 }
             }
