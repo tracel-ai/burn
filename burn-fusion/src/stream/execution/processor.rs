@@ -1,6 +1,6 @@
 use super::ExecutionMode;
-use crate::stream::execution::{ExecutionAction, Policy};
-use crate::stream::store::{OptimizationItem, OptimizationStore};
+use crate::stream::execution::{Action, Policy};
+use crate::stream::store::{OptimizationId, OptimizationItem, OptimizationStore};
 use crate::stream::{Stream, TensorOpsDescription};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationStatus};
 
@@ -8,7 +8,7 @@ use crate::{FusionBackend, HandleContainer, OptimizationBuilder, OptimizationSta
 pub(crate) struct Processor<B: FusionBackend> {
     policy: Policy<B::Optimization>,
     builders: Vec<Box<dyn OptimizationBuilder<B>>>,
-    num_skipped: usize,
+    num_deferred: usize,
 }
 
 impl<B: FusionBackend> Processor<B> {
@@ -17,7 +17,7 @@ impl<B: FusionBackend> Processor<B> {
         Self {
             policy: Policy::new(),
             builders: optimizations,
-            num_skipped: 0,
+            num_deferred: 0,
         }
     }
 
@@ -34,41 +34,35 @@ impl<B: FusionBackend> Processor<B> {
                 break;
             }
 
-            match self.analysis_action(optimizations, stream, mode) {
-                ExecutionAction::ExploreOptimization => {
-                    match self.build(optimizations, stream, mode) {
-                        BuildAction::ExecuteOptimization(ops) => {
-                            stream.execute_optimization(handles, ops);
+            match self.action(optimizations, stream, mode) {
+                Action::Explore => {
+                    match self.explore(optimizations, stream, mode) {
+                        ExplorationAction::Execute(id) => {
+                            stream.execute(id, handles, optimizations);
                             self.reset(optimizations, stream);
                         }
-                        BuildAction::ExecuteOperations => {
-                            stream.execute_operations(handles);
-                            self.reset(optimizations, stream);
-                        }
-                        BuildAction::ContinueBuilding => {
+                        ExplorationAction::Continue => {
                             if let ExecutionMode::Sync = mode {
-                                panic!("Can't continue building when sync is called.")
+                                panic!("Can't continue exploring when sync.")
                             }
                         }
                     };
 
-                    if self.num_skipped == 0 {
+                    if self.num_deferred == 0 {
+                        // Nothing more to do.
                         break;
                     }
                 }
-                ExecutionAction::WaitForOptimization => {
-                    self.num_skipped += 1;
+                Action::Defer => {
+                    self.num_deferred += 1;
 
                     match mode {
                         ExecutionMode::Lazy => break,
                         ExecutionMode::Sync => panic!("Can't wait while sync"),
                     };
                 }
-                ExecutionAction::ExecuteOptimization(ops) => {
-                    stream.execute_optimization(
-                        handles,
-                        &mut optimizations.get_mut_unchecked(ops).value,
-                    );
+                Action::Execute(id) => {
+                    stream.execute(Some(id), handles, optimizations);
                     self.reset(optimizations, stream);
                 }
             };
@@ -79,12 +73,12 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn build<'a>(
+    fn explore<'a>(
         &'a mut self,
         optimizations: &'a mut OptimizationStore<B::Optimization>,
         graph: &Stream<B>,
         mode: ExecutionMode,
-    ) -> BuildAction<'_, B> {
+    ) -> ExplorationAction {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // graph even when there is no skipped operation.
         let offset = match mode {
@@ -92,7 +86,7 @@ impl<B: FusionBackend> Processor<B> {
             ExecutionMode::Sync => 0,
         };
 
-        for i in (0..self.num_skipped + offset).rev() {
+        for i in (0..self.num_deferred + offset).rev() {
             let index = graph.relative.len() - 1 - i;
             let relative = &graph.relative[index];
 
@@ -100,12 +94,12 @@ impl<B: FusionBackend> Processor<B> {
                 builder.register(relative);
             }
         }
-        self.num_skipped = 0;
+        self.num_deferred = 0;
 
         // Can only be lazy when not sync.
         if let ExecutionMode::Lazy = mode {
             if still_optimizing(&self.builders) {
-                return BuildAction::ContinueBuilding;
+                return ExplorationAction::Continue;
             }
         }
 
@@ -114,7 +108,7 @@ impl<B: FusionBackend> Processor<B> {
                 let (relative, next_ops) = Self::split_relative_graph_owned(graph, mode);
                 let builder = &self.builders[index];
 
-                let id = if let ExecutionAction::ExecuteOptimization(id) =
+                let id = if let Action::Execute(id) =
                     self.policy
                         .action(optimizations, &relative, ExecutionMode::Sync)
                 {
@@ -130,11 +124,11 @@ impl<B: FusionBackend> Processor<B> {
                     })
                 };
 
-                BuildAction::ExecuteOptimization(&mut optimizations.get_mut_unchecked(id).value)
+                ExplorationAction::Execute(Some(id))
             }
             None => {
                 // TODO: Cache this result too.
-                BuildAction::ExecuteOperations
+                ExplorationAction::Execute(None)
             }
         }
     }
@@ -143,24 +137,23 @@ impl<B: FusionBackend> Processor<B> {
         for ops in self.builders.iter_mut() {
             ops.reset();
         }
-        self.num_skipped = graph.relative.len();
+        self.num_deferred = graph.relative.len();
 
         self.policy.reset();
 
         // Reset the policy state.
-        for i in 0..self.num_skipped {
-            let _ = self
-                .policy
+        for i in 0..self.num_deferred {
+            self.policy
                 .update(cache, &graph.relative[0..i], &graph.relative[i]);
         }
     }
 
-    fn analysis_action<'a>(
+    fn action<'a>(
         &'a mut self,
         cache: &'a mut OptimizationStore<B::Optimization>,
         stream: &Stream<B>,
         mode: ExecutionMode,
-    ) -> ExecutionAction {
+    ) -> Action {
         let (stream, next_ops) = Self::split_relative_graph_ref(stream, mode);
 
         if let Some(next_ops) = next_ops {
@@ -194,10 +187,9 @@ impl<B: FusionBackend> Processor<B> {
     }
 }
 
-enum BuildAction<'a, B: FusionBackend> {
-    ExecuteOptimization(&'a mut B::Optimization),
-    ExecuteOperations,
-    ContinueBuilding,
+enum ExplorationAction {
+    Execute(Option<OptimizationId>),
+    Continue,
 }
 
 fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuilder<B>>]) -> bool {

@@ -43,9 +43,9 @@ impl<O> Policy<O> {
         optimizations: &OptimizationStore<O>,
         stream: &[TensorOpsDescription],
         mode: ExecutionMode,
-    ) -> ExecutionAction {
+    ) -> Action {
         if let Some((id, _length)) = self.found {
-            return ExecutionAction::ExecuteOptimization(id);
+            return Action::Execute(id);
         }
 
         match mode {
@@ -54,17 +54,17 @@ impl<O> Policy<O> {
                     // Even if there are optimizations available, we aren't sure if they are the best ones
                     // we can use. Exploring more optimizations might find a new `end_condition` or
                     // even find a better optimization.
-                    return ExecutionAction::ExploreOptimization;
+                    return Action::Explore;
                 }
 
-                ExecutionAction::WaitForOptimization
+                Action::Defer
             }
             ExecutionMode::Sync => {
                 // If an optimization covers the _whole_ stream, we return it, else we explore new
                 // optimizations.
                 for (id, length) in self.availables.iter() {
                     if *length == stream.len() {
-                        return ExecutionAction::ExecuteOptimization(*id);
+                        return Action::Execute(*id);
                     }
                 }
 
@@ -74,11 +74,11 @@ impl<O> Policy<O> {
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
                     if item.stream.len() == stream.len() {
-                        return ExecutionAction::ExecuteOptimization(*candidate);
+                        return Action::Execute(*candidate);
                     }
                 }
 
-                ExecutionAction::ExploreOptimization
+                Action::Explore
             }
         }
     }
@@ -108,15 +108,15 @@ impl<O> Policy<O> {
         &mut self,
         ops: &TensorOpsDescription,
         optimizations: &OptimizationStore<O>,
-    ) -> ExecutionAction {
+    ) -> Action {
         self.reset();
 
         self.candidates = optimizations.find_starting_with(ops);
 
         if self.candidates.is_empty() {
-            return ExecutionAction::ExploreOptimization;
+            return Action::Explore;
         }
-        return ExecutionAction::WaitForOptimization;
+        return Action::Defer;
     }
 
     fn analyze_candidates(
@@ -181,18 +181,18 @@ impl<O> Policy<O> {
 
 /// Action to be made depending on the graph.
 #[derive(PartialEq, Eq, Debug)]
-pub enum ExecutionAction {
+pub enum Action {
     /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
-    ExploreOptimization,
+    Explore,
     /// The current graph indicates that an optimization may be possible in the future, so the
     /// best action is to wait for the optimization to become available.
     ///
     /// Sometimes, it can be a false positive and a new optimization should be built from scratch.
     /// Therefore it's important to keep the previous operations to rebuild the state if it
     /// happens.
-    WaitForOptimization,
+    Defer,
     /// An optimization has been found, and the best action is to execute it!
-    ExecuteOptimization(OptimizationId),
+    Execute(OptimizationId),
 }
 
 #[cfg(test)]
@@ -214,7 +214,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            ExecutionAction::ExploreOptimization,
+            Action::Explore,
         );
     }
 
@@ -234,11 +234,11 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
 
         let action = analysis.action(&optimizations, &stream.operations, ExecutionMode::Sync);
-        assert_eq!(action, ExecutionAction::ExecuteOptimization(id));
+        assert_eq!(action, Action::Execute(id));
     }
 
     #[test]
@@ -257,13 +257,13 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
         stream.assert_updates(
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..3),
-            ExecutionAction::ExecuteOptimization(id),
+            Action::Execute(id),
         );
     }
 
@@ -292,26 +292,26 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
 
         stream1.assert_updates(
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
-            ExecutionAction::ExecuteOptimization(id),
+            Action::Execute(id),
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
-            ExecutionAction::ExecuteOptimization(id),
+            Action::Execute(id),
         );
     }
 
@@ -347,26 +347,26 @@ mod tests {
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(0..3),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
 
         stream1.assert_updates(
             &mut optimizations,
             &mut analysis1,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            ExecutionAction::ExecuteOptimization(optimization_stream1),
+            Action::Execute(optimization_stream1),
         );
         stream2.assert_updates(
             &mut optimizations,
             &mut analysis2,
             AssertUpdatesOptions::OperationsIndex(3..4),
-            ExecutionAction::ExecuteOptimization(optimization_stream2),
+            Action::Execute(optimization_stream2),
         );
     }
 
@@ -390,7 +390,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(0..2),
-            ExecutionAction::WaitForOptimization,
+            Action::Defer,
         );
 
         // But is different.
@@ -398,7 +398,7 @@ mod tests {
             &mut optimizations,
             &mut analysis,
             AssertUpdatesOptions::OperationsIndex(2..4),
-            ExecutionAction::ExploreOptimization,
+            Action::Explore,
         );
     }
 
@@ -430,7 +430,7 @@ mod tests {
             optimizations: &OptimizationStore<()>,
             analysis: &mut Policy<()>,
             options: AssertUpdatesOptions,
-            action: ExecutionAction,
+            action: Action,
         ) {
             match options {
                 AssertUpdatesOptions::OperationsIndex(range) => {
