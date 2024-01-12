@@ -16,7 +16,6 @@ enum GeluKind {
 #[derive(new)]
 struct CustomGeluBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
-    num_repeats: usize,
     device: B::Device,
     kind: GeluKind,
 }
@@ -29,13 +28,11 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn execute(&self, args: Self::Args) {
-        for _ in 0..self.num_repeats {
-            match self.kind {
-                GeluKind::Reference => burn::tensor::activation::gelu(args.clone()),
-                GeluKind::WithReferenceErf => gelu_custom(args.clone(), Tensor::erf),
-                GeluKind::WithCustomErf => gelu_custom(args.clone(), erf_custom),
-            };
-        }
+        match self.kind {
+            GeluKind::Reference => burn::tensor::activation::gelu(args),
+            GeluKind::WithReferenceErf => gelu_custom(args, Tensor::erf),
+            GeluKind::WithCustomErf => gelu_custom(args, erf_custom),
+        };
     }
 
     fn prepare(&self) -> Self::Args {
@@ -44,6 +41,10 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
 
     fn sync(&self) {
         B::sync(&self.device)
+    }
+
+    fn num_samples(&self) -> usize {
+        50
     }
 }
 
@@ -87,26 +88,13 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 fn bench<B: Backend>(device: &B::Device) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
-    let num_repeats = 10;
 
-    let reference_gelu = CustomGeluBenchmark::<B, D>::new(
-        shape.clone(),
-        num_repeats,
-        device.clone(),
-        GeluKind::Reference,
-    );
-    let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
-        shape.clone(),
-        num_repeats,
-        device.clone(),
-        GeluKind::WithReferenceErf,
-    );
-    let custom_erf_gelu = CustomGeluBenchmark::<B, D>::new(
-        shape,
-        num_repeats,
-        device.clone(),
-        GeluKind::WithCustomErf,
-    );
+    let reference_gelu =
+        CustomGeluBenchmark::<B, D>::new(shape.clone(), device.clone(), GeluKind::Reference);
+    let reference_erf_gelu =
+        CustomGeluBenchmark::<B, D>::new(shape.clone(), device.clone(), GeluKind::WithReferenceErf);
+    let custom_erf_gelu =
+        CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf);
 
     Persistence::persist::<B>(
         vec![

@@ -54,7 +54,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .bias
                     .as_ref()
                     .map(|bias| handles.get_float_tensor(bias));
-                let output = B::conv1d(x, weight, bias, desc.options);
+                let output = B::conv1d(x, weight, bias, desc.options.into());
                 handles.register_float_tensor(&desc.out.id, output);
             }
         );
@@ -74,7 +74,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x: x.into_description(),
             weight: weight.into_description(),
             bias: bias.map(|bias| bias.into_description()),
-            options,
+            options: options.into(),
             out: out.to_description_out(),
         };
         out.client.clone().register(
@@ -104,7 +104,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .as_ref()
                     .map(|bias| handles.get_float_tensor(bias));
 
-                let output = B::conv2d(x, weight, bias, args.options.clone());
+                let output = B::conv2d(x, weight, bias, args.options.clone().into());
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -132,7 +132,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x: x.into_description(),
             weight: weight.into_description(),
             bias: bias.map(|bias| bias.into_description()),
-            options,
+            options: options.into(),
             out: out.to_description_out(),
         };
         out.client.register(
@@ -162,7 +162,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .as_ref()
                     .map(|bias| handles.get_float_tensor(bias));
 
-                let output = B::conv_transpose1d(x, weight, bias, args.options.clone());
+                let output = B::conv_transpose1d(x, weight, bias, args.options.clone().into());
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -184,7 +184,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x: x.into_description(),
             weight: weight.into_description(),
             bias: bias.map(|bias| bias.into_description()),
-            options,
+            options: options.into(),
             out: out.to_description_out(),
         };
         out.client.register(
@@ -214,7 +214,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     .as_ref()
                     .map(|bias| handles.get_float_tensor(bias));
 
-                let output = B::conv_transpose2d(x, weight, bias, args.options.clone());
+                let output = B::conv_transpose2d(x, weight, bias, args.options.clone().into());
 
                 handles.register_float_tensor(&args.out.id, output);
             }
@@ -244,7 +244,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x: x.into_description(),
             weight: weight.into_description(),
             bias: bias.map(|bias| bias.into_description()),
-            options,
+            options: options.into(),
             out: out.to_description_out(),
         };
         out.client.register(

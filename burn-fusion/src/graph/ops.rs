@@ -1,9 +1,8 @@
 use crate::FusionBackend;
 use crate::{HandleContainer, TensorDescription};
-use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions},
-    Distribution, Element,
-};
+use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
+use burn_tensor::{Distribution, Element};
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 
 /// General trait to abstract how a single operation is executed.
@@ -13,7 +12,7 @@ pub trait Ops<B: FusionBackend>: Send + Sync {
 }
 
 /// Describe all tensor operations possible.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum TensorOpsDescription {
     /// Basic operation on a float tensor.
     BaseOpsFloat(BaseOpsDescription),
@@ -36,7 +35,7 @@ pub enum TensorOpsDescription {
 }
 
 /// Operation description specific to a float tensor.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOpsDescription {
     /// Operation corresponding to [exp](burn_tensor::ops::TensorOps::exp).
     Exp(UnaryOpsDescription),
@@ -67,7 +66,7 @@ pub enum FloatOpsDescription {
 }
 
 /// Operation description specific to module.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOpsDescription {
     /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
     Embedding(EmbeddingDescription),
@@ -124,7 +123,7 @@ pub enum ModuleOpsDescription {
 }
 
 /// Basic operations that can be done on any tensor type.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BaseOpsDescription {
     /// Operation corresponding to:
     ///
@@ -177,7 +176,7 @@ pub enum BaseOpsDescription {
 }
 
 /// Numeric operations on int and float tensors.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum NumericOpsDescription<E> {
     /// Operation corresponding to:
     ///
@@ -387,14 +386,14 @@ pub enum NumericOpsDescription<E> {
 }
 
 /// Operation description specific to an int tensor.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum IntOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOpsDescription),
 }
 
 /// Operation description specific to a bool tensor.
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BoolOpsDescription {
     /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
     IntoFloat(UnaryOpsDescription),
@@ -404,7 +403,7 @@ pub enum BoolOpsDescription {
     Not(UnaryOpsDescription),
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 /// Swap dim operation description.
 pub struct SwapDimsDescription {
     /// Input tensor description.
@@ -417,21 +416,21 @@ pub struct SwapDimsDescription {
     pub dim2: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct RandomOpsDescription {
     pub out: TensorDescription,
     pub distribution: Distribution,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ReshapeDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct BinaryOpsDescription {
     pub lhs: TensorDescription,
@@ -439,14 +438,14 @@ pub struct BinaryOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct UnaryOpsDescription {
     pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ScalarOpsDescription<E> {
     pub lhs: TensorDescription,
@@ -454,7 +453,7 @@ pub struct ScalarOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct GatherOpsDescription {
     pub tensor: TensorDescription,
@@ -463,7 +462,7 @@ pub struct GatherOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ScatterOpsDescription {
     pub tensor: TensorDescription,
@@ -473,7 +472,7 @@ pub struct ScatterOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct SelectOpsDescription {
     pub tensor: TensorDescription,
@@ -482,7 +481,7 @@ pub struct SelectOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct SelectAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -492,7 +491,7 @@ pub struct SelectAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct SliceOpsDescription {
     pub tensor: TensorDescription,
@@ -500,7 +499,7 @@ pub struct SliceOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct SliceAssignOpsDescription {
     pub tensor: TensorDescription,
@@ -509,7 +508,7 @@ pub struct SliceAssignOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaskWhereOpsDescription {
     pub tensor: TensorDescription,
@@ -518,7 +517,7 @@ pub struct MaskWhereOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaskFillOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -527,7 +526,7 @@ pub struct MaskFillOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ClampOpsDescription<E> {
     pub tensor: TensorDescription,
@@ -536,7 +535,7 @@ pub struct ClampOpsDescription<E> {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct RepeatOpsDescription {
     pub tensor: TensorDescription,
@@ -545,7 +544,7 @@ pub struct RepeatOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct CatOpsDescription {
     pub tensors: Vec<TensorDescription>,
@@ -553,7 +552,7 @@ pub struct CatOpsDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ReduceDimWithIndicesDescription {
     pub tensor: TensorDescription,
@@ -562,7 +561,7 @@ pub struct ReduceDimWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct EmbeddingDescription {
     pub weights: TensorDescription,
@@ -570,7 +569,7 @@ pub struct EmbeddingDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct EmbeddingBackwardDescription {
     pub weights: TensorDescription,
@@ -579,47 +578,177 @@ pub struct EmbeddingBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct Conv1dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
     pub bias: Option<TensorDescription>,
-    pub options: ConvOptions<1>,
+    pub options: Conv1dOptionsDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct Conv2dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
     pub bias: Option<TensorDescription>,
-    pub options: ConvOptions<2>,
+    pub options: Conv2dOptionsDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ConvTranspose1dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
     pub bias: Option<TensorDescription>,
-    pub options: ConvTransposeOptions<1>,
+    pub options: ConvTranspose1dOptionsDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct ConvTranspose2dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
     pub bias: Option<TensorDescription>,
-    pub options: ConvTransposeOptions<2>,
+    pub options: ConvTranspose2dOptionsDescription,
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv1dOptionsDescription {
+    pub stride: [usize; 1],
+    pub padding: [usize; 1],
+    pub dilation: [usize; 1],
+    pub groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dOptionsDescription {
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ConvTranspose1dOptionsDescription {
+    pub stride: [usize; 1],
+    pub padding: [usize; 1],
+    pub padding_out: [usize; 1],
+    pub dilation: [usize; 1],
+    pub groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ConvTranspose2dOptionsDescription {
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub padding_out: [usize; 2],
+    pub dilation: [usize; 2],
+    pub groups: usize,
+}
+
+impl From<ConvOptions<1>> for Conv1dOptionsDescription {
+    fn from(value: ConvOptions<1>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
+impl From<ConvOptions<2>> for Conv2dOptionsDescription {
+    fn from(value: ConvOptions<2>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
+impl From<ConvTransposeOptions<1>> for ConvTranspose1dOptionsDescription {
+    fn from(value: ConvTransposeOptions<1>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            padding_out: value.padding_out,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
+impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
+    fn from(value: ConvTransposeOptions<2>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            padding_out: value.padding_out,
+            dilation: value.dilation,
+            groups: value.groups,
+        }
+    }
+}
+
+impl From<Conv1dOptionsDescription> for ConvOptions<1> {
+    fn from(val: Conv1dOptionsDescription) -> Self {
+        ConvOptions {
+            stride: val.stride,
+            padding: val.padding,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+impl From<Conv2dOptionsDescription> for ConvOptions<2> {
+    fn from(val: Conv2dOptionsDescription) -> Self {
+        ConvOptions {
+            stride: val.stride,
+            padding: val.padding,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+impl From<ConvTranspose1dOptionsDescription> for ConvTransposeOptions<1> {
+    fn from(val: ConvTranspose1dOptionsDescription) -> Self {
+        ConvTransposeOptions {
+            stride: val.stride,
+            padding: val.padding,
+            padding_out: val.padding_out,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+impl From<ConvTranspose2dOptionsDescription> for ConvTransposeOptions<2> {
+    fn from(val: ConvTranspose2dOptionsDescription) -> Self {
+        ConvTransposeOptions {
+            stride: val.stride,
+            padding: val.padding,
+            padding_out: val.padding_out,
+            dilation: val.dilation,
+            groups: val.groups,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AvgPool1dDescription {
     pub x: TensorDescription,
@@ -630,7 +759,7 @@ pub struct AvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AvgPool2dDescription {
     pub x: TensorDescription,
@@ -641,7 +770,7 @@ pub struct AvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -653,7 +782,7 @@ pub struct AvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -665,7 +794,7 @@ pub struct AvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dDescription {
     pub x: TensorDescription,
@@ -673,7 +802,7 @@ pub struct AdaptiveAvgPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dDescription {
     pub x: TensorDescription,
@@ -681,7 +810,7 @@ pub struct AdaptiveAvgPool2dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool1dBackwardDescription {
     pub x: TensorDescription,
@@ -689,7 +818,7 @@ pub struct AdaptiveAvgPool1dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardDescription {
     pub x: TensorDescription,
@@ -697,7 +826,7 @@ pub struct AdaptiveAvgPool2dBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaxPool1dDescription {
     pub x: TensorDescription,
@@ -708,7 +837,7 @@ pub struct MaxPool1dDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesDescription {
     pub x: TensorDescription,
@@ -720,7 +849,7 @@ pub struct MaxPool1dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaxPool1dWithIndicesBackwardDescription {
     pub x: TensorDescription,
@@ -733,7 +862,7 @@ pub struct MaxPool1dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaxPool2dDescription {
     pub x: TensorDescription,
@@ -745,7 +874,7 @@ pub struct MaxPool2dDescription {
 }
 
 #[allow(missing_docs)]
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct MaxPool2dWithIndicesDescription {
     pub x: TensorDescription,
     pub kernel_size: [usize; 2],
@@ -756,7 +885,7 @@ pub struct MaxPool2dWithIndicesDescription {
     pub out_indices: TensorDescription,
 }
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct MaxPool2dWithIndicesBackwardDescription {
     pub x: TensorDescription,

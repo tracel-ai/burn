@@ -48,19 +48,19 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: O::elem_type(),
+                        item: $crate::codegen::Item::Scalar(O::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -80,19 +80,19 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: I::elem_type(),
+                        item: $crate::codegen::Item::Scalar(I::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -113,19 +113,19 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            elem: I::elem_type(),
+                            item: $crate::codegen::Item::Scalar(I::elem_type()),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: I::elem_type(),
+                        item: $crate::codegen::Item::Scalar(I::elem_type()),
                         input: 1,
                         local: 0,
                     }])

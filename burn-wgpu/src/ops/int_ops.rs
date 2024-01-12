@@ -1,6 +1,5 @@
 use super::numeric;
-
-use crate::codegen::{Elem, Operator, Variable};
+use crate::codegen::{Elem, Item, Operator, Variable};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
@@ -291,8 +290,8 @@ where
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
             operator: |elem: Elem| Operator::Abs {
-                input: Variable::Input(0, elem),
-                out: Variable::Local(0, elem),
+                input: Variable::Input(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem)),
             },
             input: tensor,
             elem: I

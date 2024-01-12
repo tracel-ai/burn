@@ -7,6 +7,8 @@ use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
+use super::Item;
+
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
 /// Kernel creation body phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
@@ -15,6 +17,26 @@ pub struct BodyPhase;
 pub struct OutputPhase;
 /// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct CompilationPhase;
+
+#[derive(new, Clone, Copy)]
+pub struct InplaceMapping {
+    pub position_input: usize,
+    pub position_output: usize,
+}
+
+/// Define a vectorization scheme.
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+pub enum Vectorization {
+    /// Use vec4 for vectorization.
+    Vec4,
+    /// Use vec3 for vectorization.
+    Vec3,
+    /// Use vec2 for vectorization.
+    Vec2,
+    /// Don't vectorize.
+    Scalar,
+}
 
 /// Allows to create custom wgsl kernels based on configured inputs, body and outputs.
 ///
@@ -37,12 +59,14 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
     functions: Vec<Function>,
+    vectorization: Vectorization,
+    mappings_inplace: Vec<InplaceMapping>,
     _phase: PhantomData<Phase>,
 }
 
 pub enum Input {
     Array {
-        elem: Elem,
+        item: Item,
         visibility: Visibility,
         strategy: ReadingStrategy,
     },
@@ -59,22 +83,42 @@ pub enum ReadingStrategy {
     Plain,
 }
 
+#[derive(Clone)]
 pub enum Output {
-    Array { elem: Elem, local: u16 },
-    Input { elem: Elem, input: u16, local: u16 },
+    Array { item: Item, local: u16 },
+    Input { item: Item, input: u16, local: u16 },
 }
 
-impl ElemWiseKernelCodegen<InputPhase> {
-    /// Create a new fusion kernel on the given device.
-    pub fn new() -> Self {
+impl Default for ElemWiseKernelCodegen<InputPhase> {
+    fn default() -> Self {
         Self {
             operations: Vec::new(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
             functions: Vec::new(),
+            vectorization: Vectorization::Scalar,
+            mappings_inplace: Vec::new(),
             _phase: PhantomData,
         }
+    }
+}
+
+impl ElemWiseKernelCodegen<InputPhase> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[allow(dead_code)]
+    pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
+        self.vectorization = vectorization;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn inplace(mut self, mappings: &[InplaceMapping]) -> Self {
+        self.mappings_inplace = mappings.to_vec();
+        self
     }
 
     /// Register the inputs used by the kernel.
@@ -84,12 +128,14 @@ impl ElemWiseKernelCodegen<InputPhase> {
         for input in inputs {
             match input {
                 Input::Array {
-                    elem,
+                    item,
                     visibility,
                     strategy,
                 } => {
+                    let item = item.vectorize(self.vectorization);
+
                     self.input_bindings.push(Binding {
-                        elem: bool_elem(*elem),
+                        item: bool_item(item),
                         visibility: *visibility,
                         location: Location::Storage,
                         size: None,
@@ -98,7 +144,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     match strategy {
                         ReadingStrategy::OutputLayout => {
                             self.operations.push(Operator::ReadGlobalWithLayout {
-                                variable: Variable::Input(index, *elem),
+                                variable: Variable::Input(index, item),
                                 tensor_read_pos: index as usize,
                                 tensor_layout_pos: 0, // Will set the right value during the output
                                                       // phase.
@@ -106,7 +152,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                         }
                         ReadingStrategy::Plain => {
                             self.operations.push(Operator::ReadGlobal {
-                                variable: Variable::Input(index, *elem),
+                                variable: Variable::Input(index, item),
                             });
                         }
                     }
@@ -119,7 +165,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                     self.named_bindings.push((
                         format!("scalars_{}", elem),
                         Binding {
-                            elem,
+                            item: Item::Scalar(elem),
                             visibility: Visibility::Read,
                             location: Location::Storage,
                             size: Some(*size),
@@ -135,6 +181,8 @@ impl ElemWiseKernelCodegen<InputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
+            vectorization: self.vectorization,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
@@ -157,18 +205,22 @@ impl ElemWiseKernelCodegen<BodyPhase> {
                     rhs: _,
                     out: _,
                 } => {
-                    register_function(Function::Powf(Elem::F32));
+                    register_function(Function::Powf(
+                        Item::Scalar(Elem::F32).vectorize(self.vectorization),
+                    ));
                 }
                 Operator::Erf { input: _, out: _ } => {
-                    register_function(Function::Erf(Elem::F32));
+                    register_function(Function::Erf(
+                        Item::Scalar(Elem::F32).vectorize(self.vectorization),
+                    ));
                 }
                 #[cfg(target_os = "macos")]
-                Operator::Tanh { input: _, out: _ } => {
-                    register_function(Function::SafeTanh(Elem::F32))
-                }
+                Operator::Tanh { input: _, out: _ } => register_function(Function::SafeTanh(
+                    Item::Scalar(Elem::F32).vectorize(self.vectorization),
+                )),
                 _ => {}
             }
-            self.operations.push(ops.clone());
+            self.operations.push(ops.vectorize(self.vectorization));
         }
 
         ElemWiseKernelCodegen {
@@ -176,7 +228,9 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
+            vectorization: self.vectorization,
             functions: self.functions,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
@@ -192,19 +246,46 @@ impl ElemWiseKernelCodegen<OutputPhase> {
         let mut index = 0;
         let mut position_out = 0;
 
-        for array in outputs {
+        let mut outputs = outputs.to_vec();
+
+        for mapping in self.mappings_inplace.iter() {
+            match outputs.get_mut(mapping.position_output) {
+                Some(output) => match output {
+                    Output::Array { item, local } => {
+                        *output = Output::Input {
+                            item: *item,
+                            input: mapping.position_input as u16,
+                            local: *local,
+                        };
+                    }
+                    Output::Input {
+                        item: _,
+                        input: _,
+                        local: _,
+                    } => continue,
+                },
+                None => continue,
+            }
+
+            if let Some(binding) = self.input_bindings.get_mut(mapping.position_input) {
+                binding.visibility = Visibility::ReadWrite
+            }
+        }
+
+        for array in &outputs {
             match array {
-                Output::Array { elem, local } => {
-                    let elem_adapted = bool_elem(*elem);
+                Output::Array { item, local } => {
+                    let item = item.vectorize(self.vectorization);
+                    let elem_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {
-                        elem: elem_adapted,
+                        item: elem_adapted,
                         visibility: Visibility::ReadWrite,
                         location: Location::Storage,
                         size: None,
                     });
                     self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, *elem),
+                        input: Variable::Local(*local, item),
                         out: Variable::Output(index, elem_adapted),
                     });
                     index += 1;
@@ -214,10 +295,12 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                                                                   // new array for the output.
                     }
                 }
-                Output::Input { elem, input, local } => {
+                Output::Input { item, input, local } => {
+                    let item = item.vectorize(self.vectorization);
+
                     self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, *elem),
-                        out: Variable::Input(*input, bool_elem(*elem)),
+                        input: Variable::Local(*local, item),
+                        out: Variable::Input(*input, bool_item(item)),
                     });
                     position_out = *input as usize; // Input number when we use inplace operation.
                 }
@@ -244,6 +327,8 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             functions: self.functions,
+            vectorization: self.vectorization,
+            mappings_inplace: self.mappings_inplace,
             _phase: PhantomData,
         }
     }
@@ -259,7 +344,7 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
         named.push((
             "info".to_string(),
             Binding {
-                elem: Elem::U32,
+                item: Item::Scalar(Elem::U32),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -377,6 +462,26 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
         num_elems *= i;
     }
     num_elems
+}
+
+impl Item {
+    fn vectorize(&self, vectorize: Vectorization) -> Item {
+        match vectorize {
+            Vectorization::Vec4 => Item::Vec4(self.elem()),
+            Vectorization::Vec3 => Item::Vec3(self.elem()),
+            Vectorization::Vec2 => Item::Vec2(self.elem()),
+            Vectorization::Scalar => Item::Scalar(self.elem()),
+        }
+    }
+}
+
+fn bool_item(ty: Item) -> Item {
+    match ty {
+        Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
+        Item::Vec3(elem) => Item::Vec3(bool_elem(elem)),
+        Item::Vec2(elem) => Item::Vec2(bool_elem(elem)),
+        Item::Scalar(elem) => Item::Scalar(bool_elem(elem)),
+    }
 }
 
 fn bool_elem(elem: Elem) -> Elem {

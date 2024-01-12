@@ -4,13 +4,15 @@ use alloc::vec::Vec;
 use core::fmt::Display;
 use core::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(all(not(target_family = "wasm"), feature = "std"))]
 use std::time::Instant;
 #[cfg(all(target_family = "wasm", feature = "std"))]
 use web_time::Instant;
 
 /// Results of a benchmark run.
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkDurations {
     /// All durations of the run, in the order they were benchmarked
     pub durations: Vec<Duration>,

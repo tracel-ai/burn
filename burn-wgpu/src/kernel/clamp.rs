@@ -1,6 +1,6 @@
 use super::unary;
 use crate::{
-    codegen::{Operator, Variable},
+    codegen::{Item, Operator, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,
@@ -8,10 +8,10 @@ use crate::{
 
 unary!(
     |elem| Operator::Clamp {
-        input: Variable::Input(0, elem),
-        min_value: Variable::Scalar(0, elem),
-        max_value: Variable::Scalar(1, elem),
-        out: Variable::Local(0, elem),
+        input: Variable::Input(0, Item::Scalar(elem)),
+        min_value: Variable::Scalar(0, Item::Scalar(elem)),
+        max_value: Variable::Scalar(1, Item::Scalar(elem)),
+        out: Variable::Local(0, Item::Scalar(elem)),
     },
     scalar 2
 );
@@ -31,8 +31,13 @@ mod tests {
 
     #[test]
     fn clamp_should_match_reference() {
-        let input = Tensor::<TestBackend, 4>::random_devauto([1, 5, 32, 32], Distribution::Default);
-        let input_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(input.to_data());
+        let input = Tensor::<TestBackend, 4>::random(
+            [1, 5, 32, 32],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let input_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &Default::default());
 
         let output = input.clamp(0.3, 0.7);
 
