@@ -682,6 +682,12 @@ impl<E: Element> NumericOpsDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOpsDescription::IntRandom(desc) => {
+                NumericOpsDescription::IntRandom(RandomOpsDescription {
+                    out: desc.out.to_relative(converter),
+                    distribution: desc.distribution,
+                })
+            }
         }
     }
 }

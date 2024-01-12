@@ -379,6 +379,11 @@ pub enum NumericOpsDescription<E> {
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpsDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Float => [random](burn_tensor::ops::TensorOps::random).
+    /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
+    IntRandom(RandomOpsDescription),
 }
 
 /// Operation description specific to an int tensor.
@@ -925,6 +930,9 @@ impl<E: Element> NumericOpsDescription<E> {
             NumericOpsDescription::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
+            NumericOpsDescription::IntRandom(desc) => {
+                vec![&desc.out]
+            }
         }
     }
 }
@@ -1128,6 +1136,7 @@ impl<E> core::hash::Hash for NumericOpsDescription<E> {
             NumericOpsDescription::MaxDim(desc) => desc.hash(state),
             NumericOpsDescription::MinDim(desc) => desc.hash(state),
             NumericOpsDescription::Clamp(desc) => desc.hash(state),
+            NumericOpsDescription::IntRandom(desc) => desc.hash(state),
         }
     }
 }

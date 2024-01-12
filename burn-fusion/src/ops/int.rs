@@ -5,17 +5,17 @@ use crate::{
     graph::{
         self, BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
-        NumericOpsDescription, Ops, ReduceDimWithIndicesDescription, ReshapeDescription,
-        ScalarOpsDescription, ScatterOpsDescription, SelectAssignOpsDescription,
-        SelectOpsDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
-        TensorOpsDescription, UnaryOpsDescription,
+        NumericOpsDescription, Ops, RandomOpsDescription, ReduceDimWithIndicesDescription,
+        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
+        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
+        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
     ops::binary::binary_ops_shape,
     scalar_int_cmp_ops, scalar_int_ops, unary_int_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    Data, Device, ElementConversion, Reader, Shape,
+    Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use core::ops::Range;
 
@@ -1302,5 +1302,40 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         );
 
         (out, out_indices)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        #[derive(new)]
+        struct IntRandomOps<const D: usize> {
+            desc: RandomOpsDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Ops<B> for IntRandomOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let shape = Shape::from(self.desc.out.shape.clone());
+                let output: B::IntTensorPrimitive<D> =
+                    B::int_random(shape, self.desc.distribution, &handles.device);
+                handles.register_int_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let shape: Vec<usize> = shape.dims.into();
+        let client = get_client::<B>(&device.clone().into());
+        let out = client.tensor_uninitialized(shape);
+
+        let desc = RandomOpsDescription {
+            out: out.to_description_out(),
+            distribution,
+        };
+        client.register(
+            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::IntRandom(desc.clone())),
+            IntRandomOps::<D>::new(desc),
+        );
+
+        out
     }
 }
