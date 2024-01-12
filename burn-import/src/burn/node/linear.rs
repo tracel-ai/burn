@@ -82,15 +82,16 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let device = Default::default();
         let record = LinearRecord::<SerializationBackend> {
             weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data_devauto(self.data_weights.clone().convert()),
+                Tensor::from_data(self.data_weights.clone().convert(), &device),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
                 Param::new(
                     ParamId::new(),
-                    Tensor::from_data_devauto(bias.clone().convert()),
+                    Tensor::from_data(bias.clone().convert(), &device),
                 )
             }),
         };

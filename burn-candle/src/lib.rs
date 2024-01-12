@@ -24,6 +24,8 @@ mod tests {
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
@@ -76,11 +78,11 @@ mod tests {
     burn_tensor::testgen_neg!();
     burn_tensor::testgen_powf!();
     burn_tensor::testgen_random!();
-    // burn_tensor::testgen_repeat!();
+    burn_tensor::testgen_repeat!();
     burn_tensor::testgen_reshape!();
     burn_tensor::testgen_select!();
     burn_tensor::testgen_sin!();
-    // burn_tensor::testgen_slice!();
+    burn_tensor::testgen_slice!();
     burn_tensor::testgen_sqrt!();
     burn_tensor::testgen_abs!();
     burn_tensor::testgen_squeeze!();
@@ -124,7 +126,7 @@ mod tests {
     burn_autodiff::testgen_ad_div!();
     burn_autodiff::testgen_ad_erf!();
     burn_autodiff::testgen_ad_exp!();
-    // burn_autodiff::testgen_ad_slice!();
+    burn_autodiff::testgen_ad_slice!();
     burn_autodiff::testgen_ad_gather_scatter!();
     burn_autodiff::testgen_ad_select!();
     burn_autodiff::testgen_ad_log!();

@@ -1,5 +1,6 @@
 use super::starter::Starters;
 use crate::graph::TensorOpsDescription;
+use serde::{Deserialize, Serialize};
 
 /// The cache works by keeping track of all possible optimizations for the current graph path.
 ///
@@ -14,11 +15,11 @@ use crate::graph::TensorOpsDescription;
 /// scales with the number of concurrent potential optimizations for the current path, which isn't
 /// supposed to be big at any time.
 pub(crate) struct OptimizationCache<O> {
-    candidates: Vec<OptimizationId>,
-    availables: Vec<(OptimizationId, usize)>,
-    optimizations: Vec<OptimizationItem<O>>,
-    starters: Starters,
-    found: Option<OptimizationId>,
+    pub(super) candidates: Vec<OptimizationId>,
+    pub(super) availables: Vec<(OptimizationId, usize)>,
+    pub(super) optimizations: Vec<OptimizationItem<O>>,
+    pub(super) starters: Starters,
+    pub(super) found: Option<OptimizationId>,
 }
 
 impl<O> OptimizationCache<O> {
@@ -153,8 +154,8 @@ impl<O> OptimizationCache<O> {
             return &mut optimization.value;
         };
 
-        self.starters
-            .insert(graph.first().unwrap(), self.optimizations.len());
+        let new_id = self.optimizations.len();
+        self.starters.insert(graph.first().unwrap(), new_id);
         let optimization = OptimizationItem {
             graph,
             end_conditions: match next_ops {
@@ -220,12 +221,13 @@ pub(crate) trait OptimizationFactory<T> {
     fn create(&self) -> T;
 }
 
-pub(super) type OptimizationId = usize;
+pub(crate) type OptimizationId = usize;
 
-struct OptimizationItem<O> {
-    graph: Vec<TensorOpsDescription>,
-    end_conditions: Vec<TensorOpsDescription>,
-    value: O,
+#[derive(Serialize, Deserialize)]
+pub(super) struct OptimizationItem<O> {
+    pub(super) graph: Vec<TensorOpsDescription>,
+    pub(super) end_conditions: Vec<TensorOpsDescription>,
+    pub(super) value: O,
 }
 
 #[cfg(test)]

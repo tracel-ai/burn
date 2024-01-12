@@ -82,7 +82,7 @@ mod wgpu {
 
     pub fn run() {
         launch::<Autodiff<Fusion<Wgpu<AutoGraphicsApi, ElemType, i32>>>>(vec![
-            WgpuDevice::default(),
+            WgpuDevice::DiscreteGpu(0),
         ]);
     }
 }

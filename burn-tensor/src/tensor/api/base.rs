@@ -27,6 +27,17 @@ where
     pub(crate) primitive: K::Primitive<D>,
 }
 
+impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    T: Into<Data<K::Elem, D>>,
+{
+    fn from(value: T) -> Self {
+        Tensor::from_data(value.into(), &Default::default())
+    }
+}
+
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -40,11 +51,6 @@ where
     /// Converts from a primitive tensor into a tensor.
     pub fn from_primitive(tensor: K::Primitive<D>) -> Self {
         Self::new(tensor)
-    }
-
-    /// Create an empty tensor of the given shape.
-    pub fn empty_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::empty(shape, &B::Device::default())
     }
 
     /// Create an empty tensor of the given shape.
@@ -89,7 +95,8 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 3>::ones_devauto([2, 3, 4]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
     ///    // Given a 3D tensor with dimensions (2, 3, 4), reshape it to (2, 12)
     ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape([2, -1]);
     ///    // The resulting tensor will have dimensions (2, 12).
@@ -156,7 +163,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 4]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]), &device);
     ///
     ///     // Given a 3D tensor with dimensions (2, 3, 4), flatten the dimensions between indices 1 and 2:
     ///     let flattened_tensor: Tensor::<B, 2> = tensor.flatten(1, 2);
@@ -207,7 +215,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 1, 4]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]), &device);
     ///
     ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
     ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
@@ -239,7 +248,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones_devauto(Shape::new([3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
     ///     let tensor = tensor.unsqueeze::<4>();
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 1, 3, 3] }
@@ -267,7 +277,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones_devauto(Shape::new([3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
     ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dim(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [3, 1, 3] }
@@ -305,22 +316,23 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
     ///     // Create a tensor with a single dimension of ints between 0 and 11
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_devauto(0..12);
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
     ///     // Select elements 0, 1, 2, 3 from the first dimension
     ///     let tensor_slices = tensor.clone().slice([0..4]);
     ///     println!("\nexpecting [0,1,2,3] : {:?}", tensor);
     ///     println!("expecting [4] : {:?}", tensor.dims());
     ///
     ///     // Create a Tensor with 3 dimensions
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     // This slice will select the element 0 on the first dimension,
     ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
     ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
     ///
     ///     // Create a tensor of ints from 0 to 11 and reshape it into three dimensions
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_devauto(0..12);
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
     ///     let tensor = tensor.reshape([1, 3, 4]);
     ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
     ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
@@ -356,8 +368,9 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto([2, 3, 3]);
-    ///     let values = Tensor::<B, 3>::zeros_devauto([1, 1, 1]);
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3], &device);
+    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1], &device);
     ///     let tensor_sliced = tensor.slice_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
@@ -409,14 +422,6 @@ where
         Self::into_data(self.clone())
     }
 
-    /// Create a tensor from the given data.
-    pub fn from_data_devauto<T>(data: T) -> Self
-    where
-        T: Into<Data<K::Elem, D>>,
-    {
-        Self::from_data(data, &B::Device::default())
-    }
-
     /// Create a tensor from the given data on the given device.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
@@ -463,7 +468,7 @@ where
     /// # Panics
     ///
     /// If all tensors don't have the same shape.
-    /// Given dimension is not with range of 0..=D2
+    /// Given dimension is not with range of 0..D2
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
@@ -798,7 +803,8 @@ where
 /// use burn_tensor::{Tensor, T};
 ///
 /// fn example<B: Backend>() {
-///     let tensor = Tensor::<B, 2>::from_floats_devauto([[1.0, 2.0], [3.0, 4.0]]);
+///     let device = Default::default();
+///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
 ///     let transposed = tensor^T;
 /// }
 /// ```

@@ -62,15 +62,18 @@ where
 
     /// Create from a csv file.
     ///
-    /// The first line of the csv file must be the header. The header must contain the name of the fields in the struct.
+    /// The provided `csv::ReaderBuilder` can be configured to fit your csv format.
     ///
     /// The supported field types are: String, integer, float, and bool.
     ///
-    /// See: [Reading with Serde](https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde)
-    pub fn from_csv<P: AsRef<Path>>(path: P) -> Result<Self, std::io::Error> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        let mut rdr = csv::Reader::from_reader(reader);
+    /// See:
+    /// - [Reading with Serde](https://docs.rs/csv/latest/csv/tutorial/index.html#reading-with-serde)
+    /// - [Delimiters, quotes and variable length records](https://docs.rs/csv/latest/csv/tutorial/index.html#delimiters-quotes-and-variable-length-records)
+    pub fn from_csv<P: AsRef<Path>>(
+        path: P,
+        builder: &csv::ReaderBuilder,
+    ) -> Result<Self, std::io::Error> {
+        let mut rdr = builder.from_path(path)?;
 
         let mut items = Vec::new();
 
@@ -97,6 +100,7 @@ mod tests {
     const DB_FILE: &str = "tests/data/sqlite-dataset.db";
     const JSON_FILE: &str = "tests/data/dataset.json";
     const CSV_FILE: &str = "tests/data/dataset.csv";
+    const CSV_FMT_FILE: &str = "tests/data/dataset-fmt.csv";
 
     type SqlDs = SqliteDataset<Sample>;
 
@@ -110,7 +114,7 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-    pub struct SampleCvs {
+    pub struct SampleCsv {
         column_str: String,
         column_int: i64,
         column_bool: bool,
@@ -147,7 +151,24 @@ mod tests {
 
     #[test]
     pub fn from_csv_rows() {
-        let dataset = InMemDataset::<SampleCvs>::from_csv(CSV_FILE).unwrap();
+        let rdr = csv::ReaderBuilder::new();
+        let dataset = InMemDataset::<SampleCsv>::from_csv(CSV_FILE, &rdr).unwrap();
+
+        let non_existing_record_index: usize = 10;
+        let record_index: usize = 1;
+
+        assert_eq!(dataset.get(non_existing_record_index), None);
+        assert_eq!(dataset.get(record_index).unwrap().column_str, "HI2");
+        assert_eq!(dataset.get(record_index).unwrap().column_int, 1);
+        assert!(!dataset.get(record_index).unwrap().column_bool);
+        assert_eq!(dataset.get(record_index).unwrap().column_float, 1.0);
+    }
+
+    #[test]
+    pub fn from_csv_rows_fmt() {
+        let mut rdr = csv::ReaderBuilder::new();
+        let rdr = rdr.delimiter(b' ').has_headers(false);
+        let dataset = InMemDataset::<SampleCsv>::from_csv(CSV_FMT_FILE, rdr).unwrap();
 
         let non_existing_record_index: usize = 10;
         let record_index: usize = 1;

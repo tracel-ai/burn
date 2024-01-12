@@ -20,7 +20,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [270., 453., 516., 387.],
             [352., 589., 679., 505.],
         ]]));
@@ -41,7 +41,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [28., 62., 36., 78., 44., 94., 52., 62.],
             [41., 93., 55., 121., 69., 149., 83., 93.],
         ]]));
@@ -62,7 +62,7 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
+        test.assert_output(TestTensor::from([[
             [30., 64., 78., 76., 94., 52.],
             [49., 101., 127., 113., 143., 77.],
         ]]));
@@ -83,10 +83,10 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[
-            [0., 1., 4., 7.],
-            [32., 59., 71., 59.],
-        ]]));
+        test.assert_output(TestTensor::from_floats(
+            [[[0., 1., 4., 7.], [32., 59., 71., 59.]]],
+            &Default::default(),
+        ));
     }
 
     struct ConvTranspose1dTestCase {
@@ -110,22 +110,26 @@ mod tests {
                 self.channels_out / self.groups,
                 self.kernel_size,
             ]);
-            let weights = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..shape_weights.num_elements())
+            let device = Default::default();
+            let weights = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_weights.num_elements(), &device)
                     .reshape(shape_weights)
                     .into_data()
                     .convert(),
+                &device,
             );
-            let bias = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..self.channels_out)
+            let bias = TestTensor::from_data(
+                TestTensorInt::arange(0..self.channels_out, &device)
                     .into_data()
                     .convert(),
+                &device,
             );
-            let x = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..shape_x.num_elements())
+            let x = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
+                &device,
             );
             let output = conv_transpose1d(
                 x,

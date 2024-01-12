@@ -1,25 +1,22 @@
+use super::{optimization::ElementWise, CompilationPhase, Scalars};
 use crate::{
-    codegen::{Elem, Operator, Variable},
+    codegen::{Elem, Item, Operator, Variable},
     element::WgpuElement,
-    fusion::cache::KernelCompilationCache,
+    fusion::WgpuOptimization,
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
-use burn_common::id::IdGenerator;
 use burn_fusion::{
     graph::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    Optimization, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
-    TensorDescription, TensorId,
+    OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
 use burn_tensor::{Device, Element};
 use hashbrown::HashMap;
 
-use super::optimization::FloatElementWise;
-
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct FloatElementWiseBuilder<G, F, I>
+pub(crate) struct ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -38,7 +35,7 @@ where
     pub(crate) device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for FloatElementWiseBuilder<G, F, I>
+impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -56,6 +53,12 @@ where
                     return;
                 }
             }
+            TensorOpsDescription::BaseOpsInt(ops) => {
+                if !self.register_base::<I>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             TensorOpsDescription::FloatOps(ops) => {
                 if !self.register_float::<F>(ops) {
                     self.status = OptimizationStatus::Closed;
@@ -63,7 +66,13 @@ where
                 }
             }
             TensorOpsDescription::NumericOpsFloat(ops) => {
-                if !self.register_numeric(ops) {
+                if !self.register_numeric::<F, _>(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
+            TensorOpsDescription::NumericOpsInt(ops) => {
+                if !self.register_numeric::<I, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -77,7 +86,7 @@ where
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self) -> Box<dyn Optimization<Wgpu<G, F, I>>> {
+    fn build(&self) -> WgpuOptimization<G, F, I> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -85,16 +94,17 @@ where
             .map(|out| *self.locals.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
-        Box::new(FloatElementWise {
-            id: IdGenerator::generate(),
+        let op = ElementWise::new(
             inputs,
             outputs,
             locals,
-            operators: self.operators.clone(),
-            scalars_f32: self.scalars_f32,
-            device: self.device.clone(),
-            cache: KernelCompilationCache::default(),
-        })
+            Scalars::new(self.scalars_f32, self.scalars_u32, self.scalars_i32),
+            self.operators.clone(),
+            self.device.clone(),
+            CompilationPhase,
+        );
+
+        WgpuOptimization::ElementWise(op.compile())
     }
 
     fn reset(&mut self) {
@@ -115,10 +125,7 @@ where
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = match self.status {
-            OptimizationStatus::Closed => false,
-            OptimizationStatus::Open => self.operators.len() > 1,
-        };
+        let ready = !self.operators.is_empty();
 
         OptimizationProperties {
             ready,
@@ -127,7 +134,7 @@ where
     }
 }
 
-impl<G, F, I> FloatElementWiseBuilder<G, F, I>
+impl<G, F, I> ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -343,13 +350,13 @@ where
         let variable = match already_exists {
             false => {
                 // New input
-                let var = Variable::Input(self.inputs.len() as u16, elem);
+                let var = Variable::Input(self.inputs.len() as u16, Item::Scalar(elem));
                 self.inputs.push(tensor.clone());
                 var
             }
             true => match self.locals.get(&tensor.id) {
                 // Is a local variable.
-                Some(local_index) => Variable::Local(*local_index, elem),
+                Some(local_index) => Variable::Local(*local_index, Item::Scalar(elem)),
                 // Isn't a local variable, so must be an existing input.
                 None => {
                     let input = self
@@ -359,7 +366,7 @@ where
                         .find(|(_, input)| input.id == tensor.id)
                         .unwrap();
                     let input_index = input.0;
-                    Variable::Input(input_index as u16, elem)
+                    Variable::Input(input_index as u16, Item::Scalar(elem))
                 }
             },
         };
@@ -378,13 +385,13 @@ where
 
         // Output already registered as a local variable.
         if let Some(index) = self.locals.get(&tensor.id) {
-            return Variable::Local(*index, elem);
+            return Variable::Local(*index, Item::Scalar(elem));
         }
 
         // New local variable.
         let local_index = self.locals.len() as u16;
         self.locals.insert(tensor.id.clone(), local_index);
-        Variable::Local(local_index, elem)
+        Variable::Local(local_index, Item::Scalar(elem))
     }
 
     fn register_base<E: WgpuElement>(&mut self, ops: &BaseOpsDescription) -> bool {
@@ -449,7 +456,10 @@ where
         }
     }
 
-    fn register_numeric<E: WgpuElement>(&mut self, ops: &NumericOpsDescription<E>) -> bool {
+    fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
+        &mut self,
+        ops: &NumericOpsDescription<EDesc>,
+    ) -> bool {
         match ops {
             NumericOpsDescription::Add(desc) => self.register_binary_ops(
                 desc,
@@ -653,15 +663,15 @@ where
         match elem_type {
             Elem::F32 => {
                 self.scalars_f32 += 1;
-                Variable::Scalar(self.scalars_f32 as u16 - 1, Elem::F32)
+                Variable::Scalar(self.scalars_f32 as u16 - 1, Item::Scalar(Elem::F32))
             }
             Elem::I32 => {
                 self.scalars_i32 += 1;
-                Variable::Scalar(self.scalars_i32 as u16 - 1, Elem::I32)
+                Variable::Scalar(self.scalars_i32 as u16 - 1, Item::Scalar(Elem::I32))
             }
             Elem::U32 => {
                 self.scalars_u32 += 1;
-                Variable::Scalar(self.scalars_u32 as u16 - 1, Elem::U32)
+                Variable::Scalar(self.scalars_u32 as u16 - 1, Item::Scalar(Elem::U32))
             }
             Elem::Bool => {
                 panic!("Bool scalars not supported")

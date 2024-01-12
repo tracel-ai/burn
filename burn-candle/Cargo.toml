@@ -14,6 +14,7 @@ version.workspace = true
 default = ["std"]
 std = []
 cuda = ["candle-core/cuda"]
+metal = ["candle-core/metal"]
 accelerate = ["candle-core/accelerate"]
 
 [dependencies]
@@ -21,8 +22,7 @@ derive-new = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false }
 half = { workspace = true }
 
-candle-core = { version = "0.3.1" }
-
+candle-core = { version = "0.3.2" }
 
 [dev-dependencies]
 burn-autodiff = { path = "../burn-autodiff", version = "0.12.0", default-features = false, features = [

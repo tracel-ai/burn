@@ -1,13 +1,62 @@
+use super::{ElementWise, ElementWiseState};
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
-    fusion::FloatElementWiseBuilder,
+    fusion::ElementWiseBuilder,
     tensor::WgpuTensor,
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
+use serde::{Deserialize, Serialize};
+
+/// Fusion optimization type for WGPU.
+///
+/// More optimization variants should be added here.
+pub enum WgpuOptimization<G: GraphicsApi, F: FloatElement, I: IntElement> {
+    /// Element wise optimization.
+    ElementWise(ElementWise<G, F, I>),
+}
+
+/// Fusion optimization state type for WGPU.
+///
+/// More optimization variants should be added here.
+#[derive(Serialize, Deserialize)]
+pub enum WgpuOptimizationState {
+    /// Element wise state.
+    ElementWise(ElementWiseState),
+}
+
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<Wgpu<G, F, I>>
+    for WgpuOptimization<G, F, I>
+{
+    fn execute(&mut self, context: &mut burn_fusion::graph::Context<'_, Wgpu<G, F, I>>) {
+        match self {
+            Self::ElementWise(op) => op.execute(context),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::ElementWise(op) => op.len(),
+        }
+    }
+
+    fn to_state(&self) -> WgpuOptimizationState {
+        match self {
+            Self::ElementWise(value) => WgpuOptimizationState::ElementWise(value.to_state()),
+        }
+    }
+
+    fn from_state(device: &WgpuDevice, state: WgpuOptimizationState) -> Self {
+        match state {
+            WgpuOptimizationState::ElementWise(state) => {
+                Self::ElementWise(ElementWise::from_state(device, state))
+            }
+        }
+    }
+}
 
 impl FusionDevice for WgpuDevice {
     fn id(&self) -> DeviceId {
@@ -27,12 +76,14 @@ where
     F: FloatElement,
     I: IntElement,
 {
+    type OptimizationState = WgpuOptimizationState;
+    type Optimization = WgpuOptimization<G, F, I>;
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
-        vec![Box::new(FloatElementWiseBuilder::new(device.clone()))]
+        vec![Box::new(ElementWiseBuilder::new(device.clone()))]
     }
 
     fn float_tensor<const D: usize>(
@@ -128,6 +179,8 @@ mod tests {
     pub type TestBackend = Fusion<Wgpu>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();

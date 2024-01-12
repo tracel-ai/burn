@@ -51,6 +51,7 @@ fusion = ["burn-fusion", "burn-wgpu?/fusion"]
 
 ## Backend features
 cuda = ["burn-candle?/cuda"]
+metal = ["burn-candle?/metal"]
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]

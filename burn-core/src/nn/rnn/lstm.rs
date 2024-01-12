@@ -35,12 +35,6 @@ pub struct Lstm<B: Backend> {
 }
 
 impl LstmConfig {
-    /// Initialize a new [lstm](Lstm) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Lstm<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [lstm](Lstm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Lstm<B> {
         let d_output = self.d_hidden;
@@ -353,7 +347,7 @@ mod tests {
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let lstm = config.init_devauto::<TestBackend>();
+        let lstm = config.init::<TestBackend>(&Default::default());
 
         let gate_to_data =
             |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();

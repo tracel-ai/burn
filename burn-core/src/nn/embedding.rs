@@ -28,7 +28,9 @@ pub struct EmbeddingConfig {
 ///     `N(0, 1)`
 #[derive(Module, Debug)]
 pub struct Embedding<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
+    /// The learnable weights of the module of shape [n_embedding, d_model] initialized
+    /// from a normal distribution `N(0, 1)`.
+    pub weight: Param<Tensor<B, 2>>,
 }
 
 impl EmbeddingConfig {
@@ -42,12 +44,6 @@ impl EmbeddingConfig {
         Embedding {
             weight: Param::from(weight),
         }
-    }
-
-    /// Initialize a new [embedding](Embedding) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Embedding<B> {
-        let device = B::Device::default();
-        self.init(&device)
     }
 
     /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
@@ -81,7 +77,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = EmbeddingConfig::new(100, 10);
-        let embed = config.init_devauto::<TestBackend>();
+        let embed = config.init::<TestBackend>(&Default::default());
         let weights = embed.weight.val().reshape([1000]);
         let (var_act, mean_act) = weights.var_mean(0);
 
