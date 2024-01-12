@@ -96,9 +96,9 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn action<'a>(
-        &'a mut self,
-        cache: &'a OptimizationStore<B::Optimization>,
+    fn action(
+        &mut self,
+        cache: &OptimizationStore<B::Optimization>,
         stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> Action {
