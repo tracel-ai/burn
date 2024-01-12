@@ -1,6 +1,6 @@
 use super::{Node, NodeCodegen};
 use crate::burn::{Scope, Type};
-use burn::{record::PrecisionSettings, tensor::TensorKind};
+use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::sync::Arc;
@@ -12,7 +12,8 @@ pub enum BinaryType {
     Mul,
     Div,
     Equal,
-    Pow,
+    Powf,
+    Powi,
 }
 
 impl BinaryType {
@@ -23,7 +24,8 @@ impl BinaryType {
             BinaryType::Mul => "mul",
             BinaryType::Div => "div",
             BinaryType::Equal => "equal",
-            BinaryType::Pow => "pow",
+            BinaryType::Powi => "powi",
+            BinaryType::Powf => "powf",
         }
     }
 }
@@ -155,13 +157,21 @@ impl BinaryNode {
 
         Self::new(lhs, rhs, output, BinaryType::Equal, Arc::new(function))
     }
-    pub(crate) fn pow(lhs: Type, rhs: Type, output: Type) -> Self {
+    pub(crate) fn powf(lhs: Type, rhs: Type, output: Type) -> Self {
         let function = match (&lhs, &rhs) {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powf(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powf_scalar(#rhs) },
             _ => panic!("pow is supported for tensor only"),
         };
-        Self::new(lhs, rhs, output, BinaryType::Pow, Arc::new(function))
+        Self::new(lhs, rhs, output, BinaryType::Powf, Arc::new(function))
+    }
+    pub(crate) fn powi(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.powi(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.powi_scalar(#rhs) },
+            _ => panic!("pow is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Powi, Arc::new(function))
     }
 }
 
@@ -284,12 +294,23 @@ mod tests {
         test_binary_operator_on_scalar_and_scalar!(mul, *);
     }
     #[test]
-    fn test_binary_codegen_pow() {
-        test_binary_operator_on_tensors!(pow);
+    fn test_binary_codegen_powi() {
+        test_binary_operator_on_tensors!(powi);
     }
+
     #[test]
-    fn test_binary_codegen_pow_scalar() {
-        test_binary_operator_on_tensor_and_scalar!(pow, powf_scalar);
+    fn test_binary_codegen_powf() {
+        test_binary_operator_on_tensors!(powf);
+    }
+
+    #[test]
+    fn test_binary_codegen_powi_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(powi, powi_scalar);
+    }
+
+    #[test]
+    fn test_binary_codegen_powf_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(powf, powf_scalar);
     }
 
     #[test]

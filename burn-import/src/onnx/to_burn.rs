@@ -266,6 +266,7 @@ impl ONNXGraph {
                 NodeType::ConvTranspose2d => {
                     graph.register(Self::conv_transpose2d_conversion(node))
                 }
+                NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -663,11 +664,24 @@ impl ONNXGraph {
         let output = node.outputs.first().unwrap().to_type();
         UnaryNode::neg(input, output)
     }
-    fn pow(node: Node) -> BinaryNode {
+    fn pow_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
+        //let ty = lhs.ty();
         let output = node.outputs.first().unwrap().to_type();
-        BinaryNode::pow(lhs, rhs, output)
+        match &rhs {
+            Type::Tensor(x) => match x.kind {
+                TensorKind::Int => BinaryNode::powi(lhs, rhs, output),
+                TensorKind::Float => BinaryNode::powf(lhs, rhs, output),
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            Type::Scalar(x) => match x.kind {
+                ScalarKind::Int32 | ScalarKind::Int64 => BinaryNode::powi(lhs, rhs, output),
+                ScalarKind::Float32 | ScalarKind::Float64 => BinaryNode::powf(lhs, rhs, output),
+                _ => panic!("pow function requires RHS to be int or float type"),
+            },
+            _ => panic!("pow function only supports RHS scalar or tensor types"),
+        }
     }
 }
 
