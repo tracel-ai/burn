@@ -1,5 +1,5 @@
-mod optimization;
 mod index;
+mod optimization;
 
-pub(crate) use optimization::*;
 pub(super) use index::*;
+pub(crate) use optimization::*;
