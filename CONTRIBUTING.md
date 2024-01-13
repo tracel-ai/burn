@@ -121,7 +121,7 @@ where `crate_name` is the name of the crate to publish
 
 ## Others
 
-To bump for the next version, use this command:
+To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
 
 ```
 cargo set-version --bump minor
