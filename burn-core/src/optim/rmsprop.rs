@@ -157,11 +157,11 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
                 let square_avg = state
                     .square_avg
                     .mul_scalar(alpha)
-                    .add(grad.clone().powf(2.).mul_scalar(1. - alpha));
+                    .add(grad.clone().powf_scalar(2.).mul_scalar(1. - alpha));
                 (grad, Self { square_avg })
             }
             _ => {
-                let square_avg = grad.clone().powf(2.).mul_scalar(1. - alpha);
+                let square_avg = grad.clone().powf_scalar(2.).mul_scalar(1. - alpha);
                 (grad, Self { square_avg })
             }
         }
@@ -211,7 +211,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
             let avg = square_avg_state
                 .square_avg
                 .clone()
-                .sub(grad_avg.clone().powf(2.));
+                .sub(grad_avg.clone().powf_scalar(2.));
 
             (
                 grad,

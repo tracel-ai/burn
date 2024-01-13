@@ -263,7 +263,7 @@ mod tests {
             let x = Tensor::<B, 2>::from_data(data1.convert(), &Default::default());
             let y = Tensor::<B, 2, Int>::from_data(data2.convert(), &Default::default());
 
-            let x_1 = x.clone().powf(2.0);
+            let x_1 = x.clone().powf_scalar(2.0);
             let x_1 = x_1 + x;
             let y_1 = y * 6;
             let y_1 = y_1 + 4;

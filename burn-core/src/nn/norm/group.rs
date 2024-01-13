@@ -110,7 +110,7 @@ impl<B: Backend> GroupNorm<B> {
         let mean = input.clone().sum_dim(2) / hidden_size as f64;
         let input = input.sub(mean);
 
-        let var = input.clone().powf(2.).sum_dim(2) / hidden_size as f64;
+        let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
         let input_normalized = input.div(var.sqrt().add_scalar(self.epsilon));
 
         if self.affine {

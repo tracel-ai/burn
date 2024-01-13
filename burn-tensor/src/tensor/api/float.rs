@@ -62,7 +62,7 @@ where
     /// Applies element wise power operation.
     ///
     /// `y = x^a`
-    pub fn powf(self, value: f32) -> Self {
+    pub fn powf_scalar(self, value: f32) -> Self {
         Self::new(B::powf_scalar(self.primitive, value))
     }
 

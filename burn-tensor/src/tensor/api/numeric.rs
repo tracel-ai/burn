@@ -1,3 +1,5 @@
+use num_traits::ToPrimitive;
+
 use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
     Int, Shape, Tensor, TensorKind,
@@ -1589,6 +1591,50 @@ where
     /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a float tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: <Float as TensorKind<B>>::Primitive<D>,
+    ) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: <Int as TensorKind<B>>::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        Self::powf(lhs, B::int_into_float(rhs))
+    }
+
+    /// elementwise power of a tensor to a scalar float
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a scalar int
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        Self::powf_scalar(lhs, rhs)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1842,6 +1888,20 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::int_abs(tensor)
+    }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: <Float as TensorKind<B>>::Primitive<D>,
+    ) -> <Int as TensorKind<B>>::Primitive<D> {
+        B::int_powf(lhs, rhs)
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> <Int as TensorKind<B>>::Primitive<D> {
+        B::int_powf_scalar(lhs, rhs.elem())
     }
 }
 
@@ -2097,6 +2157,20 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::abs(tensor)
+    }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::powf(lhs, rhs)
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::powf_scalar(lhs, rhs.elem())
     }
 }
 
