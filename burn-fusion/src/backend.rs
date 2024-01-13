@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    graph::{Context, OptimizationFactory, TensorOpsDescription},
+    stream::{Context, TensorOpsDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -46,7 +46,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn sync(device: &Self::Device) {
         let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
-        client.drain_graph();
+        client.drain();
         B::sync(device)
     }
 }
@@ -110,15 +110,6 @@ pub trait Optimization<B: FusionBackend>: Send {
     fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
 }
 
-// We implement the OptimizationFactory for all boxed optimization to be used with the Optimization
-// Cache. The factory is only used to simplify types and allows better testing. It isn't a public
-// crate.
-impl<B: FusionBackend> OptimizationFactory<B::Optimization> for Box<dyn OptimizationBuilder<B>> {
-    fn create(&self) -> B::Optimization {
-        OptimizationBuilder::build(self.as_ref())
-    }
-}
-
 /// The device id.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
 pub struct DeviceId {
@@ -152,7 +143,7 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: &Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
+    fn optimizations(device: Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

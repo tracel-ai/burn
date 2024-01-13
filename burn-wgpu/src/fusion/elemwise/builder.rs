@@ -6,7 +6,7 @@ use crate::{
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
-    graph::{
+    stream::{
         BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
         ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
