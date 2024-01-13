@@ -6,7 +6,7 @@ use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 
 /// Process the [stream](Stream) following a [policy](Policy).
 ///
-/// Explore and create new opitmizations using explorations
+/// Explore and create new optimizations using explorations
 pub(crate) struct Processor<B: FusionBackend> {
     policy: Policy<B::Optimization>,
     explorer: Explorer<B>,
@@ -143,7 +143,7 @@ impl<B: FusionBackend> Processor<B> {
     ) -> OptimizationId {
         let (stream_relative, next_ops) = Self::split_stream_owned(stream, mode);
 
-        // Check if an optimization is available for this stream before creating a new opitmization.
+        // Check if an optimization is available for this stream before creating a new optimization.
         //
         // Specify a sync execution mode signaling that we want to know if an optimization is
         // available right now even if it isn't the best one.
@@ -151,11 +151,11 @@ impl<B: FusionBackend> Processor<B> {
             Action::Execute(id) => {
                 // When we are in lazy mode, a next operation will be available.
                 //
-                // Since we are adding new opitmization only when the policy action is explore, we
-                // know the existing opitmization wasn't flagged as optimal, since the `next_ops'
+                // Since we are adding new optimization only when the policy action is explore, we
+                // know the existing optimization wasn't flagged as optimal, since the `next_ops'
                 // wasn't included in the `end_conditions`.
                 //
-                // But in this case, we aren't able to actually find a better opitmization, so we
+                // But in this case, we aren't able to actually find a better optimization, so we
                 // flag the next ops as a stopping criteria, so we won't enter exploration mode the
                 // next time we see a similar stream following the same pattern.
                 if let Some(next_ops) = next_ops {

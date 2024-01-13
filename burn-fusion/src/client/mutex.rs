@@ -46,7 +46,7 @@ where
         self.server.lock().register(description, Box::new(ops))
     }
 
-    fn drain_graph(&self) {
+    fn drain(&self) {
         self.server.lock().drain_streams();
     }
 

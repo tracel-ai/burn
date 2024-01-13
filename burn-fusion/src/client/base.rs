@@ -21,7 +21,7 @@ pub trait FusionClient: Send + Sync + Clone {
         ops: O,
     );
     /// Register all lazy computation.
-    fn drain_graph(&self);
+    fn drain(&self);
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice;
     /// Create a new [fusion tensor](FusionTensor), but with no resources allocated to it.

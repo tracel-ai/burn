@@ -33,19 +33,19 @@ impl<B: FusionBackend> Explorer<B> {
 
     pub(crate) fn explore<'a>(
         &'a mut self,
-        graph: &Stream<B>,
+        stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> Exploration<'a, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
-        // graph even when there is no skipped operation.
+        // stream even when there is no skipped operation.
         let offset = match mode {
             ExecutionMode::Lazy => 1,
             ExecutionMode::Sync => 0,
         };
 
         for i in (0..self.num_deferred + offset).rev() {
-            let index = graph.relative.len() - 1 - i;
-            let relative = &graph.relative[index];
+            let index = stream.relative.len() - 1 - i;
+            let relative = &stream.relative[index];
 
             for builder in self.builders.iter_mut() {
                 builder.register(relative);

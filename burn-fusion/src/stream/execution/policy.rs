@@ -144,14 +144,14 @@ impl<O> Policy<O> {
             let next_ops_candidate = match item.stream.get(stream_size) {
                 Some(val) => val,
                 None => {
-                    // Graph of different size, invalidated.
+                    // Stream of different size, invalidated.
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
             if next_ops_candidate != next_ops {
-                // Graph with different node at the current position, invalidated.
+                // Stream with different node at the current position, invalidated.
                 invalidated_candidates.push(*id);
                 continue;
             }
