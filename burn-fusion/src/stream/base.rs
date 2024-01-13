@@ -1,5 +1,5 @@
 use super::Ops;
-use super::RelativeGraphConverter;
+use super::RelativeStreamConverter;
 use super::TensorOpsDescription;
 use crate::FusionBackend;
 
@@ -7,7 +7,7 @@ use crate::FusionBackend;
 pub struct Stream<B: FusionBackend> {
     pub(crate) global: Vec<TensorOpsDescription>,
     pub(crate) relative: Vec<TensorOpsDescription>,
-    pub(crate) converter: RelativeGraphConverter,
+    pub(crate) converter: RelativeStreamConverter,
     pub(crate) ops: Vec<Box<dyn Ops<B>>>,
 }
 
@@ -16,7 +16,7 @@ impl<B: FusionBackend> Stream<B> {
         Self {
             global: Vec::new(),
             relative: Vec::new(),
-            converter: RelativeGraphConverter::default(),
+            converter: RelativeStreamConverter::default(),
             ops: Vec::new(),
         }
     }

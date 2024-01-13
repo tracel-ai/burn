@@ -1,6 +1,6 @@
 use super::ExecutionMode;
 use crate::stream::{
-    store::{OptimizationId, OptimizationStore},
+    store::{OptimizationId, OptimizationStore, SearchQuery},
     TensorOpsDescription,
 };
 use std::marker::PhantomData;
@@ -97,15 +97,11 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(
-        &mut self,
-        optimizations: &OptimizationStore<O>,
-        next_ops: &TensorOpsDescription,
-    ) {
+    pub fn update(&mut self, store: &OptimizationStore<O>, ops: &TensorOpsDescription) {
         if self.stream_size == 0 {
-            self.initialize_state(next_ops, optimizations);
+            self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
         } else {
-            self.analyze_candidates(optimizations, next_ops, self.stream_size);
+            self.analyze_candidates(store, ops, self.stream_size);
         }
 
         self.stream_size += 1;
@@ -117,14 +113,6 @@ impl<O> Policy<O> {
         self.availables.clear();
         self.stream_size = 0;
         self.found = None;
-    }
-
-    fn initialize_state(
-        &mut self,
-        ops: &TensorOpsDescription,
-        optimizations: &OptimizationStore<O>,
-    ) {
-        self.candidates = optimizations.find_starting_with(ops);
     }
 
     fn analyze_candidates(

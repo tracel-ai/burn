@@ -1,11 +1,11 @@
-use super::Starters;
+use super::{InsertQuery, OptimizationIndex, SearchQuery};
 use crate::stream::TensorOpsDescription;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
 pub(crate) struct OptimizationStore<O> {
     pub(super) optimizations: Vec<OptimizationItem<O>>,
-    pub(super) starters: Starters,
+    pub(super) index: OptimizationIndex,
 }
 
 pub(crate) type OptimizationId = usize;
@@ -21,12 +21,25 @@ impl<O> OptimizationStore<O> {
     pub fn new() -> Self {
         Self {
             optimizations: Vec::new(),
-            starters: Starters::default(),
+            index: OptimizationIndex::default(),
         }
     }
 
-    pub fn find_starting_with(&self, ops: &TensorOpsDescription) -> Vec<OptimizationId> {
-        self.starters.get(ops)
+    pub fn find(&self, query: SearchQuery<'_>) -> Vec<OptimizationId> {
+        self.index.find(query)
+    }
+
+    pub fn add(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
+        let id = self.optimizations.len();
+
+        self.index.insert(InsertQuery::NewOptimization {
+            stream: &optimization.stream,
+            id,
+        });
+
+        self.optimizations.push(optimization);
+
+        id
     }
 
     pub fn get_mut_unchecked(&mut self, id: OptimizationId) -> &mut OptimizationItem<O> {
@@ -35,15 +48,6 @@ impl<O> OptimizationStore<O> {
 
     pub fn get_unchecked(&self, id: OptimizationId) -> &OptimizationItem<O> {
         &self.optimizations[id]
-    }
-
-    pub fn add(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
-        let new_id = self.optimizations.len();
-        self.starters
-            .insert(optimization.stream.first().unwrap(), new_id);
-        self.optimizations.push(optimization);
-
-        new_id
     }
 
     /// Add a new end condition for an optimization.
