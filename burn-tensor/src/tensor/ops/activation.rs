@@ -102,4 +102,38 @@ pub trait ActivationOps<B: Backend> {
 
         B::mul(y, grad)
     }
+
+    /// Applies the Sigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        B::exp(B::neg(B::log(B::add_scalar(
+            B::exp(B::neg(tensor)),
+            1.0.elem(),
+        ))))
+    }
+
+    /// Applies the Sigmoid activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The tensor.
+    /// * `grad` - The gradient.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn sigmoid_backward<const D: usize>(
+        x: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        let value = B::mul(x.clone(), B::add_scalar(B::neg(x), 1.0.elem()));
+        B::mul(value, grad)
+    }
 }

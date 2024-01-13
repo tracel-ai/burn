@@ -926,22 +926,6 @@ pub trait TensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with tangent values.
     fn tanh<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Returns a new tensor with sigmoid values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to take the sigmoid of.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with sigmoid values.
-    fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        B::exp(B::neg(B::log(B::add_scalar(
-            B::exp(B::neg(tensor)),
-            1.0_f32.elem(),
-        ))))
-    }
-
     /// Returns a new tensor with the error function values.
     ///
     /// # Arguments
