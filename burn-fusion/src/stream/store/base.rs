@@ -19,7 +19,7 @@ pub(crate) enum ExecutionStrategy<O> {
 }
 
 /// The criterion exposing when to stop exploring on a stream.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum StopCriterion {
     OnOperation(TensorOpsDescription),
     OnSync,
@@ -41,7 +41,7 @@ pub(crate) struct Exploration<O> {
 }
 
 impl<O> Exploration<O> {
-    pub fn should_stop(&self, ops: &TensorOpsDescription) -> bool {
+    pub fn should_stop_async(&self, ops: &TensorOpsDescription) -> bool {
         for item in self.criteria.iter() {
             match item {
                 StopCriterion::OnOperation(val) => {
@@ -49,7 +49,8 @@ impl<O> Exploration<O> {
                         return true;
                     }
                 }
-                _ => {}
+                StopCriterion::Always => return true,
+                StopCriterion::OnSync => continue,
             }
         }
 
@@ -69,20 +70,20 @@ impl<O> ExplorationStore<O> {
         self.index.find(query)
     }
 
-    pub fn add(&mut self, optimization: Exploration<O>) -> ExplorationId {
-        if optimization.stream.is_empty() {
+    pub fn add(&mut self, exploration: Exploration<O>) -> ExplorationId {
+        if exploration.stream.is_empty() {
             panic!("Can't add an empty optimization.");
         }
 
         let id = self.items.len();
-        println!("Add new optimization {id} => {:?}", optimization.criteria);
+        log::info!("New exploration {id}");
 
         self.index.insert(InsertQuery::NewOptimization {
-            stream: &optimization.stream,
+            stream: &exploration.stream,
             id,
         });
 
-        self.items.push(optimization);
+        self.items.push(exploration);
 
         id
     }

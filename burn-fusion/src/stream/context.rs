@@ -706,13 +706,13 @@ impl BaseOpsDescription {
             }
             BaseOpsDescription::Slice(desc) => BaseOpsDescription::Slice(SliceOpsDescription {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.clone(),
+                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOpsDescription::SliceAssign(desc) => {
                 BaseOpsDescription::SliceAssign(super::SliceAssignOpsDescription {
                     tensor: desc.tensor.to_relative(converter),
-                    ranges: desc.ranges.clone(),
+                    ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
                     value: desc.value.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })

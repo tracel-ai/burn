@@ -44,7 +44,7 @@ impl<O> Policy<O> {
     /// Returns the [action](Action) that should be taken given the state of the policy.
     pub fn action(
         &self,
-        optimizations: &ExplorationStore<O>,
+        store: &ExplorationStore<O>,
         stream: &[TensorOpsDescription],
         mode: ExecutionMode,
     ) -> Action {
@@ -63,14 +63,11 @@ impl<O> Policy<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                if self.candidates.is_empty() {
-                    // Even if there are optimizations available, we aren't sure if they are the best ones
-                    // we can use. Exploring more optimizations might find a new `end_condition` or
-                    // even find a better optimization.
-                    return Action::Explore;
+                if !self.candidates.is_empty() {
+                    return Action::Defer;
                 }
 
-                Action::Defer
+                Action::Explore
             }
             ExecutionMode::Sync => {
                 // If an optimization covers the _whole_ stream, we return it, else we explore new
@@ -82,7 +79,7 @@ impl<O> Policy<O> {
                 }
 
                 for candidate in self.candidates.iter() {
-                    let item = optimizations.get_unchecked(*candidate);
+                    let item = store.get_unchecked(*candidate);
 
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
@@ -101,7 +98,7 @@ impl<O> Policy<O> {
         if self.stream_size == 0 {
             self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
         } else {
-            self.analyze_candidates(store, ops, self.stream_size);
+            self.analyze_candidates(store, ops);
         }
 
         self.stream_size += 1;
@@ -119,7 +116,6 @@ impl<O> Policy<O> {
         &mut self,
         optimizations: &ExplorationStore<O>,
         next_ops: &TensorOpsDescription,
-        stream_size: usize,
     ) {
         // The index starts at zero.
         let mut invalidated_candidates = Vec::new();
@@ -127,8 +123,8 @@ impl<O> Policy<O> {
         for id in self.candidates.iter() {
             let item = optimizations.get_unchecked(*id);
 
-            if item.stream.len() == stream_size {
-                if item.should_stop(next_ops) {
+            if item.stream.len() == self.stream_size {
+                if item.should_stop_async(next_ops) {
                     self.found = Some((*id, item.stream.len()));
                     break;
                 } else {
@@ -141,7 +137,7 @@ impl<O> Policy<O> {
                 }
             };
 
-            let next_ops_candidate = match item.stream.get(stream_size) {
+            let next_ops_candidate = match item.stream.get(self.stream_size) {
                 Some(val) => val,
                 None => {
                     // Stream of different size, invalidated.
