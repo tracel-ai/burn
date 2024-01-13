@@ -1,4 +1,4 @@
-use crate::stream::{store::OptimizationId, TensorOpsDescription};
+use crate::stream::{store::ExplorationId, TensorOpsDescription};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -17,7 +17,7 @@ pub struct OptimizationIndex {
     /// This is OK because we use `relative` streams where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
     mapping: HashMap<u64, Vec<(TensorOpsDescription, usize)>>,
-    starters: Vec<Vec<OptimizationId>>,
+    starters: Vec<Vec<ExplorationId>>,
 }
 
 pub enum SearchQuery<'a> {
@@ -27,13 +27,13 @@ pub enum SearchQuery<'a> {
 pub enum InsertQuery<'a> {
     NewOptimization {
         stream: &'a [TensorOpsDescription],
-        id: OptimizationId,
+        id: ExplorationId,
     },
 }
 
 impl OptimizationIndex {
     /// Search optimizations with the given [query](SearchQuery).
-    pub fn find(&self, query: SearchQuery<'_>) -> Vec<OptimizationId> {
+    pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExplorationId> {
         match query {
             SearchQuery::OptimizationsStartingWith(ops) => self.find_starting_with(ops),
         }
@@ -50,7 +50,7 @@ impl OptimizationIndex {
         }
     }
 
-    fn find_starting_with(&self, ops: &TensorOpsDescription) -> Vec<OptimizationId> {
+    fn find_starting_with(&self, ops: &TensorOpsDescription) -> Vec<ExplorationId> {
         let key = self.stream_key(ops);
         let values = match self.mapping.get(&key) {
             Some(val) => val,
@@ -74,7 +74,7 @@ impl OptimizationIndex {
         val
     }
 
-    fn insert_new_ops(&mut self, ops: &TensorOpsDescription, new_id: OptimizationId) {
+    fn insert_new_ops(&mut self, ops: &TensorOpsDescription, new_id: ExplorationId) {
         let key = self.stream_key(ops);
         let values = match self.mapping.get_mut(&key) {
             Some(val) => val,

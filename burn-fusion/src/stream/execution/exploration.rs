@@ -10,9 +10,9 @@ pub struct Explorer<B: FusionBackend> {
 /// The result of an exploration.
 ///
 /// Either a new optimization is found, or we just continue to explore further.
-pub enum Exploration<'a, B: FusionBackend> {
-    OptimizationAvailable(&'a dyn OptimizationBuilder<B>),
-    OptimizationUnavailable,
+pub enum ExplorerResult<'a, B: FusionBackend> {
+    Found(&'a dyn OptimizationBuilder<B>),
+    NotFound,
     Continue,
 }
 
@@ -36,7 +36,7 @@ impl<B: FusionBackend> Explorer<B> {
         &'a mut self,
         stream: &Stream<B>,
         mode: ExecutionMode,
-    ) -> Exploration<'a, B> {
+    ) -> ExplorerResult<'a, B> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // stream even when there is no skipped operation.
         let offset = match mode {
@@ -57,13 +57,13 @@ impl<B: FusionBackend> Explorer<B> {
         // Can only be lazy when not sync.
         if let ExecutionMode::Lazy = mode {
             if still_optimizing(&self.builders) {
-                return Exploration::Continue;
+                return ExplorerResult::Continue;
             }
         }
 
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => Exploration::OptimizationAvailable(self.builders[index].as_ref()),
-            None => Exploration::OptimizationUnavailable,
+            Some(index) => ExplorerResult::Found(self.builders[index].as_ref()),
+            None => ExplorerResult::NotFound,
         }
     }
 

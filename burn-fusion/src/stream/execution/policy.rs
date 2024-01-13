@@ -1,6 +1,6 @@
 use super::ExecutionMode;
 use crate::stream::{
-    store::{OptimizationId, OptimizationStore, SearchQuery},
+    store::{ExplorationId, ExplorationStore, SearchQuery},
     TensorOpsDescription,
 };
 use std::marker::PhantomData;
@@ -18,13 +18,13 @@ use std::marker::PhantomData;
 pub(crate) struct Policy<O> {
     // The potential optimizations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
-    candidates: Vec<OptimizationId>,
+    candidates: Vec<ExplorationId>,
     // Optimizations that we find during the `updates`, but none of their `end_conditions` matches the
     // current stream.
-    availables: Vec<(OptimizationId, usize)>,
+    availables: Vec<(ExplorationId, usize)>,
     // Optimization that we find during the `updates` where one of its `end_condition` matches the
     // current stream.
-    found: Option<(OptimizationId, usize)>,
+    found: Option<(ExplorationId, usize)>,
     // The size of the stream currently analyzed.
     stream_size: usize,
     _item_type: PhantomData<O>,
@@ -44,7 +44,7 @@ impl<O> Policy<O> {
     /// Returns the [action](Action) that should be taken given the state of the policy.
     pub fn action(
         &self,
-        optimizations: &OptimizationStore<O>,
+        optimizations: &ExplorationStore<O>,
         stream: &[TensorOpsDescription],
         mode: ExecutionMode,
     ) -> Action {
@@ -97,7 +97,7 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &OptimizationStore<O>, ops: &TensorOpsDescription) {
+    pub fn update(&mut self, store: &ExplorationStore<O>, ops: &TensorOpsDescription) {
         if self.stream_size == 0 {
             self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
         } else {
@@ -117,7 +117,7 @@ impl<O> Policy<O> {
 
     fn analyze_candidates(
         &mut self,
-        optimizations: &OptimizationStore<O>,
+        optimizations: &ExplorationStore<O>,
         next_ops: &TensorOpsDescription,
         stream_size: usize,
     ) {
@@ -180,7 +180,7 @@ pub enum Action {
     /// happens.
     Defer,
     /// An optimization has been found, and the best action is to execute it!
-    Execute(OptimizationId),
+    Execute(ExplorationId),
 }
 
 // #[cfg(test)]

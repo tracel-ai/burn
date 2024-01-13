@@ -1,9 +1,9 @@
-use super::{ExecutionMode, Exploration, Explorer};
+use super::{ExecutionMode, Explorer, ExplorerResult};
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{
-    OptimizationId, OptimizationItem, OptimizationKind, OptimizationStore, StoppingCriteria,
+    ExecutionStrategy, Exploration, ExplorationId, ExplorationStore, StopCriterion,
 };
-use crate::stream::{Stream, TensorOpsDescription};
+use crate::stream::Stream;
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 
 /// Process the [stream](Stream) following a [policy](Policy).
@@ -27,7 +27,7 @@ impl<B: FusionBackend> Processor<B> {
     pub fn process(
         &mut self,
         stream: &mut Stream<B>,
-        optimizations: &mut OptimizationStore<B::Optimization>,
+        store: &mut ExplorationStore<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
@@ -36,9 +36,9 @@ impl<B: FusionBackend> Processor<B> {
                 break;
             }
 
-            match self.action(optimizations, stream, mode) {
+            match self.action(store, stream, mode) {
                 Action::Explore => {
-                    self.explore(stream, optimizations, handles, mode);
+                    self.explore(stream, store, handles, mode);
 
                     if self.explorer.up_to_date() {
                         break;
@@ -53,8 +53,8 @@ impl<B: FusionBackend> Processor<B> {
                     };
                 }
                 Action::Execute(id) => {
-                    stream.execute(id, handles, optimizations);
-                    self.reset(optimizations, stream);
+                    stream.execute(id, handles, store);
+                    self.reset(store, stream);
                 }
             };
 
@@ -67,26 +67,28 @@ impl<B: FusionBackend> Processor<B> {
     fn explore(
         &mut self,
         stream: &mut Stream<B>,
-        optimizations: &mut OptimizationStore<B::Optimization>,
+        store: &mut ExplorationStore<B::Optimization>,
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
         match self.explorer.explore(stream, mode) {
-            Exploration::OptimizationAvailable(optim) => {
-                let id =
-                    Self::on_exploration_finished(&self.policy, stream, optimizations, optim, mode);
-
-                stream.execute(id, handles, optimizations);
-                self.reset(optimizations, stream);
+            ExplorerResult::Found(optim) => {
+                stream.execute(
+                    Self::on_optimization_found(&self.policy, stream, store, optim, mode),
+                    handles,
+                    store,
+                );
+                self.reset(store, stream);
             }
-            Exploration::OptimizationUnavailable => {
-                let id =
-                    Self::on_optimization_unavailable(&self.policy, stream, optimizations, mode);
-
-                stream.execute(id, handles, optimizations);
-                self.reset(optimizations, stream);
+            ExplorerResult::NotFound => {
+                stream.execute(
+                    Self::on_optimization_not_found(&self.policy, stream, store, mode),
+                    handles,
+                    store,
+                );
+                self.reset(store, stream);
             }
-            Exploration::Continue => {
+            ExplorerResult::Continue => {
                 if let ExecutionMode::Sync = mode {
                     panic!("Can't continue exploring when sync.")
                 }
@@ -94,7 +96,7 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn reset(&mut self, store: &mut OptimizationStore<B::Optimization>, stream: &Stream<B>) {
+    fn reset(&mut self, store: &mut ExplorationStore<B::Optimization>, stream: &Stream<B>) {
         self.explorer.reset(stream);
         self.policy.reset();
 
@@ -106,119 +108,85 @@ impl<B: FusionBackend> Processor<B> {
 
     fn action(
         &mut self,
-        cache: &OptimizationStore<B::Optimization>,
+        store: &ExplorationStore<B::Optimization>,
         stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> Action {
-        let (stream, next_ops) = Self::split_stream_ref(stream, mode);
-
-        if let Some(next_ops) = next_ops {
-            self.policy.update(cache, next_ops)
-        }
-
-        self.policy.action(cache, stream, mode)
-    }
-
-    fn on_exploration_finished(
-        policy: &Policy<B::Optimization>,
-        stream: &Stream<B>,
-        store: &mut OptimizationStore<B::Optimization>,
-        builder: &dyn OptimizationBuilder<B>,
-        mode: ExecutionMode,
-    ) -> OptimizationId {
-        let (stream_relative, next_ops) = Self::split_stream_owned(stream, mode);
-
-        // Check if an optimization is available for this stream before creating a new optimization.
-        //
-        // Specify a sync execution mode signaling that we want to know if an optimization is
-        // available right now even if it isn't the best one.
-        match policy.action(store, &stream_relative, ExecutionMode::Sync) {
-            Action::Execute(id) => {
-                // When we are in lazy mode, a next operation will be available.
-                //
-                // Since we are adding new optimization only when the policy action is explore, we
-                // know the existing optimization wasn't flagged as optimal, since the `next_ops'
-                // wasn't included in the `end_conditions`.
-                //
-                // But in this case, we aren't able to actually find a better optimization, so we
-                // flag the next ops as a stopping criteria, so we won't enter exploration mode the
-                // next time we see a similar stream following the same pattern.
-                if let Some(next_ops) = next_ops {
-                    store.add_stopping_criteria(id, StoppingCriteria::TensorOps(next_ops));
-                } else {
-                    store.add_stopping_criteria(id, StoppingCriteria::OnSync);
-                }
-                id
-            }
-            _ => {
-                let stopping_criteria = if let Some(next_ops) = next_ops {
-                    StoppingCriteria::TensorOps(next_ops)
-                } else {
-                    StoppingCriteria::OnSync
-                };
-
-                store.add(OptimizationItem {
-                    stream: stream_relative,
-                    stopping_criteria: vec![stopping_criteria],
-                    value: OptimizationKind::CustomOptimization(builder.build()),
-                })
-            }
-        }
-    }
-
-    fn on_optimization_unavailable(
-        policy: &Policy<B::Optimization>,
-        stream: &Stream<B>,
-        store: &mut OptimizationStore<B::Optimization>,
-        mode: ExecutionMode,
-    ) -> OptimizationId {
-        match policy.action(store, &stream.relative, ExecutionMode::Sync) {
-            Action::Execute(id) => {
-                match mode {
-                    ExecutionMode::Lazy => {
-                        store.add_stopping_criteria(id, StoppingCriteria::Always)
-                    }
-                    ExecutionMode::Sync => {
-                        store.add_stopping_criteria(id, StoppingCriteria::OnSync)
-                    }
-                };
-                id
-            }
-            _ => {
-                let stopping_criteria = match mode {
-                    ExecutionMode::Lazy => StoppingCriteria::Always,
-                    ExecutionMode::Sync => StoppingCriteria::OnSync,
-                };
-
-                store.add(OptimizationItem {
-                    stream: stream.relative.clone(),
-                    stopping_criteria: vec![stopping_criteria],
-                    value: OptimizationKind::ExecuteIndividualOps,
-                })
-            }
-        }
-    }
-
-    fn split_stream_owned(
-        stream: &Stream<B>,
-        mode: ExecutionMode,
-    ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
-        match mode {
-            ExecutionMode::Lazy => {
-                let stream = stream.split_relative_stream();
-                (stream.0.to_vec(), stream.1.cloned())
-            }
-            ExecutionMode::Sync => (stream.relative.clone(), None),
-        }
-    }
-
-    fn split_stream_ref(
-        stream: &Stream<B>,
-        mode: ExecutionMode,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
-        match mode {
+        let (stream, next_ops) = match mode {
             ExecutionMode::Lazy => stream.split_relative_stream(),
             ExecutionMode::Sync => (stream.relative.as_slice(), None),
+        };
+
+        if let Some(next_ops) = next_ops {
+            self.policy.update(store, next_ops)
+        }
+
+        self.policy.action(store, stream, mode)
+    }
+
+    fn on_optimization_found(
+        policy: &Policy<B::Optimization>,
+        stream: &Stream<B>,
+        store: &mut ExplorationStore<B::Optimization>,
+        builder: &dyn OptimizationBuilder<B>,
+        mode: ExecutionMode,
+    ) -> ExplorationId {
+        match mode {
+            ExecutionMode::Lazy => {
+                let (relative, next_ops) = stream.split_relative_stream();
+                let next_ops = next_ops
+                    .expect("Should elways have a next_operation when adding a new optimization in Lazy mode")
+                    .clone();
+                let criterion = StopCriterion::OnOperation(next_ops);
+
+                match policy.action(store, relative, ExecutionMode::Sync) {
+                    Action::Execute(id) => {
+                        store.add_stop_criterion(id, criterion);
+                        id
+                    }
+                    _ => store.add(Exploration {
+                        stream: relative.to_vec(),
+                        criteria: vec![criterion],
+                        execution: ExecutionStrategy::Optimization(builder.build()),
+                    }),
+                }
+            }
+            ExecutionMode::Sync => {
+                match policy.action(store, &stream.relative, ExecutionMode::Sync) {
+                    Action::Execute(id) => {
+                        store.add_stop_criterion(id, StopCriterion::OnSync);
+                        id
+                    }
+                    _ => store.add(Exploration {
+                        stream: stream.relative.clone(),
+                        criteria: vec![StopCriterion::OnSync],
+                        execution: ExecutionStrategy::Optimization(builder.build()),
+                    }),
+                }
+            }
+        }
+    }
+
+    fn on_optimization_not_found(
+        policy: &Policy<B::Optimization>,
+        stream: &Stream<B>,
+        store: &mut ExplorationStore<B::Optimization>,
+        mode: ExecutionMode,
+    ) -> ExplorationId {
+        let criterion = match mode {
+            ExecutionMode::Lazy => StopCriterion::Always,
+            ExecutionMode::Sync => StopCriterion::OnSync,
+        };
+        match policy.action(store, &stream.relative, ExecutionMode::Sync) {
+            Action::Execute(id) => {
+                store.add_stop_criterion(id, criterion);
+                id
+            }
+            _ => store.add(Exploration {
+                stream: stream.relative.clone(),
+                criteria: vec![criterion],
+                execution: ExecutionStrategy::Operations,
+            }),
         }
     }
 }

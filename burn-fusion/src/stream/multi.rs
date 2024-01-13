@@ -1,6 +1,6 @@
 use super::{
     execution::{ExecutionMode, Processor},
-    store::OptimizationStore,
+    store::ExplorationStore,
     Ops, Stream, TensorOpsDescription,
 };
 use crate::{FusionBackend, HandleContainer};
@@ -10,7 +10,7 @@ use crate::{FusionBackend, HandleContainer};
 /// TODO: Actually support multiple streams.
 pub struct MultiStream<B: FusionBackend> {
     items: Vec<Item<B>>,
-    optimizations: OptimizationStore<B::Optimization>,
+    optimizations: ExplorationStore<B::Optimization>,
 }
 
 struct Item<B: FusionBackend> {
@@ -22,7 +22,7 @@ impl<B: FusionBackend> MultiStream<B> {
     pub(crate) fn new(device: B::FusionDevice) -> Self {
         Self {
             items: vec![Item::new(device)],
-            optimizations: OptimizationStore::new(),
+            optimizations: ExplorationStore::new(),
         }
     }
 
