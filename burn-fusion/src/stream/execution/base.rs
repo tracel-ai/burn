@@ -1,6 +1,6 @@
 use crate::{
     stream::{
-        store::{OptimizationId, OptimizationStore},
+        store::{OptimizationId, OptimizationKind, OptimizationStore},
         Stream,
     },
     FusionBackend, HandleContainer, Optimization,
@@ -19,14 +19,16 @@ impl<B: FusionBackend> Stream<B> {
     /// execute each [operation](crate::stream::Ops).
     pub(crate) fn execute(
         &mut self,
-        id: Option<OptimizationId>,
+        id: OptimizationId,
         handles: &mut HandleContainer<B>,
         store: &mut OptimizationStore<B::Optimization>,
     ) {
-        match id {
-            Some(id) => self.execute_optimization(handles, &mut store.get_mut_unchecked(id).value),
-            None => self.execute_operations(handles),
-        }
+        match &mut store.get_mut_unchecked(id).value {
+            OptimizationKind::CustomOptimization(optimization) => {
+                self.execute_optimization(handles, optimization)
+            }
+            OptimizationKind::ExecuteIndividualOps => self.execute_operations(handles),
+        };
     }
 
     fn execute_optimization(

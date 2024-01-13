@@ -40,7 +40,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
             GeluKind::Reference => burn::tensor::activation::gelu(args),
             GeluKind::WithReferenceErf => gelu_custom(args, Tensor::erf),
             GeluKind::WithCustomErf => gelu_custom(args, erf_custom),
-        };
+        }.sum();
     }
 
     fn prepare(&self) -> Self::Args {

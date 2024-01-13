@@ -8,13 +8,43 @@ pub(crate) struct OptimizationStore<O> {
     pub(super) index: OptimizationIndex,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) enum OptimizationKind<O> {
+    CustomOptimization(O),
+    ExecuteIndividualOps,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) enum StoppingCriteria {
+    TensorOps(TensorOpsDescription),
+    Always,
+    OnSync,
+}
+
 pub(crate) type OptimizationId = usize;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct OptimizationItem<O> {
     pub(crate) stream: Vec<TensorOpsDescription>,
-    pub(crate) end_conditions: Vec<TensorOpsDescription>,
-    pub(crate) value: O,
+    pub(crate) stopping_criteria: Vec<StoppingCriteria>,
+    pub(crate) value: OptimizationKind<O>,
+}
+
+impl<O> OptimizationItem<O> {
+    pub fn should_stop(&self, ops: &TensorOpsDescription) -> bool {
+        for item in self.stopping_criteria.iter() {
+            match item {
+                StoppingCriteria::TensorOps(val) => {
+                    if val == ops {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        false
+    }
 }
 
 impl<O> OptimizationStore<O> {
@@ -30,7 +60,15 @@ impl<O> OptimizationStore<O> {
     }
 
     pub fn add(&mut self, optimization: OptimizationItem<O>) -> OptimizationId {
+        if optimization.stream.is_empty() {
+            panic!("Can't add an empty optimization.");
+        }
+
         let id = self.optimizations.len();
+        println!(
+            "Add new optimization {id} => {:?}",
+            optimization.stopping_criteria
+        );
 
         self.index.insert(InsertQuery::NewOptimization {
             stream: &optimization.stream,
@@ -51,7 +89,7 @@ impl<O> OptimizationStore<O> {
     }
 
     /// Add a new end condition for an optimization.
-    pub fn add_end_condition(&mut self, id: OptimizationId, end_condition: TensorOpsDescription) {
-        self.optimizations[id].end_conditions.push(end_condition)
+    pub fn add_stopping_criteria(&mut self, id: OptimizationId, criteria: StoppingCriteria) {
+        self.optimizations[id].stopping_criteria.push(criteria)
     }
 }

@@ -1,6 +1,8 @@
 use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};
-use crate::stream::store::{OptimizationId, OptimizationItem, OptimizationStore};
+use crate::stream::store::{
+    OptimizationId, OptimizationItem, OptimizationKind, OptimizationStore, StoppingCriteria,
+};
 use crate::stream::{Stream, TensorOpsDescription};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 
@@ -51,7 +53,7 @@ impl<B: FusionBackend> Processor<B> {
                     };
                 }
                 Action::Execute(id) => {
-                    stream.execute(Some(id), handles, optimizations);
+                    stream.execute(id, handles, optimizations);
                     self.reset(optimizations, stream);
                 }
             };
@@ -70,10 +72,16 @@ impl<B: FusionBackend> Processor<B> {
         mode: ExecutionMode,
     ) {
         match self.explorer.explore(stream, mode) {
-            Exploration::OptimizationFound(optim) => {
-                let id = optim.map(|optim| {
-                    Self::on_new_optimization(&self.policy, stream, optimizations, optim, mode)
-                });
+            Exploration::OptimizationAvailable(optim) => {
+                let id =
+                    Self::on_exploration_finished(&self.policy, stream, optimizations, optim, mode);
+
+                stream.execute(id, handles, optimizations);
+                self.reset(optimizations, stream);
+            }
+            Exploration::OptimizationUnavailable => {
+                let id =
+                    Self::on_optimization_unavailable(&self.policy, stream, optimizations, mode);
 
                 stream.execute(id, handles, optimizations);
                 self.reset(optimizations, stream);
@@ -111,30 +119,7 @@ impl<B: FusionBackend> Processor<B> {
         self.policy.action(cache, stream, mode)
     }
 
-    fn split_stream_owned(
-        stream: &Stream<B>,
-        mode: ExecutionMode,
-    ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
-        match mode {
-            ExecutionMode::Lazy => {
-                let stream = stream.split_relative_stream();
-                (stream.0.to_vec(), stream.1.cloned())
-            }
-            ExecutionMode::Sync => (stream.relative.clone(), None),
-        }
-    }
-
-    fn split_stream_ref(
-        stream: &Stream<B>,
-        mode: ExecutionMode,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
-        match mode {
-            ExecutionMode::Lazy => stream.split_relative_stream(),
-            ExecutionMode::Sync => (stream.relative.as_slice(), None),
-        }
-    }
-
-    fn on_new_optimization(
+    fn on_exploration_finished(
         policy: &Policy<B::Optimization>,
         stream: &Stream<B>,
         store: &mut OptimizationStore<B::Optimization>,
@@ -159,15 +144,81 @@ impl<B: FusionBackend> Processor<B> {
                 // flag the next ops as a stopping criteria, so we won't enter exploration mode the
                 // next time we see a similar stream following the same pattern.
                 if let Some(next_ops) = next_ops {
-                    store.add_end_condition(id, next_ops);
+                    store.add_stopping_criteria(id, StoppingCriteria::TensorOps(next_ops));
+                } else {
+                    store.add_stopping_criteria(id, StoppingCriteria::OnSync);
                 }
                 id
             }
-            _ => store.add(OptimizationItem {
-                stream: stream_relative,
-                end_conditions: next_ops.map(|op| vec![op]).unwrap_or_default(),
-                value: builder.build(),
-            }),
+            _ => {
+                let stopping_criteria = if let Some(next_ops) = next_ops {
+                    StoppingCriteria::TensorOps(next_ops)
+                } else {
+                    StoppingCriteria::OnSync
+                };
+
+                store.add(OptimizationItem {
+                    stream: stream_relative,
+                    stopping_criteria: vec![stopping_criteria],
+                    value: OptimizationKind::CustomOptimization(builder.build()),
+                })
+            }
+        }
+    }
+
+    fn on_optimization_unavailable(
+        policy: &Policy<B::Optimization>,
+        stream: &Stream<B>,
+        store: &mut OptimizationStore<B::Optimization>,
+        mode: ExecutionMode,
+    ) -> OptimizationId {
+        match policy.action(store, &stream.relative, ExecutionMode::Sync) {
+            Action::Execute(id) => {
+                match mode {
+                    ExecutionMode::Lazy => {
+                        store.add_stopping_criteria(id, StoppingCriteria::Always)
+                    }
+                    ExecutionMode::Sync => {
+                        store.add_stopping_criteria(id, StoppingCriteria::OnSync)
+                    }
+                };
+                id
+            }
+            _ => {
+                let stopping_criteria = match mode {
+                    ExecutionMode::Lazy => StoppingCriteria::Always,
+                    ExecutionMode::Sync => StoppingCriteria::OnSync,
+                };
+
+                store.add(OptimizationItem {
+                    stream: stream.relative.clone(),
+                    stopping_criteria: vec![stopping_criteria],
+                    value: OptimizationKind::ExecuteIndividualOps,
+                })
+            }
+        }
+    }
+
+    fn split_stream_owned(
+        stream: &Stream<B>,
+        mode: ExecutionMode,
+    ) -> (Vec<TensorOpsDescription>, Option<TensorOpsDescription>) {
+        match mode {
+            ExecutionMode::Lazy => {
+                let stream = stream.split_relative_stream();
+                (stream.0.to_vec(), stream.1.cloned())
+            }
+            ExecutionMode::Sync => (stream.relative.clone(), None),
+        }
+    }
+
+    fn split_stream_ref(
+        stream: &Stream<B>,
+        mode: ExecutionMode,
+    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
+        match mode {
+            ExecutionMode::Lazy => stream.split_relative_stream(),
+            ExecutionMode::Sync => (stream.relative.as_slice(), None),
         }
     }
 }

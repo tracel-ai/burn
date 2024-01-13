@@ -42,12 +42,11 @@ impl OptimizationIndex {
     /// Register a new optimization with the given [query](InsertQuery).
     pub fn insert(&mut self, query: InsertQuery<'_>) {
         match query {
-            InsertQuery::NewOptimization { stream, id } => self.insert_new_ops(
-                stream
-                    .first()
-                    .expect("An optimization should never have an empty stream."),
-                id,
-            ),
+            InsertQuery::NewOptimization { stream, id } => {
+                if let Some(ops) = stream.first() {
+                    self.insert_new_ops(ops, id)
+                }
+            }
         }
     }
 
