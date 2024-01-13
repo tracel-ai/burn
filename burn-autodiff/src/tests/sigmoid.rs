@@ -8,8 +8,8 @@ mod tests {
         let data = Data::<f32, 1>::from([0.8762]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = activation::sigmoid(tensor_1);
+        let tensor_1 = TestAutodiffTensor::from_data(data, &device).require_grad();
+        let tensor_2 = activation::sigmoid(tensor_1.clone());
         let grads = tensor_2.backward();
 
         let grad = tensor_1.grad(&grads).unwrap();
@@ -22,8 +22,8 @@ mod tests {
         let data = Data::<f32, 1>::from([-90.0]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = activation::sigmoid(tensor_1);
+        let tensor_1 = TestAutodiffTensor::from_data(data, &device).require_grad();
+        let tensor_2 = activation::sigmoid(tensor_1.clone());
         let grads = tensor_2.backward();
 
         let grad = tensor_1.grad(&grads).unwrap();
