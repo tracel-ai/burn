@@ -406,6 +406,10 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh())
     }
 
+    fn sigmoid<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.unary_ops(|mut tensor| tensor.sigmoid_(), |tensor| tensor.sigmoid())
+    }
+
     fn erf<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
         tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf())
     }

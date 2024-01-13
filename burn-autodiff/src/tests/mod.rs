@@ -38,6 +38,7 @@ mod recip;
 mod relu;
 mod reshape;
 mod select;
+mod sigmoid;
 mod sin;
 mod slice;
 mod softmax;

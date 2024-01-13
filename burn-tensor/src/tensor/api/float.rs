@@ -91,6 +91,11 @@ where
         Self::new(B::tanh(self.primitive))
     }
 
+    /// Applies the sigmoid function.
+    pub(crate) fn sigmoid(self) -> Self {
+        Self::new(B::sigmoid(self.primitive))
+    }
+
     /// Create a tensor from floats (f32) on a given device.
     ///
     /// # Example
