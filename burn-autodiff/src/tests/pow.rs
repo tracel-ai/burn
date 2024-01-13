@@ -12,7 +12,7 @@ mod tests {
         let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
-        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().powf(0.4));
+        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().powf_scalar(0.4));
         let tensor_4 = tensor_3.matmul(tensor_2.clone());
         let grads = tensor_4.backward();
 

@@ -1,5 +1,3 @@
-use num_traits::ToPrimitive;
-
 use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
     Int, Shape, Tensor, TensorKind,
