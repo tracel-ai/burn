@@ -1,3 +1,4 @@
+use crate::tensor::ops::tensor::TensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
@@ -113,10 +114,15 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        B::exp(B::neg(B::log(B::add_scalar(
-            B::exp(B::neg(tensor)),
-            1.0.elem(),
-        ))))
+        let tensor_full = B::to_full_precision(&tensor);
+        let tensor_tmp = B::FullPrecisionBackend::exp(B::FullPrecisionBackend::neg(
+            B::FullPrecisionBackend::log(B::FullPrecisionBackend::add_scalar(
+                B::FullPrecisionBackend::exp(B::FullPrecisionBackend::neg(tensor_full)),
+                1.0.elem(),
+            )),
+        ));
+
+        B::from_full_precision(tensor_tmp)
     }
 
     /// Applies the Sigmoid activation function backward.
