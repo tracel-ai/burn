@@ -108,6 +108,9 @@ macro_rules! str2writer {
         $file.set_extension(<Self as FileRecorder>::file_extension());
         let path = $file.as_path();
 
+        // Add parent directories if they don't exist
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+
         if path.exists() {
             log::info!("File exists, replacing");
             std::fs::remove_file(path).map_err(|err| RecorderError::Unknown(err.to_string()))?;
