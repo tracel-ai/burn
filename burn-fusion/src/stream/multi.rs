@@ -1,5 +1,5 @@
 use super::{
-    execution::{ExecutionMode, Processor},
+    execution::{ExecutionMode, Processor, StreamItem},
     store::ExplorationStore,
     Operation, OperationDescription, Stream,
 };
@@ -15,7 +15,7 @@ pub struct MultiStream<B: FusionBackend> {
 
 struct Item<B: FusionBackend> {
     stream: Stream<B>,
-    processor: Processor<B>,
+    processor: Processor<B::Optimization>,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
@@ -36,24 +36,18 @@ impl<B: FusionBackend> MultiStream<B> {
         // TODO: Support more than only one stream.
         if let Some(item) = self.items.first_mut() {
             item.stream.add(desc, operation);
-            item.processor.process(
-                &mut item.stream,
-                &mut self.optimizations,
-                handles,
-                ExecutionMode::Lazy,
-            );
+            let process_item = StreamItem::new(&mut item.stream, handles);
+            item.processor
+                .process(process_item, &mut self.optimizations, ExecutionMode::Lazy);
         };
     }
 
     /// Drain the streams.
     pub fn drain(&mut self, handles: &mut HandleContainer<B>) {
         self.items.iter_mut().for_each(|item| {
-            item.processor.process(
-                &mut item.stream,
-                &mut self.optimizations,
-                handles,
-                ExecutionMode::Sync,
-            );
+            let process_item = StreamItem::new(&mut item.stream, handles);
+            item.processor
+                .process(process_item, &mut self.optimizations, ExecutionMode::Sync);
         });
     }
 }

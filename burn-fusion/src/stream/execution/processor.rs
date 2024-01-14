@@ -9,22 +9,23 @@ use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 /// Process the [stream](Stream) following a [policy](Policy).
 ///
 /// Explore and create new optimizations using explorations
-pub(crate) struct Processor<B: FusionBackend> {
-    policy: Policy<B::Optimization>,
-    explorer: Explorer<B::Optimization>,
+pub(crate) struct Processor<O> {
+    policy: Policy<O>,
+    explorer: Explorer<O>,
 }
 
-pub trait StreamProcessing<O> {
+pub trait ProcessItem<O> {
     fn operations<'a>(&'a self) -> &[OperationDescription];
     fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<O>);
 }
 
-struct StreamItem<'a, B: FusionBackend> {
+#[derive(new)]
+pub struct StreamItem<'a, B: FusionBackend> {
     stream: &'a mut Stream<B>,
     handles: &'a mut HandleContainer<B>,
 }
 
-impl<'i, B: FusionBackend> StreamProcessing<B::Optimization> for StreamItem<'i, B> {
+impl<'i, B: FusionBackend> ProcessItem<B::Optimization> for StreamItem<'i, B> {
     fn operations<'a>(&'a self) -> &[OperationDescription] {
         &self.stream.relative
     }
@@ -34,9 +35,9 @@ impl<'i, B: FusionBackend> StreamProcessing<B::Optimization> for StreamItem<'i, 
     }
 }
 
-impl<B: FusionBackend> Processor<B> {
+impl<O> Processor<O> {
     /// Create a new stream processor.
-    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B::Optimization>>>) -> Self {
+    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
             policy: Policy::new(),
             explorer: Explorer::new(optimizations),
@@ -44,21 +45,20 @@ impl<B: FusionBackend> Processor<B> {
     }
 
     /// Process the [stream](Stream) with the provided mode.
-    pub fn process(
+    pub fn process<Item: ProcessItem<O>>(
         &mut self,
-        stream: &mut Stream<B>,
-        store: &mut ExplorationStore<B::Optimization>,
-        handles: &mut HandleContainer<B>,
+        mut item: Item,
+        store: &mut ExplorationStore<O>,
         mode: ExecutionMode,
     ) {
         loop {
-            if stream.is_empty() {
+            if item.operations().is_empty() {
                 break;
             }
 
-            match self.action(store, stream, mode) {
+            match self.action(store, item.operations(), mode) {
                 Action::Explore => {
-                    self.explore(stream, store, handles, mode);
+                    self.explore(&mut item, store, mode);
 
                     if self.explorer.up_to_date() {
                         break;
@@ -73,8 +73,8 @@ impl<B: FusionBackend> Processor<B> {
                     };
                 }
                 Action::Execute(id) => {
-                    stream.execute(id, handles, store);
-                    self.reset(store, stream);
+                    item.execute(id, store);
+                    self.reset(store, item.operations());
                 }
             };
 
@@ -84,35 +84,34 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn explore(
+    fn explore<Item: ProcessItem<O>>(
         &mut self,
-        stream: &mut Stream<B>,
-        store: &mut ExplorationStore<B::Optimization>,
-        handles: &mut HandleContainer<B>,
+        item: &mut Item,
+        store: &mut ExplorationStore<O>,
         mode: ExecutionMode,
     ) {
-        match self.explorer.explore(&stream.relative, mode) {
+        match self.explorer.explore(&item.operations(), mode) {
             ExplorerResult::Found(optim) => {
-                stream.execute(
-                    Self::on_optimization_found(&self.policy, stream, store, optim, mode),
-                    handles,
+                let id = Self::on_optimization_found(
+                    &self.policy,
+                    item.operations(),
                     store,
+                    optim,
+                    mode,
                 );
-                self.reset(store, stream);
+                item.execute(id, store);
+                self.reset(store, item.operations());
             }
             ExplorerResult::NotFound { num_explored } => {
-                stream.execute(
-                    Self::on_optimization_not_found(
-                        &self.policy,
-                        stream,
-                        store,
-                        mode,
-                        num_explored,
-                    ),
-                    handles,
+                let id = Self::on_optimization_not_found(
+                    &self.policy,
+                    item.operations(),
                     store,
+                    mode,
+                    num_explored,
                 );
-                self.reset(store, stream);
+                item.execute(id, store);
+                self.reset(store, item.operations());
             }
             ExplorerResult::Continue => {
                 if let ExecutionMode::Sync = mode {
@@ -122,49 +121,46 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 
-    fn reset(&mut self, store: &mut ExplorationStore<B::Optimization>, stream: &Stream<B>) {
-        self.explorer.reset(&stream.relative);
+    fn reset(&mut self, store: &mut ExplorationStore<O>, stream: &[OperationDescription]) {
+        self.explorer.reset(stream);
         self.policy.reset();
 
         // Reset the policy state.
-        for i in 0..stream.relative.len() {
-            self.policy.update(store, &stream.relative[i]);
+        for i in 0..stream.len() {
+            self.policy.update(store, &stream[i]);
         }
     }
 
     fn action(
         &mut self,
-        store: &ExplorationStore<B::Optimization>,
-        stream: &Stream<B>,
+        store: &ExplorationStore<O>,
+        stream: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
         if let ExecutionMode::Lazy = mode {
             // We update the policy in lazy mode, since
             self.policy.update(
                 store,
-                &stream
-                    .relative
-                    .last()
-                    .expect("At least on operation in the stream."),
+                &stream.last().expect("At least on operation in the stream."),
             );
         };
 
-        self.policy.action(store, stream.relative.as_slice(), mode)
+        self.policy.action(store, stream, mode)
     }
 
     fn on_optimization_found(
-        policy: &Policy<B::Optimization>,
-        stream: &Stream<B>,
-        store: &mut ExplorationStore<B::Optimization>,
-        builder: &dyn OptimizationBuilder<B::Optimization>,
+        policy: &Policy<O>,
+        stream: &[OperationDescription],
+        store: &mut ExplorationStore<O>,
+        builder: &dyn OptimizationBuilder<O>,
         mode: ExecutionMode,
     ) -> ExplorationId {
         let num_fused = builder.len();
-        let relative = &stream.relative[0..num_fused];
+        let relative = &stream[0..num_fused];
 
         match mode {
             ExecutionMode::Lazy => {
-                let next_ops = &stream.relative[num_fused];
+                let next_ops = &stream[num_fused];
                 let criterion = StopCriterion::OnOperation(next_ops.clone());
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
@@ -185,7 +181,7 @@ impl<B: FusionBackend> Processor<B> {
                     id
                 }
                 _ => store.add(Exploration {
-                    stream: stream.relative.clone(),
+                    stream: stream.to_vec(),
                     criteria: vec![StopCriterion::OnSync],
                     execution: ExecutionStrategy::Optimization(builder.build()),
                 }),
@@ -194,13 +190,13 @@ impl<B: FusionBackend> Processor<B> {
     }
 
     fn on_optimization_not_found(
-        policy: &Policy<B::Optimization>,
-        stream: &Stream<B>,
-        store: &mut ExplorationStore<B::Optimization>,
+        policy: &Policy<O>,
+        stream: &[OperationDescription],
+        store: &mut ExplorationStore<O>,
         mode: ExecutionMode,
         num_explored: usize,
     ) -> ExplorationId {
-        let relative = &stream.relative[0..num_explored];
+        let relative = &stream[0..num_explored];
         let criterion = match mode {
             ExecutionMode::Lazy => StopCriterion::Always,
             ExecutionMode::Sync => StopCriterion::OnSync,
