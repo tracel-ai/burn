@@ -1,3 +1,9 @@
+/// This build script does the following:
+/// 1. Loads PyTorch weights into a model record.
+/// 2. Saves the model record to a file using the `NamedMpkFileRecorder`.
+///
+/// The model source code is included directly in this build script because
+/// it cannot be imported from the crate directly.
 use std::env;
 use std::path::Path;
 
