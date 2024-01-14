@@ -5,6 +5,7 @@ use crate::{stream::Stream, FusionBackend, OptimizationBuilder, OptimizationStat
 pub struct Explorer<B: FusionBackend> {
     builders: Vec<Box<dyn OptimizationBuilder<B>>>,
     num_deferred: usize,
+    num_explored: usize,
 }
 
 /// The result of an exploration.
@@ -12,7 +13,7 @@ pub struct Explorer<B: FusionBackend> {
 /// Either a new optimization is found, or we just continue to explore further.
 pub enum ExplorerResult<'a, B: FusionBackend> {
     Found(&'a dyn OptimizationBuilder<B>),
-    NotFound,
+    NotFound { num_explored: usize },
     Continue,
 }
 
@@ -21,6 +22,7 @@ impl<B: FusionBackend> Explorer<B> {
         Self {
             builders: optimizations,
             num_deferred: 0,
+            num_explored: 0,
         }
     }
 
@@ -44,26 +46,36 @@ impl<B: FusionBackend> Explorer<B> {
             ExecutionMode::Sync => 0,
         };
 
+        let mut is_still_optimizing = still_optimizing(&self.builders);
+
         for i in (0..self.num_deferred + offset).rev() {
+            if !is_still_optimizing {
+                break;
+            }
             let index = stream.relative.len() - 1 - i;
             let relative = &stream.relative[index];
 
             for builder in self.builders.iter_mut() {
                 builder.register(relative);
             }
+            self.num_explored += 1;
+
+            is_still_optimizing = still_optimizing(&self.builders);
         }
         self.num_deferred = 0;
 
         // Can only be lazy when not sync.
         if let ExecutionMode::Lazy = mode {
-            if still_optimizing(&self.builders) {
+            if is_still_optimizing {
                 return ExplorerResult::Continue;
             }
         }
 
         match find_best_optimization_index(&mut self.builders) {
             Some(index) => ExplorerResult::Found(self.builders[index].as_ref()),
-            None => ExplorerResult::NotFound,
+            None => ExplorerResult::NotFound {
+                num_explored: self.num_explored,
+            },
         }
     }
 
@@ -71,6 +83,7 @@ impl<B: FusionBackend> Explorer<B> {
         for ops in self.builders.iter_mut() {
             ops.reset();
         }
+        self.num_explored = 0;
         self.num_deferred = stream.relative.len();
     }
 }

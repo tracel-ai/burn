@@ -107,6 +107,10 @@ where
         WgpuOptimization::ElementWise(op.compile())
     }
 
+    fn len(&self) -> usize {
+        self.operators.len()
+    }
+
     fn reset(&mut self) {
         self.inputs.clear();
         self.locals.drain();

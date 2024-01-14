@@ -76,8 +76,7 @@ impl<O> ExplorationStore<O> {
         }
 
         let id = self.items.len();
-        log::info!("New exploration {id}");
-
+        log::info!("New exploration {id} for stream size {:?}", exploration.stream);
         self.index.insert(InsertQuery::NewOptimization {
             stream: &exploration.stream,
             id,
@@ -97,7 +96,11 @@ impl<O> ExplorationStore<O> {
     }
 
     /// Add a new end condition for an optimization.
-    pub fn add_stop_criterion(&mut self, id: ExplorationId, criteria: StopCriterion) {
-        self.items[id].criteria.push(criteria)
+    pub fn add_stop_criterion(&mut self, id: ExplorationId, criterion: StopCriterion) {
+        let criteria = &mut self.items[id].criteria;
+
+        if !criteria.contains(&criterion) {
+            criteria.push(criterion);
+        }
     }
 }

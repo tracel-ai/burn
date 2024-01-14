@@ -80,9 +80,15 @@ impl<B: FusionBackend> Processor<B> {
                 );
                 self.reset(store, stream);
             }
-            ExplorerResult::NotFound => {
+            ExplorerResult::NotFound { num_explored } => {
                 stream.execute(
-                    Self::on_optimization_not_found(&self.policy, stream, store, mode),
+                    Self::on_optimization_not_found(
+                        &self.policy,
+                        stream,
+                        store,
+                        mode,
+                        num_explored,
+                    ),
                     handles,
                     store,
                 );
@@ -131,13 +137,13 @@ impl<B: FusionBackend> Processor<B> {
         builder: &dyn OptimizationBuilder<B>,
         mode: ExecutionMode,
     ) -> ExplorationId {
+        let num_fused = builder.len();
+        let relative = &stream.relative[0..num_fused];
+
         match mode {
             ExecutionMode::Lazy => {
-                let (relative, next_ops) = stream.split_relative_stream();
-                let next_ops = next_ops
-                    .expect("Should elways have a next_operation when adding a new optimization in Lazy mode")
-                    .clone();
-                let criterion = StopCriterion::OnOperation(next_ops);
+                let next_ops = &stream.relative[num_fused];
+                let criterion = StopCriterion::OnOperation(next_ops.clone());
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
                     Action::Execute(id) => {
@@ -151,19 +157,17 @@ impl<B: FusionBackend> Processor<B> {
                     }),
                 }
             }
-            ExecutionMode::Sync => {
-                match policy.action(store, &stream.relative, ExecutionMode::Sync) {
-                    Action::Execute(id) => {
-                        store.add_stop_criterion(id, StopCriterion::OnSync);
-                        id
-                    }
-                    _ => store.add(Exploration {
-                        stream: stream.relative.clone(),
-                        criteria: vec![StopCriterion::OnSync],
-                        execution: ExecutionStrategy::Optimization(builder.build()),
-                    }),
+            ExecutionMode::Sync => match policy.action(store, &relative, ExecutionMode::Sync) {
+                Action::Execute(id) => {
+                    store.add_stop_criterion(id, StopCriterion::OnSync);
+                    id
                 }
-            }
+                _ => store.add(Exploration {
+                    stream: stream.relative.clone(),
+                    criteria: vec![StopCriterion::OnSync],
+                    execution: ExecutionStrategy::Optimization(builder.build()),
+                }),
+            },
         }
     }
 
@@ -172,18 +176,21 @@ impl<B: FusionBackend> Processor<B> {
         stream: &Stream<B>,
         store: &mut ExplorationStore<B::Optimization>,
         mode: ExecutionMode,
+        num_explored: usize,
     ) -> ExplorationId {
+        let relative = &stream.relative[0..num_explored];
         let criterion = match mode {
             ExecutionMode::Lazy => StopCriterion::Always,
             ExecutionMode::Sync => StopCriterion::OnSync,
         };
-        match policy.action(store, &stream.relative, ExecutionMode::Sync) {
+
+        match policy.action(store, &relative, ExecutionMode::Sync) {
             Action::Execute(id) => {
                 store.add_stop_criterion(id, criterion);
                 id
             }
             _ => store.add(Exploration {
-                stream: stream.relative.clone(),
+                stream: relative.to_vec(),
                 criteria: vec![criterion],
                 execution: ExecutionStrategy::Operations,
             }),

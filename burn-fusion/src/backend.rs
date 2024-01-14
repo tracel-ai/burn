@@ -92,6 +92,8 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
     fn status(&self) -> OptimizationStatus;
     /// Return the builder [properties](OptimizationProperties).
     fn properties(&self) -> OptimizationProperties;
+    /// The number of operation fused.
+    fn len(&self) -> usize;
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
