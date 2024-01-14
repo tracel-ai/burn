@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::error::Error;
 use tracing_core::LevelFilter;
 
