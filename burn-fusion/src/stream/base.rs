@@ -4,14 +4,14 @@ use super::RelativeStreamConverter;
 use crate::FusionBackend;
 
 /// A growing list of [tensor operation descriptions](TensorOpsDescription).
-pub struct Stream<B: FusionBackend> {
+pub struct OperationQueue<B: FusionBackend> {
     pub(crate) global: Vec<OperationDescription>,
     pub(crate) relative: Vec<OperationDescription>,
     pub(crate) converter: RelativeStreamConverter,
     pub(crate) operations: Vec<Box<dyn Operation<B>>>,
 }
 
-impl<B: FusionBackend> Stream<B> {
+impl<B: FusionBackend> OperationQueue<B> {
     /// Create a new empty stream.
     pub fn new() -> Self {
         Self {

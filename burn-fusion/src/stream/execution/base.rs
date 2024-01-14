@@ -1,7 +1,7 @@
 use crate::{
     stream::{
         store::{ExecutionStrategy, ExplorationId, ExplorationStore},
-        Stream,
+        OperationQueue,
     },
     FusionBackend, HandleContainer, Optimization,
 };
@@ -12,7 +12,7 @@ pub(crate) enum ExecutionMode {
     Sync,
 }
 
-impl<B: FusionBackend> Stream<B> {
+impl<B: FusionBackend> OperationQueue<B> {
     /// Execute the stream.
     ///
     /// If an [optimization id](OptimizationId) is provided, use it to execute the stream partially, otherwise

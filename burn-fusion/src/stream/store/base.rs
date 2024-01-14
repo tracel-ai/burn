@@ -10,7 +10,7 @@ pub(crate) struct ExplorationStore<O> {
 }
 
 /// How a stream should be executed.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optmization was found for this stream, and therefore should be executed.
     Optimization(O),
@@ -43,6 +43,7 @@ pub(crate) struct Exploration<O> {
 impl<O> Exploration<O> {
     /// Whether exploration should be stop in an async mode.
     pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
+        println!("Should stop async.");
         for item in self.criteria.iter() {
             match item {
                 StopCriterion::OnOperation(val) => {

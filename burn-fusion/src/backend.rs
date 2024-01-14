@@ -83,7 +83,7 @@ pub struct OptimizationProperties {
 /// improve the performance.
 pub trait OptimizationBuilder<O>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
-    fn register(&mut self, ops: &OperationDescription);
+    fn register(&mut self, operation: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> O;
     /// Reset the state.

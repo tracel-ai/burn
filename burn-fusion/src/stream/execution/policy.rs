@@ -48,6 +48,7 @@ impl<O> Policy<O> {
         stream: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
+        println!("Candidates {:?}", self.candidates);
         if self.stream_size < stream.len() {
             panic!("Internal Error: Can't retrieve the policy action when the number of operations analyzed is lower than the stream itself.");
         }
@@ -112,12 +113,21 @@ impl<O> Policy<O> {
         optimizations: &ExplorationStore<O>,
         next_ops: &OperationDescription,
     ) {
+        println!("Analyze candidates: stream size {}", self.stream_size);
         // The index starts at zero.
         let mut invalidated_candidates = Vec::new();
 
         for id in self.candidates.iter() {
             let item = optimizations.get_unchecked(*id);
 
+            if item.stream.len() == self.stream_size + 1 {
+                if item.stream.last().unwrap() == next_ops {
+                    if item.criteria.contains(&crate::stream::store::StopCriterion::Always) {
+                        self.found = Some((*id, item.stream.len()));
+                        break;
+                    }
+                }
+            }
             if item.stream.len() == self.stream_size {
                 if item.should_stop_async(next_ops) {
                     self.found = Some((*id, item.stream.len()));
@@ -174,294 +184,306 @@ pub enum Action {
     Execute(ExplorationId),
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::{
-//         stream::{
-//             store::{OptimizationItem, OptimizationKind},
-//             FloatOpsDescription, UnaryOpsDescription,
-//         },
-//         TensorDescription, TensorId, TensorStatus,
-//     };
-//     use std::ops::Range;
-//
-//     #[test]
-//     fn given_no_optimization_should_explore() {
-//         let store = OptimizationStore::default();
-//         let mut policy = Policy::new();
-//         let stream = TestStream::new(3);
-//
-//         stream.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(0..3),
-//             Action::Explore,
-//         );
-//     }
-//
-//     #[test]
-//     fn given_existing_optimization_when_sync_should_execute_optim() {
-//         let mut store = OptimizationStore::default();
-//         let mut policy = Policy::new();
-//         let stream = TestStream::new(2);
-//
-//         let id = store.add(OptimizationItem {
-//             stream: stream.operations.clone(),
-//             stopping_criteria: Vec::new(),
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//
-//         stream.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(0..2),
-//             Action::Defer,
-//         );
-//
-//         let action = policy.action(&store, &stream.operations, ExecutionMode::Sync);
-//         assert_eq!(action, Action::Execute(id));
-//     }
-//
-//     #[test]
-//     fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
-//         let mut store = OptimizationStore::default();
-//         let mut policy = Policy::new();
-//
-//         let stream = TestStream::new(3);
-//         let id = store.add(OptimizationItem {
-//             stream: stream.operations[0..2].to_vec(),
-//             stopping_criteria: stream.operations[2..3].to_vec(),
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//
-//         stream.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(0..2),
-//             Action::Defer,
-//         );
-//         stream.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(2..3),
-//             Action::Execute(id),
-//         );
-//     }
-//
-//     #[test]
-//     fn should_support_multiple_end_conditions() {
-//         let mut store = OptimizationStore::default();
-//         let mut policy_1 = Policy::new();
-//         let mut policy_2 = Policy::new();
-//
-//         let mut stream_1 = TestStream::new(2);
-//         let mut stream_2 = TestStream::new(2);
-//
-//         // Create different end operation for each stream.
-//         let end_condition_id_1 = 5;
-//         let end_condition_id_2 = 5;
-//         stream_1.new_ops(end_condition_id_1);
-//         stream_2.new_ops(end_condition_id_2);
-//
-//         let id = store.add(OptimizationItem {
-//             stream: stream_1.operations[0..2].to_vec(),
-//             stopping_criteria: vec![
-//                 stream_1.operations[2].clone(),
-//                 stream_2.operations[2].clone(),
-//             ],
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//
-//         stream_1.assert_updates(
-//             &store,
-//             &mut policy_1,
-//             AssertUpdatesOptions::OperationsIndex(0..2),
-//             Action::Defer,
-//         );
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy_2,
-//             AssertUpdatesOptions::OperationsIndex(0..2),
-//             Action::Defer,
-//         );
-//
-//         stream_1.assert_updates(
-//             &store,
-//             &mut policy_1,
-//             AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
-//             Action::Execute(id),
-//         );
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy_2,
-//             AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
-//             Action::Execute(id),
-//         );
-//     }
-//
-//     #[test]
-//     fn should_select_right_optimization() {
-//         let mut store = OptimizationStore::default();
-//         let mut policy_1 = Policy::new();
-//         let mut policy_2 = Policy::new();
-//
-//         let mut stream_1 = TestStream::new(2);
-//         let mut stream_2 = TestStream::new(2);
-//
-//         // Create different streams after op 2.
-//         stream_1.new_ops(4);
-//         stream_1.new_ops(5);
-//
-//         stream_2.new_ops(5);
-//         stream_2.new_ops(6);
-//
-//         let optimization_stream_1 = store.add(OptimizationItem {
-//             stream: stream_1.operations[0..3].to_vec(),
-//             stopping_criteria: stream_1.operations[3..4].to_vec(),
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//         let optimization_stream_2 = store.add(OptimizationItem {
-//             stream: stream_2.operations[0..3].to_vec(),
-//             stopping_criteria: stream_2.operations[3..4].to_vec(),
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//         assert_ne!(optimization_stream_1, optimization_stream_2);
-//
-//         stream_1.assert_updates(
-//             &store,
-//             &mut policy_1,
-//             AssertUpdatesOptions::OperationsIndex(0..3),
-//             Action::Defer,
-//         );
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy_2,
-//             AssertUpdatesOptions::OperationsIndex(0..3),
-//             Action::Defer,
-//         );
-//
-//         stream_1.assert_updates(
-//             &store,
-//             &mut policy_1,
-//             AssertUpdatesOptions::OperationsIndex(3..4),
-//             Action::Execute(optimization_stream_1),
-//         );
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy_2,
-//             AssertUpdatesOptions::OperationsIndex(3..4),
-//             Action::Execute(optimization_stream_2),
-//         );
-//     }
-//
-//     #[test]
-//     fn should_invalidate_wrong_optimizations() {
-//         let mut store = OptimizationStore::default();
-//         let stream_1 = TestStream::new(4);
-//         let mut stream_2 = TestStream::new(2);
-//         stream_2.new_ops(6);
-//         stream_2.new_ops(7);
-//
-//         store.add(OptimizationItem {
-//             stream: stream_1.operations[0..3].to_vec(),
-//             stopping_criteria: stream_1.operations[3..4].to_vec(),
-//             value: OptimizationKind::ExecuteIndividualOps,
-//         });
-//
-//         let mut policy = Policy::new();
-//         // Same path as stream 1
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(0..2),
-//             Action::Defer,
-//         );
-//
-//         // But is different.
-//         stream_2.assert_updates(
-//             &store,
-//             &mut policy,
-//             AssertUpdatesOptions::OperationsIndex(2..4),
-//             Action::Explore,
-//         );
-//     }
-//
-//     #[derive(Default, Debug)]
-//     struct TestStream {
-//         tensors: Vec<TensorDescription>,
-//         operations: Vec<TensorOpsDescription>,
-//     }
-//
-//     #[derive(Debug)]
-//     enum AssertUpdatesOptions {
-//         OperationsIndex(Range<usize>),
-//     }
-//
-//     impl TestStream {
-//         /// Create a new test stream with `num_ops` operations registered.
-//         pub fn new(num_ops: usize) -> Self {
-//             let mut stream = Self::default();
-//             for id in 0..num_ops {
-//                 stream.new_ops(id as u64 + 1);
-//             }
-//
-//             stream
-//         }
-//
-//         /// The first follow should only be cache miss.
-//         pub fn assert_updates(
-//             &self,
-//             optimizations: &OptimizationStore<()>,
-//             policy: &mut Policy<()>,
-//             options: AssertUpdatesOptions,
-//             action: Action,
-//         ) {
-//             match options {
-//                 AssertUpdatesOptions::OperationsIndex(range) => {
-//                     for i in range {
-//                         let stream = &self.operations[0..i];
-//                         let next_ops = &self.operations[i];
-//                         policy.update(optimizations, next_ops);
-//                         let result = policy.action(optimizations, stream, ExecutionMode::Lazy);
-//
-//                         assert_eq!(result, action);
-//                     }
-//                 }
-//             }
-//         }
-//
-//         /// Add a simple operation to the stream.
-//         pub fn new_ops(&mut self, out_id: u64) {
-//             if self.tensors.is_empty() {
-//                 // Root node.
-//                 self.new_empty_node(0);
-//             }
-//
-//             // Out node.
-//             self.new_empty_node(out_id);
-//
-//             self.operations
-//                 .push(TensorOpsDescription::FloatOps(FloatOpsDescription::Log(
-//                     self.unary_description(),
-//                 )));
-//         }
-//
-//         fn new_empty_node(&mut self, id: u64) {
-//             self.tensors.push(TensorDescription {
-//                 id: TensorId::new(id),
-//                 shape: vec![32, 32, 1],
-//                 status: TensorStatus::NotInit,
-//             });
-//         }
-//
-//         fn unary_description(&self) -> UnaryOpsDescription {
-//             let size = self.tensors.len();
-//
-//             UnaryOpsDescription {
-//                 input: self.tensors[size - 2].clone(),
-//                 out: self.tensors[size - 1].clone(),
-//             }
-//         }
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        stream::{
+            store::{ExecutionStrategy, Exploration, StopCriterion},
+            FloatOperationDescription, UnaryOperationDescription,
+        },
+        TensorDescription, TensorId, TensorStatus,
+    };
+    use std::ops::Range;
+
+    #[test]
+    fn given_no_optimization_should_explore() {
+        let store = ExplorationStore::default();
+        let mut policy = Policy::new();
+        let stream = TestStream::new(3);
+
+        stream.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            Action::Explore,
+        );
+    }
+
+    #[test]
+    fn given_existing_optimization_when_sync_should_execute_optim() {
+        let mut store = ExplorationStore::default();
+        let mut policy = Policy::new();
+        let stream = TestStream::new(2);
+
+        let id = store.add(Exploration {
+            stream: stream.operations.clone(),
+            criteria: Vec::new(),
+            execution: ExecutionStrategy::Operations,
+        });
+
+        stream.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            Action::Defer,
+        );
+
+        let action = policy.action(&store, &stream.operations, ExecutionMode::Sync);
+        assert_eq!(action, Action::Execute(id));
+    }
+
+    #[test]
+    fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
+        let mut store = ExplorationStore::default();
+        let mut policy = Policy::new();
+
+        let stream = TestStream::new(3);
+        let id = store.add(Exploration {
+            stream: stream.operations[0..2].to_vec(),
+            criteria: stream.operations[2..3]
+                .iter()
+                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .collect(),
+            execution: ExecutionStrategy::Operations,
+        });
+
+        stream.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            Action::Defer,
+        );
+        stream.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(2..3),
+            Action::Execute(id),
+        );
+    }
+
+    #[test]
+    fn should_support_multiple_end_conditions() {
+        let mut store = ExplorationStore::default();
+        let mut policy_1 = Policy::new();
+        let mut policy_2 = Policy::new();
+
+        let mut stream_1 = TestStream::new(2);
+        let mut stream_2 = TestStream::new(2);
+
+        // Create different end operation for each stream.
+        let end_condition_id_1 = 5;
+        let end_condition_id_2 = 5;
+        stream_1.new_ops(end_condition_id_1);
+        stream_2.new_ops(end_condition_id_2);
+
+        let id = store.add(Exploration {
+            stream: stream_1.operations[0..2].to_vec(),
+            criteria: vec![
+                StopCriterion::OnOperation(stream_1.operations[2].clone()),
+                StopCriterion::OnOperation(stream_2.operations[2].clone()),
+            ],
+            execution: ExecutionStrategy::Operations,
+        });
+
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            Action::Defer,
+        );
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            Action::Defer,
+        );
+
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
+            AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
+            Action::Execute(id),
+        );
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
+            AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
+            Action::Execute(id),
+        );
+    }
+
+    #[test]
+    fn should_select_right_optimization() {
+        let mut store = ExplorationStore::default();
+        let mut policy_1 = Policy::new();
+        let mut policy_2 = Policy::new();
+
+        let mut stream_1 = TestStream::new(2);
+        let mut stream_2 = TestStream::new(2);
+
+        // Create different streams after op 2.
+        stream_1.new_ops(4);
+        stream_1.new_ops(5);
+
+        stream_2.new_ops(5);
+        stream_2.new_ops(6);
+
+        let optimization_stream_1 = store.add(Exploration {
+            stream: stream_1.operations[0..3].to_vec(),
+            criteria: stream_1.operations[3..4]
+                .iter()
+                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .collect(),
+            execution: ExecutionStrategy::Operations,
+        });
+        let optimization_stream_2 = store.add(Exploration {
+            stream: stream_2.operations[0..3].to_vec(),
+            criteria: stream_2.operations[3..4]
+                .iter()
+                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .collect(),
+            execution: ExecutionStrategy::Operations,
+        });
+        assert_ne!(optimization_stream_1, optimization_stream_2);
+
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            Action::Defer,
+        );
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
+            AssertUpdatesOptions::OperationsIndex(0..3),
+            Action::Defer,
+        );
+
+        stream_1.assert_updates(
+            &store,
+            &mut policy_1,
+            AssertUpdatesOptions::OperationsIndex(3..4),
+            Action::Execute(optimization_stream_1),
+        );
+        stream_2.assert_updates(
+            &store,
+            &mut policy_2,
+            AssertUpdatesOptions::OperationsIndex(3..4),
+            Action::Execute(optimization_stream_2),
+        );
+    }
+
+    #[test]
+    fn should_invalidate_wrong_optimizations() {
+        let mut store = ExplorationStore::default();
+        let stream_1 = TestStream::new(4);
+        let mut stream_2 = TestStream::new(2);
+        stream_2.new_ops(6);
+        stream_2.new_ops(7);
+
+        store.add(Exploration {
+            stream: stream_1.operations[0..3].to_vec(),
+            criteria: stream_1.operations[3..4]
+                .iter()
+                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .collect(),
+            execution: ExecutionStrategy::Operations,
+        });
+
+        let mut policy = Policy::new();
+        // Same path as stream 1
+        stream_2.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(0..2),
+            Action::Defer,
+        );
+
+        // But is different.
+        stream_2.assert_updates(
+            &store,
+            &mut policy,
+            AssertUpdatesOptions::OperationsIndex(2..4),
+            Action::Explore,
+        );
+    }
+
+    #[derive(Default, Debug)]
+    struct TestStream {
+        tensors: Vec<TensorDescription>,
+        operations: Vec<OperationDescription>,
+    }
+
+    #[derive(Debug)]
+    enum AssertUpdatesOptions {
+        OperationsIndex(Range<usize>),
+    }
+
+    impl TestStream {
+        /// Create a new test stream with `num_ops` operations registered.
+        pub fn new(num_ops: usize) -> Self {
+            let mut stream = Self::default();
+            for id in 0..num_ops {
+                stream.new_ops(id as u64 + 1);
+            }
+
+            stream
+        }
+
+        /// The first follow should only be cache miss.
+        pub fn assert_updates(
+            &self,
+            optimizations: &ExplorationStore<()>,
+            policy: &mut Policy<()>,
+            options: AssertUpdatesOptions,
+            action: Action,
+        ) {
+            match options {
+                AssertUpdatesOptions::OperationsIndex(range) => {
+                    for i in range {
+                        let stream = &self.operations[0..i];
+                        let next_ops = &self.operations[i];
+                        policy.update(optimizations, next_ops);
+                        let result = policy.action(optimizations, stream, ExecutionMode::Lazy);
+
+                        assert_eq!(result, action);
+                    }
+                }
+            }
+        }
+
+        /// Add a simple operation to the stream.
+        pub fn new_ops(&mut self, out_id: u64) {
+            if self.tensors.is_empty() {
+                // Root node.
+                self.new_empty_node(0);
+            }
+
+            // Out node.
+            self.new_empty_node(out_id);
+
+            self.operations
+                .push(OperationDescription::Float(FloatOperationDescription::Log(
+                    self.unary_description(),
+                )));
+        }
+
+        fn new_empty_node(&mut self, id: u64) {
+            self.tensors.push(TensorDescription {
+                id: TensorId::new(id),
+                shape: vec![32, 32, 1],
+                status: TensorStatus::NotInit,
+            });
+        }
+
+        fn unary_description(&self) -> UnaryOperationDescription {
+            let size = self.tensors.len();
+
+            UnaryOperationDescription {
+                input: self.tensors[size - 2].clone(),
+                out: self.tensors[size - 1].clone(),
+            }
+        }
+    }
+}
