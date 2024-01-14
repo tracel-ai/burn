@@ -52,13 +52,6 @@ impl NestedValue {
         }
     }
 
-    pub fn get_vec(&self) -> Option<&Vec<NestedValue>> {
-        match self {
-            NestedValue::Vec(vec) => Some(vec),
-            _ => None,
-        }
-    }
-
     pub fn get_string(&self) -> Option<&str> {
         match self {
             NestedValue::String(string) => Some(string),
