@@ -39,6 +39,7 @@ fusion = ["burn-core/fusion"]
 
 ## Backend features
 cuda = ["burn-core/cuda"]
+metal = ["burn-core/metal"]
 accelerate = ["burn-core/accelerate"]
 openblas = ["burn-core/openblas"]
 openblas-system = ["burn-core/openblas-system"]
@@ -73,5 +74,5 @@ features = [
     "wgpu",
     "candle",
     "fusion",
-    "experimental-named-tensor"
+    "experimental-named-tensor",
 ]

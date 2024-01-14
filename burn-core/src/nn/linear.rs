@@ -37,12 +37,6 @@ pub struct Linear<B: Backend> {
 }
 
 impl LinearConfig {
-    /// Initialize a new [linear](Linear) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Linear<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
         let shape = [self.d_input, self.d_output];
@@ -105,7 +99,8 @@ mod tests {
 
         let config = LinearConfig::new(5, 5);
         let k = sqrt(1.0 / config.d_input as f64) as f32;
-        let linear = config.init_devauto::<TestBackend>();
+        let device = Default::default();
+        let linear = config.init::<TestBackend>(&device);
 
         assert_eq!(
             config.initializer,

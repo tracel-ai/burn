@@ -92,11 +92,13 @@ mod tests {
         let options =
             burn_tensor::ops::ConvTransposeOptions::new([1, 1], [1, 1], [0, 0], [1, 1], 1);
 
-        let input = Tensor::<TestBackend, 4>::random_devauto(
+        let test_device = Default::default();
+        let input = Tensor::<TestBackend, 4>::random(
             [batch_size, in_channels, height, width],
             Distribution::Default,
+            &test_device,
         );
-        let weight = Tensor::<TestBackend, 4>::random_devauto(
+        let weight = Tensor::<TestBackend, 4>::random(
             [
                 in_channels,
                 out_channels / options.groups,
@@ -104,11 +106,14 @@ mod tests {
                 kernel_size_1,
             ],
             Distribution::Default,
+            &test_device,
         );
-        let bias = Tensor::<TestBackend, 1>::random_devauto([out_channels], Distribution::Default);
-        let input_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(input.to_data());
-        let weight_ref = Tensor::<ReferenceBackend, 4>::from_data_devauto(weight.to_data());
-        let bias_ref = Tensor::<ReferenceBackend, 1>::from_data_devauto(bias.to_data());
+        let bias =
+            Tensor::<TestBackend, 1>::random([out_channels], Distribution::Default, &test_device);
+        let ref_device = Default::default();
+        let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &ref_device);
+        let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
+        let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
         let output = module::conv_transpose2d(input, weight, Some(bias), options.clone());
         let output_ref = module::conv_transpose2d(input_ref, weight_ref, Some(bias_ref), options);

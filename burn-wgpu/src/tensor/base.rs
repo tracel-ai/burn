@@ -1,4 +1,4 @@
-use crate::codegen::{Elem, Operator, Variable};
+use crate::codegen::{Elem, Item, Operator, Variable};
 use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
@@ -102,8 +102,8 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // The solution is just to use a simple unary compute shader.
         unary!(
             operator: |elem: Elem| Operator::AssignLocal {
-                input: Variable::Input(0, elem),
-                out: Variable::Local(0, elem),
+                input: Variable::Input(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem)),
             },
             input: self.clone(),
             elem: E

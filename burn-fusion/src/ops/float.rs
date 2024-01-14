@@ -2,7 +2,9 @@ use crate::{
     binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
     get_client,
-    graph::{
+    ops::binary::binary_ops_shape,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    stream::{
         BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         FloatOpsDescription, GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
         NumericOpsDescription, Ops, RandomOpsDescription, ReduceDimWithIndicesDescription,
@@ -10,9 +12,7 @@ use crate::{
         SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
         SliceOpsDescription, SwapDimsDescription, TensorOpsDescription, UnaryOpsDescription,
     },
-    ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, Fusion,
-    FusionBackend, TensorDescription,
+    unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},

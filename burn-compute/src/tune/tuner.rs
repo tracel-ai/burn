@@ -8,25 +8,26 @@ use core::time::Duration;
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use burn_common::benchmark::{Benchmark, BenchmarkDurations};
+use burn_common::benchmark::{Benchmark, BenchmarkComputations, BenchmarkDurations};
 
 use crate::channel::ComputeChannel;
 use crate::client::ComputeClient;
 use crate::server::ComputeServer;
 use crate::tune::{AutotuneOperation, AutotuneOperationSet, TuneBenchmark, TuneCache};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 /// Executes autotune benchmarking and caching
 pub struct Tuner<S: ComputeServer, C> {
     tune_cache: TuneCache<S::AutotuneKey>,
     _channel: PhantomData<C>,
 }
 
+#[allow(clippy::new_without_default)]
 impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
-    /// Returns a tuner with empty cache
-    pub fn new() -> Self {
+    /// Returns a tuner with cache initialized from persistent cache
+    pub fn new(device_id: &str) -> Self {
         Self {
-            tune_cache: TuneCache::new(),
+            tune_cache: TuneCache::new(device_id),
             _channel: PhantomData,
         }
     }
@@ -53,7 +54,6 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let autotunables = autotune_operation_set.autotunables();
         let mut names = Vec::with_capacity(autotunables.len());
 
-        // Run all autotune benchmarks
         let results: Vec<BenchmarkDurations> = autotunables
             .into_iter()
             .map(|op| {
@@ -62,16 +62,20 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
             })
             .collect();
 
-        for (name, result) in names.iter().zip(results.iter()) {
-            log::info!("Benchmark result {name}-{key} => {result}");
-        }
-
         // Finds the fastest operation, stores it and returns it
         let fastest_index = self.find_fastest(results);
         let fastest_name = names.get(fastest_index).unwrap();
         log::info!("Fastest result {fastest_name}-{key}");
 
-        self.tune_cache.cache_insert(key, fastest_index);
+        self.tune_cache.cache_insert(key.clone(), fastest_index);
+        #[cfg(feature = "autotune-persistent-cache")]
+        {
+            let checksum = autotune_operation_set.compute_checksum();
+            self.tune_cache
+                .persistent_cache_insert(key, checksum, fastest_index);
+            self.tune_cache.save();
+        }
+
         match self.tune_cache.try_cache(autotune_operation_set) {
             super::TuneCacheResult::Hit(ops) => ops,
             super::TuneCacheResult::Miss(_) => panic!("We just inserted, should not miss"),
@@ -91,10 +95,10 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         let mut fastest_tunable = None;
 
         for (i, result) in results.into_iter().enumerate() {
-            let duration = result.median_duration();
+            let computed = BenchmarkComputations::new(&result);
 
-            if duration < smallest_duration {
-                smallest_duration = duration;
+            if computed.median < smallest_duration {
+                smallest_duration = computed.median;
                 fastest_tunable = Some(i);
             }
         }

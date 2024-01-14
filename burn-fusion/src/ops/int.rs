@@ -2,7 +2,9 @@ use crate::{
     binary_int_cmp_ops, binary_int_ops,
     client::FusionClient,
     get_client,
-    graph::{
+    ops::binary::binary_ops_shape,
+    scalar_int_cmp_ops, scalar_int_ops,
+    stream::{
         self, BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
         GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
         NumericOpsDescription, Ops, ReduceDimWithIndicesDescription, ReshapeDescription,
@@ -10,8 +12,7 @@ use crate::{
         SelectOpsDescription, SliceAssignOpsDescription, SliceOpsDescription, SwapDimsDescription,
         TensorOpsDescription, UnaryOpsDescription,
     },
-    ops::binary::binary_ops_shape,
-    scalar_int_cmp_ops, scalar_int_ops, unary_int_ops, Fusion, FusionBackend, TensorDescription,
+    unary_int_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
@@ -61,6 +62,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             return tensor;
         }
 
+        B::sync(&device_original.clone().into());
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
@@ -699,7 +701,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Add(desc.clone())),
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Add(desc.clone())),
             AddOps::<D>::new(desc),
         );
 
@@ -720,7 +722,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::AddScalar(
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::AddScalar(
                 desc.clone(),
             )),
             AddOps::<D>::new(desc),
@@ -745,7 +747,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Sub(desc.clone())),
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Sub(desc.clone())),
             SubOps::<D>::new(desc),
         );
 
@@ -766,7 +768,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SubScalar(
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::SubScalar(
                 desc.clone(),
             )),
             SubOps::<D>::new(desc),
@@ -791,7 +793,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Mul(desc.clone())),
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Mul(desc.clone())),
             MulOps::<D>::new(desc),
         );
 
@@ -812,7 +814,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MulScalar(
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::MulScalar(
                 desc.clone(),
             )),
             MulOps::<D>::new(desc),
@@ -837,7 +839,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Div(desc.clone())),
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::Div(desc.clone())),
             DivOps::<D>::new(desc),
         );
 
@@ -858,7 +860,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            graph::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::DivScalar(
+            stream::TensorOpsDescription::NumericOpsInt(NumericOpsDescription::DivScalar(
                 desc.clone(),
             )),
             DivOps::<D>::new(desc),
@@ -1105,7 +1107,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::IntOps(graph::IntOpsDescription::IntoFloat(desc.clone())),
+            TensorOpsDescription::IntOps(stream::IntOpsDescription::IntoFloat(desc.clone())),
             IntoFloatOps::<D>::new(desc),
         );
 

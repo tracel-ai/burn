@@ -1,100 +1,120 @@
-use std::{
-    collections::HashMap,
-    fs::{create_dir_all, File},
-    path::PathBuf,
-    time::Duration,
-};
+use std::fs;
 
-use burn::tensor::backend::Backend;
+use burn::{
+    serde::{ser::SerializeStruct, Serialize, Serializer},
+    tensor::backend::Backend,
+};
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
 use serde_json;
 
-type BenchmarkCommitResults = HashMap<String, BenchmarkOpResults>;
-type BenchmarkOpResults = HashMap<String, BenchmarkBackendResults>;
-type BenchmarkBackendResults = HashMap<String, StampedBenchmarks>;
-type StampedBenchmarks = HashMap<u128, Vec<Duration>>;
-
-#[derive(Default)]
-pub struct Persistence {
-    results: BenchmarkCommitResults,
+#[derive(Default, Clone)]
+pub struct BenchmarkRecord {
+    backend: String,
+    device: String,
+    results: BenchmarkResult,
 }
 
-impl Persistence {
-    /// Updates the cached backend comparison json file with new benchmarks results.
-    ///
-    /// The file has the following structure:
-    ///
-    ///  {
-    ///    "GIT_COMMIT_HASH":
-    ///      {
-    ///        "BENCHMARK_NAME (OP + SHAPE)": {
-    ///          "BACKEND_NAME-DEVICE": {
-    ///            "TIMESTAMP": \[
-    ///              DURATIONS
-    ///           \]
-    ///         }
-    ///       }
-    ///    }
-    ///  }
-    pub fn persist<B: Backend>(benches: Vec<BenchmarkResult>, device: &B::Device) {
-        for bench in benches.iter() {
-            println!("{}", bench);
-        }
-        let cache_file = dirs::home_dir()
-            .expect("Could not get home directory")
-            .join(".cache")
-            .join("backend-comparison")
-            .join("db.json");
+/// Save the benchmarks results on disk.
+///
+/// The structure is flat so that it can be easily queried from a database
+/// like MongoDB.
+///
+/// ```txt
+///  [
+///    {
+///      "backend": "backend name",
+///      "device": "device name",
+///      "git_hash": "hash",
+///      "name": "benchmark name",
+///      "operation": "operation name",
+///      "shapes": ["shape dimension", "shape dimension", ...],
+///      "timestamp": "timestamp",
+///      "numSamples": "number of samples",
+///      "min": "duration in seconds",
+///      "max": "duration in seconds",
+///      "median": "duration in seconds",
+///      "mean": "duration in seconds",
+///      "variance": "duration in seconds"
+///      "rawDurations": ["duration 1", "duration 2", ...],
+///    },
+///    { ... }
+/// ]
+/// ```
+pub fn save<B: Backend>(
+    benches: Vec<BenchmarkResult>,
+    device: &B::Device,
+) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
+    let cache_dir = dirs::home_dir()
+        .expect("Home directory should exist")
+        .join(".cache")
+        .join("burn")
+        .join("backend-comparison");
 
-        let mut cache = Self::load(&cache_file);
-        cache.update::<B>(device, benches);
-        cache.save(&cache_file);
-        println!("Persisting to {:?}", cache_file);
+    if !cache_dir.exists() {
+        fs::create_dir_all(&cache_dir)?;
     }
 
-    /// Load the cache from disk.
-    fn load(path: &PathBuf) -> Self {
-        let results = match File::open(path) {
-            Ok(file) => serde_json::from_reader(file)
-                .expect("Should have parsed to BenchmarkCommitResults struct"),
-            Err(_) => HashMap::default(),
-        };
+    let records: Vec<BenchmarkRecord> = benches
+        .into_iter()
+        .map(|bench| BenchmarkRecord {
+            backend: B::name().to_string(),
+            device: format!("{:?}", device),
+            results: bench,
+        })
+        .collect();
 
-        Self { results }
+    for record in records.clone() {
+        let file_name = format!(
+            "bench_{}_{}.json",
+            record.results.name, record.results.timestamp
+        );
+        let file_path = cache_dir.join(file_name);
+        let file = fs::File::create(file_path).expect("Benchmark file should exist or be created");
+        serde_json::to_writer_pretty(file, &record)
+            .expect("Benchmark file should be updated with benchmark results");
     }
 
-    /// Save the cache on disk.
-    fn save(&self, path: &PathBuf) {
-        if let Some(parent) = path.parent() {
-            create_dir_all(parent).expect("Unable to create directory");
-        }
-        let file = File::create(path).expect("Unable to create backend comparison file");
+    Ok(records)
+}
 
-        serde_json::to_writer_pretty(file, &self.results)
-            .expect("Unable to write to backend comparison file");
-    }
+/// Macro to easily serialize each field in a flatten manner.
+/// This macro automatically computes the number of fields to serialize
+/// and allows specifying a custom serialization key for each field.
+macro_rules! serialize_fields {
+    ($serializer:expr, $record:expr, $(($key:expr, $field:expr)),*) => {{
+        // Hacky way to get the fields count
+        let fields_count = [ $(stringify!($key),)+ ].len();
+        let mut state = $serializer.serialize_struct("BenchmarkRecord", fields_count)?;
+        $(
+            state.serialize_field($key, $field)?;
+        )*
+            state.end()
+    }};
+}
 
-    /// Update the cache with the given [benchmark results](BenchmarkResult).
-    ///
-    /// Assumes only that benches share the same backend and device.
-    /// It could run faster if we assumed they have the same git hash
-    fn update<B: Backend>(&mut self, device: &B::Device, benches: Vec<BenchmarkResult>) {
-        let backend_key = format!("{}-{:?}", B::name(), device);
-
-        for bench in benches {
-            let mut benchmark_op_results = self.results.remove(&bench.git_hash).unwrap_or_default();
-            let mut benchmark_backend_results =
-                benchmark_op_results.remove(&bench.name).unwrap_or_default();
-
-            let mut stamped_benchmarks = benchmark_backend_results
-                .remove(&backend_key)
-                .unwrap_or_default();
-
-            stamped_benchmarks.insert(bench.timestamp, bench.durations.durations);
-            benchmark_backend_results.insert(backend_key.clone(), stamped_benchmarks);
-            benchmark_op_results.insert(bench.name, benchmark_backend_results);
-            self.results.insert(bench.git_hash, benchmark_op_results);
-        }
+impl Serialize for BenchmarkRecord {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serialize_fields!(
+            serializer,
+            self,
+            ("backend", &self.backend),
+            ("device", &self.device),
+            ("gitHash", &self.results.git_hash),
+            ("max", &self.results.computed.max.as_micros()),
+            ("mean", &self.results.computed.mean.as_micros()),
+            ("median", &self.results.computed.median.as_micros()),
+            ("min", &self.results.computed.min.as_micros()),
+            ("name", &self.results.name),
+            ("numSamples", &self.results.raw.durations.len()),
+            ("options", &self.results.options),
+            ("rawDurations", &self.results.raw.durations),
+            ("shapes", &self.results.shapes),
+            ("timestamp", &self.results.timestamp),
+            ("variance", &self.results.computed.variance.as_micros())
+        )
     }
 }

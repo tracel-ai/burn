@@ -62,13 +62,6 @@ pub struct ConvTranspose1d<B: Backend> {
 }
 
 impl ConvTranspose1dConfig {
-    /// Initialize a new [conv transpose 1d](ConvTranspose1d) module
-    /// on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> ConvTranspose1d<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [conv transpose 1d](ConvTranspose1d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> ConvTranspose1d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
@@ -155,7 +148,7 @@ mod tests {
         let config = ConvTranspose1dConfig::new([5, 1], 5);
         let k = (config.channels[1] * config.kernel_size) as f64;
         let k = sqrt(config.groups as f64 / k) as f32;
-        let conv = config.init_devauto::<TestBackend>();
+        let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
     }

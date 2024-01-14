@@ -1,5 +1,5 @@
 use super::FusionClient;
-use crate::{graph::TensorOpsDescription, FusionBackend, FusionServer, FusionTensor, Handle};
+use crate::{stream::TensorOpsDescription, FusionBackend, FusionServer, FusionTensor, Handle};
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ where
         }
     }
 
-    fn register<O: crate::graph::Ops<Self::FusionBackend> + 'static>(
+    fn register<O: crate::stream::Ops<Self::FusionBackend> + 'static>(
         &self,
         description: TensorOpsDescription,
         ops: O,
@@ -46,8 +46,8 @@ where
         self.server.lock().register(description, Box::new(ops))
     }
 
-    fn drain_graph(&self) {
-        self.server.lock().drain_graph();
+    fn drain(&self) {
+        self.server.lock().drain_streams();
     }
 
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
@@ -101,14 +101,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_streams();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_float::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_float::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }
@@ -119,14 +119,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_streams();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_int::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_int::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }
@@ -138,14 +138,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_streams();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_bool::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_bool::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }
