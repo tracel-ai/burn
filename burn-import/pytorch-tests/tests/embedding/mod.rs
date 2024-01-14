@@ -25,20 +25,15 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-
-    use std::{env, path::Path};
-
-    use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
     #[test]
     fn embedding() {
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/embedding");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/embedding/embedding.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);

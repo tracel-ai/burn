@@ -85,10 +85,12 @@ impl BurnModuleAdapter for PyTorchAdapter {
     }
 }
 
-impl Into<NestedValue> for Param<Tensor<B, 2>> {
-    fn into(self) -> NestedValue {
+impl From<Param<Tensor<B, 2>>> for NestedValue {
+    fn from(val: Param<Tensor<B, 2>>) -> Self {
         let serializer = Serializer::new();
 
-        self.into_item::<FullPrecisionSettings>().serialize(serializer).unwrap()
+        val.into_item::<FullPrecisionSettings>()
+            .serialize(serializer)
+            .unwrap()
     }
 }

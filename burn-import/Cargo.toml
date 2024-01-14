@@ -45,7 +45,6 @@ thiserror = { workspace = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-
 [build-dependencies]
 protobuf-codegen = { workspace = true }
 

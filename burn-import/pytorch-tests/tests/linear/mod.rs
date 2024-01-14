@@ -63,43 +63,8 @@ mod tests {
 
     #[test]
     fn linear() {
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/labeled/linear");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
-            .expect("Failed to decode state");
-
-        let model = Net::<Backend>::new_with(record);
-
-        let input = Tensor::<Backend, 4>::from_data([[
-            [[0.63968194, 0.97427773], [0.830_029_9, 0.04443115]],
-            [[0.024_595_8, 0.25883394], [0.93905586, 0.416_715_5]],
-        ]]);
-
-        let output = model.forward(input);
-
-        let expected = Tensor::<Backend, 4>::from_data([[
-            [
-                [0.09778349, -0.13756673, 0.04962806, 0.08856435],
-                [0.03163241, -0.02848549, 0.01437942, 0.11905234],
-            ],
-            [
-                [0.07628226, -0.10757702, 0.03656857, 0.03824598],
-                [0.05443089, -0.06904714, 0.02744314, 0.09997337],
-            ],
-        ]]);
-
-        output.to_data().assert_approx_eq(&expected.to_data(), 6);
-    }
-
-    #[test]
-    fn linear_load() {
-        // let out_dir = env::var_os("OUT_DIR").unwrap();
-        // let file_path = Path::new(&out_dir).join("model/labeled/linear.pt");
-
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/linear/linear.pt".to_string().into())
+            .load("tests/linear/linear.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
@@ -110,7 +75,6 @@ mod tests {
         ]]);
 
         let output = model.forward(input);
-
         let expected = Tensor::<Backend, 4>::from_data([[
             [
                 [0.09778349, -0.13756673, 0.04962806, 0.08856435],
@@ -121,17 +85,13 @@ mod tests {
                 [0.05443089, -0.06904714, 0.02744314, 0.09997337],
             ],
         ]]);
-
         output.to_data().assert_approx_eq(&expected.to_data(), 6);
     }
 
     #[test]
     fn linear_with_bias() {
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/guessed/linear_with_bias");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/linear/linear_with_bias.pt".into())
             .expect("Failed to decode state");
 
         let model = NetWithBias::<Backend>::new_with(record);

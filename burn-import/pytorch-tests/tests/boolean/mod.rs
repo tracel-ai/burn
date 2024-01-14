@@ -32,6 +32,7 @@ mod tests {
         record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
         tensor::Data,
     };
+    use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
@@ -39,11 +40,8 @@ mod tests {
     #[ignore = "It appears loading boolean tensors are not supported yet"]
     // Error skipping: Msg("unsupported storage type BoolStorage")
     fn boolean() {
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/integer");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/boolean/boolean.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);

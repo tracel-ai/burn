@@ -220,7 +220,7 @@ impl Serializer for MySerializer {
 }
 
 // Implementing the SerializeStruct trait for MySerializer
-impl<'a> SerializeStruct for MySerializer {
+impl SerializeStruct for MySerializer {
     type Ok = Values;
     type Error = de::value::Error;
 

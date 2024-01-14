@@ -17,6 +17,7 @@ use burn::{
         Tensor,
     },
 };
+use burn_import::pytorch::PyTorchFileRecorder;
 
 #[derive(Module, Debug)]
 struct ConvBlock<B: Backend> {
@@ -108,72 +109,18 @@ fn model_test(record: NetRecord<TestBackend>, precision: usize) {
 }
 
 #[test]
-fn json_full_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/full/complex_nested");
-
-    let record = PrettyJsonFileRecorder::<FullPrecisionSettings>::default()
-        .load(file_path)
+fn full_record() {
+    let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+        .load("tests/complex_nested/complex_nested.pt".into())
         .expect("Failed to decode state");
 
     model_test(record, 8);
 }
 
 #[test]
-fn json_half_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/half/complex_nested");
-
-    let record = PrettyJsonFileRecorder::<HalfPrecisionSettings>::default()
-        .load(file_path)
-        .expect("Failed to decode state");
-
-    model_test(record, 4);
-}
-
-#[test]
-fn mpk_full_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/full/complex_nested");
-
-    let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-        .load(file_path)
-        .expect("Failed to decode state");
-
-    model_test(record, 8);
-}
-
-#[test]
-fn mpk_half_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/half/complex_nested");
-
-    let record = NamedMpkFileRecorder::<HalfPrecisionSettings>::default()
-        .load(file_path)
-        .expect("Failed to decode state");
-
-    model_test(record, 4);
-}
-
-#[test]
-fn mpk_gz_full_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/full/complex_nested");
-
-    let record = NamedMpkGzFileRecorder::<FullPrecisionSettings>::default()
-        .load(file_path)
-        .expect("Failed to decode state");
-
-    model_test(record, 8);
-}
-
-#[test]
-fn mpk_gz_half_record() {
-    let out_dir = env::var_os("OUT_DIR").unwrap();
-    let file_path = Path::new(&out_dir).join("model/half/complex_nested");
-
-    let record = NamedMpkGzFileRecorder::<HalfPrecisionSettings>::default()
-        .load(file_path)
+fn half_record() {
+    let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+        .load("tests/complex_nested/complex_nested.pt".into())
         .expect("Failed to decode state");
 
     model_test(record, 4);

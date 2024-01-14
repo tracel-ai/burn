@@ -25,21 +25,15 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-
-    use std::{env, path::Path};
-
-    use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
     #[test]
-    #[ignore = "Failing possibly due to bug in Burn's group norm."]
     fn group_norm() {
-        let out_dir = env::var_os("OUT_DIR").unwrap();
-        let file_path = Path::new(&out_dir).join("model/group_norm");
-
-        let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/group_norm/group_norm.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
@@ -66,15 +60,4 @@ mod tests {
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
-    // Current Error:
-    //     ---- group_norm::tests::group_norm stdout ----
-    // thread 'group_norm::tests::group_norm' panicked at burn-import/pytorch-tests/tests/group_norm/mod.rs:67:26:
-    // Tensors are not approx eq:
-    //   => Position 0: 0.275427907705307 != 1.0425784587860107 | difference 0.7671505510807037 > tolerance 0.0010000000000000002
-    //   => Position 1: -0.29641395807266235 != -1.1220166683197021 | difference 0.8256027102470398 > tolerance 0.0010000000000000002
-    //   => Position 2: -0.14845837652683258 != -0.5619597434997559 | difference 0.4135013669729233 > tolerance 0.0010000000000000002
-    //   => Position 3: 0.24799413979053497 != 0.9387335777282715 | difference 0.6907394379377365 > tolerance 0.0010000000000000002
-    //   => Position 4: -0.5953289270401001 != -2.2535006999969482 | difference 1.6581717729568481 > tolerance 0.0010000000000000002
-    // 19 more errors...
-    // note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 }

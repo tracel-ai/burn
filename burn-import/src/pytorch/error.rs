@@ -5,13 +5,16 @@ use burn::record::RecorderError;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("failed to read file at {0}")]
-    ReadFileError(PathBuf, #[source] std::io::Error),
+    ReadFile(PathBuf, #[source] std::io::Error),
 
     #[error("failed to deserialize")]
-    DeserializeError(#[from] serde::de::value::Error),
+    Deserialize(#[from] serde::de::value::Error),
 
     #[error("failed to serialize")]
-    SerializeError(String),
+    Serialize(String),
+
+    #[error("invalid state")]
+    InvalidState,
 
     // Add other kinds of errors as needed
     #[error("other error")]
@@ -20,13 +23,13 @@ pub enum Error {
 
 impl serde::de::Error for Error {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
-        Error::DeserializeError(serde::de::value::Error::custom(msg.to_string()))
+        Error::Deserialize(serde::de::value::Error::custom(msg.to_string()))
     }
 }
 
 impl serde::ser::Error for Error {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
-        Error::SerializeError(msg.to_string())
+        Error::Serialize(msg.to_string())
     }
 }
 
