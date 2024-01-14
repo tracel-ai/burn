@@ -41,6 +41,7 @@ pub(crate) struct Exploration<O> {
 }
 
 impl<O> Exploration<O> {
+    /// Whether exploration should be stop in an async mode.
     pub fn should_stop_async(&self, ops: &TensorOpsDescription) -> bool {
         for item in self.criteria.iter() {
             match item {
@@ -76,7 +77,18 @@ impl<O> ExplorationStore<O> {
         }
 
         let id = self.items.len();
-        log::info!("New exploration {id} for stream size {:?}", exploration.stream);
+
+        // log::info!("======= New exploration {id} ========");
+        // log::info!("Criteria   :");
+        // for c in exploration.criteria.iter() {
+        //     log::info!("    {c:?}");
+        // }
+        // log::info!("Operations :");
+        // for c in exploration.stream.iter() {
+        //     log::info!("    {c:?}");
+        // }
+        // log::info!("=====================================");
+
         self.index.insert(InsertQuery::NewOptimization {
             stream: &exploration.stream,
             id,

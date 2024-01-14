@@ -21,17 +21,6 @@ impl<B: FusionBackend> Stream<B> {
         }
     }
 
-    pub(crate) fn split_relative_stream(
-        &self,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
-        let len = self.relative.len();
-        if len < 1 {
-            return (&self.relative, None);
-        }
-
-        (&self.relative[0..len - 1], self.relative.last())
-    }
-
     pub(crate) fn add(&mut self, global: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);

@@ -118,16 +118,18 @@ impl<B: FusionBackend> Processor<B> {
         stream: &Stream<B>,
         mode: ExecutionMode,
     ) -> Action {
-        let (stream, next_ops) = match mode {
-            ExecutionMode::Lazy => stream.split_relative_stream(),
-            ExecutionMode::Sync => (stream.relative.as_slice(), None),
+        if let ExecutionMode::Lazy = mode {
+            // We update the policy in lazy mode, since
+            self.policy.update(
+                store,
+                &stream
+                    .relative
+                    .last()
+                    .expect("At least on operation in the stream."),
+            );
         };
 
-        if let Some(next_ops) = next_ops {
-            self.policy.update(store, next_ops)
-        }
-
-        self.policy.action(store, stream, mode)
+        self.policy.action(store, stream.relative.as_slice(), mode)
     }
 
     fn on_optimization_found(

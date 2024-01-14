@@ -48,12 +48,7 @@ impl<O> Policy<O> {
         stream: &[TensorOpsDescription],
         mode: ExecutionMode,
     ) -> Action {
-        let num_minimum_analyzed = match mode {
-            ExecutionMode::Lazy => self.stream_size - 1,
-            ExecutionMode::Sync => self.stream_size,
-        };
-
-        if num_minimum_analyzed < stream.len() {
+        if self.stream_size < stream.len() {
             panic!("Internal Error: Can't retrieve the policy action when the number of operations analyzed is lower than the stream itself.");
         }
 
