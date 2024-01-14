@@ -81,11 +81,11 @@ pub struct OptimizationProperties {
 ///
 /// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait OptimizationBuilder<B: FusionBackend>: Send {
+pub trait OptimizationBuilder<O>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     fn register(&mut self, ops: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> B::Optimization;
+    fn build(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
@@ -145,7 +145,8 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
+    fn optimizations(device: Device<Self>)
+        -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

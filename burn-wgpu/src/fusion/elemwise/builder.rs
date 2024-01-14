@@ -36,7 +36,7 @@ where
     pub(crate) device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for ElementWiseBuilder<G, F, I>
+impl<G, F, I> OptimizationBuilder<WgpuOptimization<G, F, I>> for ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,

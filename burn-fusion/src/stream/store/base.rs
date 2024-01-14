@@ -78,17 +78,6 @@ impl<O> ExplorationStore<O> {
 
         let id = self.items.len();
 
-        // log::info!("======= New exploration {id} ========");
-        // log::info!("Criteria   :");
-        // for c in exploration.criteria.iter() {
-        //     log::info!("    {c:?}");
-        // }
-        // log::info!("Operations :");
-        // for c in exploration.stream.iter() {
-        //     log::info!("    {c:?}");
-        // }
-        // log::info!("=====================================");
-
         self.index.insert(InsertQuery::NewOptimization {
             stream: &exploration.stream,
             id,

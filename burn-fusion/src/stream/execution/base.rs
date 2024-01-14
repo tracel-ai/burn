@@ -42,13 +42,13 @@ impl<B: FusionBackend> Stream<B> {
         optimization.execute(&mut context);
 
         self.drain_stream(num_drained, handles);
-        self.ops.drain(0..num_drained);
+        self.operations.drain(0..num_drained);
     }
 
     fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
-        let num_drained = self.ops.len();
+        let num_drained = self.operations.len();
 
-        for ops in self.ops.drain(0..num_drained) {
+        for ops in self.operations.drain(0..num_drained) {
             ops.execute(handles);
         }
 

@@ -1,5 +1,8 @@
 use super::FusionClient;
-use crate::{stream::OperationDescription, FusionBackend, FusionServer, FusionTensor, Handle};
+use crate::{
+    stream::{Operation, OperationDescription},
+    FusionBackend, FusionServer, FusionTensor, Handle,
+};
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
@@ -38,12 +41,14 @@ where
         }
     }
 
-    fn register<O: crate::stream::Operation<Self::FusionBackend> + 'static>(
+    fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
         description: OperationDescription,
-        ops: O,
+        operation: O,
     ) {
-        self.server.lock().register(description, Box::new(ops))
+        self.server
+            .lock()
+            .register(description, Box::new(operation))
     }
 
     fn drain(&self) {

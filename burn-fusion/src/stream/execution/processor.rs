@@ -3,7 +3,7 @@ use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{
     ExecutionStrategy, Exploration, ExplorationId, ExplorationStore, StopCriterion,
 };
-use crate::stream::Stream;
+use crate::stream::{OperationDescription, Stream};
 use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 
 /// Process the [stream](Stream) following a [policy](Policy).
@@ -11,12 +11,32 @@ use crate::{FusionBackend, HandleContainer, OptimizationBuilder};
 /// Explore and create new optimizations using explorations
 pub(crate) struct Processor<B: FusionBackend> {
     policy: Policy<B::Optimization>,
-    explorer: Explorer<B>,
+    explorer: Explorer<B::Optimization>,
+}
+
+pub trait StreamProcessing<O> {
+    fn operations<'a>(&'a self) -> &[OperationDescription];
+    fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<O>);
+}
+
+struct StreamItem<'a, B: FusionBackend> {
+    stream: &'a mut Stream<B>,
+    handles: &'a mut HandleContainer<B>,
+}
+
+impl<'i, B: FusionBackend> StreamProcessing<B::Optimization> for StreamItem<'i, B> {
+    fn operations<'a>(&'a self) -> &[OperationDescription] {
+        &self.stream.relative
+    }
+
+    fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<B::Optimization>) {
+        self.stream.execute(id, self.handles, store)
+    }
 }
 
 impl<B: FusionBackend> Processor<B> {
     /// Create a new stream processor.
-    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
+    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B::Optimization>>>) -> Self {
         Self {
             policy: Policy::new(),
             explorer: Explorer::new(optimizations),
@@ -71,7 +91,7 @@ impl<B: FusionBackend> Processor<B> {
         handles: &mut HandleContainer<B>,
         mode: ExecutionMode,
     ) {
-        match self.explorer.explore(stream, mode) {
+        match self.explorer.explore(&stream.relative, mode) {
             ExplorerResult::Found(optim) => {
                 stream.execute(
                     Self::on_optimization_found(&self.policy, stream, store, optim, mode),
@@ -103,7 +123,7 @@ impl<B: FusionBackend> Processor<B> {
     }
 
     fn reset(&mut self, store: &mut ExplorationStore<B::Optimization>, stream: &Stream<B>) {
-        self.explorer.reset(stream);
+        self.explorer.reset(&stream.relative);
         self.policy.reset();
 
         // Reset the policy state.
@@ -136,7 +156,7 @@ impl<B: FusionBackend> Processor<B> {
         policy: &Policy<B::Optimization>,
         stream: &Stream<B>,
         store: &mut ExplorationStore<B::Optimization>,
-        builder: &dyn OptimizationBuilder<B>,
+        builder: &dyn OptimizationBuilder<B::Optimization>,
         mode: ExecutionMode,
     ) -> ExplorationId {
         let num_fused = builder.len();
@@ -199,3 +219,6 @@ impl<B: FusionBackend> Processor<B> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}

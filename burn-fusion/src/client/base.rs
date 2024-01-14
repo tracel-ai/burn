@@ -14,11 +14,11 @@ pub trait FusionClient: Send + Sync + Clone {
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
-    /// Register a new [tensor operation description](TensorOpsDescription).
+    /// Register a new [tensor operation description](TensorOperationDescription).
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
         description: OperationDescription,
-        ops: O,
+        operation: O,
     );
     /// Register all lazy computation.
     fn drain(&self);

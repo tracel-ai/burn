@@ -1,9 +1,9 @@
 use super::ExecutionMode;
-use crate::{stream::Stream, FusionBackend, OptimizationBuilder, OptimizationStatus};
+use crate::{stream::OperationDescription, OptimizationBuilder, OptimizationStatus};
 
 /// Explore and create new optimization.
-pub struct Explorer<B: FusionBackend> {
-    builders: Vec<Box<dyn OptimizationBuilder<B>>>,
+pub struct Explorer<O> {
+    builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     num_deferred: usize,
     num_explored: usize,
 }
@@ -11,14 +11,14 @@ pub struct Explorer<B: FusionBackend> {
 /// The result of an exploration.
 ///
 /// Either a new optimization is found, or we just continue to explore further.
-pub enum ExplorerResult<'a, B: FusionBackend> {
-    Found(&'a dyn OptimizationBuilder<B>),
+pub enum ExplorerResult<'a, O> {
+    Found(&'a dyn OptimizationBuilder<O>),
     NotFound { num_explored: usize },
     Continue,
 }
 
-impl<B: FusionBackend> Explorer<B> {
-    pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<B>>>) -> Self {
+impl<O> Explorer<O> {
+    pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
             builders: optimizations,
             num_deferred: 0,
@@ -36,9 +36,9 @@ impl<B: FusionBackend> Explorer<B> {
 
     pub(crate) fn explore<'a>(
         &'a mut self,
-        stream: &Stream<B>,
+        stream: &[OperationDescription],
         mode: ExecutionMode,
-    ) -> ExplorerResult<'a, B> {
+    ) -> ExplorerResult<'a, O> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // stream even when there is no skipped operation.
         let offset = match mode {
@@ -52,8 +52,8 @@ impl<B: FusionBackend> Explorer<B> {
             if !is_still_optimizing {
                 break;
             }
-            let index = stream.relative.len() - 1 - i;
-            let relative = &stream.relative[index];
+            let index = stream.len() - 1 - i;
+            let relative = &stream[index];
 
             for builder in self.builders.iter_mut() {
                 builder.register(relative);
@@ -79,16 +79,16 @@ impl<B: FusionBackend> Explorer<B> {
         }
     }
 
-    pub(crate) fn reset(&mut self, stream: &Stream<B>) {
+    pub(crate) fn reset(&mut self, stream: &[OperationDescription]) {
         for ops in self.builders.iter_mut() {
             ops.reset();
         }
         self.num_explored = 0;
-        self.num_deferred = stream.relative.len();
+        self.num_deferred = stream.len();
     }
 }
 
-fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuilder<B>>]) -> bool {
+fn still_optimizing<O>(optimizations: &[Box<dyn OptimizationBuilder<O>>]) -> bool {
     let mut num_stopped = 0;
 
     for optimization in optimizations.iter() {
@@ -100,8 +100,8 @@ fn still_optimizing<B: FusionBackend>(optimizations: &[Box<dyn OptimizationBuild
     num_stopped < optimizations.len()
 }
 
-fn find_best_optimization_index<B: FusionBackend>(
-    optimizations: &mut [Box<dyn OptimizationBuilder<B>>],
+fn find_best_optimization_index<O>(
+    optimizations: &mut [Box<dyn OptimizationBuilder<O>>],
 ) -> Option<usize> {
     let mut best_index = None;
     let mut best_score = 0;
@@ -117,3 +117,6 @@ fn find_best_optimization_index<B: FusionBackend>(
 
     best_index
 }
+
+#[cfg(test)]
+mod tests {}

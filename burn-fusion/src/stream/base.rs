@@ -8,7 +8,7 @@ pub struct Stream<B: FusionBackend> {
     pub(crate) global: Vec<OperationDescription>,
     pub(crate) relative: Vec<OperationDescription>,
     pub(crate) converter: RelativeStreamConverter,
-    pub(crate) ops: Vec<Box<dyn Operation<B>>>,
+    pub(crate) operations: Vec<Box<dyn Operation<B>>>,
 }
 
 impl<B: FusionBackend> Stream<B> {
@@ -18,7 +18,7 @@ impl<B: FusionBackend> Stream<B> {
             global: Vec::new(),
             relative: Vec::new(),
             converter: RelativeStreamConverter::default(),
-            ops: Vec::new(),
+            operations: Vec::new(),
         }
     }
 
@@ -31,7 +31,7 @@ impl<B: FusionBackend> Stream<B> {
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
         self.global.push(global);
-        self.ops.push(operation);
+        self.operations.push(operation);
     }
 
     /// The size of the stream.

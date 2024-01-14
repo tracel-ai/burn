@@ -15,7 +15,7 @@ pub struct MultiStream<B: FusionBackend> {
 
 struct Item<B: FusionBackend> {
     stream: Stream<B>,
-    executor: Processor<B>,
+    processor: Processor<B>,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
@@ -29,14 +29,14 @@ impl<B: FusionBackend> MultiStream<B> {
     /// Register a new tensor operation.
     pub fn register(
         &mut self,
-        ops_desc: OperationDescription,
-        ops: Box<dyn Operation<B>>,
+        desc: OperationDescription,
+        operation: Box<dyn Operation<B>>,
         handles: &mut HandleContainer<B>,
     ) {
         // TODO: Support more than only one stream.
         if let Some(item) = self.items.first_mut() {
-            item.stream.add(ops_desc, ops);
-            item.executor.process(
+            item.stream.add(desc, operation);
+            item.processor.process(
                 &mut item.stream,
                 &mut self.optimizations,
                 handles,
@@ -48,7 +48,7 @@ impl<B: FusionBackend> MultiStream<B> {
     /// Drain the streams.
     pub fn drain(&mut self, handles: &mut HandleContainer<B>) {
         self.items.iter_mut().for_each(|item| {
-            item.executor.process(
+            item.processor.process(
                 &mut item.stream,
                 &mut self.optimizations,
                 handles,
@@ -61,7 +61,7 @@ impl<B: FusionBackend> MultiStream<B> {
 impl<B: FusionBackend> Item<B> {
     fn new(device: B::FusionDevice) -> Self {
         Self {
-            executor: Processor::new(B::optimizations(device.into())),
+            processor: Processor::new(B::optimizations(device.into())),
             stream: Stream::new(),
         }
     }
