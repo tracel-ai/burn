@@ -1,5 +1,5 @@
 use crate::{
-    stream::{MultiStream, Ops, TensorOpsDescription},
+    stream::{MultiStream, Operation, OperationDescription},
     FusionBackend, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
@@ -26,7 +26,7 @@ where
         }
     }
 
-    pub fn register(&mut self, ops_desc: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+    pub fn register(&mut self, ops_desc: OperationDescription, ops: Box<dyn Operation<B>>) {
         self.streams.register(ops_desc, ops, &mut self.handles)
     }
 

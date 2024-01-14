@@ -1,18 +1,19 @@
-use super::Ops;
+use super::Operation;
+use super::OperationDescription;
 use super::RelativeStreamConverter;
-use super::TensorOpsDescription;
 use crate::FusionBackend;
 
 /// A growing list of [tensor operation descriptions](TensorOpsDescription).
 pub struct Stream<B: FusionBackend> {
-    pub(crate) global: Vec<TensorOpsDescription>,
-    pub(crate) relative: Vec<TensorOpsDescription>,
+    pub(crate) global: Vec<OperationDescription>,
+    pub(crate) relative: Vec<OperationDescription>,
     pub(crate) converter: RelativeStreamConverter,
-    pub(crate) ops: Vec<Box<dyn Ops<B>>>,
+    pub(crate) ops: Vec<Box<dyn Operation<B>>>,
 }
 
 impl<B: FusionBackend> Stream<B> {
-    pub(crate) fn new() -> Self {
+    /// Create a new empty stream.
+    pub fn new() -> Self {
         Self {
             global: Vec::new(),
             relative: Vec::new(),
@@ -21,20 +22,25 @@ impl<B: FusionBackend> Stream<B> {
         }
     }
 
-    pub(crate) fn add(&mut self, global: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+    /// Add a new tensor operation to the stream.
+    ///
+    /// The new [operation description](OperationDescription) will be converted to a local
+    /// representation that can be reused when the same pattern emerge in different but similar
+    /// scenario, so that the same optmization can be used.
+    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<B>>) {
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
         self.global.push(global);
-        self.ops.push(ops);
+        self.ops.push(operation);
     }
 
     /// The size of the stream.
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.global.len()
     }
 
     /// If the stream is empty.
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }

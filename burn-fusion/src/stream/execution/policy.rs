@@ -1,7 +1,7 @@
 use super::ExecutionMode;
 use crate::stream::{
     store::{ExplorationId, ExplorationStore, SearchQuery},
-    TensorOpsDescription,
+    OperationDescription,
 };
 use std::marker::PhantomData;
 
@@ -45,7 +45,7 @@ impl<O> Policy<O> {
     pub fn action(
         &self,
         store: &ExplorationStore<O>,
-        stream: &[TensorOpsDescription],
+        stream: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
         if self.stream_size < stream.len() {
@@ -89,7 +89,7 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &ExplorationStore<O>, ops: &TensorOpsDescription) {
+    pub fn update(&mut self, store: &ExplorationStore<O>, ops: &OperationDescription) {
         if self.stream_size == 0 {
             self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
         } else {
@@ -110,7 +110,7 @@ impl<O> Policy<O> {
     fn analyze_candidates(
         &mut self,
         optimizations: &ExplorationStore<O>,
-        next_ops: &TensorOpsDescription,
+        next_ops: &OperationDescription,
     ) {
         // The index starts at zero.
         let mut invalidated_candidates = Vec::new();

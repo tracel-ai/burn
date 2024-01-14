@@ -1,4 +1,4 @@
-use crate::stream::{store::ExplorationId, TensorOpsDescription};
+use crate::stream::{store::ExplorationId, OperationDescription};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -16,17 +16,17 @@ pub struct OptimizationIndex {
     /// We rely instead on [`PartialEq`](core::cmp::PartialEq) to manually handle hash collisions.
     /// This is OK because we use `relative` streams where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
-    mapping: HashMap<u64, Vec<(TensorOpsDescription, usize)>>,
+    mapping: HashMap<u64, Vec<(OperationDescription, usize)>>,
     starters: Vec<Vec<ExplorationId>>,
 }
 
 pub enum SearchQuery<'a> {
-    OptimizationsStartingWith(&'a TensorOpsDescription),
+    OptimizationsStartingWith(&'a OperationDescription),
 }
 
 pub enum InsertQuery<'a> {
     NewOptimization {
-        stream: &'a [TensorOpsDescription],
+        stream: &'a [OperationDescription],
         id: ExplorationId,
     },
 }
@@ -50,7 +50,7 @@ impl OptimizationIndex {
         }
     }
 
-    fn find_starting_with(&self, ops: &TensorOpsDescription) -> Vec<ExplorationId> {
+    fn find_starting_with(&self, ops: &OperationDescription) -> Vec<ExplorationId> {
         let key = self.stream_key(ops);
         let values = match self.mapping.get(&key) {
             Some(val) => val,
@@ -74,7 +74,7 @@ impl OptimizationIndex {
         val
     }
 
-    fn insert_new_ops(&mut self, ops: &TensorOpsDescription, new_id: ExplorationId) {
+    fn insert_new_ops(&mut self, ops: &OperationDescription, new_id: ExplorationId) {
         let key = self.stream_key(ops);
         let values = match self.mapping.get_mut(&key) {
             Some(val) => val,
@@ -106,7 +106,7 @@ impl OptimizationIndex {
     }
 
     // Hash the value of the first operation in a stream.
-    fn stream_key(&self, ops: &TensorOpsDescription) -> u64 {
+    fn stream_key(&self, ops: &OperationDescription) -> u64 {
         let mut hasher = DefaultHasher::new();
         ops.hash(&mut hasher);
         hasher.finish()
@@ -117,7 +117,9 @@ impl OptimizationIndex {
 mod tests {
     use super::*;
     use crate::{
-        stream::{BinaryOpsDescription, NumericOpsDescription, ScalarOpsDescription},
+        stream::{
+            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
+        },
         TensorDescription, TensorId, TensorStatus,
     };
 
@@ -212,29 +214,31 @@ mod tests {
         assert_eq!(found, vec![optimization_id_1]);
     }
 
-    fn ops_1() -> TensorOpsDescription {
-        TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Add(BinaryOpsDescription {
-            lhs: TensorDescription {
-                id: TensorId::new(0),
-                shape: vec![32, 32],
-                status: TensorStatus::ReadOnly,
+    fn ops_1() -> OperationDescription {
+        OperationDescription::NumericFloat(NumericOperationDescription::Add(
+            BinaryOperationDescription {
+                lhs: TensorDescription {
+                    id: TensorId::new(0),
+                    shape: vec![32, 32],
+                    status: TensorStatus::ReadOnly,
+                },
+                rhs: TensorDescription {
+                    id: TensorId::new(1),
+                    shape: vec![32, 32],
+                    status: TensorStatus::ReadOnly,
+                },
+                out: TensorDescription {
+                    id: TensorId::new(2),
+                    shape: vec![32, 32],
+                    status: TensorStatus::NotInit,
+                },
             },
-            rhs: TensorDescription {
-                id: TensorId::new(1),
-                shape: vec![32, 32],
-                status: TensorStatus::ReadOnly,
-            },
-            out: TensorDescription {
-                id: TensorId::new(2),
-                shape: vec![32, 32],
-                status: TensorStatus::NotInit,
-            },
-        }))
+        ))
     }
 
-    fn ops_2() -> TensorOpsDescription {
-        TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::AddScalar(
-            ScalarOpsDescription {
+    fn ops_2() -> OperationDescription {
+        OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
+            ScalarOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
@@ -250,23 +254,25 @@ mod tests {
         ))
     }
 
-    fn ops_3() -> TensorOpsDescription {
-        TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Sub(BinaryOpsDescription {
-            lhs: TensorDescription {
-                id: TensorId::new(0),
-                shape: vec![32, 32],
-                status: TensorStatus::ReadOnly,
+    fn ops_3() -> OperationDescription {
+        OperationDescription::NumericFloat(NumericOperationDescription::Sub(
+            BinaryOperationDescription {
+                lhs: TensorDescription {
+                    id: TensorId::new(0),
+                    shape: vec![32, 32],
+                    status: TensorStatus::ReadOnly,
+                },
+                rhs: TensorDescription {
+                    id: TensorId::new(1),
+                    shape: vec![32, 32],
+                    status: TensorStatus::ReadOnly,
+                },
+                out: TensorDescription {
+                    id: TensorId::new(2),
+                    shape: vec![32, 32],
+                    status: TensorStatus::NotInit,
+                },
             },
-            rhs: TensorDescription {
-                id: TensorId::new(1),
-                shape: vec![32, 32],
-                status: TensorStatus::ReadOnly,
-            },
-            out: TensorDescription {
-                id: TensorId::new(2),
-                shape: vec![32, 32],
-                status: TensorStatus::NotInit,
-            },
-        }))
+        ))
     }
 }

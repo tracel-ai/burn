@@ -1,7 +1,7 @@
 use super::{
     execution::{ExecutionMode, Processor},
     store::ExplorationStore,
-    Ops, Stream, TensorOpsDescription,
+    Operation, OperationDescription, Stream,
 };
 use crate::{FusionBackend, HandleContainer};
 
@@ -29,8 +29,8 @@ impl<B: FusionBackend> MultiStream<B> {
     /// Register a new tensor operation.
     pub fn register(
         &mut self,
-        ops_desc: TensorOpsDescription,
-        ops: Box<dyn Ops<B>>,
+        ops_desc: OperationDescription,
+        ops: Box<dyn Operation<B>>,
         handles: &mut HandleContainer<B>,
     ) {
         // TODO: Support more than only one stream.

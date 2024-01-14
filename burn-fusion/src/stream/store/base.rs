@@ -1,5 +1,5 @@
 use super::{InsertQuery, OptimizationIndex, SearchQuery};
-use crate::stream::TensorOpsDescription;
+use crate::stream::OperationDescription;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.
@@ -21,7 +21,7 @@ pub(crate) enum ExecutionStrategy<O> {
 /// The criterion exposing when to stop exploring on a stream.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum StopCriterion {
-    OnOperation(TensorOpsDescription),
+    OnOperation(OperationDescription),
     OnSync,
     Always,
 }
@@ -33,7 +33,7 @@ pub(crate) type ExplorationId = usize;
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Exploration<O> {
     /// The stream on which the exploration is related to.
-    pub(crate) stream: Vec<TensorOpsDescription>,
+    pub(crate) stream: Vec<OperationDescription>,
     /// The criteria that signal when this stream is optimal to be executed.
     pub(crate) criteria: Vec<StopCriterion>,
     /// The strategy that should be used when executing this stream.
@@ -42,7 +42,7 @@ pub(crate) struct Exploration<O> {
 
 impl<O> Exploration<O> {
     /// Whether exploration should be stop in an async mode.
-    pub fn should_stop_async(&self, ops: &TensorOpsDescription) -> bool {
+    pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
         for item in self.criteria.iter() {
             match item {
                 StopCriterion::OnOperation(val) => {

@@ -1,5 +1,5 @@
 use super::FusionClient;
-use crate::{stream::TensorOpsDescription, FusionBackend, FusionServer, FusionTensor, Handle};
+use crate::{stream::OperationDescription, FusionBackend, FusionServer, FusionTensor, Handle};
 use burn_tensor::ops::FloatElem;
 use spin::Mutex;
 use std::sync::Arc;
@@ -38,9 +38,9 @@ where
         }
     }
 
-    fn register<O: crate::stream::Ops<Self::FusionBackend> + 'static>(
+    fn register<O: crate::stream::Operation<Self::FusionBackend> + 'static>(
         &self,
-        description: TensorOpsDescription,
+        description: OperationDescription,
         ops: O,
     ) {
         self.server.lock().register(description, Box::new(ops))

@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    stream::{Context, TensorOpsDescription},
+    stream::{Context, OperationDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -83,7 +83,7 @@ pub struct OptimizationProperties {
 /// improve the performance.
 pub trait OptimizationBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
-    fn register(&mut self, ops: &TensorOpsDescription);
+    fn register(&mut self, ops: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> B::Optimization;
     /// Reset the state.
