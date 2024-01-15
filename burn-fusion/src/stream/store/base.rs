@@ -9,16 +9,20 @@ pub(crate) struct ExecutionPlanStore<O> {
     index: ExecutionPlanIndex,
 }
 
-/// How a stream should be executed.
+/// How a list of operations should be executed.
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
-    /// An optmization was found for this stream, and therefore should be executed.
+    /// An optimization was found, and therefore should be executed.
     Optimization(O),
-    /// No optimization was found for this stream, each operation should be executed individually.
+    /// No optimization was found, each operation should be executed individually.
     Operations,
 }
 
-/// The criterion exposing when to stop exploring on a stream.
+/// The trigger that indicates when to stop exploring.
+#[allow(clippy::large_enum_variant)]
+// Triggers are stored in a list, and you can have many `OnOperation` entries,
+// but only one `OnSync` entry and one `Always` entry, therefore we don't care if it takes more
+// space to to store them.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
     OnOperation(OperationDescription),
@@ -32,11 +36,11 @@ pub(crate) type ExecutionPlanId = usize;
 /// The outcome of an exploration that can be stored.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ExecutionPlan<O> {
-    /// The stream on which the exploration is related to.
+    /// The operations on which the exploration is related to.
     pub(crate) operations: Vec<OperationDescription>,
-    /// The criteria that signal when this stream is optimal to be executed.
+    /// The criteria that signal when this plan should be executed. Only one trigger is necessary.
     pub(crate) triggers: Vec<ExecutionTrigger>,
-    /// The strategy that should be used when executing this stream.
+    /// The strategy that should be used when executing this plan.
     pub(crate) strategy: ExecutionStrategy<O>,
 }
 
@@ -78,8 +82,8 @@ impl<O> ExecutionPlanStore<O> {
 
         let id = self.plans.len();
 
-        self.index.insert(InsertQuery::NewOptimization {
-            stream: &exploration.operations,
+        self.index.insert(InsertQuery::NewPlan {
+            operations: &exploration.operations,
             id,
         });
 

@@ -70,7 +70,7 @@ pub struct OptimizationProperties {
 }
 
 /// The fusion operation abstraction allows implementations to fuse many
-/// [tensor operations](TensorOpsDescription) into one, improving the performance of the backend.
+/// [tensor operations](OperationDescription) into one, improving the performance of the backend.
 ///
 ///
 /// # Notes
@@ -79,10 +79,10 @@ pub struct OptimizationProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
+/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
 /// improve the performance.
 pub trait OptimizationBuilder<O>: Send {
-    /// Register a new [tensor operation](TensorOpsDescription).
+    /// Register a new [tensor operation](OperationDescription).
     fn register(&mut self, operation: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> O;
@@ -94,6 +94,10 @@ pub trait OptimizationBuilder<O>: Send {
     fn properties(&self) -> OptimizationProperties;
     /// The number of operation fused.
     fn len(&self) -> usize;
+    /// If no operations are fused.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).

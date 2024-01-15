@@ -8,25 +8,25 @@ use std::{
 /// Index used to search optimizations.
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct ExecutionPlanIndex {
-    /// We can't use `HashMap<TensorOpsDescription, Vec<OptimizationId>>` since `TensorOpsDescription`
+    /// We can't use `HashMap<OperationDescription, Vec<ExecutionPlanId>>` since `OperationDescription`
     /// doesn't implement [`Eq`](core::cmp::Eq).
     ///
-    /// `TensorOpsDescription` can't implement `Eq` since float types don't implement it.
+    /// `OperationDescription` can't implement `Eq` since float types don't implement it.
     ///
     /// We rely instead on [`PartialEq`](core::cmp::PartialEq) to manually handle hash collisions.
-    /// This is OK because we use `relative` streams where any scalar values are set to zeros,
+    /// This is OK because we use `relative` operations where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
     mapping: HashMap<u64, Vec<(OperationDescription, usize)>>,
     starters: Vec<Vec<ExecutionPlanId>>,
 }
 
 pub enum SearchQuery<'a> {
-    OptimizationsStartingWith(&'a OperationDescription),
+    PlansStartingWith(&'a OperationDescription),
 }
 
 pub enum InsertQuery<'a> {
-    NewOptimization {
-        stream: &'a [OperationDescription],
+    NewPlan {
+        operations: &'a [OperationDescription],
         id: ExecutionPlanId,
     },
 }
@@ -35,23 +35,23 @@ impl ExecutionPlanIndex {
     /// Search optimizations with the given [query](SearchQuery).
     pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExecutionPlanId> {
         match query {
-            SearchQuery::OptimizationsStartingWith(ops) => self.find_starting_with(ops),
+            SearchQuery::PlansStartingWith(ops) => self.find_starting_with(ops),
         }
     }
 
     /// Register a new optimization with the given [query](InsertQuery).
     pub fn insert(&mut self, query: InsertQuery<'_>) {
         match query {
-            InsertQuery::NewOptimization { stream, id } => {
-                if let Some(ops) = stream.first() {
-                    self.insert_new_ops(ops, id)
+            InsertQuery::NewPlan { operations, id } => {
+                if let Some(operation) = operations.first() {
+                    self.insert_new_operation(operation, id)
                 }
             }
         }
     }
 
-    fn find_starting_with(&self, ops: &OperationDescription) -> Vec<ExecutionPlanId> {
-        let key = self.stream_key(ops);
+    fn find_starting_with(&self, operation: &OperationDescription) -> Vec<ExecutionPlanId> {
+        let key = self.operation_key(operation);
         let values = match self.mapping.get(&key) {
             Some(val) => val,
             None => return Vec::new(),
@@ -61,7 +61,7 @@ impl ExecutionPlanIndex {
             return Vec::new();
         }
 
-        let (_, index) = match values.iter().find(|value| &value.0 == ops) {
+        let (_, index) = match values.iter().find(|value| &value.0 == operation) {
             Some(val) => val,
             None => return Vec::new(),
         };
@@ -74,8 +74,8 @@ impl ExecutionPlanIndex {
         val
     }
 
-    fn insert_new_ops(&mut self, ops: &OperationDescription, new_id: ExecutionPlanId) {
-        let key = self.stream_key(ops);
+    fn insert_new_operation(&mut self, ops: &OperationDescription, new_id: ExecutionPlanId) {
+        let key = self.operation_key(ops);
         let values = match self.mapping.get_mut(&key) {
             Some(val) => val,
             None => {
@@ -105,8 +105,8 @@ impl ExecutionPlanIndex {
             .push(new_id);
     }
 
-    // Hash the value of the first operation in a stream.
-    fn stream_key(&self, ops: &OperationDescription) -> u64 {
+    // Hash the value of the first operation in a list.
+    fn operation_key(&self, ops: &OperationDescription) -> u64 {
         let mut hasher = DefaultHasher::new();
         ops.hash(&mut hasher);
         hasher.finish()
@@ -129,12 +129,12 @@ mod tests {
         let stream_1 = [ops_1()];
         let optimization_id_1 = 0;
 
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_1,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_1,
             id: optimization_id_1,
         });
 
-        let found = index.find(SearchQuery::OptimizationsStartingWith(&stream_1[0]));
+        let found = index.find(SearchQuery::PlansStartingWith(&stream_1[0]));
 
         assert_eq!(found, vec![optimization_id_1]);
     }
@@ -147,16 +147,16 @@ mod tests {
         let optimization_id_1 = 0;
         let optimization_id_2 = 1;
 
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_1,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_1,
             id: optimization_id_1,
         });
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_2,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_2,
             id: optimization_id_2,
         });
 
-        let found = index.find(SearchQuery::OptimizationsStartingWith(&stream_1[0]));
+        let found = index.find(SearchQuery::PlansStartingWith(&stream_1[0]));
 
         assert_eq!(found, vec![optimization_id_1, optimization_id_2]);
     }
@@ -169,16 +169,16 @@ mod tests {
         let optimization_id_1 = 0;
         let optimization_id_2 = 1;
 
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_1,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_1,
             id: optimization_id_1,
         });
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_2,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_2,
             id: optimization_id_2,
         });
 
-        let found = index.find(SearchQuery::OptimizationsStartingWith(&stream_1[0]));
+        let found = index.find(SearchQuery::PlansStartingWith(&stream_1[0]));
 
         assert_eq!(found, vec![optimization_id_1]);
     }
@@ -191,8 +191,8 @@ mod tests {
         let optimization_id_1 = 0;
         let optimization_id_2 = 1;
 
-        let stream_1_key = index.stream_key(&stream_1[0]);
-        let stream_2_key = index.stream_key(&stream_2[0]);
+        let stream_1_key = index.operation_key(&stream_1[0]);
+        let stream_2_key = index.operation_key(&stream_2[0]);
 
         assert_eq!(
             stream_1_key, stream_2_key,
@@ -200,16 +200,16 @@ mod tests {
         );
         assert_ne!(stream_1[0], stream_2[0], "Ops 1 and Ops 3 are different.");
 
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_1,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_1,
             id: optimization_id_1,
         });
-        index.insert(InsertQuery::NewOptimization {
-            stream: &stream_2,
+        index.insert(InsertQuery::NewPlan {
+            operations: &stream_2,
             id: optimization_id_2,
         });
 
-        let found = index.find(SearchQuery::OptimizationsStartingWith(&stream_1[0]));
+        let found = index.find(SearchQuery::PlansStartingWith(&stream_1[0]));
 
         assert_eq!(found, vec![optimization_id_1]);
     }

@@ -7,18 +7,16 @@ use crate::stream::OperationDescription;
 use crate::OptimizationBuilder;
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
-///
-/// Explore and create new [optimizations](crate::Optimization) using [explorations](Exploration).
 pub(crate) struct Processor<O> {
     policy: Policy<O>,
     explorer: Explorer<O>,
 }
 
-/// A part of a stream that can be executed partially using [explorations](Exploration).
+/// A part of a stream that can be executed partially using [execution plan](ExecutionPlan).
 pub trait StreamSegment<O> {
     /// The operations in the segment.
-    fn operations<'a>(&'a self) -> &[OperationDescription];
-    /// Execute part of the segment using the given exploration id.
+    fn operations(&self) -> &[OperationDescription];
+    /// Execute part of the segment using the given plan id.
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
 }
 
@@ -49,7 +47,7 @@ impl<O> Processor<O> {
                 Action::Explore => {
                     self.explore(&mut segment, store, mode);
 
-                    if self.explorer.up_to_date() {
+                    if self.explorer.is_up_to_date() {
                         break;
                     }
                 }
@@ -83,7 +81,7 @@ impl<O> Processor<O> {
         store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
     ) {
-        match self.explorer.explore(&item.operations(), mode) {
+        match self.explorer.explore(item.operations(), mode) {
             Exploration::Found(optim) => {
                 let id = Self::on_optimization_found(
                     &self.policy,
@@ -114,48 +112,50 @@ impl<O> Processor<O> {
         }
     }
 
-    fn reset(&mut self, store: &mut ExecutionPlanStore<O>, stream: &[OperationDescription]) {
-        self.explorer.reset(stream);
+    fn reset(&mut self, store: &mut ExecutionPlanStore<O>, operations: &[OperationDescription]) {
+        self.explorer.reset(operations);
         self.policy.reset();
 
         // Reset the policy state.
-        for i in 0..stream.len() {
-            self.policy.update(store, &stream[i]);
+        for operation in operations.iter() {
+            self.policy.update(store, operation);
         }
     }
 
     fn action(
         &mut self,
         store: &ExecutionPlanStore<O>,
-        stream: &[OperationDescription],
+        operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
         if let ExecutionMode::Lazy = mode {
             // We update the policy in lazy mode, since
             self.policy.update(
                 store,
-                &stream.last().expect("At least on operation in the stream."),
+                operations
+                    .last()
+                    .expect("At least one operation in the operation list."),
             );
         };
 
-        self.policy.action(store, stream, mode)
+        self.policy.action(store, operations, mode)
     }
 
     fn on_optimization_found(
         policy: &Policy<O>,
-        stream: &[OperationDescription],
+        operations: &[OperationDescription],
         store: &mut ExecutionPlanStore<O>,
         builder: &dyn OptimizationBuilder<O>,
         mode: ExecutionMode,
     ) -> ExecutionPlanId {
         let num_fused = builder.len();
-        let relative = &stream[0..num_fused];
+        let relative = &operations[0..num_fused];
 
         match mode {
             ExecutionMode::Lazy => {
-                let next_ops = stream.get(num_fused);
+                let next_ops = operations.get(num_fused);
 
-                let criterion = if let Some(next_ops) = next_ops {
+                let trigger = if let Some(next_ops) = next_ops {
                     ExecutionTrigger::OnOperation(next_ops.clone())
                 } else {
                     // Happens if the next ops is included in the fused operation, and there is no
@@ -165,23 +165,23 @@ impl<O> Processor<O> {
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
                     Action::Execute(id) => {
-                        store.add_trigger(id, criterion);
+                        store.add_trigger(id, trigger);
                         id
                     }
                     _ => store.add(ExecutionPlan {
                         operations: relative.to_vec(),
-                        triggers: vec![criterion],
+                        triggers: vec![trigger],
                         strategy: ExecutionStrategy::Optimization(builder.build()),
                     }),
                 }
             }
-            ExecutionMode::Sync => match policy.action(store, &relative, ExecutionMode::Sync) {
+            ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
                 Action::Execute(id) => {
                     store.add_trigger(id, ExecutionTrigger::OnSync);
                     id
                 }
                 _ => store.add(ExecutionPlan {
-                    operations: stream.to_vec(),
+                    operations: operations.to_vec(),
                     triggers: vec![ExecutionTrigger::OnSync],
                     strategy: ExecutionStrategy::Optimization(builder.build()),
                 }),
@@ -191,25 +191,25 @@ impl<O> Processor<O> {
 
     fn on_optimization_not_found(
         policy: &Policy<O>,
-        stream: &[OperationDescription],
+        operations: &[OperationDescription],
         store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
         num_explored: usize,
     ) -> ExecutionPlanId {
-        let relative = &stream[0..num_explored];
-        let criterion = match mode {
+        let relative = &operations[0..num_explored];
+        let trigger = match mode {
             ExecutionMode::Lazy => ExecutionTrigger::Always,
             ExecutionMode::Sync => ExecutionTrigger::OnSync,
         };
 
-        match policy.action(store, &relative, ExecutionMode::Sync) {
+        match policy.action(store, relative, ExecutionMode::Sync) {
             Action::Execute(id) => {
-                store.add_trigger(id, criterion);
+                store.add_trigger(id, trigger);
                 id
             }
             _ => store.add(ExecutionPlan {
                 operations: relative.to_vec(),
-                triggers: vec![criterion],
+                triggers: vec![trigger],
                 strategy: ExecutionStrategy::Operations,
             }),
         }

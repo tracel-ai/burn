@@ -63,7 +63,7 @@ struct Segment<'a, B: FusionBackend> {
 }
 
 impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {
-    fn operations<'a>(&'a self) -> &[OperationDescription] {
+    fn operations(&self) -> &[OperationDescription] {
         &self.queue.relative
     }
 

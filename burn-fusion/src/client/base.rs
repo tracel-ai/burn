@@ -14,7 +14,7 @@ pub trait FusionClient: Send + Sync + Clone {
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
-    /// Register a new [tensor operation description](TensorOperationDescription).
+    /// Register a new [tensor operation description](OperationDescription).
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
         description: OperationDescription,

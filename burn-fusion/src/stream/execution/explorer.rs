@@ -8,16 +8,18 @@ pub struct Explorer<O> {
     num_explored: usize,
 }
 
-/// The result of an exploration.
-///
-/// Either a new optimization is found, or we just continue to explore further.
+/// The result of an exploration done by the [explorer](Explorer).
 pub enum Exploration<'a, O> {
+    /// Found a new optimization.
     Found(&'a dyn OptimizationBuilder<O>),
+    /// No optimization is found.
     NotFound { num_explored: usize },
+    /// We should continue exploring before arriving at a conclusion.
     Continue,
 }
 
 impl<O> Explorer<O> {
+    /// Create a new explorer.
     pub(crate) fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
         Self {
             builders: optimizations,
@@ -26,17 +28,20 @@ impl<O> Explorer<O> {
         }
     }
 
+    /// Defer the exploration.
     pub(crate) fn defer(&mut self) {
         self.num_deferred += 1;
     }
 
-    pub(crate) fn up_to_date(&self) -> bool {
+    /// If the explorer is up to date.
+    pub(crate) fn is_up_to_date(&self) -> bool {
         self.num_deferred == 0
     }
 
+    /// Explore the provided operations.
     pub(crate) fn explore<'a>(
         &'a mut self,
-        stream: &[OperationDescription],
+        operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Exploration<'a, O> {
         // When we are executing with the new ops mode, we need to register the last ops of the
@@ -52,8 +57,8 @@ impl<O> Explorer<O> {
             if !is_still_optimizing {
                 break;
             }
-            let index = stream.len() - 1 - i;
-            let relative = &stream[index];
+            let index = operations.len() - 1 - i;
+            let relative = &operations[index];
 
             for builder in self.builders.iter_mut() {
                 builder.register(relative);
@@ -64,7 +69,7 @@ impl<O> Explorer<O> {
         }
         self.num_deferred = 0;
 
-        // Can only be lazy when not sync.
+        // Can only continue exploration when not sync.
         if let ExecutionMode::Lazy = mode {
             if is_still_optimizing {
                 return Exploration::Continue;
@@ -79,12 +84,13 @@ impl<O> Explorer<O> {
         }
     }
 
-    pub(crate) fn reset(&mut self, stream: &[OperationDescription]) {
-        for ops in self.builders.iter_mut() {
-            ops.reset();
+    /// Reset the state of the explorer to the provided list of operations.
+    pub(crate) fn reset(&mut self, operations: &[OperationDescription]) {
+        for operation in self.builders.iter_mut() {
+            operation.reset();
         }
         self.num_explored = 0;
-        self.num_deferred = stream.len();
+        self.num_deferred = operations.len();
     }
 }
 
@@ -117,6 +123,3 @@ fn find_best_optimization_index<O>(
 
     best_index
 }
-
-#[cfg(test)]
-mod tests {}

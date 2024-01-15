@@ -1,11 +1,12 @@
 use crate::{
     stream::{
-        store::{ExecutionStrategy, ExecutionPlanId, ExecutionPlanStore},
+        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
         OperationQueue,
     },
     FusionBackend, HandleContainer, Optimization,
 };
 
+/// The mode in which the execution is done.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ExecutionMode {
     Lazy,
@@ -13,10 +14,7 @@ pub(crate) enum ExecutionMode {
 }
 
 impl<B: FusionBackend> OperationQueue<B> {
-    /// Execute the stream.
-    ///
-    /// If an [optimization id](OptimizationId) is provided, use it to execute the stream partially, otherwise
-    /// execute each [operation](crate::stream::Ops).
+    /// Execute the queue partially following the execution strategy from the plan.
     pub(crate) fn execute(
         &mut self,
         id: ExecutionPlanId,
@@ -48,8 +46,8 @@ impl<B: FusionBackend> OperationQueue<B> {
     fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
         let num_drained = self.operations.len();
 
-        for ops in self.operations.drain(0..num_drained) {
-            ops.execute(handles);
+        for operation in self.operations.drain(0..num_drained) {
+            operation.execute(handles);
         }
 
         self.drain_stream(num_drained, handles);

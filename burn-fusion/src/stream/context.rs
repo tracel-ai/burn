@@ -37,7 +37,7 @@ pub struct Context<'a, B: FusionBackend> {
 }
 
 #[derive(Default)]
-pub(crate) struct RelativeStreamConverter {
+pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorDescription>,
     tensors_global2relative: HashMap<TensorId, TensorDescription>,
     /// Only useful to create new shape ID.
@@ -47,7 +47,7 @@ pub(crate) struct RelativeStreamConverter {
     scalar_ints: Vec<i32>,
 }
 
-impl RelativeStreamConverter {
+impl OperationConverter {
     pub(crate) fn context<'a, B: FusionBackend>(
         &'a self,
         handles: &'a mut HandleContainer<B>,
@@ -84,7 +84,7 @@ impl RelativeStreamConverter {
 }
 
 impl OperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             OperationDescription::BaseFloat(ops) => {
                 OperationDescription::BaseFloat(ops.to_relative(converter))
@@ -116,7 +116,7 @@ impl OperationDescription {
 }
 
 impl ModuleOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             ModuleOperationDescription::Embedding(desc) => {
                 ModuleOperationDescription::Embedding(EmbeddingDescription {
@@ -318,7 +318,7 @@ impl ModuleOperationDescription {
 }
 
 impl FloatOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             FloatOperationDescription::Exp(desc) => {
                 FloatOperationDescription::Exp(UnaryOperationDescription {
@@ -405,7 +405,7 @@ impl FloatOperationDescription {
 }
 
 impl BoolOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             BoolOperationDescription::IntoFloat(desc) => {
                 BoolOperationDescription::IntoFloat(UnaryOperationDescription {
@@ -430,7 +430,7 @@ impl BoolOperationDescription {
 }
 
 impl IntOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             IntOperationDescription::IntoFloat(desc) => {
                 IntOperationDescription::IntoFloat(UnaryOperationDescription {
@@ -443,13 +443,9 @@ impl IntOperationDescription {
 }
 
 impl<E: Element> NumericOperationDescription<E> {
-    pub(crate) fn to_relative<F>(
-        &self,
-        converter: &mut RelativeStreamConverter,
-        local_elem: F,
-    ) -> Self
+    pub(crate) fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
-        F: Fn(&mut RelativeStreamConverter, &E) -> E,
+        F: Fn(&mut OperationConverter, &E) -> E,
     {
         match self {
             NumericOperationDescription::Add(desc) => {
@@ -732,7 +728,7 @@ impl<E: Element> NumericOperationDescription<E> {
 }
 
 impl BaseOperationDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             BaseOperationDescription::ToDevice(desc) => {
                 BaseOperationDescription::ToDevice(desc.to_relative(converter))
@@ -797,7 +793,7 @@ impl BaseOperationDescription {
 }
 
 impl TensorDescription {
-    pub(crate) fn to_relative(&self, converter: &mut RelativeStreamConverter) -> Self {
+    pub(crate) fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         let relative_id = if let Some(value) = converter.tensors_global2relative.get(&self.id) {
             // If we already have the same tensor registered, we have to update its value, but not
             // its id.
@@ -858,7 +854,7 @@ mod tests {
             shape: vec![512, 128, 2048],
             status: TensorStatus::ReadOnly,
         };
-        let mut converter = RelativeStreamConverter::default();
+        let mut converter = OperationConverter::default();
         let tensor1_local = tensor1.to_relative(&mut converter);
         let tensor2_local = tensor2.to_relative(&mut converter);
 

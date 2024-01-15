@@ -1,15 +1,15 @@
-///! A testing module that ensures the correctness of the explorer, policy, and processor.
-///!
-///! The primary focus is on validating the seamless interaction between these three components to
-///! execute and optimize a stream of operations accurately.
-///!
-///! To test these components effectively, we create mock types for the stream, optimization,
-///! optimization builder, and stream segment. These mock types aid in comprehensively
-///! understanding the process of optimizing streams.
+//! A testing module that ensures the correctness of the explorer, policy, and processor.
+//!
+//! The primary focus is on validating the seamless interaction between these three components to
+//! execute and optimize a stream of operations accurately.
+//!
+//! To test these components effectively, we create mock types for the stream, optimization,
+//! optimization builder, and stream segment. These mock types aid in comprehensively
+//! understanding the process of optimizing streams.
 use crate::{
     stream::{
         store::{
-            ExecutionPlan, ExecutionPlanId, ExecutionStrategy, ExecutionPlanStore, ExecutionTrigger,
+            ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
         },
         BinaryOperationDescription, NumericOperationDescription, OperationDescription,
         ScalarOperationDescription,
@@ -32,7 +32,7 @@ struct TestStream {
 struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationDescription>,
-    expected_criterion: ExecutionTrigger,
+    expected_trigger: ExecutionTrigger,
     actual: Vec<OperationDescription>,
 }
 
@@ -64,10 +64,10 @@ fn should_support_complex_stream() {
     let builder_id_1 = 0;
     let builder_id_2 = 1;
 
-    // We will have a total of 3 explorations to execute.
-    let exploration_id_1 = 0;
-    let exploration_id_2 = 1;
-    let exploration_id_3 = 2;
+    // We will have a total of 3 execution plans to execute.
+    let plan_id_1 = 0;
+    let plan_id_2 = 1;
+    let plan_id_3 = 2;
 
     // The first builder only contains 2 operations, and the optimization is always available when
     // the pattern is meet.
@@ -84,7 +84,7 @@ fn should_support_complex_stream() {
         ExecutionTrigger::OnOperation(operation_1()),
     );
 
-    // We finaly build the stream with those optimization builders.
+    // We finally build the stream with those optimization builders.
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
 
     // Nothing to execute for the first operation.
@@ -96,9 +96,9 @@ fn should_support_complex_stream() {
     stream.add(operation_1());
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(1);
-    stream.assert_last_executed(exploration_id_1);
-    stream.assert_exploration(
-        exploration_id_1,
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_plan(
+        plan_id_1,
         ExecutionPlan {
             operations: vec![operation_1(), operation_1()],
             triggers: vec![ExecutionTrigger::Always],
@@ -115,9 +115,9 @@ fn should_support_complex_stream() {
     stream.add(operation_2());
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(2);
-    stream.assert_last_executed(exploration_id_2);
-    stream.assert_exploration(
-        exploration_id_2,
+    stream.assert_last_executed(plan_id_2);
+    stream.assert_plan(
+        plan_id_2,
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
@@ -139,9 +139,9 @@ fn should_support_complex_stream() {
     stream.add(operation_1());
     stream.assert_number_of_operations(1);
     stream.assert_number_of_executions(3);
-    stream.assert_last_executed(exploration_id_3);
-    stream.assert_exploration(
-        exploration_id_3,
+    stream.assert_last_executed(plan_id_3);
+    stream.assert_plan(
+        plan_id_3,
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![ExecutionTrigger::OnOperation(operation_1())],
@@ -149,13 +149,13 @@ fn should_support_complex_stream() {
         },
     );
 
-    // Now we should trigger the first optimization builder (second exploration).
+    // Now we should trigger the first optimization builder (second plan).
     stream.add(operation_2());
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(4);
-    stream.assert_last_executed(exploration_id_2);
-    stream.assert_exploration(
-        exploration_id_2,
+    stream.assert_last_executed(plan_id_2);
+    stream.assert_plan(
+        plan_id_2,
         ExecutionPlan {
             operations: vec![operation_1(), operation_2()],
             triggers: vec![ExecutionTrigger::Always],
@@ -173,19 +173,19 @@ fn should_support_complex_stream() {
     stream.assert_number_of_operations(2);
     stream.assert_number_of_executions(4);
 
-    // On sync we should execute all exploration when if their stop criteria isn't meet.
-    // In this case the optimization from builder 2 (exploration 3).
+    // On sync we should execute all operations even if their trigger isn't meet.
+    // In this case the optimization from builder 2 (plan 3).
     stream.sync();
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(5);
-    stream.assert_last_executed(exploration_id_3);
-    stream.assert_exploration(
-        exploration_id_3,
+    stream.assert_last_executed(plan_id_3);
+    stream.assert_plan(
+        plan_id_3,
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![
                 ExecutionTrigger::OnOperation(operation_1()),
-                ExecutionTrigger::OnSync, // We also add OnSync in the stop criteria.
+                ExecutionTrigger::OnSync, // We also add OnSync in the triggers.
             ],
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
         },
@@ -222,18 +222,18 @@ impl TestStream {
         );
     }
 
-    /// Assert that the exploration has been executed as provided.
-    fn assert_exploration(&self, id: ExecutionPlanId, expected: ExecutionPlan<TestOptimization>) {
+    /// Assert that the plan has been executed as provided.
+    fn assert_plan(&self, id: ExecutionPlanId, expected: ExecutionPlan<TestOptimization>) {
         let actual = self.store.get_unchecked(id);
         assert_eq!(actual.triggers, expected.triggers);
         assert_eq!(actual.operations, expected.operations);
     }
 
-    /// Assert that the given exploration id has been the last executed.
+    /// Assert that the given plan id has been the last executed.
     fn assert_last_executed(&self, id: ExecutionPlanId) {
         match self.executed.last() {
             Some(last_id) => assert_eq!(*last_id, id),
-            None => panic!("No exploration has been executed"),
+            None => panic!("No plan has been executed"),
         }
     }
 
@@ -249,17 +249,17 @@ impl TestStream {
 }
 
 impl TestOptimizationBuilder {
-    /// Create a new optimization builder that follows the pattern with the stop criterion.
+    /// Create a new optimization builder that follows a pattern with a trigger.
     fn new(
         builder_id: usize,
         operations: Vec<OperationDescription>,
-        criteria: ExecutionTrigger,
+        trigger: ExecutionTrigger,
     ) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
             actual: Vec::new(),
-            expected_criterion: criteria,
+            expected_trigger: trigger,
         }
     }
 }
@@ -287,7 +287,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
-            return match &self.actual == operations {
+            return match self.actual == operations {
                 // Still optimizing.
                 true => OptimizationStatus::Open,
                 // Never gonna be possible on that stream.
@@ -295,17 +295,15 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
             };
         }
 
-        if self.actual.len() == self.expected_operations.len() {
-            if actual_equal_expected {
-                return match self.expected_criterion {
-                    // Stop right away.
-                    ExecutionTrigger::Always => OptimizationStatus::Closed,
-                    // Wait for the next operation to show up.
-                    ExecutionTrigger::OnOperation(_) => OptimizationStatus::Open,
-                    // Doesn't matter on sync, even open should trigger a build if possible.
-                    ExecutionTrigger::OnSync => OptimizationStatus::Open,
-                };
-            }
+        if self.actual.len() == self.expected_operations.len() && actual_equal_expected {
+            return match self.expected_trigger {
+                // Stop right away.
+                ExecutionTrigger::Always => OptimizationStatus::Closed,
+                // Wait for the next operation to show up.
+                ExecutionTrigger::OnOperation(_) => OptimizationStatus::Open,
+                // Doesn't matter on sync, even open should trigger a build if possible.
+                ExecutionTrigger::OnSync => OptimizationStatus::Open,
+            };
         }
 
         OptimizationStatus::Closed
@@ -322,7 +320,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
         }
 
         let stream_is_ok =
-            &self.actual[0..self.expected_operations.len()] == &self.expected_operations;
+            self.actual[0..self.expected_operations.len()] == self.expected_operations;
 
         if !stream_is_ok {
             // Optimization not possible.
@@ -347,15 +345,15 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
 impl<'i> StreamSegment<TestOptimization> for TestSegment<'i> {
     // The operations in the process.
-    fn operations<'a>(&'a self) -> &[OperationDescription] {
-        &self.operations
+    fn operations(&self) -> &[OperationDescription] {
+        self.operations
     }
 
     // Execute the process.
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<TestOptimization>) {
-        let exploration = store.get_unchecked(id);
+        let execution_plan = store.get_unchecked(id);
 
-        match &exploration.strategy {
+        match &execution_plan.strategy {
             ExecutionStrategy::Optimization(optimization) => {
                 self.operations.drain(0..optimization.size);
             }

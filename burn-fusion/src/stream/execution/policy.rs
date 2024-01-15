@@ -1,42 +1,43 @@
 use super::ExecutionMode;
 use crate::stream::{
-    store::{ExecutionPlanId, ExecutionPlanStore, SearchQuery},
+    store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
     OperationDescription,
 };
 use std::marker::PhantomData;
 
-/// The stream policy keeps track of all possible explocations for the current stream.
+/// The policy keeps track of all possible execution plans for the current operations.
 ///
 /// # Details
 ///
-/// We keep track of each new operation added to the stream and invalidate potential explorations
-/// when we see a different operation is added while keeping track of the current stream.
+/// We keep track of each new operation added and invalidate potential execution plans
+/// when we see a different operation is added.
 ///
 /// Therefore, the overhead is very minimal, since the time-complexity of checking for existing
-/// explocations scales with the number of concurrent potential explocations for the current stream,
+/// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
     // The potential explocations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
     candidates: Vec<ExecutionPlanId>,
-    // Optimizations that we find during the `updates`, but none of their `stop_criteria` matches the
+    // Optimizations that we find during the `updates`, but none of their `trigger` matches the
     // current stream.
     availables: Vec<(ExecutionPlanId, usize)>,
-    // Optimization that we find during the `updates` where one of its `stop_criterion` matches the
+    // Optimization that we find during the `updates` where one of its `triggers` matches the
     // current stream.
     found: Option<(ExecutionPlanId, usize)>,
-    // The size of the stream currently analyzed.
-    stream_size: usize,
+    // The number of operations analyzed.
+    num_operations: usize,
     _item_type: PhantomData<O>,
 }
 
 impl<O> Policy<O> {
+    /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
             candidates: Vec::new(),
             availables: Vec::new(),
             found: None,
-            stream_size: 0,
+            num_operations: 0,
             _item_type: PhantomData,
         }
     }
@@ -45,11 +46,11 @@ impl<O> Policy<O> {
     pub fn action(
         &self,
         store: &ExecutionPlanStore<O>,
-        stream: &[OperationDescription],
+        operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
-        if self.stream_size < stream.len() {
-            panic!("Internal Error: Can't retrieve the policy action when the number of operations analyzed is lower than the stream itself.");
+        if self.num_operations < operations.len() {
+            panic!("Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed.");
         }
 
         if let Some((id, _length)) = self.found {
@@ -65,10 +66,10 @@ impl<O> Policy<O> {
                 Action::Explore
             }
             ExecutionMode::Sync => {
-                // If an explocation covers the _whole_ stream, we return it, else we explore new
-                // explocations.
+                // If an execution plan covers the _whole_ operation list, we return it, else we explore new
+                // plans.
                 for (id, length) in self.availables.iter() {
-                    if *length == stream.len() {
+                    if *length == operations.len() {
                         return Action::Execute(*id);
                     }
                 }
@@ -78,7 +79,7 @@ impl<O> Policy<O> {
 
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
-                    if item.operations.len() == stream.len() {
+                    if item.operations.len() == operations.len() {
                         return Action::Execute(*candidate);
                     }
                 }
@@ -90,20 +91,20 @@ impl<O> Policy<O> {
 
     /// Update the policy state.
     pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
-        if self.stream_size == 0 {
-            self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
+        if self.num_operations == 0 {
+            self.candidates = store.find(SearchQuery::PlansStartingWith(ops));
         } else {
             self.analyze_candidates(store, ops);
         }
 
-        self.stream_size += 1;
+        self.num_operations += 1;
     }
 
     // Reset the state of the policy.
     pub fn reset(&mut self) {
         self.candidates.clear();
         self.availables.clear();
-        self.stream_size = 0;
+        self.num_operations = 0;
         self.found = None;
     }
 
@@ -118,42 +119,39 @@ impl<O> Policy<O> {
         for id in self.candidates.iter() {
             let item = store.get_unchecked(*id);
 
-            if item.operations.len() == self.stream_size + 1 {
-                if item.operations.last().unwrap() == operation {
-                    if item
-                        .triggers
-                        .contains(&crate::stream::store::ExecutionTrigger::Always)
-                    {
-                        self.found = Some((*id, item.operations.len()));
-                        break;
-                    }
-                }
+            if item.operations.len() == self.num_operations + 1
+                && item.operations.last().unwrap() == operation
+                && item.triggers.contains(&ExecutionTrigger::Always)
+            {
+                self.found = Some((*id, item.operations.len()));
+                break;
             }
-            if item.operations.len() == self.stream_size {
+
+            if item.operations.len() == self.num_operations {
                 if item.should_stop_async(operation) {
                     self.found = Some((*id, item.operations.len()));
                     break;
                 } else {
-                    // The explocation is available, but the current operation isn't an existing
-                    // stop_criterion for this explocation, so we may find a better explocation by
-                    // still growing the stream.
+                    // The plan is available, but the current operation isn't an existing
+                    // trigger for this plan, so we may find a better plan by
+                    // still growing the operation list.
                     self.availables.push((*id, item.operations.len()));
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
-            let operation_candidate = match item.operations.get(self.stream_size) {
+            let operation_candidate = match item.operations.get(self.num_operations) {
                 Some(val) => val,
                 None => {
-                    // Stream of different size, invalidated.
+                    // Operation list of different size, invalidated.
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
             if operation_candidate != operation {
-                // Stream with different node at the current position, invalidated.
+                // Operation list with different node at the current position, invalidated.
                 invalidated_candidates.push(*id);
                 continue;
             }
@@ -190,7 +188,7 @@ mod tests {
     use super::*;
     use crate::{
         stream::{
-            store::{ExecutionStrategy, ExecutionPlan, ExecutionTrigger},
+            store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger},
             FloatOperationDescription, UnaryOperationDescription,
         },
         TensorDescription, TensorId, TensorStatus,
@@ -235,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn given_existing_optimization_when_found_stop_criterion_should_execute_optim() {
+    fn given_existing_plan_when_found_trigger_should_execute_plan() {
         let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
 
@@ -264,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_multiple_stop_criterions() {
+    fn should_support_multiple_triggers() {
         let mut store = ExecutionPlanStore::default();
         let mut policy_1 = Policy::new();
         let mut policy_2 = Policy::new();
@@ -273,10 +271,10 @@ mod tests {
         let mut stream_2 = TestStream::new(2);
 
         // Create different end operation for each stream.
-        let stop_criterion_id_1 = 5;
-        let stop_criterion_id_2 = 5;
-        stream_1.new_ops(stop_criterion_id_1);
-        stream_2.new_ops(stop_criterion_id_2);
+        let trigger_id_1 = 5;
+        let trigger_id_2 = 6;
+        stream_1.new_ops(trigger_id_1);
+        stream_2.new_ops(trigger_id_2);
 
         let id = store.add(ExecutionPlan {
             operations: stream_1.operations[0..2].to_vec(),
@@ -303,13 +301,13 @@ mod tests {
         stream_1.assert_updates(
             &store,
             &mut policy_1,
-            AssertUpdatesOptions::OperationsIndex(2..3), // First stop criterion.
+            AssertUpdatesOptions::OperationsIndex(2..3), // First trigger.
             Action::Execute(id),
         );
         stream_2.assert_updates(
             &store,
             &mut policy_2,
-            AssertUpdatesOptions::OperationsIndex(2..3), // Second stop criterion.
+            AssertUpdatesOptions::OperationsIndex(2..3), // Second trigger.
             Action::Execute(id),
         );
     }
