@@ -24,17 +24,16 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    type Backend = burn_ndarray::NdArray<f32>;
-
-    use std::{env, path::Path};
 
     use burn::{
-        record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
+        record::{FullPrecisionSettings, Recorder},
         tensor::Data,
     };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
+
+    type Backend = burn_ndarray::NdArray<f32>;
 
     #[test]
     #[ignore = "It appears loading boolean tensors are not supported yet"]
