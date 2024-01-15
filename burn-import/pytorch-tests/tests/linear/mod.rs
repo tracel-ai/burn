@@ -53,20 +53,13 @@ impl<B: Backend> NetWithBias<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use std::{env, path::Path};
-
-    use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
 
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn linear() {
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/linear/linear.pt".into())
-            .expect("Failed to decode state");
-
+    fn linear_test(record: NetRecord<Backend>, precision: usize) {
         let model = Net::<Backend>::new_with(record);
 
         let input = Tensor::<Backend, 4>::from_data([[
@@ -85,7 +78,27 @@ mod tests {
                 [0.05443089, -0.06904714, 0.02744314, 0.09997337],
             ],
         ]]);
-        output.to_data().assert_approx_eq(&expected.to_data(), 6);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
+    }
+
+    #[test]
+    fn linear_full_precision() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/linear/linear.pt".into())
+            .expect("Failed to decode state");
+
+        linear_test(record, 7);
+    }
+
+    #[test]
+    fn linear_half_precision() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/linear/linear.pt".into())
+            .expect("Failed to decode state");
+
+        linear_test(record, 4);
     }
 
     #[test]
