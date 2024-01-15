@@ -1,9 +1,4 @@
-use std::{env, path::Path};
-
-use burn::record::{
-    FullPrecisionSettings, HalfPrecisionSettings, NamedMpkFileRecorder, NamedMpkGzFileRecorder,
-    PrettyJsonFileRecorder, Recorder,
-};
+use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
 
 use burn::{
     module::Module,

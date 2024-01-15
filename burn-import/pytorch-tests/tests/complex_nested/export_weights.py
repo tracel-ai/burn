@@ -7,7 +7,7 @@ import torch.nn.functional as F
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size):
         super(ConvBlock, self).__init__()
-        # TODO test groups
+        # TODO test different groups
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
         self.norm = nn.BatchNorm2d(out_channels)
 
