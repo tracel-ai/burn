@@ -1,12 +1,12 @@
-use super::{InsertQuery, OptimizationIndex, SearchQuery};
+use super::{ExecutionPlanIndex, InsertQuery, SearchQuery};
 use crate::stream::OperationDescription;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.
 #[derive(Default, Serialize, Deserialize)]
-pub(crate) struct ExplorationStore<O> {
-    items: Vec<Exploration<O>>,
-    index: OptimizationIndex,
+pub(crate) struct ExecutionPlanStore<O> {
+    plans: Vec<ExecutionPlan<O>>,
+    index: ExecutionPlanIndex,
 }
 
 /// How a stream should be executed.
@@ -20,39 +20,38 @@ pub(crate) enum ExecutionStrategy<O> {
 
 /// The criterion exposing when to stop exploring on a stream.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) enum StopCriterion {
+pub(crate) enum ExecutionTrigger {
     OnOperation(OperationDescription),
     OnSync,
     Always,
 }
 
 /// The unique identifier for an exploration that was executed.
-pub(crate) type ExplorationId = usize;
+pub(crate) type ExecutionPlanId = usize;
 
 /// The outcome of an exploration that can be stored.
 #[derive(Serialize, Deserialize)]
-pub(crate) struct Exploration<O> {
+pub(crate) struct ExecutionPlan<O> {
     /// The stream on which the exploration is related to.
-    pub(crate) stream: Vec<OperationDescription>,
+    pub(crate) operations: Vec<OperationDescription>,
     /// The criteria that signal when this stream is optimal to be executed.
-    pub(crate) criteria: Vec<StopCriterion>,
+    pub(crate) triggers: Vec<ExecutionTrigger>,
     /// The strategy that should be used when executing this stream.
-    pub(crate) execution: ExecutionStrategy<O>,
+    pub(crate) strategy: ExecutionStrategy<O>,
 }
 
-impl<O> Exploration<O> {
+impl<O> ExecutionPlan<O> {
     /// Whether exploration should be stop in an async mode.
     pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
-        println!("Should stop async.");
-        for item in self.criteria.iter() {
+        for item in self.triggers.iter() {
             match item {
-                StopCriterion::OnOperation(val) => {
+                ExecutionTrigger::OnOperation(val) => {
                     if val == ops {
                         return true;
                     }
                 }
-                StopCriterion::Always => return true,
-                StopCriterion::OnSync => continue,
+                ExecutionTrigger::Always => return true,
+                ExecutionTrigger::OnSync => continue,
             }
         }
 
@@ -60,46 +59,46 @@ impl<O> Exploration<O> {
     }
 }
 
-impl<O> ExplorationStore<O> {
+impl<O> ExecutionPlanStore<O> {
     pub fn new() -> Self {
         Self {
-            items: Vec::new(),
-            index: OptimizationIndex::default(),
+            plans: Vec::new(),
+            index: ExecutionPlanIndex::default(),
         }
     }
 
-    pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExplorationId> {
+    pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExecutionPlanId> {
         self.index.find(query)
     }
 
-    pub fn add(&mut self, exploration: Exploration<O>) -> ExplorationId {
-        if exploration.stream.is_empty() {
+    pub fn add(&mut self, exploration: ExecutionPlan<O>) -> ExecutionPlanId {
+        if exploration.operations.is_empty() {
             panic!("Can't add an empty optimization.");
         }
 
-        let id = self.items.len();
+        let id = self.plans.len();
 
         self.index.insert(InsertQuery::NewOptimization {
-            stream: &exploration.stream,
+            stream: &exploration.operations,
             id,
         });
 
-        self.items.push(exploration);
+        self.plans.push(exploration);
 
         id
     }
 
-    pub fn get_mut_unchecked(&mut self, id: ExplorationId) -> &mut Exploration<O> {
-        &mut self.items[id]
+    pub fn get_mut_unchecked(&mut self, id: ExecutionPlanId) -> &mut ExecutionPlan<O> {
+        &mut self.plans[id]
     }
 
-    pub fn get_unchecked(&self, id: ExplorationId) -> &Exploration<O> {
-        &self.items[id]
+    pub fn get_unchecked(&self, id: ExecutionPlanId) -> &ExecutionPlan<O> {
+        &self.plans[id]
     }
 
     /// Add a new end condition for an optimization.
-    pub fn add_stop_criterion(&mut self, id: ExplorationId, criterion: StopCriterion) {
-        let criteria = &mut self.items[id].criteria;
+    pub fn add_trigger(&mut self, id: ExecutionPlanId, criterion: ExecutionTrigger) {
+        let criteria = &mut self.plans[id].triggers;
 
         if !criteria.contains(&criterion) {
             criteria.push(criterion);

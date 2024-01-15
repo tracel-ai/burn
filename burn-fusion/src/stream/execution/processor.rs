@@ -1,7 +1,7 @@
-use super::{ExecutionMode, Explorer, ExplorerResult};
+use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{
-    ExecutionStrategy, Exploration, ExplorationId, ExplorationStore, StopCriterion,
+    ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
 };
 use crate::stream::OperationDescription;
 use crate::OptimizationBuilder;
@@ -19,7 +19,7 @@ pub trait StreamSegment<O> {
     /// The operations in the segment.
     fn operations<'a>(&'a self) -> &[OperationDescription];
     /// Execute part of the segment using the given exploration id.
-    fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<O>);
+    fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
 }
 
 impl<O> Processor<O> {
@@ -35,7 +35,7 @@ impl<O> Processor<O> {
     pub fn process<Segment>(
         &mut self,
         mut segment: Segment,
-        store: &mut ExplorationStore<O>,
+        store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
     ) where
         Segment: StreamSegment<O>,
@@ -63,7 +63,7 @@ impl<O> Processor<O> {
                 }
                 Action::Execute(id) => {
                     if let ExecutionMode::Sync = mode {
-                        store.add_stop_criterion(id, StopCriterion::OnSync);
+                        store.add_trigger(id, ExecutionTrigger::OnSync);
                     }
 
                     segment.execute(id, store);
@@ -80,11 +80,11 @@ impl<O> Processor<O> {
     fn explore<Item: StreamSegment<O>>(
         &mut self,
         item: &mut Item,
-        store: &mut ExplorationStore<O>,
+        store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
     ) {
         match self.explorer.explore(&item.operations(), mode) {
-            ExplorerResult::Found(optim) => {
+            Exploration::Found(optim) => {
                 let id = Self::on_optimization_found(
                     &self.policy,
                     item.operations(),
@@ -95,7 +95,7 @@ impl<O> Processor<O> {
                 item.execute(id, store);
                 self.reset(store, item.operations());
             }
-            ExplorerResult::NotFound { num_explored } => {
+            Exploration::NotFound { num_explored } => {
                 let id = Self::on_optimization_not_found(
                     &self.policy,
                     item.operations(),
@@ -106,7 +106,7 @@ impl<O> Processor<O> {
                 item.execute(id, store);
                 self.reset(store, item.operations());
             }
-            ExplorerResult::Continue => {
+            Exploration::Continue => {
                 if let ExecutionMode::Sync = mode {
                     panic!("Can't continue exploring when sync.")
                 }
@@ -114,7 +114,7 @@ impl<O> Processor<O> {
         }
     }
 
-    fn reset(&mut self, store: &mut ExplorationStore<O>, stream: &[OperationDescription]) {
+    fn reset(&mut self, store: &mut ExecutionPlanStore<O>, stream: &[OperationDescription]) {
         self.explorer.reset(stream);
         self.policy.reset();
 
@@ -126,7 +126,7 @@ impl<O> Processor<O> {
 
     fn action(
         &mut self,
-        store: &ExplorationStore<O>,
+        store: &ExecutionPlanStore<O>,
         stream: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
@@ -144,10 +144,10 @@ impl<O> Processor<O> {
     fn on_optimization_found(
         policy: &Policy<O>,
         stream: &[OperationDescription],
-        store: &mut ExplorationStore<O>,
+        store: &mut ExecutionPlanStore<O>,
         builder: &dyn OptimizationBuilder<O>,
         mode: ExecutionMode,
-    ) -> ExplorationId {
+    ) -> ExecutionPlanId {
         let num_fused = builder.len();
         let relative = &stream[0..num_fused];
 
@@ -156,34 +156,34 @@ impl<O> Processor<O> {
                 let next_ops = stream.get(num_fused);
 
                 let criterion = if let Some(next_ops) = next_ops {
-                    StopCriterion::OnOperation(next_ops.clone())
+                    ExecutionTrigger::OnOperation(next_ops.clone())
                 } else {
                     // Happens if the next ops is included in the fused operation, and there is no
                     // way the builder can still continue fusing.
-                    StopCriterion::Always
+                    ExecutionTrigger::Always
                 };
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
                     Action::Execute(id) => {
-                        store.add_stop_criterion(id, criterion);
+                        store.add_trigger(id, criterion);
                         id
                     }
-                    _ => store.add(Exploration {
-                        stream: relative.to_vec(),
-                        criteria: vec![criterion],
-                        execution: ExecutionStrategy::Optimization(builder.build()),
+                    _ => store.add(ExecutionPlan {
+                        operations: relative.to_vec(),
+                        triggers: vec![criterion],
+                        strategy: ExecutionStrategy::Optimization(builder.build()),
                     }),
                 }
             }
             ExecutionMode::Sync => match policy.action(store, &relative, ExecutionMode::Sync) {
                 Action::Execute(id) => {
-                    store.add_stop_criterion(id, StopCriterion::OnSync);
+                    store.add_trigger(id, ExecutionTrigger::OnSync);
                     id
                 }
-                _ => store.add(Exploration {
-                    stream: stream.to_vec(),
-                    criteria: vec![StopCriterion::OnSync],
-                    execution: ExecutionStrategy::Optimization(builder.build()),
+                _ => store.add(ExecutionPlan {
+                    operations: stream.to_vec(),
+                    triggers: vec![ExecutionTrigger::OnSync],
+                    strategy: ExecutionStrategy::Optimization(builder.build()),
                 }),
             },
         }
@@ -192,25 +192,25 @@ impl<O> Processor<O> {
     fn on_optimization_not_found(
         policy: &Policy<O>,
         stream: &[OperationDescription],
-        store: &mut ExplorationStore<O>,
+        store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
         num_explored: usize,
-    ) -> ExplorationId {
+    ) -> ExecutionPlanId {
         let relative = &stream[0..num_explored];
         let criterion = match mode {
-            ExecutionMode::Lazy => StopCriterion::Always,
-            ExecutionMode::Sync => StopCriterion::OnSync,
+            ExecutionMode::Lazy => ExecutionTrigger::Always,
+            ExecutionMode::Sync => ExecutionTrigger::OnSync,
         };
 
         match policy.action(store, &relative, ExecutionMode::Sync) {
             Action::Execute(id) => {
-                store.add_stop_criterion(id, criterion);
+                store.add_trigger(id, criterion);
                 id
             }
-            _ => store.add(Exploration {
-                stream: relative.to_vec(),
-                criteria: vec![criterion],
-                execution: ExecutionStrategy::Operations,
+            _ => store.add(ExecutionPlan {
+                operations: relative.to_vec(),
+                triggers: vec![criterion],
+                strategy: ExecutionStrategy::Operations,
             }),
         }
     }

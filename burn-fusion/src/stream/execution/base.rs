@@ -1,6 +1,6 @@
 use crate::{
     stream::{
-        store::{ExecutionStrategy, ExplorationId, ExplorationStore},
+        store::{ExecutionStrategy, ExecutionPlanId, ExecutionPlanStore},
         OperationQueue,
     },
     FusionBackend, HandleContainer, Optimization,
@@ -19,11 +19,11 @@ impl<B: FusionBackend> OperationQueue<B> {
     /// execute each [operation](crate::stream::Ops).
     pub(crate) fn execute(
         &mut self,
-        id: ExplorationId,
+        id: ExecutionPlanId,
         handles: &mut HandleContainer<B>,
-        store: &mut ExplorationStore<B::Optimization>,
+        store: &mut ExecutionPlanStore<B::Optimization>,
     ) {
-        match &mut store.get_mut_unchecked(id).execution {
+        match &mut store.get_mut_unchecked(id).strategy {
             ExecutionStrategy::Optimization(optimization) => {
                 self.execute_optimization(handles, optimization)
             }

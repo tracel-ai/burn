@@ -1,6 +1,6 @@
 use super::{
     execution::{ExecutionMode, Processor, StreamSegment},
-    store::{ExplorationId, ExplorationStore},
+    store::{ExecutionPlanId, ExecutionPlanStore},
     Operation, OperationDescription, OperationQueue,
 };
 use crate::{FusionBackend, HandleContainer};
@@ -10,14 +10,14 @@ use crate::{FusionBackend, HandleContainer};
 /// TODO: Actually support multiple streams.
 pub struct MultiStream<B: FusionBackend> {
     streams: Vec<Stream<B>>,
-    optimizations: ExplorationStore<B::Optimization>,
+    optimizations: ExecutionPlanStore<B::Optimization>,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
     pub(crate) fn new(device: B::FusionDevice) -> Self {
         Self {
             streams: vec![Stream::new(device)],
-            optimizations: ExplorationStore::new(),
+            optimizations: ExecutionPlanStore::new(),
         }
     }
 
@@ -67,7 +67,7 @@ impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {
         &self.queue.relative
     }
 
-    fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<B::Optimization>) {
+    fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<B::Optimization>) {
         self.queue.execute(id, self.handles, store)
     }
 }

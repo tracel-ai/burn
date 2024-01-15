@@ -1,4 +1,4 @@
-use crate::stream::{store::ExplorationId, OperationDescription};
+use crate::stream::{store::ExecutionPlanId, OperationDescription};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -7,7 +7,7 @@ use std::{
 
 /// Index used to search optimizations.
 #[derive(Default, Serialize, Deserialize, Clone)]
-pub struct OptimizationIndex {
+pub struct ExecutionPlanIndex {
     /// We can't use `HashMap<TensorOpsDescription, Vec<OptimizationId>>` since `TensorOpsDescription`
     /// doesn't implement [`Eq`](core::cmp::Eq).
     ///
@@ -17,7 +17,7 @@ pub struct OptimizationIndex {
     /// This is OK because we use `relative` streams where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
     mapping: HashMap<u64, Vec<(OperationDescription, usize)>>,
-    starters: Vec<Vec<ExplorationId>>,
+    starters: Vec<Vec<ExecutionPlanId>>,
 }
 
 pub enum SearchQuery<'a> {
@@ -27,13 +27,13 @@ pub enum SearchQuery<'a> {
 pub enum InsertQuery<'a> {
     NewOptimization {
         stream: &'a [OperationDescription],
-        id: ExplorationId,
+        id: ExecutionPlanId,
     },
 }
 
-impl OptimizationIndex {
+impl ExecutionPlanIndex {
     /// Search optimizations with the given [query](SearchQuery).
-    pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExplorationId> {
+    pub fn find(&self, query: SearchQuery<'_>) -> Vec<ExecutionPlanId> {
         match query {
             SearchQuery::OptimizationsStartingWith(ops) => self.find_starting_with(ops),
         }
@@ -50,7 +50,7 @@ impl OptimizationIndex {
         }
     }
 
-    fn find_starting_with(&self, ops: &OperationDescription) -> Vec<ExplorationId> {
+    fn find_starting_with(&self, ops: &OperationDescription) -> Vec<ExecutionPlanId> {
         let key = self.stream_key(ops);
         let values = match self.mapping.get(&key) {
             Some(val) => val,
@@ -74,7 +74,7 @@ impl OptimizationIndex {
         val
     }
 
-    fn insert_new_ops(&mut self, ops: &OperationDescription, new_id: ExplorationId) {
+    fn insert_new_ops(&mut self, ops: &OperationDescription, new_id: ExecutionPlanId) {
         let key = self.stream_key(ops);
         let values = match self.mapping.get_mut(&key) {
             Some(val) => val,
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn should_find_optimization_id_based_on_tensor_ops() {
-        let mut index = OptimizationIndex::default();
+        let mut index = ExecutionPlanIndex::default();
         let stream_1 = [ops_1()];
         let optimization_id_1 = 0;
 
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn should_support_multiple_optimization_ids_with_same_starting_ops() {
-        let mut index = OptimizationIndex::default();
+        let mut index = ExecutionPlanIndex::default();
         let stream_1 = [ops_1(), ops_2(), ops_1()];
         let stream_2 = [ops_1(), ops_1(), ops_2()];
         let optimization_id_1 = 0;
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn should_only_find_optimization_with_correct_starting_ops() {
-        let mut index = OptimizationIndex::default();
+        let mut index = ExecutionPlanIndex::default();
         let stream_1 = [ops_1(), ops_1()];
         let stream_2 = [ops_2(), ops_1()];
         let optimization_id_1 = 0;
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn should_handle_hash_collisions() {
-        let mut index = OptimizationIndex::default();
+        let mut index = ExecutionPlanIndex::default();
         let stream_1 = [ops_1(), ops_1()];
         let stream_2 = [ops_3(), ops_1()];
         let optimization_id_1 = 0;

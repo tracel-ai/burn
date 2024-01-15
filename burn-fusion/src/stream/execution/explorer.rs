@@ -11,7 +11,7 @@ pub struct Explorer<O> {
 /// The result of an exploration.
 ///
 /// Either a new optimization is found, or we just continue to explore further.
-pub enum ExplorerResult<'a, O> {
+pub enum Exploration<'a, O> {
     Found(&'a dyn OptimizationBuilder<O>),
     NotFound { num_explored: usize },
     Continue,
@@ -38,7 +38,7 @@ impl<O> Explorer<O> {
         &'a mut self,
         stream: &[OperationDescription],
         mode: ExecutionMode,
-    ) -> ExplorerResult<'a, O> {
+    ) -> Exploration<'a, O> {
         // When we are executing with the new ops mode, we need to register the last ops of the
         // stream even when there is no skipped operation.
         let offset = match mode {
@@ -67,13 +67,13 @@ impl<O> Explorer<O> {
         // Can only be lazy when not sync.
         if let ExecutionMode::Lazy = mode {
             if is_still_optimizing {
-                return ExplorerResult::Continue;
+                return Exploration::Continue;
             }
         }
 
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => ExplorerResult::Found(self.builders[index].as_ref()),
-            None => ExplorerResult::NotFound {
+            Some(index) => Exploration::Found(self.builders[index].as_ref()),
+            None => Exploration::NotFound {
                 num_explored: self.num_explored,
             },
         }

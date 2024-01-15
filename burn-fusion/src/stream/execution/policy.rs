@@ -1,30 +1,30 @@
 use super::ExecutionMode;
 use crate::stream::{
-    store::{ExplorationId, ExplorationStore, SearchQuery},
+    store::{ExecutionPlanId, ExecutionPlanStore, SearchQuery},
     OperationDescription,
 };
 use std::marker::PhantomData;
 
-/// The stream policy keeps track of all possible optimizations for the current stream.
+/// The stream policy keeps track of all possible explocations for the current stream.
 ///
 /// # Details
 ///
-/// We keep track of each new operation added to the stream and invalidate potential optimizations
+/// We keep track of each new operation added to the stream and invalidate potential explorations
 /// when we see a different operation is added while keeping track of the current stream.
 ///
 /// Therefore, the overhead is very minimal, since the time-complexity of checking for existing
-/// optimizations scales with the number of concurrent potential optimizations for the current stream,
+/// explocations scales with the number of concurrent potential explocations for the current stream,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    // The potential optimizations that we could apply to the current stream, but their streams
+    // The potential explocations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
-    candidates: Vec<ExplorationId>,
-    // Optimizations that we find during the `updates`, but none of their `end_conditions` matches the
+    candidates: Vec<ExecutionPlanId>,
+    // Optimizations that we find during the `updates`, but none of their `stop_criteria` matches the
     // current stream.
-    availables: Vec<(ExplorationId, usize)>,
-    // Optimization that we find during the `updates` where one of its `end_condition` matches the
+    availables: Vec<(ExecutionPlanId, usize)>,
+    // Optimization that we find during the `updates` where one of its `stop_criterion` matches the
     // current stream.
-    found: Option<(ExplorationId, usize)>,
+    found: Option<(ExecutionPlanId, usize)>,
     // The size of the stream currently analyzed.
     stream_size: usize,
     _item_type: PhantomData<O>,
@@ -44,11 +44,10 @@ impl<O> Policy<O> {
     /// Returns the [action](Action) that should be taken given the state of the policy.
     pub fn action(
         &self,
-        store: &ExplorationStore<O>,
+        store: &ExecutionPlanStore<O>,
         stream: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
-        println!("Candidates {:?}", self.candidates);
         if self.stream_size < stream.len() {
             panic!("Internal Error: Can't retrieve the policy action when the number of operations analyzed is lower than the stream itself.");
         }
@@ -66,8 +65,8 @@ impl<O> Policy<O> {
                 Action::Explore
             }
             ExecutionMode::Sync => {
-                // If an optimization covers the _whole_ stream, we return it, else we explore new
-                // optimizations.
+                // If an explocation covers the _whole_ stream, we return it, else we explore new
+                // explocations.
                 for (id, length) in self.availables.iter() {
                     if *length == stream.len() {
                         return Action::Execute(*id);
@@ -79,7 +78,7 @@ impl<O> Policy<O> {
 
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
-                    if item.stream.len() == stream.len() {
+                    if item.operations.len() == stream.len() {
                         return Action::Execute(*candidate);
                     }
                 }
@@ -90,7 +89,7 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &ExplorationStore<O>, ops: &OperationDescription) {
+    pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
         if self.stream_size == 0 {
             self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
         } else {
@@ -110,42 +109,41 @@ impl<O> Policy<O> {
 
     fn analyze_candidates(
         &mut self,
-        optimizations: &ExplorationStore<O>,
-        next_ops: &OperationDescription,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
     ) {
-        println!("Analyze candidates: stream size {}", self.stream_size);
         // The index starts at zero.
         let mut invalidated_candidates = Vec::new();
 
         for id in self.candidates.iter() {
-            let item = optimizations.get_unchecked(*id);
+            let item = store.get_unchecked(*id);
 
-            if item.stream.len() == self.stream_size + 1 {
-                if item.stream.last().unwrap() == next_ops {
+            if item.operations.len() == self.stream_size + 1 {
+                if item.operations.last().unwrap() == operation {
                     if item
-                        .criteria
-                        .contains(&crate::stream::store::StopCriterion::Always)
+                        .triggers
+                        .contains(&crate::stream::store::ExecutionTrigger::Always)
                     {
-                        self.found = Some((*id, item.stream.len()));
+                        self.found = Some((*id, item.operations.len()));
                         break;
                     }
                 }
             }
-            if item.stream.len() == self.stream_size {
-                if item.should_stop_async(next_ops) {
-                    self.found = Some((*id, item.stream.len()));
+            if item.operations.len() == self.stream_size {
+                if item.should_stop_async(operation) {
+                    self.found = Some((*id, item.operations.len()));
                     break;
                 } else {
-                    // The optimization is available, but the current operation isn't an existing
-                    // end_condition for this optimization, so we may find a better optimization by
+                    // The explocation is available, but the current operation isn't an existing
+                    // stop_criterion for this explocation, so we may find a better explocation by
                     // still growing the stream.
-                    self.availables.push((*id, item.stream.len()));
+                    self.availables.push((*id, item.operations.len()));
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
-            let next_ops_candidate = match item.stream.get(self.stream_size) {
+            let operation_candidate = match item.operations.get(self.stream_size) {
                 Some(val) => val,
                 None => {
                     // Stream of different size, invalidated.
@@ -154,7 +152,7 @@ impl<O> Policy<O> {
                 }
             };
 
-            if next_ops_candidate != next_ops {
+            if operation_candidate != operation {
                 // Stream with different node at the current position, invalidated.
                 invalidated_candidates.push(*id);
                 continue;
@@ -174,17 +172,17 @@ impl<O> Policy<O> {
 /// Action to be made depending on the stream.
 #[derive(PartialEq, Eq, Debug)]
 pub enum Action {
-    /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
+    /// Continue exploring using the [builder](crate::OptimizationBuilder).
     Explore,
-    /// The current policy indicates that an optimization may be possible in the future, so the
+    /// The current policy indicates that an explocation may be possible in the future, so the
     /// best action is to defer any execution.
     ///
-    /// Sometimes, it can be a false positive and a new optimization should be built from scratch.
+    /// Sometimes, it can be a false positive and a new exploration should be built from scratch.
     /// Therefore it's important to keep the previous operations to rebuild the state if it
     /// happens.
     Defer,
-    /// An optimization has been found, and the best action is to execute it!
-    Execute(ExplorationId),
+    /// An exploration has been found, and the best action is to execute it!
+    Execute(ExecutionPlanId),
 }
 
 #[cfg(test)]
@@ -192,7 +190,7 @@ mod tests {
     use super::*;
     use crate::{
         stream::{
-            store::{ExecutionStrategy, Exploration, StopCriterion},
+            store::{ExecutionStrategy, ExecutionPlan, ExecutionTrigger},
             FloatOperationDescription, UnaryOperationDescription,
         },
         TensorDescription, TensorId, TensorStatus,
@@ -201,7 +199,7 @@ mod tests {
 
     #[test]
     fn given_no_optimization_should_explore() {
-        let store = ExplorationStore::default();
+        let store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
         let stream = TestStream::new(3);
 
@@ -215,14 +213,14 @@ mod tests {
 
     #[test]
     fn given_existing_optimization_when_sync_should_execute_optim() {
-        let mut store = ExplorationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
         let stream = TestStream::new(2);
 
-        let id = store.add(Exploration {
-            stream: stream.operations.clone(),
-            criteria: Vec::new(),
-            execution: ExecutionStrategy::Operations,
+        let id = store.add(ExecutionPlan {
+            operations: stream.operations.clone(),
+            triggers: Vec::new(),
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream.assert_updates(
@@ -237,18 +235,18 @@ mod tests {
     }
 
     #[test]
-    fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
-        let mut store = ExplorationStore::default();
+    fn given_existing_optimization_when_found_stop_criterion_should_execute_optim() {
+        let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
 
         let stream = TestStream::new(3);
-        let id = store.add(Exploration {
-            stream: stream.operations[0..2].to_vec(),
-            criteria: stream.operations[2..3]
+        let id = store.add(ExecutionPlan {
+            operations: stream.operations[0..2].to_vec(),
+            triggers: stream.operations[2..3]
                 .iter()
-                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
                 .collect(),
-            execution: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream.assert_updates(
@@ -266,8 +264,8 @@ mod tests {
     }
 
     #[test]
-    fn should_support_multiple_end_conditions() {
-        let mut store = ExplorationStore::default();
+    fn should_support_multiple_stop_criterions() {
+        let mut store = ExecutionPlanStore::default();
         let mut policy_1 = Policy::new();
         let mut policy_2 = Policy::new();
 
@@ -275,18 +273,18 @@ mod tests {
         let mut stream_2 = TestStream::new(2);
 
         // Create different end operation for each stream.
-        let end_condition_id_1 = 5;
-        let end_condition_id_2 = 5;
-        stream_1.new_ops(end_condition_id_1);
-        stream_2.new_ops(end_condition_id_2);
+        let stop_criterion_id_1 = 5;
+        let stop_criterion_id_2 = 5;
+        stream_1.new_ops(stop_criterion_id_1);
+        stream_2.new_ops(stop_criterion_id_2);
 
-        let id = store.add(Exploration {
-            stream: stream_1.operations[0..2].to_vec(),
-            criteria: vec![
-                StopCriterion::OnOperation(stream_1.operations[2].clone()),
-                StopCriterion::OnOperation(stream_2.operations[2].clone()),
+        let id = store.add(ExecutionPlan {
+            operations: stream_1.operations[0..2].to_vec(),
+            triggers: vec![
+                ExecutionTrigger::OnOperation(stream_1.operations[2].clone()),
+                ExecutionTrigger::OnOperation(stream_2.operations[2].clone()),
             ],
-            execution: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream_1.assert_updates(
@@ -305,20 +303,20 @@ mod tests {
         stream_1.assert_updates(
             &store,
             &mut policy_1,
-            AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
+            AssertUpdatesOptions::OperationsIndex(2..3), // First stop criterion.
             Action::Execute(id),
         );
         stream_2.assert_updates(
             &store,
             &mut policy_2,
-            AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
+            AssertUpdatesOptions::OperationsIndex(2..3), // Second stop criterion.
             Action::Execute(id),
         );
     }
 
     #[test]
     fn should_select_right_optimization() {
-        let mut store = ExplorationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let mut policy_1 = Policy::new();
         let mut policy_2 = Policy::new();
 
@@ -332,21 +330,21 @@ mod tests {
         stream_2.new_ops(5);
         stream_2.new_ops(6);
 
-        let optimization_stream_1 = store.add(Exploration {
-            stream: stream_1.operations[0..3].to_vec(),
-            criteria: stream_1.operations[3..4]
+        let optimization_stream_1 = store.add(ExecutionPlan {
+            operations: stream_1.operations[0..3].to_vec(),
+            triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
                 .collect(),
-            execution: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations,
         });
-        let optimization_stream_2 = store.add(Exploration {
-            stream: stream_2.operations[0..3].to_vec(),
-            criteria: stream_2.operations[3..4]
+        let optimization_stream_2 = store.add(ExecutionPlan {
+            operations: stream_2.operations[0..3].to_vec(),
+            triggers: stream_2.operations[3..4]
                 .iter()
-                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
                 .collect(),
-            execution: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations,
         });
         assert_ne!(optimization_stream_1, optimization_stream_2);
 
@@ -379,19 +377,19 @@ mod tests {
 
     #[test]
     fn should_invalidate_wrong_optimizations() {
-        let mut store = ExplorationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let stream_1 = TestStream::new(4);
         let mut stream_2 = TestStream::new(2);
         stream_2.new_ops(6);
         stream_2.new_ops(7);
 
-        store.add(Exploration {
-            stream: stream_1.operations[0..3].to_vec(),
-            criteria: stream_1.operations[3..4]
+        store.add(ExecutionPlan {
+            operations: stream_1.operations[0..3].to_vec(),
+            triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| StopCriterion::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
                 .collect(),
-            execution: ExecutionStrategy::Operations,
+            strategy: ExecutionStrategy::Operations,
         });
 
         let mut policy = Policy::new();
@@ -437,7 +435,7 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn assert_updates(
             &self,
-            optimizations: &ExplorationStore<()>,
+            optimizations: &ExecutionPlanStore<()>,
             policy: &mut Policy<()>,
             options: AssertUpdatesOptions,
             action: Action,
