@@ -545,8 +545,6 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         visitor.visit_string(Default::default())
     }
 
-    // TODO: Implement the rest of the methods.
-
     forward_to_deserialize_any! {
         u128 bytes byte_buf unit unit_struct newtype_struct tuple
         tuple_struct map enum identifier ignored_any struct
