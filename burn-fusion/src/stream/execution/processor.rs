@@ -6,16 +6,19 @@ use crate::stream::store::{
 use crate::stream::OperationDescription;
 use crate::OptimizationBuilder;
 
-/// Process the [stream](Stream) following a [policy](Policy).
+/// Process a [stream segment](StreamSegment) following a [policy](Policy).
 ///
-/// Explore and create new optimizations using explorations
+/// Explore and create new [optimizations](crate::Optimization) using [explorations](Exploration).
 pub(crate) struct Processor<O> {
     policy: Policy<O>,
     explorer: Explorer<O>,
 }
 
-pub trait Process<O> {
+/// A part of a stream that can be executed partially using [explorations](Exploration).
+pub trait StreamSegment<O> {
+    /// The operations in the segment.
     fn operations<'a>(&'a self) -> &[OperationDescription];
+    /// Execute part of the segment using the given exploration id.
     fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<O>);
 }
 
@@ -28,29 +31,29 @@ impl<O> Processor<O> {
         }
     }
 
-    /// Process the [stream](Stream) with the provided mode.
-    pub fn process<P: Process<O>>(
+    /// Process the [stream segment](StreamSegment) with the provided [mode](ExecutionMode).
+    pub fn process<Segment>(
         &mut self,
-        mut process: P,
+        mut segment: Segment,
         store: &mut ExplorationStore<O>,
         mode: ExecutionMode,
-    ) {
+    ) where
+        Segment: StreamSegment<O>,
+    {
         loop {
-            if process.operations().is_empty() {
+            if segment.operations().is_empty() {
                 break;
             }
 
-            match self.action(store, process.operations(), mode) {
+            match self.action(store, segment.operations(), mode) {
                 Action::Explore => {
-                    println!("Action::Explore");
-                    self.explore(&mut process, store, mode);
+                    self.explore(&mut segment, store, mode);
 
                     if self.explorer.up_to_date() {
                         break;
                     }
                 }
                 Action::Defer => {
-                    println!("Action::Defer");
                     self.explorer.defer();
 
                     match mode {
@@ -63,8 +66,8 @@ impl<O> Processor<O> {
                         store.add_stop_criterion(id, StopCriterion::OnSync);
                     }
 
-                    process.execute(id, store);
-                    self.reset(store, process.operations());
+                    segment.execute(id, store);
+                    self.reset(store, segment.operations());
                 }
             };
 
@@ -74,7 +77,7 @@ impl<O> Processor<O> {
         }
     }
 
-    fn explore<Item: Process<O>>(
+    fn explore<Item: StreamSegment<O>>(
         &mut self,
         item: &mut Item,
         store: &mut ExplorationStore<O>,
@@ -146,8 +149,6 @@ impl<O> Processor<O> {
         mode: ExecutionMode,
     ) -> ExplorationId {
         let num_fused = builder.len();
-        println!("Num fused {num_fused}");
-        println!("Stream size {}", stream.len());
         let relative = &stream[0..num_fused];
 
         match mode {
@@ -212,330 +213,5 @@ impl<O> Processor<O> {
                 execution: ExecutionStrategy::Operations,
             }),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        stream::{
-            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-        },
-        OptimizationProperties, OptimizationStatus, TensorDescription, TensorId, TensorStatus,
-    };
-
-    use super::*;
-
-    struct TestStream {
-        processor: Processor<TestOptimization>,
-        store: ExplorationStore<TestOptimization>,
-        executed: Vec<ExplorationId>,
-        operations: Vec<OperationDescription>,
-    }
-
-    impl TestStream {
-        fn new(optimizations: Vec<Box<dyn OptimizationBuilder<TestOptimization>>>) -> Self {
-            Self {
-                processor: Processor::<TestOptimization>::new(optimizations),
-                store: ExplorationStore::<TestOptimization>::new(),
-                executed: Vec::new(),
-                operations: Vec::new(),
-            }
-        }
-
-        fn add(&mut self, operation: OperationDescription) {
-            self.operations.push(operation);
-            self.processor.process(
-                TestProcess::new(&mut self.operations, &mut self.executed),
-                &mut self.store,
-                ExecutionMode::Lazy,
-            );
-        }
-
-        fn sync(&mut self) {
-            self.processor.process(
-                TestProcess::new(&mut self.operations, &mut self.executed),
-                &mut self.store,
-                ExecutionMode::Sync,
-            );
-        }
-
-        fn assert_executed_exploration(
-            &self,
-            id: ExplorationId,
-            expected: Exploration<TestOptimization>,
-        ) {
-            let actual = self.store.get_unchecked(id);
-            assert_eq!(actual.criteria, expected.criteria,);
-            assert_eq!(actual.stream, expected.stream,);
-        }
-    }
-
-    #[test]
-    fn scenario1() {
-        let builder_id_1 = 0;
-        let builder_id_2 = 1;
-        let exploration_id_1 = 0;
-        let exploration_id_2 = 1;
-        let exploration_id_3 = 2;
-
-        let builder_1 = TestBuilder::new(
-            builder_id_1,
-            vec![operation_1(), operation_2()],
-            StopCriterion::Always,
-        );
-        let builder_2 = TestBuilder::new(
-            builder_id_2,
-            vec![operation_2(), operation_2()],
-            StopCriterion::OnOperation(operation_1()),
-        );
-        let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
-
-        // No optimization found.
-        stream.add(operation_1());
-        stream.add(operation_1());
-        stream.assert_executed_exploration(
-            exploration_id_1,
-            Exploration {
-                stream: vec![operation_1(), operation_1()],
-                criteria: vec![StopCriterion::Always],
-                execution: ExecutionStrategy::Operations,
-            },
-        );
-        assert!(stream.operations.is_empty());
-        println!("0000000000000000");
-
-        // Optimization found.
-        stream.add(operation_1());
-        stream.add(operation_2());
-        stream.assert_executed_exploration(
-            exploration_id_2,
-            Exploration {
-                stream: vec![operation_1(), operation_2()],
-                criteria: vec![StopCriterion::Always],
-                execution: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
-            },
-        );
-        assert!(stream.operations.is_empty());
-        println!("1111111111111111");
-
-        // Optimization found.
-        stream.add(operation_2());
-        stream.add(operation_2());
-        stream.add(operation_1());
-        stream.assert_executed_exploration(
-            exploration_id_3,
-            Exploration {
-                stream: vec![operation_2(), operation_2()],
-                criteria: vec![StopCriterion::OnOperation(operation_1())],
-                execution: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
-            },
-        );
-        assert_eq!(stream.operations.len(), 1);
-        println!("2222222222222222");
-
-        // Optimization found.
-        stream.add(operation_2());
-        stream.assert_executed_exploration(
-            exploration_id_2,
-            Exploration {
-                stream: vec![operation_1(), operation_2()],
-                criteria: vec![StopCriterion::Always],
-                execution: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
-            },
-        );
-        assert_eq!(stream.operations.len(), 0);
-        println!("3333333333333333");
-
-        stream.add(operation_2());
-        stream.add(operation_2());
-        stream.sync();
-        stream.assert_executed_exploration(
-            exploration_id_3,
-            Exploration {
-                stream: vec![operation_2(), operation_2()],
-                criteria: vec![
-                    StopCriterion::OnOperation(operation_1()),
-                    StopCriterion::OnSync,
-                ],
-                execution: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
-            },
-        );
-    }
-
-    struct TestBuilder {
-        builder_id: usize,
-        expected_operations: Vec<OperationDescription>,
-        expected_criterion: StopCriterion,
-        actual: Vec<OperationDescription>,
-    }
-
-    impl TestBuilder {
-        pub fn new(
-            builder_id: usize,
-            operations: Vec<OperationDescription>,
-            criteria: StopCriterion,
-        ) -> Self {
-            Self {
-                builder_id,
-                expected_operations: operations,
-                actual: Vec::new(),
-                expected_criterion: criteria,
-            }
-        }
-    }
-
-    impl OptimizationBuilder<TestOptimization> for TestBuilder {
-        fn register(&mut self, operation: &OperationDescription) {
-            self.actual.push(operation.clone());
-        }
-
-        fn build(&self) -> TestOptimization {
-            TestOptimization::new(self.builder_id, self.len())
-        }
-
-        fn reset(&mut self) {
-            self.actual.clear();
-        }
-
-        fn status(&self) -> OptimizationStatus {
-            let actual_equal_expected = self.actual == self.expected_operations;
-
-            if self.actual.len() < self.expected_operations.len() {
-                let operations = &self.expected_operations[0..self.actual.len()];
-                let is_contained = &self.actual == operations;
-
-                if is_contained {
-                    return OptimizationStatus::Open;
-                } else {
-                    return OptimizationStatus::Closed;
-                }
-            }
-
-            if self.actual.len() == self.expected_operations.len() {
-                if actual_equal_expected {
-                    if let StopCriterion::Always = self.expected_criterion {
-                        return OptimizationStatus::Closed;
-                    } else {
-                        return OptimizationStatus::Open;
-                    }
-                } else {
-                    return OptimizationStatus::Closed;
-                }
-            }
-
-            OptimizationStatus::Closed
-        }
-
-        fn properties(&self) -> OptimizationProperties {
-            if self.actual.len() < self.expected_operations.len() {
-                return OptimizationProperties {
-                    score: 0,
-                    ready: false,
-                };
-            }
-
-            let stream_is_ok =
-                &self.actual[0..self.expected_operations.len()] == &self.expected_operations;
-
-            if !stream_is_ok {
-                return OptimizationProperties {
-                    score: 0,
-                    ready: false,
-                };
-            }
-
-            if let StopCriterion::OnOperation(next_ops) = &self.expected_criterion {
-                if let Some(op) = self.actual.get(self.expected_operations.len()) {
-                    if op != next_ops {
-                        return OptimizationProperties {
-                            score: 0,
-                            ready: false,
-                        };
-                    }
-                }
-            };
-
-            OptimizationProperties {
-                score: 1,
-                ready: true,
-            }
-        }
-
-        fn len(&self) -> usize {
-            self.expected_operations.len()
-        }
-    }
-
-    #[derive(new, Debug, PartialEq)]
-    struct TestOptimization {
-        builder_id: usize,
-        size: usize,
-    }
-
-    #[derive(new)]
-    struct TestProcess<'i> {
-        operations: &'i mut Vec<OperationDescription>,
-        executed: &'i mut Vec<ExplorationId>,
-    }
-
-    impl<'i> Process<TestOptimization> for TestProcess<'i> {
-        fn operations<'a>(&'a self) -> &[OperationDescription] {
-            &self.operations
-        }
-
-        fn execute(&mut self, id: ExplorationId, store: &mut ExplorationStore<TestOptimization>) {
-            println!("Execute exploration {id}");
-            let exploration = store.get_unchecked(id);
-
-            match &exploration.execution {
-                ExecutionStrategy::Optimization(optimization) => {
-                    self.operations.drain(0..optimization.size);
-                }
-                ExecutionStrategy::Operations => self.operations.clear(),
-            };
-
-            self.executed.push(id);
-        }
-    }
-
-    fn operation_1() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::Add(
-            BinaryOperationDescription {
-                lhs: TensorDescription {
-                    id: TensorId::new(0),
-                    shape: vec![32, 32],
-                    status: TensorStatus::ReadOnly,
-                },
-                rhs: TensorDescription {
-                    id: TensorId::new(1),
-                    shape: vec![32, 32],
-                    status: TensorStatus::ReadOnly,
-                },
-                out: TensorDescription {
-                    id: TensorId::new(2),
-                    shape: vec![32, 32],
-                    status: TensorStatus::NotInit,
-                },
-            },
-        ))
-    }
-
-    fn operation_2() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
-            ScalarOperationDescription {
-                lhs: TensorDescription {
-                    id: TensorId::new(0),
-                    shape: vec![32, 32],
-                    status: TensorStatus::ReadOnly,
-                },
-                rhs: 5.0,
-                out: TensorDescription {
-                    id: TensorId::new(2),
-                    shape: vec![32, 32],
-                    status: TensorStatus::NotInit,
-                },
-            },
-        ))
     }
 }

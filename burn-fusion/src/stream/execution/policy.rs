@@ -122,7 +122,10 @@ impl<O> Policy<O> {
 
             if item.stream.len() == self.stream_size + 1 {
                 if item.stream.last().unwrap() == next_ops {
-                    if item.criteria.contains(&crate::stream::store::StopCriterion::Always) {
+                    if item
+                        .criteria
+                        .contains(&crate::stream::store::StopCriterion::Always)
+                    {
                         self.found = Some((*id, item.stream.len()));
                         break;
                     }
