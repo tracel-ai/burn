@@ -283,7 +283,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_fusion::stream::Ops;
+    use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Int;
     use burn_tensor::{backend::Backend, Data, Tensor};
@@ -419,7 +419,7 @@ mod tests {
 
     struct FakeAddOps;
 
-    impl<B: FusionBackend> Ops<B> for FakeAddOps {
+    impl<B: FusionBackend> Operation<B> for FakeAddOps {
         fn execute(self: Box<Self>, _: &mut burn_fusion::HandleContainer<B>) {
             panic!("Should always fused during tests.")
         }

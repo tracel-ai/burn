@@ -1,6 +1,6 @@
 use crate::{
     client::FusionClient,
-    stream::{Context, TensorOpsDescription},
+    stream::{Context, OperationDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
@@ -70,7 +70,7 @@ pub struct OptimizationProperties {
 }
 
 /// The fusion operation abstraction allows implementations to fuse many
-/// [tensor operations](TensorOpsDescription) into one, improving the performance of the backend.
+/// [tensor operations](OperationDescription) into one, improving the performance of the backend.
 ///
 ///
 /// # Notes
@@ -79,19 +79,25 @@ pub struct OptimizationProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
+/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait OptimizationBuilder<B: FusionBackend>: Send {
-    /// Register a new [tensor operation](TensorOpsDescription).
-    fn register(&mut self, ops: &TensorOpsDescription);
+pub trait OptimizationBuilder<O>: Send {
+    /// Register a new [tensor operation](OperationDescription).
+    fn register(&mut self, operation: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> B::Optimization;
+    fn build(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
     fn status(&self) -> OptimizationStatus;
     /// Return the builder [properties](OptimizationProperties).
     fn properties(&self) -> OptimizationProperties;
+    /// The number of operation fused.
+    fn len(&self) -> usize;
+    /// If no operations are fused.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
@@ -143,7 +149,8 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
+    fn optimizations(device: Device<Self>)
+        -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

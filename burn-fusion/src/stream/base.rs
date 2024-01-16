@@ -1,51 +1,52 @@
-use super::Ops;
-use super::RelativeStreamConverter;
-use super::TensorOpsDescription;
+use super::Operation;
+use super::OperationConverter;
+use super::OperationDescription;
 use crate::FusionBackend;
 
-/// A growing list of [tensor operation descriptions](TensorOpsDescription).
-pub struct Stream<B: FusionBackend> {
-    pub(crate) global: Vec<TensorOpsDescription>,
-    pub(crate) relative: Vec<TensorOpsDescription>,
-    pub(crate) converter: RelativeStreamConverter,
-    pub(crate) ops: Vec<Box<dyn Ops<B>>>,
+/// A growing list of [tensor operation descriptions](OperationDescription).
+pub struct OperationQueue<B: FusionBackend> {
+    pub(crate) global: Vec<OperationDescription>,
+    pub(crate) relative: Vec<OperationDescription>,
+    pub(crate) converter: OperationConverter,
+    pub(crate) operations: Vec<Box<dyn Operation<B>>>,
 }
 
-impl<B: FusionBackend> Stream<B> {
-    pub(crate) fn new() -> Self {
+impl<B: FusionBackend> Default for OperationQueue<B> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<B: FusionBackend> OperationQueue<B> {
+    /// Create a new empty queue.
+    pub fn new() -> Self {
         Self {
             global: Vec::new(),
             relative: Vec::new(),
-            converter: RelativeStreamConverter::default(),
-            ops: Vec::new(),
+            converter: OperationConverter::default(),
+            operations: Vec::new(),
         }
     }
 
-    pub(crate) fn split_relative_stream(
-        &self,
-    ) -> (&[TensorOpsDescription], Option<&TensorOpsDescription>) {
-        let len = self.relative.len();
-        if len < 1 {
-            return (&self.relative, None);
-        }
-
-        (&self.relative[0..len - 1], self.relative.last())
-    }
-
-    pub(crate) fn add(&mut self, global: TensorOpsDescription, ops: Box<dyn Ops<B>>) {
+    /// Add a new tensor operation to the queue.
+    ///
+    /// The new [operation description](OperationDescription) will be converted to a local
+    /// representation that can be reused when the same pattern emerge in different but similar
+    /// scenario, so that the same optimization can be used.
+    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<B>>) {
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
         self.global.push(global);
-        self.ops.push(ops);
+        self.operations.push(operation);
     }
 
-    /// The size of the stream.
-    pub(crate) fn len(&self) -> usize {
+    /// The size of the queue.
+    pub fn len(&self) -> usize {
         self.global.len()
     }
 
-    /// If the stream is empty.
-    pub(crate) fn is_empty(&self) -> bool {
+    /// If the queue is empty.
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }

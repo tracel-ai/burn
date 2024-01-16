@@ -51,6 +51,10 @@ pub fn save<B: Backend>(
         .join("burn")
         .join("backend-comparison");
 
+    for bench in benches.iter() {
+        println!("{bench}");
+    }
+
     if !cache_dir.exists() {
         fs::create_dir_all(&cache_dir)?;
     }

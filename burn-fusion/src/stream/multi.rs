@@ -1,7 +1,7 @@
 use super::{
-    execution::{ExecutionMode, Processor},
-    store::OptimizationStore,
-    Ops, Stream, TensorOpsDescription,
+    execution::{ExecutionMode, Processor, StreamSegment},
+    store::{ExecutionPlanId, ExecutionPlanStore},
+    Operation, OperationDescription, OperationQueue,
 };
 use crate::{FusionBackend, HandleContainer};
 
@@ -9,37 +9,31 @@ use crate::{FusionBackend, HandleContainer};
 ///
 /// TODO: Actually support multiple streams.
 pub struct MultiStream<B: FusionBackend> {
-    items: Vec<Item<B>>,
-    optimizations: OptimizationStore<B::Optimization>,
-}
-
-struct Item<B: FusionBackend> {
-    stream: Stream<B>,
-    executor: Processor<B>,
+    streams: Vec<Stream<B>>,
+    optimizations: ExecutionPlanStore<B::Optimization>,
 }
 
 impl<B: FusionBackend> MultiStream<B> {
     pub(crate) fn new(device: B::FusionDevice) -> Self {
         Self {
-            items: vec![Item::new(device)],
-            optimizations: OptimizationStore::new(),
+            streams: vec![Stream::new(device)],
+            optimizations: ExecutionPlanStore::new(),
         }
     }
 
     /// Register a new tensor operation.
     pub fn register(
         &mut self,
-        ops_desc: TensorOpsDescription,
-        ops: Box<dyn Ops<B>>,
+        desc: OperationDescription,
+        operation: Box<dyn Operation<B>>,
         handles: &mut HandleContainer<B>,
     ) {
         // TODO: Support more than only one stream.
-        if let Some(item) = self.items.first_mut() {
-            item.stream.add(ops_desc, ops);
-            item.executor.process(
-                &mut item.stream,
+        if let Some(item) = self.streams.first_mut() {
+            item.queue.add(desc, operation);
+            item.processor.process(
+                Segment::new(&mut item.queue, handles),
                 &mut self.optimizations,
-                handles,
                 ExecutionMode::Lazy,
             );
         };
@@ -47,22 +41,42 @@ impl<B: FusionBackend> MultiStream<B> {
 
     /// Drain the streams.
     pub fn drain(&mut self, handles: &mut HandleContainer<B>) {
-        self.items.iter_mut().for_each(|item| {
-            item.executor.process(
-                &mut item.stream,
+        self.streams.iter_mut().for_each(|item| {
+            item.processor.process(
+                Segment::new(&mut item.queue, handles),
                 &mut self.optimizations,
-                handles,
                 ExecutionMode::Sync,
             );
         });
     }
 }
 
-impl<B: FusionBackend> Item<B> {
+struct Stream<B: FusionBackend> {
+    queue: OperationQueue<B>,
+    processor: Processor<B::Optimization>,
+}
+
+#[derive(new)]
+struct Segment<'a, B: FusionBackend> {
+    queue: &'a mut OperationQueue<B>,
+    handles: &'a mut HandleContainer<B>,
+}
+
+impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {
+    fn operations(&self) -> &[OperationDescription] {
+        &self.queue.relative
+    }
+
+    fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<B::Optimization>) {
+        self.queue.execute(id, self.handles, store)
+    }
+}
+
+impl<B: FusionBackend> Stream<B> {
     fn new(device: B::FusionDevice) -> Self {
         Self {
-            executor: Processor::new(B::optimizations(device.into())),
-            stream: Stream::new(),
+            processor: Processor::new(B::optimizations(device.into())),
+            queue: OperationQueue::new(),
         }
     }
 }

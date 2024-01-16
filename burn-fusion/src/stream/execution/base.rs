@@ -1,32 +1,32 @@
 use crate::{
     stream::{
-        store::{OptimizationId, OptimizationStore},
-        Stream,
+        store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
+        OperationQueue,
     },
     FusionBackend, HandleContainer, Optimization,
 };
 
+/// The mode in which the execution is done.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ExecutionMode {
     Lazy,
     Sync,
 }
 
-impl<B: FusionBackend> Stream<B> {
-    /// Execute the stream.
-    ///
-    /// If an [optimization id](OptimizationId) is provided, use it to execute the stream partially, otherwise
-    /// execute each [operation](crate::stream::Ops).
+impl<B: FusionBackend> OperationQueue<B> {
+    /// Execute the queue partially following the execution strategy from the plan.
     pub(crate) fn execute(
         &mut self,
-        id: Option<OptimizationId>,
+        id: ExecutionPlanId,
         handles: &mut HandleContainer<B>,
-        store: &mut OptimizationStore<B::Optimization>,
+        store: &mut ExecutionPlanStore<B::Optimization>,
     ) {
-        match id {
-            Some(id) => self.execute_optimization(handles, &mut store.get_mut_unchecked(id).value),
-            None => self.execute_operations(handles),
-        }
+        match &mut store.get_mut_unchecked(id).strategy {
+            ExecutionStrategy::Optimization(optimization) => {
+                self.execute_optimization(handles, optimization)
+            }
+            ExecutionStrategy::Operations => self.execute_operations(handles),
+        };
     }
 
     fn execute_optimization(
@@ -40,14 +40,14 @@ impl<B: FusionBackend> Stream<B> {
         optimization.execute(&mut context);
 
         self.drain_stream(num_drained, handles);
-        self.ops.drain(0..num_drained);
+        self.operations.drain(0..num_drained);
     }
 
     fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
-        let num_drained = self.ops.len();
+        let num_drained = self.operations.len();
 
-        for ops in self.ops.drain(0..num_drained) {
-            ops.execute(handles);
+        for operation in self.operations.drain(0..num_drained) {
+            operation.execute(handles);
         }
 
         self.drain_stream(num_drained, handles);

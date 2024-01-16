@@ -1,42 +1,43 @@
 use super::ExecutionMode;
 use crate::stream::{
-    store::{OptimizationId, OptimizationStore, SearchQuery},
-    TensorOpsDescription,
+    store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
+    OperationDescription,
 };
 use std::marker::PhantomData;
 
-/// The stream policy keeps track of all possible optimizations for the current stream.
+/// The policy keeps track of all possible execution plans for the current operations.
 ///
 /// # Details
 ///
-/// We keep track of each new operation added to the stream and invalidate potential optimizations
-/// when we see a different operation is added while keeping track of the current stream.
+/// We keep track of each new operation added and invalidate potential execution plans
+/// when we see a different operation is added.
 ///
 /// Therefore, the overhead is very minimal, since the time-complexity of checking for existing
-/// optimizations scales with the number of concurrent potential optimizations for the current stream,
+/// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    // The potential optimizations that we could apply to the current stream, but their streams
+    // The potential explorations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
-    candidates: Vec<OptimizationId>,
-    // Optimizations that we find during the `updates`, but none of their `end_conditions` matches the
+    candidates: Vec<ExecutionPlanId>,
+    // Optimizations that we find during the `updates`, but none of their `trigger` matches the
     // current stream.
-    availables: Vec<(OptimizationId, usize)>,
-    // Optimization that we find during the `updates` where one of its `end_condition` matches the
+    availables: Vec<(ExecutionPlanId, usize)>,
+    // Optimization that we find during the `updates` where one of its `triggers` matches the
     // current stream.
-    found: Option<(OptimizationId, usize)>,
-    // The size of the stream currently analyzed.
-    stream_size: usize,
+    found: Option<(ExecutionPlanId, usize)>,
+    // The number of operations analyzed.
+    num_operations: usize,
     _item_type: PhantomData<O>,
 }
 
 impl<O> Policy<O> {
+    /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
             candidates: Vec::new(),
             availables: Vec::new(),
             found: None,
-            stream_size: 0,
+            num_operations: 0,
             _item_type: PhantomData,
         }
     }
@@ -44,17 +45,12 @@ impl<O> Policy<O> {
     /// Returns the [action](Action) that should be taken given the state of the policy.
     pub fn action(
         &self,
-        optimizations: &OptimizationStore<O>,
-        stream: &[TensorOpsDescription],
+        store: &ExecutionPlanStore<O>,
+        operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
-        let num_minimum_analyzed = match mode {
-            ExecutionMode::Lazy => self.stream_size - 1,
-            ExecutionMode::Sync => self.stream_size,
-        };
-
-        if num_minimum_analyzed < stream.len() {
-            panic!("Internal Error: Can't retrieve the policy action when the number of operations analyzed is lower than the stream itself.");
+        if self.num_operations < operations.len() {
+            panic!("Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed.");
         }
 
         if let Some((id, _length)) = self.found {
@@ -63,30 +59,27 @@ impl<O> Policy<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                if self.candidates.is_empty() {
-                    // Even if there are optimizations available, we aren't sure if they are the best ones
-                    // we can use. Exploring more optimizations might find a new `end_condition` or
-                    // even find a better optimization.
-                    return Action::Explore;
+                if !self.candidates.is_empty() {
+                    return Action::Defer;
                 }
 
-                Action::Defer
+                Action::Explore
             }
             ExecutionMode::Sync => {
-                // If an optimization covers the _whole_ stream, we return it, else we explore new
-                // optimizations.
+                // If an execution plan covers the _whole_ operation list, we return it, else we explore new
+                // plans.
                 for (id, length) in self.availables.iter() {
-                    if *length == stream.len() {
+                    if *length == operations.len() {
                         return Action::Execute(*id);
                     }
                 }
 
                 for candidate in self.candidates.iter() {
-                    let item = optimizations.get_unchecked(*candidate);
+                    let item = store.get_unchecked(*candidate);
 
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
-                    if item.stream.len() == stream.len() {
+                    if item.operations.len() == operations.len() {
                         return Action::Execute(*candidate);
                     }
                 }
@@ -97,61 +90,68 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &OptimizationStore<O>, ops: &TensorOpsDescription) {
-        if self.stream_size == 0 {
-            self.candidates = store.find(SearchQuery::OptimizationsStartingWith(ops));
+    pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
+        if self.num_operations == 0 {
+            self.candidates = store.find(SearchQuery::PlansStartingWith(ops));
         } else {
-            self.analyze_candidates(store, ops, self.stream_size);
+            self.analyze_candidates(store, ops);
         }
 
-        self.stream_size += 1;
+        self.num_operations += 1;
     }
 
     // Reset the state of the policy.
     pub fn reset(&mut self) {
         self.candidates.clear();
         self.availables.clear();
-        self.stream_size = 0;
+        self.num_operations = 0;
         self.found = None;
     }
 
     fn analyze_candidates(
         &mut self,
-        optimizations: &OptimizationStore<O>,
-        next_ops: &TensorOpsDescription,
-        stream_size: usize,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
     ) {
         // The index starts at zero.
         let mut invalidated_candidates = Vec::new();
 
         for id in self.candidates.iter() {
-            let item = optimizations.get_unchecked(*id);
+            let item = store.get_unchecked(*id);
 
-            if item.stream.len() == stream_size {
-                if item.end_conditions.contains(next_ops) {
-                    self.found = Some((*id, item.stream.len()));
+            if item.operations.len() == self.num_operations + 1
+                && item.operations.last().unwrap() == operation
+                && item.triggers.contains(&ExecutionTrigger::Always)
+            {
+                self.found = Some((*id, item.operations.len()));
+                break;
+            }
+
+            if item.operations.len() == self.num_operations {
+                if item.should_stop_async(operation) {
+                    self.found = Some((*id, item.operations.len()));
                     break;
                 } else {
-                    // The optimization is available, but the current operation isn't an existing
-                    // end_condition for this optimization, so we may find a better optimization by
-                    // still growing the stream.
-                    self.availables.push((*id, item.stream.len()));
+                    // The plan is available, but the current operation isn't an existing
+                    // trigger for this plan, so we may find a better plan by
+                    // still growing the operation list.
+                    self.availables.push((*id, item.operations.len()));
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
-            let next_ops_candidate = match item.stream.get(stream_size) {
+            let operation_candidate = match item.operations.get(self.num_operations) {
                 Some(val) => val,
                 None => {
-                    // Stream of different size, invalidated.
+                    // Operation list of different size, invalidated.
                     invalidated_candidates.push(*id);
                     continue;
                 }
             };
 
-            if next_ops_candidate != next_ops {
-                // Stream with different node at the current position, invalidated.
+            if operation_candidate != operation {
+                // Operation list with different node at the current position, invalidated.
                 invalidated_candidates.push(*id);
                 continue;
             }
@@ -170,31 +170,34 @@ impl<O> Policy<O> {
 /// Action to be made depending on the stream.
 #[derive(PartialEq, Eq, Debug)]
 pub enum Action {
-    /// Continue exploring optimizations using the [builder](crate::OptimizationBuilder).
+    /// Continue exploring using the [builder](crate::OptimizationBuilder).
     Explore,
-    /// The current policy indicates that an optimization may be possible in the future, so the
+    /// The current policy indicates that an explocation may be possible in the future, so the
     /// best action is to defer any execution.
     ///
-    /// Sometimes, it can be a false positive and a new optimization should be built from scratch.
+    /// Sometimes, it can be a false positive and a new exploration should be built from scratch.
     /// Therefore it's important to keep the previous operations to rebuild the state if it
     /// happens.
     Defer,
-    /// An optimization has been found, and the best action is to execute it!
-    Execute(OptimizationId),
+    /// An exploration has been found, and the best action is to execute it!
+    Execute(ExecutionPlanId),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        stream::{store::OptimizationItem, FloatOpsDescription, UnaryOpsDescription},
+        stream::{
+            store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger},
+            FloatOperationDescription, UnaryOperationDescription,
+        },
         TensorDescription, TensorId, TensorStatus,
     };
     use std::ops::Range;
 
     #[test]
     fn given_no_optimization_should_explore() {
-        let store = OptimizationStore::default();
+        let store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
         let stream = TestStream::new(3);
 
@@ -208,14 +211,14 @@ mod tests {
 
     #[test]
     fn given_existing_optimization_when_sync_should_execute_optim() {
-        let mut store = OptimizationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
         let stream = TestStream::new(2);
 
-        let id = store.add(OptimizationItem {
-            stream: stream.operations.clone(),
-            end_conditions: Vec::new(),
-            value: (),
+        let id = store.add(ExecutionPlan {
+            operations: stream.operations.clone(),
+            triggers: Vec::new(),
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream.assert_updates(
@@ -230,15 +233,18 @@ mod tests {
     }
 
     #[test]
-    fn given_existing_optimization_when_found_end_condition_should_execute_optim() {
-        let mut store = OptimizationStore::default();
+    fn given_existing_plan_when_found_trigger_should_execute_plan() {
+        let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
 
         let stream = TestStream::new(3);
-        let id = store.add(OptimizationItem {
-            stream: stream.operations[0..2].to_vec(),
-            end_conditions: stream.operations[2..3].to_vec(),
-            value: (),
+        let id = store.add(ExecutionPlan {
+            operations: stream.operations[0..2].to_vec(),
+            triggers: stream.operations[2..3]
+                .iter()
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .collect(),
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream.assert_updates(
@@ -256,8 +262,8 @@ mod tests {
     }
 
     #[test]
-    fn should_support_multiple_end_conditions() {
-        let mut store = OptimizationStore::default();
+    fn should_support_multiple_triggers() {
+        let mut store = ExecutionPlanStore::default();
         let mut policy_1 = Policy::new();
         let mut policy_2 = Policy::new();
 
@@ -265,18 +271,18 @@ mod tests {
         let mut stream_2 = TestStream::new(2);
 
         // Create different end operation for each stream.
-        let end_condition_id_1 = 5;
-        let end_condition_id_2 = 5;
-        stream_1.new_ops(end_condition_id_1);
-        stream_2.new_ops(end_condition_id_2);
+        let trigger_id_1 = 5;
+        let trigger_id_2 = 6;
+        stream_1.new_ops(trigger_id_1);
+        stream_2.new_ops(trigger_id_2);
 
-        let id = store.add(OptimizationItem {
-            stream: stream_1.operations[0..2].to_vec(),
-            end_conditions: vec![
-                stream_1.operations[2].clone(),
-                stream_2.operations[2].clone(),
+        let id = store.add(ExecutionPlan {
+            operations: stream_1.operations[0..2].to_vec(),
+            triggers: vec![
+                ExecutionTrigger::OnOperation(stream_1.operations[2].clone()),
+                ExecutionTrigger::OnOperation(stream_2.operations[2].clone()),
             ],
-            value: (),
+            strategy: ExecutionStrategy::Operations,
         });
 
         stream_1.assert_updates(
@@ -295,20 +301,20 @@ mod tests {
         stream_1.assert_updates(
             &store,
             &mut policy_1,
-            AssertUpdatesOptions::OperationsIndex(2..3), // First end condition.
+            AssertUpdatesOptions::OperationsIndex(2..3), // First trigger.
             Action::Execute(id),
         );
         stream_2.assert_updates(
             &store,
             &mut policy_2,
-            AssertUpdatesOptions::OperationsIndex(2..3), // Second end condition.
+            AssertUpdatesOptions::OperationsIndex(2..3), // Second trigger.
             Action::Execute(id),
         );
     }
 
     #[test]
     fn should_select_right_optimization() {
-        let mut store = OptimizationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let mut policy_1 = Policy::new();
         let mut policy_2 = Policy::new();
 
@@ -322,15 +328,21 @@ mod tests {
         stream_2.new_ops(5);
         stream_2.new_ops(6);
 
-        let optimization_stream_1 = store.add(OptimizationItem {
-            stream: stream_1.operations[0..3].to_vec(),
-            end_conditions: stream_1.operations[3..4].to_vec(),
-            value: (),
+        let optimization_stream_1 = store.add(ExecutionPlan {
+            operations: stream_1.operations[0..3].to_vec(),
+            triggers: stream_1.operations[3..4]
+                .iter()
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .collect(),
+            strategy: ExecutionStrategy::Operations,
         });
-        let optimization_stream_2 = store.add(OptimizationItem {
-            stream: stream_2.operations[0..3].to_vec(),
-            end_conditions: stream_2.operations[3..4].to_vec(),
-            value: (),
+        let optimization_stream_2 = store.add(ExecutionPlan {
+            operations: stream_2.operations[0..3].to_vec(),
+            triggers: stream_2.operations[3..4]
+                .iter()
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .collect(),
+            strategy: ExecutionStrategy::Operations,
         });
         assert_ne!(optimization_stream_1, optimization_stream_2);
 
@@ -363,16 +375,19 @@ mod tests {
 
     #[test]
     fn should_invalidate_wrong_optimizations() {
-        let mut store = OptimizationStore::default();
+        let mut store = ExecutionPlanStore::default();
         let stream_1 = TestStream::new(4);
         let mut stream_2 = TestStream::new(2);
         stream_2.new_ops(6);
         stream_2.new_ops(7);
 
-        store.add(OptimizationItem {
-            stream: stream_1.operations[0..3].to_vec(),
-            end_conditions: stream_1.operations[3..4].to_vec(),
-            value: (),
+        store.add(ExecutionPlan {
+            operations: stream_1.operations[0..3].to_vec(),
+            triggers: stream_1.operations[3..4]
+                .iter()
+                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .collect(),
+            strategy: ExecutionStrategy::Operations,
         });
 
         let mut policy = Policy::new();
@@ -396,7 +411,7 @@ mod tests {
     #[derive(Default, Debug)]
     struct TestStream {
         tensors: Vec<TensorDescription>,
-        operations: Vec<TensorOpsDescription>,
+        operations: Vec<OperationDescription>,
     }
 
     #[derive(Debug)]
@@ -418,7 +433,7 @@ mod tests {
         /// The first follow should only be cache miss.
         pub fn assert_updates(
             &self,
-            optimizations: &OptimizationStore<()>,
+            optimizations: &ExecutionPlanStore<()>,
             policy: &mut Policy<()>,
             options: AssertUpdatesOptions,
             action: Action,
@@ -448,7 +463,7 @@ mod tests {
             self.new_empty_node(out_id);
 
             self.operations
-                .push(TensorOpsDescription::FloatOps(FloatOpsDescription::Log(
+                .push(OperationDescription::Float(FloatOperationDescription::Log(
                     self.unary_description(),
                 )));
         }
@@ -461,10 +476,10 @@ mod tests {
             });
         }
 
-        fn unary_description(&self) -> UnaryOpsDescription {
+        fn unary_description(&self) -> UnaryOperationDescription {
             let size = self.tensors.len();
 
-            UnaryOpsDescription {
+            UnaryOperationDescription {
                 input: self.tensors[size - 2].clone(),
                 out: self.tensors[size - 1].clone(),
             }

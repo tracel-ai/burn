@@ -82,7 +82,9 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;
 
-    fn optimizations(device: WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
+    fn optimizations(
+        device: WgpuDevice,
+    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
         vec![Box::new(ElementWiseBuilder::new(device))]
     }
 

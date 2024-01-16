@@ -1,5 +1,5 @@
 use crate::{
-    stream::{Ops, TensorOpsDescription},
+    stream::{Operation, OperationDescription},
     FusionBackend, FusionTensor, Handle, TensorDescription, TensorId,
 };
 use burn_tensor::{
@@ -14,11 +14,11 @@ pub trait FusionClient: Send + Sync + Clone {
 
     /// Create a new client for the given [fusion device](FusionBackend::FusionDevice).
     fn new(device: <Self::FusionBackend as FusionBackend>::FusionDevice) -> Self;
-    /// Register a new [tensor operation description](TensorOpsDescription).
-    fn register<O: Ops<Self::FusionBackend> + 'static>(
+    /// Register a new [tensor operation description](OperationDescription).
+    fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
-        description: TensorOpsDescription,
-        ops: O,
+        description: OperationDescription,
+        operation: O,
     );
     /// Register all lazy computation.
     fn drain(&self);
