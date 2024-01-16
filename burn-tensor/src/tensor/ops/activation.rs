@@ -129,17 +129,17 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `x` - The tensor.
+    /// * `output` - The output tensor of the sigmoid function.
     /// * `grad` - The gradient.
     ///
     /// # Returns
     ///
     /// The output tensor.
     fn sigmoid_backward<const D: usize>(
-        x: FloatTensor<B, D>,
+        output: FloatTensor<B, D>,
         grad: FloatTensor<B, D>,
     ) -> FloatTensor<B, D> {
-        let value = B::mul(x.clone(), B::add_scalar(B::neg(x), 1.0.elem()));
+        let value = B::mul(output.clone(), B::add_scalar(B::neg(output), 1.0.elem()));
         B::mul(value, grad)
     }
 }
