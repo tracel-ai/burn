@@ -8,8 +8,11 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::reader::from_file;
 
-
-/// A recorder that that loads PyTorch files (`.pt`).
+/// A recorder that that loads PyTorch files (`.pt`) into Burn modules.
+///
+/// LoadArgs can be used to remap keys or file path.
+/// See [LoadArgs](struct.LoadArgs.html) for more information.
+///
 #[derive(new, Debug, Default, Clone)]
 pub struct PyTorchFileRecorder<PS: PrecisionSettings> {
     _settings: PhantomData<PS>,
