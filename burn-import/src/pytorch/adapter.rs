@@ -1,4 +1,4 @@
-use crate::record::{adapter::BurnModuleAdapter, data::NestedValue, ser::Serializer};
+use crate::record::{adapter::{BurnModuleAdapter, DefaultAdapter}, data::NestedValue, ser::Serializer};
 
 use burn::{
     module::Param,
@@ -31,7 +31,8 @@ impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
         let weight = map.remove("weight").unwrap();
 
         // Convert the weight parameter to a tensor.
-        let weight: Param<Tensor<DummyBackend, 2>> = weight.de_into::<_, PS>().unwrap();
+        let weight: Param<Tensor<DummyBackend, 2>> =
+            weight.de_into::<_, PS, DefaultAdapter>().unwrap();
 
         // Transpose the weight tensor.
         let weight_transposed = Param::from(weight.val().transpose());

@@ -4,49 +4,53 @@ use burn::record::{PrecisionSettings, Record};
 use regex::Regex;
 use serde::Deserialize;
 
-use super::adapter::DefaultAdapter;
+use super::adapter::BurnModuleAdapter;
 use super::de::Deserializer;
 use super::error::Error;
 use super::ser::Serializer;
 
-/// A nested map/vector of tensors.
+/// The main data structure used for deserialization.
+///
+/// It can hold tree-like structures of nested maps and vectors.
 #[derive(Debug, Clone)]
 pub enum NestedValue {
-    /// The default value (typically for primitives like integers)
+    /// The default value, which actually does not hold any value and it is used to indicate that
+    /// the value should be populated with the default value.
     Default,
 
-    /// A string value
+    /// A string value.
     String(String),
 
-    /// Floating point 32-bit value
+    /// Floating point 32-bit value.
     F32(f32),
 
-    /// Floating point 64-bit value
+    /// Floating point 64-bit value.
     F64(f64),
 
-    /// Signed 16-bit integer value
+    /// Signed 16-bit integer value.
     I16(i16),
 
-    /// Signed 32-bit integer value
+    /// Signed 32-bit integer value.
     I32(i32),
 
-    /// Signed 64-bit integer value
+    /// Signed 64-bit integer value.
     I64(i64),
 
     /// Unsigned 16-bit integer value used for bf16 and f16 serialization
     U16(u16),
 
-    /// Unsigned 64-bit integer value
+    /// Unsigned 64-bit integer value.
     U64(u64),
 
     /// A map of nested values (typically used for structs)
     Map(HashMap<String, NestedValue>),
 
-    /// A vector of nested values (typically used for vector of structs)
+    /// A vector of nested values (typically used for vector of structs or numbers)
     Vec(Vec<NestedValue>),
 }
 
 impl NestedValue {
+    /// Get the nested value as a map.
     pub fn get_map(&self) -> Option<&HashMap<String, NestedValue>> {
         match self {
             NestedValue::Map(map) => Some(map),
@@ -54,6 +58,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a string.
     pub fn get_string(&self) -> Option<&str> {
         match self {
             NestedValue::String(string) => Some(string),
@@ -61,6 +66,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a f32.
     pub fn get_f32(&self) -> Option<f32> {
         match self {
             NestedValue::F32(f32) => Some(*f32),
@@ -68,6 +74,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a f64.
     pub fn get_f64(&self) -> Option<f64> {
         match self {
             NestedValue::F64(f64) => Some(*f64),
@@ -75,6 +82,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a i16.
     pub fn get_i16(&self) -> Option<i16> {
         match self {
             NestedValue::I16(i16) => Some(*i16),
@@ -82,6 +90,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a i32.
     pub fn get_i32(&self) -> Option<i32> {
         match self {
             NestedValue::I32(i32) => Some(*i32),
@@ -89,6 +98,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a i64.
     pub fn get_i64(&self) -> Option<i64> {
         match self {
             NestedValue::I64(i64) => Some(*i64),
@@ -96,6 +106,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a u16.
     pub fn get_u16(&self) -> Option<u16> {
         match self {
             NestedValue::U16(u16) => Some(*u16),
@@ -103,6 +114,7 @@ impl NestedValue {
         }
     }
 
+    /// Get the nested value as a u64.
     pub fn get_u64(&self) -> Option<u64> {
         match self {
             NestedValue::U64(u64) => Some(*u64),
@@ -111,14 +123,13 @@ impl NestedValue {
     }
 
     /// Deserialize a nested value into a record type.
-    ///
-    /// NOTE: Deserialization is done using the default adapter (see `DefaultAdapter`).
-    pub fn de_into<T, PS>(self) -> Result<T, Error>
+    pub fn de_into<T, PS, A>(self) -> Result<T, Error>
     where
         T: Record,
         PS: PrecisionSettings,
+        A: BurnModuleAdapter,
     {
-        let deserializer = Deserializer::<DefaultAdapter>::new(self);
+        let deserializer = Deserializer::<A>::new(self);
 
         let item = T::Item::deserialize(deserializer)?;
 
@@ -128,6 +139,15 @@ impl NestedValue {
 }
 
 /// Remap the tensor locations according to the key remapping.
+///
+/// # Arguments
+///
+/// * `tensors` - A map of tensors.
+/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
+///
+/// # Returns
+///
+/// A map of tensors with the remapped keys.
 pub fn remap<T>(
     mut tensors: HashMap<String, T>,
     key_remap: Vec<(Regex, String)>,
@@ -186,6 +206,7 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
     }
 }
 
+/// A trait for encapsulating the serialization logic.
 pub trait Serializable {
     fn serialize<PS, S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -193,7 +214,7 @@ pub trait Serializable {
         PS: PrecisionSettings;
 }
 
-/// Convert a vector of Candle tensors to a nested map/vector of tensors.
+/// Convert a vector of tensors to a nested map/vector of tensors.
 pub fn unflatten<PS, T>(input: HashMap<String, T>) -> NestedValue
 where
     PS: PrecisionSettings,

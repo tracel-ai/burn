@@ -1,9 +1,16 @@
 use std::collections::HashMap;
 
-use serde::de::{self, DeserializeSeed, IntoDeserializer, SeqAccess, Visitor};
+use super::adapter::BurnModuleAdapter;
+use super::data::NestedValue;
 
-use serde::de::value::Error;
+use serde::{
+    de::{self, value::Error, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
+    forward_to_deserialize_any,
+};
 
+const RECORD_ITEM_SUFFIX: &str = "RecordItem";
+
+/// A deserializer for the nested value data structure.
 pub struct Deserializer<A: BurnModuleAdapter> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
@@ -40,7 +47,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         V: Visitor<'de>,
     {
         // Pass the module the module through the adapter
-        let value = if let Some(name) = name.strip_suffix("RecordItem") {
+        let value = if let Some(name) = name.strip_suffix(RECORD_ITEM_SUFFIX) {
             A::adapt(name, self.value.unwrap())
         } else {
             self.value.unwrap()
@@ -283,6 +290,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     }
 }
 
+/// A sequence access for a vector in the nested value data structure.
 struct VecSeqAccess<A: BurnModuleAdapter> {
     iter: std::vec::IntoIter<NestedValue>,
     phantom: std::marker::PhantomData<A>,
@@ -317,12 +325,7 @@ where
     }
 }
 
-use serde::de::MapAccess;
-use serde::forward_to_deserialize_any;
-
-use super::adapter::BurnModuleAdapter;
-use super::data::NestedValue;
-
+/// A map access for a map in the nested value data structure.
 struct HashMapAccess<A: BurnModuleAdapter> {
     iter: std::collections::hash_map::IntoIter<String, NestedValue>,
     next_value: Option<NestedValue>,
@@ -375,6 +378,7 @@ where
     }
 }
 
+/// A wrapper for the nested value data structure with a burn module adapter.
 struct NestedValueWrapper<A: BurnModuleAdapter> {
     value: NestedValue,
     phantom: std::marker::PhantomData<A>,
@@ -397,6 +401,7 @@ impl<A: BurnModuleAdapter> IntoDeserializer<'_, Error> for NestedValueWrapper<A>
     }
 }
 
+/// A default deserializer that always returns the default value.
 struct DefaultDeserializer;
 
 impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
@@ -527,6 +532,7 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     }
 }
 
+/// A default sequence access that always returns None (empty sequence).
 pub struct DefaultSeqAccess;
 
 impl Default for DefaultSeqAccess {

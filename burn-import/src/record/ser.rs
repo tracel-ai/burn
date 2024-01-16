@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::{
-    error::{self, Error},
     data::NestedValue,
+    error::{self, Error},
 };
 
 use serde::{
@@ -10,9 +10,13 @@ use serde::{
     Serialize,
 };
 
-// Simple struct serializer that converts a struct into NestedValues
+/// Simple struct serializer that converts a struct into NestedValues.
+///
+/// NOTE: This is used to serialize Param structs into NestedValues and not so much for
+/// the actual serialization of modules (although it could be used for that as well if all
+/// primitive types are implemented).
 pub(crate) struct Serializer {
-    // This will hold the state of the serialization process
+    // The state of the serialization process
     state: Option<NestedValue>,
 }
 
@@ -33,20 +37,35 @@ impl SerializerTrait for Serializer {
     type SerializeStruct = Self;
     type SerializeStructVariant = ser::Impossible<NestedValue, Self::Error>;
 
+    fn serialize_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStruct, Self::Error> {
+        Ok(self)
+    }
+
+    fn serialize_newtype_struct<T: ?Sized>(
+        self,
+        _name: &'static str,
+        value: &T,
+    ) -> Result<Self::Ok, Self::Error>
+    where
+        T: Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+        Ok(self)
+    }
+
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
         Ok(NestedValue::I32(v))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
         Ok(NestedValue::String(v.to_string()))
-    }
-
-    fn serialize_bool(self, _v: bool) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
-    }
-
-    fn serialize_i8(self, _v: i8) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
@@ -57,16 +76,8 @@ impl SerializerTrait for Serializer {
         Ok(NestedValue::I64(v))
     }
 
-    fn serialize_u8(self, _v: u8) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
-    }
-
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
         Ok(NestedValue::U16(v))
-    }
-
-    fn serialize_u32(self, _v: u32) -> Result<Self::Ok, Self::Error> {
-        unimplemented!()
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
@@ -81,6 +92,9 @@ impl SerializerTrait for Serializer {
         Ok(NestedValue::F64(v))
     }
 
+    // The following methods are not implemented because they are not needed for the
+    // serialization of Param structs.
+
     fn serialize_char(self, _v: char) -> Result<Self::Ok, Self::Error> {
         unimplemented!()
     }
@@ -92,6 +106,20 @@ impl SerializerTrait for Serializer {
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
         unimplemented!()
     }
+    fn serialize_u32(self, _v: u32) -> Result<Self::Ok, Self::Error> {
+        unimplemented!()
+    }
+    fn serialize_bool(self, _v: bool) -> Result<Self::Ok, Self::Error> {
+        unimplemented!()
+    }
+
+    fn serialize_i8(self, _v: i8) -> Result<Self::Ok, Self::Error> {
+        unimplemented!()
+    }
+
+    fn serialize_u8(self, _v: u8) -> Result<Self::Ok, Self::Error> {
+        unimplemented!()
+    }
 
     fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
@@ -101,11 +129,11 @@ impl SerializerTrait for Serializer {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        unimplemented!("serialize_unit not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        unimplemented!("serialize_unit_struct not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_unit_variant(
@@ -114,18 +142,7 @@ impl SerializerTrait for Serializer {
         _variant_index: u32,
         _variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        unimplemented!("serialize_unit_variant not implemented for Serializer")
-    }
-
-    fn serialize_newtype_struct<T: ?Sized>(
-        self,
-        _name: &'static str,
-        value: &T,
-    ) -> Result<Self::Ok, Self::Error>
-    where
-        T: Serialize,
-    {
-        value.serialize(self)
+        unimplemented!()
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -138,15 +155,11 @@ impl SerializerTrait for Serializer {
     where
         T: Serialize,
     {
-        unimplemented!("serialize_newtype_variant not implemented for Serializer")
-    }
-
-    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        Ok(self)
+        unimplemented!()
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        unimplemented!("serialize_tuple not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_tuple_struct(
@@ -154,7 +167,7 @@ impl SerializerTrait for Serializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        unimplemented!("serialize_tuple_struct not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_tuple_variant(
@@ -164,11 +177,11 @@ impl SerializerTrait for Serializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        unimplemented!("serialize_tuple_variant not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        unimplemented!("serialize_map not implemented for Serializer")
+        unimplemented!()
     }
 
     fn serialize_struct_variant(
@@ -178,15 +191,7 @@ impl SerializerTrait for Serializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        todo!()
-    }
-
-    fn serialize_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeStruct, Self::Error> {
-        Ok(self)
+        unimplemented!()
     }
 }
 
