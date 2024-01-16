@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use burn::record::{PrecisionSettings, Record};
+use regex::Regex;
 use serde::Deserialize;
 
 use super::adapter::DefaultAdapter;
@@ -123,4 +124,29 @@ impl NestedValue {
         // Convert the deserialized item into a Record instance
         Ok(T::from_item::<PS>(item))
     }
+}
+
+/// Remap the tensor locations according to the key remapping.
+pub fn remap<T>(
+    mut tensors: HashMap<String, T>,
+    key_remap: Vec<(Regex, String)>,
+) -> HashMap<String, T> {
+    if key_remap.is_empty() {
+        return tensors;
+    }
+
+    let mut remapped = HashMap::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&name) {
+                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
+                break;
+            }
+        }
+        remapped.insert(new_name, tensor);
+    }
+
+    remapped
 }

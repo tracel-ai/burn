@@ -9,9 +9,9 @@ use burn::{
 use candle_core::{pickle, Tensor as CandleTensor, WithDType};
 use half::{bf16, f16};
 use regex::Regex;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
-use crate::record::{data::NestedValue, ser::Serializer};
+use crate::record::{data::{NestedValue, remap}, ser::Serializer};
 
 use crate::record::{de::Deserializer, error::Error};
 use std::path::Path;
@@ -20,9 +20,9 @@ use super::adapter::PyTorchAdapter;
 
 ///  Redefine a Param struct so it can be serialized.
 #[derive(new, Debug, Clone, Serialize)]
-pub struct Param<T> {
-    pub id: String,
-    pub param: T,
+struct Param<T> {
+    id: String,
+    param: T,
 }
 
 /// Serializes a candle tensor.
@@ -30,7 +30,7 @@ pub struct Param<T> {
 /// Tensors are wrapped in a `Param` struct (learnable parameters) and serialized as a `DataSerialize` struct.
 ///
 /// Values are serialized as `FloatElem` or `IntElem` depending on the precision settings.
-pub fn serialize_tensor<S, PS>(tensor: &CandleTensor, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_tensor<S, PS>(tensor: &CandleTensor, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     PS: PrecisionSettings,
@@ -66,7 +66,7 @@ where
 
 /// Serializes a candle tensor data.
 fn serialize_data<T, E, S>(
-    flatten: CandleTensor,
+    tensor: CandleTensor,
     shape: Vec<usize>,
     param_id: String,
     serializer: S,
@@ -76,7 +76,7 @@ where
     S: serde::Serializer,
     T: WithDType + ElementConversion,
 {
-    let data: Vec<E> = flatten
+    let data: Vec<E> = tensor
         .to_vec1::<T>()
         .unwrap()
         .into_iter()
@@ -153,29 +153,4 @@ where
 
     let value = D::deserialize(deserializer)?;
     Ok(value)
-}
-
-/// Remap the tensor locations according to the key remapping.
-fn remap(
-    mut tensors: HashMap<String, CandleTensor>,
-    key_remap: Vec<(Regex, String)>,
-) -> HashMap<String, CandleTensor> {
-    if key_remap.is_empty() {
-        return tensors;
-    }
-
-    let mut remapped = HashMap::new();
-
-    for (name, tensor) in tensors.drain() {
-        let mut new_name = name.clone();
-        for (pattern, replacement) in &key_remap {
-            if pattern.is_match(&name) {
-                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
-                break;
-            }
-        }
-        remapped.insert(new_name, tensor);
-    }
-
-    remapped
 }
