@@ -44,7 +44,7 @@ impl<O> Explorer<O> {
         operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Exploration<'a, O> {
-        // When we are executing with the new ops mode, we need to register the last ops of the
+        // When we are executing with the new operation mode, we need to register the last ops of the
         // stream even when there is no skipped operation.
         let offset = match mode {
             ExecutionMode::Lazy => 1,

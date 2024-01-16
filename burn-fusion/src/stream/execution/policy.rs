@@ -16,7 +16,7 @@ use std::marker::PhantomData;
 /// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    // The potential explocations that we could apply to the current stream, but their streams
+    // The potential explorations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
     candidates: Vec<ExecutionPlanId>,
     // Optimizations that we find during the `updates`, but none of their `trigger` matches the

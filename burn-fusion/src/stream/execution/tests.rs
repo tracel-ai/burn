@@ -70,14 +70,14 @@ fn should_support_complex_stream() {
     let plan_id_3 = 2;
 
     // The first builder only contains 2 operations, and the optimization is always available when
-    // the pattern is meet.
+    // the pattern is met.
     let builder_1 = TestOptimizationBuilder::new(
         builder_id_1,
         vec![operation_1(), operation_2()],
         ExecutionTrigger::Always,
     );
     // The second builder also contains 2 operations, but only becomes available when an operation
-    // is meet.
+    // is met.
     let builder_2 = TestOptimizationBuilder::new(
         builder_id_2,
         vec![operation_2(), operation_2()],
@@ -87,7 +87,8 @@ fn should_support_complex_stream() {
     // We finally build the stream with those optimization builders.
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
 
-    // Nothing to execute for the first operation.
+    // builder_1 is still waiting to see next op is operation_2
+    // builder_2 is closed because it's not the right operation
     stream.add(operation_1());
     stream.assert_number_of_operations(1);
     stream.assert_number_of_executions(0);
@@ -173,7 +174,7 @@ fn should_support_complex_stream() {
     stream.assert_number_of_operations(2);
     stream.assert_number_of_executions(4);
 
-    // On sync we should execute all operations even if their trigger isn't meet.
+    // On sync we should execute all operations even if their trigger isn't met.
     // In this case the optimization from builder 2 (plan 3).
     stream.sync();
     stream.assert_number_of_operations(0);

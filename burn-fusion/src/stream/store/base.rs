@@ -22,7 +22,7 @@ pub(crate) enum ExecutionStrategy<O> {
 #[allow(clippy::large_enum_variant)]
 // Triggers are stored in a list, and you can have many `OnOperation` entries,
 // but only one `OnSync` entry and one `Always` entry, therefore we don't care if it takes more
-// space to to store them.
+// space to store them.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
     OnOperation(OperationDescription),
