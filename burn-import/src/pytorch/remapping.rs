@@ -1,11 +1,11 @@
 // use super::{converter::ModuleType, Converter};
 
-use lazy_static::lazy_static;
-use regex::Regex;
+// use lazy_static::lazy_static;
+// use regex::Regex;
 
-lazy_static! {
-    static ref LINEAR_PATTERN: Regex = Regex::new("^(.+)\\.weight$").unwrap();
-}
+// lazy_static! {
+//     static ref LINEAR_PATTERN: Regex = Regex::new("^(.+)\\.weight$").unwrap();
+// }
 
 // impl Converter {
 //     fn add_tagged_module(&mut self, pattern: &str, module_type: ModuleType) -> &mut Self {

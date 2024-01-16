@@ -6,11 +6,12 @@ use super::adapter::{BurnModuleAdapter, PyTorchAdapter};
 use super::{converter::reverse_flatten, reader::NestedValue};
 use burn::record::PrecisionSettings;
 use candle_core::{pickle, Tensor as CandleTensor};
+use regex::Regex;
 use serde::de::{self, DeserializeOwned, DeserializeSeed, IntoDeserializer, SeqAccess, Visitor};
 
 use serde::de::value::Error;
 
-pub fn from_file<PS, D>(path: &Path) -> Result<D, Error>
+pub fn from_file<PS, D>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
 where
     D: DeserializeOwned,
     PS: PrecisionSettings,
@@ -20,7 +21,7 @@ where
         pickle::read_all(path).unwrap().into_iter().collect();
 
     // Remap the keys (replace the keys in the map with the new keys)
-    // let remapped_tensor = self.remap(tensors);
+    let tensors = remap(tensors, key_remap);
 
     // Convert the vector of Candle tensors to a nested map/vector of tensors
     let nested_value = reverse_flatten::<PS>(tensors);
@@ -29,6 +30,31 @@ where
 
     let value = D::deserialize(deserializer)?;
     Ok(value)
+}
+
+/// Remap the tensor locations according to the key remapping.
+fn remap(
+    mut tensors: HashMap<String, CandleTensor>,
+    key_remap: Vec<(Regex, String)>,
+) -> HashMap<String, CandleTensor> {
+    if key_remap.is_empty() {
+        return tensors;
+    }
+
+    let mut remapped = HashMap::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&name) {
+                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
+                break;
+            }
+        }
+        remapped.insert(new_name, tensor);
+    }
+
+    remapped
 }
 
 pub struct Deserializer<A: BurnModuleAdapter> {

@@ -10,4 +10,4 @@ mod remapping;
 mod ser;
 mod target_file;
 
-pub use recorder::PyTorchFileRecorder;
+pub use recorder::{PyTorchFileRecorder, LoadArgs};

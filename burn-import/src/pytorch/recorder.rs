@@ -32,18 +32,40 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
     }
 
     fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item = from_file::<PS, R::Item<Self::Settings>>(&args.file).unwrap();
+        let item = from_file::<PS, R::Item<Self::Settings>>(&args.file, args.key_remap).unwrap();
         Ok(R::from_item(item))
     }
 }
 
+/// Arguments for loading a PyTorch file.
+///
+/// # Examples
+///
+/// ```no_run
+/// use burn_import::pytorch::LoadArgs;
+///
+/// let args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
+///    .with_key_remap("conv\\.(.*)", "$1"); // // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
+///
+/// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+///   .load(args)
+///  .expect("Failed to decode state");
+/// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {
+    /// The path to the file to load.
     pub file: PathBuf,
+
+    /// A list of key remappings.
     pub key_remap: Vec<(Regex, String)>,
 }
 
 impl LoadArgs {
+    /// Create a new `LoadArgs` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - The path to the file to load.
     pub fn new(file: PathBuf) -> Self {
         Self {
             file,
@@ -51,8 +73,20 @@ impl LoadArgs {
         }
     }
 
-    pub fn with_key_remap(mut self, key_remap: Vec<(Regex, String)>) -> Self {
-        self.key_remap = key_remap;
+    /// Set key remapping.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - The Regex pattern to be replaced.
+    /// * `replacement` - The pattern to replace with.
+    ///
+    /// See [Regex](https://docs.rs/regex/1.5.4/regex/#syntax) for the pattern syntax and
+    /// [Replacement](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) for the
+    /// replacement syntax.
+    pub fn with_key_remap(mut self, pattern: &str, replacement: &str) -> Self {
+        let regex = Regex::new(&format!("^{}$", pattern)).unwrap();
+
+        self.key_remap.push((regex, replacement.into()));
         self
     }
 }
