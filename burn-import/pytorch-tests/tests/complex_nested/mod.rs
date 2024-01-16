@@ -121,5 +121,4 @@ fn half_record() {
     model_test(record, 4);
 }
 
-
 // TODO Subset weights test
