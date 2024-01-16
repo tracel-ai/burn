@@ -78,7 +78,7 @@ pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize)
 
 /// Applies the sigmoid function.
 pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    log_sigmoid(tensor).exp()
+    Tensor::from_primitive(B::sigmoid(tensor.primitive))
 }
 
 /// Applies the log sigmoid function.
