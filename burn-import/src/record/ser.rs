@@ -340,6 +340,7 @@ mod tests {
 
         let serialized = param_item.serialize(Serializer::new()).unwrap();
 
+        // TODO check the serialized value
         println!("{:?}", serialized);
     }
 }

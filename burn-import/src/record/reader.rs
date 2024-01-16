@@ -62,9 +62,6 @@ impl NestedValue {
     pub fn get_f32(&self) -> Option<f32> {
         match self {
             NestedValue::F32(f32) => Some(*f32),
-
-            // Convert to f32 if the data is u16 (half precision)
-            NestedValue::U16(u16) => Some(half::f16::from_bits(*u16).to_f32()),
             _ => None,
         }
     }
@@ -100,9 +97,6 @@ impl NestedValue {
     pub fn get_u16(&self) -> Option<u16> {
         match self {
             NestedValue::U16(u16) => Some(*u16),
-
-            // Convert to u16 if the data is f32 (half precision)
-            NestedValue::F32(f32) => Some(half::f16::from_f32(*f32).to_bits()),
             _ => None,
         }
     }

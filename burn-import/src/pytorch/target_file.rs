@@ -4,170 +4,21 @@
 
 // use super::{reader::NestedValue, Converter};
 
+use std::collections::HashMap;
+
 use burn::{
     module::ParamId,
-    record::{
-        // BurnRecord, FullPrecisionSettings, HalfPrecisionSettings, NamedMpkFileRecorder,
-        PrecisionSettings,
-    },
+    record::PrecisionSettings,
     tensor::{DataSerialize, Element, ElementConversion},
 };
 
 use candle_core::{Tensor as CandleTensor, WithDType};
 use half::{bf16, f16};
-use serde::{
-    // ser::{SerializeMap, SerializeSeq},
-    Serialize,
-};
+use serde::Serialize;
 
-// impl Converter {
-//     pub(super) fn convert_to_record(&self, map: NestedValue, out_file: PathBuf) {
-//         match self.record_type {
-//             RecordType::PrettyJson => {
-//                 self.convert_to_pretty_json(map, out_file);
-//             }
+use crate::record::{reader::NestedValue, ser::Serializer};
 
-//             RecordType::NamedMpkGz => {
-//                 self.convert_to_named_mpk_gz(map, out_file);
-//             }
-
-//             RecordType::NamedMpk => {
-//                 self.convert_to_named_mpk(map, out_file);
-//             }
-//         }
-//     }
-
-//     /// Convert model weights from the `input` file and save them to the bincode `out_file`.
-//     pub(super) fn convert_to_pretty_json(&self, map: NestedValue, out_file: PathBuf) {
-//         if self.half_precision {
-//             PrettyJsonFileRecorder::<HalfPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<PrettyJsonFileRecorder<HalfPrecisionSettings>>(StructMap::<
-//                         HalfPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         } else {
-//             PrettyJsonFileRecorder::<FullPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<PrettyJsonFileRecorder<FullPrecisionSettings>>(StructMap::<
-//                         FullPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         }
-//     }
-
-//     /// Convert model weights from the `input` file and save them to the bincode `out_file`.
-//     pub(super) fn convert_to_named_mpk_gz(&self, map: NestedValue, out_file: PathBuf) {
-//         if self.half_precision {
-//             NamedMpkGzFileRecorder::<HalfPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<NamedMpkGzFileRecorder<HalfPrecisionSettings>>(StructMap::<
-//                         HalfPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         } else {
-//             NamedMpkGzFileRecorder::<FullPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<NamedMpkGzFileRecorder<FullPrecisionSettings>>(StructMap::<
-//                         FullPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         }
-//     }
-
-//     /// Convert model weights from the `input` file and save them to the bincode `out_file`.
-//     pub(super) fn convert_to_named_mpk(&self, map: NestedValue, out_file: PathBuf) {
-//         if self.half_precision {
-//             NamedMpkFileRecorder::<HalfPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<NamedMpkFileRecorder<HalfPrecisionSettings>>(StructMap::<
-//                         HalfPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         } else {
-//             NamedMpkFileRecorder::<FullPrecisionSettings>::new()
-//                 .save_item(
-//                     BurnRecord::new::<NamedMpkFileRecorder<FullPrecisionSettings>>(StructMap::<
-//                         FullPrecisionSettings,
-//                     >::new(
-//                         map
-//                     )),
-//                     out_file,
-//                 )
-//                 .unwrap();
-//         }
-//     }
-// }
-
-// /// A struct to serialize a nested map/vector of tensors
-// ///
-// /// StructMap is used to represent a nested map/vector of tensors and treat Struct as map
-// /// for de/serialization purposes.
-// ///
-// /// Notably, this approach is utilized by serialization formats such as PrettyJson, NamedMpk,
-// /// and NamedMpkGz.
-// ///
-// /// # Notes
-// ///
-// /// Mpk and Bincode cannot use this method because they do not support serializing maps.
-// /// Instead, they use the `StructTuple` serialization strategy (to avoid memory overhead presumably).
-// struct StructMap<PS: PrecisionSettings>(NestedValue, PhantomData<PS>);
-
-// impl<PS: PrecisionSettings> StructMap<PS> {
-//     fn new(value: NestedValue) -> Self {
-//         Self(value, PhantomData::<PS>)
-//     }
-// }
-
-// impl<PS: PrecisionSettings> serde::Serialize for StructMap<PS> {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: serde::Serializer,
-//     {
-//         match self.0 {
-//             NestedValue::Tensor(ref tensor) => serialize_tensor::<S, PS>(tensor, serializer),
-
-//             NestedValue::Map(ref map) => {
-//                 let mut map_serializer = serializer.serialize_map(Some(map.len()))?;
-//                 for (name, value) in map.iter() {
-//                     map_serializer
-//                         .serialize_entry(&name.to_string(), &StructMap::<PS>::new(value.clone()))?;
-//                 }
-//                 map_serializer.end()
-//             }
-//             NestedValue::Vec(ref vec) => {
-//                 let mut vec_serializer = serializer.serialize_seq(Some(vec.len()))?;
-//                 for value in vec.iter() {
-//                     vec_serializer.serialize_element(&StructMap::<PS>::new(value.clone()))?;
-//                 }
-//                 vec_serializer.end()
-//             }
-//             _ => unreachable!(),
-//         }
-//     }
-// }
-
-///  Define a parameter.
+///  Redefine a Param struct so it can be serialized.
 #[derive(new, Debug, Clone, Serialize)]
 pub struct Param<T> {
     pub id: String,
@@ -233,4 +84,52 @@ where
         .collect();
 
     Param::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
+}
+
+/// Helper function to insert a value into a nested map/vector of tensors.
+fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedValue) {
+    if keys.is_empty() {
+        *current = value;
+        return;
+    }
+
+    match current {
+        NestedValue::Map(map) => {
+            if !map.contains_key(keys[0]) {
+                let next = if keys[1..]
+                    .first()
+                    .and_then(|k| k.parse::<usize>().ok())
+                    .is_some()
+                {
+                    NestedValue::Vec(Vec::new())
+                } else {
+                    NestedValue::Map(HashMap::new())
+                };
+                map.insert(keys[0].to_string(), next);
+            }
+            insert_nested_value(map.get_mut(keys[0]).unwrap(), &keys[1..], value);
+        }
+        NestedValue::Vec(vec) => {
+            let index = keys[0].parse::<usize>().unwrap();
+            if index >= vec.len() {
+                vec.resize_with(index + 1, || NestedValue::Map(HashMap::new()));
+            }
+            insert_nested_value(&mut vec[index], &keys[1..], value);
+        }
+        _ => panic!("Invalid structure encountered"),
+    }
+}
+
+/// Convert a vector of Candle tensors to a nested map/vector of tensors.
+pub fn reverse_flatten<PS: PrecisionSettings>(input: HashMap<String, CandleTensor>) -> NestedValue {
+    let mut result = NestedValue::Map(HashMap::new());
+
+    for (key, value) in input {
+        let parts: Vec<&str> = key.split('.').collect();
+        let st = serialize_tensor::<_, PS>(&value, Serializer::new()).unwrap();
+
+        insert_nested_value(&mut result, &parts, st);
+    }
+
+    result
 }

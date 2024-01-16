@@ -31,3 +31,5 @@ mod logger;
 
 mod formatter;
 pub use formatter::*;
+
+mod record;

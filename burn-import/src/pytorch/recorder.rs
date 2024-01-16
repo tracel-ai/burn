@@ -1,11 +1,18 @@
 use core::marker::PhantomData;
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use burn::record::{PrecisionSettings, Record, Recorder, RecorderError};
+use candle_core::{Tensor as CandleTensor, pickle};
+
 use regex::Regex;
 use serde::{de::DeserializeOwned, Serialize};
 
-use super::de::from_file;
+use crate::record::{de::Deserializer, error::Error};
+
+use super::{target_file::reverse_flatten, adapter::PyTorchAdapter};
 
 /// A recorder that that loads PyTorch files (`.pt`).
 #[derive(new, Debug, Default, Clone)]
@@ -107,4 +114,50 @@ impl From<&str> for LoadArgs {
     fn from(val: &str) -> Self {
         LoadArgs::new(val.into())
     }
+}
+
+pub fn from_file<PS, D>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
+where
+    D: DeserializeOwned,
+    PS: PrecisionSettings,
+{
+    // Read the pickle file and return a vector of Candle tensors
+    let tensors: HashMap<String, CandleTensor> =
+        pickle::read_all(path).unwrap().into_iter().collect();
+
+    // Remap the keys (replace the keys in the map with the new keys)
+    let tensors = remap(tensors, key_remap);
+
+    // Convert the vector of Candle tensors to a nested map/vector of tensors
+    let nested_value = reverse_flatten::<PS>(tensors);
+
+    let deserializer = Deserializer::<PyTorchAdapter<PS>>::new(nested_value);
+
+    let value = D::deserialize(deserializer)?;
+    Ok(value)
+}
+
+/// Remap the tensor locations according to the key remapping.
+fn remap(
+    mut tensors: HashMap<String, CandleTensor>,
+    key_remap: Vec<(Regex, String)>,
+) -> HashMap<String, CandleTensor> {
+    if key_remap.is_empty() {
+        return tensors;
+    }
+
+    let mut remapped = HashMap::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&name) {
+                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
+                break;
+            }
+        }
+        remapped.insert(new_name, tensor);
+    }
+
+    remapped
 }
