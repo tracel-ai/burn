@@ -13,7 +13,7 @@ pub(crate) struct Processor<O> {
 }
 
 /// A part of a stream that can be executed partially using [execution plan](ExecutionPlan).
-pub trait StreamSegment<O> {
+pub(crate) trait StreamSegment<O> {
     /// The operations in the segment.
     fn operations(&self) -> &[OperationDescription];
     /// Execute part of the segment using the given plan id.
