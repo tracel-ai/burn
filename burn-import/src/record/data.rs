@@ -7,6 +7,7 @@ use serde::Deserialize;
 use super::adapter::DefaultAdapter;
 use super::de::Deserializer;
 use super::error::Error;
+use super::ser::Serializer;
 
 /// A nested map/vector of tensors.
 #[derive(Debug, Clone)]
@@ -149,4 +150,63 @@ pub fn remap<T>(
     }
 
     remapped
+}
+
+/// Helper function to insert a value into a nested map/vector of tensors.
+fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedValue) {
+    if keys.is_empty() {
+        *current = value;
+        return;
+    }
+
+    match current {
+        NestedValue::Map(map) => {
+            if !map.contains_key(keys[0]) {
+                let next = if keys[1..]
+                    .first()
+                    .and_then(|k| k.parse::<usize>().ok())
+                    .is_some()
+                {
+                    NestedValue::Vec(Vec::new())
+                } else {
+                    NestedValue::Map(HashMap::new())
+                };
+                map.insert(keys[0].to_string(), next);
+            }
+            insert_nested_value(map.get_mut(keys[0]).unwrap(), &keys[1..], value);
+        }
+        NestedValue::Vec(vec) => {
+            let index = keys[0].parse::<usize>().unwrap();
+            if index >= vec.len() {
+                vec.resize_with(index + 1, || NestedValue::Map(HashMap::new()));
+            }
+            insert_nested_value(&mut vec[index], &keys[1..], value);
+        }
+        _ => panic!("Invalid structure encountered"),
+    }
+}
+
+pub trait Serializable {
+    fn serialize<PS, S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+        PS: PrecisionSettings;
+}
+
+/// Convert a vector of Candle tensors to a nested map/vector of tensors.
+pub fn unflatten<PS, T>(input: HashMap<String, T>) -> NestedValue
+where
+    PS: PrecisionSettings,
+    T: Serializable,
+{
+    let mut result = NestedValue::Map(HashMap::new());
+
+    for (key, value) in input {
+        let parts: Vec<&str> = key.split('.').collect();
+        let st = value.serialize::<PS, _>(Serializer::new()).unwrap();
+
+        insert_nested_value(&mut result, &parts, st);
+    }
+
+    result
 }
