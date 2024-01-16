@@ -6,7 +6,7 @@ use burn::{
 use burn_ndarray::NdArray;
 use serde::Serialize;
 
-use crate::record::{adapter::BurnModuleAdapter, reader::NestedValue, ser::Serializer};
+use crate::record::{adapter::BurnModuleAdapter, data::NestedValue, ser::Serializer};
 
 type DummyBackend = NdArray<f32>;
 

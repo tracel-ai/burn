@@ -1,5 +1,5 @@
 mod recorder;
-mod target_file;
+mod reader;
 mod adapter;
 
 pub use recorder::{LoadArgs, PyTorchFileRecorder};

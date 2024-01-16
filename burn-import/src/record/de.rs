@@ -321,7 +321,7 @@ use serde::de::MapAccess;
 use serde::forward_to_deserialize_any;
 
 use super::adapter::BurnModuleAdapter;
-use super::reader::NestedValue;
+use super::data::NestedValue;
 
 struct HashMapAccess<A: BurnModuleAdapter> {
     iter: std::collections::hash_map::IntoIter<String, NestedValue>,

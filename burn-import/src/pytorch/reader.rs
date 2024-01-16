@@ -1,9 +1,3 @@
-// use std::{marker::PhantomData, path::PathBuf};
-
-// use crate::pytorch::RecordType;
-
-// use super::{reader::NestedValue, Converter};
-
 use std::collections::HashMap;
 
 use burn::{
@@ -12,11 +6,17 @@ use burn::{
     tensor::{DataSerialize, Element, ElementConversion},
 };
 
-use candle_core::{Tensor as CandleTensor, WithDType};
+use candle_core::{pickle, Tensor as CandleTensor, WithDType};
 use half::{bf16, f16};
-use serde::Serialize;
+use regex::Regex;
+use serde::{Serialize, de::DeserializeOwned};
 
-use crate::record::{reader::NestedValue, ser::Serializer};
+use crate::record::{data::NestedValue, ser::Serializer};
+
+use crate::record::{de::Deserializer, error::Error};
+use std::path::Path;
+
+use super::adapter::PyTorchAdapter;
 
 ///  Redefine a Param struct so it can be serialized.
 #[derive(new, Debug, Clone, Serialize)]
@@ -121,7 +121,7 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
 }
 
 /// Convert a vector of Candle tensors to a nested map/vector of tensors.
-pub fn reverse_flatten<PS: PrecisionSettings>(input: HashMap<String, CandleTensor>) -> NestedValue {
+pub fn unflatten<PS: PrecisionSettings>(input: HashMap<String, CandleTensor>) -> NestedValue {
     let mut result = NestedValue::Map(HashMap::new());
 
     for (key, value) in input {
@@ -132,4 +132,50 @@ pub fn reverse_flatten<PS: PrecisionSettings>(input: HashMap<String, CandleTenso
     }
 
     result
+}
+
+pub fn from_file<PS, D>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
+where
+    D: DeserializeOwned,
+    PS: PrecisionSettings,
+{
+    // Read the pickle file and return a vector of Candle tensors
+    let tensors: HashMap<String, CandleTensor> =
+        pickle::read_all(path).unwrap().into_iter().collect();
+
+    // Remap the keys (replace the keys in the map with the new keys)
+    let tensors = remap(tensors, key_remap);
+
+    // Convert the vector of Candle tensors to a nested map/vector of tensors
+    let nested_value = unflatten::<PS>(tensors);
+
+    let deserializer = Deserializer::<PyTorchAdapter<PS>>::new(nested_value);
+
+    let value = D::deserialize(deserializer)?;
+    Ok(value)
+}
+
+/// Remap the tensor locations according to the key remapping.
+fn remap(
+    mut tensors: HashMap<String, CandleTensor>,
+    key_remap: Vec<(Regex, String)>,
+) -> HashMap<String, CandleTensor> {
+    if key_remap.is_empty() {
+        return tensors;
+    }
+
+    let mut remapped = HashMap::new();
+
+    for (name, tensor) in tensors.drain() {
+        let mut new_name = name.clone();
+        for (pattern, replacement) in &key_remap {
+            if pattern.is_match(&name) {
+                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
+                break;
+            }
+        }
+        remapped.insert(new_name, tensor);
+    }
+
+    remapped
 }

@@ -1,4 +1,4 @@
-use super::reader::NestedValue;
+use super::data::NestedValue;
 
 pub trait BurnModuleAdapter: Sized {
     fn adapt(name: &str, data: NestedValue) -> NestedValue {

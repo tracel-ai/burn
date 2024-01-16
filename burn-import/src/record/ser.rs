@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{
     error::{self, Error},
-    reader::NestedValue,
+    data::NestedValue,
 };
 
 use serde::{
