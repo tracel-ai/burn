@@ -26,19 +26,15 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
     use burn::{
-        record::{FullPrecisionSettings, Recorder},
+        record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings},
         tensor::Data,
     };
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn integer() {
+    fn integer(record: NetRecord<Backend>, _precision: usize) {
         let device = Default::default();
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/integer/integer.pt".into())
-            .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
@@ -50,4 +46,22 @@ mod tests {
 
         assert_eq!(output.to_data(), expected.to_data());
     }
+
+    #[test]
+    fn integer_full_precision() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/integer/integer.pt".into())
+            .expect("Failed to decode state");
+
+        integer(record, 0);
+    }
+
+    #[test]
+    fn integer_half_precision() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/integer/integer.pt".into())
+            .expect("Failed to decode state");
+
+        integer(record, 0);
+    }    
 }

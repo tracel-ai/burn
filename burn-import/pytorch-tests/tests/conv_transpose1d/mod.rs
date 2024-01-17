@@ -30,18 +30,13 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn conv_transpose1d() {
+    fn conv_transpose1d(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
-            .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
@@ -60,6 +55,25 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 8);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
+    }
+
+    #[test]
+    fn conv_transpose1d_full() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
+            .expect("Failed to decode state");
+
+        conv_transpose1d(record, 8);
+    }
+    #[test]
+    fn conv_transpose1d_half() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
+            .expect("Failed to decode state");
+
+        conv_transpose1d(record, 4);
     }
 }

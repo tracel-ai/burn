@@ -26,18 +26,13 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn layer_norm() {
+    fn layer_norm(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/layer_norm/layer_norm.pt".into())
-            .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
@@ -59,6 +54,24 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
+    }
+
+    #[test]
+    fn layer_norm_full() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/layer_norm/layer_norm.pt".into())
+            .expect("Failed to decode state");
+        layer_norm(record, 3);
+    }
+
+    #[test]
+    fn layer_norm_half() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/layer_norm/layer_norm.pt".into())
+            .expect("Failed to decode state");
+        layer_norm(record, 3);
     }
 }

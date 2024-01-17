@@ -32,17 +32,13 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
 
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn conv2d() {
+    fn conv2d(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/conv2d/conv2d.pt".into())
-            .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
@@ -108,6 +104,26 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 7);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
+    }
+
+    #[test]
+    fn conv2d_full_precision() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/conv2d/conv2d.pt".into())
+            .expect("Failed to decode state");
+
+        conv2d(record, 7);
+    }
+
+    #[test]
+    fn conv2d_half_precision() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/conv2d/conv2d.pt".into())
+            .expect("Failed to decode state");
+
+        conv2d(record, 4);
     }
 }

@@ -25,17 +25,13 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, Recorder};
+    use burn::record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
-    #[test]
-    fn embedding() {
+    fn embedding(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/embedding/embedding.pt".into())
-            .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
@@ -61,6 +57,24 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+        output.to_data().assert_approx_eq(&expected.to_data(), precision);
+    }
+
+    #[test]
+    fn embedding_full_precision() {
+        let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+            .load("tests/embedding/embedding.pt".into())
+            .expect("Failed to decode state");
+
+        embedding(record, 3);
+    }
+
+    #[test]
+    fn embedding_half_precision() {
+        let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
+            .load("tests/embedding/embedding.pt".into())
+            .expect("Failed to decode state");
+
+        embedding(record, 3);
     }
 }
