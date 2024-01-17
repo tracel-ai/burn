@@ -277,6 +277,20 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn one_hot(index: usize, num_classes: usize) -> Self {
+        let mut check = Self::Ok;
+        if index >= num_classes {
+            check = check.register(
+                "One Hot",
+                TensorError::new(format!(
+                    "Can't create a one hot tensor with index ({index}) greater or equal to the number of classes ({num_classes})",
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn swap_dims<const D: usize>(dim1: usize, dim2: usize) -> Self {
         let mut check = Self::Ok;
 
@@ -353,7 +367,7 @@ impl TensorCheck {
             );
         }
 
-        let shape_reference = tensors.get(0).unwrap().shape();
+        let shape_reference = tensors.first().unwrap().shape();
 
         for tensor in tensors {
             let shape = tensor.shape();
@@ -398,7 +412,7 @@ impl TensorCheck {
             );
         }
 
-        let mut shape_reference = tensors.get(0).unwrap().shape();
+        let mut shape_reference = tensors.first().unwrap().shape();
         shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
                                        // concatenation happens.
 

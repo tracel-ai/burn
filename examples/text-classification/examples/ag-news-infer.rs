@@ -75,9 +75,10 @@ mod tch_cpu {
 mod wgpu {
     use crate::{launch, ElemType};
     use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+    use burn::backend::Fusion;
 
     pub fn run() {
-        launch::<Wgpu<AutoGraphicsApi, ElemType, i32>>(WgpuDevice::default());
+        launch::<Fusion<Wgpu<AutoGraphicsApi, ElemType, i32>>>(WgpuDevice::default());
     }
 }
 

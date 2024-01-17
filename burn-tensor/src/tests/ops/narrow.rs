@@ -5,8 +5,10 @@ mod tests {
 
     #[test]
     fn test_narrow() {
-        let tensor: Tensor<TestBackend, 2> =
-            Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
+        let tensor: Tensor<TestBackend, 2> = Tensor::from_data(
+            Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
+            &Default::default(),
+        );
 
         let output = tensor.clone().narrow(0, 0, 2);
         assert_eq!(output.shape(), Shape::from([2, 3]));
@@ -24,8 +26,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_narrow_invalid_dim() {
-        let tensor: Tensor<TestBackend, 2> =
-            Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
+        let tensor: Tensor<TestBackend, 2> = Tensor::from_data(
+            Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
+            &Default::default(),
+        );
 
         let output = tensor.narrow(2, 0, 2);
     }
@@ -33,8 +37,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_narrow_invalid_start() {
-        let tensor: Tensor<TestBackend, 2> =
-            Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
+        let tensor: Tensor<TestBackend, 2> = Tensor::from_data(
+            Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
+            &Default::default(),
+        );
 
         let output = tensor.narrow(0, 3, 2);
     }
@@ -42,8 +48,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_narrow_invalid_zero_length() {
-        let tensor: Tensor<TestBackend, 2> =
-            Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
+        let tensor: Tensor<TestBackend, 2> = Tensor::from_data(
+            Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
+            &Default::default(),
+        );
 
         let output = tensor.narrow(0, 1, 0);
     }
@@ -51,8 +59,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_narrow_invalid_length() {
-        let tensor: Tensor<TestBackend, 2> =
-            Tensor::from_data(Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]));
+        let tensor: Tensor<TestBackend, 2> = Tensor::from_data(
+            Data::from([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]),
+            &Default::default(),
+        );
 
         let output = tensor.narrow(0, 0, 4);
     }

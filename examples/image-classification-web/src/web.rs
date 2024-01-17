@@ -57,9 +57,9 @@ impl ImageClassifier {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         log::info!("Initializing the image classifier");
-
+        let device = Default::default();
         Self {
-            model: ModelType::WithNdArrayBackend(Model::new()),
+            model: ModelType::WithNdArrayBackend(Model::new(&device)),
         }
     }
 
@@ -86,7 +86,8 @@ impl ImageClassifier {
     pub async fn set_backend_candle(&mut self) -> Result<(), JsValue> {
         log::info!("Loading the model to the Candle backend");
         let start = Instant::now();
-        self.model = ModelType::WithCandleBackend(Model::new());
+        let device = Default::default();
+        self.model = ModelType::WithCandleBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the Candle backend in {:?}", duration);
         Ok(())
@@ -96,7 +97,8 @@ impl ImageClassifier {
     pub async fn set_backend_ndarray(&mut self) -> Result<(), JsValue> {
         log::info!("Loading the model to the NdArray backend");
         let start = Instant::now();
-        self.model = ModelType::WithNdArrayBackend(Model::new());
+        let device = Default::default();
+        self.model = ModelType::WithNdArrayBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the NdArray backend in {:?}", duration);
         Ok(())
@@ -106,8 +108,9 @@ impl ImageClassifier {
     pub async fn set_backend_wgpu(&mut self) -> Result<(), JsValue> {
         log::info!("Loading the model to the Wgpu backend");
         let start = Instant::now();
-        init_async::<AutoGraphicsApi>(&WgpuDevice::default()).await;
-        self.model = ModelType::WithWgpuBackend(Model::new());
+        let device = WgpuDevice::default();
+        init_async::<AutoGraphicsApi>(&device).await;
+        self.model = ModelType::WithWgpuBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the Wgpu backend in {:?}", duration);
 
@@ -128,17 +131,18 @@ pub struct Model<B: Backend> {
 
 impl<B: Backend> Model<B> {
     /// Constructor
-    pub fn new() -> Self {
+    pub fn new(device: &B::Device) -> Self {
         Self {
             model: SqueezenetModel::from_embedded(),
-            normalizer: Normalizer::new(),
+            normalizer: Normalizer::new(device),
         }
     }
 
     /// Normalizes input and runs inference on the image
     pub async fn forward(&self, input: &[f32]) -> Vec<f32> {
         // Reshape from the 1D array to 3d tensor [ width, height, channels]
-        let input: Tensor<B, 4> = Tensor::from_floats(input).reshape([1, CHANNELS, HEIGHT, WIDTH]);
+        let input: Tensor<B, 4> =
+            Tensor::from_floats(input, &B::Device::default()).reshape([1, CHANNELS, HEIGHT, WIDTH]);
 
         // Normalize input: make between [-1,1] and make the mean=0 and std=1
         let input = self.normalizer.normalize(input);

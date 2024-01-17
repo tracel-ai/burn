@@ -72,9 +72,9 @@ mod tests {
         let device = WgpuDevice::default();
 
         let tensor_1 =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Normal(0., 1.), &device);
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(0., 1.), &device);
         let tensor_2 =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Normal(0., 1.), &device);
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(0., 1.), &device);
         for i in 0..20 {
             assert!(tensor_1.to_data().value[i] != tensor_2.to_data().value[i]);
         }
@@ -88,7 +88,7 @@ mod tests {
         let device = WgpuDevice::default();
         let mean = 10.;
         let tensor =
-            Tensor::<TestBackend, 2>::random_device(shape, Distribution::Normal(mean, 2.), &device);
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(mean, 2.), &device);
         let empirical_mean = tensor.mean().into_data();
         empirical_mean.assert_approx_eq(&Data::from([mean as f32]), 1);
     }
@@ -101,11 +101,8 @@ mod tests {
         let device = WgpuDevice::default();
         let mu = 0.;
         let s = 1.;
-        let tensor = Tensor::<TestBackend, 2>::random_device(
-            shape.clone(),
-            Distribution::Normal(mu, s),
-            &device,
-        );
+        let tensor =
+            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Normal(mu, s), &device);
         let stats = calculate_bin_stats(
             tensor.into_data().value,
             6,

@@ -413,4 +413,30 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         let tensor = tensor.tensor.transpose(dim1 as i64, dim2 as i64);
         TchTensor::new(tensor)
     }
+
+    pub fn narrow<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> TchTensor<E, D> {
+        TchTensor::new(
+            tensor
+                .tensor
+                .narrow(dim as i64, start as i64, length as i64),
+        )
+    }
+
+    pub fn chunk<const D: usize>(
+        tensor: TchTensor<E, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<TchTensor<E, D>> {
+        tensor
+            .tensor
+            .chunk(chunks as i64, dim as i64)
+            .into_iter()
+            .map(|tensor| TchTensor::new(tensor))
+            .collect()
+    }
 }

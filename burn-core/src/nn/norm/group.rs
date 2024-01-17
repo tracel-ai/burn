@@ -30,26 +30,26 @@ pub struct GroupNormConfig {
 pub struct GroupNorm<B: Backend> {
     num_groups: usize,
     num_channels: usize,
-    weight: Option<Param<Tensor<B, 1>>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    gamma: Option<Param<Tensor<B, 1>>>,
+    beta: Option<Param<Tensor<B, 1>>>,
     epsilon: f64,
     affine: bool,
 }
 
 impl GroupNormConfig {
     /// Initialize a new [group norm](GroupNorm) module.
-    pub fn init<B: Backend>(&self) -> GroupNorm<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> GroupNorm<B> {
         assert_eq!(
             self.num_channels % self.num_groups,
             0,
             "The number of channels must be divisible by the number of groups"
         );
 
-        let (weight, bias) = if self.affine {
-            let weight = Tensor::ones([self.num_channels]).into();
-            let bias = Tensor::zeros([self.num_channels]).into();
+        let (gamma, beta) = if self.affine {
+            let gamma = Tensor::ones([self.num_channels], device).into();
+            let beta = Tensor::zeros([self.num_channels], device).into();
 
-            (Some(weight), Some(bias))
+            (Some(gamma), Some(beta))
         } else {
             (None, None)
         };
@@ -57,8 +57,8 @@ impl GroupNormConfig {
         GroupNorm {
             num_groups: self.num_groups,
             num_channels: self.num_channels,
-            weight,
-            bias,
+            gamma,
+            beta,
             epsilon: self.epsilon,
             affine: self.affine,
         }
@@ -69,8 +69,8 @@ impl GroupNormConfig {
         GroupNorm {
             num_groups: self.num_groups,
             num_channels: self.num_channels,
-            weight: record.weight,
-            bias: record.bias,
+            gamma: record.gamma,
+            beta: record.beta,
             epsilon: self.epsilon,
             affine: self.affine,
         }
@@ -119,8 +119,8 @@ impl<B: Backend> GroupNorm<B> {
 
             input_normalized
                 .reshape(shape)
-                .mul(self.weight.clone().unwrap().val().reshape(affine_shape))
-                .add(self.bias.clone().unwrap().val().reshape(affine_shape))
+                .mul(self.gamma.clone().unwrap().val().reshape(affine_shape))
+                .add(self.beta.clone().unwrap().val().reshape(affine_shape))
         } else {
             input_normalized.reshape(shape)
         }
@@ -135,31 +135,35 @@ mod tests {
 
     #[test]
     fn group_norm_forward_affine_false() {
+        let device = Default::default();
         let module = GroupNormConfig::new(2, 6)
             .with_affine(false)
-            .init::<TestBackend>();
+            .init::<TestBackend>(&device);
 
-        assert!(module.weight.is_none());
-        assert!(module.bias.is_none());
+        assert!(module.gamma.is_none());
+        assert!(module.beta.is_none());
 
-        let input = Tensor::from_data(Data::from([
-            [
-                [-0.3034, 0.2726, -0.9659],
-                [-1.1845, -1.3236, 0.0172],
-                [1.9507, 1.2554, -0.8625],
-                [1.0682, 0.3604, 0.3985],
-                [-0.4957, -0.4461, -0.9721],
-                [1.5157, -0.1546, -0.5596],
-            ],
-            [
-                [-1.6698, -0.4040, -0.7927],
-                [0.3736, -0.0975, -0.1351],
-                [-0.9461, 0.5461, -0.6334],
-                [-1.0919, -0.1158, 0.1213],
-                [-0.9535, 0.1281, 0.4372],
-                [-0.2845, 0.3488, 0.5641],
-            ],
-        ]));
+        let input = Tensor::from_data(
+            Data::from([
+                [
+                    [-0.3034, 0.2726, -0.9659],
+                    [-1.1845, -1.3236, 0.0172],
+                    [1.9507, 1.2554, -0.8625],
+                    [1.0682, 0.3604, 0.3985],
+                    [-0.4957, -0.4461, -0.9721],
+                    [1.5157, -0.1546, -0.5596],
+                ],
+                [
+                    [-1.6698, -0.4040, -0.7927],
+                    [0.3736, -0.0975, -0.1351],
+                    [-0.9461, 0.5461, -0.6334],
+                    [-1.0919, -0.1158, 0.1213],
+                    [-0.9535, 0.1281, 0.4372],
+                    [-0.2845, 0.3488, 0.5641],
+                ],
+            ]),
+            &device,
+        );
 
         let output = module.forward(input);
 
@@ -188,12 +192,13 @@ mod tests {
 
     #[test]
     fn group_norm_forward_affine_true() {
+        let device = Default::default();
         let module = GroupNormConfig::new(3, 6)
             .with_affine(true)
-            .init::<TestBackend>();
+            .init::<TestBackend>(&device);
 
         module
-            .weight
+            .gamma
             .as_ref()
             .expect("weight is None")
             .val()
@@ -201,31 +206,34 @@ mod tests {
             .assert_approx_eq(&Data::ones([6].into()), 3);
 
         module
-            .bias
+            .beta
             .as_ref()
             .expect("bias is None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);
 
-        let input = Tensor::from_data(Data::from([
-            [
-                [0.3345, 0.4429, 0.6639],
-                [0.5041, 0.4175, 0.8437],
-                [0.6159, 0.3758, 0.4071],
-                [0.5417, 0.5785, 0.7671],
-                [0.3837, 0.9883, 0.0420],
-                [0.4808, 0.8989, 0.6144],
-            ],
-            [
-                [0.3930, 0.2098, 0.0602],
-                [0.2298, 0.9425, 0.0333],
-                [0.7409, 0.8172, 0.8879],
-                [0.4846, 0.0486, 0.2029],
-                [0.6741, 0.9765, 0.6864],
-                [0.2827, 0.5534, 0.2125],
-            ],
-        ]));
+        let input = Tensor::from_data(
+            Data::from([
+                [
+                    [0.3345, 0.4429, 0.6639],
+                    [0.5041, 0.4175, 0.8437],
+                    [0.6159, 0.3758, 0.4071],
+                    [0.5417, 0.5785, 0.7671],
+                    [0.3837, 0.9883, 0.0420],
+                    [0.4808, 0.8989, 0.6144],
+                ],
+                [
+                    [0.3930, 0.2098, 0.0602],
+                    [0.2298, 0.9425, 0.0333],
+                    [0.7409, 0.8172, 0.8879],
+                    [0.4846, 0.0486, 0.2029],
+                    [0.6741, 0.9765, 0.6864],
+                    [0.2827, 0.5534, 0.2125],
+                ],
+            ]),
+            &device,
+        );
 
         let output = module.forward(input);
 

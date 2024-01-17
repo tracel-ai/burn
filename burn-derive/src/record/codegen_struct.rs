@@ -33,7 +33,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             }
 
             bounds.extend(quote! {
-          <#ty as burn::record::Record>::Item<S>: serde::Serialize + serde::de::DeserializeOwned,
+          <#ty as burn::record::Record>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
       });
         }
         let bound = bounds.to_string();
@@ -41,7 +41,8 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         quote! {
 
             /// The record item type for the module.
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+            #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
+            #[serde(crate = "burn::serde")]
             #[serde(bound = #bound)]
             pub struct #item_name #generics {
                 #fields

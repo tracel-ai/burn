@@ -12,13 +12,14 @@ mod tests {
 
     #[test]
     fn test_tensor_full() {
+        let device = Default::default();
         // Test full with f32
-        let tensor = Tensor::<TestBackend, 2>::full([2, 3], 2.1);
+        let tensor = Tensor::<TestBackend, 2>::full([2, 3], 2.1, &device);
         let data_expected = Data::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]);
         assert_eq!(data_expected, tensor.into_data());
 
         // Test full with Int
-        let int_tensor = Tensor::<TestBackend, 2, Int>::full([2, 2], 2);
+        let int_tensor = Tensor::<TestBackend, 2, Int>::full([2, 2], 2, &device);
         let data_expected = Data::from([[2, 2], [2, 2]]);
         assert_eq!(data_expected, int_tensor.into_data());
     }

@@ -60,9 +60,12 @@ mod tests {
 
     #[test]
     fn test_mse_loss() {
-        let logits = Tensor::<TestBackend, 2>::from_data(Data::from([[1.0, 2.0], [3.0, 4.0]]));
+        let device = Default::default();
+        let logits =
+            Tensor::<TestBackend, 2>::from_data(Data::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(Data::from([[2.0, 1.0], [3.0, 2.0]]));
+        let targets =
+            Tensor::<TestBackend, 2>::from_data(Data::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
         let mse = MSELoss::new();
         let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());

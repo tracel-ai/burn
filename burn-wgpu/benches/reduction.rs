@@ -51,7 +51,7 @@ where
     }
 
     fn prepare(&self) -> Self::Args {
-        WTensor::random_device(self.shape.clone(), Distribution::Default, &self.device)
+        WTensor::random(self.shape.clone(), Distribution::Default, &self.device)
     }
 
     fn sync(&self) {

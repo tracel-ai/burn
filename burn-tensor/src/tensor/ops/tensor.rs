@@ -1,5 +1,6 @@
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
+use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -1074,5 +1075,49 @@ pub trait TensorOps<B: Backend> {
         let values = B::gather(dim, tensor, index.clone());
 
         (values, index)
+    }
+
+    /// Returns a new tensor with the given dimension narrowed to the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension along which the tensor will be narrowed.
+    /// * `start` - The starting point of the given range.
+    /// * `length` - The ending point of the given range.
+    /// # Panics
+    ///
+    /// - If the dimension is greater than the number of dimensions of the tensor.
+    /// - If the given range exceeds the number of elements on the given dimension.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the given dimension narrowed to the given range.
+    fn narrow<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> FloatTensor<B, D> {
+        narrow::<B, D, Float>(tensor, dim, start, length)
+    }
+
+    /// Split the tensor along the given dimension into chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `chunks` - The number of chunks to be produced
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vectors of tensors
+    ///
+    fn chunk<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<FloatTensor<B, D>> {
+        chunk::<B, D, Float>(tensor, chunks, dim)
     }
 }

@@ -108,8 +108,13 @@ mod tests {
 
     #[test]
     pub fn max_pool2d_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 4>::random(
+            [32, 32, 32, 32],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
@@ -125,8 +130,13 @@ mod tests {
 
     #[test]
     pub fn max_pool2d_with_indices_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 4>::random(
+            [32, 32, 32, 32],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];
@@ -145,10 +155,15 @@ mod tests {
 
     #[test]
     pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default);
-        let grad_output = Tensor::<TestBackend, 4>::random([32, 32, 16, 16], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data());
-        let grad_output_ref = Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data());
+        let test_device = Default::default();
+        let tensor =
+            Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &test_device);
+        let grad_output =
+            Tensor::<TestBackend, 4>::random([32, 32, 16, 16], Distribution::Default, &test_device);
+        let ref_device = Default::default();
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &ref_device);
+        let grad_output_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data(), &ref_device);
         let kernel_size = [3, 3];
         let stride = [2, 2];
         let padding = [1, 1];

@@ -6,6 +6,9 @@
 #[macro_use]
 extern crate derive_new;
 
+/// Re-export serde for proc macros.
+pub use serde;
+
 /// The configuration module.
 pub mod config;
 

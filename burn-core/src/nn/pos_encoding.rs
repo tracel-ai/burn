@@ -43,10 +43,14 @@ pub struct PositionalEncoding<B: Backend> {
 
 impl PositionalEncodingConfig {
     /// Initialize a new [PositionalEncoding](PositionalEncoding) module.
-    pub fn init<B: Backend>(&self) -> PositionalEncoding<B> {
-        let sinusoids =
-            generate_sinusoids::<B>(self.max_sequence_size, self.d_model, self.max_timescale)
-                .unsqueeze::<3>();
+    pub fn init<B: Backend>(&self, device: &B::Device) -> PositionalEncoding<B> {
+        let sinusoids = generate_sinusoids::<B>(
+            self.max_sequence_size,
+            self.d_model,
+            self.max_timescale,
+            device,
+        )
+        .unsqueeze::<3>();
 
         PositionalEncoding { sinusoids }
     }
@@ -109,6 +113,7 @@ pub fn generate_sinusoids<B: Backend>(
     length: usize,
     d_model: usize,
     max_timescale: usize,
+    device: &B::Device,
 ) -> Tensor<B, 2> {
     assert!(d_model % 2 == 0, "d_model must be even");
     assert!(
@@ -145,11 +150,12 @@ pub fn generate_sinusoids<B: Backend>(
         [length, d_model].into(),
     );
 
-    Tensor::<B, 2>::from_data(data.convert())
+    Tensor::<B, 2>::from_data(data.convert(), device)
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::TestBackend;
 
@@ -161,51 +167,59 @@ mod tests {
         // expected to broadcast
         let batch_size = 2;
 
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
+        let device = Default::default();
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
 
         // Use a tensor of zeros as input for easy verification of the output
         // The output should be the sinusoids broadcasted to the input shape
-        let tensor = Tensor::zeros([batch_size, length, d_model]);
+        let tensor = Tensor::zeros([batch_size, length, d_model], &device);
 
         let output = pe.forward(tensor);
 
         assert_eq!(output.shape().dims, [batch_size, length, d_model]);
 
-        let expected = Tensor::<TestBackend, 3>::from_floats([
+        let expected = Tensor::<TestBackend, 3>::from_floats(
             [
-                [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
-                [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
-                [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
+                [
+                    [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
+                    [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
+                    [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
+                ],
+                [
+                    [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
+                    [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
+                    [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
+                ],
             ],
-            [
-                [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
-                [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
-                [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
-            ],
-        ]);
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 5);
     }
 
     #[test]
     fn test_generate_sinusoids() {
-        let sinusoids = generate_sinusoids::<TestBackend>(12, 6, 10_000);
+        let device = Default::default();
+        let sinusoids = generate_sinusoids::<TestBackend>(12, 6, 10_000, &device);
 
         // The values are taken from the pytorch reference implementation
-        let expected = Tensor::<TestBackend, 2>::from_floats([
-            [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
-            [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
-            [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
-            [0.14112, -0.98999, 0.13880, 0.99032, 0.00646, 0.99998],
-            [-0.75680, -0.65364, 0.18460, 0.98281, 0.00862, 0.99996],
-            [-0.95892, 0.28366, 0.23000, 0.97319, 0.01077, 0.99994],
-            [-0.27942, 0.96017, 0.27491, 0.96147, 0.01293, 0.99992],
-            [0.65699, 0.75390, 0.31922, 0.94768, 0.01508, 0.99989],
-            [0.98936, -0.14550, 0.36285, 0.93185, 0.01723, 0.99985],
-            [0.41212, -0.91113, 0.40570, 0.91401, 0.01939, 0.99981],
-            [-0.54402, -0.83907, 0.44767, 0.89420, 0.02154, 0.99977],
-            [-0.99999, 0.00443, 0.48868, 0.87246, 0.02370, 0.99972],
-        ]);
+        let expected = Tensor::<TestBackend, 2>::from_floats(
+            [
+                [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
+                [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
+                [0.90930, -0.41615, 0.09270, 0.99569, 0.00431, 0.99999],
+                [0.14112, -0.98999, 0.13880, 0.99032, 0.00646, 0.99998],
+                [-0.75680, -0.65364, 0.18460, 0.98281, 0.00862, 0.99996],
+                [-0.95892, 0.28366, 0.23000, 0.97319, 0.01077, 0.99994],
+                [-0.27942, 0.96017, 0.27491, 0.96147, 0.01293, 0.99992],
+                [0.65699, 0.75390, 0.31922, 0.94768, 0.01508, 0.99989],
+                [0.98936, -0.14550, 0.36285, 0.93185, 0.01723, 0.99985],
+                [0.41212, -0.91113, 0.40570, 0.91401, 0.01939, 0.99981],
+                [-0.54402, -0.83907, 0.44767, 0.89420, 0.02154, 0.99977],
+                [-0.99999, 0.00443, 0.48868, 0.87246, 0.02370, 0.99972],
+            ],
+            &device,
+        );
         sinusoids.to_data().assert_approx_eq(&expected.to_data(), 5);
     }
 
@@ -213,8 +227,9 @@ mod tests {
     #[should_panic]
     fn d_model_input_should_match() {
         let d_model = 8;
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
-        let input = Tensor::zeros([1, 5, 10]);
+        let device = Default::default();
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
+        let input = Tensor::zeros([1, 5, 10], &device);
         let _output = pe.forward(input);
     }
 
@@ -222,8 +237,9 @@ mod tests {
     #[should_panic]
     fn input_length_should_be_less_than_max_len() {
         let d_model = 8;
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>();
-        let input = Tensor::zeros([1, 6_000, d_model]);
+        let device = Default::default();
+        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
+        let input = Tensor::zeros([1, 6_000, d_model], &device);
         let _output = pe.forward(input);
     }
 }

@@ -21,20 +21,20 @@ pub struct LayerNormConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
-    weight: Param<Tensor<B, 1>>,
-    bias: Param<Tensor<B, 1>>,
+    gamma: Param<Tensor<B, 1>>,
+    beta: Param<Tensor<B, 1>>,
     epsilon: f64,
 }
 
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
-    pub fn init<B: Backend>(&self) -> LayerNorm<B> {
-        let weight = Tensor::ones([self.d_model]);
-        let bias = Tensor::zeros([self.d_model]);
+    pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
+        let gamma = Tensor::ones([self.d_model], device);
+        let beta = Tensor::zeros([self.d_model], device);
 
         LayerNorm {
-            weight: Param::from(weight),
-            bias: Param::from(bias),
+            gamma: Param::from(gamma),
+            beta: Param::from(beta),
             epsilon: self.epsilon,
         }
     }
@@ -42,8 +42,8 @@ impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
     pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
         LayerNorm {
-            weight: record.weight,
-            bias: record.bias,
+            gamma: record.gamma,
+            beta: record.beta,
             epsilon: self.epsilon,
         }
     }
@@ -62,8 +62,8 @@ impl<B: Backend> LayerNorm<B> {
         let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
 
         input_normalized
-            .mul(self.weight.val().unsqueeze())
-            .add(self.bias.val().unsqueeze())
+            .mul(self.gamma.val().unsqueeze())
+            .add(self.beta.val().unsqueeze())
     }
 }
 
@@ -80,10 +80,14 @@ mod tests {
 
     #[test]
     fn layer_norm_forward() {
-        let module = LayerNormConfig::new(10).init::<TestBackend>();
-        let input = Tensor::from_data(Data::from([[
-            -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
-        ]]));
+        let device = Default::default();
+        let module = LayerNormConfig::new(10).init::<TestBackend>(&device);
+        let input = Tensor::from_data(
+            Data::from([[
+                -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
+            ]]),
+            &device,
+        );
 
         let output = module.forward(input);
 
@@ -98,13 +102,18 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn layer_norm_backward() {
-        let module = LayerNormConfig::new(2).init::<TestAutodiffBackend>();
-        let tensor_1 =
-            Tensor::<TestAutodiffBackend, 2>::from_data(Data::from([[0.0, 1.0], [3.0, 4.0]]))
-                .require_grad();
-        let tensor_2 =
-            Tensor::<TestAutodiffBackend, 2>::from_data(Data::from([[6.0, 7.0], [9.0, 10.0]]))
-                .require_grad();
+        let device = Default::default();
+        let module = LayerNormConfig::new(2).init::<TestAutodiffBackend>(&device);
+        let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(
+            Data::from([[0.0, 1.0], [3.0, 4.0]]),
+            &device,
+        )
+        .require_grad();
+        let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(
+            Data::from([[6.0, 7.0], [9.0, 10.0]]),
+            &device,
+        )
+        .require_grad();
 
         let x = tensor_1.clone().matmul(tensor_2.clone());
 

@@ -236,7 +236,7 @@ fn no_std_checks() {
     build_and_test_no_std("burn-core", []);
     build_and_test_no_std(
         "burn-compute",
-        ["--features", "channel-mutex storage-bytes"],
+        ["--features", "channel-mutex,storage-bytes"],
     );
     build_and_test_no_std("burn-common", []);
     build_and_test_no_std("burn-tensor", []);

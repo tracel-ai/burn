@@ -6,8 +6,9 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_2d_dim0() {
-        let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]]);
-        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]]);
+        let device = Default::default();
+        let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]], &device);
+        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
 
@@ -17,8 +18,9 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_int() {
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]]);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]]);
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
+        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
 
@@ -28,8 +30,9 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_bool() {
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data([[false, true, true]]);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]]);
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data([[false, true, true]], &device);
+        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
 
@@ -39,8 +42,9 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_2d_dim1() {
-        let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]]);
-        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]]);
+        let device = Default::default();
+        let tensor_1: Tensor<TestBackend, 2> = Tensor::from_data([[1.0, 2.0, 3.0]], &device);
+        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0, 6.0]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 1);
 
@@ -50,10 +54,11 @@ mod tests {
 
     #[test]
     fn should_support_stack_ops_3d() {
+        let device = Default::default();
         let tensor_1: Tensor<TestBackend, 3> =
-            TestTensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]]);
+            TestTensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
         let tensor_2: Tensor<TestBackend, 3> =
-            TestTensor::from_data([[[4.0, 5.0, 6.0]], [[4.1, 5.1, 6.1]]]);
+            TestTensor::from_data([[[4.0, 5.0, 6.0]], [[4.1, 5.1, 6.1]]], &device);
 
         let output = Tensor::stack(vec![tensor_1, tensor_2], 0);
 
@@ -67,9 +72,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_when_dimensions_are_not_the_same() {
+        let device = Default::default();
         let tensor_1: Tensor<TestBackend, 2> =
-            Tensor::from_data([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
-        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0]]);
+            Tensor::from_data([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]], &device);
+        let tensor_2: Tensor<TestBackend, 2> = Tensor::from_data([[4.0, 5.0]], &device);
 
         let output: Tensor<TestBackend, 3> = Tensor::stack(vec![tensor_1, tensor_2], 0);
     }
@@ -84,9 +90,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_panic_when_stack_exceeds_dimension() {
+        let device = Default::default();
         let tensor_1: Tensor<TestBackend, 3> =
-            Tensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]]);
-        let tensor_2: Tensor<TestBackend, 3> = Tensor::from_data([[[4.0, 5.0, 6.0]]]);
+            Tensor::from_data([[[1.0, 2.0, 3.0]], [[1.1, 2.1, 3.1]]], &device);
+        let tensor_2: Tensor<TestBackend, 3> = Tensor::from_data([[[4.0, 5.0, 6.0]]], &device);
 
         let output: Tensor<TestBackend, 4> = TestTensor::stack(vec![tensor_1, tensor_2], 3);
     }
@@ -100,8 +107,9 @@ mod tests {
             [19, 0, 20, 0, 21, 0, 22, 0, 23, 0, 24, 0],
         ]);
 
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25).reshape([4, 6]);
-        let zeros: Tensor<TestBackend, 2, Int> = Tensor::zeros([4, 6]);
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25, &device).reshape([4, 6]);
+        let zeros: Tensor<TestBackend, 2, Int> = Tensor::zeros([4, 6], &device);
         let intersperse =
             Tensor::stack::<3>([tensor.clone(), zeros.clone()].to_vec(), 2).reshape([4, 12]);
 

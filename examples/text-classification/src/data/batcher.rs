@@ -53,7 +53,10 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationTrainingBatch
         // Tokenize text and create label tensor for each item
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels_list.push(Tensor::from_data(Data::from([(item.label as i64).elem()])));
+            labels_list.push(Tensor::from_data(
+                Data::from([(item.label as i64).elem()]),
+                &self.device,
+            ));
         }
 
         // Generate padding mask for tokenized text
@@ -61,14 +64,14 @@ impl<B: Backend> Batcher<TextClassificationItem, TextClassificationTrainingBatch
             self.tokenizer.pad_token(),
             tokens_list,
             Some(self.max_seq_length),
-            &B::Device::default(),
+            &self.device,
         );
 
         // Create and return training batch
         TextClassificationTrainingBatch {
-            tokens: mask.tensor.to_device(&self.device),
-            labels: Tensor::cat(labels_list, 0).to_device(&self.device),
-            mask_pad: mask.mask.to_device(&self.device),
+            tokens: mask.tensor,
+            labels: Tensor::cat(labels_list, 0),
+            mask_pad: mask.mask,
         }
     }
 }

@@ -5,8 +5,9 @@ mod tests {
 
     #[test]
     fn should_diff_add() {
-        let tensor_1 = TestAutodiffTensor::from_floats([2.0, 5.0]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_floats([4.0, 1.0]).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_floats([2.0, 5.0], &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_floats([4.0, 1.0], &device).require_grad();
 
         let tensor_3 = tensor_1.clone() + tensor_2.clone();
         let grads = tensor_3.backward();
@@ -23,7 +24,7 @@ mod tests {
     fn should_diff_add_scalar() {
         let data = Data::from([2.0, 10.0]);
 
-        let tensor = TestAutodiffTensor::from_data(data).require_grad();
+        let tensor = TestAutodiffTensor::from_data(data, &Default::default()).require_grad();
         let tensor_out = tensor.clone().add_scalar(5.0);
         let grads = tensor_out.backward();
 
@@ -39,9 +40,10 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f32, 2> = Data::from([[2.0, 2.0], [2.0, 2.0]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2).require_grad();
-        let tensor_3 = TestAutodiffTensor::from_data(data_3).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
 
         let tensor_4 = tensor_1.clone().add(tensor_2.clone());
         let tensor_5 = tensor_4

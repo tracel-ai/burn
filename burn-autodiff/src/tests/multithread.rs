@@ -9,8 +9,9 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
 
         let with_move = || {
-            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone()).require_grad();
-            let tensor_2 = TestAutodiffTensor::from_data(data_2.clone()).require_grad();
+            let device = Default::default();
+            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+            let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
             let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
             let tensor_4 = tensor_3.clone().matmul(tensor_2.clone());
@@ -51,8 +52,9 @@ mod tests {
             (grad_1, grad_2)
         };
         let without_move = || {
-            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone()).require_grad();
-            let tensor_2 = TestAutodiffTensor::from_data(data_2.clone()).require_grad();
+            let device = Default::default();
+            let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+            let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
             let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
             let tensor_4 = tensor_3.clone().matmul(tensor_2.clone());

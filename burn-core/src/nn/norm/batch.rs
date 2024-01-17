@@ -24,8 +24,8 @@ pub struct BatchNormConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct BatchNorm<B: Backend, const D: usize> {
-    weight: Param<Tensor<B, 1>>,
-    bias: Param<Tensor<B, 1>>,
+    gamma: Param<Tensor<B, 1>>,
+    beta: Param<Tensor<B, 1>>,
     running_mean: RunningState<Tensor<B, 1>>,
     running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
@@ -34,16 +34,16 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 
 impl BatchNormConfig {
     /// Initialize a new [batch norm](BatchNorm) module.
-    pub fn init<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
-        let weight = Tensor::ones([self.num_features]);
-        let bias = Tensor::zeros([self.num_features]);
+    pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
+        let gamma = Tensor::ones([self.num_features], device);
+        let beta = Tensor::zeros([self.num_features], device);
 
-        let running_mean = Tensor::zeros([self.num_features]);
-        let running_var = Tensor::ones([self.num_features]);
+        let running_mean = Tensor::zeros([self.num_features], device);
+        let running_var = Tensor::ones([self.num_features], device);
 
         BatchNorm {
-            weight: Param::from(weight),
-            bias: Param::from(bias),
+            gamma: Param::from(gamma),
+            beta: Param::from(beta),
             running_mean: RunningState::new(running_mean),
             running_var: RunningState::new(running_var),
             momentum: self.momentum,
@@ -57,8 +57,8 @@ impl BatchNormConfig {
         record: BatchNormRecord<B, D>,
     ) -> BatchNorm<B, D> {
         BatchNorm {
-            weight: record.weight,
-            bias: record.bias,
+            gamma: record.gamma,
+            beta: record.beta,
             running_mean: RunningState::from_record(record.running_mean),
             running_var: RunningState::from_record(record.running_var),
             momentum: self.momentum,
@@ -170,9 +170,9 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let x = x.sub(mean);
         let x = x.div(std);
 
-        let x = x.mul(self.weight.val().reshape(shape));
+        let x = x.mul(self.gamma.val().reshape(shape));
 
-        x.add(self.bias.val().reshape(shape))
+        x.add(self.beta.val().reshape(shape))
     }
 }
 
@@ -185,9 +185,10 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>(&device);
 
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -208,11 +209,12 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 1>(&device);
 
-        module.forward(input_tensor());
+        module.forward(input_tensor(&device));
         let module = module.valid();
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -223,11 +225,14 @@ mod tests_1d {
         );
     }
 
-    fn input_tensor<B: Backend>() -> Tensor<B, 3> {
-        Tensor::<B, 3>::from_floats([
-            [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
-            [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
-        ])
+    fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
+        Tensor::<B, 3>::from_floats(
+            [
+                [[0.9601, 0.7277], [0.6272, 0.9034], [0.9378, 0.7230]],
+                [[0.6356, 0.1362], [0.0249, 0.9509], [0.6600, 0.5945]],
+            ],
+            device,
+        )
     }
 }
 
@@ -240,9 +245,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_train() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -263,11 +269,12 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        module.forward(input_tensor());
+        module.forward(input_tensor(&device));
         let module = module.valid();
-        let output = module.forward(input_tensor());
+        let output = module.forward(input_tensor(&device));
 
         output.to_data().assert_approx_eq(
             &Data::from([
@@ -288,9 +295,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let running_mean = module.running_mean.value_sync();
 
@@ -302,9 +310,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_var() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let running_var = module.running_var.value_sync();
 
@@ -316,9 +325,10 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_running_mean_inner_module() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
 
-        let _output = module.forward(input_tensor());
+        let _output = module.forward(input_tensor(&device));
 
         let module_valid = module.valid();
         let running_mean = module_valid.running_mean.value();
@@ -331,15 +341,16 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_grads() {
-        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>();
-        let input = input_tensor().require_grad();
+        let device = Default::default();
+        let module = BatchNormConfig::new(3).init::<TestAutodiffBackend, 2>(&device);
+        let input = input_tensor(&device).require_grad();
 
         let output = module.forward(input.clone());
 
         let grads = output.backward();
 
         module
-            .weight
+            .gamma
             .grad(&grads)
             .unwrap()
             .reshape([3])
@@ -347,7 +358,7 @@ mod tests_2d {
             .assert_approx_eq(&Data::from([0.0000e+00, -5.9035e-07, -6.0011e-07]), 3);
 
         module
-            .bias
+            .beta
             .grad(&grads)
             .unwrap()
             .reshape([3])
@@ -371,18 +382,21 @@ mod tests_2d {
         );
     }
 
-    fn input_tensor<B: Backend>() -> Tensor<B, 4> {
-        Tensor::<B, 4>::from_floats([
+    fn input_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 4> {
+        Tensor::<B, 4>::from_floats(
             [
-                [[0.9601, 0.7277], [0.1270, 0.5441]],
-                [[0.6272, 0.9034], [0.4066, 0.7179]],
-                [[0.9378, 0.7230], [0.3544, 0.9591]],
+                [
+                    [[0.9601, 0.7277], [0.1270, 0.5441]],
+                    [[0.6272, 0.9034], [0.4066, 0.7179]],
+                    [[0.9378, 0.7230], [0.3544, 0.9591]],
+                ],
+                [
+                    [[0.6356, 0.1362], [0.1333, 0.7287]],
+                    [[0.0249, 0.9509], [0.3791, 0.2481]],
+                    [[0.6600, 0.5945], [0.5424, 0.4767]],
+                ],
             ],
-            [
-                [[0.6356, 0.1362], [0.1333, 0.7287]],
-                [[0.0249, 0.9509], [0.3791, 0.2481]],
-                [[0.6600, 0.5945], [0.5424, 0.4767]],
-            ],
-        ])
+            device,
+        )
     }
 }

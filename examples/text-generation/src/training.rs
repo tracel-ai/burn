@@ -48,7 +48,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         tokenizer.pad_token(),
         config.max_seq_length,
     )
-    .init::<B>();
+    .init::<B>(&device);
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)

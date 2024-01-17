@@ -24,7 +24,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from([[
             [
                 [1196., 1796., 1916., 1264.],
                 [1881., 2793., 2946., 1923.],
@@ -59,7 +59,7 @@ mod tests {
             width: 5,
         };
 
-        test.assert_output(TestTensor::from_floats([[
+        test.assert_output(TestTensor::from([[
             [[312., 348., 384.], [492., 528., 564.], [672., 708., 744.]],
             [
                 [3724., 3841., 3958.],
@@ -88,7 +88,7 @@ mod tests {
             width: 5,
         };
 
-        test.assert_output(TestTensor::from_floats([
+        test.assert_output(TestTensor::from([
             [
                 [[1845., 3789., 1926.], [3210., 6465., 3228.]],
                 [[4276., 9082., 4789.], [8071., 16834., 8737.]],
@@ -130,19 +130,20 @@ mod tests {
                 self.kernel_size_1,
                 self.kernel_size_2,
             ]);
-            let weight = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_weight.num_elements())
+            let device = Default::default();
+            let weight = TestTensor::from(
+                TestTensorInt::arange(0..shape_weight.num_elements(), &device)
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
             );
-            let bias = TestTensor::from_data(
-                TestTensorInt::arange(0..self.channels_out)
+            let bias = TestTensor::from(
+                TestTensorInt::arange(0..self.channels_out, &device)
                     .into_data()
                     .convert(),
             );
-            let x = TestTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+            let x = TestTensor::from(
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

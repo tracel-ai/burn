@@ -72,7 +72,9 @@ impl<S: PrecisionSettings> Recorder for NamedMpkBytesRecorder<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{module::Module, nn, record::FullPrecisionSettings, TestBackend};
+    use crate::{
+        module::Module, nn, record::FullPrecisionSettings, tensor::backend::Backend, TestBackend,
+    };
 
     #[test]
     fn test_can_save_and_load_bin_format() {
@@ -86,8 +88,9 @@ mod tests {
     }
 
     fn test_can_save_and_load<Recorder: BytesRecorder>(recorder: Recorder) {
-        let model1 = create_model();
-        let model2 = create_model();
+        let device = Default::default();
+        let model1 = create_model::<TestBackend>(&device);
+        let model2 = create_model::<TestBackend>(&device);
         let bytes1 = recorder.record(model1.into_record(), ()).unwrap();
         let bytes2 = recorder.record(model2.clone().into_record(), ()).unwrap();
 
@@ -98,7 +101,7 @@ mod tests {
         assert_eq!(bytes1, bytes2_after);
     }
 
-    pub fn create_model() -> nn::Linear<TestBackend> {
-        nn::LinearConfig::new(32, 32).with_bias(true).init()
+    pub fn create_model<B: Backend>(device: &B::Device) -> nn::Linear<B> {
+        nn::LinearConfig::new(32, 32).with_bias(true).init(device)
     }
 }

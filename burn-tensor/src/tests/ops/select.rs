@@ -5,8 +5,9 @@ mod tests {
 
     #[test]
     fn should_select_1d() {
-        let tensor = TestTensor::from_data([0.0, 1.0, 2.0]);
-        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+        let device = Default::default();
+        let tensor = TestTensor::from_data([0.0, 1.0, 2.0], &device);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(0, indices);
 
@@ -15,8 +16,9 @@ mod tests {
 
     #[test]
     fn should_select_1d_int() {
-        let tensor = TestTensorInt::from_data([5, 6, 7]);
-        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+        let device = Default::default();
+        let tensor = TestTensorInt::from_data([5, 6, 7], &device);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(0, indices);
 
@@ -25,8 +27,9 @@ mod tests {
 
     #[test]
     fn should_select_2d_dim0_same_num_dim() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indices = TestTensorInt::from_data(([1, 0]));
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let indices = TestTensorInt::from_data(([1, 0]), &device);
 
         let output = tensor.select(0, indices);
 
@@ -38,8 +41,9 @@ mod tests {
 
     #[test]
     fn should_select_2d_dim0_more_num_dim() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indices = TestTensorInt::from_data([1, 0, 1, 1]);
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let indices = TestTensorInt::from_data([1, 0, 1, 1], &device);
 
         let output = tensor.select(0, indices);
 
@@ -56,8 +60,9 @@ mod tests {
 
     #[test]
     fn should_select_2d_dim1() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         let output = tensor.select(1, indices);
 
@@ -69,9 +74,10 @@ mod tests {
 
     #[test]
     fn should_select_assign_1d() {
-        let tensor = TestTensor::from_data([0.0, 1.0, 2.0]);
-        let values = TestTensor::from_data([5.0, 4.0, 3.0, 2.0, 1.0]);
-        let indices = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
+        let device = Default::default();
+        let tensor = TestTensor::from_data([0.0, 1.0, 2.0], &device);
+        let values = TestTensor::from_data([5.0, 4.0, 3.0, 2.0, 1.0], &device);
+        let indices = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]), &device);
 
         let output = tensor.select_assign(0, indices, values);
 
@@ -80,9 +86,10 @@ mod tests {
 
     #[test]
     fn should_select_assign_1d_int() {
-        let tensor = TestTensorInt::from_data([7, 8, 9]);
-        let values = TestTensorInt::from_data([5, 4, 3, 2, 1]);
-        let indices = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]));
+        let device = Default::default();
+        let tensor = TestTensorInt::from_data([7, 8, 9], &device);
+        let values = TestTensorInt::from_data([5, 4, 3, 2, 1], &device);
+        let indices = TestTensorInt::from_data(Data::from([1, 1, 0, 1, 2]), &device);
 
         let output = tensor.select_assign(0, indices, values);
 
@@ -91,9 +98,10 @@ mod tests {
 
     #[test]
     fn should_select_assign_2d_dim0() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-        let indices = TestTensorInt::from_data(Data::from([1, 0]));
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let indices = TestTensorInt::from_data(Data::from([1, 0]), &device);
 
         let output = tensor.select_assign(0, indices, values);
 
@@ -105,9 +113,10 @@ mod tests {
 
     #[test]
     fn should_select_assign_2d_dim1() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-        let indices = TestTensorInt::from_data(Data::from([1, 0, 2]));
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let values = TestTensor::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let indices = TestTensorInt::from_data(Data::from([1, 0, 2]), &device);
 
         let output = tensor.select_assign(1, indices, values);
 
@@ -120,8 +129,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_select_panic_invalid_dimension() {
-        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2]);
+        let device = Default::default();
+        let tensor = TestTensor::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &device);
+        let indices = TestTensorInt::from_data([1, 1, 0, 1, 2], &device);
 
         tensor.select(10, indices);
     }

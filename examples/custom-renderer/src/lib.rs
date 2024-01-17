@@ -48,7 +48,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let model = config.model.init();
+    let model = config.model.init(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.
