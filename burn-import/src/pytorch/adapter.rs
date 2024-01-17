@@ -1,4 +1,8 @@
-use crate::record::{adapter::{BurnModuleAdapter, DefaultAdapter}, data::NestedValue, ser::Serializer};
+use crate::record::{
+    adapter::{BurnModuleAdapter, DefaultAdapter},
+    data::NestedValue,
+    ser::Serializer,
+};
 
 use burn::{
     module::Param,
@@ -25,26 +29,41 @@ pub struct PyTorchAdapter<PS: PrecisionSettings> {
 impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
     fn adapt_linear(data: NestedValue) -> NestedValue {
         // Get the current module in the form of map.
-        let mut map = data.get_map().unwrap().clone();
+        let mut map = data.get_map().expect("Failed to get map from NestedValue");
 
         // Get/remove the weight parameter.
-        let weight = map.remove("weight").unwrap();
+        let weight = map
+            .remove("weight")
+            .expect("Failed to find 'weight' key in map");
 
         // Convert the weight parameter to a tensor.
-        let weight: Param<Tensor<DummyBackend, 2>> =
-            weight.de_into::<_, PS, DefaultAdapter>().unwrap();
+        let weight: Param<Tensor<DummyBackend, 2>> = weight
+            .de_into::<_, PS, DefaultAdapter>()
+            .expect("Failed to deserialize weight");
 
         // Transpose the weight tensor.
         let weight_transposed = Param::from(weight.val().transpose());
 
         // Insert the transposed weight tensor back into the map.
         map.insert(
-            "weight".to_string(),
+            "weight".to_owned(),
             serialize::<PS, _, 2>(weight_transposed),
         );
 
         // Return the modified map.
         NestedValue::Map(map)
+    }
+
+    fn adapt_group_norm(data: NestedValue) -> NestedValue {
+        rename_weight_bias(data)
+    }
+
+    fn adapt_batch_norm(data: NestedValue) -> NestedValue {
+        rename_weight_bias(data)
+    }
+
+    fn adapt_layer_norm(data: NestedValue) -> NestedValue {
+        rename_weight_bias(data)
     }
 }
 
@@ -57,4 +76,30 @@ where
     let serializer = Serializer::new();
 
     val.into_item::<PS>().serialize(serializer).unwrap()
+}
+
+/// Helper function to rename the weight and bias parameters to gamma and beta.
+///
+/// This is needed because PyTorch uses different names for the normalizer parameter
+/// than Burn. Burn uses gamma and beta, while PyTorch uses weight and bias.
+fn rename_weight_bias(data: NestedValue) -> NestedValue {
+    // Get the current module in the form of map.
+    let mut map = data.get_map().expect("Failed to get map from NestedValue");
+
+    // Rename the weight parameter to gamma.
+    let weight = map
+        .remove("weight")
+        .expect("Failed to find 'weight' key in map");
+
+    map.insert("gamma".to_owned(), weight);
+
+    // Rename the bias parameter to beta.
+    let bias = map
+        .remove("bias")
+        .expect("Failed to find 'bias' key in map");
+
+    map.insert("beta".to_owned(), bias);
+
+    // Return the modified map.
+    NestedValue::Map(map)
 }

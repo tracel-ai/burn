@@ -32,30 +32,34 @@ mod tests {
 
     #[test]
     fn embedding() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/embedding/embedding.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]]);
+        let input = Tensor::<Backend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 3>::from_data([
+        let expected = Tensor::<Backend, 3>::from_data(
             [
-                [-1.609_484_9, -0.10016718, -0.609_188_9],
-                [-0.97977227, -1.609_096_3, -0.712_144_6],
-                [-0.22227049, 1.687_113_4, -0.32062083],
-                [-0.29934573, 1.879_345_7, -0.07213178],
+                [
+                    [-1.609_484_9, -0.10016718, -0.609_188_9],
+                    [-0.97977227, -1.609_096_3, -0.712_144_6],
+                    [-0.22227049, 1.687_113_4, -0.32062083],
+                    [-0.29934573, 1.879_345_7, -0.07213178],
+                ],
+                [
+                    [-0.22227049, 1.687_113_4, -0.32062083],
+                    [0.303_722, -0.777_314_3, -0.25145486],
+                    [-0.97977227, -1.609_096_3, -0.712_144_6],
+                    [-0.02878714, 2.357_111, -1.037_338_7],
+                ],
             ],
-            [
-                [-0.22227049, 1.687_113_4, -0.32062083],
-                [0.303_722, -0.777_314_3, -0.25145486],
-                [-0.97977227, -1.609_096_3, -0.712_144_6],
-                [-0.02878714, 2.357_111, -1.037_338_7],
-            ],
-        ]);
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }

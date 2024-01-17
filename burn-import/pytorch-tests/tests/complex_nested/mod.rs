@@ -79,24 +79,28 @@ impl<B: Backend> ConvBlock<B> {
 type TestBackend = burn_ndarray::NdArray<f32>;
 
 fn model_test(record: NetRecord<TestBackend>, precision: usize) {
+    let device = Default::default();
     let model = Net::<TestBackend>::new_with(record);
 
-    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6]) - 0.5;
+    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
 
     let output = model.forward(input);
 
-    let expected = Tensor::<TestBackend, 2>::from_data([[
-        -2.306_613,
-        -2.058_945_4,
-        -2.298_372_7,
-        -2.358_294,
-        -2.296_395_5,
-        -2.416_090_5,
-        -2.107_669,
-        -2.428_420_8,
-        -2.526_469,
-        -2.319_918_6,
-    ]]);
+    let expected = Tensor::<TestBackend, 2>::from_data(
+        [[
+            -2.306_613,
+            -2.058_945_4,
+            -2.298_372_7,
+            -2.358_294,
+            -2.296_395_5,
+            -2.416_090_5,
+            -2.107_669,
+            -2.428_420_8,
+            -2.526_469,
+            -2.319_918_6,
+        ]],
+        &device,
+    );
 
     output
         .to_data()

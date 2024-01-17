@@ -33,17 +33,18 @@ mod tests {
 
     #[test]
     fn buffer() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/buffer/buffer.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 2>::ones([3, 3]);
+        let input = Tensor::<Backend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 2>::ones([3, 3]) * 2.0;
+        let expected = Tensor::<Backend, 2>::ones([3, 3], &device) * 2.0;
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }

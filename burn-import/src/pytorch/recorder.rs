@@ -46,15 +46,17 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use burn_import::pytorch::LoadArgs;
+/// ```text
+/// use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
+/// use burn::record::FullPrecisionSettings;
+/// use burn::record::Recorder;
 ///
 /// let args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
 ///    .with_key_remap("conv\\.(.*)", "$1"); // // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
 ///
 /// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 ///   .load(args)
-///  .expect("Failed to decode state");
+///   .expect("Failed to decode state");
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {

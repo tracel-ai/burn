@@ -90,7 +90,7 @@ impl Serializable for CandleTensor {
 }
 
 /// Redefine a Param struct so it can be serialized.
-/// 
+///
 /// Note: This is a workaround for the fact that `Param` is not serializable.
 #[derive(new, Debug, Clone, Serialize)]
 struct Param<T> {

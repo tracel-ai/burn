@@ -33,23 +33,27 @@ mod tests {
 
     #[test]
     fn batch_norm2d() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/batch_norm/batch_norm2d.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 4>::ones([1, 5, 2, 2]) - 0.3;
+        let input = Tensor::<Backend, 4>::ones([1, 5, 2, 2], &device) - 0.3;
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data([[
-            [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
-            [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
-            [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
-            [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
-            [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
-        ]]);
+        let expected = Tensor::<Backend, 4>::from_data(
+            [[
+                [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
+                [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
+                [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
+                [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
+                [[0.68515635, 0.68515635], [0.68515635, 0.68515635]],
+            ]],
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 5);
     }

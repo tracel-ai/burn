@@ -33,23 +33,31 @@ mod tests {
 
     #[test]
     fn layer_norm() {
+        let device = Default::default();
+
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 4>::from_data([[
-            [[0.757_631_6, 0.27931088], [0.40306926, 0.73468447]],
-            [[0.02928156, 0.799_858_6], [0.39713734, 0.75437194]],
-        ]]);
+        let input = Tensor::<Backend, 4>::from_data(
+            [[
+                [[0.757_631_6, 0.27931088], [0.40306926, 0.73468447]],
+                [[0.02928156, 0.799_858_6], [0.39713734, 0.75437194]],
+            ]],
+            &device,
+        );
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 4>::from_data([[
-            [[0.99991274, -0.999_912_5], [-0.999_818_3, 0.999_818_3]],
-            [[-0.999_966_2, 0.99996626], [-0.99984336, 0.99984336]],
-        ]]);
+        let expected = Tensor::<Backend, 4>::from_data(
+            [[
+                [[0.99991274, -0.999_912_5], [-0.999_818_3, 0.999_818_3]],
+                [[-0.999_966_2, 0.99996626], [-0.99984336, 0.99984336]],
+            ]],
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }

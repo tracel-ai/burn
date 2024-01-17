@@ -51,7 +51,7 @@ pub enum NestedValue {
 
 impl NestedValue {
     /// Get the nested value as a map.
-    pub fn get_map(&self) -> Option<&HashMap<String, NestedValue>> {
+    pub fn get_map(self) -> Option<HashMap<String, NestedValue>> {
         match self {
             NestedValue::Map(map) => Some(map),
             _ => None,

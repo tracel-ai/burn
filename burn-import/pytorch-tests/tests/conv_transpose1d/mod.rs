@@ -37,21 +37,28 @@ mod tests {
 
     #[test]
     fn conv_transpose1d() {
+        let device = Default::default();
+
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input =
-            Tensor::<Backend, 3>::from_data([[[0.93708336, 0.65559506], [0.31379688, 0.19801933]]]);
+        let input = Tensor::<Backend, 3>::from_data(
+            [[[0.93708336, 0.65559506], [0.31379688, 0.19801933]]],
+            &device,
+        );
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 3>::from_data([[
-            [0.02935525, 0.01119324, -0.01356167, -0.00682688],
-            [0.01644749, -0.01429807, 0.00083987, 0.00279229],
-        ]]);
+        let expected = Tensor::<Backend, 3>::from_data(
+            [[
+                [0.02935525, 0.01119324, -0.01356167, -0.00682688],
+                [0.01644749, -0.01429807, 0.00083987, 0.00279229],
+            ]],
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 8);
     }

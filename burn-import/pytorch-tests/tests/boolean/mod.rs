@@ -39,17 +39,19 @@ mod tests {
     #[ignore = "It appears loading boolean tensors are not supported yet"]
     // Error skipping: Msg("unsupported storage type BoolStorage")
     fn boolean() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/boolean/boolean.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 2>::ones([3, 3]);
+        let input = Tensor::<Backend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 1, Bool>::from_bool(Data::from([true, false, true]));
+        let expected =
+            Tensor::<Backend, 1, Bool>::from_bool(Data::from([true, false, true]), &device);
 
         assert_eq!(output.to_data(), expected.to_data());
     }

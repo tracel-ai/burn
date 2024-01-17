@@ -38,32 +38,39 @@ mod tests {
 
     #[test]
     fn conv1d() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/conv1d/conv1d.pt".into())
             .expect("Failed to decode state");
 
         let model = Net::<Backend>::new_with(record);
 
-        let input = Tensor::<Backend, 3>::from_data([[
-            [
-                0.93708336, 0.65559506, 0.31379688, 0.19801933, 0.41619217, 0.28432965,
-            ],
-            [
-                0.33977574,
-                0.523_940_8,
-                0.798_063_9,
-                0.77176833,
-                0.01122457,
-                0.80996025,
-            ],
-        ]]);
+        let input = Tensor::<Backend, 3>::from_data(
+            [[
+                [
+                    0.93708336, 0.65559506, 0.31379688, 0.19801933, 0.41619217, 0.28432965,
+                ],
+                [
+                    0.33977574,
+                    0.523_940_8,
+                    0.798_063_9,
+                    0.77176833,
+                    0.01122457,
+                    0.80996025,
+                ],
+            ]],
+            &device,
+        );
 
         let output = model.forward(input);
 
-        let expected = Tensor::<Backend, 3>::from_data([[
-            [0.02987457, 0.03134188, 0.04234261, -0.02437721],
-            [-0.03788019, -0.02972012, -0.00806090, -0.01981254],
-        ]]);
+        let expected = Tensor::<Backend, 3>::from_data(
+            [[
+                [0.02987457, 0.03134188, 0.04234261, -0.02437721],
+                [-0.03788019, -0.02972012, -0.00806090, -0.01981254],
+            ]],
+            &device,
+        );
 
         output.to_data().assert_approx_eq(&expected.to_data(), 7);
     }
