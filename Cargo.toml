@@ -27,6 +27,7 @@ members = [
     "burn-train",
     "xtask",
     "examples/*",
+    "examples/pytorch-import/model",
     "backend-comparison",
 ]
 

@@ -30,7 +30,7 @@ pub mod burn;
 pub mod pytorch;
 
 /// Common module for record deserializer (used by pytorch currently).
-#[cfg(any(feature = "pytorch"))]
+#[cfg(feature = "pytorch")]
 mod record;
 
 mod formatter;

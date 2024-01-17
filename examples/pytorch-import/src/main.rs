@@ -1,14 +1,19 @@
 use std::env::args;
+use std::path::Path;
 
 use burn::backend::ndarray::NdArray;
+use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
 use burn::tensor::Tensor;
 
 use burn::data::dataset::source::huggingface::MNISTDataset;
 use burn::data::dataset::Dataset;
 
-use pytorch_import::model::Model;
+use model::Model;
 
 const IMAGE_INX: usize = 42; // <- Change this to test a different image
+
+// Build output direct that contains converted model weight file path
+const OUT_DIR: &str = concat!(env!("OUT_DIR"), "/model/mnist");
 
 fn main() {
     // Get image index argument (first) from command line
@@ -26,9 +31,15 @@ fn main() {
     assert!(image_index < 10000, "Image index must be less than 10000");
 
     type Backend = NdArray<f32>;
+    let device = Default::default();
+
+    // Load the model record from converted PyTorch file by the build script
+    let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
+        .load(Path::new(OUT_DIR).into())
+        .expect("Failed to decode state");
 
     // Create a new model and load the state
-    let model: Model<Backend> = Model::default();
+    let model: Model<Backend> = Model::new_with(record);
 
     // Load the MNIST dataset and get an item
     let dataset = MNISTDataset::test();
@@ -37,7 +48,7 @@ fn main() {
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
     let mut input: Tensor<Backend, 4> =
-        Tensor::from_floats(image_data.as_slice()).reshape([1, 1, 28, 28]);
+        Tensor::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;
