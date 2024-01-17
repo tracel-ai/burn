@@ -1,8 +1,7 @@
 # Model
 
 The first step is to create a project and add the different Burn dependencies. In the `Cargo.toml`
-file, add the `burn` dependency with `train` and `wgpu` features. Note that the `serde` dependency
-is also mandatory for the time being, as it is needed for serialization.
+file, add the `burn` dependency with `train` and `wgpu` features.
 
 ```toml
 [package]
@@ -12,9 +11,6 @@ edition = "2021"
 
 [dependencies]
 burn = { version = "0.12.0", features=["train", "wgpu"]}
-
-# Serialization
-serde = "1"
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -77,14 +73,14 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self) -> Model<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
         Model {
-            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(),
-            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(),
+            conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
+            conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
             activation: ReLU::new(),
-            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(),
-            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(),
+            linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
+            linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
         }
     }

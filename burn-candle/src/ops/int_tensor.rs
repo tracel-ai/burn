@@ -359,4 +359,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     ) -> <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_narrow<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        dim: usize,
+        start: usize,
+        length: usize,
+    ) -> IntTensor<Self, D> {
+        super::base::narrow(tensor, dim, start, length)
+    }
+
+    fn int_chunk<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<IntTensor<Self, D>> {
+        super::base::chunk(tensor, chunks, dim)
+    }
 }

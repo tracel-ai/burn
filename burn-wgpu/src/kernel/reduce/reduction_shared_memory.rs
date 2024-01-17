@@ -119,8 +119,10 @@ mod tests {
 
     #[test]
     fn reduction_sum_dim_shared_memory_small() {
-        let tensor = Tensor::<TestBackend, 1>::random([700], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 1>::random([700], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 0;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
@@ -136,8 +138,10 @@ mod tests {
 
     #[test]
     fn reduction_sum_dim_shared_memory_medium() {
-        let tensor = Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
@@ -153,8 +157,13 @@ mod tests {
 
     #[test]
     fn reduction_sum_dim_shared_memory_large() {
-        let tensor = Tensor::<TestBackend, 3>::random([4, 1024, 50], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data());
+        let tensor = Tensor::<TestBackend, 3>::random(
+            [4, 1024, 50],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 2;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 

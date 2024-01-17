@@ -40,11 +40,21 @@ pub(crate) mod tests {
         F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
         S: Into<Shape<D>>,
     {
-        let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
-        let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+        let ref_tensor_device = Default::default();
+        let x = ReferenceTensor::random(
+            shape_lhs,
+            burn_tensor::Distribution::Uniform(-1.0, 1.0),
+            &ref_tensor_device,
+        );
+        let y = ReferenceTensor::random(
+            shape_rhs,
+            burn_tensor::Distribution::Uniform(-1.0, 1.0),
+            &ref_tensor_device,
+        );
 
-        let x_wgpu = TestTensor::from_data(x.to_data()).into_primitive();
-        let y_wgpu = TestTensor::from_data(y.to_data()).into_primitive();
+        let test_tensor_device = Default::default();
+        let x_wgpu = TestTensor::from_data(x.to_data(), &test_tensor_device).into_primitive();
+        let y_wgpu = TestTensor::from_data(y.to_data(), &test_tensor_device).into_primitive();
 
         let z_reference = x.matmul(y);
 
@@ -65,11 +75,21 @@ pub(crate) mod tests {
         F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
         S: Into<Shape<D>>,
     {
-        let x = ReferenceTensor::random(shape_lhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
-        let y = ReferenceTensor::random(shape_rhs, burn_tensor::Distribution::Uniform(-1.0, 1.0));
+        let x = ReferenceTensor::random(
+            shape_lhs,
+            burn_tensor::Distribution::Uniform(-1.0, 1.0),
+            &Default::default(),
+        );
+        let y = ReferenceTensor::random(
+            shape_rhs,
+            burn_tensor::Distribution::Uniform(-1.0, 1.0),
+            &Default::default(),
+        );
 
-        let x_wgpu = TestTensor::from_data(x.to_data()).swap_dims(swap_lhs[0], swap_lhs[1]);
-        let y_wgpu = TestTensor::from_data(y.to_data()).swap_dims(swap_rhs[0], swap_rhs[1]);
+        let x_wgpu = TestTensor::from_data(x.to_data(), &Default::default())
+            .swap_dims(swap_lhs[0], swap_lhs[1]);
+        let y_wgpu = TestTensor::from_data(y.to_data(), &Default::default())
+            .swap_dims(swap_rhs[0], swap_rhs[1]);
 
         let z_reference = x
             .swap_dims(swap_lhs[0], swap_lhs[1])

@@ -5,8 +5,11 @@ mod tests {
 
     #[test]
     fn should_diff_gelu() {
-        let tensor_1 = TestAutodiffTensor::from_floats([[0.0, 1.0], [-3.0, 4.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_floats([[6.0, -0.5], [9.0, 10.0]]).require_grad();
+        let device = Default::default();
+        let tensor_1 =
+            TestAutodiffTensor::from_floats([[0.0, 1.0], [-3.0, 4.0]], &device).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_floats([[6.0, -0.5], [9.0, 10.0]], &device).require_grad();
 
         let x = tensor_1.clone().matmul(activation::gelu(tensor_2.clone()));
         let x = tensor_1.clone().matmul(x);

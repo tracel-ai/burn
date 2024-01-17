@@ -1,4 +1,4 @@
-use crate::codegen::{Elem, Operator, Variable};
+use crate::codegen::{Elem, Item, Operator, Variable};
 use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
@@ -73,14 +73,17 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub(crate) fn can_mut_broadcast(&self, tensor_other: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, rhs: &WgpuTensor<E, D>) -> bool {
         if !self.handle.can_mut() {
             return false;
         }
 
         for i in 0..D {
+            let shape_lhs = self.shape.dims[i];
+            let shape_rhs = rhs.shape.dims[i];
+
             // Output tensor will be different from the mutable tensor.
-            if self.shape.dims[i] < tensor_other.shape.dims[i] {
+            if shape_lhs < shape_rhs {
                 return false;
             }
         }
@@ -99,8 +102,8 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         // The solution is just to use a simple unary compute shader.
         unary!(
             operator: |elem: Elem| Operator::AssignLocal {
-                input: Variable::Input(0, elem),
-                out: Variable::Local(0, elem),
+                input: Variable::Input(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem)),
             },
             input: self.clone(),
             elem: E

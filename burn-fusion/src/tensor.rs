@@ -4,6 +4,7 @@ use burn_tensor::{
     ops::{FloatElem, IntElem},
     Data, Reader, Shape,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
@@ -121,13 +122,13 @@ impl<C: FusionClient> Drop for FusionTensor<C> {
 }
 
 /// The tensor unique identifier.
-#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct TensorId {
     value: u64,
 }
 
 /// The status of the current tensor.
-#[derive(Hash, Clone, Debug, PartialEq, Eq)]
+#[derive(Hash, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TensorStatus {
     /// The tensor can be read, but not written.
     ReadOnly,
@@ -147,7 +148,7 @@ pub enum TensorStatus {
 ///   2. Status::ReadOnly
 ///   3. Status::ReadOnly
 ///   4. Status::ReadWrite
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TensorDescription {
     /// The [tensor id](TensorId).
     pub id: TensorId,

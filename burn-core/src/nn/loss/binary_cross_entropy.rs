@@ -30,13 +30,13 @@ pub struct BinaryCrossEntropyLossConfig {
 
 impl BinaryCrossEntropyLossConfig {
     /// Initialize [Binary Cross-entropy loss](BinaryCrossEntropyLoss).
-    pub fn init<B: Backend>(&self) -> BinaryCrossEntropyLoss<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> BinaryCrossEntropyLoss<B> {
         self.assertions();
         BinaryCrossEntropyLoss {
             weights: self
                 .weights
                 .as_ref()
-                .map(|e| Tensor::<B, 1>::from_floats(e.as_slice())),
+                .map(|e| Tensor::<B, 1>::from_floats(e.as_slice(), device)),
             smoothing: self.smoothing,
             logits: self.logits,
         }
@@ -46,8 +46,7 @@ impl BinaryCrossEntropyLossConfig {
         if let Some(alpha) = self.smoothing {
             assert!(
                 (0.0..=1.).contains(&alpha),
-                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. \
-                 Got {}",
+                "Alpha of Cross-entropy loss with smoothed labels should be in interval [0, 1]. Got {}",
                 alpha
             );
         };
@@ -67,12 +66,6 @@ pub struct BinaryCrossEntropyLoss<B: Backend> {
     pub weights: Option<Tensor<B, 1>>,
     smoothing: Option<f32>,
     logits: bool,
-}
-
-impl<B: Backend> Default for BinaryCrossEntropyLoss<B> {
-    fn default() -> Self {
-        BinaryCrossEntropyLossConfig::new().init()
-    }
 }
 
 impl<B: Backend> BinaryCrossEntropyLoss<B> {
@@ -123,11 +116,13 @@ mod tests {
     #[test]
     fn test_binary_cross_entropy() {
         let [batch_size] = [4];
-        let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+        let device = Default::default();
+        let logits =
+            Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0), &device);
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
 
         let loss_1 = BinaryCrossEntropyLossConfig::new()
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets.clone());
         let logits = sigmoid(logits);
         let loss_2 = targets.clone().float() * logits.clone().log()
@@ -139,19 +134,21 @@ mod tests {
     #[test]
     fn test_binary_cross_entropy_with_weights() {
         let [batch_size] = [4];
-        let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+        let device = Default::default();
+        let logits =
+            Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0), &device);
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
         let weights = [3., 7.];
 
         let loss_1 = BinaryCrossEntropyLossConfig::new()
             .with_weights(Some(weights))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets.clone());
         let logits = sigmoid(logits);
         let loss_2 = targets.clone().float() * logits.clone().log()
             + (-targets.float() + 1) * (-logits + 1).log();
 
-        let loss_2 = loss_2 * Tensor::from_floats([3., 7., 3., 7.]);
+        let loss_2 = loss_2 * Tensor::from_floats([3., 7., 3., 7.], &device);
         let loss_2 = loss_2.neg().sum() / (3. + 3. + 7. + 7.);
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
@@ -159,12 +156,14 @@ mod tests {
     #[test]
     fn test_binary_cross_entropy_with_smoothing() {
         let [batch_size] = [4];
-        let logits = Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0));
-        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]));
+        let device = Default::default();
+        let logits =
+            Tensor::<TestBackend, 1>::random([batch_size], Distribution::Normal(0., 1.0), &device);
+        let targets = Tensor::<TestBackend, 1, Int>::from_data(Data::from([0, 1, 0, 1]), &device);
 
         let loss_1 = BinaryCrossEntropyLossConfig::new()
             .with_smoothing(Some(0.1))
-            .init()
+            .init(&device)
             .forward(logits.clone(), targets.clone());
 
         let logits = sigmoid(logits);

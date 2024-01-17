@@ -13,10 +13,13 @@ mod tests {
             output_size: 3,
         };
 
-        test.assert_output(TestTensor::from_floats([[
-            [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
-            [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
-        ]]));
+        test.assert_output(TestTensor::from_floats(
+            [[
+                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
+                [0.5000, 0.8333, 0.3333, 0.8333, 0.5000],
+            ]],
+            &Default::default(),
+        ));
     }
 
     struct AdaptiveAvgPool1dTestCase {
@@ -29,11 +32,13 @@ mod tests {
     impl AdaptiveAvgPool1dTestCase {
         fn assert_output(self, x_grad: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.length]);
+            let device = Default::default();
             let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
+                &device,
             )
             .require_grad();
             let output = adaptive_avg_pool1d(x.clone(), self.output_size);

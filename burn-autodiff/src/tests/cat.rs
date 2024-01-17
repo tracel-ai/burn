@@ -5,8 +5,11 @@ mod tests {
 
     #[test]
     fn should_diff_cat() {
-        let tensor_1 = TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0]]).require_grad();
+        let device = Default::default();
+        let tensor_1 =
+            TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
+        let tensor_2 =
+            TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0]], &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let grads = tensor_3.backward();
@@ -57,9 +60,12 @@ mod tests {
 
     #[test]
     fn should_diff_cat_more_than_1_dim() {
-        let tensor_1 = TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]]).require_grad();
+        let device = Default::default();
+        let tensor_1 =
+            TestAutodiffTensor::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
         let tensor_2 =
-            TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]]).require_grad();
+            TestAutodiffTensor::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]], &device)
+                .require_grad();
 
         // Concat a tensor [2, 2] with another tensor [3, 2] along dim 0.
         // The resulting tensor should be [5, 2]

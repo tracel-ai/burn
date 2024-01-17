@@ -42,7 +42,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     B::seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init();
+    let mut model = config.model.init(&device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
@@ -67,7 +67,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our training loop.
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             let output = model.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
@@ -92,7 +93,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our validation loop.
         for (iteration, batch) in dataloader_test.iter().enumerate() {
             let output = model_valid.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(

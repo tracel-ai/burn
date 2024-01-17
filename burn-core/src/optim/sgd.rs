@@ -108,9 +108,10 @@ mod tests {
 
     #[test]
     fn with_updated_params_should_have_state() {
-        let layer = layer();
+        let device = Default::default();
+        let layer = layer::<TestAutodiffBackend>(&device);
         let mut optim = sgd_with_all();
-        let loss = layer.forward(random_tensor());
+        let loss = layer.forward(random_tensor::<TestAutodiffBackend>(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
         let _layer = optim.step(LEARNING_RATE, layer, grads);
@@ -135,9 +136,10 @@ mod tests {
 
     #[test]
     fn should_load_state() {
-        let layer = layer();
+        let device = Default::default();
+        let layer = layer::<TestAutodiffBackend>(&device);
         let mut optim = sgd_with_all();
-        let loss = layer.forward(random_tensor());
+        let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
         let _layer = optim.step(LEARNING_RATE, layer, grads);
@@ -152,12 +154,12 @@ mod tests {
         assert_eq!(record.len(), state_restored.len());
     }
 
-    fn random_tensor() -> Tensor<TestAutodiffBackend, 2> {
-        Tensor::<TestAutodiffBackend, 2>::random(Shape::new([2, 20]), Distribution::Default)
+    fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
+        Tensor::<B, 2>::random(Shape::new([2, 20]), Distribution::Default, device)
     }
 
-    fn layer() -> Linear<TestAutodiffBackend> {
-        LinearConfig::new(20, 20).with_bias(true).init()
+    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+        LinearConfig::new(20, 20).with_bias(true).init(device)
     }
 
     fn sgd_with_all(

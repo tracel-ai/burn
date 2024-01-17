@@ -71,7 +71,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
                 init_with(record.#name);
             },
             false => quote! {
-                init();
+                init(device);
             },
         };
 
@@ -89,15 +89,18 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Conv2dNode<PS> {
     }
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let device = Default::default();
         let record = Conv2dRecord::<SerializationBackend> {
             weight: Param::new(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert()),
+                Tensor::from_data(self.data_weights.clone().convert(), &device),
             ),
-            bias: self
-                .data_bias
-                .as_ref()
-                .map(|bias| Param::new(ParamId::new(), Tensor::from_data(bias.clone().convert()))),
+            bias: self.data_bias.as_ref().map(|bias| {
+                Param::new(
+                    ParamId::new(),
+                    Tensor::from_data(bias.clone().convert(), &device),
+                )
+            }),
             stride: [ConstantRecord::new(); 2],
             kernel_size: [ConstantRecord::new(); 2],
             dilation: [ConstantRecord::new(); 2],

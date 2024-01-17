@@ -7,10 +7,10 @@ macro_rules! binary_float_ops {
     ) => {
         #[derive(new)]
         struct $name<const D: usize> {
-            desc: BinaryOpsDescription,
+            desc: BinaryOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor(&self.desc.rhs);
@@ -31,10 +31,10 @@ macro_rules! binary_float_cmp_ops {
     ) => {
         #[derive(new)]
         struct $name<const D: usize> {
-            desc: BinaryOpsDescription,
+            desc: BinaryOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_float_tensor::<D>(&self.desc.lhs);
                 let rhs = handles.get_float_tensor(&self.desc.rhs);
@@ -55,10 +55,10 @@ macro_rules! binary_int_cmp_ops {
     ) => {
         #[derive(new)]
         struct $name<const D: usize> {
-            desc: BinaryOpsDescription,
+            desc: BinaryOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
                 let rhs = handles.get_int_tensor(&self.desc.rhs);
@@ -89,10 +89,10 @@ macro_rules! binary_int_ops {
     ) => {
         #[derive(new)]
         struct $name<const D: usize> {
-            desc: BinaryOpsDescription,
+            desc: BinaryOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for $name<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for $name<D> {
             fn execute(self: Box<Self>, handles: &mut $crate::HandleContainer<B>) {
                 let lhs = handles.get_int_tensor::<D>(&self.desc.lhs);
                 let rhs = handles.get_int_tensor(&self.desc.rhs);

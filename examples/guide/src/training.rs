@@ -12,7 +12,7 @@ use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
     module::Module,
-    nn::loss::CrossEntropyLoss,
+    nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
     record::CompactRecorder,
     tensor::{
@@ -28,7 +28,9 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::default().forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
@@ -93,10 +95,10 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device])
+        .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .build(
-            config.model.init::<B>(),
+            config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
         );

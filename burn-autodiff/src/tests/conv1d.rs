@@ -16,16 +16,23 @@ mod tests {
             groups: 1,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[14., 24., 24., 18.], [26., 42., 42., 30.]],
-                [[14., 24., 24., 18.], [26., 42., 42., 30.]],
-            ]),
-            weight: TestTensor::from_floats([
-                [[30., 44., 36.], [54., 76., 60.]],
-                [[30., 44., 36.], [54., 76., 60.]],
-            ]),
-            bias: TestTensor::from_floats([8., 8.]),
+            x: TestTensor::from_floats(
+                [
+                    [[14., 24., 24., 18.], [26., 42., 42., 30.]],
+                    [[14., 24., 24., 18.], [26., 42., 42., 30.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [[30., 44., 36.], [54., 76., 60.]],
+                    [[30., 44., 36.], [54., 76., 60.]],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([8., 8.], &device),
         };
         test.assert_grads(grads);
     }
@@ -43,17 +50,24 @@ mod tests {
             groups: 1,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[39., 63., 63., 45.], [57., 90., 90., 63.]],
-                [[39., 63., 63., 45.], [57., 90., 90., 63.]],
-            ]),
-            weight: TestTensor::from_floats([
-                [[30., 44., 36.], [54., 76., 60.]],
-                [[30., 44., 36.], [54., 76., 60.]],
-                [[30., 44., 36.], [54., 76., 60.]],
-            ]),
-            bias: TestTensor::from_floats([8., 8., 8.]),
+            x: TestTensor::from_floats(
+                [
+                    [[39., 63., 63., 45.], [57., 90., 90., 63.]],
+                    [[39., 63., 63., 45.], [57., 90., 90., 63.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [[30., 44., 36.], [54., 76., 60.]],
+                    [[30., 44., 36.], [54., 76., 60.]],
+                    [[30., 44., 36.], [54., 76., 60.]],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([8., 8., 8.], &device),
         };
         test.assert_grads(grads);
     }
@@ -71,16 +85,23 @@ mod tests {
             groups: 1,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[24., 24., 24., 24.], [42., 42., 42., 42.]],
-                [[24., 24., 24., 24.], [42., 42., 42., 42.]],
-            ]),
-            weight: TestTensor::from_floats([
-                [[44., 44., 44.], [76., 76., 76.]],
-                [[44., 44., 44.], [76., 76., 76.]],
-            ]),
-            bias: TestTensor::from_floats([12., 12.]),
+            x: TestTensor::from_floats(
+                [
+                    [[24., 24., 24., 24.], [42., 42., 42., 42.]],
+                    [[24., 24., 24., 24.], [42., 42., 42., 42.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [[44., 44., 44.], [76., 76., 76.]],
+                    [[44., 44., 44.], [76., 76., 76.]],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([12., 12.], &device),
         };
         test.assert_grads(grads);
     }
@@ -98,16 +119,23 @@ mod tests {
             groups: 1,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[8., 16., 8., 10.], [14., 28., 14., 16.]],
-                [[8., 16., 8., 10.], [14., 28., 14., 16.]],
-            ]),
-            weight: TestTensor::from_floats([
-                [[10., 20., 24.], [18., 36., 40.]],
-                [[10., 20., 24.], [18., 36., 40.]],
-            ]),
-            bias: TestTensor::from_floats([4., 4.]),
+            x: TestTensor::from_floats(
+                [
+                    [[8., 16., 8., 10.], [14., 28., 14., 16.]],
+                    [[8., 16., 8., 10.], [14., 28., 14., 16.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [[10., 20., 24.], [18., 36., 40.]],
+                    [[10., 20., 24.], [18., 36., 40.]],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([4., 4.], &device),
         };
         test.assert_grads(grads);
     }
@@ -125,16 +153,23 @@ mod tests {
             groups: 1,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[6., 8., 8., 10.], [12., 14., 14., 16.]],
-                [[6., 8., 8., 10.], [12., 14., 14., 16.]],
-            ]),
-            weight: TestTensor::from_floats([
-                [[8., 22., 14.], [16., 38., 22.]],
-                [[8., 22., 14.], [16., 38., 22.]],
-            ]),
-            bias: TestTensor::from_floats([4., 4.]),
+            x: TestTensor::from_floats(
+                [
+                    [[6., 8., 8., 10.], [12., 14., 14., 16.]],
+                    [[6., 8., 8., 10.], [12., 14., 14., 16.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats(
+                [
+                    [[8., 22., 14.], [16., 38., 22.]],
+                    [[8., 22., 14.], [16., 38., 22.]],
+                ],
+                &device,
+            ),
+            bias: TestTensor::from_floats([4., 4.], &device),
         };
         test.assert_grads(grads);
     }
@@ -152,13 +187,17 @@ mod tests {
             groups: 2,
             length: 4,
         };
+        let device = Default::default();
         let grads = Grads {
-            x: TestTensor::from_floats([
-                [[1., 3., 3., 3.], [7., 12., 12., 9.]],
-                [[1., 3., 3., 3.], [7., 12., 12., 9.]],
-            ]),
-            weight: TestTensor::from_floats([[[30., 44., 36.]], [[54., 76., 60.]]]),
-            bias: TestTensor::from_floats([8., 8.]),
+            x: TestTensor::from_floats(
+                [
+                    [[1., 3., 3., 3.], [7., 12., 12., 9.]],
+                    [[1., 3., 3., 3.], [7., 12., 12., 9.]],
+                ],
+                &device,
+            ),
+            weight: TestTensor::from_floats([[[30., 44., 36.]], [[54., 76., 60.]]], &device),
+            bias: TestTensor::from_floats([8., 8.], &device),
         };
         test.assert_grads(grads);
     }
@@ -189,24 +228,28 @@ mod tests {
                 self.channels_in / self.groups,
                 self.kernel_size,
             ]);
+            let device = Default::default();
             let weight = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_weight.num_elements())
+                TestTensorInt::arange(0..shape_weight.num_elements(), &device)
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
+                &device,
             )
             .require_grad();
             let bias = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..self.channels_out)
+                TestTensorInt::arange(0..self.channels_out, &device)
                     .into_data()
                     .convert(),
+                &device,
             )
             .require_grad();
             let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements())
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
+                &device,
             )
             .require_grad();
 

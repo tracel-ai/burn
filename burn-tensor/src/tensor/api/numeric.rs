@@ -106,32 +106,17 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::zeros_device(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::ones_device(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is one.
-    pub fn ones_device<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::ones(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
-        Self::full_device(shape, fill_value, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full_device<S: Into<Shape<D>>, E: ElementConversion>(
+    pub fn full<S: Into<Shape<D>>, E: ElementConversion>(
         shape: S,
         fill_value: E,
         device: &B::Device,
@@ -335,7 +320,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -380,7 +366,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -483,8 +470,8 @@ where
         let height = shape.dims[D - 2];
         let width = shape.dims[D - 1];
 
-        let row_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..height, &self.device());
-        let col_indices: Tensor<B, 1, Int> = Tensor::arange_device(0..width, &self.device());
+        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height, &self.device());
+        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width, &self.device());
 
         let mut row_shape = [1; D];
         row_shape[D - 2] = height;
@@ -508,11 +495,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///    let tensor = tensor.triu(1);
     ///    println!("{}", tensor);
     ///    // Tensor { data: [
@@ -535,11 +526,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///
     ///    let tensor = tensor.tril(-1);
     ///    println!("{}", tensor);
@@ -566,10 +561,10 @@ where
     /// # Arguments
     ///
     /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize) -> Self {
-        let indices = Tensor::<B, 1, Int>::arange(0..size).unsqueeze();
-        let ones = K::ones([1, size].into(), &B::Device::default());
-        let zeros = K::zeros([size, size].into(), &B::Device::default());
+    pub fn diagonal(size: usize, device: &B::Device) -> Self {
+        let indices = Tensor::<B, 1, Int>::arange(0..size, device).unsqueeze();
+        let ones = K::ones([1, size].into(), device);
+        let zeros = K::zeros([size, size].into(), device);
         Self::new(K::scatter(0, zeros, indices, ones))
     }
 }

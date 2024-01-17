@@ -14,7 +14,7 @@ pub fn cat<E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<E, D>>,
     dim: usize,
 ) -> WgpuTensor<E, D> {
-    let first_input = inputs.get(0).unwrap();
+    let first_input = inputs.first().unwrap();
     let client = &first_input.client;
     let mut shape_output = first_input.shape.clone();
     shape_output.dims[dim] = inputs.iter().map(|input| input.shape.dims[dim]).sum();
@@ -77,11 +77,15 @@ mod tests {
     fn test_same_as_reference(shape: [usize; 2], num_tensors: usize, dim: usize) {
         TestBackend::seed(0);
         let tensors = (0..num_tensors)
-            .map(|_| Tensor::<TestBackend, 2>::random(shape, Distribution::Default))
+            .map(|_| {
+                Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &Default::default())
+            })
             .collect::<Vec<_>>();
         let tensors_ref = tensors
             .iter()
-            .map(|tensor| Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data()))
+            .map(|tensor| {
+                Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default())
+            })
             .collect::<Vec<_>>();
 
         let tensor = Tensor::<TestBackend, 2>::cat(tensors, dim);
