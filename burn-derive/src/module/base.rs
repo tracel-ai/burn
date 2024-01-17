@@ -2,10 +2,10 @@ use super::{
     codegen::ModuleCodegen, codegen_struct::StructModuleCodegen, record::ModuleRecordCodegen,
     record_struct::StructModuleRecordCodegen,
 };
-use crate::module::display;
+use crate::{module::display, shared::generics::GenericsHelper};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_quote, Ident};
+use syn::{parse2, parse_quote, Ident};
 
 pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
@@ -21,7 +21,34 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     }
 
     let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
-    let backend_trait = fetch_backend_trait(&ast.generics);
+    let mut generics_for_module = GenericsHelper::new(ast.generics.clone());
+    let mut generics_for_autodiff_module = GenericsHelper::new(ast.generics.clone());
+    let backend_trait = generics_for_module.fetch_backend_trait();
+
+    generics_for_autodiff_module.add_predicate(
+        parse2(quote! {
+            where
+                B: burn::tensor::backend::AutodiffBackend,
+                <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait,
+
+        })
+        .unwrap(),
+    );
+
+    let mut generics_names_except_backend = quote! {};
+
+    generics_for_module
+        .idents_except_backend()
+        .into_iter()
+        .for_each(|ident| {
+            generics_names_except_backend.extend(quote! { #ident, });
+            generics_for_module.add_predicate(
+                parse2(quote! {
+                    #ident: burn::module::Module<B>,
+                })
+                .unwrap(),
+            );
+        });
 
     let display_fn = display::display_fn(name);
 
@@ -36,7 +63,6 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
     let into_record_fn = generator.gen_into_record();
     let load_record_fn = generator.gen_load_record();
     let clone_fn = generator.gen_clone();
-    let generics_names_except_backend = generics_names_except_backend(&ast.generics);
 
     let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
     let record_gen = StructModuleRecordCodegen::new(generator.fields);
@@ -115,50 +141,4 @@ fn constant_impl(ast: &syn::DeriveInput) -> TokenStream {
     };
 
     gen.into()
-}
-
-fn fetch_backend_trait(generics: &syn::Generics) -> proc_macro2::TokenStream {
-    static BACKEND_TRAIT_COMPILATION_ERROR_MSG: &str = "Modules should be generic over a backend.
-    - The generic argument named `B` should have its first trait bound being a backend trait.
-    - The default backend trait is `burn::tensor::backend::Backend`.
-    - Any backend trait is supported.";
-
-    for param in generics.params.iter() {
-        if let syn::GenericParam::Type(ty) = &param {
-            if ty.ident == "B" {
-                let bound = ty
-                    .bounds
-                    .first()
-                    .expect(BACKEND_TRAIT_COMPILATION_ERROR_MSG);
-
-                return quote! {
-                    #bound
-                };
-            }
-        }
-    }
-
-    panic!("{BACKEND_TRAIT_COMPILATION_ERROR_MSG}");
-}
-
-fn generics_names_except_backend(generics: &syn::Generics) -> proc_macro2::TokenStream {
-    let mut named = quote! {};
-
-    generics.params.iter().for_each(|param| {
-        match param {
-            syn::GenericParam::Type(ty) => {
-                if ty.ident != "B" {
-                    let ident = &ty.ident;
-                    named.extend(quote! { #ident, });
-                }
-            }
-            syn::GenericParam::Lifetime(_) => panic!("Lifetime not supported in module"),
-            syn::GenericParam::Const(c) => {
-                let ident = &c.ident;
-                named.extend(quote! { #ident, });
-            }
-        };
-    });
-
-    named
 }
