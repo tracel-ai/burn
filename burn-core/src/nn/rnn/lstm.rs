@@ -223,7 +223,7 @@ impl<B: Backend> Lstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{module::Param, nn::LinearRecord, TestBackend};
+    use crate::{module::Param, nn::LinearRecord, TestAutodiffBackend, TestBackend};
     use burn_tensor::{Data, Distribution};
 
     #[test]
@@ -348,5 +348,104 @@ mod tests {
 
         assert_eq!(cell_state.shape().dims, [8, 10, 1024]);
         assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+    }
+
+    #[test]
+    fn test_batched_backward_pass() {
+        let device = Default::default();
+        let lstm = LstmConfig::new(64, 32, true).init(&device);
+        let batched_input =
+            Tensor::<TestAutodiffBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
+
+        let (cell_state, hidden_state) = lstm.forward(batched_input.clone(), None);
+        let fake_loss = cell_state + hidden_state;
+        let grads = fake_loss.backward();
+
+        let some_gradient = lstm
+            .output_gate
+            .hidden_transform
+            .weight
+            .grad(&grads)
+            .unwrap();
+
+        // The forward function of lstm, with cat instead of slice_assign
+        fn forward_cat<B: Backend>(
+            lstm: &Lstm<B>,
+            batched_input: Tensor<B, 3>,
+            state: Option<(Tensor<B, 2>, Tensor<B, 2>)>,
+        ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+            let [batch_size, seq_length, _] = batched_input.shape().dims;
+            let device = &batched_input.device();
+
+            let (mut cell_state, mut hidden_state) = match state {
+                Some((cell_state, hidden_state)) => (cell_state, hidden_state),
+                None => (
+                    Tensor::zeros([batch_size, lstm.d_hidden], device),
+                    Tensor::zeros([batch_size, lstm.d_hidden], device),
+                ),
+            };
+
+            let mut batched_cell_state_vec = Vec::with_capacity(seq_length);
+            let mut batched_hidden_state_vec = Vec::with_capacity(seq_length);
+
+            for input_t in batched_input.iter_dim(1) {
+                let input_t = input_t.squeeze(1);
+                // f(orget)g(ate) tensors
+                let biased_fg_input_sum =
+                    lstm.gate_product(&input_t, &hidden_state, &lstm.forget_gate);
+                let forget_values = activation::sigmoid(biased_fg_input_sum); // to multiply with cell state
+
+                // i(nput)g(ate) tensors
+                let biased_ig_input_sum =
+                    lstm.gate_product(&input_t, &hidden_state, &lstm.input_gate);
+                let add_values = activation::sigmoid(biased_ig_input_sum);
+
+                // o(output)g(ate) tensors
+                let biased_og_input_sum =
+                    lstm.gate_product(&input_t, &hidden_state, &lstm.output_gate);
+                let output_values = activation::sigmoid(biased_og_input_sum);
+
+                // c(ell)g(ate) tensors
+                let biased_cg_input_sum =
+                    lstm.gate_product(&input_t, &hidden_state, &lstm.cell_gate);
+                let candidate_cell_values = biased_cg_input_sum.tanh();
+
+                cell_state =
+                    forget_values * cell_state.clone() + add_values * candidate_cell_values;
+                hidden_state = output_values * cell_state.clone().tanh();
+
+                let unsqueezed_shape = [cell_state.shape().dims[0], 1, cell_state.shape().dims[1]];
+
+                let unsqueezed_cell_state = cell_state.clone().reshape(unsqueezed_shape);
+                let unsqueezed_hidden_state = hidden_state.clone().reshape(unsqueezed_shape);
+
+                // store the state for this timestep
+                batched_cell_state_vec.push(unsqueezed_cell_state);
+                batched_hidden_state_vec.push(unsqueezed_hidden_state);
+            }
+
+            let batched_cell_state = Tensor::cat(batched_cell_state_vec, 1);
+            let batched_hidden_state = Tensor::cat(batched_hidden_state_vec, 1);
+
+            (batched_cell_state, batched_hidden_state)
+        }
+
+        let (cell_state, hidden_state) = forward_cat(&lstm, batched_input, None);
+        let fake_loss = cell_state + hidden_state;
+        let grads = fake_loss.backward();
+
+        let some_cat_gradient = lstm
+            .output_gate
+            .hidden_transform
+            .weight
+            .grad(&grads)
+            .unwrap();
+
+        println!("{}", some_gradient);
+        println!("{}", some_cat_gradient);
+
+        some_gradient
+            .to_data()
+            .assert_approx_eq(&some_cat_gradient.to_data(), 3)
     }
 }
