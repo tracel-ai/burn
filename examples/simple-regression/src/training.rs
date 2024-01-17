@@ -2,7 +2,6 @@ use burn::module::Module;
 use burn::optim::SgdConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
 use burn::train::metric::store::{Aggregate, Direction, Split};
-use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
 use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
@@ -14,7 +13,6 @@ use burn::{
     },
 };
 use burn::data::dataset::Dataset;
-use burn::tensor::backend::Backend;
 use crate::dataset::{DiabetesBatcher, DiabetesDataset};
 use crate::model::LinearModel;
 
@@ -22,19 +20,22 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
 #[derive(Config)]
 pub struct RegressionConfig {
-    #[config(default = 5)]
+    #[config(default = 100)]
     pub num_epochs: usize,
 
-    #[config(default = 1)]
-    pub batch_size: usize,
-
-    #[config(default = 1)]
+    #[config(default = 2)]
     pub num_workers: usize,
 
     #[config(default = 42)]
     pub seed: u64,
 
     pub optimizer: SgdConfig,
+
+    #[config(default = 10)]
+    pub input_feature_len: usize,
+
+    #[config(default = 442)]
+    pub dataset_size: usize
 }
 
 pub fn run<B: AutodiffBackend>(device: B::Device) {
@@ -43,42 +44,36 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let config = RegressionConfig::new(config_optimizer);
     B::seed(config.seed);
 
-    // Data
-    let train_dataset = DiabetesDataset::train();
+    // Define train/test datasets and dataloaders
 
-    println!(" Train {:?}", train_dataset.get(0).unwrap());
+    let train_dataset = DiabetesDataset::train();
+    let test_dataset = DiabetesDataset::test();
+
+    println!("Train Dataset Size: {}", train_dataset.len());
+    println!("Test Dataset Size: {}", test_dataset.len());
 
     let batcher_train = DiabetesBatcher::<B>::new(device.clone());
 
     let batcher_test = DiabetesBatcher::<B::InnerBackend>::new(device.clone());
 
+    // Since dataset size is small, we do full batch gradient descent and set batch size equivalent to size of dataset
+
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
-        .batch_size(config.batch_size)
+        .batch_size(train_dataset.len())
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(DiabetesDataset::train());
+        .build(train_dataset);
 
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
-        .batch_size(config.batch_size)
+        .batch_size(test_dataset.len())
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(DiabetesDataset::test());
-
-    // println!(" Test {}" ,dataloader_test.len());
-    // println!(" Train {}" ,dataloader_train.len());
-
-    // for (iteration, batch) in dataloader_train.iter().enumerate() {
-    //     println!("Iteration: {}", iteration);
-    //     println!("Batch: {:?} : {:?} ", batch.inputs.shape(), batch.targets.shape());
-    //     break;
-    // }
+        .build(test_dataset);
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        // .metric_train_numeric(CpuUse::new())
-        // .metric_valid_numeric(CpuUse::new())
 
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new::<LossMetric<B>>(
@@ -89,7 +84,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
-        .build(LinearModel::new(&device), config.optimizer.init(), 1e-4);
+        .build(LinearModel::new(config.input_feature_len,&device), config.optimizer.init(), 5e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

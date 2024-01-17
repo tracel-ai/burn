@@ -1,6 +1,6 @@
 use burn::data::dataloader::batcher::Batcher;
 use burn::data::dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset};
-use burn::data::dataset::transform::ShuffledDataset;
+use burn::data::dataset::transform::{PartialDataset, ShuffledDataset};
 use burn::tensor::backend::Backend;
 use burn::tensor::Tensor;
 
@@ -52,8 +52,13 @@ pub struct DiabetesItem {
     pub response: u16,
 }
 
+
+
+type ShuffledData = ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem>;
+type PartialData = PartialDataset<ShuffledData, DiabetesItem>;
+
 pub struct DiabetesDataset {
-    dataset: ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem>,
+    dataset: PartialData
 }
 
 impl Dataset<DiabetesItem> for DiabetesDataset {
@@ -75,25 +80,36 @@ impl DiabetesDataset {
         Self::new("test")
     }
 
-    pub fn new(_split: &str) -> Self {
+    // pub fn get_full_data() -> SqliteDataset<DiabetesItem> {
+    //
+    // }
+
+    pub fn new(split: &str) -> Self {
+
+        let dataset: SqliteDataset<DiabetesItem> =
+            HuggingfaceDatasetLoader::new("Jayabalambika/toy-diabetes")
+                .dataset("train")
+                .unwrap();
+
+        let len = dataset.len();
+
+        // Shuffle the dataset with a defined seed such that train and test sets have no overlap
+        // when splitting by indexes
+        let dataset= ShuffledDataset
+        ::with_seed(dataset, 42);
+
 
         // The dataset from HuggingFace has only train split, so we manually split the train dataset into train
         // and test in a 80-20 ratio
 
-        let dataset: ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem> = ShuffledDataset::with_seed(
-            HuggingfaceDatasetLoader::new("Jayabalambika/toy-diabetes")
-            .dataset("train")
-            .unwrap(), 42);
+        let filtered_dataset = match split {
+            "train" => PartialData::new(dataset, 0, len * 8 / 10),  // Get first 80% dataset
+            "test" =>  PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
+            _ => panic!("Invalid split type"), // Handle unexpected split types
+        };
 
-        // let len = dataset.len();
-        // let filtered_dataset = match _split {
-        //     "train" => dataset.iter().take(len * 8 / 10).collect(), // Select first 80%
-        //     "test" => dataset.iter().skip(len * 8 / 10).collect(), // Skip first 80%, remaining 20%
-        //     _ => panic!("Invalid split type"), // Handle unexpected split types
-        // };
 
-        // Self { dataset: dataset }
-        Self {dataset}
+        Self { dataset: filtered_dataset}
     }
 }
 
@@ -120,14 +136,16 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
 
         for item in items.iter() {
 
-            let input_tensor = Tensor::<B, 1>::from_floats([(item.age as f32),
-                (item.sex as f32), item.bmi, item.bp, (item.tc as f32),
-                item.ldl, item.hdl, item.tch, item.ltg, (item.glu as f32)], &self.device);
+            let input_tensor = Tensor::<B, 1>::from_floats([item.age as f32,
+                item.sex as f32, item.bmi, item.bp, item.tc as f32,
+                item.ldl, item.hdl, item.tch, item.ltg, item.glu as f32], &self.device);
 
             inputs.push(input_tensor.unsqueeze());
         }
 
         let inputs= Tensor::cat(inputs, 0);
+        let inputs = (inputs.clone() - inputs.clone().min_dim(0))
+            .div(inputs.clone().max_dim(0) - inputs.clone().min_dim(0));
 
 
         let targets = items
@@ -136,6 +154,8 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
             .collect();
 
         let targets  = Tensor::cat(targets, 0);
+        let targets = (targets.clone() - targets.clone().min_dim(0))
+            .div(targets.clone().max_dim(0) - targets.clone().min_dim(0));
 
         DiabetesBatch { inputs, targets}
     }
