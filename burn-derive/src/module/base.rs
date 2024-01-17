@@ -44,7 +44,6 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         .into_iter()
         .filter(|ident| ident != "B")
         .for_each(|ident| {
-            generics_names_except_backend.extend(quote! { #ident, });
             generics_for_module.add_predicate(
                 parse2(quote! {
                     #ident: burn::module::Module<B>
@@ -57,6 +56,13 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
                 })
                 .unwrap(),
             );
+                generics_for_autodiff_module.add_predicate(
+                parse2(quote! {
+                    <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::Module<B::InnerBackend>
+                })
+                .unwrap(),
+            );
+            generics_names_except_backend.extend(quote! { <#ident as burn::module::AutodiffModule<B>>::InnerModule, });
             generics_for_autodiff_module.add_predicate(
                 parse2(quote! {
                     #ident: burn::module::Module<B::InnerBackend>

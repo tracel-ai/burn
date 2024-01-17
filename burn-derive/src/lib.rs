@@ -26,7 +26,10 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Record)]
 pub fn record_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    record::derive_impl(&input)
+    let a = record::derive_impl(&input);
+
+    // panic!("{a}");
+    a
 }
 
 /// Derive macro for the config.

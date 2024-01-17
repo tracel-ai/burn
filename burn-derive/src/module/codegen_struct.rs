@@ -33,7 +33,7 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn visit<V: burn::module::ModuleVisitor<B>>(&self, visitor: &mut V) {
+            fn visit<Visitor: burn::module::ModuleVisitor<B>>(&self, visitor: &mut Visitor) {
                 #body
             }
         }
@@ -102,7 +102,7 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn map<M: burn::module::ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+            fn map<Mapper: burn::module::ModuleMapper<B>>(self, mapper: &mut Mapper) -> Self {
                 #body
 
                 Self {
