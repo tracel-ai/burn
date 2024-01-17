@@ -13,23 +13,25 @@
 #[macro_use]
 extern crate derive_new;
 
+// Enabled when the `pytorch` or `onnx` feature is enabled.
+#[cfg(any(feature = "pytorch", feature = "onnx"))]
+mod logger;
+
 /// The onnx module.
 #[cfg(feature = "onnx")]
 pub mod onnx;
-
-/// The torch module.
-#[cfg(feature = "pytorch")]
-pub mod pytorch;
 
 /// The module for generating the burn code.
 #[cfg(feature = "onnx")]
 pub mod burn;
 
-// Enabled when the `pytorch` or `onnx` feature is enabled.
-#[cfg(any(feature = "pytorch", feature = "onnx"))]
-mod logger;
+/// The PyTorch module for recorder.
+#[cfg(feature = "pytorch")]
+pub mod pytorch;
+
+/// Common module for record deserializer (used by pytorch currently).
+#[cfg(any(feature = "pytorch"))]
+mod record;
 
 mod formatter;
 pub use formatter::*;
-
-mod record;
