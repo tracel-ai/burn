@@ -1,10 +1,10 @@
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse2, Generics, WhereClause, WherePredicate};
+use syn::{parse2, Generics, TypeParam, WhereClause, WherePredicate};
 
 #[derive(new)]
 pub struct GenericsHelper {
-    generics: Generics,
+    pub(crate) generics: Generics,
 }
 
 impl GenericsHelper {
@@ -24,12 +24,19 @@ impl GenericsHelper {
         self.generics.where_clause = Some(where_clause);
     }
 
-    pub fn idents_except_backend(&self) -> Vec<Ident> {
+    pub fn consts(&self) -> Vec<Ident> {
+        self.generics
+            .const_params()
+            .into_iter()
+            .map(|c| c.ident.clone())
+            .collect()
+    }
+
+    pub fn types(&self) -> Vec<Ident> {
         self.generics
             .type_params()
             .into_iter()
             .map(|tp| tp.ident.clone())
-            .filter(|ident| ident != "B")
             .collect()
     }
 

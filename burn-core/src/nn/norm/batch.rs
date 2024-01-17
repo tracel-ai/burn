@@ -22,7 +22,7 @@ pub struct BatchNormConfig {
 /// Applies Batch Normalization over a tensor as described in the paper [Batch Normalization](https://arxiv.org/abs/1502.03167)
 ///
 /// `Y = norm(X) * γ + β`
-#[derive(Module, Debug)]
+#[derive(Debug)]
 pub struct BatchNorm<B: Backend, const D: usize> {
     gamma: Param<Tensor<B, 1>>,
     beta: Param<Tensor<B, 1>>,
@@ -30,6 +30,178 @@ pub struct BatchNorm<B: Backend, const D: usize> {
     running_var: RunningState<Tensor<B, 1>>,
     momentum: f64,
     epsilon: f64,
+}
+
+impl<B: Backend, const D: usize> burn::module::Module<B> for BatchNorm<B, D> {
+    type Record = BatchNormRecord<B, D>;
+    fn load_record(self, record: Self::Record) -> Self {
+        Self {
+            gamma: burn::module::Module::<B>::load_record(self.gamma, record.gamma),
+            beta: burn::module::Module::<B>::load_record(self.beta, record.beta),
+            running_mean: burn::module::Module::<B>::load_record(
+                self.running_mean,
+                record.running_mean,
+            ),
+            running_var: burn::module::Module::<B>::load_record(
+                self.running_var,
+                record.running_var,
+            ),
+            momentum: burn::module::Module::<B>::load_record(self.momentum, record.momentum),
+            epsilon: burn::module::Module::<B>::load_record(self.epsilon, record.epsilon),
+        }
+    }
+    fn into_record(self) -> Self::Record {
+        Self::Record {
+            gamma: burn::module::Module::<B>::into_record(self.gamma),
+            beta: burn::module::Module::<B>::into_record(self.beta),
+            running_mean: burn::module::Module::<B>::into_record(self.running_mean),
+            running_var: burn::module::Module::<B>::into_record(self.running_var),
+            momentum: burn::module::Module::<B>::into_record(self.momentum),
+            epsilon: burn::module::Module::<B>::into_record(self.epsilon),
+        }
+    }
+    fn num_params(&self) -> usize {
+        let mut num_params = 0;
+        num_params += burn::module::Module::<B>::num_params(&self.gamma);
+        num_params += burn::module::Module::<B>::num_params(&self.beta);
+        num_params += burn::module::Module::<B>::num_params(&self.running_mean);
+        num_params += burn::module::Module::<B>::num_params(&self.running_var);
+        num_params += burn::module::Module::<B>::num_params(&self.momentum);
+        num_params += burn::module::Module::<B>::num_params(&self.epsilon);
+        num_params
+    }
+    fn visit<V: burn::module::ModuleVisitor<B>>(&self, visitor: &mut V) {
+        burn::module::Module::visit(&self.gamma, visitor);
+        burn::module::Module::visit(&self.beta, visitor);
+        burn::module::Module::visit(&self.running_mean, visitor);
+        burn::module::Module::visit(&self.running_var, visitor);
+        burn::module::Module::visit(&self.momentum, visitor);
+        burn::module::Module::visit(&self.epsilon, visitor);
+    }
+    fn map<M: burn::module::ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+        let gamma = burn::module::Module::<B>::map(self.gamma, mapper);
+        let beta = burn::module::Module::<B>::map(self.beta, mapper);
+        let running_mean = burn::module::Module::<B>::map(self.running_mean, mapper);
+        let running_var = burn::module::Module::<B>::map(self.running_var, mapper);
+        let momentum = burn::module::Module::<B>::map(self.momentum, mapper);
+        let epsilon = burn::module::Module::<B>::map(self.epsilon, mapper);
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            epsilon,
+        }
+    }
+    fn collect_devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+        let devices = burn::module::Module::<B>::collect_devices(&self.gamma, devices);
+        let devices = burn::module::Module::<B>::collect_devices(&self.beta, devices);
+        let devices = burn::module::Module::<B>::collect_devices(&self.running_mean, devices);
+        let devices = burn::module::Module::<B>::collect_devices(&self.running_var, devices);
+        let devices = burn::module::Module::<B>::collect_devices(&self.momentum, devices);
+        let devices = burn::module::Module::<B>::collect_devices(&self.epsilon, devices);
+        devices
+    }
+    fn to_device(self, device: &B::Device) -> Self {
+        let gamma = burn::module::Module::<B>::to_device(self.gamma, device);
+        let beta = burn::module::Module::<B>::to_device(self.beta, device);
+        let running_mean = burn::module::Module::<B>::to_device(self.running_mean, device);
+        let running_var = burn::module::Module::<B>::to_device(self.running_var, device);
+        let momentum = burn::module::Module::<B>::to_device(self.momentum, device);
+        let epsilon = burn::module::Module::<B>::to_device(self.epsilon, device);
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            epsilon,
+        }
+    }
+    fn fork(self, device: &B::Device) -> Self {
+        let gamma = burn::module::Module::<B>::fork(self.gamma, device);
+        let beta = burn::module::Module::<B>::fork(self.beta, device);
+        let running_mean = burn::module::Module::<B>::fork(self.running_mean, device);
+        let running_var = burn::module::Module::<B>::fork(self.running_var, device);
+        let momentum = burn::module::Module::<B>::fork(self.momentum, device);
+        let epsilon = burn::module::Module::<B>::fork(self.epsilon, device);
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            epsilon,
+        }
+    }
+}
+impl<B: Backend, const D: usize> burn::module::AutodiffModule<B> for BatchNorm<B, D>
+where
+    B: burn::tensor::backend::AutodiffBackend,
+    <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: Backend,
+{
+    type InnerModule = BatchNorm<B::InnerBackend, D>;
+    fn valid(&self) -> Self::InnerModule {
+        let gamma = burn::module::AutodiffModule::<B>::valid(&self.gamma);
+        let beta = burn::module::AutodiffModule::<B>::valid(&self.beta);
+        let running_mean = burn::module::AutodiffModule::<B>::valid(&self.running_mean);
+        let running_var = burn::module::AutodiffModule::<B>::valid(&self.running_var);
+        let momentum = burn::module::AutodiffModule::<B>::valid(&self.momentum);
+        let epsilon = burn::module::AutodiffModule::<B>::valid(&self.epsilon);
+        Self::InnerModule {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            epsilon,
+        }
+    }
+}
+impl<B: Backend, const D: usize> core::fmt::Display for BatchNorm<B, D> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}[num_params={}]",
+            stringify!(BatchNorm),
+            self.num_params()
+        )
+    }
+}
+impl<B: Backend, const D: usize> Clone for BatchNorm<B, D> {
+    fn clone(&self) -> Self {
+        let gamma = self.gamma.clone();
+        let beta = self.beta.clone();
+        let running_mean = self.running_mean.clone();
+        let running_var = self.running_var.clone();
+        let momentum = self.momentum.clone();
+        let epsilon = self.epsilon.clone();
+        Self {
+            gamma,
+            beta,
+            running_mean,
+            running_var,
+            momentum,
+            epsilon,
+        }
+    }
+}
+#[doc = r" The record type for the module."]
+#[derive(burn :: record :: Record, Debug, Clone)]
+pub struct BatchNormRecord<B, D> {
+    #[doc = r" The module record associative type."]
+    pub gamma: <Param<Tensor<B, 1>> as burn::module::Module<B>>::Record,
+    #[doc = r" The module record associative type."]
+    pub beta: <Param<Tensor<B, 1>> as burn::module::Module<B>>::Record,
+    #[doc = r" The module record associative type."]
+    pub running_mean: <RunningState<Tensor<B, 1>> as burn::module::Module<B>>::Record,
+    #[doc = r" The module record associative type."]
+    pub running_var: <RunningState<Tensor<B, 1>> as burn::module::Module<B>>::Record,
+    #[doc = r" The module record associative type."]
+    pub momentum: <f64 as burn::module::Module<B>>::Record,
+    #[doc = r" The module record associative type."]
+    pub epsilon: <f64 as burn::module::Module<B>>::Record,
 }
 
 impl BatchNormConfig {

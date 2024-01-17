@@ -36,6 +36,12 @@ pub struct Linear<B: Backend> {
     pub bias: Option<Param<Tensor<B, 1>>>,
 }
 
+#[derive(Module, Debug)]
+struct ModuleWithGenericModule<B: Backend, Mo> {
+    module: Mo,
+    _backend: core::marker::PhantomData<B>,
+}
+
 impl LinearConfig {
     /// Initialize a new [linear](Linear) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {

@@ -20,35 +20,54 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         return constant_impl(ast);
     }
 
-    let (generics, generics_ty, generics_where) = ast.generics.split_for_impl();
     let mut generics_for_module = GenericsHelper::new(ast.generics.clone());
     let mut generics_for_autodiff_module = GenericsHelper::new(ast.generics.clone());
     let backend_trait = generics_for_module.fetch_backend_trait();
 
     generics_for_autodiff_module.add_predicate(
         parse2(quote! {
-            where
-                B: burn::tensor::backend::AutodiffBackend,
-                <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait,
-
+                B: burn::tensor::backend::AutodiffBackend
         })
-        .unwrap(),
+        .expect("Can add autodiff backend predicate."),
+    );
+    generics_for_autodiff_module.add_predicate(
+        parse2(quote! {
+                <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait
+        })
+        .expect("Can add backend trait predicate"),
     );
 
     let mut generics_names_except_backend = quote! {};
 
     generics_for_module
-        .idents_except_backend()
+        .types()
         .into_iter()
+        .filter(|ident| ident != "B")
         .for_each(|ident| {
             generics_names_except_backend.extend(quote! { #ident, });
             generics_for_module.add_predicate(
                 parse2(quote! {
-                    #ident: burn::module::Module<B>,
+                    #ident: burn::module::Module<B>
+                })
+                .unwrap(),
+            );
+            generics_for_autodiff_module.add_predicate(
+                parse2(quote! {
+                    #ident: burn::module::AutodiffModule<B>
+                })
+                .unwrap(),
+            );
+            generics_for_autodiff_module.add_predicate(
+                parse2(quote! {
+                    #ident: burn::module::Module<B::InnerBackend>
                 })
                 .unwrap(),
             );
         });
+
+    generics_for_module.consts().into_iter().for_each(|ident| {
+        generics_names_except_backend.extend(quote! { #ident, });
+    });
 
     let display_fn = display::display_fn(name);
 
@@ -66,11 +85,16 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
 
     let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
     let record_gen = StructModuleRecordCodegen::new(generator.fields);
-    let record_struct = record_gen.gen_record_type(&record_name, &ast.generics);
+    let record_struct = record_gen.gen_record_type(&record_name, &generics_for_module.generics);
+
+    let (generics_m, generics_ty_m, generics_where_m) =
+        generics_for_module.generics.split_for_impl();
+    let (generics_a, generics_ty_a, generics_where_a) =
+        generics_for_autodiff_module.generics.split_for_impl();
 
     let gen = quote! {
-        impl #generics burn::module::Module<B> for #name #generics_ty #generics_where {
-            type Record = #record_name #generics_ty;
+        impl #generics_m burn::module::Module<B> for #name #generics_ty_m #generics_where_m {
+            type Record = #record_name #generics_ty_m;
 
             #load_record_fn
             #into_record_fn
@@ -85,21 +109,18 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
             #fork
         }
 
-        impl #generics burn::module::AutodiffModule<B> for #name #generics_ty
-        where
-            B: burn::tensor::backend::AutodiffBackend,
-            <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait,
+        impl #generics_a burn::module::AutodiffModule<B> for #name #generics_ty_a #generics_where_a
         {
             type InnerModule=#name<B::InnerBackend, #generics_names_except_backend>;
 
             #valid_fn
         }
 
-        impl #generics core::fmt::Display for #name #generics_ty #generics_where {
+        impl #generics_m core::fmt::Display for #name #generics_ty_m #generics_where_m {
             #display_fn
         }
 
-        impl #generics Clone for #name #generics_ty #generics_where {
+        impl #generics_m Clone for #name #generics_ty_a #generics_where_m {
             #clone_fn
         }
 
