@@ -69,7 +69,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = weight.stream;
-        let stream_3 = bias.map(|b| b.stream);
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size];
         let out = x.client.tensor_uninitialized(shape, stream_1);
 
@@ -136,7 +136,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = weight.stream;
-        let stream_3 = bias.map(|b| b.stream);
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape, stream_1);
 
@@ -197,7 +197,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = weight.stream;
-        let stream_3 = bias.map(|b| b.stream);
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
         let out = x.client.tensor_uninitialized(shape, stream_1);
 
@@ -266,7 +266,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let stream_1 = x.stream;
         let stream_2 = weight.stream;
-        let stream_3 = bias.map(|b| b.stream);
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
         let out = x.client.tensor_uninitialized(shape, stream_1);
 

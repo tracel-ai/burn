@@ -136,13 +136,14 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             return tensor;
         }
 
+        let thread_id = tensor.stream.thread_id;
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
         client_original.clone().change_client_bool::<D>(
             tensor.into_description(),
             client_target,
-            tensor.stream.thread_id,
+            thread_id,
         )
     }
 

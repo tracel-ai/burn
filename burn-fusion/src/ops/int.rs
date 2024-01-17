@@ -65,14 +65,14 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             return tensor;
         }
 
-        B::sync(&device_original.clone().into());
+        let thread_id = tensor.stream.thread_id;
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
         client_original.clone().change_client_int::<D>(
             tensor.into_description(),
             client_target,
-            tensor.stream.thread_id,
+            thread_id,
         )
     }
 

@@ -191,13 +191,14 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             return tensor;
         }
 
+        let thread_id = tensor.stream.thread_id;
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
         client_original.clone().change_client_float::<D>(
             tensor.into_description(),
             client_target,
-            tensor.stream.thread_id,
+            thread_id,
         )
     }
 
@@ -538,7 +539,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.tensor_uninitialized(shape, stream);
+        let mut out = tensor.client.tensor_uninitialized(shape, stream);
 
         let desc = SwapDimsDescription {
             input: tensor.into_description(),
@@ -551,6 +552,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             OperationDescription::BaseFloat(BaseOperationDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
         );
+        out.stream = stream;
 
         out
     }
@@ -671,6 +673,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             OperationDescription::NumericFloat(NumericOperationDescription::Scatter(desc.clone())),
             ScatterOps::<D>::new(desc),
         );
+        out.thread_id = todo!();
 
         out
     }
