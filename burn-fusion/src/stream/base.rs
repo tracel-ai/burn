@@ -1,3 +1,6 @@
+use core::sync::atomic::AtomicU64;
+use core::sync::atomic::Ordering;
+
 use super::Operation;
 use super::OperationConverter;
 use super::OperationDescription;
@@ -14,6 +17,29 @@ pub struct OperationQueue<B: FusionBackend> {
 impl<B: FusionBackend> Default for OperationQueue<B> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+static STREAM_ID_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// The stream id.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub(crate) struct StreamId {
+    pub(crate) value: u64,
+    pub(crate) thread_id: std::thread::ThreadId,
+}
+
+impl StreamId {
+    pub fn new() -> Self {
+        let id = STREAM_ID_GEN.fetch_add(1, Ordering::Relaxed);
+        if id == u64::MAX {
+            panic!("NodeID overflowed");
+        }
+
+        Self {
+            value: id,
+            thread_id: std::thread::current().id(),
+        }
     }
 }
 
