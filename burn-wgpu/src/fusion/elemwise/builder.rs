@@ -187,7 +187,7 @@ where
                     .find(|(_id, position)| *position == index)
                 {
                     if !list.contains(id) {
-                        list.push(id.clone());
+                        list.push(*id);
                     }
                 }
             }
@@ -377,16 +377,14 @@ where
         };
 
         // Update the tensor description with the new version.
-        self.tensors
-            .insert(tensor.id.clone(), (tensor.clone(), elem));
+        self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
         variable
     }
 
     fn output_to_var(&mut self, tensor: &TensorDescription, elem: Elem) -> Variable {
         // Update the tensor description to the new version.
-        self.tensors
-            .insert(tensor.id.clone(), (tensor.clone(), elem));
+        self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
         // Output already registered as a local variable.
         if let Some(index) = self.locals.get(&tensor.id) {
@@ -395,7 +393,7 @@ where
 
         // New local variable.
         let local_index = self.locals.len() as u16;
-        self.locals.insert(tensor.id.clone(), local_index);
+        self.locals.insert(tensor.id, local_index);
         Variable::Local(local_index, Item::Scalar(elem))
     }
 
