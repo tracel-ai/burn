@@ -98,7 +98,7 @@ mod tests {
         let current = StreamId::current();
 
         let thread1 = std::thread::spawn(|| (StreamId::current(), StreamId::current()));
-        let thread2 = std::thread::spawn(|| StreamId::current());
+        let thread2 = std::thread::spawn(StreamId::current);
 
         let (stream_1, stream_11) = thread1.join().unwrap();
         let stream_2 = thread2.join().unwrap();

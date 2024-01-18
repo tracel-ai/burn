@@ -74,7 +74,7 @@ where
     ) -> FusionTensor<Self> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
-        server.handles.register_handle(id.as_ref().clone(), handle);
+        server.handles.register_handle(*id.as_ref(), handle);
         core::mem::drop(server);
 
         FusionTensor::new(id, shape, self.clone(), stream)
@@ -166,6 +166,6 @@ where
     }
 
     fn register_orphan(&self, id: &crate::TensorId) {
-        self.server.lock().drop_tensor_handle(id.clone());
+        self.server.lock().drop_tensor_handle(*id);
     }
 }

@@ -67,7 +67,7 @@ impl<C: FusionClient> FusionTensor<C> {
         TensorDescription {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
-            id: self.id.as_ref().clone(),
+            id: *self.id.as_ref(),
         }
     }
 
@@ -84,7 +84,7 @@ impl<C: FusionClient> FusionTensor<C> {
         TensorDescription {
             status,
             shape: shape_out,
-            id: self.id.as_ref().clone(),
+            id: *self.id.as_ref(),
         }
     }
 
