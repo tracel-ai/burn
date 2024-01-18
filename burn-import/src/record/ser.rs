@@ -121,11 +121,11 @@ impl SerializerTrait for Serializer {
         unimplemented!()
     }
 
-    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: Serialize,
     {
-        unimplemented!()
+        value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
@@ -304,7 +304,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TODO fix this test"]
     fn test_serialize() {
         let my_struct = MyStruct1 {
             a: MyStruct3 {
@@ -323,12 +322,14 @@ mod tests {
 
         let serialized_str = format!("{:?}", serialized);
 
+        println!("{}", serialized_str);
+
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
         assert_eq!(
             serialized_str.len(),
             concat!(
-            r#"Map({"b": Map({"a": Default, "c": String("Hello"), "b": Default, "d": String("World")}),"#,
+            r#"Map({"b": Map({"a": I32(1), "c": String("Hello"), "b": Default, "d": String("World")}),"#,
             r#" "a": Map({"x": String("Hello"), "y": String("World")})})"#
             ).len()
         );
@@ -348,7 +349,18 @@ mod tests {
 
         let serialized = param_item.serialize(Serializer::new()).unwrap();
 
-        // TODO check the serialized value
-        println!("{:?}", serialized);
+        let serialized_str = format!("{:?}", serialized);
+
+        // Compare the lengths of expected and actual serialized strings because
+        // the order of the fields is not guaranteed for HashMaps.
+        assert_eq!(
+            serialized_str.len(),
+            concat!(
+                r#"Map({"id": String("ca893b0b-92cf-4856-a1c2-558191dbb930"), "#,
+                r#""param": Map({"shape": Vec([U64(2), U64(2)]), "#,
+                r#""value": Vec([F32(1.0), F32(1.0), F32(1.0), F32(1.0)])})})"#
+            )
+            .len()
+        );
     }
 }
