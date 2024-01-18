@@ -1,9 +1,8 @@
 use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset};
 use burn::data::dataset::transform::{PartialDataset, ShuffledDataset};
+use burn::data::dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset};
 use burn::tensor::backend::Backend;
 use burn::tensor::Tensor;
-
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DiabetesItem {
@@ -52,12 +51,11 @@ pub struct DiabetesItem {
     pub response: u16,
 }
 
-
 type ShuffledData = ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem>;
 type PartialData = PartialDataset<ShuffledData, DiabetesItem>;
 
 pub struct DiabetesDataset {
-    dataset: PartialData
+    dataset: PartialData,
 }
 
 impl Dataset<DiabetesItem> for DiabetesDataset {
@@ -80,7 +78,6 @@ impl DiabetesDataset {
     }
 
     pub fn new(split: &str) -> Self {
-
         let dataset: SqliteDataset<DiabetesItem> =
             HuggingfaceDatasetLoader::new("Jayabalambika/toy-diabetes")
                 .dataset("train")
@@ -90,20 +87,20 @@ impl DiabetesDataset {
 
         // Shuffle the dataset with a defined seed such that train and test sets have no overlap
         // when splitting by indexes
-        let dataset= ShuffledDataset::with_seed(dataset, 42);
-
+        let dataset = ShuffledDataset::with_seed(dataset, 42);
 
         // The dataset from HuggingFace has only train split, so we manually split the train dataset into train
         // and test in a 80-20 ratio
 
         let filtered_dataset = match split {
-            "train" => PartialData::new(dataset, 0, len * 8 / 10),  // Get first 80% dataset
-            "test" =>  PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
-            _ => panic!("Invalid split type"), // Handle unexpected split types
+            "train" => PartialData::new(dataset, 0, len * 8 / 10), // Get first 80% dataset
+            "test" => PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
+            _ => panic!("Invalid split type"),                     // Handle unexpected split types
         };
 
-
-        Self { dataset: filtered_dataset}
+        Self {
+            dataset: filtered_dataset,
+        }
     }
 }
 
@@ -134,7 +131,6 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
-
             let input_tensor = Tensor::<B, 1>::from_floats(
                 [
                     item.age as f32,
@@ -146,26 +142,25 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
                     item.hdl,
                     item.tch,
                     item.ltg,
-                    item.glu as f32
+                    item.glu as f32,
                 ],
-                &self.device
+                &self.device,
             );
 
             inputs.push(input_tensor.unsqueeze());
         }
 
-        let inputs= Tensor::cat(inputs, 0);
+        let inputs = Tensor::cat(inputs, 0);
         let inputs = self.min_max_norm(inputs);
-
 
         let targets = items
             .iter()
             .map(|item| Tensor::<B, 1>::from_floats([item.response as f32], &self.device))
             .collect();
 
-        let targets  = Tensor::cat(targets, 0);
+        let targets = Tensor::cat(targets, 0);
         let targets = self.min_max_norm(targets);
 
-        DiabetesBatch { inputs, targets}
+        DiabetesBatch { inputs, targets }
     }
 }

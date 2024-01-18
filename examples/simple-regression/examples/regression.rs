@@ -1,8 +1,8 @@
 #[cfg(any(
-feature = "ndarray",
-feature = "ndarray-blas-netlib",
-feature = "ndarray-blas-openblas",
-feature = "ndarray-blas-accelerate",
+    feature = "ndarray",
+    feature = "ndarray-blas-netlib",
+    feature = "ndarray-blas-openblas",
+    feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
     use burn::backend::ndarray::{NdArray, NdArrayDevice};
@@ -23,9 +23,9 @@ mod tch_gpu {
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-            let device = LibTorchDevice::Cuda(0);
+        let device = LibTorchDevice::Cuda(0);
         #[cfg(target_os = "macos")]
-            let device = LibTorchDevice::Mps;
+        let device = LibTorchDevice::Mps;
 
         training::run::<Autodiff<LibTorch>>(device);
     }
@@ -56,10 +56,10 @@ mod tch_cpu {
 
 fn main() {
     #[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
+        feature = "ndarray",
+        feature = "ndarray-blas-netlib",
+        feature = "ndarray-blas-openblas",
+        feature = "ndarray-blas-accelerate",
     ))]
     ndarray::run();
     #[cfg(feature = "tch-gpu")]

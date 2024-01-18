@@ -1,3 +1,6 @@
+use crate::dataset::{DiabetesBatcher, DiabetesDataset};
+use crate::model::RegressionModelConfig;
+use burn::data::dataset::Dataset;
 use burn::module::Module;
 use burn::optim::SgdConfig;
 use burn::record::{CompactRecorder, NoStdTrainingRecorder};
@@ -7,14 +10,8 @@ use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
     tensor::backend::AutodiffBackend,
-    train::{
-        metric::LossMetric,
-        LearnerBuilder,
-    },
+    train::{metric::LossMetric, LearnerBuilder},
 };
-use burn::data::dataset::Dataset;
-use crate::dataset::{DiabetesBatcher, DiabetesDataset};
-use crate::model::RegressionModelConfig;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
@@ -42,8 +39,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Config
     let optimizer = SgdConfig::new();
     let config = ExpConfig::new(optimizer);
-    let model = RegressionModelConfig::new(config.input_feature_len)
-        .init(&device);
+    let model = RegressionModelConfig::new(config.input_feature_len).init(&device);
     B::seed(config.seed);
 
     // Define train/test datasets and dataloaders
@@ -76,7 +72,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new::<LossMetric<B>>(
             Aggregate::Mean,
@@ -86,10 +81,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
-        .build(
-            model,
-            config.optimizer.init(),
-            5e-3);
+        .build(model, config.optimizer.init(), 5e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

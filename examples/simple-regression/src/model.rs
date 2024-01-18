@@ -1,4 +1,7 @@
 use crate::dataset::DiabetesBatch;
+use burn::config::Config;
+use burn::nn::loss::Reduction::Mean;
+use burn::nn::ReLU;
 use burn::{
     module::Module,
     nn::{loss::MSELoss, Linear, LinearConfig},
@@ -8,15 +11,12 @@ use burn::{
     },
     train::{RegressionOutput, TrainOutput, TrainStep, ValidStep},
 };
-use burn::config::Config;
-use burn::nn::loss::Reduction::Mean;
-use burn::nn::ReLU;
 
 #[derive(Module, Debug)]
 pub struct RegressionModel<B: Backend> {
     input_layer: Linear<B>,
     output_layer: Linear<B>,
-    activation: ReLU
+    activation: ReLU,
 }
 
 #[derive(Config)]
@@ -39,7 +39,7 @@ impl RegressionModelConfig {
         RegressionModel {
             input_layer,
             output_layer,
-            activation: ReLU::new()
+            activation: ReLU::new(),
         }
     }
 }
@@ -49,8 +49,7 @@ impl<B: Backend> RegressionModel<B> {
         let x = input.detach();
         let x = self.input_layer.forward(x);
         let x = self.activation.forward(x);
-        let prediction = self.output_layer.forward(x);
-        prediction
+        self.output_layer.forward(x)
     }
 
     pub fn forward_step(&self, item: DiabetesBatch<B>) -> RegressionOutput<B> {
@@ -66,7 +65,6 @@ impl<B: Backend> RegressionModel<B> {
         }
     }
 }
-
 
 impl<B: AutodiffBackend> TrainStep<DiabetesBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
     fn step(&self, item: DiabetesBatch<B>) -> TrainOutput<RegressionOutput<B>> {
