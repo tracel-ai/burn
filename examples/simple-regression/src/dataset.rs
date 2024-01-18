@@ -95,8 +95,7 @@ impl DiabetesDataset {
 
         // Shuffle the dataset with a defined seed such that train and test sets have no overlap
         // when splitting by indexes
-        let dataset= ShuffledDataset
-        ::with_seed(dataset, 42);
+        let dataset= ShuffledDataset::with_seed(dataset, 42);
 
 
         // The dataset from HuggingFace has only train split, so we manually split the train dataset into train
@@ -136,9 +135,21 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
 
         for item in items.iter() {
 
-            let input_tensor = Tensor::<B, 1>::from_floats([item.age as f32,
-                item.sex as f32, item.bmi, item.bp, item.tc as f32,
-                item.ldl, item.hdl, item.tch, item.ltg, item.glu as f32], &self.device);
+            let input_tensor = Tensor::<B, 1>::from_floats(
+                [
+                    item.age as f32,
+                    item.sex as f32,
+                    item.bmi,
+                    item.bp,
+                    item.tc as f32,
+                    item.ldl,
+                    item.hdl,
+                    item.tch,
+                    item.ltg,
+                    item.glu as f32
+                ],
+                &self.device
+            );
 
             inputs.push(input_tensor.unsqueeze());
         }
@@ -150,7 +161,7 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([(item.response as f32)], &self.device))
+            .map(|item| Tensor::<B, 1>::from_floats([item.response as f32], &self.device))
             .collect();
 
         let targets  = Tensor::cat(targets, 0);

@@ -84,7 +84,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
-        .build(LinearModel::new(config.input_feature_len,&device), config.optimizer.init(), 5e-3);
+        .build(
+            LinearModel::new(config.input_feature_len,&device),
+            config.optimizer.init(),
+            5e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 

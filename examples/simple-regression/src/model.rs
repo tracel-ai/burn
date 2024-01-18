@@ -29,9 +29,11 @@ impl<B: Backend> Default for LinearModel<B> {
 impl<B: Backend> LinearModel<B> {
     pub fn new(feature_len: usize, device: &B::Device) -> Self {
         let input_layer = LinearConfig::new(feature_len, 64)
-            .with_bias(true).init(device);
+            .with_bias(true)
+            .init(device);
         let output_layer = LinearConfig::new(64, 1)
-            .with_bias(true).init(device);
+            .with_bias(true)
+            .init(device);
 
         Self {
             input_layer,
@@ -53,8 +55,7 @@ impl<B: Backend> LinearModel<B> {
         let targets: Tensor<B, 2> = item.targets.unsqueeze();
         let output: Tensor<B, 2> = self.forward(item.inputs);
 
-        let loss = MSELoss::new()
-            .forward(output.clone(), targets.clone(), Mean);
+        let loss = MSELoss::new().forward(output.clone(), targets.clone(), Mean);
 
         RegressionOutput {
             loss,
