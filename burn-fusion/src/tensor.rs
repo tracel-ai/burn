@@ -89,26 +89,26 @@ impl<C: FusionClient> FusionTensor<C> {
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
-        let thread_id = self.stream.thread_id;
+        let id = self.stream;
         self.client
             .clone()
-            .read_tensor_float(self.into_description(), thread_id)
+            .read_tensor_float(self.into_description(), id)
     }
 
     pub(crate) fn int_into_data<const D: usize>(
         self,
     ) -> Reader<Data<IntElem<C::FusionBackend>, D>> {
-        let thread_id = self.stream.thread_id;
+        let id = self.stream;
         self.client
             .clone()
-            .read_tensor_int(self.into_description(), thread_id)
+            .read_tensor_int(self.into_description(), id)
     }
 
     pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
-        let thread_id = self.stream.thread_id;
+        let id = self.stream;
         self.client
             .clone()
-            .read_tensor_bool(self.into_description(), thread_id)
+            .read_tensor_bool(self.into_description(), id)
     }
 }
 

@@ -152,7 +152,6 @@ impl<B: FusionBackend> HandleContainer<B> {
             if remaining.contains(&&id) {
                 handles_orphan.push(id);
             } else {
-                println!("Free orphan {id:?}");
                 self.handles.remove(&id);
             }
         }

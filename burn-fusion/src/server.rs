@@ -3,7 +3,7 @@ use crate::{
     FusionBackend, HandleContainer, TensorId,
 };
 use burn_tensor::ops::{FloatElem, IntElem};
-use std::{sync::Arc, thread::ThreadId};
+use std::sync::Arc;
 
 pub struct FusionServer<B>
 where
@@ -36,8 +36,8 @@ where
             .register(streams, desc, operation, &mut self.handles)
     }
 
-    pub fn drain_streams(&mut self, thread_id: ThreadId) {
-        self.streams.drain(&mut self.handles, thread_id)
+    pub fn drain_stream(&mut self, id: StreamId) {
+        self.streams.drain(&mut self.handles, id)
     }
 
     pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
@@ -47,11 +47,11 @@ where
     pub fn read_float<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
-        thread_id: ThreadId,
+        id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_streams(thread_id);
+        self.drain_stream(id);
 
         let tensor = self.handles.get_float_tensor(&tensor);
         B::into_data(tensor)
@@ -60,11 +60,11 @@ where
     pub fn read_int<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
-        thread_id: ThreadId,
+        id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_streams(thread_id);
+        self.drain_stream(id);
 
         let tensor = self.handles.get_int_tensor(&tensor);
         B::int_into_data(tensor)
@@ -73,11 +73,11 @@ where
     pub fn read_bool<const D: usize>(
         &mut self,
         tensor: crate::TensorDescription,
-        thread_id: ThreadId,
+        id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        self.drain_streams(thread_id);
+        self.drain_stream(id);
 
         let tensor = self.handles.get_bool_tensor(&tensor);
         B::bool_into_data(tensor)

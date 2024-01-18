@@ -1,26 +1,14 @@
-use std::collections::HashMap;
-use std::thread::ThreadId;
-
 use super::{
     execution::{ExecutionMode, Processor, StreamSegment},
     store::{ExecutionPlanId, ExecutionPlanStore},
     Operation, OperationDescription, OperationQueue, StreamId,
 };
 use crate::{FusionBackend, HandleContainer};
-
-/// Tensor 1 ranomd => stream 1
-/// Tensor 2 ranomd => stream 2
-///
-/// Tensor 3 = tensor 1 + tensor 2.clone()          => stream 1; Lazy
-/// Tensor 4 = tensor 2 + aa                        => stream 2; Sync tensor 2 goneeee.
-/// Output = Tensor 3 * Tensor 4                    => stream 1; //
+use std::collections::HashMap;
 
 /// Keep track of multiple concurrent streams of operations.
-///
-/// TODO: Actually support multiple streams.
 pub struct MultiStream<B: FusionBackend> {
-    streams: HashMap<u64, Stream<B>>,
-    streams_per_thread: HashMap<ThreadId, Vec<u64>>,
+    streams: HashMap<StreamId, Stream<B>>,
     optimizations: ExecutionPlanStore<B::Optimization>,
     device: B::FusionDevice,
 }
@@ -29,7 +17,6 @@ impl<B: FusionBackend> MultiStream<B> {
     pub(crate) fn new(device: B::FusionDevice) -> Self {
         Self {
             streams: HashMap::new(),
-            streams_per_thread: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
             device,
         }
@@ -43,138 +30,82 @@ impl<B: FusionBackend> MultiStream<B> {
         operation: Box<dyn Operation<B>>,
         handles: &mut HandleContainer<B>,
     ) {
-        for node in desc.nodes() {
-            if let crate::TensorStatus::ReadWrite = node.status {
-                let mut streams_to_remove = Vec::new();
-                for (key, stream) in self.streams.iter_mut() {
-                    let mut should_sync = false;
-                    for operation in stream.queue.global.iter() {
-                        if should_sync {
-                            break;
-                        }
-                        for node_stream in operation.nodes() {
-                            if node_stream.id == node.id {
-                                should_sync = true;
-                            }
-                        }
-                    }
-                    stream.processor.process(
-                        Segment::new(&mut stream.queue, handles),
-                        &mut self.optimizations,
-                        ExecutionMode::Sync,
-                    );
-                    streams_to_remove.push(*key);
-                }
+        let id = self.maybe_drain(streams, handles);
 
-                for tmp in streams_to_remove {
-                    self.streams.remove(&tmp);
-                }
-            }
-        }
-        let id = self.merge(streams, handles);
-        println!("Register stream [{}] {:?}", id.value, desc);
-
-        self.index_per_thread_add(id);
-        let stream = match self.streams.get_mut(&id.value) {
-            Some(stream) => {
-                println!("Stream exist with {} operations", stream.queue.len());
-                stream
-            }
+        let stream = match self.streams.get_mut(&id) {
+            Some(stream) => stream,
             None => {
-                println!("Creating stream {}", id.value);
                 let stream = Stream::new(self.device.clone());
-                self.streams.insert(id.value, stream);
+                self.streams.insert(id, stream);
                 self.streams
-                    .get_mut(&id.value)
+                    .get_mut(&id)
                     .expect("Just added, so should be included in the hashmap.")
             }
         };
 
         stream.queue.add(desc, operation);
+
+        let size_before = stream.queue.len();
         stream.processor.process(
             Segment::new(&mut stream.queue, handles),
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
+        let size_after = stream.queue.len();
 
-        if stream.queue.is_empty() {
-            println!("Stream {} completed", id.value);
-            self.streams.remove(&id.value);
-            self.index_per_thread_remove(id);
+        if size_after != size_before {
+            self.free_orphans(handles);
+        }
+
+        if size_after == 0 {
+            self.streams.remove(&id);
         }
     }
 
     /// Drain the streams.
-    pub fn drain(&mut self, handles: &mut HandleContainer<B>, thread_id: ThreadId) {
-        println!("Drain on thread {:?}", thread_id);
-        // for (id, stream) in self.streams.iter_mut() {
-        //     if !stream.queue.is_empty() {
-        //         stream.processor.process(
-        //             Segment::new(&mut stream.queue, handles),
-        //             &mut self.optimizations,
-        //             ExecutionMode::Sync,
-        //         );
-        //     }
-        // }
-        if let Some(ids) = self.streams_per_thread.remove(&thread_id) {
-            println!("Draining stream {ids:?}");
-            for id in ids {
-                if let Some(mut stream) = self.streams.remove(&id) {
-                    stream.processor.process(
-                        Segment::new(&mut stream.queue, handles),
-                        &mut self.optimizations,
-                        ExecutionMode::Sync,
-                    );
-                }
-            }
+    pub fn drain(&mut self, handles: &mut HandleContainer<B>, id: StreamId) {
+        if let Some(mut stream) = self.streams.remove(&id) {
+            stream.processor.process(
+                Segment::new(&mut stream.queue, handles),
+                &mut self.optimizations,
+                ExecutionMode::Sync,
+            );
+            self.free_orphans(handles);
         }
     }
 
-    fn merge(&mut self, streams: Vec<StreamId>, handles: &mut HandleContainer<B>) -> StreamId {
-        if streams.len() == 1 {
-            return streams[0];
-        }
-
+    fn maybe_drain(
+        &mut self,
+        streams: Vec<StreamId>,
+        handles: &mut HandleContainer<B>,
+    ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
+        let current = StreamId::current();
+        let mut should_drain = false;
 
         if streams.len() == 1 {
-            return streams[0];
-        }
-
-        let stream_kept = streams[0];
-        let mut to_merge = Vec::new();
-
-        for i in 1..streams.len() {
-            let stream = streams[i];
-
-            if let Some(item) = self.streams.remove(&stream.value) {
-                println!(
-                    "-- Merging stream {} with {}",
-                    stream_kept.value, stream.value
-                );
-                to_merge.push((item, stream.thread_id));
+            if streams[0] != current {
+                should_drain = true;
             }
+        } else if streams.len() > 1 {
+            should_drain = true;
         }
 
-        for (stream, thread_id) in to_merge {
-            for (desc, op) in stream
-                .queue
-                .global
-                .into_iter()
-                .zip(stream.queue.operations.into_iter())
-            {
-                self.index_per_thread_add(StreamId {
-                    value: stream_kept.value,
-                    thread_id,
-                });
-                self.register(vec![stream_kept], desc, op, handles)
+        if should_drain {
+            for id in streams {
+                self.drain(handles, id);
             }
+        } else {
         }
 
-        stream_kept
+        current
     }
 
     fn remove_duplicate(items: Vec<StreamId>) -> Vec<StreamId> {
+        if items.len() == 1 {
+            return items;
+        }
+
         let mut output = Vec::with_capacity(items.len());
         for item in items {
             if !output.contains(&item) {
@@ -184,28 +115,16 @@ impl<B: FusionBackend> MultiStream<B> {
         output
     }
 
-    fn index_per_thread_add(&mut self, id: StreamId) {
-        if let Some(ids) = self.streams_per_thread.get_mut(&id.thread_id) {
-            if !ids.contains(&id.value) {
-                ids.push(id.value);
-            }
-        } else {
-            self.streams_per_thread.insert(id.thread_id, vec![id.value]);
-        }
-    }
-    fn index_per_thread_remove(&mut self, id: StreamId) {
-        let mut should_remove_entry = false;
-        if let Some(ids) = self.streams_per_thread.get_mut(&id.thread_id) {
-            println!("Remove id {} from thread {:?}", id.value, id.thread_id);
-            ids.retain(|existing| *existing != id.value);
-            if ids.is_empty() {
-                should_remove_entry = true;
-            }
-        }
+    fn free_orphans(&self, handles: &mut HandleContainer<B>) {
+        let nodes = self
+            .streams
+            .values()
+            .flat_map(|a| a.queue.global.iter())
+            .flat_map(|a| a.nodes())
+            .map(|tensor| &tensor.id)
+            .collect::<Vec<_>>();
 
-        if should_remove_entry {
-            self.streams_per_thread.remove(&id.thread_id);
-        }
+        handles.free_orphans(&nodes);
     }
 }
 

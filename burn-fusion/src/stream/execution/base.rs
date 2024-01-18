@@ -21,7 +21,6 @@ impl<B: FusionBackend> OperationQueue<B> {
         handles: &mut HandleContainer<B>,
         store: &mut ExecutionPlanStore<B::Optimization>,
     ) {
-        println!("Execute.");
         match &mut store.get_mut_unchecked(id).strategy {
             ExecutionStrategy::Optimization(optimization) => {
                 self.execute_optimization(handles, optimization)
@@ -36,7 +35,6 @@ impl<B: FusionBackend> OperationQueue<B> {
         optimization: &mut B::Optimization,
     ) {
         let num_drained = optimization.len();
-        println!("Execute optimization with {} operations", num_drained);
 
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
@@ -47,11 +45,6 @@ impl<B: FusionBackend> OperationQueue<B> {
 
     fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
         let num_drained = self.operations.len();
-        println!("Execute {} operations", num_drained);
-        if num_drained == 0 {
-            panic!("What the hell")
-        }
-
 
         for operation in self.operations.drain(0..num_drained) {
             operation.execute(handles);
@@ -67,15 +60,6 @@ impl<B: FusionBackend> OperationQueue<B> {
             .for_each(|tensor| handles.free(tensor));
 
         self.global.drain(0..num_drained);
-
-        handles.free_orphans(
-            &self
-                .global
-                .iter()
-                .flat_map(|desc| desc.nodes())
-                .map(|tensor| &tensor.id)
-                .collect::<Vec<_>>(),
-        );
         self.reset_relative();
     }
 

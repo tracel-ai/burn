@@ -1,6 +1,3 @@
-use core::sync::atomic::AtomicU64;
-use core::sync::atomic::Ordering;
-
 use super::Operation;
 use super::OperationConverter;
 use super::OperationDescription;
@@ -20,26 +17,30 @@ impl<B: FusionBackend> Default for OperationQueue<B> {
     }
 }
 
-static STREAM_ID_GEN: AtomicU64 = AtomicU64::new(0);
-
 /// The stream id.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub(crate) struct StreamId {
-    pub(crate) value: u64,
-    pub(crate) thread_id: std::thread::ThreadId,
+pub struct StreamId {
+    #[cfg(feature = "std")]
+    value: std::thread::ThreadId,
+    #[cfg(not(feature = "std"))]
+    value: (),
 }
 
 impl StreamId {
-    pub fn new() -> Self {
-        let id = STREAM_ID_GEN.fetch_add(1, Ordering::Relaxed);
-        if id == u64::MAX {
-            panic!("NodeID overflowed");
-        }
-
+    /// Get the current stream id.
+    pub fn current() -> Self {
         Self {
-            value: id,
-            thread_id: std::thread::current().id(),
+            #[cfg(feature = "std")]
+            value: std::thread::current().id(),
+            #[cfg(not(feature = "std"))]
+            _always: (),
         }
+    }
+}
+
+impl core::fmt::Display for StreamId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("StreamID({:?})", self.value))
     }
 }
 
