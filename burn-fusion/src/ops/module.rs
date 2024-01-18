@@ -67,6 +67,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[2],
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -77,7 +80,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options: options.into(),
             out: out.to_description_out(),
         };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
         out.client.clone().register(
+            streams,
             OperationDescription::Module(crate::stream::ModuleOperationDescription::Conv1d(
                 description.clone(),
             )),
@@ -125,6 +134,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[0], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -135,7 +147,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options: options.into(),
             out: out.to_description_out(),
         };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
         out.client.register(
+            streams,
             OperationDescription::Module(crate::stream::ModuleOperationDescription::Conv2d(
                 desc.clone(),
             )),
@@ -177,6 +195,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[2],
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -187,7 +208,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options: options.into(),
             out: out.to_description_out(),
         };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
         out.client.register(
+            streams,
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::ConvTranspose1d(desc.clone()),
             ),
@@ -237,6 +264,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = weight.stream;
+        let stream_3 = bias.as_ref().map(|b| b.stream);
         let shape = vec![x.shape[0], weight.shape[1] * options.groups, size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -247,7 +277,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             options: options.into(),
             out: out.to_description_out(),
         };
+
+        let streams = match stream_3 {
+            Some(stream_3) => vec![stream_1, stream_2, stream_3],
+            None => vec![stream_1, stream_2],
+        };
         out.client.register(
+            streams,
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::ConvTranspose2d(desc.clone()),
             ),
@@ -281,6 +317,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream = x.stream;
         let size = calculate_pool_output_size(kernel_size, stride, padding, 1, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape);
@@ -294,6 +331,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(crate::stream::ModuleOperationDescription::AvgPool1d(
                 desc.clone(),
             )),
@@ -332,6 +370,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let size_1 =
             calculate_pool_output_size(kernel_size[1], stride[1], padding[1], 1, x.shape[3]);
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -344,6 +383,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(crate::stream::ModuleOperationDescription::AvgPool2d(
                 desc.clone(),
             )),
@@ -380,6 +420,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = grad.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
         let desc = AvgPool1dBackwardDescription {
@@ -392,6 +434,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream_1, stream_2],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AvgPool1dBackward(desc.clone()),
             ),
@@ -428,6 +471,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = grad.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
         let desc = AvgPool2dBackwardDescription {
@@ -440,6 +485,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream_1, stream_2],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AvgPool2dBackward(desc.clone()),
             ),
@@ -475,6 +521,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
 
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -487,6 +534,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(crate::stream::ModuleOperationDescription::MaxPool1d(
                 desc.clone(),
             )),
@@ -535,6 +583,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -547,6 +596,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(crate::stream::ModuleOperationDescription::MaxPool2d(
                 desc.clone(),
             )),
@@ -581,6 +631,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream = x.stream;
         let size = calculate_pool_output_size(kernel_size, stride, padding, dilation, x.shape[2]);
         let shape = vec![x.shape[0], x.shape[1], size];
         let out = x.client.tensor_uninitialized(shape.clone());
@@ -596,6 +647,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out_indices: out_indices.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::MaxPool1dWithIndices(desc.clone()),
             ),
@@ -645,6 +697,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             x.shape[3],
         );
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], size_0, size_1];
         let out = x.client.tensor_uninitialized(shape.clone());
         let out_indices = x.client.tensor_uninitialized(shape);
@@ -659,6 +712,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out_indices: out_indices.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::MaxPool2dWithIndices(desc.clone()),
             ),
@@ -698,6 +752,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = output_grad.stream;
+        let stream_3 = indices.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
         let desc = MaxPool1dWithIndicesBackwardDescription {
@@ -711,6 +768,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream_1, stream_2, stream_3],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::MaxPool1dWithIndicesBackward(
                     desc.clone(),
@@ -752,6 +810,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = output_grad.stream;
+        let stream_3 = indices.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
         let desc = MaxPool2dWithIndicesBackwardDescription {
@@ -765,6 +826,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream_1, stream_2, stream_3],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::MaxPool2dWithIndicesBackward(
                     desc.clone(),
@@ -788,6 +850,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], output_size];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -797,6 +860,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AdaptiveAvgPool1d(desc.clone()),
             ),
@@ -821,6 +885,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream = x.stream;
         let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
         let out = x.client.tensor_uninitialized(shape);
 
@@ -830,6 +895,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AdaptiveAvgPool2d(desc.clone()),
             ),
@@ -855,6 +921,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = grad.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
         let desc = AdaptiveAvgPool1dBackwardDescription {
             x: x.into_description(),
@@ -863,6 +931,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         };
 
         out.client.register(
+            vec![stream_1, stream_2],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AdaptiveAvgPool1dBackward(desc.clone()),
             ),
@@ -888,6 +957,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             }
         );
 
+        let stream_1 = x.stream;
+        let stream_2 = grad.stream;
         let out = x.client.tensor_uninitialized(x.shape.clone());
 
         let desc = AdaptiveAvgPool2dBackwardDescription {
@@ -896,6 +967,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
+            vec![stream_1, stream_2],
             OperationDescription::Module(
                 crate::stream::ModuleOperationDescription::AdaptiveAvgPool2dBackward(desc.clone()),
             ),

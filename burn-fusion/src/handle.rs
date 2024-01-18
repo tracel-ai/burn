@@ -102,7 +102,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         tensor: B::TensorPrimitive<D>,
     ) {
         let handle = B::float_tensor_handle(tensor);
-        self.handles.insert(id.clone(), Handle::Existing(handle));
+        self.handles.insert(*id, Handle::Existing(handle));
     }
 
     /// Register a new [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -112,7 +112,7 @@ impl<B: FusionBackend> HandleContainer<B> {
         tensor: B::IntTensorPrimitive<D>,
     ) {
         let handle = B::int_tensor_handle(tensor);
-        self.handles.insert(id.clone(), Handle::Existing(handle));
+        self.handles.insert(*id, Handle::Existing(handle));
     }
 
     /// Register a new [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
@@ -122,14 +122,14 @@ impl<B: FusionBackend> HandleContainer<B> {
         tensor: B::BoolTensorPrimitive<D>,
     ) {
         let handle = B::bool_tensor_handle(tensor);
-        self.handles.insert(id.clone(), Handle::Existing(handle));
+        self.handles.insert(*id, Handle::Existing(handle));
     }
 
     /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
     pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
-        self.handles.insert(id.clone(), Handle::NotInit);
+        self.handles.insert(id, Handle::NotInit);
 
         Arc::new(id)
     }

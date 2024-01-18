@@ -1,6 +1,6 @@
 use super::FusionClient;
 use crate::{
-    stream::{Operation, OperationDescription},
+    stream::{Operation, OperationDescription, StreamId},
     FusionBackend, FusionServer, FusionTensor, Handle,
 };
 use burn_tensor::ops::FloatElem;
@@ -43,22 +43,24 @@ where
 
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
+        streams: Vec<StreamId>,
         description: OperationDescription,
         operation: O,
     ) {
         self.server
             .lock()
-            .register(description, Box::new(operation))
+            .register(streams, description, Box::new(operation))
     }
 
     fn drain(&self) {
-        self.server.lock().drain_streams();
+        let id = StreamId::current();
+        self.server.lock().drain_stream(id);
     }
 
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
 
-        FusionTensor::new(id, shape, self.clone())
+        FusionTensor::new(id, shape, self.clone(), StreamId::current())
     }
 
     fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice {
@@ -68,94 +70,102 @@ where
         &self,
         handle: Handle<Self::FusionBackend>,
         shape: Vec<usize>,
+        stream: StreamId,
     ) -> FusionTensor<Self> {
         let mut server = self.server.lock();
         let id = server.create_empty_handle();
-        server.handles.register_handle(id.as_ref().clone(), handle);
+        server.handles.register_handle(*id.as_ref(), handle);
         core::mem::drop(server);
 
-        FusionTensor::new(id, shape, self.clone())
+        FusionTensor::new(id, shape, self.clone(), stream)
     }
 
     fn read_tensor_float<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
+        stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<Self::FusionBackend>, D>> {
-        self.server.lock().read_float(tensor)
+        self.server.lock().read_float(tensor, stream)
     }
 
     fn read_tensor_int<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
+        id: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<burn_tensor::ops::IntElem<Self::FusionBackend>, D>>
     {
-        self.server.lock().read_int(tensor)
+        self.server.lock().read_int(tensor, id)
     }
 
     fn read_tensor_bool<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
+        stream: StreamId,
     ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
-        self.server.lock().read_bool(tensor)
+        self.server.lock().read_bool(tensor, stream)
     }
 
     fn change_client_float<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
         client: Self,
+        stream: StreamId,
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_streams();
+        server_current.drain_stream(stream);
 
         let id = server_current.change_server_float::<D>(&tensor, &device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client)
+        FusionTensor::new(id, tensor.shape, client, StreamId::current())
     }
+
     fn change_client_int<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
         client: Self,
+        stream: StreamId,
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_streams();
+        server_current.drain_stream(stream);
 
         let id = server_current.change_server_int::<D>(&tensor, &device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client)
+        FusionTensor::new(id, tensor.shape, client, StreamId::current())
     }
 
     fn change_client_bool<const D: usize>(
         &self,
         tensor: crate::TensorDescription,
         client: Self,
+        stream: StreamId,
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        server_current.drain_streams();
+        server_current.drain_stream(stream);
 
         let id = server_current.change_server_bool::<D>(&tensor, &device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        FusionTensor::new(id, tensor.shape, client)
+        FusionTensor::new(id, tensor.shape, client, StreamId::current())
     }
 
     fn register_orphan(&self, id: &crate::TensorId) {
-        self.server.lock().drop_tensor_handle(id.clone());
+        self.server.lock().drop_tensor_handle(*id);
     }
 }

@@ -268,7 +268,11 @@ mod tests {
             initializer: Initializer,
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
-            let record = LinearRecord {
+            let record_1 = LinearRecord {
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+            };
+            let record_2 = LinearRecord {
                 weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
                 bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
             };
@@ -277,8 +281,8 @@ mod tests {
                 d_output,
                 bias,
                 initializer,
-                record.clone(),
-                record,
+                record_1,
+                record_2,
             )
         }
 

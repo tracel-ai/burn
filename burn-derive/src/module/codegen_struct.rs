@@ -1,14 +1,15 @@
+use super::{codegen::ModuleCodegen, record_struct::StructModuleRecordCodegen};
 use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-
-use super::codegen::ModuleCodegen;
 
 pub(crate) struct StructModuleCodegen {
     pub fields: Vec<FieldTypeAnalyzer>,
 }
 
 impl ModuleCodegen for StructModuleCodegen {
+    type RecordCodegen = StructModuleRecordCodegen;
+
     fn gen_num_params(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name| {
             quote! {
@@ -33,7 +34,7 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn visit<V: burn::module::ModuleVisitor<B>>(&self, visitor: &mut V) {
+            fn visit<Visitor: burn::module::ModuleVisitor<B>>(&self, visitor: &mut Visitor) {
                 #body
             }
         }
@@ -102,7 +103,7 @@ impl ModuleCodegen for StructModuleCodegen {
         });
 
         quote! {
-            fn map<M: burn::module::ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+            fn map<Mapper: burn::module::ModuleMapper<B>>(self, mapper: &mut Mapper) -> Self {
                 #body
 
                 Self {
@@ -178,6 +179,10 @@ impl ModuleCodegen for StructModuleCodegen {
                 }
             }
         }
+    }
+
+    fn record_codegen(self) -> Self::RecordCodegen {
+        StructModuleRecordCodegen::new(self.fields)
     }
 }
 

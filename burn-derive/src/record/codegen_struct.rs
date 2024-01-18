@@ -38,13 +38,14 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         }
         let bound = bounds.to_string();
 
+        let (generics, _, generics_where) = generics.split_for_impl();
         quote! {
 
             /// The record item type for the module.
             #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
             #[serde(crate = "burn::serde")]
             #[serde(bound = #bound)]
-            pub struct #item_name #generics {
+            pub struct #item_name #generics #generics_where {
                 #fields
             }
         }
