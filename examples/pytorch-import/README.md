@@ -5,7 +5,7 @@ This crate provides a simple example for importing PyTorch generated weights to 
 The `.pt` file is converted into a Burn consumable file (message pack format) using `burn-import`.
 The conversation is done in the `build.rs` file.
 
-The model is seperated into a sub-crate because `build.rs` needs for conversion and build.rs cannot
+The model is separated into a sub-crate because `build.rs` needs for conversion and build.rs cannot
 import modules for the same crate.
 
 ## Usage

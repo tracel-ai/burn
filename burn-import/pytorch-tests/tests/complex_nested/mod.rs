@@ -222,5 +222,5 @@ fn extra_field_model_loading() {
 
     assert_eq!(4.871538, sum.into_scalar());
 
-    assert_eq!(true, model.extra_field);
+    assert!(model.extra_field);
 }

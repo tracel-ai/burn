@@ -122,13 +122,13 @@ mod tests {
 
         let tensor_1_grad = tensor_1.grad(&grads).unwrap();
         let tensor_2_grad = tensor_2.grad(&grads).unwrap();
-        let weight_grad = module.weight.grad(&grads).unwrap();
-        let bias_grad = module.bias.grad(&grads).unwrap();
+        let gamma_grad = module.gamma.grad(&grads).unwrap();
+        let beta_grad = module.beta.grad(&grads).unwrap();
 
-        weight_grad
+        gamma_grad
             .to_data()
             .assert_approx_eq(&Data::from([-2.0, 2.0]), 3);
-        bias_grad
+        beta_grad
             .to_data()
             .assert_approx_eq(&Data::from([2.0, 2.0]), 3);
         tensor_1_grad
