@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::quote;
-use syn::{parse2, Generics, TypeParam, WhereClause, WherePredicate};
+use syn::{parse_quote, Generics, WhereClause, WherePredicate};
 
 #[derive(new)]
 pub struct GenericsHelper {
@@ -10,16 +10,14 @@ pub struct GenericsHelper {
 impl GenericsHelper {
     pub fn add_predicate(&mut self, predicate: WherePredicate) {
         let where_clause: WhereClause = match &self.generics.where_clause {
-            Some(val) => parse2(quote! {
+            Some(val) => parse_quote! {
                 #val
                     #predicate,
-            })
-            .unwrap(),
-            None => parse2(quote! {
+            },
+            None => parse_quote! {
                 where
                     #predicate,
-            })
-            .unwrap(),
+            },
         };
         self.generics.where_clause = Some(where_clause);
     }

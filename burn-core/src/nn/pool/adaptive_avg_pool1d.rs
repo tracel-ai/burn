@@ -14,7 +14,7 @@ pub struct AdaptiveAvgPool1dConfig {
 }
 
 /// Applies a 1D adaptive avg pooling over input tensors.
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Clone, Debug)]
 pub struct AdaptiveAvgPool1d {
     output_size: usize,
 }

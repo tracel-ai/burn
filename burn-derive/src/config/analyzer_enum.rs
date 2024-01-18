@@ -1,7 +1,8 @@
+use crate::shared::enum_variant::map_enum_variant;
+
 use super::ConfigAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{FieldsNamed, Variant};
 
 pub struct ConfigEnumAnalyzer {
     name: Ident,
@@ -31,53 +32,15 @@ impl ConfigEnumAnalyzer {
         }
     }
 
-    fn gen_variant_field(&self, variant: &Variant) -> (TokenStream, TokenStream) {
-        let gen_fields_unnamed = |num: usize| {
-            let mut input = Vec::new();
-            let mut output = Vec::new();
-
-            for i in 0..num {
-                let arg_name = Ident::new(&format!("arg_{i}"), self.name.span());
-
-                input.push(quote! { #arg_name });
-                output.push(quote! { #arg_name.clone() });
-            }
-
-            (quote! (( #(#input),* )), quote! (( #(#output),* )))
-        };
-        let gen_fields_named = |fields: &FieldsNamed| {
-            let mut input = Vec::new();
-            let mut output = Vec::new();
-
-            fields.named.iter().for_each(|field| {
-                let ident = &field.ident;
-
-                input.push(quote! {
-                    #ident
-                });
-                output.push(quote! {
-                    #ident: #ident.clone()
-                });
-            });
-
-            (quote! {{ #(#input),* }}, quote! {{ #(#output),* }})
-        };
-
-        match &variant.fields {
-            syn::Fields::Named(fields) => gen_fields_named(fields),
-            syn::Fields::Unnamed(_) => gen_fields_unnamed(variant.fields.len()),
-            syn::Fields::Unit => (quote! {}, quote! {}),
-        }
-    }
-
     fn gen_serialize_fn(&self) -> TokenStream {
         let enum_name = self.serde_enum_ident();
         let variants = self.data.variants.iter().map(|variant| {
-      let variant_name = &variant.ident;
-      let (variant_input, variant_output) = self.gen_variant_field(variant);
+            let variant_name = &variant.ident;
+            let (inputs, outputs) = map_enum_variant(variant, |ident| quote! { #ident.clone() });
 
-      quote! { Self::#variant_name #variant_input => #enum_name::#variant_name #variant_output }
-    });
+            quote! { Self::#variant_name #inputs => #enum_name::#variant_name #outputs }
+        });
+
         let name = &self.name;
 
         quote! {
@@ -98,11 +61,11 @@ impl ConfigEnumAnalyzer {
     fn gen_deserialize_fn(&self) -> TokenStream {
         let enum_name = self.serde_enum_ident();
         let variants = self.data.variants.iter().map(|variant| {
-      let variant_name = &variant.ident;
-      let (variant_input, variant_output) = self.gen_variant_field(variant);
+            let variant_name = &variant.ident;
+            let (inputs, outputs) = map_enum_variant(variant, |ident| quote! { #ident.clone() });
 
-      quote! { #enum_name::#variant_name #variant_input => Self::#variant_name #variant_output }
-    });
+            quote! { #enum_name::#variant_name #inputs => Self::#variant_name #outputs }
+        });
         let name = &self.name;
 
         quote! {
@@ -137,9 +100,9 @@ impl ConfigAnalyzer for ConfigEnumAnalyzer {
     fn gen_clone_impl(&self) -> TokenStream {
         let variants = self.data.variants.iter().map(|variant| {
             let variant_name = &variant.ident;
-            let (variant_input, variant_output) = self.gen_variant_field(variant);
+            let (inputs, outputs) = map_enum_variant(variant, |ident| quote! { #ident.clone() });
 
-            quote! { Self::#variant_name #variant_input => Self::#variant_name #variant_output }
+            quote! { Self::#variant_name #inputs => Self::#variant_name #outputs }
         });
         let name = &self.name;
 
