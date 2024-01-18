@@ -74,6 +74,7 @@ impl<B: FusionBackend> MultiStream<B> {
         }
     }
 
+    /// When one of the provided streams is different from the current stream, we drain them.
     fn maybe_drain(
         &mut self,
         streams: Vec<StreamId>,
@@ -81,21 +82,16 @@ impl<B: FusionBackend> MultiStream<B> {
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
-        let mut should_drain = false;
 
         if streams.len() == 1 {
-            if streams[0] != current {
-                should_drain = true;
+            // The only case where we don't need to drain.
+            if streams[0] == current {
+                return current;
             }
-        } else if streams.len() > 1 {
-            should_drain = true;
         }
 
-        if should_drain {
-            for id in streams {
-                self.drain(handles, id);
-            }
-        } else {
+        for id in streams {
+            self.drain(handles, id);
         }
 
         current
