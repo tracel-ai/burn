@@ -75,7 +75,9 @@ where
 {
     let serializer = Serializer::new();
 
-    val.into_item::<PS>().serialize(serializer).unwrap()
+    val.into_item::<PS>()
+        .serialize(serializer)
+        .expect("Failed to serialize the item")
 }
 
 /// Helper function to rename the weight and bias parameters to gamma and beta.

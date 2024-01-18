@@ -318,7 +318,9 @@ mod tests {
             },
         };
 
-        let serialized = my_struct.serialize(Serializer::new()).unwrap();
+        let serialized = my_struct
+            .serialize(Serializer::new())
+            .expect("Serialization failed");
 
         let serialized_str = format!("{:?}", serialized);
 
@@ -347,7 +349,9 @@ mod tests {
 
         let param_item = param.into_item::<FullPrecisionSettings>();
 
-        let serialized = param_item.serialize(Serializer::new()).unwrap();
+        let serialized = param_item
+            .serialize(Serializer::new())
+            .expect("Param item serialization failed");
 
         let serialized_str = format!("{:?}", serialized);
 

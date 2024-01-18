@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use super::adapter::BurnModuleAdapter;
 use super::data::NestedValue;
+use super::{adapter::BurnModuleAdapter, error::Error};
 
 use serde::{
-    de::{self, value::Error, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
+    de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     forward_to_deserialize_any,
 };
 
@@ -46,11 +46,20 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        // Pass the module the module through the adapter
-        let value = if let Some(name) = name.strip_suffix(RECORD_ITEM_SUFFIX) {
-            A::adapt(name, self.value.unwrap())
-        } else {
-            self.value.unwrap()
+        let value = match self.value {
+            Some(value) => {
+                if let Some(name) = name.strip_suffix(RECORD_ITEM_SUFFIX) {
+                    A::adapt(name, value)
+                } else {
+                    value
+                }
+            }
+            None => {
+                return Err(de::Error::custom(format!(
+                    "Expected some value but got {:?}",
+                    self.value
+                )))
+            }
         };
 
         match value {
@@ -307,7 +316,7 @@ impl<A: BurnModuleAdapter> VecSeqAccess<A> {
 
 impl<'de, A> SeqAccess<'de> for VecSeqAccess<A>
 where
-    NestedValueWrapper<A>: IntoDeserializer<'de>,
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
     A: BurnModuleAdapter,
 {
     type Error = Error;
@@ -344,8 +353,8 @@ impl<A: BurnModuleAdapter> HashMapAccess<A> {
 
 impl<'de, A> MapAccess<'de> for HashMapAccess<A>
 where
-    String: IntoDeserializer<'de>,
-    NestedValueWrapper<A>: IntoDeserializer<'de>,
+    String: IntoDeserializer<'de, Error>,
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
     A: BurnModuleAdapter,
 {
     type Error = Error;

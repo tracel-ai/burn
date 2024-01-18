@@ -18,7 +18,7 @@ pub enum Error {
 
     // Add other kinds of errors as needed
     #[error("other error")]
-    Other,
+    Other(String),
 }
 
 impl serde::de::Error for Error {

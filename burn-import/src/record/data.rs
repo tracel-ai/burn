@@ -208,14 +208,13 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
 
 /// A trait for encapsulating the serialization logic.
 pub trait Serializable {
-    fn serialize<PS, S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, Error>
     where
-        S: serde::Serializer,
         PS: PrecisionSettings;
 }
 
 /// Convert a vector of tensors to a nested map/vector of tensors.
-pub fn unflatten<PS, T>(input: HashMap<String, T>) -> NestedValue
+pub fn unflatten<PS, T>(input: HashMap<String, T>) -> Result<NestedValue, Error>
 where
     PS: PrecisionSettings,
     T: Serializable,
@@ -224,10 +223,10 @@ where
 
     for (key, value) in input {
         let parts: Vec<&str> = key.split('.').collect();
-        let st = value.serialize::<PS, _>(Serializer::new()).unwrap();
+        let st = value.serialize::<PS>(Serializer::new())?;
 
         insert_nested_value(&mut result, &parts, st);
     }
 
-    result
+    Ok(result)
 }

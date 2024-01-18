@@ -37,7 +37,7 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
     }
 
     fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item = from_file::<PS, R::Item<Self::Settings>>(&args.file, args.key_remap).unwrap();
+        let item = from_file::<PS, R::Item<Self::Settings>>(&args.file, args.key_remap)?;
         Ok(R::from_item(item))
     }
 }
