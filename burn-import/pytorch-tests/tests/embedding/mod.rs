@@ -25,7 +25,7 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings};
+    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
@@ -57,7 +57,9 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), precision);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
     }
 
     #[test]

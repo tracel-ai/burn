@@ -25,14 +25,13 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
-    use burn::record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings};
+    use burn::record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder};
     use burn_import::pytorch::PyTorchFileRecorder;
 
     use super::*;
 
     fn group_norm(record: NetRecord<Backend>, precision: usize) {
         let device = Default::default();
-
 
         let model = Net::<Backend>::new_with(record);
 
@@ -62,7 +61,9 @@ mod tests {
             &device,
         );
 
-        output.to_data().assert_approx_eq(&expected.to_data(), precision);
+        output
+            .to_data()
+            .assert_approx_eq(&expected.to_data(), precision);
     }
 
     #[test]
@@ -82,6 +83,4 @@ mod tests {
 
         group_norm(record, 3);
     }
-
-
 }

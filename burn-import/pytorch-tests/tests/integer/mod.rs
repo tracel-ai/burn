@@ -26,7 +26,7 @@ impl<B: Backend> Net<B> {
 mod tests {
     type Backend = burn_ndarray::NdArray<f32>;
     use burn::{
-        record::{FullPrecisionSettings, Recorder, HalfPrecisionSettings},
+        record::{FullPrecisionSettings, HalfPrecisionSettings, Recorder},
         tensor::Data,
     };
     use burn_import::pytorch::PyTorchFileRecorder;
@@ -63,5 +63,5 @@ mod tests {
             .expect("Failed to decode state");
 
         integer(record, 0);
-    }    
+    }
 }
