@@ -14,12 +14,12 @@ use burn::{
 };
 use burn::data::dataset::Dataset;
 use crate::dataset::{DiabetesBatcher, DiabetesDataset};
-use crate::model::LinearModel;
+use crate::model::RegressionModelConfig;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
 #[derive(Config)]
-pub struct RegressionConfig {
+pub struct ExpConfig {
     #[config(default = 100)]
     pub num_epochs: usize,
 
@@ -35,13 +35,15 @@ pub struct RegressionConfig {
     pub input_feature_len: usize,
 
     #[config(default = 442)]
-    pub dataset_size: usize
+    pub dataset_size: usize,
 }
 
 pub fn run<B: AutodiffBackend>(device: B::Device) {
     // Config
-    let config_optimizer = SgdConfig::new();
-    let config = RegressionConfig::new(config_optimizer);
+    let optimizer = SgdConfig::new();
+    let config = ExpConfig::new(optimizer);
+    let model = RegressionModelConfig::new(config.input_feature_len)
+        .init(&device);
     B::seed(config.seed);
 
     // Define train/test datasets and dataloaders
@@ -85,7 +87,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .build(
-            LinearModel::new(config.input_feature_len,&device),
+            model,
             config.optimizer.init(),
             5e-3);
 

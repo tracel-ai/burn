@@ -53,7 +53,6 @@ pub struct DiabetesItem {
 }
 
 
-
 type ShuffledData = ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem>;
 type PartialData = PartialDataset<ShuffledData, DiabetesItem>;
 
@@ -79,10 +78,6 @@ impl DiabetesDataset {
     pub fn test() -> Self {
         Self::new("test")
     }
-
-    // pub fn get_full_data() -> SqliteDataset<DiabetesItem> {
-    //
-    // }
 
     pub fn new(split: &str) -> Self {
 
@@ -126,11 +121,16 @@ impl<B: Backend> DiabetesBatcher<B> {
     pub fn new(device: B::Device) -> Self {
         Self { device }
     }
+
+    pub fn min_max_norm<const D: usize>(&self, inp: Tensor<B, D>) -> Tensor<B, D> {
+        let min = inp.clone().min_dim(0);
+        let max = inp.clone().max_dim(0);
+        (inp.clone() - min.clone()).div(max - min)
+    }
 }
 
 impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> {
     fn batch(&self, items: Vec<DiabetesItem>) -> DiabetesBatch<B> {
-
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
@@ -155,8 +155,7 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
         }
 
         let inputs= Tensor::cat(inputs, 0);
-        let inputs = (inputs.clone() - inputs.clone().min_dim(0))
-            .div(inputs.clone().max_dim(0) - inputs.clone().min_dim(0));
+        let inputs = self.min_max_norm(inputs);
 
 
         let targets = items
@@ -165,8 +164,7 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
             .collect();
 
         let targets  = Tensor::cat(targets, 0);
-        let targets = (targets.clone() - targets.clone().min_dim(0))
-            .div(targets.clone().max_dim(0) - targets.clone().min_dim(0));
+        let targets = self.min_max_norm(targets);
 
         DiabetesBatch { inputs, targets}
     }
