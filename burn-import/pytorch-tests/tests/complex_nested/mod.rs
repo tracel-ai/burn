@@ -12,7 +12,7 @@ use burn::{
         Tensor,
     },
 };
-use burn_import::pytorch::PyTorchFileRecorder;
+use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
 #[derive(Module, Debug)]
 struct ConvBlock<B: Backend> {
@@ -76,6 +76,28 @@ impl<B: Backend> ConvBlock<B> {
     }
 }
 
+/// Partial model to test loading of partial records.
+#[derive(Module, Debug)]
+struct PartialNet<B: Backend> {
+    conv1: ConvBlock<B>,
+}
+
+impl<B: Backend> PartialNet<B> {
+    /// Create a new model from the given record.
+    pub fn new_with(record: PartialNetRecord<B>) -> Self {
+        let conv1 = ConvBlock {
+            conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record.conv1.conv),
+            norm: BatchNormConfig::new(2).init_with(record.conv1.norm),
+        };
+        Self { conv1 }
+    }
+
+    /// Forward pass of the model.
+    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        self.conv1.forward(x)
+    }
+}
+
 type TestBackend = burn_ndarray::NdArray<f32>;
 
 fn model_test(record: NetRecord<TestBackend>, precision: usize) {
@@ -125,4 +147,27 @@ fn half_record() {
     model_test(record, 4);
 }
 
-// TODO Subset weights test
+#[test]
+fn partial_model_loading() {
+    // Load the full model but rename "conv_blocks.0.*" to "conv1.*"
+    let load_args = LoadArgs::new("tests/complex_nested/complex_nested.pt".into())
+        .with_key_remap("conv_blocks\\.0\\.(.*)", "conv1.$1");
+
+    // Load the partial record from the full model
+    let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+        .load(load_args)
+        .expect("Failed to decode state");
+
+    let device = Default::default();
+
+    let model = PartialNet::<TestBackend>::new_with(record);
+
+    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
+
+    let output = model.forward(input);
+
+    // get the sum of all elements in the output tensor for quick check
+    let sum = output.sum();
+
+    assert_eq!(4.871538, sum.into_scalar());
+}
