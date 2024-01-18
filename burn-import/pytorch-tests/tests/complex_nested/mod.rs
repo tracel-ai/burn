@@ -98,6 +98,32 @@ impl<B: Backend> PartialNet<B> {
     }
 }
 
+/// Model with extra fields to test loading of records (e.g. from a different model).
+#[derive(Module, Debug)]
+struct PartialWithExtraNet<B: Backend> {
+    conv1: ConvBlock<B>,
+    extra_field: bool, // This field is not present in the pytorch model
+}
+
+impl<B: Backend> PartialWithExtraNet<B> {
+    /// Create a new model from the given record.
+    pub fn new_with(record: PartialWithExtraNetRecord<B>) -> Self {
+        let conv1 = ConvBlock {
+            conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record.conv1.conv),
+            norm: BatchNormConfig::new(2).init_with(record.conv1.norm),
+        };
+        Self {
+            conv1,
+            extra_field: true,
+        }
+    }
+
+    /// Forward pass of the model.
+    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        self.conv1.forward(x)
+    }
+}
+
 type TestBackend = burn_ndarray::NdArray<f32>;
 
 fn model_test(record: NetRecord<TestBackend>, precision: usize) {
@@ -170,4 +196,31 @@ fn partial_model_loading() {
     let sum = output.sum();
 
     assert_eq!(4.871538, sum.into_scalar());
+}
+
+#[test]
+fn extra_field_model_loading() {
+    // Load the full model but rename "conv_blocks.0.*" to "conv1.*"
+    let load_args = LoadArgs::new("tests/complex_nested/complex_nested.pt".into())
+        .with_key_remap("conv_blocks\\.0\\.(.*)", "conv1.$1");
+
+    // Load the partial record from the full model
+    let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+        .load(load_args)
+        .expect("Failed to decode state");
+
+    let device = Default::default();
+
+    let model = PartialWithExtraNet::<TestBackend>::new_with(record);
+
+    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
+
+    let output = model.forward(input);
+
+    // get the sum of all elements in the output tensor for quick check
+    let sum = output.sum();
+
+    assert_eq!(4.871538, sum.into_scalar());
+
+    assert_eq!(true, model.extra_field);
 }
