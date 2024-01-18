@@ -89,7 +89,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
         #record_struct
     };
 
-    gen.into()
+    gen
 }
 
 // When there is no backend in the generic parameter, the type is considered as a constant.
@@ -123,7 +123,7 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
         }
     };
 
-    gen.into()
+    gen
 }
 
 struct GenericsParser {

@@ -25,7 +25,6 @@ impl GenericsHelper {
     pub fn consts(&self) -> Vec<Ident> {
         self.generics
             .const_params()
-            .into_iter()
             .map(|c| c.ident.clone())
             .collect()
     }
@@ -33,7 +32,6 @@ impl GenericsHelper {
     pub fn types(&self) -> Vec<Ident> {
         self.generics
             .type_params()
-            .into_iter()
             .map(|tp| tp.ident.clone())
             .collect()
     }
