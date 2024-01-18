@@ -797,7 +797,7 @@ impl TensorDescription {
         let relative_id = if let Some(value) = converter.tensors_global2relative.get(&self.id) {
             // If we already have the same tensor registered, we have to update its value, but not
             // its id.
-            value.id.clone()
+            value.id
         } else {
             // We create a new relative id since we never seen this tensor in the graph before.
             TensorId::new(converter.tensors_relative2global.len() as u64)
@@ -819,7 +819,7 @@ impl TensorDescription {
 
         // We create the relative tensor.
         let relative_tensor = TensorDescription {
-            id: relative_id.clone(),
+            id: relative_id,
             shape: relative_shape,
             status: self.status.clone(),
         };
@@ -830,7 +830,7 @@ impl TensorDescription {
             .insert(relative_id, self.clone());
         converter
             .tensors_global2relative
-            .insert(self.id.clone(), relative_tensor.clone());
+            .insert(self.id, relative_tensor.clone());
 
         relative_tensor
     }

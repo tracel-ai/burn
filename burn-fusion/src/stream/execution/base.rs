@@ -60,15 +60,6 @@ impl<B: FusionBackend> OperationQueue<B> {
             .for_each(|tensor| handles.free(tensor));
 
         self.global.drain(0..num_drained);
-
-        handles.free_orphans(
-            &self
-                .global
-                .iter()
-                .flat_map(|desc| desc.nodes())
-                .map(|tensor| &tensor.id)
-                .collect::<Vec<_>>(),
-        );
         self.reset_relative();
     }
 
