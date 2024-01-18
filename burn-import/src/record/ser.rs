@@ -15,7 +15,7 @@ use serde::{
 /// NOTE: This is used to serialize Param structs into NestedValues and not so much for
 /// the actual serialization of modules (although it could be used for that as well if all
 /// primitive types are implemented).
-pub(crate) struct Serializer {
+pub struct Serializer {
     // The state of the serialization process
     state: Option<NestedValue>,
 }
