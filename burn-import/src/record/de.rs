@@ -526,9 +526,21 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         visitor.visit_string(Default::default())
     }
 
+    fn deserialize_struct<V>(
+        self,
+        _name: &'static str,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_map(DefaultMapAccess::new())
+    }
+
     forward_to_deserialize_any! {
         u128 bytes byte_buf unit unit_struct newtype_struct tuple
-        tuple_struct map enum identifier ignored_any struct
+        tuple_struct map enum identifier ignored_any
     }
 }
 
@@ -556,6 +568,44 @@ impl<'de> SeqAccess<'de> for DefaultSeqAccess {
     {
         // Since this is a default implementation, we'll just return None.
         Ok(None)
+    }
+
+    fn size_hint(&self) -> Option<usize> {
+        // Since this is a default implementation, we'll just return None.
+        None
+    }
+}
+
+pub struct DefaultMapAccess;
+
+impl Default for DefaultMapAccess {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DefaultMapAccess {
+    pub fn new() -> Self {
+        DefaultMapAccess
+    }
+}
+
+impl<'de> MapAccess<'de> for DefaultMapAccess {
+    type Error = Error;
+
+    fn next_key_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        // Since this is a default implementation, we'll just return None.
+        Ok(None)
+    }
+
+    fn next_value_seed<T>(&mut self, _seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        unimplemented!("This should never be called since next_key_seed always returns None")
     }
 
     fn size_hint(&self) -> Option<usize> {
