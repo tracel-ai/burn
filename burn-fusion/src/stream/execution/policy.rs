@@ -16,6 +16,8 @@ use std::marker::PhantomData;
 /// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
+    candidates_: Vec<StreamMatching<ExecutionPlanId>>,
+    availables_: Vec<(ExecutionPlanId, Vec<TriggerMatching>)>,
     // The potential explorations that we could apply to the current stream, but their streams
     // still exceed the size of the current stream.
     candidates: Vec<ExecutionPlanId>,
@@ -30,10 +32,100 @@ pub(crate) struct Policy<O> {
     _item_type: PhantomData<O>,
 }
 
+#[derive(new)]
+pub(crate) struct StreamMatching<ID> {
+    candidate: ID,
+    state: StreamMatchingState,
+}
+
+pub(crate) enum OnOperationProgress {
+    NotInit,
+    NumChecked(usize),
+}
+
+pub(crate) enum TriggerMatching {
+    OnOperations {
+        matching: StreamMatching<usize>,
+        progress: OnOperationProgress,
+    },
+    Always,
+    OnSync,
+}
+
+pub trait ItemStore<T: PartialEq> {
+    type ID: Copy;
+
+    fn get<'a>(&'a self, id: Self::ID) -> &'a [T];
+}
+
+#[derive(new)]
+pub(crate) struct TriggerStore<'a, O> {
+    id: ExecutionPlanId,
+    store: &'a ExecutionPlanStore<O>,
+}
+
+pub type TriggerIndex = usize;
+
+impl<'b, O> ItemStore<OperationDescription> for TriggerStore<'b, O> {
+    type ID = TriggerIndex;
+
+    fn get<'a>(&'a self, id: Self::ID) -> &'a [OperationDescription] {
+        match &self.store.get_unchecked(self.id).triggers[id] {
+            ExecutionTrigger::OnOperations(operations) => operations,
+            ExecutionTrigger::OnSync => &[],
+            ExecutionTrigger::Always => &[],
+        }
+    }
+}
+
+impl<O> ItemStore<OperationDescription> for ExecutionPlanStore<O> {
+    type ID = ExecutionPlanId;
+
+    fn get<'a>(&'a self, id: Self::ID) -> &'a [OperationDescription] {
+        &self.get_unchecked(id).operations
+    }
+}
+
+pub enum StreamMatchingState {
+    Found,
+    Invalidated,
+    Progressing,
+}
+
+impl<ID> StreamMatching<ID> {
+    pub fn check<S, T>(&mut self, added: &T, store: &S, num_check: usize)
+    where
+        S: ItemStore<T, ID = ID>,
+        ID: PartialEq + Copy,
+        T: PartialEq,
+    {
+        match &self.state {
+            StreamMatchingState::Found => return,
+            StreamMatchingState::Invalidated => return,
+            StreamMatchingState::Progressing => {}
+        };
+
+        let item = store.get(self.candidate);
+        let operation_candidate = &item[num_check];
+
+        if operation_candidate != added {
+            self.state = StreamMatchingState::Invalidated;
+            return;
+        }
+
+        // Finished
+        if item.len() == num_check + 1 {
+            self.state = StreamMatchingState::Found;
+        }
+    }
+}
+
 impl<O> Policy<O> {
     /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
+            candidates_: Vec::new(),
+            availables_: Vec::new(),
             candidates: Vec::new(),
             availables: Vec::new(),
             found: None,
@@ -59,7 +151,7 @@ impl<O> Policy<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                if !self.candidates.is_empty() {
+                if !self.candidates_.is_empty() {
                     return Action::Defer;
                 }
 
@@ -93,8 +185,60 @@ impl<O> Policy<O> {
     pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
         if self.num_operations == 0 {
             self.candidates = store.find(SearchQuery::PlansStartingWith(ops));
+            self.candidates_ = store
+                .find(SearchQuery::PlansStartingWith(ops))
+                .into_iter()
+                .map(|candidate| StreamMatching::new(candidate, StreamMatchingState::Progressing))
+                .collect();
         } else {
             self.analyze_candidates(store, ops);
+
+            let mut invalidated_candidates = Vec::new();
+            for candidate in self.candidates_.iter_mut() {
+                candidate.check(ops, store, self.num_operations);
+                for available in availables {
+                    let item = store.get_unchecked(available);
+                    let mut triggers = Vec::with_capacity(item.triggers.len());
+
+                    for (index, trigger) in item.triggers.iter().enumerate() {
+                        triggers.push(match trigger {
+                            ExecutionTrigger::OnOperations(_) => TriggerMatching::OnOperations {
+                                matching: StreamMatching::new(index, false),
+                                progress: OnOperationProgress::NotInit,
+                            },
+                            ExecutionTrigger::OnSync => TriggerMatching::OnSync,
+                            ExecutionTrigger::Always => TriggerMatching::OnSync,
+                        });
+                    }
+
+                    self.availables_.push((available, triggers));
+                }
+            }
+
+            for (available, triggers) in self.availables_.iter_mut() {
+                let store = TriggerStore::new(*available, store);
+                for trigger in triggers.iter_mut() {
+                    match trigger {
+                        TriggerMatching::OnOperations { matching, progress } => match progress {
+                            OnOperationProgress::NotInit => {
+                                *progress = OnOperationProgress::NumChecked(0);
+                            }
+                            OnOperationProgress::NumChecked(num_check) => {
+                                if !matching.check(ops, &store, *num_check).is_empty() {
+                                    self.found = Some((*available, self.num_operations));
+                                    return;
+                                }
+                                *num_check += 1;
+                            }
+                        },
+                        TriggerMatching::Always => {
+                            self.found = Some((*available, self.num_operations));
+                            return;
+                        }
+                        TriggerMatching::OnSync => {}
+                    }
+                }
+            }
         }
 
         self.num_operations += 1;
@@ -164,6 +308,14 @@ impl<O> Policy<O> {
             .into_iter()
             .filter(|candidate| !invalidated_candidates.contains(candidate))
             .collect();
+    }
+
+    fn analyze_availables(
+        &mut self,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
+    ) {
+        for id in self.availables.iter_mut() {}
     }
 }
 
@@ -242,7 +394,7 @@ mod tests {
             operations: stream.operations[0..2].to_vec(),
             triggers: stream.operations[2..3]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -279,8 +431,8 @@ mod tests {
         let id = store.add(ExecutionPlan {
             operations: stream_1.operations[0..2].to_vec(),
             triggers: vec![
-                ExecutionTrigger::OnOperation(stream_1.operations[2].clone()),
-                ExecutionTrigger::OnOperation(stream_2.operations[2].clone()),
+                ExecutionTrigger::OnOperations(vec![stream_1.operations[2].clone()]),
+                ExecutionTrigger::OnOperations(vec![stream_2.operations[2].clone()]),
             ],
             strategy: ExecutionStrategy::Operations,
         });
@@ -332,7 +484,7 @@ mod tests {
             operations: stream_1.operations[0..3].to_vec(),
             triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -340,7 +492,7 @@ mod tests {
             operations: stream_2.operations[0..3].to_vec(),
             triggers: stream_2.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -385,7 +537,7 @@ mod tests {
             operations: stream_1.operations[0..3].to_vec(),
             triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });

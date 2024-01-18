@@ -19,13 +19,9 @@ pub(crate) enum ExecutionStrategy<O> {
 }
 
 /// The trigger that indicates when to stop exploring.
-#[allow(clippy::large_enum_variant)]
-// Triggers are stored in a list, and you can have many `OnOperation` entries,
-// but only one `OnSync` entry and one `Always` entry, therefore we don't care if it takes more
-// space to store them.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
-    OnOperation(OperationDescription),
+    OnOperations(Vec<OperationDescription>),
     OnSync,
     Always,
 }
@@ -49,8 +45,8 @@ impl<O> ExecutionPlan<O> {
     pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
         for item in self.triggers.iter() {
             match item {
-                ExecutionTrigger::OnOperation(val) => {
-                    if val == ops {
+                ExecutionTrigger::OnOperations(val) => {
+                    if &val[0] == ops {
                         return true;
                     }
                 }

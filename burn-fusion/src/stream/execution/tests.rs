@@ -81,7 +81,7 @@ fn should_support_complex_stream() {
     let builder_2 = TestOptimizationBuilder::new(
         builder_id_2,
         vec![operation_2(), operation_2()],
-        ExecutionTrigger::OnOperation(operation_1()),
+        ExecutionTrigger::OnOperations(vec![operation_1()]),
     );
 
     // We finally build the stream with those optimization builders.
@@ -145,7 +145,7 @@ fn should_support_complex_stream() {
         plan_id_3,
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
-            triggers: vec![ExecutionTrigger::OnOperation(operation_1())],
+            triggers: vec![ExecutionTrigger::OnOperations(vec![operation_1()])],
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
         },
     );
@@ -185,7 +185,7 @@ fn should_support_complex_stream() {
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
             triggers: vec![
-                ExecutionTrigger::OnOperation(operation_1()),
+                ExecutionTrigger::OnOperations(vec![operation_1()]),
                 ExecutionTrigger::OnSync, // We also add OnSync in the triggers.
             ],
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
@@ -301,7 +301,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
                 // Stop right away.
                 ExecutionTrigger::Always => OptimizationStatus::Closed,
                 // Wait for the next operation to show up.
-                ExecutionTrigger::OnOperation(_) => OptimizationStatus::Open,
+                ExecutionTrigger::OnOperations(_) => OptimizationStatus::Open,
                 // Doesn't matter on sync, even open should trigger a build if possible.
                 ExecutionTrigger::OnSync => OptimizationStatus::Open,
             };

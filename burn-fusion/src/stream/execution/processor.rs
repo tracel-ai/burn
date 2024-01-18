@@ -156,7 +156,7 @@ impl<O> Processor<O> {
                 let next_ops = operations.get(num_fused);
 
                 let trigger = if let Some(next_ops) = next_ops {
-                    ExecutionTrigger::OnOperation(next_ops.clone())
+                    ExecutionTrigger::OnOperations(vec![next_ops.clone()])
                 } else {
                     // Happens if the next ops is included in the fused operation, and there is no
                     // way the builder can still continue fusing.
