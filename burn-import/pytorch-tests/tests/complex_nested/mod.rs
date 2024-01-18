@@ -31,16 +31,18 @@ struct Net<B: Backend> {
 impl<B: Backend> Net<B> {
     /// Create a new model from the given record.
     pub fn new_with(record: NetRecord<B>) -> Self {
+        let mut record = record;
+        let record_block_0 = record.conv_blocks.remove(0);
+        let record_block_1 = record.conv_blocks.remove(0);
+
         let conv_blocks = vec![
             ConvBlock {
-                conv: Conv2dConfig::new([2, 4], [3, 2])
-                    .init_with(record.conv_blocks[0].conv.clone()),
-                norm: BatchNormConfig::new(2).init_with(record.conv_blocks[0].norm.clone()),
+                conv: Conv2dConfig::new([2, 4], [3, 2]).init_with(record_block_0.conv),
+                norm: BatchNormConfig::new(2).init_with(record_block_0.norm),
             },
             ConvBlock {
-                conv: Conv2dConfig::new([4, 6], [3, 2])
-                    .init_with(record.conv_blocks[1].conv.clone()),
-                norm: BatchNormConfig::new(4).init_with(record.conv_blocks[1].norm.clone()),
+                conv: Conv2dConfig::new([4, 6], [3, 2]).init_with(record_block_1.conv),
+                norm: BatchNormConfig::new(4).init_with(record_block_1.norm),
             },
         ];
         let norm1 = BatchNormConfig::new(6).init_with(record.norm1);
