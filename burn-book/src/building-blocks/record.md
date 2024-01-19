@@ -14,13 +14,13 @@ the flexibility possible to include any non-serializable field within your modul
 
 **Why not use safetensors?**
 
-`Safetensors` uses serde with the JSON file format and only supports serializing and deserializing
+[`safetensors`](https://github.com/huggingface/safetensors) uses serde with the JSON file format and only supports serializing and deserializing
 tensors. The record system in Burn gives you the possibility to serialize any type, which is very
 useful for optimizers that save their state, but also for any non-standard, cutting-edge modeling
 needs you may have. Additionally, the record system performs automatic precision conversion by using
 Rust types, making it more reliable with fewer manual manipulations. 
 
-It is important to note that the `safetensors` format uses the word *safe* to distinguish itself from Pickle, which is vulnerable to Python code injection. The safety comes from a checksum mechanism that guarantees that the data suffered no corruption. On our end, the simple fact that we use Rust already ensures that no code injection is possible. To prevent any data corruption, using a recorder with Gzip compression is recommended, as it includes a checksum mechanism.  
+It is important to note that the `safetensors` format uses the word *safe* to distinguish itself from Pickle, which is vulnerable to Python code injection. On our end, the simple fact that we use Rust already ensures that no code injection is possible. To prevent any data corruption, using a recorder with Gzip compression is recommended, as it includes a checksum mechanism.  
 
 ## Recorder
 
