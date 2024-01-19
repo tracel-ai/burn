@@ -15,13 +15,13 @@ use burn::{
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
 #[derive(Module, Debug)]
-struct ConvBlock<B: Backend> {
+pub struct ConvBlock<B: Backend> {
     conv: Conv2d<B>,
     norm: BatchNorm<B, 2>,
 }
 
 #[derive(Module, Debug)]
-struct Net<B: Backend> {
+pub struct Net<B: Backend> {
     conv_blocks: Vec<ConvBlock<B>>,
     norm1: BatchNorm<B, 2>,
     fc1: Linear<B>,
@@ -80,7 +80,7 @@ impl<B: Backend> ConvBlock<B> {
 
 /// Partial model to test loading of partial records.
 #[derive(Module, Debug)]
-struct PartialNet<B: Backend> {
+pub struct PartialNet<B: Backend> {
     conv1: ConvBlock<B>,
 }
 
@@ -102,7 +102,7 @@ impl<B: Backend> PartialNet<B> {
 
 /// Model with extra fields to test loading of records (e.g. from a different model).
 #[derive(Module, Debug)]
-struct PartialWithExtraNet<B: Backend> {
+pub struct PartialWithExtraNet<B: Backend> {
     conv1: ConvBlock<B>,
     extra_field: bool, // This field is not present in the pytorch model
 }

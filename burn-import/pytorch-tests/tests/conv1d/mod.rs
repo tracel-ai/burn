@@ -5,7 +5,7 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-struct Net<B: Backend> {
+pub struct Net<B: Backend> {
     conv1: Conv1d<B>,
     conv2: Conv1d<B>,
 }

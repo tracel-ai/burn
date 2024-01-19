@@ -5,7 +5,7 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-struct Net<B: Backend> {
+pub struct Net<B: Backend> {
     embed: Embedding<B>,
 }
 

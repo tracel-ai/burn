@@ -4,7 +4,7 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-struct Net<B: Backend> {
+pub struct Net<B: Backend> {
     buffer: Param<Tensor<B, 2>>,
 }
 
