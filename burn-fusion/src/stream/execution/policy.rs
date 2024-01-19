@@ -16,26 +16,26 @@ use std::marker::PhantomData;
 /// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    candidates_: Vec<StreamMatching<ExecutionPlanId>>,
-    availables_: Vec<(ExecutionPlanId, Vec<TriggerMatching>)>,
-    // The potential explorations that we could apply to the current stream, but their streams
-    // still exceed the size of the current stream.
-    candidates: Vec<ExecutionPlanId>,
-    // Optimizations that we find during the `updates`, but none of their `trigger` matches the
-    // current stream.
-    availables: Vec<(ExecutionPlanId, usize)>,
-    // Optimization that we find during the `updates` where one of its `triggers` matches the
-    // current stream.
+    candidates: Vec<StreamMatching<ExecutionPlanId>>,
+    availables: Vec<(ExecutionPlanId, usize, Vec<TriggerMatching>)>,
     found: Option<(ExecutionPlanId, usize)>,
-    // The number of operations analyzed.
     num_operations: usize,
     _item_type: PhantomData<O>,
 }
 
-#[derive(new)]
+#[derive(Debug)]
 pub(crate) struct StreamMatching<ID> {
-    candidate: ID,
+    id: ID,
     state: StreamMatchingState,
+}
+
+impl<ID> StreamMatching<ID> {
+    pub fn new(id: ID) -> Self {
+        Self {
+            id,
+            state: StreamMatchingState::Progressing,
+        }
+    }
 }
 
 pub(crate) enum OnOperationProgress {
@@ -86,27 +86,34 @@ impl<O> ItemStore<OperationDescription> for ExecutionPlanStore<O> {
     }
 }
 
+#[derive(Debug)]
 pub enum StreamMatchingState {
-    Found,
+    Found { size: usize },
     Invalidated,
     Progressing,
 }
 
 impl<ID> StreamMatching<ID> {
-    pub fn check<S, T>(&mut self, added: &T, store: &S, num_check: usize)
+    pub fn update<S, T>(&mut self, added: &T, store: &S, num_check: usize)
     where
         S: ItemStore<T, ID = ID>,
         ID: PartialEq + Copy,
         T: PartialEq,
     {
         match &self.state {
-            StreamMatchingState::Found => return,
+            StreamMatchingState::Found { size: _ } => return,
             StreamMatchingState::Invalidated => return,
             StreamMatchingState::Progressing => {}
         };
 
-        let item = store.get(self.candidate);
-        let operation_candidate = &item[num_check];
+        let item = store.get(self.id);
+        let operation_candidate = match item.get(num_check) {
+            Some(val) => val,
+            None => {
+                self.state = StreamMatchingState::Invalidated;
+                return;
+            }
+        };
 
         if operation_candidate != added {
             self.state = StreamMatchingState::Invalidated;
@@ -115,7 +122,7 @@ impl<ID> StreamMatching<ID> {
 
         // Finished
         if item.len() == num_check + 1 {
-            self.state = StreamMatchingState::Found;
+            self.state = StreamMatchingState::Found { size: item.len() };
         }
     }
 }
@@ -124,8 +131,6 @@ impl<O> Policy<O> {
     /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
-            candidates_: Vec::new(),
-            availables_: Vec::new(),
             candidates: Vec::new(),
             availables: Vec::new(),
             found: None,
@@ -151,8 +156,26 @@ impl<O> Policy<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                if !self.candidates_.is_empty() {
+                if !self.candidates.is_empty() {
                     return Action::Defer;
+                }
+
+                for (_available, size, triggers) in self.availables.iter() {
+                    if *size == operations.len() {
+                        return Action::Defer;
+                    }
+
+                    for trigger in triggers {
+                        if let TriggerMatching::OnOperations {
+                            matching,
+                            progress: _,
+                        } = trigger
+                        {
+                            if let StreamMatchingState::Progressing = matching.state {
+                                return Action::Defer;
+                            }
+                        }
+                    }
                 }
 
                 Action::Explore
@@ -160,19 +183,19 @@ impl<O> Policy<O> {
             ExecutionMode::Sync => {
                 // If an execution plan covers the _whole_ operation list, we return it, else we explore new
                 // plans.
-                for (id, length) in self.availables.iter() {
+                for (id, length, _triggers) in self.availables.iter() {
                     if *length == operations.len() {
                         return Action::Execute(*id);
                     }
                 }
 
                 for candidate in self.candidates.iter() {
-                    let item = store.get_unchecked(*candidate);
+                    let item = store.get_unchecked(candidate.id);
 
                     // The candidate can actually be executed, since the stream is of the same
                     // size.
                     if item.operations.len() == operations.len() {
-                        return Action::Execute(*candidate);
+                        return Action::Execute(candidate.id);
                     }
                 }
 
@@ -184,61 +207,14 @@ impl<O> Policy<O> {
     /// Update the policy state.
     pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
         if self.num_operations == 0 {
-            self.candidates = store.find(SearchQuery::PlansStartingWith(ops));
-            self.candidates_ = store
+            self.candidates = store
                 .find(SearchQuery::PlansStartingWith(ops))
                 .into_iter()
-                .map(|candidate| StreamMatching::new(candidate, StreamMatchingState::Progressing))
+                .map(|candidate| StreamMatching::new(candidate))
                 .collect();
         } else {
             self.analyze_candidates(store, ops);
-
-            let mut invalidated_candidates = Vec::new();
-            for candidate in self.candidates_.iter_mut() {
-                candidate.check(ops, store, self.num_operations);
-                for available in availables {
-                    let item = store.get_unchecked(available);
-                    let mut triggers = Vec::with_capacity(item.triggers.len());
-
-                    for (index, trigger) in item.triggers.iter().enumerate() {
-                        triggers.push(match trigger {
-                            ExecutionTrigger::OnOperations(_) => TriggerMatching::OnOperations {
-                                matching: StreamMatching::new(index, false),
-                                progress: OnOperationProgress::NotInit,
-                            },
-                            ExecutionTrigger::OnSync => TriggerMatching::OnSync,
-                            ExecutionTrigger::Always => TriggerMatching::OnSync,
-                        });
-                    }
-
-                    self.availables_.push((available, triggers));
-                }
-            }
-
-            for (available, triggers) in self.availables_.iter_mut() {
-                let store = TriggerStore::new(*available, store);
-                for trigger in triggers.iter_mut() {
-                    match trigger {
-                        TriggerMatching::OnOperations { matching, progress } => match progress {
-                            OnOperationProgress::NotInit => {
-                                *progress = OnOperationProgress::NumChecked(0);
-                            }
-                            OnOperationProgress::NumChecked(num_check) => {
-                                if !matching.check(ops, &store, *num_check).is_empty() {
-                                    self.found = Some((*available, self.num_operations));
-                                    return;
-                                }
-                                *num_check += 1;
-                            }
-                        },
-                        TriggerMatching::Always => {
-                            self.found = Some((*available, self.num_operations));
-                            return;
-                        }
-                        TriggerMatching::OnSync => {}
-                    }
-                }
-            }
+            self.analyze_availables(store, ops);
         }
 
         self.num_operations += 1;
@@ -248,6 +224,7 @@ impl<O> Policy<O> {
     pub fn reset(&mut self) {
         self.candidates.clear();
         self.availables.clear();
+
         self.num_operations = 0;
         self.found = None;
     }
@@ -257,48 +234,36 @@ impl<O> Policy<O> {
         store: &ExecutionPlanStore<O>,
         operation: &OperationDescription,
     ) {
-        // The index starts at zero.
         let mut invalidated_candidates = Vec::new();
+        for candidate in self.candidates.iter_mut() {
+            candidate.update(operation, store, self.num_operations);
 
-        for id in self.candidates.iter() {
-            let item = store.get_unchecked(*id);
+            match candidate.state {
+                StreamMatchingState::Found { size } => {
+                    let item = store.get_unchecked(candidate.id);
+                    let mut triggers = Vec::with_capacity(item.triggers.len());
 
-            if item.operations.len() == self.num_operations + 1
-                && item.operations.last().unwrap() == operation
-                && item.triggers.contains(&ExecutionTrigger::Always)
-            {
-                self.found = Some((*id, item.operations.len()));
-                break;
-            }
+                    for (index, trigger) in item.triggers.iter().enumerate() {
+                        triggers.push(match trigger {
+                            ExecutionTrigger::OnOperations(_) => TriggerMatching::OnOperations {
+                                matching: StreamMatching::new(index),
+                                progress: OnOperationProgress::NotInit,
+                            },
+                            ExecutionTrigger::OnSync => TriggerMatching::OnSync,
+                            ExecutionTrigger::Always => TriggerMatching::Always,
+                        });
+                    }
 
-            if item.operations.len() == self.num_operations {
-                if item.should_stop_async(operation) {
-                    self.found = Some((*id, item.operations.len()));
-                    break;
-                } else {
-                    // The plan is available, but the current operation isn't an existing
-                    // trigger for this plan, so we may find a better plan by
-                    // still growing the operation list.
-                    self.availables.push((*id, item.operations.len()));
-                    invalidated_candidates.push(*id);
-                    continue;
+                    self.availables.push((candidate.id, size, triggers));
+                    invalidated_candidates.push(candidate.id);
+                }
+                StreamMatchingState::Invalidated => {
+                    invalidated_candidates.push(candidate.id);
+                }
+                StreamMatchingState::Progressing => {
+                    // Nothing to do.
                 }
             };
-
-            let operation_candidate = match item.operations.get(self.num_operations) {
-                Some(val) => val,
-                None => {
-                    // Operation list of different size, invalidated.
-                    invalidated_candidates.push(*id);
-                    continue;
-                }
-            };
-
-            if operation_candidate != operation {
-                // Operation list with different node at the current position, invalidated.
-                invalidated_candidates.push(*id);
-                continue;
-            }
         }
 
         let mut updated_candidates = Vec::new();
@@ -306,7 +271,12 @@ impl<O> Policy<O> {
 
         self.candidates = updated_candidates
             .into_iter()
-            .filter(|candidate| !invalidated_candidates.contains(candidate))
+            .filter(|candidate| {
+                invalidated_candidates
+                    .iter()
+                    .find(|id| *id == &candidate.id)
+                    .is_none()
+            })
             .collect();
     }
 
@@ -315,7 +285,32 @@ impl<O> Policy<O> {
         store: &ExecutionPlanStore<O>,
         operation: &OperationDescription,
     ) {
-        for id in self.availables.iter_mut() {}
+        for (available, size, triggers) in self.availables.iter_mut() {
+            let store_trigger = TriggerStore::new(*available, store);
+            for trigger in triggers.iter_mut() {
+                match trigger {
+                    TriggerMatching::OnOperations { matching, progress } => match progress {
+                        OnOperationProgress::NotInit => {
+                            *progress = OnOperationProgress::NumChecked(0);
+                        }
+                        OnOperationProgress::NumChecked(num_check) => {
+                            matching.update(operation, &store_trigger, *num_check);
+                            *num_check += 1;
+
+                            if let StreamMatchingState::Found { size: _ } = matching.state {
+                                self.found = Some((*available, *size));
+                                return;
+                            }
+                        }
+                    },
+                    TriggerMatching::Always => {
+                        self.found = Some((*available, *size));
+                        return;
+                    }
+                    TriggerMatching::OnSync => {}
+                }
+            }
+        }
     }
 }
 

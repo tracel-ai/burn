@@ -43,17 +43,13 @@ impl<O> Explorer<O> {
         &'a mut self,
         operations: &[OperationDescription],
         mode: ExecutionMode,
+        num_new_operation: usize,
     ) -> Exploration<'a, O> {
-        // When we are executing with the new operation mode, we need to register the last ops of the
-        // stream even when there is no skipped operation.
-        let offset = match mode {
-            ExecutionMode::Lazy => 1,
-            ExecutionMode::Sync => 0,
-        };
+        println!("Num defer {} = {}", self.num_deferred, num_new_operation);
 
         let mut is_still_optimizing = still_optimizing(&self.builders);
 
-        for i in (0..self.num_deferred + offset).rev() {
+        for i in (0..self.num_deferred + num_new_operation).rev() {
             if !is_still_optimizing {
                 break;
             }

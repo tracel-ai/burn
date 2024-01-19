@@ -38,21 +38,47 @@ impl<O> Processor<O> {
     ) where
         Segment: StreamSegment<O>,
     {
+        let mut num_new_operation = 0;
+        if let ExecutionMode::Lazy = mode {
+            // We update the policy in lazy mode, since
+            num_new_operation = 1;
+            self.policy.update(
+                store,
+                segment
+                    .operations()
+                    .last()
+                    .expect("At least one operation in the operation list."),
+            );
+        };
+
         loop {
             if segment.operations().is_empty() {
                 break;
             }
 
-            match self.action(store, segment.operations(), mode) {
+            match self.policy.action(store, segment.operations(), mode) {
                 Action::Explore => {
-                    self.explore(&mut segment, store, mode);
+                    println!(
+                        "Explore {:?} new {}",
+                        segment.operations().len(),
+                        num_new_operation
+                    );
+                    self.explore(&mut segment, store, mode, num_new_operation);
 
                     if self.explorer.is_up_to_date() {
                         break;
                     }
                 }
                 Action::Defer => {
-                    self.explorer.defer();
+                    println!(
+                        "Defer {:?} new {}",
+                        segment.operations().len(),
+                        num_new_operation
+                    );
+
+                    if num_new_operation == 1 {
+                        self.explorer.defer();
+                    }
 
                     match mode {
                         ExecutionMode::Lazy => break,
@@ -69,9 +95,7 @@ impl<O> Processor<O> {
                 }
             };
 
-            if let ExecutionMode::Lazy = mode {
-                break;
-            }
+            num_new_operation = 0;
         }
     }
 
@@ -80,8 +104,9 @@ impl<O> Processor<O> {
         item: &mut Item,
         store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
+        num_explored: usize,
     ) {
-        match self.explorer.explore(item.operations(), mode) {
+        match self.explorer.explore(item.operations(), mode, num_explored) {
             Exploration::Found(optim) => {
                 let id = Self::on_optimization_found(
                     &self.policy,
@@ -122,25 +147,6 @@ impl<O> Processor<O> {
         }
     }
 
-    fn action(
-        &mut self,
-        store: &ExecutionPlanStore<O>,
-        operations: &[OperationDescription],
-        mode: ExecutionMode,
-    ) -> Action {
-        if let ExecutionMode::Lazy = mode {
-            // We update the policy in lazy mode, since
-            self.policy.update(
-                store,
-                operations
-                    .last()
-                    .expect("At least one operation in the operation list."),
-            );
-        };
-
-        self.policy.action(store, operations, mode)
-    }
-
     fn on_optimization_found(
         policy: &Policy<O>,
         operations: &[OperationDescription],
@@ -153,14 +159,14 @@ impl<O> Processor<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                let next_ops = operations.get(num_fused);
+                let next_ops = &operations[num_fused..operations.len()];
 
-                let trigger = if let Some(next_ops) = next_ops {
-                    ExecutionTrigger::OnOperations(vec![next_ops.clone()])
-                } else {
+                let trigger = if next_ops.is_empty() {
                     // Happens if the next ops is included in the fused operation, and there is no
                     // way the builder can still continue fusing.
                     ExecutionTrigger::Always
+                } else {
+                    ExecutionTrigger::OnOperations(next_ops.to_vec())
                 };
 
                 match policy.action(store, relative, ExecutionMode::Sync) {

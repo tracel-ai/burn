@@ -32,7 +32,6 @@ struct TestStream {
 struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationDescription>,
-    expected_trigger: ExecutionTrigger,
     actual: Vec<OperationDescription>,
 }
 
@@ -71,18 +70,10 @@ fn should_support_complex_stream() {
 
     // The first builder only contains 2 operations, and the optimization is always available when
     // the pattern is met.
-    let builder_1 = TestOptimizationBuilder::new(
-        builder_id_1,
-        vec![operation_1(), operation_2()],
-        ExecutionTrigger::Always,
-    );
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
     // The second builder also contains 2 operations, but only becomes available when an operation
     // is met.
-    let builder_2 = TestOptimizationBuilder::new(
-        builder_id_2,
-        vec![operation_2(), operation_2()],
-        ExecutionTrigger::OnOperations(vec![operation_1()]),
-    );
+    let builder_2 = TestOptimizationBuilder::new(builder_id_2, vec![operation_2(), operation_2()]);
 
     // We finally build the stream with those optimization builders.
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
@@ -133,22 +124,22 @@ fn should_support_complex_stream() {
 
     // Nothing to execute.
     stream.add(operation_2());
-    stream.assert_number_of_operations(2);
-    stream.assert_number_of_executions(2);
-
-    // Now we should trigger the second optimization builder.
-    stream.add(operation_1());
-    stream.assert_number_of_operations(1);
+    stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(3);
     stream.assert_last_executed(plan_id_3);
     stream.assert_plan(
         plan_id_3,
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
-            triggers: vec![ExecutionTrigger::OnOperations(vec![operation_1()])],
+            triggers: vec![ExecutionTrigger::Always],
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
         },
     );
+
+    // Now we should trigger the second optimization builder.
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(3);
 
     // Now we should trigger the first optimization builder (second plan).
     stream.add(operation_2());
@@ -171,24 +162,144 @@ fn should_support_complex_stream() {
 
     // Nothing to execute.
     stream.add(operation_2());
-    stream.assert_number_of_operations(2);
-    stream.assert_number_of_executions(4);
-
-    // On sync we should execute all operations even if their trigger isn't met.
-    // In this case the optimization from builder 2 (plan 3).
-    stream.sync();
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(5);
     stream.assert_last_executed(plan_id_3);
+}
+
+#[test]
+fn should_support_overlapping_optimizations() {
+    // We have 2 different optimization builders in this test case.
+    let builder_id_1 = 0;
+    let builder_id_2 = 0;
+
+    // We will have a total of 3 execution plans to execute.
+    let plan_id_1 = 0;
+    let plan_id_2 = 1;
+    let plan_id_3 = 2;
+    let plan_id_4 = 3;
+
+    // The first builder only contains 2 operations, and the optimization is always available when
+    // the pattern is met.
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
+    let builder_2 = TestOptimizationBuilder::new(
+        builder_id_2,
+        vec![operation_1(), operation_2(), operation_1(), operation_1()],
+    );
+
+    // We finally build the stream with those optimization builders.
+    let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![ExecutionTrigger::OnOperations(vec![
+                operation_1(),
+                operation_2(),
+            ])],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(3);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![
+                ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
+                ExecutionTrigger::OnOperations(vec![operation_2()]),
+            ],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+    stream.assert_plan(
+        plan_id_2,
+        ExecutionPlan {
+            operations: vec![operation_2()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(4);
+
     stream.assert_plan(
         plan_id_3,
         ExecutionPlan {
-            operations: vec![operation_2(), operation_2()],
+            operations: vec![operation_1(), operation_2(), operation_1(), operation_1()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 4)),
+        },
+    );
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(4);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(4);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(4);
+
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(6);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
             triggers: vec![
-                ExecutionTrigger::OnOperations(vec![operation_1()]),
-                ExecutionTrigger::OnSync, // We also add OnSync in the triggers.
+                ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
+                ExecutionTrigger::OnOperations(vec![operation_2()]),
+                ExecutionTrigger::OnSync,
             ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+    println!("AAAAAAAAAAAAAAAAAAAAA");
+    stream.assert_plan(
+        plan_id_4,
+        ExecutionPlan {
+            operations: vec![operation_1()],
+            triggers: vec![ExecutionTrigger::OnSync],
+            strategy: ExecutionStrategy::Operations,
         },
     );
 }
@@ -226,8 +337,8 @@ impl TestStream {
     /// Assert that the plan has been executed as provided.
     fn assert_plan(&self, id: ExecutionPlanId, expected: ExecutionPlan<TestOptimization>) {
         let actual = self.store.get_unchecked(id);
-        assert_eq!(actual.triggers, expected.triggers);
-        assert_eq!(actual.operations, expected.operations);
+        assert_eq!(actual.triggers, expected.triggers, "Same triggers");
+        assert_eq!(actual.operations, expected.operations, "Same operations");
     }
 
     /// Assert that the given plan id has been the last executed.
@@ -251,16 +362,11 @@ impl TestStream {
 
 impl TestOptimizationBuilder {
     /// Create a new optimization builder that follows a pattern with a trigger.
-    fn new(
-        builder_id: usize,
-        operations: Vec<OperationDescription>,
-        trigger: ExecutionTrigger,
-    ) -> Self {
+    fn new(builder_id: usize, operations: Vec<OperationDescription>) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
             actual: Vec::new(),
-            expected_trigger: trigger,
         }
     }
 }
@@ -283,8 +389,6 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
     /// Return the optimization status.
     fn status(&self) -> OptimizationStatus {
-        let actual_equal_expected = self.actual == self.expected_operations;
-
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
@@ -293,17 +397,6 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
                 true => OptimizationStatus::Open,
                 // Never gonna be possible on that stream.
                 false => OptimizationStatus::Closed,
-            };
-        }
-
-        if self.actual.len() == self.expected_operations.len() && actual_equal_expected {
-            return match self.expected_trigger {
-                // Stop right away.
-                ExecutionTrigger::Always => OptimizationStatus::Closed,
-                // Wait for the next operation to show up.
-                ExecutionTrigger::OnOperations(_) => OptimizationStatus::Open,
-                // Doesn't matter on sync, even open should trigger a build if possible.
-                ExecutionTrigger::OnSync => OptimizationStatus::Open,
             };
         }
 
