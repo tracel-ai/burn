@@ -17,7 +17,7 @@ pub enum Error {
     InvalidState,
 
     // Add other kinds of errors as needed
-    #[error("other error")]
+    #[error("other error: {0}")]
     Other(String),
 }
 
