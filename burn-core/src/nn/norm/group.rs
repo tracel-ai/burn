@@ -200,7 +200,7 @@ mod tests {
         module
             .gamma
             .as_ref()
-            .expect("weight is None")
+            .expect("gamma is None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::ones([6].into()), 3);
@@ -208,7 +208,7 @@ mod tests {
         module
             .beta
             .as_ref()
-            .expect("bias is None")
+            .expect("beta is None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);
