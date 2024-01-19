@@ -40,25 +40,6 @@ pub(crate) struct ExecutionPlan<O> {
     pub(crate) strategy: ExecutionStrategy<O>,
 }
 
-impl<O> ExecutionPlan<O> {
-    /// Whether exploration should be stop in an async mode.
-    pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
-        for item in self.triggers.iter() {
-            match item {
-                ExecutionTrigger::OnOperations(val) => {
-                    if &val[0] == ops {
-                        return true;
-                    }
-                }
-                ExecutionTrigger::Always => return true,
-                ExecutionTrigger::OnSync => continue,
-            }
-        }
-
-        false
-    }
-}
-
 impl<O> ExecutionPlanStore<O> {
     pub fn new() -> Self {
         Self {

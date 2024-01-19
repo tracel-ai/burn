@@ -1,3 +1,5 @@
+pub(crate) mod matching;
+
 mod base;
 mod explorer;
 mod policy;

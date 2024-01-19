@@ -38,18 +38,10 @@ impl<O> Processor<O> {
     ) where
         Segment: StreamSegment<O>,
     {
-        let mut num_new_operation = 0;
+        // We assume that we always register a new operation in lazy mode.
         if let ExecutionMode::Lazy = mode {
-            // We update the policy in lazy mode, since
-            num_new_operation = 1;
-            self.policy.update(
-                store,
-                segment
-                    .operations()
-                    .last()
-                    .expect("At least one operation in the operation list."),
-            );
-        };
+            self.on_new_operation(&segment, store);
+        }
 
         loop {
             if segment.operations().is_empty() {
@@ -58,28 +50,13 @@ impl<O> Processor<O> {
 
             match self.policy.action(store, segment.operations(), mode) {
                 Action::Explore => {
-                    println!(
-                        "Explore {:?} new {}",
-                        segment.operations().len(),
-                        num_new_operation
-                    );
-                    self.explore(&mut segment, store, mode, num_new_operation);
+                    self.explore(&mut segment, store, mode);
 
                     if self.explorer.is_up_to_date() {
                         break;
                     }
                 }
                 Action::Defer => {
-                    println!(
-                        "Defer {:?} new {}",
-                        segment.operations().len(),
-                        num_new_operation
-                    );
-
-                    if num_new_operation == 1 {
-                        self.explorer.defer();
-                    }
-
                     match mode {
                         ExecutionMode::Lazy => break,
                         ExecutionMode::Sync => panic!("Can't defer while sync"),
@@ -94,9 +71,21 @@ impl<O> Processor<O> {
                     self.reset(store, segment.operations());
                 }
             };
-
-            num_new_operation = 0;
         }
+    }
+
+    fn on_new_operation<Segment>(&mut self, segment: &Segment, store: &mut ExecutionPlanStore<O>)
+    where
+        Segment: StreamSegment<O>,
+    {
+        self.policy.update(
+            store,
+            segment
+                .operations()
+                .last()
+                .expect("At least one operation in the operation list."),
+        );
+        self.explorer.on_new_operation();
     }
 
     fn explore<Item: StreamSegment<O>>(
@@ -104,9 +93,8 @@ impl<O> Processor<O> {
         item: &mut Item,
         store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
-        num_explored: usize,
     ) {
-        match self.explorer.explore(item.operations(), mode, num_explored) {
+        match self.explorer.explore(item.operations(), mode) {
             Exploration::Found(optim) => {
                 let id = Self::on_optimization_found(
                     &self.policy,
