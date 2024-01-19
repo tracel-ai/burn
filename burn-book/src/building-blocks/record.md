@@ -29,7 +29,7 @@ that the format can also be in-memory, allowing you to save the records directly
 
 | Recorder               | Format                    | Compression |
 | ---------------------- | ------------------------- | ----------- |
-| DefaultFileRecorder    | File - Named Message Park | Gzip        |
+| DefaultFileRecorder    | File - Named Message Park | None        |
 | NamedMpkFileRecorder   | File - Named Message Park | None        |
 | NamedMpkGzFileRecorder | File - Named Message Park | Gzip        |
 | BinFileRecorder        | File - Binary             | None        |
