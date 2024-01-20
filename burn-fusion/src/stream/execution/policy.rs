@@ -63,6 +63,12 @@ impl<O> Policy<O> {
         operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
+        // println!("================= ACTION ================");
+        // println!("Mode {:?}", mode);
+        // println!("Candidates {:?}", self.candidates);
+        // println!("Availables {:?}", self.availables);
+        // println!("operations {:?}", operations);
+        // println!("================= END ================");
         if self.num_operations < operations.len() {
             panic!("Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed.");
         }
@@ -78,18 +84,20 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
+    pub fn update(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationDescription) {
         if self.num_operations == 0 {
             self.candidates = store
-                .find(SearchQuery::PlansStartingWith(ops))
+                .find(SearchQuery::PlansStartingWith(operation))
                 .into_iter()
                 .map(|candidate| OperationsMatching::new(candidate))
                 .collect();
-        } else {
-            self.update_candidates(store, ops);
-            self.update_availables(store, ops);
         }
 
+        self.update_candidates(store, operation);
+        self.check_candidates(store);
+
+        self.update_availables(store, operation);
+        self.check_availables();
         self.num_operations += 1;
     }
 
@@ -102,17 +110,11 @@ impl<O> Policy<O> {
         self.found = None;
     }
 
-    fn update_candidates(
-        &mut self,
-        store: &ExecutionPlanStore<O>,
-        operation: &OperationDescription,
-    ) {
+    fn check_candidates(&mut self, store: &ExecutionPlanStore<O>) {
+        println!("Check candidates ...");
         let mut candidates_to_remove = Vec::new();
-        let main_store = MainOperationsStore::new(store);
 
-        for candidate in self.candidates.iter_mut() {
-            candidate.update(operation, &main_store, self.num_operations);
-
+        for candidate in self.candidates.iter() {
             match candidate.state {
                 MatchingState::Found { size } => {
                     let item = store.get_unchecked(candidate.id);
@@ -130,12 +132,15 @@ impl<O> Policy<O> {
                     }
 
                     self.availables.push((candidate.id, size, triggers));
+                    log::info!("New availables {}", candidate.id);
                     candidates_to_remove.push(candidate.id);
                 }
                 MatchingState::Invalidated => {
+                    println!("Invalidated");
                     candidates_to_remove.push(candidate.id);
                 }
                 MatchingState::Progressing => {
+                    println!("Progressing");
                     // Nothing to do.
                 }
             };
@@ -155,33 +160,22 @@ impl<O> Policy<O> {
             .collect();
     }
 
-    fn update_availables(
-        &mut self,
-        store: &ExecutionPlanStore<O>,
-        operation: &OperationDescription,
-    ) {
-        for (available, size, triggers) in self.availables.iter_mut() {
-            let store_trigger = OperationsTriggerStore::new(*available, store);
-
-            for trigger in triggers.iter_mut() {
+    fn check_availables(&mut self) {
+        for (available, size, triggers) in self.availables.iter() {
+            for trigger in triggers.iter() {
                 match trigger {
-                    TriggerMatching::OnOperations { matching, progress } => match progress {
-                        OnOperationProgress::NotInit => {
-                            *progress = OnOperationProgress::NumChecked(0);
+                    TriggerMatching::OnOperations {
+                        matching,
+                        progress: _,
+                    } => {
+                        if let MatchingState::Found {
+                            size: _size_of_trigger,
+                        } = matching.state
+                        {
+                            self.found = Some((*available, *size));
+                            return;
                         }
-                        OnOperationProgress::NumChecked(num_check) => {
-                            matching.update(operation, &store_trigger, *num_check);
-                            *num_check += 1;
-
-                            if let MatchingState::Found {
-                                size: _size_of_trigger,
-                            } = matching.state
-                            {
-                                self.found = Some((*available, *size));
-                                return;
-                            }
-                        }
-                    },
+                    }
                     TriggerMatching::Always => {
                         self.found = Some((*available, *size));
                         return;
@@ -192,6 +186,44 @@ impl<O> Policy<O> {
                 }
             }
         }
+    }
+
+    fn update_candidates(
+        &mut self,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
+    ) {
+        let main_store = MainOperationsStore::new(store);
+
+        self.candidates
+            .iter_mut()
+            .for_each(|candidate| candidate.update(operation, &main_store, self.num_operations));
+    }
+
+    fn update_availables(
+        &mut self,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
+    ) {
+        self.availables
+            .iter_mut()
+            .for_each(|(available, _, triggers)| {
+                let store_trigger = OperationsTriggerStore::new(*available, store);
+
+                triggers.iter_mut().for_each(|trigger| {
+                    if let TriggerMatching::OnOperations { matching, progress } = trigger {
+                        match progress {
+                            OnOperationProgress::NotInit => {
+                                *progress = OnOperationProgress::NumChecked(0);
+                            }
+                            OnOperationProgress::NumChecked(num_check) => {
+                                matching.update(operation, &store_trigger, *num_check);
+                                *num_check += 1;
+                            }
+                        }
+                    }
+                });
+            });
     }
 
     fn action_lazy(&self, operations: &[OperationDescription]) -> Action {

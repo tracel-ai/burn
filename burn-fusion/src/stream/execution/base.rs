@@ -35,11 +35,6 @@ impl<B: FusionBackend> OperationQueue<B> {
         optimization: &mut B::Optimization,
     ) {
         let num_drained = optimization.len();
-        println!(
-            "Execute optimization {:?} drained {}",
-            self.operations.len(),
-            num_drained,
-        );
 
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
@@ -50,11 +45,6 @@ impl<B: FusionBackend> OperationQueue<B> {
 
     fn execute_operations(&mut self, handles: &mut HandleContainer<B>) {
         let num_drained = self.operations.len();
-        println!(
-            "Execute operations {:?} drained {}",
-            self.operations.len(),
-            num_drained,
-        );
 
         for operation in self.operations.drain(0..num_drained) {
             operation.execute(handles);

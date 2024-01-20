@@ -11,8 +11,8 @@ use crate::{
         store::{
             ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
         },
-        BinaryOperationDescription, NumericOperationDescription, OperationDescription,
-        ScalarOperationDescription,
+        BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
+        OperationDescription, ScalarOperationDescription,
     },
     OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
     TensorStatus,
@@ -168,6 +168,55 @@ fn should_support_complex_stream() {
 }
 
 #[test]
+fn should_reuse_basic_operations() {
+    let builder_id_1 = 0;
+    let plan_id_1 = 0;
+    let plan_id_2 = 1;
+
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
+    let mut stream = TestStream::new(vec![Box::new(builder_1)]);
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_number_of_operations(0);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_number_of_operations(0);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_1());
+    stream.add(operation_3());
+
+    println!("====================");
+    stream.assert_plan(
+        plan_id_2,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+    stream.assert_number_of_operations(0);
+    stream.assert_last_executed(plan_id_2);
+}
+
+#[test]
 fn should_support_overlapping_optimizations() {
     // We have 2 different optimization builders in this test case.
     let builder_id_1 = 0;
@@ -178,6 +227,7 @@ fn should_support_overlapping_optimizations() {
     let plan_id_2 = 1;
     let plan_id_3 = 2;
     let plan_id_4 = 3;
+    let plan_id_5 = 4;
 
     // The first builder only contains 2 operations, and the optimization is always available when
     // the pattern is met.
@@ -293,7 +343,6 @@ fn should_support_overlapping_optimizations() {
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
         },
     );
-    println!("AAAAAAAAAAAAAAAAAAAAA");
     stream.assert_plan(
         plan_id_4,
         ExecutionPlan {
@@ -302,6 +351,20 @@ fn should_support_overlapping_optimizations() {
             strategy: ExecutionStrategy::Operations,
         },
     );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_5);
+    stream.assert_plan(
+        plan_id_5,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_5);
 }
 
 impl TestStream {
@@ -337,8 +400,8 @@ impl TestStream {
     /// Assert that the plan has been executed as provided.
     fn assert_plan(&self, id: ExecutionPlanId, expected: ExecutionPlan<TestOptimization>) {
         let actual = self.store.get_unchecked(id);
-        assert_eq!(actual.triggers, expected.triggers, "Same triggers");
         assert_eq!(actual.operations, expected.operations, "Same operations");
+        assert_eq!(actual.triggers, expected.triggers, "Same triggers");
     }
 
     /// Assert that the given plan id has been the last executed.
@@ -493,6 +556,24 @@ fn operation_2() -> OperationDescription {
             rhs: 5.0,
             out: TensorDescription {
                 id: TensorId::new(2),
+                shape: vec![32, 32],
+                status: TensorStatus::NotInit,
+            },
+        },
+    ))
+}
+
+/// Just a simple operation.
+fn operation_3() -> OperationDescription {
+    OperationDescription::Float(FloatOperationDescription::Log(
+        crate::stream::UnaryOperationDescription {
+            input: TensorDescription {
+                id: TensorId::new(0),
+                shape: vec![32, 32],
+                status: TensorStatus::ReadOnly,
+            },
+            out: TensorDescription {
+                id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
             },

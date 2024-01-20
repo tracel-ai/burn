@@ -136,6 +136,7 @@ impl<TI> TrainEpoch<TI> {
             );
 
             processor.process_train(Event::ProcessedItem(item));
+            // panic!("Allo");
 
             if interrupter.should_stop() {
                 log::info!("Training interrupted.");

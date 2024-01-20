@@ -15,6 +15,7 @@ pub(crate) trait OperationsStore<T: PartialEq> {
     fn get<'a>(&'a self, id: Self::ID) -> &'a [T];
 }
 
+#[derive(Debug)]
 pub(crate) enum OnOperationProgress {
     NotInit,
     NumChecked(usize),
@@ -22,6 +23,7 @@ pub(crate) enum OnOperationProgress {
 
 pub(crate) type TriggerIndex = usize;
 
+#[derive(Debug)]
 pub(crate) enum TriggerMatching {
     OnOperations {
         matching: OperationsMatching<TriggerIndex>,

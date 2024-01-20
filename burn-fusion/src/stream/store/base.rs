@@ -58,6 +58,10 @@ impl<O> ExecutionPlanStore<O> {
         }
 
         let id = self.plans.len();
+        println!(
+            "Add new execution plan {}\n Operations: {:?} \n Trigger {:?}",
+            id, exploration.operations, exploration.triggers
+        );
 
         self.index.insert(InsertQuery::NewPlan {
             operations: &exploration.operations,
