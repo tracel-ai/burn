@@ -74,8 +74,7 @@ impl FusionKernelSet {
             &outputs_description_updated,
         );
 
-        let mut info =
-            Vec::with_capacity((inputs.len() + outputs.len()) * inputs[0].shape.len() * 2);
+        let mut info = Vec::with_capacity(inputs.len() + outputs.len());
         let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
