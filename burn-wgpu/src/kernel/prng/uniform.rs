@@ -246,7 +246,7 @@ mod tests {
 
         let tensor: IntTensor<TestBackend, 2> =
             TestBackend::int_random(shape, Distribution::Uniform(-10.0, 10.0), &device);
-        
+
         let tensor_float = cast::<i32, f32, 2>(tensor);
         let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
 

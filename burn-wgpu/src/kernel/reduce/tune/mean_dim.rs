@@ -6,11 +6,15 @@ use crate::{
     element::WgpuElement,
     kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
-        reduce::{init_reduce_output, mean_dim, mean_dim_shared_memory, int_mean_dim, int_mean_dim_shared_memory},
+        reduce::{
+            init_reduce_output, int_mean_dim, int_mean_dim_shared_memory, mean_dim,
+            mean_dim_shared_memory,
+        },
     },
     ops::numeric::empty_device,
-    reduce_tune_ops,
-    tensor::WgpuTensor, IntElement, reduce_tune_int_ops,
+    reduce_tune_int_ops, reduce_tune_ops,
+    tensor::WgpuTensor,
+    IntElement,
 };
 
 use super::ReduceAutotuneKey;
