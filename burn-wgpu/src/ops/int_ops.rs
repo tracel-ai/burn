@@ -1,7 +1,7 @@
 use super::numeric;
 use crate::codegen::{Elem, Item, Operator, Variable};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::reduce::{self, init_reduce_output};
+use crate::kernel::reduce::{self};
 use crate::{
     element::{FloatElement, IntElement},
     kernel, unary, GraphicsApi, Wgpu,
@@ -273,8 +273,15 @@ where
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        let output = init_reduce_output(&tensor, dim);
-        reduce::mean_dim(tensor, output, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::int_mean_dim_autotune(tensor, dim)
+        }
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::mean_dim(tensor, output, dim)
+        }
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
