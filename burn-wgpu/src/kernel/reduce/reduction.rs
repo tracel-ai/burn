@@ -94,7 +94,7 @@ pub fn sum_dim<E: WgpuElement, const D: usize>(
     reduction_dim::<SumDim, E, D>(input, output, dim)
 }
 
-/// Execute the int sum dim kernel
+/// Execute the int sum dim kernel.
 pub fn int_sum_dim<I: IntElement, const D: usize>(
     input: WgpuTensor<I, D>,
     output: WgpuTensor<I, D>,
@@ -110,6 +110,15 @@ pub fn mean_dim<E: WgpuElement, const D: usize>(
     dim: usize,
 ) -> WgpuTensor<E, D> {
     reduction_dim::<MeanDim, E, D>(input, output, dim)
+}
+
+/// Execute the int mean dim kernel.
+pub fn int_mean_dim<I: IntElement, const D: usize>(
+    input: WgpuTensor<I, D>,
+    output: WgpuTensor<I, D>,
+    dim: usize,
+) -> WgpuTensor<I, D> {
+    reduction_dim::<MeanDim, I, D>(input, output, dim)
 }
 
 fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
@@ -248,5 +257,21 @@ mod tests {
 
         let sum_as_data = Data::from([10]);
         val.into_data().assert_approx_eq(&sum_as_data, 1);
+    }
+
+    #[test]
+    fn mean_dim_should_work_with_int() {
+        let mean_shape = Shape::new([1]);
+        let data = Data::from([1, 2, 3, 4]);
+        let tensor = TestBackend::int_from_data(data, &Default::default());
+
+        let mean_tensor = TestBackend::int_empty(mean_shape, &Default::default());
+
+        let val =
+            Tensor::<TestBackend, 1, Int>::from_primitive(int_mean_dim(tensor, mean_tensor, 0));
+
+        // Mean calculation truncates to an integer
+        let mean_as_data = Data::from([2]);
+        val.into_data().assert_approx_eq(&mean_as_data, 1);
     }
 }
