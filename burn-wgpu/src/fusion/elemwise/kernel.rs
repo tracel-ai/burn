@@ -137,8 +137,6 @@ impl ElementWiseSource {
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                println!("Execute with num_elems {:?}", reference_tensor.shape);
-                println!("Source num_elems {:?}", self.source_normal.shader);
                 let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
                 let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {

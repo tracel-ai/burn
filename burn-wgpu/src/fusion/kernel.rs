@@ -74,7 +74,12 @@ impl FusionKernelSet {
             &outputs_description_updated,
         );
 
-        let mut info = Vec::with_capacity(inputs.len() + outputs.len());
+        let rank_input = inputs.first().map(|desc| desc.shape.len()).unwrap_or(1);
+        let rank_output = outputs.first().map(|desc| desc.shape.len()).unwrap_or(1);
+        let rank = usize::max(rank_input, rank_output);
+        let num_tensors = inputs.len() + outputs.len();
+
+        let mut info = Vec::with_capacity(num_tensors * rank + 1);
         let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
