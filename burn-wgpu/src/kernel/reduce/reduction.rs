@@ -7,6 +7,7 @@ use crate::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
+    IntElement,
 };
 use burn_tensor::Shape;
 
@@ -91,6 +92,15 @@ pub fn sum_dim<E: WgpuElement, const D: usize>(
     dim: usize,
 ) -> WgpuTensor<E, D> {
     reduction_dim::<SumDim, E, D>(input, output, dim)
+}
+
+/// Execute the int sum dim kernel
+pub fn int_sum_dim<I: IntElement, const D: usize>(
+    input: WgpuTensor<I, D>,
+    output: WgpuTensor<I, D>,
+    dim: usize,
+) -> WgpuTensor<I, D> {
+    reduction_dim::<SumDim, I, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
@@ -178,7 +188,7 @@ mod tests {
         kernel::reduce::init_reduce_output,
         tests::{ReferenceBackend, TestBackend},
     };
-    use burn_tensor::{Distribution, Int, Tensor};
+    use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Tensor};
 
     #[test]
     fn reduction_sum_should_work_with_multiple_invocations() {
@@ -223,5 +233,20 @@ mod tests {
         let val_ref = tensor_ref.argmax(1);
 
         assert_eq!(val_ref.into_data().convert(), val.into_data());
+    }
+
+    #[test]
+    fn sum_dim_should_work_with_int() {
+        let summed_shape = Shape::new([1]);
+        let data = Data::from([1, 2, 3, 4]);
+        let tensor = TestBackend::int_from_data(data, &Default::default());
+
+        let summed_tensor = TestBackend::int_empty(summed_shape, &Default::default());
+
+        let val =
+            Tensor::<TestBackend, 1, Int>::from_primitive(int_sum_dim(tensor, summed_tensor, 0));
+
+        let sum_as_data = Data::from([10]);
+        val.into_data().assert_approx_eq(&sum_as_data, 1);
     }
 }

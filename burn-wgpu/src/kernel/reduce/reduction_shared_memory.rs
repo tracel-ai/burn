@@ -4,6 +4,7 @@ use crate::{
     kernel::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
+    IntElement,
 };
 
 kernel_wgsl!(
@@ -57,6 +58,17 @@ pub fn sum_dim_shared_memory<E: WgpuElement, const D: usize>(
     dim: usize,
 ) -> WgpuTensor<E, D> {
     reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, output, dim)
+}
+
+/// Execute the sum dim kernel leveraging shared memory on int tensors
+/// Probably more efficient on tensors where the dimension to reduced
+/// is much larger than the others
+pub fn int_sum_dim_shared_memory<I: IntElement, const D: usize>(
+    input: WgpuTensor<I, D>,
+    output: WgpuTensor<I, D>,
+    dim: usize,
+) -> WgpuTensor<I, D> {
+    reduction_dim_shared_memory::<SumDimSharedMemory, I, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel leveraging shared memory
