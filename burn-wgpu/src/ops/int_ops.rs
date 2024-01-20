@@ -7,7 +7,7 @@ use crate::{
     kernel, unary, GraphicsApi, Wgpu,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{ops::IntTensorOps, Data, Shape, Distribution, ElementConversion, Reader};
+use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
 
 impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
@@ -261,8 +261,15 @@ where
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        let output = init_reduce_output(&tensor, dim);
-        reduce::sum_dim(tensor, output, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::int_sum_dim_autotune(tensor, dim)
+        }
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::sum_dim(tensor, output, dim)
+        }
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
@@ -326,7 +333,7 @@ where
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let float_tensor = match distribution {
-            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
+            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 10.elem()),
             Distribution::Uniform(low, high) => {
                 random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
             }
