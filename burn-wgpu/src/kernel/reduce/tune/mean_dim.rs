@@ -113,8 +113,6 @@ pub fn mean_dim_autotune<E: WgpuElement + Element, const D: usize>(
     output
 }
 
-/// Replicate for int
-
 // Set of mean_dim implementations available for autotuning int tensors
 pub struct MeanDimIntAutotuneOperationSet<I: IntElement, const D: usize> {
     key: WgpuAutotuneKey,
