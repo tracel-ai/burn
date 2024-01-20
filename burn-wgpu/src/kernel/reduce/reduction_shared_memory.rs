@@ -82,6 +82,17 @@ pub fn mean_dim_shared_memory<E: WgpuElement, const D: usize>(
     reduction_dim_shared_memory::<MeanDimSharedMemory, E, D>(input, output, dim)
 }
 
+/// Execute the mean dim kernel leveraging shared memory on int tensors
+/// Probably more efficient on tensors where the dimension to reduced
+/// is much larger than the others
+pub fn int_mean_dim_shared_memory<I: IntElement, const D: usize>(
+    input: WgpuTensor<I, D>,
+    output: WgpuTensor<I, D>,
+    dim: usize,
+) -> WgpuTensor<I, D> {
+    reduction_dim_shared_memory::<MeanDimSharedMemory, I, D>(input, output, dim)
+}
+
 fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     output: WgpuTensor<E, D>,
