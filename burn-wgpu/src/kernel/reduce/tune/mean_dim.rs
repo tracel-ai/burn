@@ -12,7 +12,7 @@ use crate::{
         },
     },
     ops::numeric::empty_device,
-    reduce_tune_int_ops, reduce_tune_ops,
+    reduce_tune_ops,
     tensor::WgpuTensor,
     IntElement,
 };
@@ -206,9 +206,17 @@ pub fn int_mean_dim_autotune<I: IntElement, const D: usize>(
 }
 
 // Probably better on balanced tensor shapes
-reduce_tune_ops!(MeanDimAutotune, mean_dim);
-reduce_tune_int_ops!(MeanDimIntAutotune, int_mean_dim);
+reduce_tune_ops!(MeanDimAutotune, WgpuElement, mean_dim);
+reduce_tune_ops!(MeanDimIntAutotune, IntElement, int_mean_dim);
 
 // Probably better on tensors large along reduce dim
-reduce_tune_ops!(MeanDimSharedMemoryAutotune, mean_dim_shared_memory);
-reduce_tune_int_ops!(MeanDimIntSharedMemoryAutotune, int_mean_dim_shared_memory);
+reduce_tune_ops!(
+    MeanDimSharedMemoryAutotune,
+    WgpuElement,
+    mean_dim_shared_memory
+);
+reduce_tune_ops!(
+    MeanDimIntSharedMemoryAutotune,
+    IntElement,
+    int_mean_dim_shared_memory
+);

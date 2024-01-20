@@ -9,7 +9,7 @@ use crate::{
         reduce::{init_reduce_output, int_sum_dim, sum_dim, sum_dim_shared_memory},
     },
     ops::numeric::empty_device,
-    reduce_tune_int_ops, reduce_tune_ops,
+    reduce_tune_ops,
     tensor::WgpuTensor,
     IntElement,
 };
@@ -205,9 +205,17 @@ pub fn int_sum_dim_autotune<I: IntElement, const D: usize>(
 }
 
 // Probably better on balanced tensor shapes
-reduce_tune_ops!(SumDimAutotune, sum_dim);
-reduce_tune_int_ops!(SumDimIntAutotune, int_sum_dim);
+reduce_tune_ops!(SumDimAutotune, WgpuElement, sum_dim);
+reduce_tune_ops!(SumDimIntAutotune, IntElement, int_sum_dim);
 
 // Probably better on tensors large along reduce dim
-reduce_tune_ops!(SumDimSharedMemoryAutotune, sum_dim_shared_memory);
-reduce_tune_int_ops!(SumDimIntSharedMemoryAutotune, sum_dim_shared_memory);
+reduce_tune_ops!(
+    SumDimSharedMemoryAutotune,
+    WgpuElement,
+    sum_dim_shared_memory
+);
+reduce_tune_ops!(
+    SumDimIntSharedMemoryAutotune,
+    IntElement,
+    sum_dim_shared_memory
+);
