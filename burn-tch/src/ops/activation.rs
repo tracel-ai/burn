@@ -22,4 +22,8 @@ impl<E: TchElement> ActivationOps<Self> for LibTorch<E> {
 
         TchTensor::from_existing(tensor, storage)
     }
+
+    fn sigmoid<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.unary_ops(|mut tensor| tensor.sigmoid_(), |tensor| tensor.sigmoid())
+    }
 }

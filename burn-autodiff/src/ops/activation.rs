@@ -54,4 +54,27 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(output),
         }
     }
+
+    fn sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct Sigmoid;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
+            type State = B::TensorPrimitive<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::sigmoid_backward(ops.state, grad)
+                });
+            }
+        }
+
+        match Sigmoid.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::sigmoid(tensor.primitive);
+                prep.finish(output.clone(), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::sigmoid(tensor.primitive)),
+        }
+    }
 }

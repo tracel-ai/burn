@@ -6,9 +6,10 @@ use crate::{
     FloatElement, GraphicsApi, IntElement, Wgpu,
 };
 use burn_fusion::{
-    graph::{
-        BaseOpsDescription, BinaryOpsDescription, FloatOpsDescription, NumericOpsDescription,
-        ScalarOpsDescription, TensorOpsDescription, UnaryOpsDescription,
+    stream::{
+        BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
+        NumericOperationDescription, OperationDescription, ScalarOperationDescription,
+        UnaryOperationDescription,
     },
     OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
@@ -35,43 +36,43 @@ where
     pub(crate) device: Device<Wgpu<G, F, I>>,
 }
 
-impl<G, F, I> OptimizationBuilder<Wgpu<G, F, I>> for ElementWiseBuilder<G, F, I>
+impl<G, F, I> OptimizationBuilder<WgpuOptimization<G, F, I>> for ElementWiseBuilder<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
     I: IntElement,
 {
-    fn register(&mut self, ops: &TensorOpsDescription) {
+    fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
 
         match ops {
-            TensorOpsDescription::BaseOpsFloat(ops) => {
+            OperationDescription::BaseFloat(ops) => {
                 if !self.register_base::<F>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            TensorOpsDescription::BaseOpsInt(ops) => {
+            OperationDescription::BaseInt(ops) => {
                 if !self.register_base::<I>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            TensorOpsDescription::FloatOps(ops) => {
+            OperationDescription::Float(ops) => {
                 if !self.register_float::<F>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            TensorOpsDescription::NumericOpsFloat(ops) => {
+            OperationDescription::NumericFloat(ops) => {
                 if !self.register_numeric::<F, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            TensorOpsDescription::NumericOpsInt(ops) => {
+            OperationDescription::NumericInt(ops) => {
                 if !self.register_numeric::<I, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
@@ -105,6 +106,10 @@ where
         );
 
         WgpuOptimization::ElementWise(op.compile())
+    }
+
+    fn len(&self) -> usize {
+        self.operators.len()
     }
 
     fn reset(&mut self) {
@@ -182,7 +187,7 @@ where
                     .find(|(_id, position)| *position == index)
                 {
                     if !list.contains(id) {
-                        list.push(id.clone());
+                        list.push(*id);
                     }
                 }
             }
@@ -372,16 +377,14 @@ where
         };
 
         // Update the tensor description with the new version.
-        self.tensors
-            .insert(tensor.id.clone(), (tensor.clone(), elem));
+        self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
         variable
     }
 
     fn output_to_var(&mut self, tensor: &TensorDescription, elem: Elem) -> Variable {
         // Update the tensor description to the new version.
-        self.tensors
-            .insert(tensor.id.clone(), (tensor.clone(), elem));
+        self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
         // Output already registered as a local variable.
         if let Some(index) = self.locals.get(&tensor.id) {
@@ -390,13 +393,13 @@ where
 
         // New local variable.
         let local_index = self.locals.len() as u16;
-        self.locals.insert(tensor.id.clone(), local_index);
+        self.locals.insert(tensor.id, local_index);
         Variable::Local(local_index, Item::Scalar(elem))
     }
 
-    fn register_base<E: WgpuElement>(&mut self, ops: &BaseOpsDescription) -> bool {
+    fn register_base<E: WgpuElement>(&mut self, ops: &BaseOperationDescription) -> bool {
         match ops {
-            BaseOpsDescription::Equal(desc) => self.register_binary_ops(
+            BaseOperationDescription::Equal(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
@@ -405,49 +408,49 @@ where
         }
     }
 
-    fn register_float<E: WgpuElement>(&mut self, ops: &FloatOpsDescription) -> bool {
+    fn register_float<E: WgpuElement>(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
-            FloatOpsDescription::Exp(desc) => {
+            FloatOperationDescription::Exp(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Exp { input, out }
                 })
             }
-            FloatOpsDescription::Log(desc) => {
+            FloatOperationDescription::Log(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Log { input, out }
                 })
             }
-            FloatOpsDescription::Log1p(desc) => {
+            FloatOperationDescription::Log1p(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Log1p { input, out }
                 })
             }
-            FloatOpsDescription::Cos(desc) => {
+            FloatOperationDescription::Cos(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Cos { input, out }
                 })
             }
-            FloatOpsDescription::Sin(desc) => {
+            FloatOperationDescription::Sin(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Sin { input, out }
                 })
             }
-            FloatOpsDescription::Powf(desc) => self.register_scalar_ops(
+            FloatOperationDescription::Powf(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Powf { lhs, rhs, out },
             ),
-            FloatOpsDescription::Tanh(desc) => {
+            FloatOperationDescription::Tanh(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Tanh { input, out }
                 })
             }
-            FloatOpsDescription::Erf(desc) => {
+            FloatOperationDescription::Erf(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Erf { input, out }
                 })
             }
-            FloatOpsDescription::Recip(desc) => {
+            FloatOperationDescription::Recip(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Recip { input, out }
                 })
@@ -458,100 +461,100 @@ where
 
     fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
         &mut self,
-        ops: &NumericOpsDescription<EDesc>,
+        ops: &NumericOperationDescription<EDesc>,
     ) -> bool {
         match ops {
-            NumericOpsDescription::Add(desc) => self.register_binary_ops(
+            NumericOperationDescription::Add(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Add { lhs, rhs, out },
             ),
-            NumericOpsDescription::AddScalar(desc) => self.register_scalar_ops(
+            NumericOperationDescription::AddScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Add { lhs, rhs, out },
             ),
-            NumericOpsDescription::Sub(desc) => self.register_binary_ops(
+            NumericOperationDescription::Sub(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Sub { lhs, rhs, out },
             ),
-            NumericOpsDescription::SubScalar(desc) => self.register_scalar_ops(
+            NumericOperationDescription::SubScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Sub { lhs, rhs, out },
             ),
-            NumericOpsDescription::Mul(desc) => self.register_binary_ops(
+            NumericOperationDescription::Mul(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Mul { lhs, rhs, out },
             ),
-            NumericOpsDescription::MulScalar(desc) => self.register_scalar_ops(
+            NumericOperationDescription::MulScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Mul { lhs, rhs, out },
             ),
-            NumericOpsDescription::Div(desc) => self.register_binary_ops(
+            NumericOperationDescription::Div(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Div { lhs, rhs, out },
             ),
-            NumericOpsDescription::DivScalar(desc) => self.register_scalar_ops(
+            NumericOperationDescription::DivScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Div { lhs, rhs, out },
             ),
-            NumericOpsDescription::Abs(desc) => {
+            NumericOperationDescription::Abs(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
                     Operator::Abs { input, out }
                 })
             }
-            NumericOpsDescription::Lower(desc) => self.register_binary_ops(
+            NumericOperationDescription::Lower(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
             ),
-            NumericOpsDescription::LowerElem(desc) => self.register_scalar_ops(
+            NumericOperationDescription::LowerElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
             ),
-            NumericOpsDescription::Greater(desc) => self.register_binary_ops(
+            NumericOperationDescription::Greater(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
             ),
-            NumericOpsDescription::GreaterElem(desc) => self.register_scalar_ops(
+            NumericOperationDescription::GreaterElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
             ),
-            NumericOpsDescription::LowerEqual(desc) => self.register_binary_ops(
+            NumericOperationDescription::LowerEqual(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
             ),
-            NumericOpsDescription::LowerEqualElem(desc) => self.register_scalar_ops(
+            NumericOperationDescription::LowerEqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
             ),
-            NumericOpsDescription::GreaterEqual(desc) => self.register_binary_ops(
+            NumericOperationDescription::GreaterEqual(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
             ),
-            NumericOpsDescription::GreaterEqualElem(desc) => self.register_scalar_ops(
+            NumericOperationDescription::GreaterEqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
             ),
-            NumericOpsDescription::EqualElem(desc) => self.register_scalar_ops(
+            NumericOperationDescription::EqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
                 |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
             ),
-            NumericOpsDescription::MaskWhere(desc) => {
+            NumericOperationDescription::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -571,7 +574,7 @@ where
 
                 true
             }
-            NumericOpsDescription::MaskFill(desc) => {
+            NumericOperationDescription::MaskFill(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -596,7 +599,7 @@ where
 
     fn register_binary_ops<Func>(
         &mut self,
-        desc: &BinaryOpsDescription,
+        desc: &BinaryOperationDescription,
         (elem_lhs, elem_rhs, elem_out): (Elem, Elem, Elem),
         func: Func,
     ) -> bool
@@ -618,7 +621,7 @@ where
 
     fn register_unary_ops<Func>(
         &mut self,
-        desc: &UnaryOpsDescription,
+        desc: &UnaryOperationDescription,
         (elem_input, elem_out): (Elem, Elem),
         func: Func,
     ) -> bool
@@ -639,7 +642,7 @@ where
 
     fn register_scalar_ops<Func, E: Element>(
         &mut self,
-        desc: &ScalarOpsDescription<E>,
+        desc: &ScalarOperationDescription<E>,
         (elem_lhs, elem_rhs, elem_out): (Elem, Elem, Elem),
         func: Func,
     ) -> bool

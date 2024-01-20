@@ -24,7 +24,7 @@ pub struct MaxPool1dConfig {
 }
 
 /// Applies a 1D max pooling over input tensors.
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Clone, Debug)]
 pub struct MaxPool1d {
     stride: usize,
     kernel_size: usize,

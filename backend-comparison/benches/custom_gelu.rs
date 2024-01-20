@@ -1,4 +1,4 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use core::f64::consts::SQRT_2;
@@ -24,7 +24,15 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     type Args = Tensor<B, D>;
 
     fn name(&self) -> String {
-        format!("Gelu {:?}", self.kind)
+        "gelu".into()
+    }
+
+    fn options(&self) -> Option<String> {
+        Some(format!("{:?}", self.kind))
+    }
+
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec![self.shape.dims.into()]
     }
 
     fn execute(&self, args: Self::Args) {
@@ -96,7 +104,7 @@ fn bench<B: Backend>(device: &B::Device) {
     let custom_erf_gelu =
         CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf);
 
-    Persistence::persist::<B>(
+    save::<B>(
         vec![
             run_benchmark(reference_gelu),
             run_benchmark(reference_erf_gelu),
@@ -104,6 +112,7 @@ fn bench<B: Backend>(device: &B::Device) {
         ],
         device,
     )
+    .unwrap();
 }
 
 fn main() {

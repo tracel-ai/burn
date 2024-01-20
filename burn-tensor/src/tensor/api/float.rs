@@ -160,6 +160,8 @@ where
     /// }
     /// ```
     pub fn one_hot(index: usize, num_classes: usize, device: &B::Device) -> Self {
+        check!(TensorCheck::one_hot(index, num_classes));
+
         let mut dims = [1; D];
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);

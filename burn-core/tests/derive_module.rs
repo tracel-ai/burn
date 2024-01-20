@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Int, Shape, Tensor};
@@ -24,6 +26,12 @@ impl<B: Backend> ModuleBasic<B> {
             weight_basic: Param::from(weight_basic),
         }
     }
+}
+
+#[derive(Module, Debug)]
+struct ModuleWithGenericModule<B: Backend, M> {
+    module: M,
+    _backend: PhantomData<B>,
 }
 
 #[derive(Module, Debug)]
