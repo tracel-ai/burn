@@ -210,4 +210,4 @@ reduce_tune_int_ops!(SumDimIntAutotune, int_sum_dim);
 
 // Probably better on tensors large along reduce dim
 reduce_tune_ops!(SumDimSharedMemoryAutotune, sum_dim_shared_memory);
-reduce_tune_ops!(SumDimIntSharedMemoryAutotune, sum_dim_shared_memory);
+reduce_tune_int_ops!(SumDimIntSharedMemoryAutotune, sum_dim_shared_memory);
