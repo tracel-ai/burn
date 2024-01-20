@@ -377,12 +377,12 @@ pub enum NumericOperationDescription<E> {
     ///
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
-    Clamp(ClampOpsDescription<E>),
+    Clamp(ClampOperationDescription<E>),
     /// Operation corresponding to:
     ///
     /// Float => [random](burn_tensor::ops::TensorOps::random).
     /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
-    IntRandom(RandomOpsDescription),
+    IntRandom(RandomOperationDescription),
 }
 
 /// Operation description specific to an int tensor.
@@ -1059,7 +1059,7 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOpsDescription::IntRandom(desc) => {
+            NumericOperationDescription::IntRandom(desc) => {
                 vec![&desc.out]
             }
         }
@@ -1225,47 +1225,47 @@ impl<E> core::hash::Hash for ClampOperationDescription<E> {
 impl<E> core::hash::Hash for NumericOperationDescription<E> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            NumericOpsDescription::Add(desc) => desc.hash(state),
-            NumericOpsDescription::AddScalar(desc) => desc.hash(state),
-            NumericOpsDescription::Sub(desc) => desc.hash(state),
-            NumericOpsDescription::SubScalar(desc) => desc.hash(state),
-            NumericOpsDescription::Div(desc) => desc.hash(state),
-            NumericOpsDescription::DivScalar(desc) => desc.hash(state),
-            NumericOpsDescription::Mul(desc) => desc.hash(state),
-            NumericOpsDescription::MulScalar(desc) => desc.hash(state),
-            NumericOpsDescription::Abs(desc) => desc.hash(state),
-            NumericOpsDescription::Ones(desc) => desc.hash(state),
-            NumericOpsDescription::Zeros(desc) => desc.hash(state),
-            NumericOpsDescription::Full(desc) => desc.0.hash(state),
-            NumericOpsDescription::Gather(desc) => desc.hash(state),
-            NumericOpsDescription::Scatter(desc) => desc.hash(state),
-            NumericOpsDescription::Select(desc) => desc.hash(state),
-            NumericOpsDescription::SelectAssign(desc) => desc.hash(state),
-            NumericOpsDescription::MaskWhere(desc) => desc.hash(state),
-            NumericOpsDescription::MaskFill(desc) => desc.hash(state),
-            NumericOpsDescription::MeanDim(desc) => desc.hash(state),
-            NumericOpsDescription::Mean(desc) => desc.hash(state),
-            NumericOpsDescription::Sum(desc) => desc.hash(state),
-            NumericOpsDescription::SumDim(desc) => desc.hash(state),
-            NumericOpsDescription::EqualElem(desc) => desc.hash(state),
-            NumericOpsDescription::Greater(desc) => desc.hash(state),
-            NumericOpsDescription::GreaterElem(desc) => desc.hash(state),
-            NumericOpsDescription::GreaterEqual(desc) => desc.hash(state),
-            NumericOpsDescription::GreaterEqualElem(desc) => desc.hash(state),
-            NumericOpsDescription::Lower(desc) => desc.hash(state),
-            NumericOpsDescription::LowerElem(desc) => desc.hash(state),
-            NumericOpsDescription::LowerEqual(desc) => desc.hash(state),
-            NumericOpsDescription::LowerEqualElem(desc) => desc.hash(state),
-            NumericOpsDescription::ArgMax(desc) => desc.hash(state),
-            NumericOpsDescription::ArgMin(desc) => desc.hash(state),
-            NumericOpsDescription::Max(desc) => desc.hash(state),
-            NumericOpsDescription::MaxDimWithIndices(desc) => desc.hash(state),
-            NumericOpsDescription::MinDimWithIndices(desc) => desc.hash(state),
-            NumericOpsDescription::Min(desc) => desc.hash(state),
-            NumericOpsDescription::MaxDim(desc) => desc.hash(state),
-            NumericOpsDescription::MinDim(desc) => desc.hash(state),
-            NumericOpsDescription::Clamp(desc) => desc.hash(state),
-            NumericOpsDescription::IntRandom(desc) => desc.hash(state),
+            NumericOperationDescription::Add(desc) => desc.hash(state),
+            NumericOperationDescription::AddScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Sub(desc) => desc.hash(state),
+            NumericOperationDescription::SubScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Div(desc) => desc.hash(state),
+            NumericOperationDescription::DivScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Mul(desc) => desc.hash(state),
+            NumericOperationDescription::MulScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Abs(desc) => desc.hash(state),
+            NumericOperationDescription::Ones(desc) => desc.hash(state),
+            NumericOperationDescription::Zeros(desc) => desc.hash(state),
+            NumericOperationDescription::Full(desc) => desc.0.hash(state),
+            NumericOperationDescription::Gather(desc) => desc.hash(state),
+            NumericOperationDescription::Scatter(desc) => desc.hash(state),
+            NumericOperationDescription::Select(desc) => desc.hash(state),
+            NumericOperationDescription::SelectAssign(desc) => desc.hash(state),
+            NumericOperationDescription::MaskWhere(desc) => desc.hash(state),
+            NumericOperationDescription::MaskFill(desc) => desc.hash(state),
+            NumericOperationDescription::MeanDim(desc) => desc.hash(state),
+            NumericOperationDescription::Mean(desc) => desc.hash(state),
+            NumericOperationDescription::Sum(desc) => desc.hash(state),
+            NumericOperationDescription::SumDim(desc) => desc.hash(state),
+            NumericOperationDescription::EqualElem(desc) => desc.hash(state),
+            NumericOperationDescription::Greater(desc) => desc.hash(state),
+            NumericOperationDescription::GreaterElem(desc) => desc.hash(state),
+            NumericOperationDescription::GreaterEqual(desc) => desc.hash(state),
+            NumericOperationDescription::GreaterEqualElem(desc) => desc.hash(state),
+            NumericOperationDescription::Lower(desc) => desc.hash(state),
+            NumericOperationDescription::LowerElem(desc) => desc.hash(state),
+            NumericOperationDescription::LowerEqual(desc) => desc.hash(state),
+            NumericOperationDescription::LowerEqualElem(desc) => desc.hash(state),
+            NumericOperationDescription::ArgMax(desc) => desc.hash(state),
+            NumericOperationDescription::ArgMin(desc) => desc.hash(state),
+            NumericOperationDescription::Max(desc) => desc.hash(state),
+            NumericOperationDescription::MaxDimWithIndices(desc) => desc.hash(state),
+            NumericOperationDescription::MinDimWithIndices(desc) => desc.hash(state),
+            NumericOperationDescription::Min(desc) => desc.hash(state),
+            NumericOperationDescription::MaxDim(desc) => desc.hash(state),
+            NumericOperationDescription::MinDim(desc) => desc.hash(state),
+            NumericOperationDescription::Clamp(desc) => desc.hash(state),
+            NumericOperationDescription::IntRandom(desc) => desc.hash(state),
         }
     }
 }

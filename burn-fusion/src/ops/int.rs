@@ -2,24 +2,17 @@ use crate::{
     binary_int_cmp_ops, binary_int_ops,
     client::FusionClient,
     get_client,
-    graph::{
-        self, BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
-        GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
-        NumericOpsDescription, Ops, RandomOpsDescription, ReduceDimWithIndicesDescription,
-        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
-        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
-        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription, UnaryOpsDescription,
-    },
     ops::binary::binary_ops_shape,
     scalar_int_cmp_ops, scalar_int_ops,
     stream::{
         self, BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
         ClampOperationDescription, GatherOperationDescription, MaskFillOperationDescription,
         MaskWhereOperationDescription, NumericOperationDescription, Operation,
-        OperationDescription, ReduceDimWithIndicesDescription, ReshapeDescription,
-        ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
-        SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
-        StreamId, SwapDimsDescription, UnaryOperationDescription,
+        OperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
+        ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
+        SelectAssignOperationDescription, SelectOperationDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        UnaryOperationDescription,
     },
     unary_int_ops, Fusion, FusionBackend, TensorDescription,
 };
@@ -1449,10 +1442,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     ) -> IntTensor<Self, D> {
         #[derive(new)]
         struct IntRandomOps<const D: usize> {
-            desc: RandomOpsDescription,
+            desc: RandomOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for IntRandomOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for IntRandomOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::IntTensorPrimitive<D> =
@@ -1461,16 +1454,18 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
-        let desc = RandomOpsDescription {
+        let desc = RandomOperationDescription {
             out: out.to_description_out(),
             distribution,
         };
         client.register(
-            TensorOpsDescription::NumericOpsInt(NumericOpsDescription::IntRandom(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericInt(NumericOperationDescription::IntRandom(desc.clone())),
             IntRandomOps::<D>::new(desc),
         );
 
