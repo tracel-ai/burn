@@ -159,6 +159,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.float()`                              | Similar to `tensor.to(torch.float)`                     |
 | `tensor.arange(5..10, device)       `         | `tensor.arange(start=5, end=10, device=device)`         |
 | `tensor.arange_step(5..10, 2, device)`        | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `tensor.int_random(shape, distribution, device)`        | N/A                                |
 
 # Bool Operations
 
