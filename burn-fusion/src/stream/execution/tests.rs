@@ -203,7 +203,6 @@ fn should_reuse_basic_operations() {
     stream.add(operation_1());
     stream.add(operation_3());
 
-    println!("====================");
     stream.assert_plan(
         plan_id_2,
         ExecutionPlan {

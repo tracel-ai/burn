@@ -63,12 +63,6 @@ impl<O> Policy<O> {
         operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Action {
-        // println!("================= ACTION ================");
-        // println!("Mode {:?}", mode);
-        // println!("Candidates {:?}", self.candidates);
-        // println!("Availables {:?}", self.availables);
-        // println!("operations {:?}", operations);
-        // println!("================= END ================");
         if self.num_operations < operations.len() {
             panic!("Internal Error: Can't retrieve the policy action on a list of operations bigger than what is analyzed.");
         }
@@ -111,7 +105,6 @@ impl<O> Policy<O> {
     }
 
     fn check_candidates(&mut self, store: &ExecutionPlanStore<O>) {
-        println!("Check candidates ...");
         let mut candidates_to_remove = Vec::new();
 
         for candidate in self.candidates.iter() {
@@ -132,17 +125,12 @@ impl<O> Policy<O> {
                     }
 
                     self.availables.push((candidate.id, size, triggers));
-                    log::info!("New availables {}", candidate.id);
                     candidates_to_remove.push(candidate.id);
                 }
                 MatchingState::Invalidated => {
-                    println!("Invalidated");
                     candidates_to_remove.push(candidate.id);
                 }
-                MatchingState::Progressing => {
-                    println!("Progressing");
-                    // Nothing to do.
-                }
+                MatchingState::Progressing => {}
             };
         }
 

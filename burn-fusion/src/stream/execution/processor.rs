@@ -50,23 +50,19 @@ impl<O> Processor<O> {
 
             match self.policy.action(store, segment.operations(), mode) {
                 Action::Explore => {
-                    println!("Explore");
                     self.explore(&mut segment, store, mode);
 
                     if self.explorer.is_up_to_date() {
-                        println!("Up to date, break");
                         break;
                     }
                 }
                 Action::Defer => {
-                    println!("Defer");
                     match mode {
                         ExecutionMode::Lazy => break,
                         ExecutionMode::Sync => panic!("Can't defer while sync"),
                     };
                 }
                 Action::Execute(id) => {
-                    println!("Execute");
                     if let ExecutionMode::Sync = mode {
                         store.add_trigger(id, ExecutionTrigger::OnSync);
                     }
@@ -82,7 +78,6 @@ impl<O> Processor<O> {
     where
         Segment: StreamSegment<O>,
     {
-        println!("On new operation");
         self.policy.update(
             store,
             segment
@@ -150,7 +145,6 @@ impl<O> Processor<O> {
     ) -> ExecutionPlanId {
         let num_fused = builder.len();
         let relative = &operations[0..num_fused];
-        println!("On optimization found");
 
         match mode {
             ExecutionMode::Lazy => {
@@ -202,11 +196,9 @@ impl<O> Processor<O> {
             ExecutionMode::Lazy => ExecutionTrigger::Always,
             ExecutionMode::Sync => ExecutionTrigger::OnSync,
         };
-        println!("On NO optimization found");
 
         match policy.action(store, relative, ExecutionMode::Sync) {
             Action::Execute(id) => {
-                println!("There is some execution that exists.");
                 store.add_trigger(id, trigger);
                 id
             }
