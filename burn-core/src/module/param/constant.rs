@@ -213,7 +213,7 @@ mod tests {
     use core::marker::PhantomData;
 
     use burn_tensor::backend::Backend;
-    use burn_tensor::Tensor;
+    use burn_tensor::{Device, Tensor};
 
     use crate::TestBackend;
     use crate::{
@@ -226,22 +226,31 @@ mod tests {
 
     #[test]
     fn tensor_load_record_setting() {
-        let device = &Default::default();
+        let device: &Device<TestAutodiffBackend> = &Default::default();
         let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
-        let bytes = byte_recorder
-            .record(tensor.clone().into_record(), ())
-            .unwrap();
+        let bytes = Recorder::<TestAutodiffBackend>::record(
+            &byte_recorder,
+            tensor.clone().into_record(),
+            (),
+        )
+        .unwrap();
 
         let no_grad_is_require_grad = tensor
             .clone()
             .no_grad()
-            .load_record(byte_recorder.load(bytes.clone(), &device).unwrap())
+            .load_record(
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), &device)
+                    .unwrap(),
+            )
             .is_require_grad();
 
         let with_default_is_require_grad = tensor
-            .load_record(byte_recorder.load(bytes, device).unwrap())
+            .load_record(
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), &device)
+                    .unwrap(),
+            )
             .is_require_grad();
 
         assert!(!no_grad_is_require_grad);

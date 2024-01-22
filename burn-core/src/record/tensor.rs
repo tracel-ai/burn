@@ -112,7 +112,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
         IntTensorSerde::new(self.into_data().convert().serialize())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
         Tensor::from_data(item.data.convert(), &B::Device::default())
     }
 }
@@ -128,7 +128,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
         BoolTensorSerde::new(self.into_data().serialize())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
         Tensor::from_data(item.data, &B::Device::default())
     }
 }

@@ -1,7 +1,7 @@
 use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::Generics;
+use syn::{parse_quote, Generics};
 
 use super::codegen::RecordItemCodegen;
 
@@ -11,7 +11,12 @@ pub(crate) struct StructRecordItemCodegen {
 }
 
 impl RecordItemCodegen for StructRecordItemCodegen {
-    fn gen_item_type(&self, item_name: &Ident, generics: &Generics) -> TokenStream {
+    fn gen_item_type(
+        &self,
+        item_name: &Ident,
+        generics: &Generics,
+        has_backend: bool,
+    ) -> TokenStream {
         let mut fields = quote! {};
         let mut bounds = quote! {};
 
@@ -29,7 +34,17 @@ impl RecordItemCodegen for StructRecordItemCodegen {
         }
         let bound = bounds.to_string();
 
-        let (generics, _, generics_where) = generics.split_for_impl();
+        let (generics, generics_where) = if !has_backend {
+            let mut generics = generics.clone();
+            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+            generics.params.push(syn::GenericParam::Type(param));
+            let (generics, _, generics_where) = generics.split_for_impl();
+            (quote! { #generics }, quote! { #generics_where })
+        } else {
+            let (generics, _, generics_where) = generics.split_for_impl();
+            (quote! { #generics }, quote! { #generics_where })
+        };
+
         quote! {
 
             /// The record item type for the module.
