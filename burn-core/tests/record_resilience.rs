@@ -170,7 +170,6 @@ mod tests {
 
     #[test]
     #[should_panic]
-    #[ignore = "TODO: Fix this"]
     fn deserialize_with_new_field_order_works_with_bin_file_recorder() {
         deserialize_with_new_field_order("bin", BinFileRecorder::<FullPrecisionSettings>::new())
             .unwrap();

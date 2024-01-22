@@ -22,20 +22,16 @@ pytorch = []
 burn = { path = "../burn", version = "0.12.0" }
 burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
 
-anyhow = { version = "1.0.75" }
 bytemuck = { workspace = true }
 candle-core = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 derive-new = { workspace = true }
 half = { workspace = true }
-lazy_static = { workspace = true }
 log = { workspace = true }
-num-traits = { workspace = true }
 proc-macro2 = { workspace = true }
-protobuf = { version = "3.3", features = ["with-bytes"] }
+protobuf = { workspace = true, features = ["with-bytes"] }
 quote = { workspace = true }
 regex = { workspace = true }
-rust-format = { version = "0.3", features = ["token_stream", "post_process"] }
+rust-format = { workspace = true, features = ["token_stream", "post_process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }

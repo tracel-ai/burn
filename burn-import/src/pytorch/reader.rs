@@ -11,7 +11,7 @@ use crate::record::{
 
 use burn::{
     module::ParamId,
-    record::PrecisionSettings,
+    record::{ParamSerde, PrecisionSettings},
     tensor::{DataSerialize, Element, ElementConversion},
 };
 
@@ -94,15 +94,6 @@ impl Serializable for CandleTensor {
     }
 }
 
-/// Redefine a Param struct so it can be serialized.
-///
-/// Note: This is a workaround for the fact that `Param` is not serializable.
-#[derive(new, Debug, Clone, Serialize)]
-struct Param<T> {
-    id: String,
-    param: T,
-}
-
 /// Helper function to serialize a candle tensor data.
 fn serialize_data<T, E>(
     tensor: CandleTensor,
@@ -120,5 +111,5 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    Param::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
+    ParamSerde::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
 }

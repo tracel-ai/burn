@@ -62,6 +62,7 @@ libm = "0.2.8"
 log = { default-features = false, version = "0.4.20" }
 pretty_assertions = "1.4"
 proc-macro2 = "1.0.69"
+protobuf = "3.3"
 protobuf-codegen = "3.3"
 quote = "1.0.33"
 r2d2 = "0.8.10"
@@ -72,7 +73,7 @@ reqwest = "0.11.23"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
 rusqlite = { version = "0.30.0" }
-rust-format ={ version = "0.3.4"}
+rust-format = { version = "0.3.4" }
 sanitize-filename = "0.5.0"
 serde_rusqlite = "0.34.0"
 serde-wasm-bindgen = "0.6.1"
@@ -97,14 +98,15 @@ pollster = "0.3"
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 wgpu = "0.18.0"
 
-#
-# The following packages disable the "std" feature for no_std compatibility
-#
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
     "serde",
 ], default-features = false }
-derive-new = { version = "0.5.9", default-features = false }
+
+#
+# The following packages disable the "std" feature for no_std compatibility
+#
+derive-new = { version = "0.6.0", default-features = false }
 
 half = { version = "2.3.1", features = [
     "alloc",

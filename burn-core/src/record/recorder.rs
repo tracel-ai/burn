@@ -164,7 +164,7 @@ pub(crate) fn bin_config() -> bincode::config::Configuration {
 }
 
 /// Metadata of a record.
-#[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(new, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BurnMetadata {
     /// Float type used to record the item.
     pub float: String,

@@ -525,7 +525,7 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_seq(DefaultSeqAccess::new())
+        visitor.visit_seq(DefaultSeqAccess::new(None))
     }
 
     fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -544,44 +544,65 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     where
         V: Visitor<'de>,
     {
+        // TODO fix this by implementing a default map access
         visitor.visit_map(DefaultMapAccess::new())
     }
 
+    fn deserialize_tuple_struct<V>(
+        self,
+        _name: &'static str,
+        _len: usize,
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // TODO: Implement this.
+        unimplemented!()
+    }
+
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(DefaultSeqAccess::new(Some(len)))
+    }
+
     forward_to_deserialize_any! {
-        u128 bytes byte_buf unit unit_struct newtype_struct tuple
-        tuple_struct map enum identifier ignored_any
+        u128 bytes byte_buf unit unit_struct newtype_struct
+        map enum identifier ignored_any
     }
 }
 
 /// A default sequence access that always returns None (empty sequence).
-pub struct DefaultSeqAccess;
+pub struct DefaultSeqAccess {
+    size: Option<usize>,
+}
 
 impl Default for DefaultSeqAccess {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
 impl DefaultSeqAccess {
-    pub fn new() -> Self {
-        DefaultSeqAccess
+    pub fn new(size: Option<usize>) -> Self {
+        DefaultSeqAccess { size }
     }
 }
 
 impl<'de> SeqAccess<'de> for DefaultSeqAccess {
     type Error = Error;
 
-    fn next_element_seed<T>(&mut self, _seed: T) -> Result<Option<T::Value>, Self::Error>
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
     where
         T: DeserializeSeed<'de>,
     {
-        // Since this is a default implementation, we'll just return None.
-        Ok(None)
+        seed.deserialize(DefaultDeserializer).map(Some)
     }
 
     fn size_hint(&self) -> Option<usize> {
-        // Since this is a default implementation, we'll just return None.
-        None
+        self.size
     }
 }
 

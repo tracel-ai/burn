@@ -1,6 +1,6 @@
 use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::{Ident, TokenStream};
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::Generics;
 
 use super::codegen::RecordItemCodegen;
@@ -19,18 +19,10 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             let ty = &field.field.ty;
             let name = &field.field.ident;
 
-            if type_with_defaults(ty) {
-                fields.extend(quote! {
-                    /// Field to be ignored.
-                    #[serde(default)]
-                    pub #name: <#ty as burn::record::Record>::Item<S>,
-                });
-            } else {
-                fields.extend(quote! {
-                    /// Field to be serialized.
-                    pub #name: <#ty as burn::record::Record>::Item<S>,
-                });
-            }
+            fields.extend(quote! {
+                /// Field to be serialized.
+                pub #name: <#ty as burn::record::Record>::Item<S>,
+            });
 
             bounds.extend(quote! {
           <#ty as burn::record::Record>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
@@ -56,15 +48,10 @@ impl RecordItemCodegen for StructRecordItemCodegen {
 
         for field in self.fields.iter() {
             let name = &field.field.ident;
-            if type_with_defaults(&field.field.ty) {
-                body_into_item.extend(quote! {
-                    #name: Default::default(),
-                });
-            } else {
-                body_into_item.extend(quote! {
-                    #name: burn::record::Record::into_item::<S>(self.#name),
-                });
-            }
+
+            body_into_item.extend(quote! {
+                #name: burn::record::Record::into_item::<S>(self.#name),
+            });
         }
 
         quote! {
@@ -81,15 +68,10 @@ impl RecordItemCodegen for StructRecordItemCodegen {
 
         for field in self.fields.iter() {
             let name = &field.field.ident;
-            if type_with_defaults(&field.field.ty) {
-                body_from_item.extend(quote! {
-                    #name: Default::default(),
-                });
-            } else {
-                body_from_item.extend(quote! {
-                    #name: burn::record::Record::from_item::<S>(item.#name),
-                });
-            }
+
+            body_from_item.extend(quote! {
+                #name: burn::record::Record::from_item::<S>(item.#name),
+            });
         }
 
         quote! {
@@ -99,44 +81,5 @@ impl RecordItemCodegen for StructRecordItemCodegen {
                 }
             }
         }
-    }
-}
-
-/// Identify if the type should be labeled as `#[serde(default)]`.
-///
-/// This allows deserializing missing field types as their default values.
-///
-/// These types are: `bool`, `usize`, `f32`, `f64`, `half::bf16`, `half::f16`, `u64`, `u32`, `u16`,
-/// `u8`, `i64`, `i32`, `i16`, `i8`, `alloc::string::String`, which are ignored typically during record
-/// serialization.
-///
-///
-fn type_with_defaults(ty: &syn::Type) -> bool {
-    match ty {
-        syn::Type::Path(type_path) => {
-            if let Some(ident) = type_path.path.get_ident() {
-                ident == "bool"
-                    || ident == "usize"
-                    || ident == "f32"
-                    || ident == "f64"
-                    || ident == "half::bf16"
-                    || ident == "half::f16"
-                    || ident == "u64"
-                    || ident == "u32"
-                    || ident == "u16"
-                    || ident == "u8"
-                    || ident == "i64"
-                    || ident == "i32"
-                    || ident == "i16"
-                    || ident == "i8"
-                    || ident == "alloc::string::String"
-            } else {
-                // Check if the path represents an array type
-                let path_as_string = type_path.to_token_stream().to_string();
-                path_as_string.contains('[') && path_as_string.contains(']')
-            }
-        }
-        // Handle other types if necessary
-        _ => false,
     }
 }
