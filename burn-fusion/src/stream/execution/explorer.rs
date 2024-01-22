@@ -6,6 +6,7 @@ pub struct Explorer<O> {
     builders: Vec<Box<dyn OptimizationBuilder<O>>>,
     num_deferred: usize,
     num_explored: usize,
+    is_still_optimizing: bool,
 }
 
 /// The result of an exploration done by the [explorer](Explorer).
@@ -25,11 +26,12 @@ impl<O> Explorer<O> {
             builders: optimizations,
             num_deferred: 0,
             num_explored: 0,
+            is_still_optimizing: true,
         }
     }
 
-    /// Defer the exploration.
-    pub(crate) fn defer(&mut self) {
+    /// Indicate that a new operation is added.
+    pub(crate) fn on_new_operation(&mut self) {
         self.num_deferred += 1;
     }
 
@@ -44,34 +46,11 @@ impl<O> Explorer<O> {
         operations: &[OperationDescription],
         mode: ExecutionMode,
     ) -> Exploration<'a, O> {
-        // When we are executing with the new operation mode, we need to register the last ops of the
-        // stream even when there is no skipped operation.
-        let offset = match mode {
-            ExecutionMode::Lazy => 1,
-            ExecutionMode::Sync => 0,
-        };
-
-        let mut is_still_optimizing = still_optimizing(&self.builders);
-
-        for i in (0..self.num_deferred + offset).rev() {
-            if !is_still_optimizing {
-                break;
-            }
-            let index = operations.len() - 1 - i;
-            let relative = &operations[index];
-
-            for builder in self.builders.iter_mut() {
-                builder.register(relative);
-            }
-            self.num_explored += 1;
-
-            is_still_optimizing = still_optimizing(&self.builders);
-        }
-        self.num_deferred = 0;
+        self.update(operations);
 
         // Can only continue exploration when not sync.
         if let ExecutionMode::Lazy = mode {
-            if is_still_optimizing {
+            if self.is_still_optimizing {
                 return Exploration::Continue;
             }
         }
@@ -91,6 +70,26 @@ impl<O> Explorer<O> {
         }
         self.num_explored = 0;
         self.num_deferred = operations.len();
+        self.is_still_optimizing = true;
+    }
+
+    fn update(&mut self, operations: &[OperationDescription]) {
+        for i in (0..self.num_deferred).rev() {
+            if !self.is_still_optimizing {
+                break;
+            }
+            let index = operations.len() - 1 - i;
+            let relative = &operations[index];
+
+            for builder in self.builders.iter_mut() {
+                builder.register(relative);
+            }
+            self.num_explored += 1;
+
+            self.is_still_optimizing = still_optimizing(&self.builders);
+        }
+
+        self.num_deferred = 0;
     }
 }
 

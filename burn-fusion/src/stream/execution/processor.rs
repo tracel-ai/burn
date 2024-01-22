@@ -38,12 +38,17 @@ impl<O> Processor<O> {
     ) where
         Segment: StreamSegment<O>,
     {
+        // We assume that we always register a new operation in lazy mode.
+        if let ExecutionMode::Lazy = mode {
+            self.on_new_operation(&segment, store);
+        }
+
         loop {
             if segment.operations().is_empty() {
                 break;
             }
 
-            match self.action(store, segment.operations(), mode) {
+            match self.policy.action(store, segment.operations(), mode) {
                 Action::Explore => {
                     self.explore(&mut segment, store, mode);
 
@@ -52,8 +57,6 @@ impl<O> Processor<O> {
                     }
                 }
                 Action::Defer => {
-                    self.explorer.defer();
-
                     match mode {
                         ExecutionMode::Lazy => break,
                         ExecutionMode::Sync => panic!("Can't defer while sync"),
@@ -68,11 +71,21 @@ impl<O> Processor<O> {
                     self.reset(store, segment.operations());
                 }
             };
-
-            if let ExecutionMode::Lazy = mode {
-                break;
-            }
         }
+    }
+
+    fn on_new_operation<Segment>(&mut self, segment: &Segment, store: &mut ExecutionPlanStore<O>)
+    where
+        Segment: StreamSegment<O>,
+    {
+        self.policy.update(
+            store,
+            segment
+                .operations()
+                .last()
+                .expect("At least one operation in the operation list."),
+        );
+        self.explorer.on_new_operation();
     }
 
     fn explore<Item: StreamSegment<O>>(
@@ -101,6 +114,7 @@ impl<O> Processor<O> {
                     mode,
                     num_explored,
                 );
+
                 item.execute(id, store);
                 self.reset(store, item.operations());
             }
@@ -122,25 +136,6 @@ impl<O> Processor<O> {
         }
     }
 
-    fn action(
-        &mut self,
-        store: &ExecutionPlanStore<O>,
-        operations: &[OperationDescription],
-        mode: ExecutionMode,
-    ) -> Action {
-        if let ExecutionMode::Lazy = mode {
-            // We update the policy in lazy mode, since
-            self.policy.update(
-                store,
-                operations
-                    .last()
-                    .expect("At least one operation in the operation list."),
-            );
-        };
-
-        self.policy.action(store, operations, mode)
-    }
-
     fn on_optimization_found(
         policy: &Policy<O>,
         operations: &[OperationDescription],
@@ -153,14 +148,14 @@ impl<O> Processor<O> {
 
         match mode {
             ExecutionMode::Lazy => {
-                let next_ops = operations.get(num_fused);
+                let next_ops = &operations[num_fused..operations.len()];
 
-                let trigger = if let Some(next_ops) = next_ops {
-                    ExecutionTrigger::OnOperation(next_ops.clone())
-                } else {
+                let trigger = if next_ops.is_empty() {
                     // Happens if the next ops is included in the fused operation, and there is no
                     // way the builder can still continue fusing.
                     ExecutionTrigger::Always
+                } else {
+                    ExecutionTrigger::OnOperations(next_ops.to_vec())
                 };
 
                 match policy.action(store, relative, ExecutionMode::Sync) {
@@ -181,7 +176,7 @@ impl<O> Processor<O> {
                     id
                 }
                 _ => store.add(ExecutionPlan {
-                    operations: operations.to_vec(),
+                    operations: relative.to_vec(),
                     triggers: vec![ExecutionTrigger::OnSync],
                     strategy: ExecutionStrategy::Optimization(builder.build()),
                 }),
