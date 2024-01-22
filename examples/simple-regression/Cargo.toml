@@ -1,0 +1,24 @@
+[package]
+authors = ["aasheeshsingh <aasheeshdtu@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "regression"
+publish = false
+version.workspace = true
+
+[features]
+default = ["burn/dataset", "burn/sqlite-bundled"]
+ndarray = ["burn/ndarray"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+
+[dependencies]
+burn = {path = "../../burn", features=["train"]}
+
+# Serialization
+log = {workspace = true}
+serde = {workspace = true, features = ["std", "derive"]}

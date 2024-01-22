@@ -1,4 +1,9 @@
+use super::validator::{
+    ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
+    ValidatorState,
+};
 use super::ExecutionMode;
+use crate::stream::execution::validator::OperationsValidator;
 use crate::stream::{
     store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
     OperationDescription,
@@ -16,18 +21,34 @@ use std::marker::PhantomData;
 /// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    // The potential explorations that we could apply to the current stream, but their streams
-    // still exceed the size of the current stream.
-    candidates: Vec<ExecutionPlanId>,
-    // Optimizations that we find during the `updates`, but none of their `trigger` matches the
-    // current stream.
-    availables: Vec<(ExecutionPlanId, usize)>,
-    // Optimization that we find during the `updates` where one of its `triggers` matches the
-    // current stream.
+    candidates: Vec<OperationsValidator<ExecutionPlanId>>,
+    availables: Vec<AvailableItem>,
     found: Option<(ExecutionPlanId, usize)>,
-    // The number of operations analyzed.
     num_operations: usize,
     _item_type: PhantomData<O>,
+}
+
+#[derive(new)]
+struct AvailableItem {
+    id: ExecutionPlanId,
+    size: usize,
+    triggers: Vec<TriggerValidator>,
+}
+
+/// Action to be made depending on the stream.
+#[derive(PartialEq, Eq, Debug)]
+pub enum Action {
+    /// Continue exploring using the [builder](crate::OptimizationBuilder).
+    Explore,
+    /// The current policy indicates that an explocation may be possible in the future, so the
+    /// best action is to defer any execution.
+    ///
+    /// Sometimes, it can be a false positive and a new exploration should be built from scratch.
+    /// Therefore it's important to keep the previous operations to rebuild the state if it
+    /// happens.
+    Defer,
+    /// An exploration has been found, and the best action is to execute it!
+    Execute(ExecutionPlanId),
 }
 
 impl<O> Policy<O> {
@@ -58,45 +79,26 @@ impl<O> Policy<O> {
         }
 
         match mode {
-            ExecutionMode::Lazy => {
-                if !self.candidates.is_empty() {
-                    return Action::Defer;
-                }
-
-                Action::Explore
-            }
-            ExecutionMode::Sync => {
-                // If an execution plan covers the _whole_ operation list, we return it, else we explore new
-                // plans.
-                for (id, length) in self.availables.iter() {
-                    if *length == operations.len() {
-                        return Action::Execute(*id);
-                    }
-                }
-
-                for candidate in self.candidates.iter() {
-                    let item = store.get_unchecked(*candidate);
-
-                    // The candidate can actually be executed, since the stream is of the same
-                    // size.
-                    if item.operations.len() == operations.len() {
-                        return Action::Execute(*candidate);
-                    }
-                }
-
-                Action::Explore
-            }
+            ExecutionMode::Lazy => self.action_lazy(operations),
+            ExecutionMode::Sync => self.action_sync(operations, store),
         }
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &ExecutionPlanStore<O>, ops: &OperationDescription) {
+    pub fn update(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationDescription) {
         if self.num_operations == 0 {
-            self.candidates = store.find(SearchQuery::PlansStartingWith(ops));
-        } else {
-            self.analyze_candidates(store, ops);
+            self.candidates = store
+                .find(SearchQuery::PlansStartingWith(operation))
+                .into_iter()
+                .map(OperationsValidator::new)
+                .collect();
         }
 
+        self.update_candidates(store, operation);
+        self.check_candidates(store);
+
+        self.update_availables(store, operation);
+        self.check_availables();
         self.num_operations += 1;
     }
 
@@ -104,57 +106,40 @@ impl<O> Policy<O> {
     pub fn reset(&mut self) {
         self.candidates.clear();
         self.availables.clear();
+
         self.num_operations = 0;
         self.found = None;
     }
 
-    fn analyze_candidates(
-        &mut self,
-        store: &ExecutionPlanStore<O>,
-        operation: &OperationDescription,
-    ) {
-        // The index starts at zero.
-        let mut invalidated_candidates = Vec::new();
+    fn check_candidates(&mut self, store: &ExecutionPlanStore<O>) {
+        let mut candidates_to_remove = Vec::new();
 
-        for id in self.candidates.iter() {
-            let item = store.get_unchecked(*id);
+        for candidate in self.candidates.iter() {
+            match candidate.state {
+                ValidatorState::Found { size } => {
+                    let item = store.get_unchecked(candidate.id);
+                    let mut triggers = Vec::with_capacity(item.triggers.len());
 
-            if item.operations.len() == self.num_operations + 1
-                && item.operations.last().unwrap() == operation
-                && item.triggers.contains(&ExecutionTrigger::Always)
-            {
-                self.found = Some((*id, item.operations.len()));
-                break;
-            }
+                    for (index, trigger) in item.triggers.iter().enumerate() {
+                        triggers.push(match trigger {
+                            ExecutionTrigger::OnOperations(_) => TriggerValidator::OnOperations {
+                                matching: OperationsValidator::new(index),
+                                progress: TriggerProgress::NotInit,
+                            },
+                            ExecutionTrigger::OnSync => TriggerValidator::OnSync,
+                            ExecutionTrigger::Always => TriggerValidator::Always,
+                        });
+                    }
 
-            if item.operations.len() == self.num_operations {
-                if item.should_stop_async(operation) {
-                    self.found = Some((*id, item.operations.len()));
-                    break;
-                } else {
-                    // The plan is available, but the current operation isn't an existing
-                    // trigger for this plan, so we may find a better plan by
-                    // still growing the operation list.
-                    self.availables.push((*id, item.operations.len()));
-                    invalidated_candidates.push(*id);
-                    continue;
+                    self.availables
+                        .push(AvailableItem::new(candidate.id, size, triggers));
+                    candidates_to_remove.push(candidate.id);
                 }
-            };
-
-            let operation_candidate = match item.operations.get(self.num_operations) {
-                Some(val) => val,
-                None => {
-                    // Operation list of different size, invalidated.
-                    invalidated_candidates.push(*id);
-                    continue;
+                ValidatorState::Invalidated => {
+                    candidates_to_remove.push(candidate.id);
                 }
+                ValidatorState::Validating => {}
             };
-
-            if operation_candidate != operation {
-                // Operation list with different node at the current position, invalidated.
-                invalidated_candidates.push(*id);
-                continue;
-            }
         }
 
         let mut updated_candidates = Vec::new();
@@ -162,25 +147,121 @@ impl<O> Policy<O> {
 
         self.candidates = updated_candidates
             .into_iter()
-            .filter(|candidate| !invalidated_candidates.contains(candidate))
+            .filter(|candidate| !candidates_to_remove.iter().any(|id| id == &candidate.id))
             .collect();
     }
-}
 
-/// Action to be made depending on the stream.
-#[derive(PartialEq, Eq, Debug)]
-pub enum Action {
-    /// Continue exploring using the [builder](crate::OptimizationBuilder).
-    Explore,
-    /// The current policy indicates that an explocation may be possible in the future, so the
-    /// best action is to defer any execution.
-    ///
-    /// Sometimes, it can be a false positive and a new exploration should be built from scratch.
-    /// Therefore it's important to keep the previous operations to rebuild the state if it
-    /// happens.
-    Defer,
-    /// An exploration has been found, and the best action is to execute it!
-    Execute(ExecutionPlanId),
+    fn check_availables(&mut self) {
+        for available in self.availables.iter() {
+            for trigger in available.triggers.iter() {
+                match trigger {
+                    TriggerValidator::OnOperations {
+                        matching,
+                        progress: _,
+                    } => {
+                        if let ValidatorState::Found {
+                            size: _size_of_trigger,
+                        } = matching.state
+                        {
+                            self.found = Some((available.id, available.size));
+                            return;
+                        }
+                    }
+                    TriggerValidator::Always => {
+                        self.found = Some((available.id, available.size));
+                        return;
+                    }
+                    TriggerValidator::OnSync => {
+                        // Does nothing during an update.
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_candidates(
+        &mut self,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
+    ) {
+        let main_store = ExecutionPlanOperationsStore::new(store);
+
+        self.candidates
+            .iter_mut()
+            .for_each(|candidate| candidate.update(operation, self.num_operations, &main_store));
+    }
+
+    fn update_availables(
+        &mut self,
+        store: &ExecutionPlanStore<O>,
+        operation: &OperationDescription,
+    ) {
+        self.availables.iter_mut().for_each(|available| {
+            let store_trigger = TriggerOperationsStore::new(available.id, store);
+
+            available.triggers.iter_mut().for_each(|trigger| {
+                if let TriggerValidator::OnOperations { matching, progress } = trigger {
+                    match progress {
+                        TriggerProgress::NotInit => {
+                            *progress = TriggerProgress::NumChecked(0);
+                        }
+                        TriggerProgress::NumChecked(num_check) => {
+                            matching.update(operation, *num_check, &store_trigger);
+                            *num_check += 1;
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    fn action_lazy(&self, operations: &[OperationDescription]) -> Action {
+        if !self.candidates.is_empty() {
+            return Action::Defer;
+        }
+
+        for available in self.availables.iter() {
+            if available.size == operations.len() {
+                return Action::Defer;
+            }
+
+            for trigger in available.triggers.iter() {
+                if let TriggerValidator::OnOperations {
+                    matching,
+                    progress: _,
+                } = trigger
+                {
+                    if let ValidatorState::Validating = matching.state {
+                        return Action::Defer;
+                    }
+                }
+            }
+        }
+
+        Action::Explore
+    }
+
+    fn action_sync(
+        &self,
+        operations: &[OperationDescription],
+        store: &ExecutionPlanStore<O>,
+    ) -> Action {
+        for available in self.availables.iter() {
+            if available.size == operations.len() {
+                return Action::Execute(available.id);
+            }
+        }
+
+        for candidate in self.candidates.iter() {
+            let item = store.get_unchecked(candidate.id);
+
+            if item.operations.len() == operations.len() {
+                return Action::Execute(candidate.id);
+            }
+        }
+
+        Action::Explore
+    }
 }
 
 #[cfg(test)]
@@ -210,13 +291,18 @@ mod tests {
     }
 
     #[test]
-    fn given_existing_optimization_when_sync_should_execute_optim() {
+    fn given_existing_optimizations_when_sync_should_execute_one_when_available() {
         let mut store = ExecutionPlanStore::default();
         let mut policy = Policy::new();
-        let stream = TestStream::new(2);
+        let stream = TestStream::new(3);
 
-        let id = store.add(ExecutionPlan {
-            operations: stream.operations.clone(),
+        let id_1 = store.add(ExecutionPlan {
+            operations: stream.operations[0..2].to_vec(),
+            triggers: Vec::new(),
+            strategy: ExecutionStrategy::Operations,
+        });
+        let _id_2 = store.add(ExecutionPlan {
+            operations: stream.operations[0..3].to_vec(),
             triggers: Vec::new(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -228,8 +314,8 @@ mod tests {
             Action::Defer,
         );
 
-        let action = policy.action(&store, &stream.operations, ExecutionMode::Sync);
-        assert_eq!(action, Action::Execute(id));
+        let action = policy.action(&store, &stream.operations[0..2], ExecutionMode::Sync);
+        assert_eq!(action, Action::Execute(id_1));
     }
 
     #[test]
@@ -242,7 +328,7 @@ mod tests {
             operations: stream.operations[0..2].to_vec(),
             triggers: stream.operations[2..3]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -279,8 +365,8 @@ mod tests {
         let id = store.add(ExecutionPlan {
             operations: stream_1.operations[0..2].to_vec(),
             triggers: vec![
-                ExecutionTrigger::OnOperation(stream_1.operations[2].clone()),
-                ExecutionTrigger::OnOperation(stream_2.operations[2].clone()),
+                ExecutionTrigger::OnOperations(vec![stream_1.operations[2].clone()]),
+                ExecutionTrigger::OnOperations(vec![stream_2.operations[2].clone()]),
             ],
             strategy: ExecutionStrategy::Operations,
         });
@@ -332,7 +418,7 @@ mod tests {
             operations: stream_1.operations[0..3].to_vec(),
             triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -340,7 +426,7 @@ mod tests {
             operations: stream_2.operations[0..3].to_vec(),
             triggers: stream_2.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
@@ -385,7 +471,7 @@ mod tests {
             operations: stream_1.operations[0..3].to_vec(),
             triggers: stream_1.operations[3..4]
                 .iter()
-                .map(|desc| ExecutionTrigger::OnOperation(desc.clone()))
+                .map(|desc| ExecutionTrigger::OnOperations(vec![desc.clone()]))
                 .collect(),
             strategy: ExecutionStrategy::Operations,
         });
