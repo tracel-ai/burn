@@ -324,8 +324,6 @@ mod tests {
 
         let serialized_str = format!("{:?}", serialized);
 
-        println!("{}", serialized_str);
-
         // Compare the lengths of expected and actual serialized strings because
         // the order of the fields is not guaranteed for HashMaps.
         assert_eq!(

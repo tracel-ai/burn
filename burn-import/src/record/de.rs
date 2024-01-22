@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::adapter::DefaultAdapter;
 use super::data::NestedValue;
 use super::{adapter::BurnModuleAdapter, error::Error};
 
@@ -371,7 +372,6 @@ where
                 seed.deserialize(k.into_deserializer()).map(Some)
             }
             None => Ok(None),
-            // None => seed.deserialize(k.into_deserializer()).map(Some),
         }
     }
 
@@ -544,21 +544,25 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     where
         V: Visitor<'de>,
     {
-        // TODO fix this by implementing a default map access
-        visitor.visit_map(DefaultMapAccess::new())
+        let mut map: HashMap<String, NestedValue> = HashMap::new();
+
+        for field in _fields.iter().map(|s| s.to_string()) {
+            map.insert(field, NestedValue::Default);
+        }
+
+        visitor.visit_map(HashMapAccess::<DefaultAdapter>::new(map))
     }
 
     fn deserialize_tuple_struct<V>(
         self,
         _name: &'static str,
-        _len: usize,
-        _visitor: V,
+        len: usize,
+        visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        // TODO: Implement this.
-        unimplemented!()
+        visitor.visit_seq(DefaultSeqAccess::new(Some(len)))
     }
 
     fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
@@ -568,9 +572,16 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         visitor.visit_seq(DefaultSeqAccess::new(Some(len)))
     }
 
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_map(DefaultMapAccess::new())
+    }
+
     forward_to_deserialize_any! {
         u128 bytes byte_buf unit unit_struct newtype_struct
-        map enum identifier ignored_any
+        enum identifier ignored_any
     }
 }
 
