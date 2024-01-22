@@ -81,7 +81,7 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 ```rust, ignore
 let model_path = Path::new("experiment/model");
 
-// Load model record
+// Load model record on the backend's default device
 let record: ModelRecord<Backend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
     .load(model_path.into())
     .expect("Could not load model file");
