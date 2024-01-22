@@ -100,7 +100,7 @@ impl FusionKernelSet {
                         strides: strides_dyn_rank(&tensor.shape),
                         handle,
                     };
-                    output_register.push((tensor.id.clone(), handle_fusion));
+                    output_register.push((tensor.id, handle_fusion));
                 }
                 // Create a new buffer for this output.
                 OutputInfo::Array { size } => {
@@ -113,7 +113,7 @@ impl FusionKernelSet {
 
                     register_info_tensor(&mut info, tensor, &handle_fusion);
                     handles.push(handle_fusion.handle.clone());
-                    output_register.push((tensor.id.clone(), handle_fusion));
+                    output_register.push((tensor.id, handle_fusion));
                 }
             };
         }

@@ -26,7 +26,7 @@ pub struct DoublePrecisionSettings;
 
 impl PrecisionSettings for FullPrecisionSettings {
     type FloatElem = f32;
-    type IntElem = f32;
+    type IntElem = i32;
 }
 
 impl PrecisionSettings for DoublePrecisionSettings {

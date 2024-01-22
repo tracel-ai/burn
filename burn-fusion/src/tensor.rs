@@ -1,4 +1,4 @@
-use crate::client::FusionClient;
+use crate::{client::FusionClient, stream::StreamId};
 use burn_tensor::{
     backend::Backend,
     ops::{FloatElem, IntElem},
@@ -21,6 +21,7 @@ pub struct FusionTensor<C: FusionClient> {
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
     pub(crate) is_orphan: bool,
+    pub(crate) stream: StreamId,
 }
 
 impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
@@ -40,12 +41,13 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
 }
 
 impl<C: FusionClient> FusionTensor<C> {
-    pub(crate) fn new(id: Arc<TensorId>, shape: Vec<usize>, client: C) -> Self {
+    pub(crate) fn new(id: Arc<TensorId>, shape: Vec<usize>, client: C, stream: StreamId) -> Self {
         Self {
             id,
             shape,
             client,
             is_orphan: true,
+            stream,
         }
     }
     pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
@@ -65,7 +67,7 @@ impl<C: FusionClient> FusionTensor<C> {
         TensorDescription {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
-            id: self.id.as_ref().clone(),
+            id: *self.id.as_ref(),
         }
     }
 
@@ -82,26 +84,31 @@ impl<C: FusionClient> FusionTensor<C> {
         TensorDescription {
             status,
             shape: shape_out,
-            id: self.id.as_ref().clone(),
+            id: *self.id.as_ref(),
         }
     }
 
     pub(crate) fn into_data<const D: usize>(self) -> Reader<Data<FloatElem<C::FusionBackend>, D>> {
+        let id = self.stream;
         self.client
             .clone()
-            .read_tensor_float(self.into_description())
+            .read_tensor_float(self.into_description(), id)
     }
 
     pub(crate) fn int_into_data<const D: usize>(
         self,
     ) -> Reader<Data<IntElem<C::FusionBackend>, D>> {
-        self.client.clone().read_tensor_int(self.into_description())
+        let id = self.stream;
+        self.client
+            .clone()
+            .read_tensor_int(self.into_description(), id)
     }
 
     pub(crate) fn bool_into_data<const D: usize>(self) -> Reader<Data<bool, D>> {
+        let id = self.stream;
         self.client
             .clone()
-            .read_tensor_bool(self.into_description())
+            .read_tensor_bool(self.into_description(), id)
     }
 }
 
@@ -122,7 +129,7 @@ impl<C: FusionClient> Drop for FusionTensor<C> {
 }
 
 /// The tensor unique identifier.
-#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct TensorId {
     value: u64,
 }

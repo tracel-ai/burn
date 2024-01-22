@@ -136,10 +136,10 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
         )
     }
     /// Visit each tensor parameter in the module with a [visitor](ModuleVisitor).
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V);
+    fn visit<Visitor: ModuleVisitor<B>>(&self, visitor: &mut Visitor);
 
     /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self;
+    fn map<Mapper: ModuleMapper<B>>(self, mapper: &mut Mapper) -> Self;
 
     /// Load the module state from a record.
     fn load_record(self, record: Self::Record) -> Self;
