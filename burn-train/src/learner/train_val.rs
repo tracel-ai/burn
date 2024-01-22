@@ -135,6 +135,7 @@ impl<LC: LearnerComponents> Learner<LC> {
                         self.model,
                         self.optim,
                         self.lr_scheduler,
+                        &Default::default(), // Load the checkpoint on the default device.
                         checkpoint,
                     );
                 }

@@ -1,4 +1,7 @@
-use burn_core::record::{Record, RecorderError};
+use burn_core::{
+    record::{Record, RecorderError},
+    tensor::backend::Backend,
+};
 
 /// The error type for checkpointer.
 #[derive(Debug)]
@@ -14,7 +17,11 @@ pub enum CheckpointerError {
 }
 
 /// The trait for checkpointer.
-pub trait Checkpointer<R: Record> {
+pub trait Checkpointer<R, B>
+where
+    R: Record<B>,
+    B: Backend,
+{
     /// Save the record.
     ///
     /// # Arguments
@@ -35,5 +42,5 @@ pub trait Checkpointer<R: Record> {
     /// # Returns
     ///
     /// The record.
-    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError>;
+    fn restore(&self, epoch: usize, device: &B::Device) -> Result<R, CheckpointerError>;
 }
