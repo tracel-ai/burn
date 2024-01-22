@@ -129,7 +129,7 @@ impl NestedValue {
         PS: PrecisionSettings,
         A: BurnModuleAdapter,
     {
-        let deserializer = Deserializer::<A>::new(self);
+        let deserializer = Deserializer::<A>::new(self, false);
 
         let item = T::Item::deserialize(deserializer)?;
 

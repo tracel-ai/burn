@@ -45,7 +45,7 @@ where
     let nested_value = unflatten::<PS, _>(tensors)?;
 
     // Create a deserializer with PyTorch adapter and nested value
-    let deserializer = Deserializer::<PyTorchAdapter<PS>>::new(nested_value);
+    let deserializer = Deserializer::<PyTorchAdapter<PS>>::new(nested_value, true);
 
     // Deserialize the nested value into a record type
     let value = D::deserialize(deserializer)?;

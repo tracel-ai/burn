@@ -16,14 +16,21 @@ pub struct Deserializer<A: BurnModuleAdapter> {
     // This string starts with the input data and characters are truncated off
     // the beginning as data is parsed.
     value: Option<NestedValue>,
+    default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,
 }
 
 impl<A: BurnModuleAdapter> Deserializer<A> {
     /// Creates a new deserializer with the given nested value.
-    pub fn new(value: NestedValue) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - A nested value.
+    /// * `default_for_missing_fields` - A boolean indicating whether to add missing fields with default value.
+    pub fn new(value: NestedValue, default_for_missing_fields: bool) -> Self {
         Self {
             value: Some(value),
+            default_for_missing_fields,
             phantom: std::marker::PhantomData,
         }
     }
@@ -50,6 +57,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     {
         let value = match self.value {
             Some(value) => {
+                // Adapt modules
                 if let Some(name) = name.strip_suffix(RECORD_ITEM_SUFFIX) {
                     A::adapt(name, value)
                 } else {
@@ -66,13 +74,21 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
 
         match value {
             NestedValue::Map(map) => {
-                // Add missing fields into the map with default value
-                let mut map = map;
-                for field in fields.iter().map(|s| s.to_string()) {
-                    map.entry(field).or_insert(NestedValue::Default);
-                }
+                // Add missing fields into the map with default value if needed.
+                let map = if self.default_for_missing_fields {
+                    let mut map = map;
+                    for field in fields.iter().map(|s| s.to_string()) {
+                        map.entry(field).or_insert(NestedValue::Default);
+                    }
+                    map
+                } else {
+                    map
+                };
 
-                visitor.visit_map(HashMapAccess::<A>::new(map))
+                visitor.visit_map(HashMapAccess::<A>::new(
+                    map,
+                    self.default_for_missing_fields,
+                ))
             }
 
             _ => Err(de::Error::custom(format!(
@@ -213,7 +229,10 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         V: Visitor<'de>,
     {
         if let Some(value) = self.value {
-            visitor.visit_some(Deserializer::<A>::new(value))
+            visitor.visit_some(Deserializer::<A>::new(
+                value,
+                self.default_for_missing_fields,
+            ))
         } else {
             visitor.visit_none()
         }
@@ -245,7 +264,10 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_newtype_struct(Deserializer::<A>::new(self.value.unwrap()))
+        visitor.visit_newtype_struct(Deserializer::<A>::new(
+            self.value.unwrap(),
+            self.default_for_missing_fields,
+        ))
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -253,7 +275,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         V: Visitor<'de>,
     {
         if let Some(NestedValue::Vec(vec)) = self.value {
-            visitor.visit_seq(VecSeqAccess::<A>::new(vec))
+            visitor.visit_seq(VecSeqAccess::<A>::new(vec, self.default_for_missing_fields))
         } else {
             Err(de::Error::custom(format!(
                 "Expected Vec but got {:?}",
@@ -304,13 +326,15 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
 /// A sequence access for a vector in the nested value data structure.
 struct VecSeqAccess<A: BurnModuleAdapter> {
     iter: std::vec::IntoIter<NestedValue>,
+    default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,
 }
 
 impl<A: BurnModuleAdapter> VecSeqAccess<A> {
-    fn new(vec: Vec<NestedValue>) -> Self {
+    fn new(vec: Vec<NestedValue>, default_for_missing_fields: bool) -> Self {
         VecSeqAccess {
             iter: vec.into_iter(),
+            default_for_missing_fields,
             phantom: std::marker::PhantomData,
         }
     }
@@ -329,7 +353,10 @@ where
     {
         match self.iter.next() {
             Some(v) => seed
-                .deserialize(NestedValueWrapper::<A>::new(v).into_deserializer())
+                .deserialize(
+                    NestedValueWrapper::<A>::new(v, self.default_for_missing_fields)
+                        .into_deserializer(),
+                )
                 .map(Some),
             None => Ok(None),
         }
@@ -340,14 +367,16 @@ where
 struct HashMapAccess<A: BurnModuleAdapter> {
     iter: std::collections::hash_map::IntoIter<String, NestedValue>,
     next_value: Option<NestedValue>,
+    default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,
 }
 
 impl<A: BurnModuleAdapter> HashMapAccess<A> {
-    fn new(map: HashMap<String, NestedValue>) -> Self {
+    fn new(map: HashMap<String, NestedValue>, default_for_missing_fields: bool) -> Self {
         HashMapAccess {
             iter: map.into_iter(),
             next_value: None,
+            default_for_missing_fields,
             phantom: std::marker::PhantomData,
         }
     }
@@ -382,7 +411,9 @@ where
     {
         match self.next_value.take() {
             Some(NestedValue::Default) => seed.deserialize(DefaultDeserializer),
-            Some(v) => seed.deserialize(NestedValueWrapper::new(v).into_deserializer()),
+            Some(v) => seed.deserialize(
+                NestedValueWrapper::new(v, self.default_for_missing_fields).into_deserializer(),
+            ),
             None => seed.deserialize(DefaultDeserializer),
         }
     }
@@ -391,13 +422,15 @@ where
 /// A wrapper for the nested value data structure with a burn module adapter.
 struct NestedValueWrapper<A: BurnModuleAdapter> {
     value: NestedValue,
+    default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,
 }
 
 impl<A: BurnModuleAdapter> NestedValueWrapper<A> {
-    fn new(value: NestedValue) -> Self {
+    fn new(value: NestedValue, default_for_missing_fields: bool) -> Self {
         Self {
             value,
+            default_for_missing_fields,
             phantom: std::marker::PhantomData,
         }
     }
@@ -407,7 +440,7 @@ impl<A: BurnModuleAdapter> IntoDeserializer<'_, Error> for NestedValueWrapper<A>
     type Deserializer = Deserializer<A>;
 
     fn into_deserializer(self) -> Self::Deserializer {
-        Deserializer::<A>::new(self.value)
+        Deserializer::<A>::new(self.value, self.default_for_missing_fields)
     }
 }
 
@@ -551,7 +584,7 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
             map.insert(field, NestedValue::Default);
         }
 
-        visitor.visit_map(HashMapAccess::<DefaultAdapter>::new(map))
+        visitor.visit_map(HashMapAccess::<DefaultAdapter>::new(map, true))
     }
 
     fn deserialize_tuple_struct<V>(
