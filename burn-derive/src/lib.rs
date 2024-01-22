@@ -16,8 +16,6 @@ pub(crate) mod shared;
 #[proc_macro_derive(Module)]
 pub fn module_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-
-    // panic!("{gen}");
     module::derive_impl(&input)
 }
 
@@ -25,8 +23,6 @@ pub fn module_derive(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Record)]
 pub fn record_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    
-    // panic!("{gen}");
     record::derive_impl(&input)
 }
 
