@@ -1,5 +1,6 @@
 use alloc::{
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use core::{fmt, marker::PhantomData};
