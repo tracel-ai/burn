@@ -18,7 +18,7 @@ fn main() {
                 + "Candle's pt bug on Windows "
                 + "(see https://github.com/huggingface/candle/issues/1454)."
         );
-        std::process::exit(1);
+        std::process::exit(0);
     }
 
     // Load PyTorch weights into a model record.
