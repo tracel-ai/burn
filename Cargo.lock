@@ -162,10 +162,16 @@ version = "0.13.0"
 dependencies = [
  "burn",
  "burn-common",
+ "clap",
+ "crossterm",
  "derive-new",
  "dirs 5.0.1",
  "rand",
+ "ratatui",
  "serde_json",
+ "strum",
+ "strum_macros",
+ "unicode-width",
 ]
 
 [[package]]

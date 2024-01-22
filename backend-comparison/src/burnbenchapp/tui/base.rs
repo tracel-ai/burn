@@ -34,7 +34,7 @@ pub struct TuiApplication {
 impl Application for TuiApplication {
     fn init(&mut self) {}
 
-    fn run(&mut self) {
+    fn run(&mut self, benches: &Vec<BenchmarkValues>, backends: &Vec<BackendValues>) {
         loop {
             self.terminal
                 .draw(|f| TuiApplication::render_app(&mut self.regions, f))
@@ -100,7 +100,7 @@ impl TuiApplication {
             }),
         );
 
-        let checkboxes = Checkboxes::new()
+        // let checkboxes = Checkboxes::new()
 
         // let mut state = ListState::default();
         // let items = [
