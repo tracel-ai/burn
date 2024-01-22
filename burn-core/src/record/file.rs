@@ -14,7 +14,7 @@ pub trait FileRecorder:
 }
 
 /// Default [file recorder](FileRecorder).
-pub type DefaultFileRecorder<S> = NamedMpkGzFileRecorder<S>;
+pub type DefaultFileRecorder<S> = NamedMpkFileRecorder<S>;
 
 /// File recorder using the [bincode format](bincode).
 #[derive(new, Debug, Default, Clone)]
