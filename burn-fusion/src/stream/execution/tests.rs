@@ -157,7 +157,7 @@ fn should_support_complex_stream() {
     stream.assert_last_executed(plan_id_3);
 }
 
-/// In this scenario we will never used an optimization, but we check that we reused the execution plan stored.
+/// In this scenario we will never use an optimization, but we check that we reuse the execution plan stored.
 #[test]
 fn should_reuse_basic_operations() {
     let builder_id_1 = 0;
@@ -210,7 +210,7 @@ fn should_reuse_basic_operations() {
 }
 
 // In this scenario we validate that we support multiple optimization builders with overlapping
-// opeations.
+// operations.
 //
 // This is a very long scenario that validates a lot of things.
 #[test]

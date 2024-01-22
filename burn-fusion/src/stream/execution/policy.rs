@@ -22,10 +22,17 @@ use std::marker::PhantomData;
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
     candidates: Vec<OperationsValidator<ExecutionPlanId>>,
-    availables: Vec<(ExecutionPlanId, usize, Vec<TriggerValidator>)>,
+    availables: Vec<AvailableItem>,
     found: Option<(ExecutionPlanId, usize)>,
     num_operations: usize,
     _item_type: PhantomData<O>,
+}
+
+#[derive(new)]
+struct AvailableItem {
+    id: ExecutionPlanId,
+    size: usize,
+    triggers: Vec<TriggerValidator>,
 }
 
 /// Action to be made depending on the stream.
@@ -124,7 +131,8 @@ impl<O> Policy<O> {
                         });
                     }
 
-                    self.availables.push((candidate.id, size, triggers));
+                    self.availables
+                        .push(AvailableItem::new(candidate.id, size, triggers));
                     candidates_to_remove.push(candidate.id);
                 }
                 ValidatorState::Invalidated => {
@@ -144,8 +152,8 @@ impl<O> Policy<O> {
     }
 
     fn check_availables(&mut self) {
-        for (available, size, triggers) in self.availables.iter() {
-            for trigger in triggers.iter() {
+        for available in self.availables.iter() {
+            for trigger in available.triggers.iter() {
                 match trigger {
                     TriggerValidator::OnOperations {
                         matching,
@@ -155,12 +163,12 @@ impl<O> Policy<O> {
                             size: _size_of_trigger,
                         } = matching.state
                         {
-                            self.found = Some((*available, *size));
+                            self.found = Some((available.id, available.size));
                             return;
                         }
                     }
                     TriggerValidator::Always => {
-                        self.found = Some((*available, *size));
+                        self.found = Some((available.id, available.size));
                         return;
                     }
                     TriggerValidator::OnSync => {
@@ -188,25 +196,23 @@ impl<O> Policy<O> {
         store: &ExecutionPlanStore<O>,
         operation: &OperationDescription,
     ) {
-        self.availables
-            .iter_mut()
-            .for_each(|(available, _, triggers)| {
-                let store_trigger = TriggerOperationsStore::new(*available, store);
+        self.availables.iter_mut().for_each(|available| {
+            let store_trigger = TriggerOperationsStore::new(available.id, store);
 
-                triggers.iter_mut().for_each(|trigger| {
-                    if let TriggerValidator::OnOperations { matching, progress } = trigger {
-                        match progress {
-                            TriggerProgress::NotInit => {
-                                *progress = TriggerProgress::NumChecked(0);
-                            }
-                            TriggerProgress::NumChecked(num_check) => {
-                                matching.update(operation, *num_check, &store_trigger);
-                                *num_check += 1;
-                            }
+            available.triggers.iter_mut().for_each(|trigger| {
+                if let TriggerValidator::OnOperations { matching, progress } = trigger {
+                    match progress {
+                        TriggerProgress::NotInit => {
+                            *progress = TriggerProgress::NumChecked(0);
+                        }
+                        TriggerProgress::NumChecked(num_check) => {
+                            matching.update(operation, *num_check, &store_trigger);
+                            *num_check += 1;
                         }
                     }
-                });
+                }
             });
+        });
     }
 
     fn action_lazy(&self, operations: &[OperationDescription]) -> Action {
@@ -214,12 +220,12 @@ impl<O> Policy<O> {
             return Action::Defer;
         }
 
-        for (_available, size, triggers) in self.availables.iter() {
-            if *size == operations.len() {
+        for available in self.availables.iter() {
+            if available.size == operations.len() {
                 return Action::Defer;
             }
 
-            for trigger in triggers {
+            for trigger in available.triggers.iter() {
                 if let TriggerValidator::OnOperations {
                     matching,
                     progress: _,
@@ -240,9 +246,9 @@ impl<O> Policy<O> {
         operations: &[OperationDescription],
         store: &ExecutionPlanStore<O>,
     ) -> Action {
-        for (id, length, _triggers) in self.availables.iter() {
-            if *length == operations.len() {
-                return Action::Execute(*id);
+        for available in self.availables.iter() {
+            if available.size == operations.len() {
+                return Action::Execute(available.id);
             }
         }
 

@@ -4,7 +4,7 @@ use crate::stream::{
 };
 
 /// Compare each operation in the list of operations provided by the [store](OperationsStore)
-/// to verify if the newly added operations matche the original list.
+/// to verify if the newly added operations match the original list.
 ///
 /// It is used by the [policy](crate::stream::execution::Policy) to check each candidate as well
 /// as to verify if a list of operations is optimal to execute based on their triggers.
@@ -23,7 +23,7 @@ pub(crate) enum ValidatorState {
     Found { size: usize },
     /// No matching operation list has been found.
     Invalidated,
-    /// Potentially going to find a matching opeation list when more operations are added.
+    /// Potentially going to find a matching operation list when more operations are added.
     Validating,
 }
 
@@ -45,7 +45,7 @@ impl<ID> OperationsValidator<ID> {
         }
     }
 
-    /// Update the state of the validator based on the newly added opeation.
+    /// Update the state of the validator based on the newly added operation.
     pub(crate) fn update<S>(
         &mut self,
         added: &OperationDescription,
@@ -82,14 +82,14 @@ impl<ID> OperationsValidator<ID> {
     }
 }
 
-/// [Operations store](OperationsStore) used to retrieve the list of opeations for a trigger.
+/// [Operations store](OperationsStore) used to retrieve the list of operations for a trigger.
 #[derive(new)]
 pub(crate) struct TriggerOperationsStore<'a, O> {
     id: ExecutionPlanId,
     store: &'a ExecutionPlanStore<O>,
 }
 
-/// Validates when operations matches a trigger.
+/// Validates when operations match a trigger.
 #[derive(Debug)]
 pub(crate) enum TriggerValidator {
     OnOperations {
@@ -105,7 +105,7 @@ pub(crate) enum TriggerValidator {
 pub(crate) enum TriggerProgress {
     /// When the validation hasn't started.
     NotInit,
-    /// The number of opeations that have been checked.
+    /// The number of operations that have been checked.
     NumChecked(usize),
 }
 
@@ -125,7 +125,7 @@ impl<'b, O> OperationsStore for TriggerOperationsStore<'b, O> {
     }
 }
 
-/// [Operations store](OperationsStore) used to retrieve the list of opeations for an
+/// [Operations store](OperationsStore) used to retrieve the list of operations for an
 /// [execution plan](crate::stream::store::ExecutionPlan).
 #[derive(new)]
 pub(crate) struct ExecutionPlanOperationsStore<'a, O> {
