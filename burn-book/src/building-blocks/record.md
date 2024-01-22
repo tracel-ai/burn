@@ -40,12 +40,19 @@ that the format can also be in-memory, allowing you to save the records directly
 
 Each recorder supports precision settings decoupled from the precision used for training or
 inference. These settings allow you to define the floating-point and integer types that will be used
-for serialization and deserialization. Note that when loading a record into a module, the type
-conversion is automatically handled, so you can't encounter errors. The only crucial aspect is using
-the same recorder for both serialization and deserialization; otherwise, you will encounter loading
-errors.
+for serialization and deserialization.
 
-**Which one should you use?**
+| Setting                   | Float Precision | Integer Precision |
+| ------------------------- | --------------- | ----------------- |
+| `DoublePrecisionSettings` | `f64`           | `i64`             |
+| `FullPrecisionSettings`   | `f32`           | `i32`             |
+| `HalfPrecisionSettings`   | `f16`           | `i16`             |
+
+Note that when loading a record into a module, the type conversion is automatically handled, so you can't encounter errors.
+The only crucial aspect is using the same recorder for both serialization and deserialization; otherwise, you will encounter
+loading errors.
+
+**Which recorder should you use?**
 
 - If you want fast serialization and deserialization, choose a recorder without compression. The one
   with the lowest file size without compression is the binary format; otherwise, the named message
@@ -55,3 +62,5 @@ errors.
 - If you want to debug your model's weights, you can use the pretty JSON format.
 - If you want to deploy with `no-std`, use the in-memory binary format and include the bytes with
   the compiled code.
+
+For examples on saving and loading records, take a look at [Saving and Loading Models](../saving-and-loading.md).
