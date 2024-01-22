@@ -10,10 +10,17 @@ use burn_import::pytorch::PyTorchFileRecorder;
 // Basic backend type (not used directly here).
 type B = NdArray<f32>;
 
-// Disable for Windows because of "Candle pickle error: specified file not found in archive".
-// TODO: File an issue on the Candle repo and fix this
-#[cfg(not(target_os = "windows"))]
 fn main() {
+    if cfg!(target_os = "windows") {
+        println!(
+            "{}",
+            "cargo:warning=The crate is not supported on Windows because of ".to_owned()
+                + "Candle's pt bug on Windows "
+                + "(see https://github.com/huggingface/candle/issues/1454)."
+        );
+        std::process::exit(1);
+    }
+
     // Load PyTorch weights into a model record.
     let record: model::ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
         .load("pytorch/mnist.pt".into())
@@ -30,7 +37,3 @@ fn main() {
         .record(record, file_path)
         .expect("Failed to save model record");
 }
-
-// Disable for Windows
-#[cfg(target_os = "windows")]
-fn main() {}
