@@ -360,7 +360,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
-                    Self::from_file(#file)
+                    Self::from_file(#file, &Default::default())
                 }
             }
             _blank_!();

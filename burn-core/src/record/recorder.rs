@@ -302,7 +302,7 @@ mod tests {
                 }
             }
 
-            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
                 Item {
                     value: item.value.elem(),
                 }

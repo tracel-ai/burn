@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn tensor_load_record_setting() {
         let device: &Device<TestAutodiffBackend> = &Default::default();
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device);
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = Recorder::<TestAutodiffBackend>::record(
@@ -241,14 +241,14 @@ mod tests {
             .clone()
             .no_grad()
             .load_record(
-                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), &device)
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
                     .unwrap(),
             )
             .is_require_grad();
 
         let with_default_is_require_grad = tensor
             .load_record(
-                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), &device)
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
                     .unwrap(),
             )
             .is_require_grad();
