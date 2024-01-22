@@ -67,7 +67,8 @@ Now, let's save a model that we can load later. In the following snippets, we us
 
 ```rust, ignore
 // Create a dummy initialized model to save
-let model = Model::<Backend>::new(&Default::default());
+let device = Default::default();
+let model = Model::<Backend>::new(&device);
 
 // Save model in MessagePack format with full precision
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
