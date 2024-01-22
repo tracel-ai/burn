@@ -17,3 +17,6 @@ mod file;
 pub use file::*;
 
 pub use primitive::ParamSerde;
+
+#[cfg(feature = "record-serde")]
+pub mod serde;

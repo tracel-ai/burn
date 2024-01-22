@@ -1,16 +1,16 @@
-use crate::record::{
-    adapter::{BurnModuleAdapter, DefaultAdapter},
-    data::NestedValue,
-    ser::Serializer,
-};
-
 use burn::{
     module::Param,
     record::{PrecisionSettings, Record},
     tensor::{backend::Backend, Tensor},
 };
 
-use burn_ndarray::NdArray;
+use burn::record::serde::{
+    adapter::{BurnModuleAdapter, DefaultAdapter},
+    data::NestedValue,
+    ser::Serializer,
+};
+
+use burn::backend::NdArray;
 
 use serde::Serialize;
 

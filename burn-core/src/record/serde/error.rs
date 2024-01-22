@@ -1,22 +1,21 @@
-use std::path::PathBuf;
+use crate::record::RecorderError;
 
-use burn::record::RecorderError;
-
+/// The error type for Record serde.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("failed to read file at {0}")]
-    ReadFile(PathBuf, #[source] std::io::Error),
-
+    /// Failed to deserialize.
     #[error("failed to deserialize")]
     Deserialize(#[from] serde::de::value::Error),
 
+    /// Failed to serialize.
     #[error("failed to serialize")]
     Serialize(String),
 
+    /// Encountered an invalid state.
     #[error("invalid state")]
     InvalidState,
 
-    // Add other kinds of errors as needed
+    /// Other error.
     #[error("other error: {0}")]
     Other(String),
 }

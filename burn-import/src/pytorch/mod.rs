@@ -1,4 +1,5 @@
 mod adapter;
+mod error;
 mod reader;
 mod recorder;
 

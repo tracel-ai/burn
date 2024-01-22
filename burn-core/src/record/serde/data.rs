@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use burn::record::{PrecisionSettings, Record};
+use crate::record::{PrecisionSettings, Record};
 use regex::Regex;
 use serde::Deserialize;
 
@@ -208,12 +208,13 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
 
 /// A trait for encapsulating the serialization logic.
 pub trait Serializable {
+    /// Serialize the value into a nested value.
     fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, Error>
     where
         PS: PrecisionSettings;
 }
 
-/// Convert a vector of tensors to a nested map/vector of tensors.
+/// Convert a vector of tensors to a nested value.
 pub fn unflatten<PS, T>(input: HashMap<String, T>) -> Result<NestedValue, Error>
 where
     PS: PrecisionSettings,

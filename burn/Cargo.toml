@@ -53,6 +53,9 @@ candle = ["burn-core/candle"]
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
+# Records
+record-serde = ["burn-core/record-serde"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

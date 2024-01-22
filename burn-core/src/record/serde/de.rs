@@ -20,6 +20,7 @@ pub struct Deserializer<A: BurnModuleAdapter> {
 }
 
 impl<A: BurnModuleAdapter> Deserializer<A> {
+    /// Creates a new deserializer with the given nested value.
     pub fn new(value: NestedValue) -> Self {
         Self {
             value: Some(value),
@@ -597,6 +598,7 @@ impl Default for DefaultSeqAccess {
 }
 
 impl DefaultSeqAccess {
+    /// Creates a new default sequence access with the given size hint.
     pub fn new(size: Option<usize>) -> Self {
         DefaultSeqAccess { size }
     }
@@ -617,6 +619,7 @@ impl<'de> SeqAccess<'de> for DefaultSeqAccess {
     }
 }
 
+/// A default map access that always returns None (empty map).
 pub struct DefaultMapAccess;
 
 impl Default for DefaultMapAccess {
@@ -626,6 +629,7 @@ impl Default for DefaultMapAccess {
 }
 
 impl DefaultMapAccess {
+    /// Creates a new default map access.
     pub fn new() -> Self {
         DefaultMapAccess
     }

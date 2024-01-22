@@ -21,8 +21,15 @@ pub struct Serializer {
 }
 
 impl Serializer {
+    /// Creates a new serializer.
     pub fn new() -> Self {
         Serializer { state: None }
+    }
+}
+
+impl Default for Serializer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -274,7 +281,7 @@ impl SerializeSeq for Serializer {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
+    use crate::{
         module::{Param, ParamId},
         record::{FullPrecisionSettings, Record},
         tensor::Tensor,

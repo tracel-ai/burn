@@ -1,21 +1,22 @@
+use core::ops::Deref;
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::adapter::PyTorchAdapter;
-use crate::record::{
+use super::{adapter::PyTorchAdapter, error::Error};
+
+use burn::record::serde::{
     data::{remap, unflatten, NestedValue, Serializable},
     de::Deserializer,
-    error::Error,
+    error,
     ser::Serializer,
 };
-
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
     tensor::{DataSerialize, Element, ElementConversion},
 };
 
-use candle_core::{pickle, Tensor as CandleTensor, WithDType};
+use candle_core::{pickle, WithDType};
 use half::{bf16, f16};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Serialize};
@@ -32,7 +33,10 @@ where
     PS: PrecisionSettings,
 {
     // Read the pickle file and return a vector of Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all(path)?.into_iter().collect();
+    let tensors: HashMap<String, CandleTensor> = pickle::read_all(path)?
+        .into_iter()
+        .map(|(key, tensor)| (key, CandleTensor(tensor)))
+        .collect();
 
     // Remap the keys (replace the keys in the map with the new keys)
     let tensors = remap(tensors, key_remap);
@@ -48,24 +52,18 @@ where
     Ok(value)
 }
 
-impl From<candle_core::Error> for Error {
-    fn from(error: candle_core::Error) -> Self {
-        Error::Other(format!("Candle pickle error: {}", error))
-    }
-}
-
 /// Serializes a candle tensor.
 ///
 /// Tensors are wrapped in a `Param` struct (learnable parameters) and serialized as a `DataSerialize` struct.
 ///
 /// Values are serialized as `FloatElem` or `IntElem` depending on the precision settings.
 impl Serializable for CandleTensor {
-    fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, Error>
+    fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, error::Error>
     where
         PS: PrecisionSettings,
     {
         let shape = self.shape().clone().into_dims();
-        let flatten = self.flatten_all().expect("Failed to flatten the tensor");
+        let flatten = CandleTensor(self.flatten_all().expect("Failed to flatten the tensor"));
         let param_id = ParamId::new().into_string();
 
         match self.dtype() {
@@ -100,16 +98,28 @@ fn serialize_data<T, E>(
     shape: Vec<usize>,
     param_id: String,
     serializer: Serializer,
-) -> Result<NestedValue, Error>
+) -> Result<NestedValue, error::Error>
 where
     E: Element + Serialize,
     T: WithDType + ElementConversion,
 {
     let data: Vec<E> = tensor
-        .to_vec1::<T>()?
+        .to_vec1::<T>()
+        .map_err(|err| error::Error::Other(format!("Candle to vec1 error: {err}")))?
         .into_iter()
         .map(ElementConversion::elem)
         .collect();
 
     ParamSerde::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
+}
+
+/// New type struct for Candle tensors because we need to implement the `Serializable` trait for it.
+struct CandleTensor(candle_core::Tensor);
+
+impl Deref for CandleTensor {
+    type Target = candle_core::Tensor;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
