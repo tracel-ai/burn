@@ -7,10 +7,10 @@ Saving your trained machine learning model to disk is quite easy, no matter the 
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
   .save_file(model_path, &recorder)
-  .expect("Could not save model");
+  .expect("Should be able to save the model");
 ```
 
-Note that the file extension is automatically handled by the recorder depending on the one you choose. Therefore, only the file path and base name can be provided.
+Note that the file extension is automatically handled by the recorder depending on the one you choose. Therefore, only the file path and base name should be provided.
 
 Now that you have a trained model saved to your disk, you can easily load it in a similar fashion.
 
@@ -19,7 +19,7 @@ Now that you have a trained model saved to your disk, you can easily load it in 
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
   .load_file(model_path, &recorder)
-  .expect("Failed to load model file");
+  .expect("Should be able to load the model weights from the provided file");
 ```
 
 **Note:** models can be saved in different output formats, just make sure you are using the correct recorder type when loading the saved model. Type conversion between different precision settings is automatically handled, but formats are not interchangeable. A model can be loaded from one format and saved to another format, just as long as you load it back with the new recorder type afterwards.
@@ -60,7 +60,7 @@ impl<B: Backend> Model<B> {
             activation: ReLU::new(),
         }
     }
-}
+}``
 ```
 
 Now, let's save a model that we can load later. In the following snippets, we use `type Backend = NdArray<f32>` but you can use whatever backend you like.
@@ -73,7 +73,7 @@ let model = Model::<Backend>::new(&Default::default());
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
     .save_file(model_path, &recorder)
-    .expect("Could not save model");
+    .expect("Should be able to save the model");
 ```
 
 Afterwards, the model can just as easily be loaded from the record saved on disk.
@@ -82,7 +82,7 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 // Load model record on the backend's default device
 let record: ModelRecord<Backend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
     .load(model_path.into())
-    .expect("Could not load model file");
+    .expect("Should be able to load the model weights from the provided file");
 
 // Directly initialize a new model with the loaded record/weights
 let model = Model::init_with(record);
