@@ -22,6 +22,8 @@ model
   .expect("Failed to load model file");
 ```
 
+**Note:** models can be saved in different output formats, just make sure you are using the correct recorder type when loading the saved model. Type conversion between different precision settings is automatically handled, but formats are not interchangeable. A model can be loaded from one format and saved to another format, just as long as you load it back with the new recorder type afterwards.
+
 ## Custom Initialization from Recorded Weights
 
 While the first approach is very straightforward, it does require the model to already be initialized. If instead you would like to skip the initialization and directly load the weights into the modules of your model, you can create a new initialization function. Let's take the following model definition as a simple example.
