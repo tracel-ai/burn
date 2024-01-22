@@ -41,7 +41,7 @@ impl<B: Backend> Record<B> for ConstantRecord {
         self
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
         item
     }
 }
