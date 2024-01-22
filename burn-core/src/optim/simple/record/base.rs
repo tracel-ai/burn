@@ -22,7 +22,7 @@ pub enum AdaptorRecordItem<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettin
     V1(AdaptorRecordItemV1<O, B, S>),
 }
 
-impl<O, B> Record for AdaptorRecord<O, B>
+impl<O, B> Record<B> for AdaptorRecord<O, B>
 where
     O: SimpleOptimizer<B>,
     B: Backend,
@@ -35,9 +35,9 @@ where
         }
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         match item {
-            AdaptorRecordItem::V1(item) => Self::V1(AdaptorRecordV1::from_item(item)),
+            AdaptorRecordItem::V1(item) => Self::V1(AdaptorRecordV1::from_item(item, device)),
         }
     }
 }

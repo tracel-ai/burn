@@ -34,14 +34,14 @@ impl<'de> serde::Deserialize<'de> for ConstantRecord {
     }
 }
 
-impl Record for ConstantRecord {
+impl<B: Backend> Record<B> for ConstantRecord {
     type Item<S: PrecisionSettings> = ConstantRecord;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         self
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         item
     }
 }
@@ -226,7 +226,8 @@ mod tests {
 
     #[test]
     fn tensor_load_record_setting() {
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &Default::default());
+        let device = &Default::default();
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
@@ -236,11 +237,11 @@ mod tests {
         let no_grad_is_require_grad = tensor
             .clone()
             .no_grad()
-            .load_record(byte_recorder.load(bytes.clone()).unwrap())
+            .load_record(byte_recorder.load(bytes.clone(), &device).unwrap())
             .is_require_grad();
 
         let with_default_is_require_grad = tensor
-            .load_record(byte_recorder.load(bytes).unwrap())
+            .load_record(byte_recorder.load(bytes, device).unwrap())
             .is_require_grad();
 
         assert!(!no_grad_is_require_grad);

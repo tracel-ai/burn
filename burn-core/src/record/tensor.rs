@@ -85,7 +85,7 @@ impl<'de> Deserialize<'de> for BoolTensorSerde {
 
 // --- RECORD IMPLEMENTATIONS --- //
 
-impl<B: Backend, const D: usize> Record for Tensor<B, D> {
+impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
     type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -96,12 +96,12 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D> {
         FloatTensorSerde::new(self.into_data().convert().serialize())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
-        Tensor::from_data(item.data.convert::<B::FloatElem>(), &B::Device::default())
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+        Tensor::from_data(item.data.convert::<B::FloatElem>(), device)
     }
 }
 
-impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
+impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
     type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -112,12 +112,12 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Int> {
         IntTensorSerde::new(self.into_data().convert().serialize())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         Tensor::from_data(item.data.convert(), &B::Device::default())
     }
 }
 
-impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
+impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
     type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -128,7 +128,7 @@ impl<B: Backend, const D: usize> Record for Tensor<B, D, Bool> {
         BoolTensorSerde::new(self.into_data().serialize())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         Tensor::from_data(item.data, &B::Device::default())
     }
 }

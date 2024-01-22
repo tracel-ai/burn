@@ -61,12 +61,18 @@ impl RecordDeriveCodegen {
         let (_, ty_generics_item, _) = item_generics.split_for_impl();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
+        let impl_generics = if let Some(impl_generic) = self.impl_generics() {
+            impl_generic
+        } else {
+            quote! { #impl_generics }
+        };
+
         let name_item = &self.name_item;
         let into_item_fn = self.gen.gen_into_item(name_item);
         let from_item_fn = self.gen.gen_from_item();
 
         quote! {
-            impl #impl_generics burn::record::Record for #name #ty_generics #where_clause {
+            impl #impl_generics burn::record::Record<B> for #name #ty_generics #where_clause {
                 type Item<S: burn::record::PrecisionSettings> = #name_item #ty_generics_item;
 
                 #into_item_fn
@@ -74,6 +80,21 @@ impl RecordDeriveCodegen {
 
             }
         }
+    }
+
+    fn impl_generics(&self) -> Option<TokenStream> {
+        let has_backend = self
+            .generics
+            .type_params()
+            .map(|param| param.ident == "B")
+            .reduce(|accum, is_backend| is_backend || accum)
+            .unwrap_or(false);
+
+        if has_backend {
+            return None;
+        }
+
+        todo!("Not yet supported");
     }
 
     fn record_item_generics(&self) -> Generics {

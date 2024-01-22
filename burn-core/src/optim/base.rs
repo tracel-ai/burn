@@ -11,7 +11,7 @@ where
     B: AutodiffBackend,
 {
     /// Optimizer associative type to be used when saving and loading the state.
-    type Record: Record;
+    type Record: Record<B::InnerBackend>;
 
     /// Perform the optimizer step using the given learning rate and gradients.
     /// The updated module is returned.
