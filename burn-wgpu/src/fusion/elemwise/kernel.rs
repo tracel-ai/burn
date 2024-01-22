@@ -64,21 +64,13 @@ impl FusionKernel for VecElementWise {
             }
 
             // The last dimension should be a multiple of the vector size.
-            if desc.shape[rank - 1] % self.source.factor != 0 {
-                return true;
-            }
-
-            false
+            desc.shape[rank - 1] % self.source.factor != 0
         };
         let is_unavailable_output = |desc: &TensorDescription| {
             let rank = desc.shape.len();
 
             // The last dimension should be a multiple of the vector size.
-            if desc.shape[rank - 1] % self.source.factor != 0 {
-                return true;
-            }
-
-            false
+            desc.shape[rank - 1] % self.source.factor != 0
         };
 
         for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
