@@ -55,7 +55,7 @@ impl FusionKernel for VecElementWise {
         inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
-        let is_unavailable = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
+        let is_unavailable_input = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -64,16 +64,27 @@ impl FusionKernel for VecElementWise {
             }
 
             // The last dimension should be a multiple of the vector size.
-            if desc.shape[rank - 1] % self.source.factor != 0 {
-                return true;
-            }
+            desc.shape[rank - 1] % self.source.factor != 0
+        };
+        let is_unavailable_output = |desc: &TensorDescription| {
+            let rank = desc.shape.len();
 
-            false
+            // The last dimension should be a multiple of the vector size.
+            desc.shape[rank - 1] % self.source.factor != 0
         };
 
         for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
-            if is_unavailable(handle, tensor) {
+            if is_unavailable_input(handle, tensor) {
                 return Priority::Unavailable;
+            }
+        }
+
+        // Only need to check when there is no input.
+        if handles_inputs.is_empty() {
+            for tensor in _outputs.iter() {
+                if is_unavailable_output(tensor) {
+                    return Priority::Unavailable;
+                }
             }
         }
 
