@@ -66,8 +66,6 @@ impl<B: Backend> Model<B> {
 Now, let's save a model that we can load later. In the following snippets, we use `type Backend = NdArray<f32>` but you can use whatever backend you like.
 
 ```rust, ignore
-let model_path = Path::new("experiment/model");
-
 // Create a dummy initialized model to save
 let model = Model::<Backend>::new(&Default::default());
 
@@ -81,8 +79,6 @@ model
 Afterwards, the model can just as easily be loaded from the record saved on disk.
 
 ```rust, ignore
-let model_path = Path::new("experiment/model");
-
 // Load model record on the backend's default device
 let record: ModelRecord<Backend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
     .load(model_path.into())
