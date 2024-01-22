@@ -73,7 +73,7 @@ impl<O> Explorer<O> {
         self.is_still_optimizing = true;
     }
 
-    fn update<'a>(&'a mut self, operations: &[OperationDescription]) {
+    fn update(&mut self, operations: &[OperationDescription]) {
         for i in (0..self.num_deferred).rev() {
             if !self.is_still_optimizing {
                 break;

@@ -53,10 +53,6 @@ struct TestSegment<'i> {
 ///
 /// While it's usually preferable to split tests into multiple independent scenarios, in this case, it is
 /// crucial to verify that the stream's state is correctly updated when various cases occur consecutively.
-///
-/// Although it might complicate identifying the source of a bug in the code, having this comprehensive
-/// test case covers nearly all aspects of the implementation, while remaining easy to read and
-/// maintainable.
 #[test]
 fn should_support_complex_stream() {
     // We have 2 different optimization builders in this test case.
@@ -68,14 +64,8 @@ fn should_support_complex_stream() {
     let plan_id_2 = 1;
     let plan_id_3 = 2;
 
-    // The first builder only contains 2 operations, and the optimization is always available when
-    // the pattern is met.
     let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
-    // The second builder also contains 2 operations, but only becomes available when an operation
-    // is met.
     let builder_2 = TestOptimizationBuilder::new(builder_id_2, vec![operation_2(), operation_2()]);
-
-    // We finally build the stream with those optimization builders.
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
 
     // builder_1 is still waiting to see next op is operation_2
@@ -167,6 +157,7 @@ fn should_support_complex_stream() {
     stream.assert_last_executed(plan_id_3);
 }
 
+/// In this scenario we will never used an optimization, but we check that we reused the execution plan stored.
 #[test]
 fn should_reuse_basic_operations() {
     let builder_id_1 = 0;
@@ -200,9 +191,12 @@ fn should_reuse_basic_operations() {
         },
     );
 
+    // Lazy try to build optimization 1.
     stream.add(operation_1());
+    // But not possible.
     stream.add(operation_3());
 
+    // Creates a new plan with both operations.
     stream.assert_plan(
         plan_id_2,
         ExecutionPlan {
@@ -215,28 +209,28 @@ fn should_reuse_basic_operations() {
     stream.assert_last_executed(plan_id_2);
 }
 
+// In this scenario we validate that we support multiple optimization builders with overlapping
+// opeations.
+//
+// This is a very long scenario that validates a lot of things.
 #[test]
 fn should_support_overlapping_optimizations() {
     // We have 2 different optimization builders in this test case.
     let builder_id_1 = 0;
     let builder_id_2 = 0;
 
-    // We will have a total of 3 execution plans to execute.
+    // We will have a total of 5 execution plans to execute.
     let plan_id_1 = 0;
     let plan_id_2 = 1;
     let plan_id_3 = 2;
     let plan_id_4 = 3;
     let plan_id_5 = 4;
 
-    // The first builder only contains 2 operations, and the optimization is always available when
-    // the pattern is met.
     let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
     let builder_2 = TestOptimizationBuilder::new(
         builder_id_2,
         vec![operation_1(), operation_2(), operation_1(), operation_1()],
     );
-
-    // We finally build the stream with those optimization builders.
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
 
     stream.add(operation_1());

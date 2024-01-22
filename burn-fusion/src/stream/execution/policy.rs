@@ -1,9 +1,9 @@
-use super::matching::{
-    MainOperationsStore, MatchingState, OnOperationProgress, OperationsTriggerStore,
-    TriggerMatching,
+use super::validator::{
+    ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
+    ValidatorState,
 };
 use super::ExecutionMode;
-use crate::stream::execution::matching::OperationsMatching;
+use crate::stream::execution::validator::OperationsValidator;
 use crate::stream::{
     store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
     OperationDescription,
@@ -21,8 +21,8 @@ use std::marker::PhantomData;
 /// execution plans scales with the number of concurrent potential plans for the current operations,
 /// which isn't supposed to be big at any time.
 pub(crate) struct Policy<O> {
-    candidates: Vec<OperationsMatching<ExecutionPlanId>>,
-    availables: Vec<(ExecutionPlanId, usize, Vec<TriggerMatching>)>,
+    candidates: Vec<OperationsValidator<ExecutionPlanId>>,
+    availables: Vec<(ExecutionPlanId, usize, Vec<TriggerValidator>)>,
     found: Option<(ExecutionPlanId, usize)>,
     num_operations: usize,
     _item_type: PhantomData<O>,
@@ -83,7 +83,7 @@ impl<O> Policy<O> {
             self.candidates = store
                 .find(SearchQuery::PlansStartingWith(operation))
                 .into_iter()
-                .map(|candidate| OperationsMatching::new(candidate))
+                .map(OperationsValidator::new)
                 .collect();
         }
 
@@ -109,28 +109,28 @@ impl<O> Policy<O> {
 
         for candidate in self.candidates.iter() {
             match candidate.state {
-                MatchingState::Found { size } => {
+                ValidatorState::Found { size } => {
                     let item = store.get_unchecked(candidate.id);
                     let mut triggers = Vec::with_capacity(item.triggers.len());
 
                     for (index, trigger) in item.triggers.iter().enumerate() {
                         triggers.push(match trigger {
-                            ExecutionTrigger::OnOperations(_) => TriggerMatching::OnOperations {
-                                matching: OperationsMatching::new(index),
-                                progress: OnOperationProgress::NotInit,
+                            ExecutionTrigger::OnOperations(_) => TriggerValidator::OnOperations {
+                                matching: OperationsValidator::new(index),
+                                progress: TriggerProgress::NotInit,
                             },
-                            ExecutionTrigger::OnSync => TriggerMatching::OnSync,
-                            ExecutionTrigger::Always => TriggerMatching::Always,
+                            ExecutionTrigger::OnSync => TriggerValidator::OnSync,
+                            ExecutionTrigger::Always => TriggerValidator::Always,
                         });
                     }
 
                     self.availables.push((candidate.id, size, triggers));
                     candidates_to_remove.push(candidate.id);
                 }
-                MatchingState::Invalidated => {
+                ValidatorState::Invalidated => {
                     candidates_to_remove.push(candidate.id);
                 }
-                MatchingState::Progressing => {}
+                ValidatorState::Validating => {}
             };
         }
 
@@ -139,12 +139,7 @@ impl<O> Policy<O> {
 
         self.candidates = updated_candidates
             .into_iter()
-            .filter(|candidate| {
-                candidates_to_remove
-                    .iter()
-                    .find(|id| *id == &candidate.id)
-                    .is_none()
-            })
+            .filter(|candidate| !candidates_to_remove.iter().any(|id| id == &candidate.id))
             .collect();
     }
 
@@ -152,11 +147,11 @@ impl<O> Policy<O> {
         for (available, size, triggers) in self.availables.iter() {
             for trigger in triggers.iter() {
                 match trigger {
-                    TriggerMatching::OnOperations {
+                    TriggerValidator::OnOperations {
                         matching,
                         progress: _,
                     } => {
-                        if let MatchingState::Found {
+                        if let ValidatorState::Found {
                             size: _size_of_trigger,
                         } = matching.state
                         {
@@ -164,11 +159,11 @@ impl<O> Policy<O> {
                             return;
                         }
                     }
-                    TriggerMatching::Always => {
+                    TriggerValidator::Always => {
                         self.found = Some((*available, *size));
                         return;
                     }
-                    TriggerMatching::OnSync => {
+                    TriggerValidator::OnSync => {
                         // Does nothing during an update.
                     }
                 }
@@ -181,11 +176,11 @@ impl<O> Policy<O> {
         store: &ExecutionPlanStore<O>,
         operation: &OperationDescription,
     ) {
-        let main_store = MainOperationsStore::new(store);
+        let main_store = ExecutionPlanOperationsStore::new(store);
 
         self.candidates
             .iter_mut()
-            .for_each(|candidate| candidate.update(operation, &main_store, self.num_operations));
+            .for_each(|candidate| candidate.update(operation, self.num_operations, &main_store));
     }
 
     fn update_availables(
@@ -196,16 +191,16 @@ impl<O> Policy<O> {
         self.availables
             .iter_mut()
             .for_each(|(available, _, triggers)| {
-                let store_trigger = OperationsTriggerStore::new(*available, store);
+                let store_trigger = TriggerOperationsStore::new(*available, store);
 
                 triggers.iter_mut().for_each(|trigger| {
-                    if let TriggerMatching::OnOperations { matching, progress } = trigger {
+                    if let TriggerValidator::OnOperations { matching, progress } = trigger {
                         match progress {
-                            OnOperationProgress::NotInit => {
-                                *progress = OnOperationProgress::NumChecked(0);
+                            TriggerProgress::NotInit => {
+                                *progress = TriggerProgress::NumChecked(0);
                             }
-                            OnOperationProgress::NumChecked(num_check) => {
-                                matching.update(operation, &store_trigger, *num_check);
+                            TriggerProgress::NumChecked(num_check) => {
+                                matching.update(operation, *num_check, &store_trigger);
                                 *num_check += 1;
                             }
                         }
@@ -225,12 +220,12 @@ impl<O> Policy<O> {
             }
 
             for trigger in triggers {
-                if let TriggerMatching::OnOperations {
+                if let TriggerValidator::OnOperations {
                     matching,
                     progress: _,
                 } = trigger
                 {
-                    if let MatchingState::Progressing = matching.state {
+                    if let ValidatorState::Validating = matching.state {
                         return Action::Defer;
                     }
                 }
