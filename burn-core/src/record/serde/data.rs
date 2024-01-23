@@ -143,8 +143,8 @@ impl NestedValue {
 /// # Arguments
 ///
 /// * `tensors` - A map of tensors.
-/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string. 
-///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) 
+/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
+///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
 ///                for more information.
 ///
 /// # Returns
