@@ -1624,9 +1624,7 @@ where
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
     fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
-        -> Self::Primitive<D>; //{
-                               //     Self::powf(lhs, B::int_into_float(rhs))
-                               // }
+        -> Self::Primitive<D>;
 
     /// elementwise power of a tensor to a scalar float
     ///
