@@ -44,6 +44,13 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
 
 /// Arguments for loading a PyTorch file.
 ///
+/// # Fields
+///
+/// * `file` - The path to the file to load.
+/// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
+///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
+///                for more information.
+///
 /// # Examples
 ///
 /// ```text
