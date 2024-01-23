@@ -9,6 +9,7 @@ mod tests {
         },
     };
     use burn_core as burn;
+    use burn_ndarray::NdArrayDevice;
     use burn_tensor::backend::Backend;
     use std::path::PathBuf;
 
@@ -178,6 +179,15 @@ mod tests {
     #[inline(always)]
     fn file_path(filename: String) -> PathBuf {
         std::env::temp_dir().join(filename)
+    }
+
+    #[test]
+    fn test_tensor_serde() {
+        let tensor: burn_tensor::Tensor<TestBackend, 1> =
+            burn_tensor::Tensor::ones([1], &NdArrayDevice::default());
+        let encoded = serde_json::to_string(&tensor).unwrap();
+        let decoded: burn_tensor::Tensor<TestBackend, 1> = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(tensor.into_data(), decoded.into_data());
     }
 
     fn deserialize_with_new_optional_field<R>(name: &str, recorder: R) -> Result<(), RecorderError>

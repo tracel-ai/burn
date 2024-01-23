@@ -1,3 +1,4 @@
+use crate::tensor::ops::tensor::TensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
@@ -101,5 +102,44 @@ pub trait ActivationOps<B: Backend> {
         let y = B::add(y1, y2);
 
         B::mul(y, grad)
+    }
+
+    /// Applies the Sigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        let tensor_full = B::to_full_precision(&tensor);
+        let tensor_tmp = B::FullPrecisionBackend::exp(B::FullPrecisionBackend::neg(
+            B::FullPrecisionBackend::log(B::FullPrecisionBackend::add_scalar(
+                B::FullPrecisionBackend::exp(B::FullPrecisionBackend::neg(tensor_full)),
+                1.0.elem(),
+            )),
+        ));
+
+        B::from_full_precision(tensor_tmp)
+    }
+
+    /// Applies the Sigmoid activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The output tensor of the sigmoid function.
+    /// * `grad` - The gradient.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn sigmoid_backward<const D: usize>(
+        output: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        let value = B::mul(output.clone(), B::add_scalar(B::neg(output), 1.0.elem()));
+        B::mul(value, grad)
     }
 }

@@ -24,11 +24,13 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             });
         }
 
+        let (generics, _generics_ty, generics_where) = generics.split_for_impl();
+
         quote! {
 
             /// The record type for the module.
-            #[derive(burn::record::Record, Debug, Clone)]
-            pub struct #record_name #generics {
+            #[derive(burn::record::Record)]
+            pub struct #record_name #generics #generics_where {
                 #fields
             }
         }

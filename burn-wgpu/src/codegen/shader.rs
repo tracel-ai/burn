@@ -43,6 +43,18 @@ impl Item {
     }
 }
 
+impl Elem {
+    /// Returns the size of the elem type in bytes.
+    pub fn size(&self) -> usize {
+        match self {
+            Elem::F32 => core::mem::size_of::<f32>(),
+            Elem::I32 => core::mem::size_of::<i32>(),
+            Elem::U32 => core::mem::size_of::<u32>(),
+            Elem::Bool => core::mem::size_of::<bool>(),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Binding {
     pub location: Location,

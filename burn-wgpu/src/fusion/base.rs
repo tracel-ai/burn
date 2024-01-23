@@ -31,7 +31,7 @@ pub enum WgpuOptimizationState {
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<Wgpu<G, F, I>>
     for WgpuOptimization<G, F, I>
 {
-    fn execute(&mut self, context: &mut burn_fusion::graph::Context<'_, Wgpu<G, F, I>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, Wgpu<G, F, I>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -82,8 +82,10 @@ where
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;
 
-    fn optimizations(device: &WgpuDevice) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self>>> {
-        vec![Box::new(ElementWiseBuilder::new(device.clone()))]
+    fn optimizations(
+        device: WgpuDevice,
+    ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
+        vec![Box::new(ElementWiseBuilder::new(device))]
     }
 
     fn float_tensor<const D: usize>(

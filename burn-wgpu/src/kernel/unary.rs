@@ -40,7 +40,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::Read,
@@ -60,7 +60,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::ReadWrite,
@@ -92,7 +92,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for Ops<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::Item::Scalar(E::elem_type()),
@@ -118,7 +118,7 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         impl<E: $crate::element::WgpuElement> $crate::kernel::StaticKernelSource for OpsInplace<E> {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new($crate::codegen::Vectorization::Scalar)
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::Item::Scalar(E::elem_type()),

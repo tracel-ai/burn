@@ -10,8 +10,8 @@ extern crate derive_new;
 
 /// Client module exposing types to communicate with the fusion server.
 pub mod client;
-/// Graph module exposing all tensor operations that can be optimized.
-pub mod graph;
+/// Stream module exposing all tensor operations that can be optimized.
+pub mod stream;
 
 mod backend;
 mod fusion;

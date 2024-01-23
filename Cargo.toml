@@ -81,13 +81,14 @@ wasm-bindgen-futures = "0.4.38"
 wasm-logger = "0.2.0"
 wasm-timer = "0.2.5"
 console_error_panic_hook = "0.1.7"
+reqwest = "0.11.23"
 
 
 # WGPU stuff
 futures-intrusive = "0.5"
 pollster = "0.3"
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
-wgpu = "0.18.0"
+wgpu = "0.19.0"
 
 #
 # The following packages disable the "std" feature for no_std compatibility

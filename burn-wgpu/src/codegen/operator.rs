@@ -371,6 +371,7 @@ impl Display for Operator {
                     "let output_{number} = output_{number}_global[id];"
                 )),
                 Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                Variable::Constant(_, _) => panic!("Can't read global constant variable."),
             },
             Operator::ReadGlobalWithLayout {
                 variable,
@@ -390,6 +391,7 @@ impl Display for Operator {
                         elem,
                     ),
                     Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                    Variable::Constant(_, _) => panic!("Can't read global constant variable."),
                 };
 
                 let offset = match elem {

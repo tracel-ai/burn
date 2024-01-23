@@ -60,7 +60,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::from_data(data, device)`        | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
-| `Tensor::stack(tensors, dim)`            | torch.stack(tensors, dim)`           |
+| `Tensor::stack(tensors, dim)`            | `torch.stack(tensors, dim)`           |
 
 ### Numeric Operations
 
@@ -113,8 +113,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_min(min)`                          | `torch.clamp(tensor, min=min)`                 |
 | `tensor.clamp_max(max)`                          | `torch.clamp(tensor, max=max)`                 |
 | `tensor.abs()`                                   | `torch.abs(tensor)`                            |
-| `tensor.triu(diagonal)                           | `torch.triu(tensor, diagonal)`                 |
-| `tensor.tril(diagonal)                           | `torch.tril(tensor, diagonal)`                 |
+| `tensor.triu(diagonal)`                           | `torch.triu(tensor, diagonal)`                 |
+| `tensor.tril(diagonal)`                           | `torch.tril(tensor, diagonal)`                 |
 
 ### Float Operations
 
