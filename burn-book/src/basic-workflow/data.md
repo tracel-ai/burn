@@ -47,7 +47,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
         let images = items
             .iter()
             .map(|item| Data::<f32, 2>::from(item.image))
-            .map(|data| Tensor::<B, 2>::from_data(data.convert()), &self.device)
+            .map(|data| Tensor::<B, 2>::from_data(data.convert(), &self.device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // Normalize: make between [0,1] and make the mean=0 and std=1
             // values mean=0.1307,std=0.3081 are from the PyTorch MNIST example
@@ -70,6 +70,42 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
     }
 }
 ```
+
+<details>
+<summary><strong>💡Iterators and Closures</strong></summary>
+
+The iterator pattern allows you to perform some taks on a sequence of items in turn.
+
+In this example, an iterator is created over the `MNISTItem`s in the vector `items` by calling the
+`iter` method.
+
+_Iterator adaptors_ are methods defined on the `Iterator` trait that produce different iterators by
+changing some aspect of the original iterator. Here, the `map` method is called in a chain to
+transform the original data before consuming the final iterator with `collect` to obtain the
+`images` and `targets` vectors. Both vectors are then concatenated into a single tensor for the
+current batch.
+
+You probably noticed that each call to `map` is different, as it defines a function to execute on
+the iterator items at each step. These anonymous functions are called
+[_closures_](https://doc.rust-lang.org/book/ch13-01-closures.html) in Rust. They're easy to
+recognize due to their syntax which uses vertical bars `||`. The vertical bars capture the input
+variables (if applicable) while the rest of the expression defines the function to execute.
+
+If we go back to the example, we can break down and comment the expression used to process the
+images.
+
+```rust, ignore
+let images = items                                                       // take items Vec<MNISTItem>
+    .iter()                                                              // create an iterator over it
+    .map(|item| Data::<f32, 2>::from(item.image))                        // for each item, convert the image to float32 data struct
+    .map(|data| Tensor::<B, 2>::from_data(data.convert(), &self.device)) // for each data struct, create a tensor on the device
+    .map(|tensor| tensor.reshape([1, 28, 28]))                           // for each tensor, reshape to the image dimensions [C, H, W]
+    .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)                    // for each image tensor, apply normalization
+    .collect();                                                          // consume the resulting iterator & collect the values into a new vector
+```
+
+For more information on iterators and closures, be sure to check out the [corresponding chapter](https://doc.rust-lang.org/book/ch13-00-functional-features.html) in the Rust Book.
+</details><br>
 
 In the previous example, we implement the `Batcher` trait with a list of `MNISTItem` as input and a
 single `MNISTBatch` as output. The batch contains the images in the form of a 3D tensor, along with
