@@ -1644,9 +1644,7 @@ where
     fn powi_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
-    ) -> Self::Primitive<D>; //{
-                             //     Self::powf_scalar(lhs, rhs)
-                             // }
+    ) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
