@@ -23,7 +23,7 @@ Now that you have a trained model saved to your disk, you can easily load it in 
 // Load model in full precision from MessagePack file
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
 model
-  .load_file(model_path, &recorder)
+  .load_file(model_path, &recorder, device)
   .expect("Should be able to load the model weights from the provided file");
 ```
 
@@ -96,7 +96,7 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 ```rust, ignore
 // Load model record on the backend's default device
 let record: ModelRecord<MyBackend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
-    .load(model_path.into())
+    .load(model_path.into(), device)
     .expect("Should be able to load the model weights from the provided file");
 
 // Directly initialize a new model with the loaded record/weights
@@ -133,7 +133,7 @@ static MODEL_BYTES: &[u8] = include_bytes!("path/to/model.bin");
 
 // Load model binary record in full precision
 let record = BinBytesRecorder::<FullPrecisionSettings>::default()
-    .load(MODEL_BYTES.to_vec())
+    .load(MODEL_BYTES.to_vec(), device)
     .expect("Should be able to load model the model weights from bytes");
 
 // Load that record with the model
