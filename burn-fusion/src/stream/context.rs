@@ -344,8 +344,8 @@ impl FloatOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Powf(desc) => {
-                FloatOperationDescription::Powf(ScalarOperationDescription {
+            FloatOperationDescription::PowfScalar(desc) => {
+                FloatOperationDescription::PowfScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: converter.relative_float(&desc.rhs),
                     out: desc.out.to_relative(converter),
@@ -723,11 +723,13 @@ impl<E: Element> NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOpsDescription::Pow(desc) => NumericOpsDescription::Pow(BinaryOpsDescription {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
+            NumericOperationDescription::Powf(desc) => {
+                NumericOperationDescription::Powf(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
