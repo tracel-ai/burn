@@ -1,7 +1,9 @@
 use core::any::type_name;
+use core::marker::PhantomData;
 
 use alloc::format;
 use alloc::string::{String, ToString};
+use burn_tensor::backend::Backend;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{BinBytesRecorder, FullPrecisionSettings, PrecisionSettings, Record};
@@ -13,7 +15,9 @@ use super::{
 };
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
-pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Clone {
+pub trait Recorder<B: Backend>:
+    Send + Sync + core::default::Default + core::fmt::Debug + Clone
+{
     /// Type of the settings used by the recorder.
     type Settings: PrecisionSettings;
 
@@ -36,11 +40,14 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
     /// # Returns
     ///
     /// The output of the recording.
-    fn record<R: Record>(
+    fn record<R>(
         &self,
         record: R,
         args: Self::RecordArgs,
-    ) -> Result<Self::RecordOutput, RecorderError> {
+    ) -> Result<Self::RecordOutput, RecorderError>
+    where
+        R: Record<B>,
+    {
         let item = record.into_item::<Self::Settings>();
         let item = BurnRecord::new::<Self>(item);
 
@@ -48,12 +55,15 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
     }
 
     /// Load an item from the given arguments.
-    fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item: BurnRecord<R::Item<Self::Settings>> =
+    fn load<R>(&self, args: Self::LoadArgs, device: &B::Device) -> Result<R, RecorderError>
+    where
+        R: Record<B>,
+    {
+        let item: BurnRecord<R::Item<Self::Settings>, B> =
             self.load_item(args.clone()).map_err(|err| {
                 if let Ok(record) = self.load_item::<BurnRecordNoItem>(args.clone()) {
                     let mut message = "Unable to load record.".to_string();
-                    let metadata = recorder_metadata::<Self>();
+                    let metadata = recorder_metadata::<Self, B>();
                     if metadata.float != record.metadata.float {
                         message += format!(
                             "\nMetadata has a different float type: Actual {:?}, Expected {:?}",
@@ -91,7 +101,7 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
                 err
             })?;
 
-        Ok(R::from_item(item.item))
+        Ok(R::from_item(item.item, device))
     }
 
     /// Saves an item.
@@ -123,10 +133,16 @@ pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Cl
     /// # Returns
     ///
     /// The loaded item.
-    fn load_item<I: DeserializeOwned>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>;
+    fn load_item<I>(&self, args: Self::LoadArgs) -> Result<I, RecorderError>
+    where
+        I: DeserializeOwned;
 }
 
-fn recorder_metadata<R: Recorder>() -> BurnMetadata {
+fn recorder_metadata<R, B>() -> BurnMetadata
+where
+    R: Recorder<B>,
+    B: Backend,
+{
     BurnMetadata::new(
         type_name::<<R::Settings as PrecisionSettings>::FloatElem>().to_string(),
         type_name::<<R::Settings as PrecisionSettings>::IntElem>().to_string(),
@@ -181,15 +197,17 @@ pub struct BurnMetadata {
 
 /// Record that can be saved by a [Recorder](Recorder).
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BurnRecord<I> {
+pub struct BurnRecord<I, B: Backend> {
     /// Metadata of the record.
     pub metadata: BurnMetadata,
 
     /// Item to record.
     pub item: I,
+
+    _b: PhantomData<B>,
 }
 
-impl<I> BurnRecord<I> {
+impl<I, B: Backend> BurnRecord<I, B> {
     /// Creates a new record.
     ///
     /// # Arguments
@@ -199,10 +217,14 @@ impl<I> BurnRecord<I> {
     /// # Returns
     ///
     /// The new record.
-    pub fn new<R: Recorder>(item: I) -> Self {
-        let metadata = recorder_metadata::<R>();
+    pub fn new<R: Recorder<B>>(item: I) -> Self {
+        let metadata = recorder_metadata::<R, B>();
 
-        Self { metadata, item }
+        Self {
+            metadata,
+            item,
+            _b: PhantomData,
+        }
     }
 }
 
@@ -254,8 +276,10 @@ pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
+    use crate::TestBackend;
+
     use super::*;
-    use burn_tensor::ElementConversion;
+    use burn_tensor::{Device, ElementConversion};
 
     #[test]
     #[should_panic]
@@ -265,7 +289,11 @@ mod tests {
             value: S::FloatElem,
         }
 
-        impl<D: PrecisionSettings> Record for Item<D> {
+        impl<D, B> Record<B> for Item<D>
+        where
+            D: PrecisionSettings,
+            B: Backend,
+        {
             type Item<S: PrecisionSettings> = Item<S>;
 
             fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -274,7 +302,7 @@ mod tests {
                 }
             }
 
-            fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
                 Item {
                     value: item.value.elem(),
                 }
@@ -282,15 +310,19 @@ mod tests {
         }
 
         let item = Item::<FullPrecisionSettings>::new(16.elem());
+        let device: Device<TestBackend> = Default::default();
 
         // Serialize in f32.
         let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
-        recorder.record(item, FILE_PATH.into()).unwrap();
+        Recorder::<TestBackend>::record(&recorder, item, FILE_PATH.into()).unwrap();
 
         // Can't deserialize f32 into f16.
         let recorder = DefaultFileRecorder::<HalfPrecisionSettings>::new();
-        recorder
-            .load::<Item<FullPrecisionSettings>>(FILE_PATH.into())
-            .unwrap();
+        Recorder::<TestBackend>::load::<Item<FullPrecisionSettings>>(
+            &recorder,
+            FILE_PATH.into(),
+            &device,
+        )
+        .unwrap();
     }
 }
