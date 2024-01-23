@@ -4,7 +4,7 @@ Burn is a deep learning framework in the Rust programming language. Therefore, i
 saying that one must understand the basic notions of Rust. Reading the first chapters of the
 [Rust Book](https://doc.rust-lang.org/book/) is recommended, but don't worry if you're just starting
 out. We'll try to provide as much context and reference to external resources when required. Just
-look out for the **🦀Note** indicators.
+look out for the **🦀 Rust Note** indicators.
 
 ## Installing Rust
 
