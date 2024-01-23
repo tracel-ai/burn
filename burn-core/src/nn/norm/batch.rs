@@ -136,14 +136,16 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let running_mean = self.running_mean.value_sync();
         let running_var = self.running_var.value_sync();
 
-        let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
+        let running_mean = running_mean.clone().mul_scalar(1.0 - self.momentum).add(
             mean.clone()
+                .to_device(&running_mean.device())
                 .detach()
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
-        let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
+        let running_var = running_var.clone().mul_scalar(1.0 - self.momentum).add(
             var.clone()
+                .to_device(&running_var.device())
                 .detach()
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
