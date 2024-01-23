@@ -72,7 +72,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 ```
 
 <details>
-<summary><strong>💡Iterators and Closures</strong></summary>
+<summary><strong>🦀 Iterators and Closures</strong></summary>
 
 The iterator pattern allows you to perform some taks on a sequence of items in turn.
 
@@ -104,7 +104,10 @@ let images = items                                                       // take
     .collect();                                                          // consume the resulting iterator & collect the values into a new vector
 ```
 
-For more information on iterators and closures, be sure to check out the [corresponding chapter](https://doc.rust-lang.org/book/ch13-00-functional-features.html) in the Rust Book.
+For more information on iterators and closures, be sure to check out the
+[corresponding chapter](https://doc.rust-lang.org/book/ch13-00-functional-features.html) in the Rust
+Book.
+
 </details><br>
 
 In the previous example, we implement the `Batcher` trait with a list of `MNISTItem` as input and a

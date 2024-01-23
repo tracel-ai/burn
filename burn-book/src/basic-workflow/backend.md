@@ -23,7 +23,7 @@ fn main() {
 ```
 
 <details>
-<summary><strong>💡Packages, Crates and Modules</strong></summary>
+<summary><strong>🦀 Packages, Crates and Modules</strong></summary>
 
 You might be wondering why we use the `guide` prefix to bring the different modules we just
 implemented into scope. Instead of including the code in the current guide in a single file, we
@@ -60,7 +60,8 @@ guide
 ```
 
 The source for this guide can be found in our
-[GitHub repository](https://github.com/tracel-ai/burn/tree/main/examples/guide).
+[GitHub repository](https://github.com/tracel-ai/burn/tree/main/examples/guide).\
+
 </details><br>
 
 In this example, we use the `Wgpu` backend which is compatible with any operating system and will

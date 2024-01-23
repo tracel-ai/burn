@@ -61,7 +61,7 @@ There are two major things going on in this code sample.
    `Debug`, each field within the struct must also implement the `Module` trait.
 
    <details>
-   <summary><strong>💡Trait</strong></summary>
+   <summary><strong>🦀 Trait</strong></summary>
 
    Traits are a powerful and flexible Rust language feature. They provide a way to define shared
    behavior for a particular type, which can be shared with other types.
@@ -77,7 +77,7 @@ There are two major things going on in this code sample.
    </details><br>
 
    <details id="derive-attribute">
-   <summary><strong>💡Derive Attribute</strong></summary>
+   <summary><strong>🦀 Derive Attribute</strong></summary>
 
    The `derive` attribute allows traits to be implemented easily by generating code that will
    implement a trait with its own default implementation on the type that was annotated with the
@@ -114,7 +114,7 @@ There are two major things going on in this code sample.
    model. In our example, the backend in use will be determined later on.
 
    <details>
-   <summary><strong>💡Trait Bounds</strong></summary>
+   <summary><strong>🦀 Trait Bounds</strong></summary>
 
    Trait bounds provide a way for generic items to restrict which types are used as their
    parameters. The trait bounds stipulate what functionality a type implements. Therefore, bounding
@@ -148,6 +148,7 @@ There are two major things going on in this code sample.
    For more details on trait bounds, check out the Rust
    [trait bound section](https://doc.rust-lang.org/book/ch10-02-traits.html#trait-bound-syntax) or
    [reference](https://doc.rust-lang.org/reference/items/traits.html#trait-bounds).
+
    </details><br>
 
 Next, we need to instantiate the model for training.
@@ -178,7 +179,7 @@ impl ModelConfig {
 ```
 
 <details>
-<summary><strong>💡&References</strong></summary>
+<summary><strong>🦀 References</strong></summary>
 
 In the previous example, the `init()` method signature uses `&` to indicate that the parameter types
 are references: `&self`, a reference to the current receiver (`ModelConfig`), and

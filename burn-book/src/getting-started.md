@@ -4,7 +4,7 @@ Burn is a deep learning framework in the Rust programming language. Therefore, i
 saying that one must understand the basic notions of Rust. Reading the first chapters of the
 [Rust Book](https://doc.rust-lang.org/book/) is recommended, but don't worry if you're just starting
 out. We'll try to provide as much context and reference to external resources when required. Just
-look out for the **💡Note** indicators.
+look out for the **🦀Note** indicators.
 
 ## Installing Rust
 
@@ -19,7 +19,7 @@ Once Rust is correctly installed, create a new Rust application by using Rust's 
 package manager Cargo. It is automatically installed with Rust.
 
 <details>
-<summary><strong>💡Cargo Cheat Sheet</strong></summary>
+<summary><strong>🦀 Cargo Cheat Sheet</strong></summary>
 
 [Cargo](https://doc.rust-lang.org/cargo/) is a very useful tool to manage Rust projects because it
 handles a lot of tasks. More precisely, it is used to compile your code, download the
@@ -92,7 +92,7 @@ fn main() {
 ```
 
 <details>
-<summary><strong>💡Use Declarations</strong></summary>
+<summary><strong>🦀 Use Declarations</strong></summary>
 
 To bring any of the Burn module or item into scope, a `use` declaration is added.
 
@@ -121,7 +121,7 @@ of the Rust Book or the
 </details><br>
 
 <details>
-<summary><strong>💡Generic Data Types</strong></summary>
+<summary><strong>🦀 Generic Data Types</strong></summary>
 
 If you're new to Rust, you're probably wondering why we had to use `Tensor::<Backend, 2>::...`.
 That's because the `Tensor` struct is [generic](https://doc.rust-lang.org/book/ch10-01-syntax.html)

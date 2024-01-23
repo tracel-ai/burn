@@ -69,7 +69,7 @@ validation steps is that the former requires the backend to implement `AutodiffB
 autodiff. We will see later how to create a backend with autodiff support.
 
 <details>
-<summary><strong>💡Generic Type Constraints in Method Definitions</strong></summary>
+<summary><strong>🦀 Generic Type Constraints in Method Definitions</strong></summary>
 
 Although generic data types, trait and trait bounds were already introduced in previous sections of
 this guide, the previous code snippet might be a lot to take in at first.
@@ -86,6 +86,7 @@ method signature matches the concrete input and output types.
 For more details specific to constraints on generic types when defining methods, take a look at
 [this section](https://doc.rust-lang.org/book/ch10-01-syntax.html#in-method-definitions) of the Rust
 Book.
+
 </details><br>
 
 Let us move on to establishing the practical training configuration.
