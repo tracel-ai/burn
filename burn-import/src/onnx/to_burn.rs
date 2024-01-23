@@ -667,7 +667,6 @@ impl ONNXGraph {
     fn pow_conversion(node: Node) -> BinaryNode {
         let lhs = node.inputs.first().unwrap().to_type();
         let rhs = node.inputs.get(1).unwrap().to_type();
-        //let ty = lhs.ty();
         let output = node.outputs.first().unwrap().to_type();
         match &rhs {
             Type::Tensor(x) => match x.kind {

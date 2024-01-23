@@ -41,15 +41,15 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
-        //[4 * 2**3, 2 * 7**1]
+        //equivalent to [4 * 2**3, 2 * 7**1]
         grad_1
             .to_data()
             .assert_approx_eq(&Data::from([32.0, 14.0]), 3);
-        //assert_eq!(grad_1.to_data(), data_2);
+
         grad_2
             .to_data()
             .assert_approx_eq(&Data::from([11.09, 95.349]), 2);
-        //[2**4 * ln(2), 7**2 * ln(7)]
+        // equivalent to [2**4 * ln(2), 7**2 * ln(7)]
         //have to use approx_eq due to candle producing
         //[16.0, 48.999996]
 
