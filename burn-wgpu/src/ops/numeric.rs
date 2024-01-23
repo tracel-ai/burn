@@ -201,7 +201,7 @@ pub fn pow<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Pow {
+        operator: |elem: Elem| Operator::Powf {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
