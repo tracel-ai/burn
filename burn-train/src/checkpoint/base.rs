@@ -38,6 +38,7 @@ where
     /// # Arguments
     ///
     /// * `epoch` - The epoch.
+    /// * `device` - The device used to restore the record.
     ///
     /// # Returns
     ///
