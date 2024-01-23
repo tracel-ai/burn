@@ -1592,7 +1592,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        binary_float_ops!(PowOps, B::mul);
+        binary_float_ops!(PowOps, B::powf);
 
         let out = lhs
             .client
