@@ -59,13 +59,6 @@ where
         Self::new(B::erf(self.primitive))
     }
 
-    /// Applies element wise power operation.
-    ///
-    /// `y = x^a`
-    pub fn powf_scalar(self, value: f32) -> Self {
-        Self::new(B::powf_scalar(self.primitive, value))
-    }
-
     /// Applies element wise reciprocal operation.
     pub fn recip(self) -> Self {
         Self::new(B::recip(self.primitive))

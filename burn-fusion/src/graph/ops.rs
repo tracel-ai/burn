@@ -380,7 +380,7 @@ pub enum NumericOpsDescription<E> {
     Clamp(ClampOpsDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [pow](burn_tensor::ops::TensorOps::pow)
+    /// Float => [pow](burn_tensor::ops::TensorOps::powf)
     /// Int => [pow](burn_tensor::ops::IntTensorOps::int_powf)
     Pow(BinaryOpsDescription),
 }

@@ -462,6 +462,6 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         lhs: burn_tensor::ops::FloatTensor<Self, D>,
         rhs: burn_tensor::ops::FloatTensor<Self, D>,
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
-        TchOps::pow(lhs, rhs)
+        TchOps::powf(lhs, rhs)
     }
 }

@@ -482,6 +482,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        //broadcast_pow is in main but not yet published
+        //note: probably replace once pow once 0.3.3 is out
+        //see: https://github.com/huggingface/candle/pull/1583/files#diff-6319fa1e16dadc4c7b4e25698139703d93b70f30a1f8e2ac0999978e39efaa81R2594
+
+        CandleTensor::new(
+            rhs.tensor
+                .broadcast_mul(&lhs.tensor.log().unwrap())
+                .unwrap()
+                .exp()
+                .unwrap(),
+        )
     }
 }
