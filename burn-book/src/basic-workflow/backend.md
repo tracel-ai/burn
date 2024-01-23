@@ -41,7 +41,7 @@ crate root file (usually `src/lib.rs` for a library crate or `src/main.rs` for a
 module declared in the crate root file will be inserted in the crate for compilation.
 
 A **module** lets us organize code within a crate for readability and easy reuse. Modules also allow
-us to controle the _privacy_ of items.
+us to control the _privacy_ of items.
 
 For this guide, we defined a library crate with a single example where the `main` function is
 defined, as illustrated in the structure below.

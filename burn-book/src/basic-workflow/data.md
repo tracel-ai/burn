@@ -74,7 +74,7 @@ impl<B: Backend> Batcher<MNISTItem, MNISTBatch<B>> for MNISTBatcher<B> {
 <details>
 <summary><strong>🦀 Iterators and Closures</strong></summary>
 
-The iterator pattern allows you to perform some taks on a sequence of items in turn.
+The iterator pattern allows you to perform some tasks on a sequence of items in turn.
 
 In this example, an iterator is created over the `MNISTItem`s in the vector `items` by calling the
 `iter` method.

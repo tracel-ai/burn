@@ -119,7 +119,7 @@ There are two major things going on in this code sample.
    Trait bounds provide a way for generic items to restrict which types are used as their
    parameters. The trait bounds stipulate what functionality a type implements. Therefore, bounding
    restricts the generic to types that conform to the bounds. It also allows generic instances to
-   acces the methods of traits specified in the bounds.
+   access the methods of traits specified in the bounds.
 
    For a simple but concrete example, check out the
    [Rust By Example on bounds](https://doc.rust-lang.org/rust-by-example/generics/bounds.html).
@@ -199,7 +199,7 @@ ownership is quite core to Rust and is worth
 
 In a language like C, memory management is explicit and up to the programmer, which means it is easy
 to make mistakes. In a language like Java or Python, memory management is automatic with the help of
-a grabage collector. This is very safe and straightforward, but also incurs a runtime cost.
+a garbage collector. This is very safe and straightforward, but also incurs a runtime cost.
 
 In Rust, memory management is rather unique. Aside from
 [primitive types](https://doc.rust-lang.org/rust-by-example/primitives.html), every value is _owned_

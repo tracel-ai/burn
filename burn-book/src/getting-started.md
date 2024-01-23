@@ -59,7 +59,7 @@ Then, add Burn as a dependency:
 cargo add burn --features wgpu
 ```
 
-Finally, compile the local pacakge by executing the following:
+Finally, compile the local package by executing the following:
 
 ```console
 cargo build
