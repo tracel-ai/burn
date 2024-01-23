@@ -73,16 +73,16 @@ impl<B: Backend> Model<B> {
             activation: ReLU::new(),
         }
     }
-}``
+}
 ```
 
 Now, let's save a model that we can load later. In the following snippets, we use
-`type Backend = NdArray<f32>` but you can use whatever backend you like.
+`type MyBackend = NdArray<f32>` but you can use whatever backend you like.
 
 ```rust, ignore
 // Create a dummy initialized model to save
 let device = Default::default();
-let model = Model::<Backend>::new(&device);
+let model = Model::<MyBackend>::new(&device);
 
 // Save model in MessagePack format with full precision
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
@@ -95,10 +95,51 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 
 ```rust, ignore
 // Load model record on the backend's default device
-let record: ModelRecord<Backend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
+let record: ModelRecord<MyBackend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
     .load(model_path.into())
     .expect("Should be able to load the model weights from the provided file");
 
 // Directly initialize a new model with the loaded record/weights
 let model = Model::init_with(record);
 ```
+
+## No Storage, No Problem!
+
+For applications where file storage may not be available (or desired) at runtime, you can use the
+`BinBytesRecorder`.
+
+In the previous examples we used a `FileRecorder` based on the MessagePack format, which could be
+replaced with [another file recorder](./building-blocks/record.md#recorder) of your choice. To embed
+a model as part of your runtime application, first save the model to a binary file with
+`BinFileRecorder`.
+
+```rust, ignore
+// Save model in binary format with full precision
+let recorder = BinFileRecorder::<FullPrecisionSettings>::new();
+model
+  .save_file(model_path, &recorder)
+  .expect("Should be able to save the model");
+```
+
+Then, in your final application, include the model and use the `BinBytesRecorder` to load it.
+
+Embedding the model as part of your application is especially useful for smaller models but not
+recommended for very large models as it would significantly increase the binary size as well as
+consume a lot more memory at runtime.
+
+```rust, ignore
+// Include the model file as a reference to a byte array
+static MODEL_BYTES: &[u8] = include_bytes!("path/to/model.bin");
+
+// Load model binary record in full precision
+let record = BinBytesRecorder::<FullPrecisionSettings>::default()
+    .load(MODEL_BYTES.to_vec())
+    .expect("Should be able to load model the model weights from bytes");
+
+// Load that record with the model
+model.load_record(record);
+```
+
+This example assumes that the model was already created before loading the model record. If instead
+you want to skip the random initialization and directly initialize the weights with the provided
+record, you could adapt this like the [previous example](#initialization-from-recorded-weights).
