@@ -246,7 +246,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "TODO: Fix this test. https://github.com/tracel-ai/burn/issues/1086"]
     fn tanh_should_not_have_numerical_bugs_on_macos() {
         fn tanh_one_value(input: f32) -> f32 {
             let tensor = Tensor::<TestBackend, 1>::ones([1], &Default::default()) * input;
