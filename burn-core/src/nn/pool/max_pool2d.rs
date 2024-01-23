@@ -24,7 +24,7 @@ pub struct MaxPool2dConfig {
 }
 
 /// Applies a 2D max pooling over input tensors.
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Clone, Debug)]
 pub struct MaxPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],

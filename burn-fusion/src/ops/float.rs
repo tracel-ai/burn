@@ -2,17 +2,19 @@ use crate::{
     binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
     get_client,
-    graph::{
-        BaseOpsDescription, BinaryOpsDescription, CatOpsDescription, ClampOpsDescription,
-        FloatOpsDescription, GatherOpsDescription, MaskFillOpsDescription, MaskWhereOpsDescription,
-        NumericOpsDescription, Ops, RandomOpsDescription, ReduceDimWithIndicesDescription,
-        ReshapeDescription, ScalarOpsDescription, ScatterOpsDescription,
-        SelectAssignOpsDescription, SelectOpsDescription, SliceAssignOpsDescription,
-        SliceOpsDescription, SwapDimsDescription, TensorOpsDescription, UnaryOpsDescription,
-    },
     ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, unary_float_ops, Fusion,
-    FusionBackend, TensorDescription,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    stream::{
+        BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
+        ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
+        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+        Operation, OperationDescription, RandomOperationDescription,
+        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
+        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+        UnaryOperationDescription,
+    },
+    unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
@@ -29,7 +31,11 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         let tensor = B::from_data(data, device);
         let shape = B::shape(&tensor);
 
-        client.register_tensor(B::float_tensor_handle(tensor), shape.dims.into())
+        client.register_tensor(
+            B::float_tensor_handle(tensor),
+            shape.dims.into(),
+            StreamId::current(),
+        )
     }
 
     fn random<const D: usize>(
@@ -39,10 +45,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct RandomOps<const D: usize> {
-            desc: RandomOpsDescription,
+            desc: RandomOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for RandomOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for RandomOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
                 let output: B::TensorPrimitive<D> =
@@ -51,16 +57,18 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
-        let desc = RandomOpsDescription {
+        let desc = RandomOperationDescription {
             out: out.to_description_out(),
             distribution,
         };
         client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Random(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Random(desc.clone())),
             RandomOps::<D>::new(desc),
         );
 
@@ -73,7 +81,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: TensorDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for ZerosOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for ZerosOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output = B::zeros::<D>(shape, &handles.device);
@@ -81,13 +89,15 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
         let desc = out.to_description_out();
         client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Zeros(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Zeros(desc.clone())),
             ZerosOps::<D>::new(desc),
         );
 
@@ -100,7 +110,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: TensorDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for OnesOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for OnesOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output = B::ones::<D>(shape, &handles.device);
@@ -108,13 +118,15 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
         let desc = out.to_description_out();
         client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Ones(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Ones(desc.clone())),
             OnesOps::<D>::new(desc),
         );
 
@@ -132,7 +144,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             elem: f32,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for FullOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for FullOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.out.shape.clone());
                 let output: B::TensorPrimitive<D> =
@@ -141,13 +153,15 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = StreamId::current();
         let shape: Vec<usize> = shape.dims.into();
         let client = get_client::<B>(&device.clone().into());
         let out = client.tensor_uninitialized(shape);
 
         let desc = (out.to_description_out(), fill_value.elem::<f32>());
         client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Full(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Full(desc.clone())),
             FullOps::<D>::new(desc.0, desc.1),
         );
 
@@ -177,21 +191,24 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             return tensor;
         }
 
+        let id = tensor.stream;
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_float::<D>(tensor.into_description(), client_target)
+        client_original.clone().change_client_float::<D>(
+            tensor.into_description(),
+            client_target,
+            id,
+        )
     }
 
     fn into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
         #[derive(new)]
         struct IntoIntOps<const D: usize> {
-            desc: UnaryOpsDescription,
+            desc: UnaryOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for IntoIntOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for IntoIntOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&self.desc.input);
                 let output = B::into_int(input);
@@ -200,14 +217,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::IntoInt(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::IntoInt(desc.clone())),
             IntoIntOps::<D>::new(desc),
         );
 
@@ -216,9 +235,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
     fn empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
+        let stream = StreamId::current();
         let tensor = B::empty(shape.clone(), device);
 
-        client.register_tensor(B::float_tensor_handle(tensor), shape.dims.into())
+        client.register_tensor(B::float_tensor_handle(tensor), shape.dims.into(), stream)
     }
 
     fn add<const D: usize>(
@@ -227,17 +247,21 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(AddOps, B::add);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
+
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Add(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Add(desc.clone())),
             AddOps::<D>::new(desc),
         );
 
@@ -250,15 +274,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(AddOps, B::add_scalar);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem::<f32>(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::AddScalar(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
+                desc.clone(),
+            )),
             AddOps::<D>::new(desc),
         );
 
@@ -272,10 +300,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct ClampOps<const D: usize> {
-            desc: ClampOpsDescription<f32>,
+            desc: ClampOperationDescription<f32>,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for ClampOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for ClampOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let output = B::clamp(input, self.desc.min.elem(), self.desc.max.elem());
@@ -284,16 +312,18 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = ClampOpsDescription {
+        let desc = ClampOperationDescription {
             tensor: tensor.into_description(),
             min: min.elem(),
             max: max.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Clamp(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Clamp(desc.clone())),
             ClampOps::<D>::new(desc),
         );
 
@@ -306,17 +336,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(SubOps, B::sub);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Sub(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Sub(desc.clone())),
             SubOps::<D>::new(desc),
         );
 
@@ -329,15 +362,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(SubOps, B::sub_scalar);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::SubScalar(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::SubScalar(
+                desc.clone(),
+            )),
             SubOps::<D>::new(desc),
         );
 
@@ -350,17 +387,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(MulOps, B::mul);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Mul(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Mul(desc.clone())),
             MulOps::<D>::new(desc),
         );
 
@@ -373,15 +413,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(MulOps, B::mul_scalar);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MulScalar(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MulScalar(
+                desc.clone(),
+            )),
             MulOps::<D>::new(desc),
         );
 
@@ -394,17 +438,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(DivOps, B::div);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Div(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Div(desc.clone())),
             DivOps::<D>::new(desc),
         );
 
@@ -417,15 +464,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         scalar_float_ops!(DivOps, B::div_scalar);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::DivScalar(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::DivScalar(
+                desc.clone(),
+            )),
             DivOps::<D>::new(desc),
         );
 
@@ -438,20 +489,23 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         binary_float_ops!(MatmulOps, B::matmul);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let mut shape = binary_ops_shape(&lhs.shape, &rhs.shape);
 
         shape[D - 2] = lhs.shape[D - 2];
         shape[D - 1] = rhs.shape[D - 1];
 
         let out = lhs.client.tensor_uninitialized(shape);
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
 
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Matmul(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::Float(FloatOperationDescription::Matmul(desc.clone())),
             MatmulOps::<D>::new(desc),
         );
 
@@ -468,7 +522,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             desc: SwapDimsDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for SwapDimsOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for SwapDimsOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D>(&self.desc.input);
                 let output = B::swap_dims(input, self.desc.dim1, self.desc.dim2);
@@ -476,11 +530,12 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim1] = tensor.shape[dim2];
         shape[dim2] = tensor.shape[dim1];
 
-        let out = tensor.client.tensor_uninitialized(shape);
+        let mut out = tensor.client.tensor_uninitialized(shape);
 
         let desc = SwapDimsDescription {
             input: tensor.into_description(),
@@ -489,9 +544,11 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::SwapDims(desc.clone())),
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
         );
+        out.stream = stream;
 
         out
     }
@@ -505,7 +562,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             desc: ReshapeDescription,
         }
 
-        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for ReshapeDimsOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for ReshapeDimsOps<D1, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let input = handles.get_float_tensor::<D1>(&self.desc.input);
                 let output = B::reshape::<D1, D2>(input, Shape::from(&self.desc.out.shape));
@@ -513,6 +570,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let shape: Vec<usize> = shape.dims.into();
         let out = tensor.client.tensor_uninitialized(shape);
 
@@ -521,7 +579,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Reshape(desc.clone())),
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::Reshape(desc.clone())),
             ReshapeDimsOps::<D1, D2>::new(desc),
         );
 
@@ -535,10 +594,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct GatherOps<const D: usize> {
-            desc: GatherOpsDescription,
+            desc: GatherOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for GatherOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for GatherOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
@@ -548,17 +607,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
         let shape: Vec<usize> = indices.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = GatherOpsDescription {
+        let desc = GatherOperationDescription {
             tensor: tensor.into_description(),
             dim,
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Gather(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Gather(desc.clone())),
             GatherOps::<D>::new(desc),
         );
 
@@ -573,10 +635,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct ScatterOps<const D: usize> {
-            desc: ScatterOpsDescription,
+            desc: ScatterOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for ScatterOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for ScatterOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
@@ -588,10 +650,13 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
+        let stream_3 = value.stream;
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScatterOpsDescription {
+        let desc = ScatterOperationDescription {
             tensor: tensor.into_description(),
             dim,
             indices: indices.into_description(),
@@ -600,7 +665,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         };
 
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Scatter(desc.clone())),
+            vec![stream_1, stream_2, stream_3],
+            OperationDescription::NumericFloat(NumericOperationDescription::Scatter(desc.clone())),
             ScatterOps::<D>::new(desc),
         );
 
@@ -614,10 +680,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct SelectOps<const D: usize> {
-            desc: SelectOpsDescription,
+            desc: SelectOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for SelectOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for SelectOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
@@ -628,17 +694,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
         let mut shape: Vec<usize> = tensor.shape.clone();
         shape[dim] = indices.shape[0];
         let out = tensor.client.tensor_uninitialized(shape);
-        let desc = SelectOpsDescription {
+        let desc = SelectOperationDescription {
             tensor: tensor.into_description(),
             dim,
             indices: indices.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Select(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Select(desc.clone())),
             SelectOps::<D>::new(desc),
         );
 
@@ -653,10 +722,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct SelectAssignOps<const D: usize> {
-            desc: SelectAssignOpsDescription,
+            desc: SelectAssignOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for SelectAssignOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for SelectAssignOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let indices = handles.get_int_tensor(&self.desc.indices);
@@ -668,10 +737,13 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = indices.stream;
+        let stream_3 = value.stream;
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = SelectAssignOpsDescription {
+        let desc = SelectAssignOperationDescription {
             tensor: tensor.into_description(),
             dim,
             indices: indices.into_description(),
@@ -679,7 +751,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::SelectAssign(
+            vec![stream_1, stream_2, stream_3],
+            OperationDescription::NumericFloat(NumericOperationDescription::SelectAssign(
                 desc.clone(),
             )),
             SelectAssignOps::<D>::new(desc),
@@ -694,10 +767,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D1> {
         #[derive(new)]
         struct SliceOps<const D1: usize, const D2: usize> {
-            desc: SliceOpsDescription,
+            desc: SliceOperationDescription,
         }
 
-        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceOps<D1, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D1>(&self.desc.tensor);
 
@@ -707,7 +780,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
                 handles.register_float_tensor(&self.desc.out.id, output);
             }
         }
-
+        let stream = tensor.stream;
         let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
 
         for i in shape.len()..D1 {
@@ -716,13 +789,14 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = SliceOpsDescription {
+        let desc = SliceOperationDescription {
             tensor: tensor.into_description(),
             ranges: ranges.into(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Slice(desc.clone())),
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::Slice(desc.clone())),
             SliceOps::<D1, D2>::new(desc),
         );
 
@@ -736,10 +810,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D1> {
         #[derive(new)]
         struct SliceAssignOps<const D1: usize, const D2: usize> {
-            desc: SliceAssignOpsDescription,
+            desc: SliceAssignOperationDescription,
         }
 
-        impl<const D1: usize, const D2: usize, B: FusionBackend> Ops<B> for SliceAssignOps<D1, D2> {
+        impl<const D1: usize, const D2: usize, B: FusionBackend> Operation<B> for SliceAssignOps<D1, D2> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D1>(&self.desc.tensor);
                 let value = handles.get_float_tensor::<D1>(&self.desc.value);
@@ -754,17 +828,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = value.stream;
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = SliceAssignOpsDescription {
+        let desc = SliceAssignOperationDescription {
             tensor: tensor.into_description(),
             ranges: ranges.into(),
             value: value.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::SliceAssign(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::BaseFloat(BaseOperationDescription::SliceAssign(desc.clone())),
             SliceAssignOps::<D1, D2>::new(desc),
         );
 
@@ -778,10 +855,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct MaskWhereOps<const D: usize> {
-            desc: MaskWhereOpsDescription,
+            desc: MaskWhereOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for MaskWhereOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for MaskWhereOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let value = handles.get_float_tensor(&self.desc.value);
@@ -793,17 +870,23 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = mask.stream;
+        let stream_3 = value.stream;
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = MaskWhereOpsDescription {
+        let desc = MaskWhereOperationDescription {
             tensor: tensor.into_description(),
             value: value.into_description(),
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaskWhere(desc.clone())),
+            vec![stream_1, stream_2, stream_3],
+            OperationDescription::NumericFloat(NumericOperationDescription::MaskWhere(
+                desc.clone(),
+            )),
             MaskWhereOps::<D>::new(desc),
         );
 
@@ -817,10 +900,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct MaskFillOps<const D: usize> {
-            desc: MaskFillOpsDescription<f32>,
+            desc: MaskFillOperationDescription<f32>,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for MaskFillOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for MaskFillOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor(&self.desc.mask);
@@ -831,16 +914,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream_1 = tensor.stream;
+        let stream_2 = mask.stream;
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor.client.tensor_uninitialized(shape);
-        let desc = MaskFillOpsDescription {
+        let desc = MaskFillOperationDescription {
             tensor: tensor.into_description(),
             value: value.elem(),
             mask: mask.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaskFill(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::MaskFill(desc.clone())),
             MaskFillOps::<D>::new(desc),
         );
 
@@ -853,17 +939,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         binary_float_cmp_ops!(EqualOps, B::equal);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Equal(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::BaseFloat(BaseOperationDescription::Equal(desc.clone())),
             EqualOps::<D>::new(desc),
         );
 
@@ -876,15 +965,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(EqualElemOps, B::equal_elem);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::EqualElem(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::EqualElem(
+                desc.clone(),
+            )),
             EqualElemOps::<D>::new(desc),
         );
 
@@ -897,17 +990,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         binary_float_cmp_ops!(GreaterOps, B::greater);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Greater(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Greater(desc.clone())),
             GreaterOps::<D>::new(desc),
         );
 
@@ -920,15 +1016,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(GreaterElemOps, B::greater_elem);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::GreaterElem(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::GreaterElem(
+                desc.clone(),
+            )),
             GreaterElemOps::<D>::new(desc),
         );
 
@@ -941,17 +1041,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         binary_float_cmp_ops!(GreaterEqualOps, B::greater_equal);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::GreaterEqual(
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::GreaterEqual(
                 desc.clone(),
             )),
             GreaterEqualOps::<D>::new(desc),
@@ -966,15 +1069,17 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(GreaterEqualElemOps, B::greater_equal_elem);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::GreaterEqualElem(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::GreaterEqualElem(
                 desc.clone(),
             )),
             GreaterEqualElemOps::<D>::new(desc),
@@ -989,17 +1094,20 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         binary_float_cmp_ops!(LowerOps, B::lower);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Lower(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Lower(desc.clone())),
             LowerOps::<D>::new(desc),
         );
 
@@ -1012,15 +1120,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(LowerElemOps, B::lower_elem);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::LowerElem(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::LowerElem(
+                desc.clone(),
+            )),
             LowerElemOps::<D>::new(desc),
         );
 
@@ -1033,17 +1145,22 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         binary_float_cmp_ops!(LowerEqualOps, B::lower_equal);
 
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
         let out = lhs
             .client
             .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
 
-        let desc = BinaryOpsDescription {
+        let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::LowerEqual(desc.clone())),
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::LowerEqual(
+                desc.clone(),
+            )),
             LowerEqualOps::<D>::new(desc),
         );
 
@@ -1056,15 +1173,17 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     ) -> BoolTensor<Self, D> {
         scalar_float_cmp_ops!(LowerEqualElemOps, B::lower_equal_elem);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs: rhs.elem(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::LowerEqualElem(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::LowerEqualElem(
                 desc.clone(),
             )),
             LowerEqualElemOps::<D>::new(desc),
@@ -1076,14 +1195,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(SumOps, B::sum);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Sum(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Sum(desc.clone())),
             SumOps::<D>::new(desc),
         );
 
@@ -1093,17 +1214,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sum_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(SumDimOps, B::sum_dim, usize, noconvert);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::SumDim(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::SumDim(desc.clone())),
             SumDimOps::<D>::new(desc),
         );
 
@@ -1113,14 +1236,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MeanOps, B::mean);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Mean(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Mean(desc.clone())),
             MeanOps::<D>::new(desc),
         );
 
@@ -1130,17 +1255,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MeanDimOps, B::mean_dim, usize, noconvert);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MeanDim(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MeanDim(desc.clone())),
             MeanDimOps::<D>::new(desc),
         );
 
@@ -1162,14 +1289,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn exp<const D: usize>(lhs: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(ExpOps, B::exp);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: lhs.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Exp(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Exp(desc.clone())),
             ExpOps::<D>::new(desc),
         );
 
@@ -1179,14 +1308,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(LogOps, B::log);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Log(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Log(desc.clone())),
             LogOps::<D>::new(desc),
         );
 
@@ -1196,14 +1327,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(Log1pOps, B::log1p);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Log1p(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Log1p(desc.clone())),
             Log1pOps::<D>::new(desc),
         );
 
@@ -1213,15 +1346,17 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
         scalar_float_ops!(PowfOps, B::powf, f32);
 
+        let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
             rhs,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Powf(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Powf(desc.clone())),
             PowfOps::<D>::new(desc),
         );
 
@@ -1231,14 +1366,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(SqrtOps, B::sqrt);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Sqrt(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Sqrt(desc.clone())),
             SqrtOps::<D>::new(desc),
         );
 
@@ -1248,14 +1385,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(AbsOps, B::abs);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Abs(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Abs(desc.clone())),
             AbsOps::<D>::new(desc),
         );
 
@@ -1265,14 +1404,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(CosOps, B::cos);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Cos(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Cos(desc.clone())),
             CosOps::<D>::new(desc),
         );
 
@@ -1282,14 +1423,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(SinOps, B::sin);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Sin(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Sin(desc.clone())),
             SinOps::<D>::new(desc),
         );
 
@@ -1299,14 +1442,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(TanhOps, B::tanh);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Tanh(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Tanh(desc.clone())),
             TanhOps::<D>::new(desc),
         );
 
@@ -1316,13 +1461,15 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(Recip, B::recip);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Recip(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Recip(desc.clone())),
             Recip::<D>::new(desc),
         );
 
@@ -1332,14 +1479,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary_float_ops!(TanhOps, B::erf);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::FloatOps(FloatOpsDescription::Erf(desc.clone())),
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Erf(desc.clone())),
             TanhOps::<D>::new(desc),
         );
 
@@ -1349,10 +1498,10 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn cat<const D: usize>(tensors: Vec<FloatTensor<Self, D>>, dim: usize) -> FloatTensor<Self, D> {
         #[derive(new)]
         struct CatOps<const D: usize> {
-            desc: CatOpsDescription,
+            desc: CatOperationDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for CatOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for CatOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensors = self
                     .desc
@@ -1371,6 +1520,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         let client = tensor_first.client.clone();
 
         // Calculate the output shape
+        let streams = tensors.iter().map(|tensor| tensor.stream).collect();
         let mut shape: Vec<usize> = tensor_first.shape.clone();
         shape[dim] = 0;
         for tensor in tensors.iter() {
@@ -1379,13 +1529,14 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
 
         let out = client.tensor_uninitialized(shape);
 
-        let desc = CatOpsDescription {
+        let desc = CatOperationDescription {
             tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
             dim,
             out: out.to_description_out(),
         };
         client.register(
-            TensorOpsDescription::BaseOpsFloat(BaseOpsDescription::Cat(desc.clone())),
+            streams,
+            OperationDescription::BaseFloat(BaseOperationDescription::Cat(desc.clone())),
             CatOps::<D>::new(desc),
         );
 
@@ -1395,17 +1546,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_float2int_ops!(ArgMaxOps, B::argmax, usize);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::ArgMax(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::ArgMax(desc.clone())),
             ArgMaxOps::<D>::new(desc),
         );
 
@@ -1415,17 +1568,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         scalar_float2int_ops!(ArgMinOps, B::argmin, usize);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::ArgMin(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::ArgMin(desc.clone())),
             ArgMinOps::<D>::new(desc),
         );
 
@@ -1435,14 +1590,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn max<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MaxOps, B::max);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Max(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Max(desc.clone())),
             MaxOps::<D>::new(desc),
         );
 
@@ -1452,17 +1609,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn max_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MaxDimOps, B::max_dim, usize, noconvert);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaxDim(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MaxDim(desc.clone())),
             MaxDimOps::<D>::new(desc),
         );
 
@@ -1478,7 +1637,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             desc: ReduceDimWithIndicesDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for MaxDimWithIndicesOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for MaxDimWithIndicesOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let (output, indices) = B::max_dim_with_indices(tensor, self.desc.dim);
@@ -1488,6 +1647,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
@@ -1501,7 +1661,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out_indices: out_indices.to_description_out(),
         };
         client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MaxDimWithIndices(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MaxDimWithIndices(
                 desc.clone(),
             )),
             MaxDimWithIndicesOps::<D>::new(desc),
@@ -1513,14 +1674,16 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn min<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MinOps, B::min);
 
+        let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(vec![1]);
 
-        let desc = UnaryOpsDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::Min(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Min(desc.clone())),
             MinOps::<D>::new(desc),
         );
 
@@ -1530,17 +1693,19 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
     fn min_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         scalar_float_ops!(MinDimOps, B::min_dim, usize, noconvert);
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let out = tensor.client.tensor_uninitialized(shape);
 
-        let desc = ScalarOpsDescription {
+        let desc = ScalarOperationDescription {
             lhs: tensor.into_description(),
             rhs: dim,
             out: out.to_description_out(),
         };
         out.client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MinDim(desc.clone())),
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MinDim(desc.clone())),
             MinDimOps::<D>::new(desc),
         );
 
@@ -1556,7 +1721,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             desc: ReduceDimWithIndicesDescription,
         }
 
-        impl<const D: usize, B: FusionBackend> Ops<B> for MinDimWithIndicesOps<D> {
+        impl<const D: usize, B: FusionBackend> Operation<B> for MinDimWithIndicesOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let tensor = handles.get_float_tensor::<D>(&self.desc.tensor);
                 let (output, indices) = B::min_dim_with_indices(tensor, self.desc.dim);
@@ -1566,6 +1731,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             }
         }
 
+        let stream = tensor.stream;
         let mut shape = tensor.shape.clone();
         shape[dim] = 1;
         let client = tensor.client.clone();
@@ -1579,7 +1745,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
             out_indices: out_indices.to_description_out(),
         };
         client.register(
-            TensorOpsDescription::NumericOpsFloat(NumericOpsDescription::MinDimWithIndices(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::MinDimWithIndices(
                 desc.clone(),
             )),
             MinDimWithIndicesOps::<D>::new(desc),

@@ -49,6 +49,9 @@ pub struct BurnGraph<PS: PrecisionSettings> {
     graph_output_types: Vec<Type>,
 }
 
+// The backend used for recording.
+type Backend = burn_ndarray::NdArray;
+
 impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Register a new operation node into the graph.
     ///
@@ -96,14 +99,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         match record_type {
             RecordType::PrettyJson => {
-                PrettyJsonFileRecorder::<PS>::new()
-                    .save_item(
-                        BurnRecord::new::<PrettyJsonFileRecorder<PS>>(StructMap(
-                            BurnGraphState::new(&self.nodes),
-                        )),
-                        out_file.clone(),
-                    )
-                    .unwrap();
+                let recorder = PrettyJsonFileRecorder::<PS>::new();
+
+                Recorder::<Backend>::save_item(
+                    &recorder,
+                    BurnRecord::<_, Backend>::new::<PrettyJsonFileRecorder<PS>>(StructMap(
+                        BurnGraphState::new(&self.nodes),
+                    )),
+                    out_file.clone(),
+                )
+                .unwrap();
 
                 assert!(
                     !embed_states,
@@ -116,14 +121,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 );
             }
             RecordType::NamedMpkGz => {
-                NamedMpkGzFileRecorder::<PS>::new()
-                    .save_item(
-                        BurnRecord::new::<NamedMpkGzFileRecorder<PS>>(StructMap(
-                            BurnGraphState::new(&self.nodes),
-                        )),
-                        out_file.clone(),
-                    )
-                    .unwrap();
+                let recorder = NamedMpkGzFileRecorder::<PS>::new();
+
+                Recorder::<Backend>::save_item(
+                    &recorder,
+                    BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(StructMap(
+                        BurnGraphState::new(&self.nodes),
+                    )),
+                    out_file.clone(),
+                )
+                .unwrap();
 
                 assert!(
                     !embed_states,
@@ -136,14 +143,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             }
 
             RecordType::NamedMpk => {
-                NamedMpkFileRecorder::<PS>::new()
-                    .save_item(
-                        BurnRecord::new::<NamedMpkGzFileRecorder<PS>>(StructMap(
-                            BurnGraphState::new(&self.nodes),
-                        )),
-                        out_file.clone(),
-                    )
-                    .unwrap();
+                let recorder = NamedMpkFileRecorder::<PS>::new();
+
+                Recorder::<Backend>::save_item(
+                    &recorder,
+                    BurnRecord::<_, Backend>::new::<NamedMpkGzFileRecorder<PS>>(StructMap(
+                        BurnGraphState::new(&self.nodes),
+                    )),
+                    out_file.clone(),
+                )
+                .unwrap();
 
                 assert!(
                     !embed_states,
@@ -157,14 +166,16 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             }
 
             RecordType::Bincode => {
-                BinFileRecorder::<PS>::new()
-                    .save_item(
-                        BurnRecord::new::<BinFileRecorder<PS>>(StructTuple(BurnGraphState::new(
-                            &self.nodes,
-                        ))),
-                        out_file.clone(),
-                    )
-                    .unwrap();
+                let recorder = BinFileRecorder::<PS>::new();
+
+                Recorder::<Backend>::save_item(
+                    &recorder,
+                    BurnRecord::<_, Backend>::new::<BinFileRecorder<PS>>(StructTuple(
+                        BurnGraphState::new(&self.nodes),
+                    )),
+                    out_file.clone(),
+                )
+                .unwrap();
 
                 if embed_states {
                     self.register_record_embed(out_file);
@@ -349,14 +360,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
-                    Self::from_file(#file)
+                    Self::from_file(#file, &Default::default())
                 }
             }
             _blank_!();
             impl<B: Backend> Model<B> {
-                pub fn from_file(file: &str) -> Self {
+                pub fn from_file(file: &str, device: &B::Device) -> Self {
                     let record = #recorder_ty::new()
-                        .load(file.into())
+                        .load(file.into(), device)
                         .expect("Record file to exist.");
                     Self::new_with(record)
                 }
@@ -373,7 +384,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self.imports.register("burn::record::BinBytesRecorder");
 
         let mut file = file;
-        file.set_extension(BinFileRecorder::<PS>::file_extension());
+        file.set_extension(<BinFileRecorder<PS> as FileRecorder<Backend>>::file_extension());
         let file = file.to_str().unwrap();
         self.default = Some(quote! {
             _blank_!();
@@ -381,14 +392,14 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             _blank_!();
             impl<B: Backend> Default for Model<B> {
                 fn default() -> Self {
-                    Self::from_embedded()
+                    Self::from_embedded(&Default::default())
                 }
             }
             _blank_!();
             impl<B: Backend> Model<B> {
-                pub fn from_embedded() -> Self {
+                pub fn from_embedded(device: &B::Device) -> Self {
                     let record = BinBytesRecorder::<#precision_ty>::default()
-                    .load(EMBEDDED_STATES.to_vec())
+                    .load(EMBEDDED_STATES.to_vec(), device)
                     .expect("Failed to decode state");
 
                     Self::new_with(record)
@@ -456,11 +467,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     #(#fields,)*
                     phantom: core::marker::PhantomData,
                 }
-            }
-
-            pub fn new_devauto() -> Self {
-                let device = B::Device::default();
-                Self::new(&device)
             }
         }
     }

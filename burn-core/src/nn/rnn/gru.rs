@@ -35,12 +35,6 @@ pub struct Gru<B: Backend> {
 }
 
 impl GruConfig {
-    /// Initialize a new [gru](Gru) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Gru<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [gru](Gru) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Gru<B> {
         let d_output = self.d_hidden;
@@ -233,7 +227,11 @@ mod tests {
             initializer: Initializer,
             device: &<TestBackend as Backend>::Device,
         ) -> GateController<TestBackend> {
-            let record = LinearRecord {
+            let record_1 = LinearRecord {
+                weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
+                bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
+            };
+            let record_2 = LinearRecord {
                 weight: Param::from(Tensor::from_data(Data::from([[weights]]), device)),
                 bias: Some(Param::from(Tensor::from_data(Data::from([biases]), device))),
             };
@@ -242,8 +240,8 @@ mod tests {
                 d_output,
                 bias,
                 initializer,
-                record.clone(),
-                record,
+                record_1,
+                record_2,
             )
         }
 
@@ -294,10 +292,5 @@ mod tests {
         let hidden_state = gru.forward(batched_input, None);
 
         assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
-    }
-
-    #[test]
-    fn test_initialization_on_default_device() {
-        let _module = GruConfig::new(64, 1024, true).init_devauto::<TestBackend>();
     }
 }

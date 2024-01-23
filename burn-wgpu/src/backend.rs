@@ -15,7 +15,6 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan](crate::Vulkan) on Linux, Windows, and Android.
 ///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
-///   - [DirectX 11](crate::Dx11) on Windows.
 ///   - [DirectX 12](crate::Dx12) on Windows.
 ///   - [Metal](crate::Metal) on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.

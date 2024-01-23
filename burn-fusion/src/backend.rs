@@ -1,9 +1,10 @@
 use crate::{
     client::FusionClient,
-    graph::{Context, OptimizationFactory, TensorOpsDescription},
+    stream::{Context, OperationDescription},
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
+use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
@@ -45,7 +46,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn sync(device: &Self::Device) {
         let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
-        client.drain_graph();
+        client.drain();
         B::sync(device)
     }
 }
@@ -69,7 +70,7 @@ pub struct OptimizationProperties {
 }
 
 /// The fusion operation abstraction allows implementations to fuse many
-/// [tensor operations](TensorOpsDescription) into one, improving the performance of the backend.
+/// [tensor operations](OperationDescription) into one, improving the performance of the backend.
 ///
 ///
 /// # Notes
@@ -78,19 +79,25 @@ pub struct OptimizationProperties {
 /// the speed and efficiency of the computational graph. It doesn't mean that all registered
 /// operations should be fused, but that another way of executing them is more efficient.
 ///
-/// Also, it is important to return (FusionStatus::Closed) when no more registered operation can
+/// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
 /// improve the performance.
-pub trait OptimizationBuilder<B: FusionBackend>: Send {
-    /// Register a new [tensor operation](TensorOpsDescription).
-    fn register(&mut self, ops: &TensorOpsDescription);
+pub trait OptimizationBuilder<O>: Send {
+    /// Register a new [tensor operation](OperationDescription).
+    fn register(&mut self, operation: &OperationDescription);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> Box<dyn Optimization<B>>;
+    fn build(&self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
     fn status(&self) -> OptimizationStatus;
     /// Return the builder [properties](OptimizationProperties).
     fn properties(&self) -> OptimizationProperties;
+    /// The number of operation fused.
+    fn len(&self) -> usize;
+    /// If no operations are fused.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
@@ -103,17 +110,10 @@ pub trait Optimization<B: FusionBackend>: Send {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-}
-
-// We implement the OptimizationFactory for all boxed optimization to be used with the Optimization
-// Cache. The factory is only used to simplify types and allows better testing. It isn't a public
-// crate.
-impl<B: FusionBackend> OptimizationFactory<Box<dyn Optimization<B>>>
-    for Box<dyn OptimizationBuilder<B>>
-{
-    fn create(&self) -> Box<dyn Optimization<B>> {
-        OptimizationBuilder::build(self.as_ref())
-    }
+    /// Returns the state that can be serialized.
+    fn to_state(&self) -> B::OptimizationState;
+    /// Create the optimization from the state.
+    fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
 }
 
 /// The device id.
@@ -134,6 +134,11 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend: Backend {
+    /// The state that can be serialized for an optimization.
+    type OptimizationState: Serialize + DeserializeOwned;
+    /// Optimization type for the backend.
+    type Optimization: Optimization<Self>;
+
     /// The device type that can return an ID.
     ///
     /// It can be the same as (Backend::Device), but must implement (FusionDevice).
@@ -144,7 +149,8 @@ pub trait FusionBackend: Backend {
     type FusionClient: FusionClient<FusionBackend = Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: &Device<Self>) -> Vec<Box<dyn OptimizationBuilder<Self>>>;
+    fn optimizations(device: Device<Self>)
+        -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
 
     /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
     fn float_tensor<const D: usize>(

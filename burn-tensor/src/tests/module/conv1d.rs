@@ -79,10 +79,13 @@ mod tests {
             length: 4,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([
-            [[171., 294.], [415., 781.], [659., 1268.], [903., 1755.]],
-            [[495., 726.], [1387., 2185.], [2279., 3644.], [3171., 5103.]],
-        ]));
+        test.assert_output(TestTensor::from_floats(
+            [
+                [[171., 294.], [415., 781.], [659., 1268.], [903., 1755.]],
+                [[495., 726.], [1387., 2185.], [2279., 3644.], [3171., 5103.]],
+            ],
+            &Default::default(),
+        ));
     }
 
     struct Conv1dTestCase {
@@ -105,22 +108,26 @@ mod tests {
                 self.channels_in / self.groups,
                 self.kernel_size,
             ]);
-            let weight = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..shape_weight.num_elements())
+            let device = Default::default();
+            let weight = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_weight.num_elements(), &device)
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
+                &device,
             );
-            let bias = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..self.channels_out)
+            let bias = TestTensor::from_data(
+                TestTensorInt::arange(0..self.channels_out, &device)
                     .into_data()
                     .convert(),
+                &device,
             );
-            let x = TestTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..shape_x.num_elements())
+            let x = TestTensor::from_data(
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
+                &device,
             );
             let output = conv1d(
                 x,

@@ -19,6 +19,7 @@
   - [Record](./building-blocks/record.md)
   - [Dataset](./building-blocks/dataset.md)
 - [Custom Training Loop](./custom-training-loop.md)
+- [Saving & Loading Models](./saving-and-loading.md)
 - [Import ONNX Model](./import/onnx-model.md)
 - [Advanced](./advanced/README.md)
   - [Backend Extension](./advanced/backend-extension/README.md)

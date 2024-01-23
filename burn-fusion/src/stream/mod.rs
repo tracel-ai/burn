@@ -1,11 +1,12 @@
 pub(crate) mod execution;
+pub(crate) mod store;
 
 mod base;
 mod context;
-mod ops;
-mod path;
+mod multi;
+mod operation;
 
 pub use base::*;
 pub use context::*;
-pub use ops::*;
-pub use path::*;
+pub use multi::*;
+pub use operation::*;

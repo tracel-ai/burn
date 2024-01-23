@@ -12,6 +12,8 @@ advanced user or a beginner. We have crafted some sections for you:
 - [Building Blocks](./building-blocks): Dive deeper into Burn's core components, understanding how
   they fit together. This knowledge forms the basis for more advanced usage and customization.
 
+- [Saving & Loading Models](./saving-and-loading.md): Learn how to easily save and load your trained models.
+
 - [Custom Training Loop](./custom-training-loop.md): Gain the power to customize your training
   loops, fine-tuning your models to meet your specific requirements. This section empowers you to
   harness Burn's flexibility to its fullest.

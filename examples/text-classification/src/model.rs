@@ -8,7 +8,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        loss::CrossEntropyLoss,
+        loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
@@ -113,8 +113,9 @@ impl<B: Backend> TextClassificationModel<B> {
             .slice([0..batch_size, 0..1])
             .reshape([batch_size, self.n_classes]);
 
-        let loss = CrossEntropyLoss::default();
-        let loss = loss.forward(output_classification.clone(), labels.clone());
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output_classification.device())
+            .forward(output_classification.clone(), labels.clone());
 
         // Return the output and loss
         ClassificationOutput {
