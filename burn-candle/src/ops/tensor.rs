@@ -378,7 +378,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
-    fn powf<const D: usize>(tensor: FloatTensor<Self, D>, value: f32) -> FloatTensor<Self, D> {
+    fn powf_scalar<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        value: f32,
+    ) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
     }
 
@@ -473,5 +476,22 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         dim: usize,
     ) -> Vec<FloatTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
+    }
+
+    fn powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        //broadcast_pow is in main but not yet published
+        //note: probably replace once pow once 0.3.3 is out
+        //see: https://github.com/huggingface/candle/pull/1583/files#diff-6319fa1e16dadc4c7b4e25698139703d93b70f30a1f8e2ac0999978e39efaa81R2594
+
+        CandleTensor::new(
+            rhs.tensor
+                .broadcast_mul(&lhs.tensor.log().unwrap())
+                .unwrap()
+                .exp()
+                .unwrap(),
+        )
     }
 }

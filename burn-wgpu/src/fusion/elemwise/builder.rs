@@ -435,7 +435,7 @@ where
                     Operator::Sin { input, out }
                 })
             }
-            FloatOperationDescription::Powf(desc) => self.register_scalar_ops(
+            FloatOperationDescription::PowfScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Powf { lhs, rhs, out },
