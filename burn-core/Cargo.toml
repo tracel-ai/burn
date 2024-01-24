@@ -63,7 +63,7 @@ candle = ["burn-candle"]
 wgpu = ["burn-wgpu"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-serde = ["thiserror", "regex"]
+record-item-custom-serde = ["thiserror", "regex"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]

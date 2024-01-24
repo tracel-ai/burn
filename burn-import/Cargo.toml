@@ -16,7 +16,7 @@ default-run = "onnx2burn"
 [features]
 default = ["onnx", "pytorch"]
 onnx = []
-pytorch = ["burn/record-serde", "thiserror"]
+pytorch = ["burn/record-item-custom-serde", "thiserror"]
 
 [dependencies]
 burn = { path = "../burn", version = "0.12.0", features = ["ndarray"] }

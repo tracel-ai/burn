@@ -54,7 +54,7 @@ candle = ["burn-core/candle"]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # Records
-record-serde = ["burn-core/record-serde"]
+record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 [dependencies]
 
