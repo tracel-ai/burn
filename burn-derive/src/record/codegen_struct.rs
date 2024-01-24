@@ -1,7 +1,7 @@
 use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::Generics;
+use syn::{parse_quote, Generics};
 
 use super::codegen::RecordItemCodegen;
 
@@ -11,7 +11,12 @@ pub(crate) struct StructRecordItemCodegen {
 }
 
 impl RecordItemCodegen for StructRecordItemCodegen {
-    fn gen_item_type(&self, item_name: &Ident, generics: &Generics) -> TokenStream {
+    fn gen_item_type(
+        &self,
+        item_name: &Ident,
+        generics: &Generics,
+        has_backend: bool,
+    ) -> TokenStream {
         let mut fields = quote! {};
         let mut bounds = quote! {};
 
@@ -21,16 +26,26 @@ impl RecordItemCodegen for StructRecordItemCodegen {
 
             fields.extend(quote! {
                 /// Field to be serialized.
-                pub #name: <#ty as burn::record::Record>::Item<S>,
+                pub #name: <#ty as burn::record::Record<B>>::Item<S>,
             });
 
             bounds.extend(quote! {
-          <#ty as burn::record::Record>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
+          <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
       });
         }
         let bound = bounds.to_string();
 
-        let (generics, _, generics_where) = generics.split_for_impl();
+        let (generics, generics_where) = if !has_backend {
+            let mut generics = generics.clone();
+            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
+            generics.params.push(syn::GenericParam::Type(param));
+            let (generics, _, generics_where) = generics.split_for_impl();
+            (quote! { #generics }, quote! { #generics_where })
+        } else {
+            let (generics, _, generics_where) = generics.split_for_impl();
+            (quote! { #generics }, quote! { #generics_where })
+        };
+
         quote! {
 
             /// The record item type for the module.
@@ -50,7 +65,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             let name = &field.field.ident;
 
             body_into_item.extend(quote! {
-                #name: burn::record::Record::into_item::<S>(self.#name),
+                #name: burn::record::Record::<B>::into_item::<S>(self.#name),
             });
         }
 
@@ -70,12 +85,12 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             let name = &field.field.ident;
 
             body_from_item.extend(quote! {
-                #name: burn::record::Record::from_item::<S>(item.#name),
+                #name: burn::record::Record::<B>::from_item::<S>(item.#name, device),
             });
         }
 
         quote! {
-            fn from_item<S: burn::record::PrecisionSettings>(item: Self::Item<S>) -> Self {
+            fn from_item<S: burn::record::PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
                 Self {
                     #body_from_item
                 }

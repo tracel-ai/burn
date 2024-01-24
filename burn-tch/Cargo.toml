@@ -29,3 +29,6 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.12.0", default-feature
 burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false, features = [
   "export_tests",
 ] }
+
+[package.metadata.docs.rs]
+features = [ "doc" ]

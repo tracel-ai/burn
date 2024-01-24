@@ -192,7 +192,7 @@ mod tests {
 
     fn deserialize_with_new_optional_field<R>(name: &str, recorder: R) -> Result<(), RecorderError>
     where
-        R: FileRecorder,
+        R: FileRecorder<TestBackend>,
     {
         let device = Default::default();
         let file_path: PathBuf = file_path(format!("deserialize_with_new_optional_field-{name}"));
@@ -206,7 +206,8 @@ mod tests {
         recorder
             .record(model.into_record(), file_path.clone())
             .unwrap();
-        let result = recorder.load::<ModelNewOptionalFieldRecord<TestBackend>>(file_path.clone());
+        let result =
+            recorder.load::<ModelNewOptionalFieldRecord<TestBackend>>(file_path.clone(), &device);
         std::fs::remove_file(file_path).ok();
 
         result?;
@@ -218,7 +219,7 @@ mod tests {
         recorder: R,
     ) -> Result<(), RecorderError>
     where
-        R: FileRecorder,
+        R: FileRecorder<TestBackend>,
     {
         let device = Default::default();
         let file_path: PathBuf =
@@ -234,7 +235,7 @@ mod tests {
         recorder
             .record(model.into_record(), file_path.clone())
             .unwrap();
-        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone());
+        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone(), &device);
         std::fs::remove_file(file_path).ok();
 
         result?;
@@ -243,7 +244,7 @@ mod tests {
 
     fn deserialize_with_new_constant_field<R>(name: &str, recorder: R) -> Result<(), RecorderError>
     where
-        R: FileRecorder,
+        R: FileRecorder<TestBackend>,
     {
         let device = Default::default();
         let file_path: PathBuf = file_path(format!("deserialize_with_new_constant_field-{name}"));
@@ -257,7 +258,8 @@ mod tests {
         recorder
             .record(model.into_record(), file_path.clone())
             .unwrap();
-        let result = recorder.load::<ModelNewConstantFieldRecord<TestBackend>>(file_path.clone());
+        let result =
+            recorder.load::<ModelNewConstantFieldRecord<TestBackend>>(file_path.clone(), &device);
         std::fs::remove_file(file_path).ok();
 
         result?;
@@ -269,7 +271,7 @@ mod tests {
         recorder: R,
     ) -> Result<(), RecorderError>
     where
-        R: FileRecorder,
+        R: FileRecorder<TestBackend>,
     {
         let device = Default::default();
         let file_path: PathBuf =
@@ -285,7 +287,7 @@ mod tests {
         recorder
             .record(model.into_record(), file_path.clone())
             .unwrap();
-        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone());
+        let result = recorder.load::<ModelRecord<TestBackend>>(file_path.clone(), &device);
         std::fs::remove_file(file_path).ok();
 
         result?;
@@ -294,7 +296,7 @@ mod tests {
 
     fn deserialize_with_new_field_order<R>(name: &str, recorder: R) -> Result<(), RecorderError>
     where
-        R: FileRecorder,
+        R: FileRecorder<TestBackend>,
     {
         let device = Default::default();
         let file_path: PathBuf = file_path(format!("deserialize_with_new_field_order-{name}"));
@@ -309,7 +311,8 @@ mod tests {
             .record(model.into_record(), file_path.clone())
             .unwrap();
 
-        let result = recorder.load::<ModelNewFieldOrdersRecord<TestBackend>>(file_path.clone());
+        let result =
+            recorder.load::<ModelNewFieldOrdersRecord<TestBackend>>(file_path.clone(), &device);
         std::fs::remove_file(file_path).ok();
 
         result?;

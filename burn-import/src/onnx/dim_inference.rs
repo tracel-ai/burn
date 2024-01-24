@@ -100,6 +100,7 @@ pub fn dim_inference(
             NodeType::Tanh => same_as_input(node),
             NodeType::Transpose => same_as_input(node),
             NodeType::Unsqueeze => unsqueeze_update_outputs(node),
+            NodeType::Pow => same_as_input(node),
             // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
             _ => temporary_pass_through_stub(node),
         }
