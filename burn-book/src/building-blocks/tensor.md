@@ -1,7 +1,7 @@
 # Tensor
 
 As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
-generic arguments: the backend, the dimension number (rank), and the kind.
+generic arguments: the backend, the number of dimensions (rank) and the data type.
 
 ```rust , ignore
 Tensor<B, D>           // Float tensor (default)
