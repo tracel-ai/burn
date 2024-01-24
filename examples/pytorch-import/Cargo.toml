@@ -12,7 +12,6 @@ burn = { path = "../../burn", features = [
     "dataset",
     "sqlite-bundled",
 ] }
-serde = { workspace = true }
 
 model = { path = "./model" }
 
@@ -23,7 +22,3 @@ burn = { path = "../../burn", features = ["ndarray"] }
 burn-import = { path = "../../burn-import", features = [
     "pytorch",
 ], default-features = false }
-
-
-# TODO remove it after merge because it's included in burn
-serde = { workspace = true }
