@@ -109,7 +109,9 @@ macro_rules! str2writer {
         let path = $file.as_path();
 
         // Add parent directories if they don't exist
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
 
         if path.exists() {
             log::info!("File exists, replacing");
