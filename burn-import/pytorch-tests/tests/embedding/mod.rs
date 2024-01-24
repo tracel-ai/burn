@@ -66,7 +66,7 @@ mod tests {
     fn embedding_full_precision() {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/embedding/embedding.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         embedding(record, 3);
     }
@@ -75,7 +75,7 @@ mod tests {
     fn embedding_half_precision() {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/embedding/embedding.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         embedding(record, 3);
     }

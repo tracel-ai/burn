@@ -63,7 +63,7 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
 ///
 /// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 ///   .load(args)
-///   .expect("Failed to decode state");
+///   .expect("Should decode state successfully");
 /// ```
 #[derive(Debug, Clone)]
 pub struct LoadArgs {

@@ -389,7 +389,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 pub fn from_embedded() -> Self {
                     let record = BinBytesRecorder::<#precision_ty>::default()
                     .load(EMBEDDED_STATES.to_vec())
-                    .expect("Failed to decode state");
+                    .expect("Should decode state successfully");
 
                     Self::new_with(record)
                 }

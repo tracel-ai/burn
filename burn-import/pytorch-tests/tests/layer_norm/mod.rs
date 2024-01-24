@@ -63,7 +63,7 @@ mod tests {
     fn layer_norm_full() {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
         layer_norm(record, 3);
     }
 
@@ -71,7 +71,7 @@ mod tests {
     fn layer_norm_half() {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/layer_norm/layer_norm.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
         layer_norm(record, 3);
     }
 }

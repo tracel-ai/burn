@@ -70,7 +70,7 @@ mod tests {
     fn group_norm_full() {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/group_norm/group_norm.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         group_norm(record, 3);
     }
@@ -79,7 +79,7 @@ mod tests {
     fn group_norm_half() {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/group_norm/group_norm.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         group_norm(record, 3);
     }

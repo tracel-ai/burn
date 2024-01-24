@@ -64,7 +64,7 @@ mod tests {
     fn conv_transpose1d_full() {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         conv_transpose1d(record, 8);
     }
@@ -72,7 +72,7 @@ mod tests {
     fn conv_transpose1d_half() {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/conv_transpose1d/conv_transpose1d.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         conv_transpose1d(record, 4);
     }

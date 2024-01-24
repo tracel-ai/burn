@@ -161,7 +161,7 @@ fn model_test(record: NetRecord<TestBackend>, precision: usize) {
 fn full_record() {
     let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
         .load("tests/complex_nested/complex_nested.pt".into())
-        .expect("Failed to decode state");
+        .expect("Should decode state successfully");
 
     model_test(record, 8);
 }
@@ -170,7 +170,7 @@ fn full_record() {
 fn half_record() {
     let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
         .load("tests/complex_nested/complex_nested.pt".into())
-        .expect("Failed to decode state");
+        .expect("Should decode state successfully");
 
     model_test(record, 4);
 }
@@ -184,7 +184,7 @@ fn partial_model_loading() {
     // Load the partial record from the full model
     let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
         .load(load_args)
-        .expect("Failed to decode state");
+        .expect("Should decode state successfully");
 
     let device = Default::default();
 
@@ -209,7 +209,7 @@ fn extra_field_model_loading() {
     // Load the partial record from the full model
     let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
         .load(load_args)
-        .expect("Failed to decode state");
+        .expect("Should decode state successfully");
 
     let device = Default::default();
 

@@ -45,7 +45,7 @@ mod tests {
 
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load(load_args)
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         let model = Net::<Backend>::new_with(record);
 

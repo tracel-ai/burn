@@ -113,7 +113,7 @@ mod tests {
     fn conv2d_full_precision() {
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load("tests/conv2d/conv2d.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         conv2d(record, 7);
     }
@@ -122,7 +122,7 @@ mod tests {
     fn conv2d_half_precision() {
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
             .load("tests/conv2d/conv2d.pt".into())
-            .expect("Failed to decode state");
+            .expect("Should decode state successfully");
 
         conv2d(record, 4);
     }
