@@ -77,12 +77,21 @@ There are two major things going on in this code sample.
    </details><br>
 
    <details id="derive-attribute">
-   <summary><strong>🦀 Derive Attribute</strong></summary>
+   <summary><strong>🦀 Derive Macro</strong></summary>
 
    The `derive` attribute allows traits to be implemented easily by generating code that will
    implement a trait with its own default implementation on the type that was annotated with the
-   `derive` syntax. In this example, we want to derive the [`Module`](../building-blocks/module.md)
-   and `Debug` traits.
+   `derive` syntax.
+
+   This is accomplished through a feature of Rust called
+   [procedural macros](https://doc.rust-lang.org/reference/procedural-macros.html), which allow us
+   to run code at compile time that operates over Rust syntax, both consuming and producing Rust
+   syntax. Using the attribute `#[my_macro]`, you can effectively extend the provided code. You will
+   see that the derive macro is very frequently employed to recursively implement traits, where the
+   implementation consists of the composition of all fields.
+
+   In this example, we want to derive the [`Module`](../building-blocks/module.md) and `Debug`
+   traits.
 
    ```rust, ignore
    #[derive(Module, Debug)]
@@ -201,11 +210,13 @@ In a language like C, memory management is explicit and up to the programmer, wh
 to make mistakes. In a language like Java or Python, memory management is automatic with the help of
 a garbage collector. This is very safe and straightforward, but also incurs a runtime cost.
 
-In Rust, memory management is rather unique. Aside from
-[primitive types](https://doc.rust-lang.org/rust-by-example/primitives.html), every value is _owned_
-by some variable called the _owner_. Ownership can be transferred from one variable to another and
-sometimes a value can be _borrowed_. Once the _owner_ variable goes out of scope, the value is
-_dropped_, which means that any memory it allocated can be freed safely.
+In Rust, memory management is rather unique. Aside from simple types that implement
+[`Copy`](https://doc.rust-lang.org/std/marker/trait.Copy.html) (e.g.,
+[primitives](https://doc.rust-lang.org/rust-by-example/primitives.html) like integers, floats,
+booleans and `char`), every value is _owned_ by some variable called the _owner_. Ownership can be
+transferred from one variable to another and sometimes a value can be _borrowed_. Once the _owner_
+variable goes out of scope, the value is _dropped_, which means that any memory it allocated can be
+freed safely.
 
 Because the method does not own the `self` and `device` variables, the values the references point
 to will not be dropped when the reference stops being used (i.e., the scope of the method).
