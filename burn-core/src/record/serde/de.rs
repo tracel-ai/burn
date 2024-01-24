@@ -361,15 +361,15 @@ where
     where
         T: DeserializeSeed<'de>,
     {
-        match self.iter.next() {
-            Some(v) => seed
-                .deserialize(
-                    NestedValueWrapper::<A>::new(v, self.default_for_missing_fields)
-                        .into_deserializer(),
-                )
-                .map(Some),
-            None => Ok(None),
-        }
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(item, self.default_for_missing_fields).into_deserializer(),
+        )
+        .map(Some)
     }
 }
 
