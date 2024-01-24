@@ -201,6 +201,7 @@ impl PartialEq for Argument {
 }
 
 /// The list of supported node types (ONNX operators and some extra ones to map easily to Burn's ops)
+/// Refer: https://github.com/onnx/onnx/blob/main/docs/Operators.md
 #[derive(Debug, Hash, Eq, PartialEq, EnumString, Clone, Display)]
 pub enum NodeType {
     Abs,
@@ -337,7 +338,8 @@ pub enum NodeType {
     RandomUniformLike,
     Range,
     Reciprocal,
-    ReduceL,
+    ReduceL1,
+    ReduceL2,
     ReduceLogSum,
     ReduceLogSumExp,
     ReduceMax,
