@@ -112,12 +112,21 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         visitor.visit_unit()
     }
 
-    fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        // TODO
-        unimplemented!()
+        match self.value {
+            Some(NestedValue::Map(map)) => visitor.visit_map(HashMapAccess::<A>::new(
+                map,
+                self.default_for_missing_fields,
+            )),
+
+            _ => Err(de::Error::custom(format!(
+                "Expected map value but got {:?}",
+                self.value
+            ))),
+        }
     }
 
     fn deserialize_bool<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
