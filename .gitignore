@@ -10,3 +10,4 @@ Cargo.lock
 .vscode
 .vs
 .fleet
+.ipynb_checkpoints/
