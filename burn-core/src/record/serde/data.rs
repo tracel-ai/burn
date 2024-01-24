@@ -209,7 +209,21 @@ fn insert_nested_value(current: &mut NestedValue, keys: &[&str], value: NestedVa
 
 /// A trait for encapsulating the serialization logic.
 pub trait Serializable {
-    /// Serialize the value into a nested value.
+    /// Serializes the object into a `NestedValue` using the provided `Serializer`.
+    /// This method is generic over the precision settings `PS`.
+    ///
+    /// # Parameters
+    /// - `serializer`: The `Serializer` to use for serializing the object.
+    ///
+    /// # Returns
+    /// - `Result<NestedValue, Error>`: The result of serialization.
+    ///    Returns a `NestedValue` on success,
+    ///    or an `Error` on failure.
+    ///
+    /// # Type Parameters
+    /// - `PS`: The precision settings to use during serialization.
+    ///    This is a generic parameter and can be any type
+    ///    that implements the `PrecisionSettings` trait.
     fn serialize<PS>(&self, serializer: Serializer) -> Result<NestedValue, Error>
     where
         PS: PrecisionSettings;
