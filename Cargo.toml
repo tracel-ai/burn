@@ -88,7 +88,7 @@ reqwest = "0.11.23"
 futures-intrusive = "0.5"
 pollster = "0.3"
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
-wgpu = "0.18.0"
+wgpu = "0.19.0"
 
 #
 # The following packages disable the "std" feature for no_std compatibility

@@ -11,7 +11,7 @@ where
     B: Backend,
 {
     /// The state of the optimizer. It also implements [record](Record), so that it can be saved.
-    type State<const D: usize>: Record + Clone + 'static;
+    type State<const D: usize>: Record<B> + Clone + 'static;
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///

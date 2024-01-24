@@ -14,13 +14,18 @@ the flexibility possible to include any non-serializable field within your modul
 
 **Why not use safetensors?**
 
-[`safetensors`](https://github.com/huggingface/safetensors) uses serde with the JSON file format and only supports serializing and deserializing
-tensors. The record system in Burn gives you the possibility to serialize any type, which is very
-useful for optimizers that save their state, but also for any non-standard, cutting-edge modeling
-needs you may have. Additionally, the record system performs automatic precision conversion by using
-Rust types, making it more reliable with fewer manual manipulations. 
+[`safetensors`](https://github.com/huggingface/safetensors) uses serde with the JSON file format and
+only supports serializing and deserializing tensors. The record system in Burn gives you the
+possibility to serialize any type, which is very useful for optimizers that save their state, but
+also for any non-standard, cutting-edge modeling needs you may have. Additionally, the record system
+performs automatic precision conversion by using Rust types, making it more reliable with fewer
+manual manipulations.
 
-It is important to note that the `safetensors` format uses the word *safe* to distinguish itself from Pickle, which is vulnerable to Python code injection. On our end, the simple fact that we use Rust already ensures that no code injection is possible. If your storage mechanism doesn't handle data corruption, you might prefer a recorder that performs checksum validation (i.e., any recorder with Gzip compression).
+It is important to note that the `safetensors` format uses the word _safe_ to distinguish itself
+from Pickle, which is vulnerable to Python code injection. On our end, the simple fact that we use
+Rust already ensures that no code injection is possible. If your storage mechanism doesn't handle
+data corruption, you might prefer a recorder that performs checksum validation (i.e., any recorder
+with Gzip compression).
 
 ## Recorder
 
@@ -40,12 +45,19 @@ that the format can also be in-memory, allowing you to save the records directly
 
 Each recorder supports precision settings decoupled from the precision used for training or
 inference. These settings allow you to define the floating-point and integer types that will be used
-for serialization and deserialization. Note that when loading a record into a module, the type
-conversion is automatically handled, so you can't encounter errors. The only crucial aspect is using
-the same recorder for both serialization and deserialization; otherwise, you will encounter loading
-errors.
+for serialization and deserialization.
 
-**Which one should you use?**
+| Setting                   | Float Precision | Integer Precision |
+| ------------------------- | --------------- | ----------------- |
+| `DoublePrecisionSettings` | `f64`           | `i64`             |
+| `FullPrecisionSettings`   | `f32`           | `i32`             |
+| `HalfPrecisionSettings`   | `f16`           | `i16`             |
+
+Note that when loading a record into a module, the type conversion is automatically handled, so you
+can't encounter errors. The only crucial aspect is using the same recorder for both serialization
+and deserialization; otherwise, you will encounter loading errors.
+
+**Which recorder should you use?**
 
 - If you want fast serialization and deserialization, choose a recorder without compression. The one
   with the lowest file size without compression is the binary format; otherwise, the named message
@@ -55,3 +67,6 @@ errors.
 - If you want to debug your model's weights, you can use the pretty JSON format.
 - If you want to deploy with `no-std`, use the in-memory binary format and include the bytes with
   the compiled code.
+
+For examples on saving and loading records, take a look at
+[Saving and Loading Models](../saving-and-loading.md).

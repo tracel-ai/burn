@@ -18,7 +18,7 @@ where
     B: AutodiffBackend,
 {
     optim: O,
-    records: HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
+    records: HashMap<ParamId, AdaptorRecord<O, B>>,
     module: PhantomData<M>,
     grad_clipping: Option<GradientClipping>,
 }
@@ -71,7 +71,7 @@ where
     M: AutodiffModule<B>,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    type Record = HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>;
+    type Record = HashMap<ParamId, AdaptorRecord<O, B>>;
 
     fn step(&mut self, lr: LearningRate, module: M, mut grads: GradientsParams) -> M {
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
@@ -102,7 +102,7 @@ where
     O: SimpleOptimizer<B::InnerBackend>,
 {
     optimizer: &'a O,
-    records: &'a mut HashMap<ParamId, AdaptorRecord<O, B::InnerBackend>>,
+    records: &'a mut HashMap<ParamId, AdaptorRecord<O, B>>,
     grads: &'a mut GradientsParams,
     lr: LearningRate,
     phantom: PhantomData<M>,
