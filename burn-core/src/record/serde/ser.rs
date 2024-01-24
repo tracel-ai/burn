@@ -327,7 +327,7 @@ mod tests {
 
         let serialized = my_struct
             .serialize(Serializer::new())
-            .expect("Serialization failed");
+            .expect("Should serialize item successfully");
 
         let serialized_str = format!("{:?}", serialized);
 
@@ -356,7 +356,7 @@ mod tests {
 
         let serialized = param_item
             .serialize(Serializer::new())
-            .expect("Param item serialization failed");
+            .expect("Should serialize item successfully");
 
         let serialized_str = format!("{:?}", serialized);
 
