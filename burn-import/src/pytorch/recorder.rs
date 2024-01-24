@@ -58,6 +58,11 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
 ///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
 ///                for more information.
 ///
+/// # Notes
+///
+/// Use [Netron](https://github.com/lutzroeder/netron) to inspect the keys of the PyTorch file (.pt extension).
+///
+///
 /// # Examples
 ///
 /// ```text
