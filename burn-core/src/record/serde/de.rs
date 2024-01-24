@@ -129,11 +129,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         }
     }
 
-    fn deserialize_bool<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_bool is not implemented")
+        visitor.visit_bool(self.value.unwrap().as_bool().unwrap())
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>

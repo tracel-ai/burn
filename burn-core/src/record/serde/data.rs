@@ -18,6 +18,9 @@ pub enum NestedValue {
     /// the value should be populated with the default value.
     Default,
 
+    /// A boolean value.
+    Bool(bool),
+
     /// A string value.
     String(String),
 
@@ -53,6 +56,14 @@ impl NestedValue {
     pub fn as_map(self) -> Option<HashMap<String, NestedValue>> {
         match self {
             NestedValue::Map(map) => Some(map),
+            _ => None,
+        }
+    }
+
+    /// Get the nested value as a boolean.
+    pub fn as_bool(self) -> Option<bool> {
+        match self {
+            NestedValue::Bool(bool) => Some(bool),
             _ => None,
         }
     }
