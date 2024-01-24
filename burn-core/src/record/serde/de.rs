@@ -102,7 +102,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_string(self.value.unwrap().get_string().unwrap().to_string())
+        visitor.visit_string(self.value.unwrap().as_string().unwrap().to_string())
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -137,21 +137,21 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i16(self.value.unwrap().get_i16().unwrap().to_owned())
+        visitor.visit_i16(self.value.unwrap().as_i16().unwrap().to_owned())
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i32(self.value.unwrap().get_i32().unwrap().to_owned())
+        visitor.visit_i32(self.value.unwrap().as_i32().unwrap().to_owned())
     }
 
     fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_i64(self.value.unwrap().get_i64().unwrap().to_owned())
+        visitor.visit_i64(self.value.unwrap().as_i64().unwrap().to_owned())
     }
 
     fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -165,7 +165,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u16(self.value.unwrap().get_u16().unwrap().to_owned())
+        visitor.visit_u16(self.value.unwrap().as_u16().unwrap().to_owned())
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -179,21 +179,21 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_u64(self.value.unwrap().get_u64().unwrap().to_owned())
+        visitor.visit_u64(self.value.unwrap().as_u64().unwrap().to_owned())
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f32(self.value.unwrap().get_f32().unwrap().to_owned())
+        visitor.visit_f32(self.value.unwrap().as_f32().unwrap().to_owned())
     }
 
     fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_f64(self.value.unwrap().get_f64().unwrap().to_owned())
+        visitor.visit_f64(self.value.unwrap().as_f64().unwrap().to_owned())
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -207,7 +207,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_str(self.value.unwrap().get_string().unwrap())
+        visitor.visit_str(self.value.unwrap().as_string().unwrap().as_ref())
     }
 
     fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error>

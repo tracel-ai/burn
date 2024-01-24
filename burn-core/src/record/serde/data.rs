@@ -48,10 +48,9 @@ pub enum NestedValue {
     /// A vector of nested values (typically used for vector of structs or numbers)
     Vec(Vec<NestedValue>),
 }
-
 impl NestedValue {
     /// Get the nested value as a map.
-    pub fn get_map(self) -> Option<HashMap<String, NestedValue>> {
+    pub fn as_map(self) -> Option<HashMap<String, NestedValue>> {
         match self {
             NestedValue::Map(map) => Some(map),
             _ => None,
@@ -59,7 +58,7 @@ impl NestedValue {
     }
 
     /// Get the nested value as a string.
-    pub fn get_string(&self) -> Option<&str> {
+    pub fn as_string(self) -> Option<String> {
         match self {
             NestedValue::String(string) => Some(string),
             _ => None,
@@ -67,57 +66,57 @@ impl NestedValue {
     }
 
     /// Get the nested value as a f32.
-    pub fn get_f32(&self) -> Option<f32> {
+    pub fn as_f32(self) -> Option<f32> {
         match self {
-            NestedValue::F32(f32) => Some(*f32),
+            NestedValue::F32(f32) => Some(f32),
             _ => None,
         }
     }
 
     /// Get the nested value as a f64.
-    pub fn get_f64(&self) -> Option<f64> {
+    pub fn as_f64(self) -> Option<f64> {
         match self {
-            NestedValue::F64(f64) => Some(*f64),
+            NestedValue::F64(f64) => Some(f64),
             _ => None,
         }
     }
 
-    /// Get the nested value as a i16.
-    pub fn get_i16(&self) -> Option<i16> {
+    /// Get the nested value as an i16.
+    pub fn as_i16(self) -> Option<i16> {
         match self {
-            NestedValue::I16(i16) => Some(*i16),
+            NestedValue::I16(i16) => Some(i16),
             _ => None,
         }
     }
 
-    /// Get the nested value as a i32.
-    pub fn get_i32(&self) -> Option<i32> {
+    /// Get the nested value as an i32.
+    pub fn as_i32(self) -> Option<i32> {
         match self {
-            NestedValue::I32(i32) => Some(*i32),
+            NestedValue::I32(i32) => Some(i32),
             _ => None,
         }
     }
 
-    /// Get the nested value as a i64.
-    pub fn get_i64(&self) -> Option<i64> {
+    /// Get the nested value as an i64.
+    pub fn as_i64(self) -> Option<i64> {
         match self {
-            NestedValue::I64(i64) => Some(*i64),
+            NestedValue::I64(i64) => Some(i64),
             _ => None,
         }
     }
 
     /// Get the nested value as a u16.
-    pub fn get_u16(&self) -> Option<u16> {
+    pub fn as_u16(self) -> Option<u16> {
         match self {
-            NestedValue::U16(u16) => Some(*u16),
+            NestedValue::U16(u16) => Some(u16),
             _ => None,
         }
     }
 
     /// Get the nested value as a u64.
-    pub fn get_u64(&self) -> Option<u64> {
+    pub fn as_u64(self) -> Option<u64> {
         match self {
-            NestedValue::U64(u64) => Some(*u64),
+            NestedValue::U64(u64) => Some(u64),
             _ => None,
         }
     }

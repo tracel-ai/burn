@@ -29,7 +29,7 @@ pub struct PyTorchAdapter<PS: PrecisionSettings> {
 impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
     fn adapt_linear(data: NestedValue) -> NestedValue {
         // Get the current module in the form of map.
-        let mut map = data.get_map().expect("Failed to get map from NestedValue");
+        let mut map = data.as_map().expect("Failed to get map from NestedValue");
 
         // Get/remove the weight parameter.
         let weight = map
@@ -86,7 +86,7 @@ where
 /// than Burn. Burn uses gamma and beta, while PyTorch uses weight and bias.
 fn rename_weight_bias(data: NestedValue) -> NestedValue {
     // Get the current module in the form of map.
-    let mut map = data.get_map().expect("Failed to get map from NestedValue");
+    let mut map = data.as_map().expect("Failed to get map from NestedValue");
 
     // Rename the weight parameter to gamma.
     let weight = map
