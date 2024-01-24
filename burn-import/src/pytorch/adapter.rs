@@ -38,7 +38,7 @@ impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
 
         // Convert the weight parameter to a tensor.
         let weight: Param<Tensor<DummyBackend, 2>> = weight
-            .de_into::<_, PS, DefaultAdapter>()
+            .try_into_record::<_, PS, DefaultAdapter>()
             .expect("Failed to deserialize weight");
 
         // Transpose the weight tensor.

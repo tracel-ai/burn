@@ -122,7 +122,7 @@ impl NestedValue {
     }
 
     /// Deserialize a nested value into a record type.
-    pub fn de_into<T, PS, A>(self) -> Result<T, Error>
+    pub fn try_into_record<T, PS, A>(self) -> Result<T, Error>
     where
         T: Record,
         PS: PrecisionSettings,
