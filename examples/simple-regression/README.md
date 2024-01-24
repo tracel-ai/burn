@@ -7,6 +7,11 @@ from HuggingFace hub. The dataset is also available as part of toy regression da
 - Create a data pipeline from a raw dataset to a batched fast DataLoader with min-max feature scaling.
 - Define a Simple NN model for regression using Burn Modules.
 
+> **Note**  
+> This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)
+> library to download the datasets. Make sure you have [Python](https://www.python.org/downloads/)
+> installed on your computer.
+
 The example can be run like so:
 
 ```bash
