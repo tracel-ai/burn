@@ -251,7 +251,8 @@ where
                     .into_iter()
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap_or_else(|_| panic!("An arrar of size {N}"));
+                    .map_err(|_| "An array of size {N}")
+                    .unwrap();
 
                 Ok(Array(array))
             }
