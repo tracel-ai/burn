@@ -43,7 +43,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_any is not implemented")
     }
 
     fn deserialize_struct<V>(
@@ -116,6 +116,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
+        // TODO
         unimplemented!()
     }
 
@@ -123,14 +124,14 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_bool is not implemented")
     }
 
     fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_i8 is not implemented")
     }
 
     fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -158,7 +159,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_u8 is not implemented")
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -172,7 +173,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_u32 is not implemented")
     }
 
     fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -200,7 +201,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_char is not implemented")
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -214,14 +215,14 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_bytes is not implemented")
     }
 
     fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_byte_buf is not implemented")
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -242,7 +243,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_unit is not implemented")
     }
 
     fn deserialize_unit_struct<V>(
@@ -253,7 +254,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_unit_struct is not implemented")
     }
 
     fn deserialize_newtype_struct<V>(
@@ -288,7 +289,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_tuple is not implemented")
     }
 
     fn deserialize_tuple_struct<V>(
@@ -300,7 +301,7 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_tuple_struct is not implemented")
     }
 
     fn deserialize_enum<V>(
@@ -312,14 +313,14 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_enum is not implemented")
     }
 
     fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!()
+        unimplemented!("deserialize_identifier is not implemented")
     }
 }
 
