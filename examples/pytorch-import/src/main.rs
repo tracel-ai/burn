@@ -35,7 +35,7 @@ fn main() {
 
     // Load the model record from converted PyTorch file by the build script
     let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-        .load(Path::new(OUT_DIR).into())
+        .load(Path::new(OUT_DIR).into(), &device)
         .expect("Failed to decode state");
 
     // Create a new model and load the state

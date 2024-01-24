@@ -49,8 +49,9 @@ mod tests {
 
     #[test]
     fn integer_full_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/integer/integer.pt".into())
+            .load("tests/integer/integer.pt".into(), &device)
             .expect("Should decode state successfully");
 
         integer(record, 0);
@@ -58,8 +59,9 @@ mod tests {
 
     #[test]
     fn integer_half_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/integer/integer.pt".into())
+            .load("tests/integer/integer.pt".into(), &device)
             .expect("Should decode state successfully");
 
         integer(record, 0);

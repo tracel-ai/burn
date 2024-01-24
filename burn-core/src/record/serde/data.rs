@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
-use crate::record::{PrecisionSettings, Record};
-use regex::Regex;
-use serde::Deserialize;
-
 use super::adapter::BurnModuleAdapter;
 use super::de::Deserializer;
 use super::error::Error;
 use super::ser::Serializer;
+use crate::record::{PrecisionSettings, Record};
+use crate::tensor::backend::Backend;
+
+use regex::Regex;
+use serde::Deserialize;
 
 /// The main data structure used for deserialization.
 ///
@@ -133,9 +134,10 @@ impl NestedValue {
     }
 
     /// Deserialize a nested value into a record type.
-    pub fn try_into_record<T, PS, A>(self) -> Result<T, Error>
+    pub fn try_into_record<T, PS, A, B>(self, device: &B::Device) -> Result<T, Error>
     where
-        T: Record,
+        B: Backend,
+        T: Record<B>,
         PS: PrecisionSettings,
         A: BurnModuleAdapter,
     {
@@ -144,7 +146,7 @@ impl NestedValue {
         let item = T::Item::deserialize(deserializer)?;
 
         // Convert the deserialized item into a Record instance
-        Ok(T::from_item::<PS>(item))
+        Ok(T::from_item::<PS>(item, device))
     }
 }
 

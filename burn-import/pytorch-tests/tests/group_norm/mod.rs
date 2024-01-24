@@ -68,8 +68,9 @@ mod tests {
 
     #[test]
     fn group_norm_full() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/group_norm/group_norm.pt".into())
+            .load("tests/group_norm/group_norm.pt".into(), &device)
             .expect("Should decode state successfully");
 
         group_norm(record, 3);
@@ -77,8 +78,9 @@ mod tests {
 
     #[test]
     fn group_norm_half() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/group_norm/group_norm.pt".into())
+            .load("tests/group_norm/group_norm.pt".into(), &device)
             .expect("Should decode state successfully");
 
         group_norm(record, 3);

@@ -35,7 +35,7 @@ mod tests {
     fn buffer() {
         let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/buffer/buffer.pt".into())
+            .load("tests/buffer/buffer.pt".into(), &device)
             .expect("Should decode state successfully");
 
         let model = Net::<Backend>::new_with(record);

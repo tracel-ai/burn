@@ -35,7 +35,7 @@ impl<B: Backend> Default for Model<B> {
         let file_path = Path::new(&out_dir).join("model/mnist");
 
         let record = NamedMpkFileRecorder::<FullPrecisionSettings>::default()
-            .load(file_path)
+            .load(file_path, &B::Device::default())
             .expect("Failed to decode state");
 
         Self::new_with(record)

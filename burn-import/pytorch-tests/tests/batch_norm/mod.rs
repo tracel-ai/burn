@@ -35,7 +35,7 @@ mod tests {
     fn batch_norm2d() {
         let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/batch_norm/batch_norm2d.pt".into())
+            .load("tests/batch_norm/batch_norm2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
         let model = Net::<Backend>::new_with(record);

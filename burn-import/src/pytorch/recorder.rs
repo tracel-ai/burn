@@ -1,7 +1,10 @@
 use core::marker::PhantomData;
 use std::path::PathBuf;
 
-use burn::record::{PrecisionSettings, Record, Recorder, RecorderError};
+use burn::{
+    record::{PrecisionSettings, Record, Recorder, RecorderError},
+    tensor::backend::Backend,
+};
 
 use regex::Regex;
 use serde::{de::DeserializeOwned, Serialize};
@@ -18,7 +21,7 @@ pub struct PyTorchFileRecorder<PS: PrecisionSettings> {
     _settings: PhantomData<PS>,
 }
 
-impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
+impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> {
     type Settings = PS;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -36,9 +39,13 @@ impl<PS: PrecisionSettings> Recorder for PyTorchFileRecorder<PS> {
         unimplemented!("load_item not implemented for PyTorchFileRecorder")
     }
 
-    fn load<R: Record>(&self, args: Self::LoadArgs) -> Result<R, RecorderError> {
-        let item = from_file::<PS, R::Item<Self::Settings>>(&args.file, args.key_remap)?;
-        Ok(R::from_item(item))
+    fn load<R: Record<B>>(
+        &self,
+        args: Self::LoadArgs,
+        device: &B::Device,
+    ) -> Result<R, RecorderError> {
+        let item = from_file::<PS, R::Item<Self::Settings>, B>(&args.file, args.key_remap)?;
+        Ok(R::from_item(item, device))
     }
 }
 

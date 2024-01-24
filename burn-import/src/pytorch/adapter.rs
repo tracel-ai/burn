@@ -10,23 +10,18 @@ use burn::record::serde::{
     ser::Serializer,
 };
 
-use burn::backend::NdArray;
-
 use serde::Serialize;
-
-/// A dummy backend used to transform tensors.
-type DummyBackend = NdArray<f32>;
 
 /// A PyTorch adapter for the Burn module used during deserialization.
 ///
 /// Not all Burn module correspond to a PyTorch module. Therefore,
 /// we need to adapt the Burn module to a PyTorch module. We implement
 /// only those that differ.
-pub struct PyTorchAdapter<PS: PrecisionSettings> {
-    _precision_settings: std::marker::PhantomData<PS>,
+pub struct PyTorchAdapter<PS: PrecisionSettings, B: Backend> {
+    _precision_settings: std::marker::PhantomData<(PS, B)>,
 }
 
-impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
+impl<PS: PrecisionSettings, B: Backend> BurnModuleAdapter for PyTorchAdapter<PS, B> {
     fn adapt_linear(data: NestedValue) -> NestedValue {
         // Get the current module in the form of map.
         let mut map = data.as_map().expect("Failed to get map from NestedValue");
@@ -36,9 +31,9 @@ impl<PS: PrecisionSettings> BurnModuleAdapter for PyTorchAdapter<PS> {
             .remove("weight")
             .expect("Failed to find 'weight' key in map");
 
-        // Convert the weight parameter to a tensor.
-        let weight: Param<Tensor<DummyBackend, 2>> = weight
-            .try_into_record::<_, PS, DefaultAdapter>()
+        // Convert the weight parameter to a tensor (use default device, since it's quick operation).
+        let weight: Param<Tensor<B, 2>> = weight
+            .try_into_record::<_, PS, DefaultAdapter, B>(&B::Device::default())
             .expect("Failed to deserialize weight");
 
         // Transpose the weight tensor.

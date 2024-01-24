@@ -21,9 +21,11 @@ fn main() {
         std::process::exit(0);
     }
 
+    let device = Default::default();
+
     // Load PyTorch weights into a model record.
     let record: model::ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-        .load("pytorch/mnist.pt".into())
+        .load("pytorch/mnist.pt".into(), &device)
         .expect("Failed to decode state");
 
     // Save the model record to a file.

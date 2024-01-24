@@ -61,16 +61,18 @@ mod tests {
 
     #[test]
     fn layer_norm_full() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/layer_norm/layer_norm.pt".into())
+            .load("tests/layer_norm/layer_norm.pt".into(), &device)
             .expect("Should decode state successfully");
         layer_norm(record, 3);
     }
 
     #[test]
     fn layer_norm_half() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/layer_norm/layer_norm.pt".into())
+            .load("tests/layer_norm/layer_norm.pt".into(), &device)
             .expect("Should decode state successfully");
         layer_norm(record, 3);
     }

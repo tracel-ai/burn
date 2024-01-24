@@ -64,8 +64,9 @@ mod tests {
 
     #[test]
     fn embedding_full_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/embedding/embedding.pt".into())
+            .load("tests/embedding/embedding.pt".into(), &device)
             .expect("Should decode state successfully");
 
         embedding(record, 3);
@@ -73,8 +74,9 @@ mod tests {
 
     #[test]
     fn embedding_half_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/embedding/embedding.pt".into())
+            .load("tests/embedding/embedding.pt".into(), &device)
             .expect("Should decode state successfully");
 
         embedding(record, 3);

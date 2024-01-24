@@ -44,7 +44,7 @@ mod tests {
             .with_key_remap("conv\\.(.*)", "$1"); // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
 
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load(load_args)
+            .load(load_args, &device)
             .expect("Should decode state successfully");
 
         let model = Net::<Backend>::new_with(record);

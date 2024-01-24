@@ -4,16 +4,19 @@ use std::path::Path;
 
 use super::{adapter::PyTorchAdapter, error::Error};
 
-use burn::record::serde::{
-    data::{remap, unflatten, NestedValue, Serializable},
-    de::Deserializer,
-    error,
-    ser::Serializer,
-};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
     tensor::{DataSerialize, Element, ElementConversion},
+};
+use burn::{
+    record::serde::{
+        data::{remap, unflatten, NestedValue, Serializable},
+        de::Deserializer,
+        error,
+        ser::Serializer,
+    },
+    tensor::backend::Backend,
 };
 
 use candle_core::{pickle, WithDType};
@@ -27,10 +30,11 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// * `path` - A string slice that holds the path of the file to read.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-pub fn from_file<PS, D>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
+pub fn from_file<PS, D, B>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
 where
     D: DeserializeOwned,
     PS: PrecisionSettings,
+    B: Backend,
 {
     // Read the pickle file and return a vector of Candle tensors
     let tensors: HashMap<String, CandleTensor> = pickle::read_all(path)?
@@ -45,7 +49,7 @@ where
     let nested_value = unflatten::<PS, _>(tensors)?;
 
     // Create a deserializer with PyTorch adapter and nested value
-    let deserializer = Deserializer::<PyTorchAdapter<PS>>::new(nested_value, true);
+    let deserializer = Deserializer::<PyTorchAdapter<PS, B>>::new(nested_value, true);
 
     // Deserialize the nested value into a record type
     let value = D::deserialize(deserializer)?;

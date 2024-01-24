@@ -75,16 +75,18 @@ mod tests {
 
     #[test]
     fn conv_transpose2d_full() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/conv_transpose2d/conv_transpose2d.pt".into())
+            .load("tests/conv_transpose2d/conv_transpose2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
         conv_transpose2d(record, 7);
     }
     #[test]
     fn conv_transpose2d_half() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/conv_transpose2d/conv_transpose2d.pt".into())
+            .load("tests/conv_transpose2d/conv_transpose2d.pt".into(), &device)
             .expect("Should decode state successfully");
 
         conv_transpose2d(record, 4);

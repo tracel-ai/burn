@@ -92,8 +92,9 @@ mod tests {
 
     #[test]
     fn linear_full_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/linear/linear.pt".into())
+            .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
         linear_test(record, 7);
@@ -101,8 +102,9 @@ mod tests {
 
     #[test]
     fn linear_half_precision() {
+        let device = Default::default();
         let record = PyTorchFileRecorder::<HalfPrecisionSettings>::default()
-            .load("tests/linear/linear.pt".into())
+            .load("tests/linear/linear.pt".into(), &device)
             .expect("Should decode state successfully");
 
         linear_test(record, 4);
@@ -113,7 +115,7 @@ mod tests {
         let device = Default::default();
 
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/linear/linear_with_bias.pt".into())
+            .load("tests/linear/linear_with_bias.pt".into(), &device)
             .expect("Should decode state successfully");
 
         let model = NetWithBias::<Backend>::new_with(record);

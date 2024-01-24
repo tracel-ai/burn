@@ -41,7 +41,7 @@ mod tests {
     fn boolean() {
         let device = Default::default();
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-            .load("tests/boolean/boolean.pt".into())
+            .load("tests/boolean/boolean.pt".into(), &device)
             .expect("Should decode state successfully");
 
         let model = Net::<Backend>::new_with(record);

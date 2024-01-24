@@ -50,7 +50,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
 }
 
 // The backend used for recording.
-type Backend = burn_ndarray::NdArray;
+type Backend = burn::backend::ndarray::NdArray;
 
 impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Register a new operation node into the graph.
