@@ -17,12 +17,12 @@ use crate::{
     unary_float_ops, Fusion, FusionBackend, TensorDescription,
 };
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
 
-impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
+impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
@@ -51,7 +51,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         impl<const D: usize, B: FusionBackend> Operation<B> for RandomOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.desc.out.shape.clone());
-                let output: B::TensorPrimitive<D> =
+                let output: B::FloatTensorPrimitive<D> =
                     B::random(shape, self.desc.distribution, &handles.device);
                 handles.register_float_tensor(&self.desc.out.id, output);
             }
@@ -147,7 +147,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         impl<const D: usize, B: FusionBackend> Operation<B> for FullOps<D> {
             fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
                 let shape = Shape::from(self.out.shape.clone());
-                let output: B::TensorPrimitive<D> =
+                let output: B::FloatTensorPrimitive<D> =
                     B::full(shape, self.elem.elem(), &handles.device);
                 handles.register_float_tensor(&self.out.id, output);
             }

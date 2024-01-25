@@ -13,7 +13,7 @@ pub struct Gradients {
     container: TensorContainer<GradID>,
 }
 
-type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
 
 impl Gradients {
     /// Creates a new gradients container.

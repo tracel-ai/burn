@@ -1,5 +1,5 @@
 use crate::{element::TchElement, LibTorch, LibTorchDevice};
-use burn_tensor::{ops::TensorOps, Data, Shape};
+use burn_tensor::{ops::FloatTensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -221,7 +221,7 @@ mod utils {
         where
             P: tch::kind::Element,
         {
-            <LibTorch<P> as TensorOps<LibTorch<P>>>::into_data(self).read()
+            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::into_data(self).read()
         }
     }
 }

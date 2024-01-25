@@ -1,5 +1,5 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
-use burn_tensor::ops::TensorOps;
+use burn_tensor::ops::FloatTensorOps;
 use ndarray::Array4;
 
 pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(

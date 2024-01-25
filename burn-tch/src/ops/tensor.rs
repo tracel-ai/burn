@@ -1,11 +1,11 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
 use burn_tensor::{
-    backend::Backend, ops::TensorOps, Data, Distribution, ElementConversion, Reader, Shape,
+    backend::Backend, ops::FloatTensorOps, Data, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
 
-impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
+impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn from_data<const D: usize>(data: Data<E, D>, device: &LibTorchDevice) -> TchTensor<E, D> {
         TchTensor::from_data(data, (*device).into())
     }
@@ -75,12 +75,14 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         TchTensor::new(tch::Tensor::ones(shape.dims, (E::KIND, device)))
     }
 
-    fn shape<const D: usize>(tensor: &<LibTorch<E> as Backend>::TensorPrimitive<D>) -> Shape<D> {
+    fn shape<const D: usize>(
+        tensor: &<LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+    ) -> Shape<D> {
         tensor.shape()
     }
 
     fn into_data<const D: usize>(
-        tensor: <LibTorch<E> as Backend>::TensorPrimitive<D>,
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> Reader<Data<<LibTorch<E> as Backend>::FloatElem, D>> {
         let shape = Self::shape(&tensor);
         let tensor = Self::reshape(tensor.clone(), Shape::new([shape.num_elements()]));
@@ -103,7 +105,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
     fn empty<const D: usize>(
         shape: Shape<D>,
         device: &<LibTorch<E> as Backend>::Device,
-    ) -> <LibTorch<E> as Backend>::TensorPrimitive<D> {
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         let tensor = tch::Tensor::empty(shape.dims.map(|a| a as i64), (E::KIND, (*device).into()));
 
         TchTensor::new(tensor)
@@ -234,7 +236,7 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         tensor: TchTensor<E, D1>,
         ranges: [Range<usize>; D2],
         value: TchTensor<E, D1>,
-    ) -> <LibTorch<E> as Backend>::TensorPrimitive<D1> {
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D1> {
         TchOps::slice_assign(tensor, ranges, value)
     }
 
@@ -417,22 +419,22 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
     fn clamp_min<const D: usize>(
         tensor: TchTensor<E, D>,
         min: E,
-    ) -> <LibTorch<E> as Backend>::TensorPrimitive<D> {
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::clamp_min(tensor, min.elem::<f64>())
     }
 
     fn clamp_max<const D: usize>(
-        tensor: <LibTorch<E> as Backend>::TensorPrimitive<D>,
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
         max: <LibTorch<E> as Backend>::FloatElem,
-    ) -> <LibTorch<E> as Backend>::TensorPrimitive<D> {
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::clamp_max(tensor, max.elem::<f64>())
     }
 
     fn clamp<const D: usize>(
-        tensor: <LibTorch<E> as Backend>::TensorPrimitive<D>,
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
         min: <LibTorch<E> as Backend>::FloatElem,
         max: <LibTorch<E> as Backend>::FloatElem,
-    ) -> <LibTorch<E> as Backend>::TensorPrimitive<D> {
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }
 

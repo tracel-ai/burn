@@ -15,11 +15,11 @@ use crate::{unary, FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
-use burn_tensor::{ops::TensorOps, Data, Distribution, Shape};
+use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<G, F, I> TensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
+impl<G, F, I> FloatTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,

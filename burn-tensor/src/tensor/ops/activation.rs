@@ -1,4 +1,4 @@
-use crate::tensor::ops::tensor::TensorOps;
+use crate::tensor::ops::tensor::FloatTensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 

@@ -7,7 +7,7 @@ use core::ops::Range;
 use num_traits::ToPrimitive;
 
 /// Operations on float tensors.
-pub trait TensorOps<B: Backend> {
+pub trait FloatTensorOps<B: Backend> {
     /// Creates a new tensor from the data structure.
     ///
     /// # Arguments

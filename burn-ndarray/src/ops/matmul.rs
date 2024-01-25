@@ -1,7 +1,7 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
 use crate::{iter_range_par, run_par, UnsafeSharedRef};
 use burn_tensor::ElementConversion;
-use burn_tensor::{ops::TensorOps, Shape};
+use burn_tensor::{ops::FloatTensorOps, Shape};
 use ndarray::s;
 
 pub(crate) fn matmul<E, const D: usize>(

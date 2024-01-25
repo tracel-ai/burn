@@ -10,7 +10,7 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
+use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
 use burn_tensor::{Distribution, Reader};
 
 // External crates
@@ -20,7 +20,7 @@ use libm::{cos, erf, sin, tanh};
 #[allow(unused_imports)]
 use num_traits::Float;
 
-impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
@@ -434,7 +434,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
     }
 
     fn into_int<const D: usize>(
-        tensor: <NdArray<E> as Backend>::TensorPrimitive<D>,
+        tensor: <NdArray<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }

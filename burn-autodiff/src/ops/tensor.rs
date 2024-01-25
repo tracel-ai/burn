@@ -11,13 +11,13 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 
 use super::maxmin::MaxMinDim;
 
-impl<B: Backend> TensorOps<Self> for Autodiff<B> {
+impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
         device: &Device<Self>,
@@ -210,8 +210,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Mul {
             type State = (
-                Option<B::TensorPrimitive<D>>,
-                Option<B::TensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
                 BinaryOpsBroadcast<D>,
             );
 
@@ -286,8 +286,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Div {
             type State = (
-                Option<B::TensorPrimitive<D>>,
-                Option<B::TensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
                 BinaryOpsBroadcast<D>,
             );
 
@@ -371,8 +371,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Matmul {
             type State = (
-                Option<B::TensorPrimitive<D>>,
-                Option<B::TensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
                 BinaryOpsBroadcast<D>,
             );
 
@@ -440,7 +440,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Recip;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Recip {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let tensor = ops.state;
@@ -1147,7 +1147,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Exp;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Exp {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::mul(grad, ops.state));
@@ -1167,7 +1167,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Log;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1190,7 +1190,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Log1P;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log1P {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1218,7 +1218,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct PowFScalar;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for PowFScalar {
-            type State = (B::TensorPrimitive<D>, f32);
+            type State = (B::FloatTensorPrimitive<D>, f32);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let (tensor, value) = ops.state;
@@ -1246,7 +1246,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Sqrt;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sqrt {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1271,7 +1271,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Abs;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::mul(grad, ops.state));
@@ -1293,7 +1293,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Cos;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Cos {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1318,7 +1318,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Sin;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sin {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1341,7 +1341,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Tanh;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Tanh {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1365,7 +1365,7 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         struct Erf;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Erf {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1529,8 +1529,8 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
             type State = (
-                Option<B::TensorPrimitive<D>>,
-                Option<B::TensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
                 BinaryOpsBroadcast<D>,
             );
 
@@ -1598,7 +1598,7 @@ enum BinaryOpsBroadcast<const D: usize> {
 }
 
 impl<const D: usize> BinaryOpsBroadcast<D> {
-    fn new<B: Backend>(lhs: &B::TensorPrimitive<D>, rhs: &B::TensorPrimitive<D>) -> Self {
+    fn new<B: Backend>(lhs: &B::FloatTensorPrimitive<D>, rhs: &B::FloatTensorPrimitive<D>) -> Self {
         let shape_lhs = B::shape(lhs);
         let shape_rhs = B::shape(rhs);
 
@@ -1611,14 +1611,20 @@ impl<const D: usize> BinaryOpsBroadcast<D> {
         Self::None
     }
 
-    fn backward_lhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+    fn backward_lhs<B: Backend>(
+        &self,
+        grad: B::FloatTensorPrimitive<D>,
+    ) -> B::FloatTensorPrimitive<D> {
         match self {
             BinaryOpsBroadcast::Broadcasted(lhs, _rhs) => broadcast_shape::<B, D>(grad, lhs),
             BinaryOpsBroadcast::None => grad,
         }
     }
 
-    fn backward_rhs<B: Backend>(&self, grad: B::TensorPrimitive<D>) -> B::TensorPrimitive<D> {
+    fn backward_rhs<B: Backend>(
+        &self,
+        grad: B::FloatTensorPrimitive<D>,
+    ) -> B::FloatTensorPrimitive<D> {
         match self {
             BinaryOpsBroadcast::Broadcasted(_lhs, rhs) => broadcast_shape::<B, D>(grad, rhs),
             BinaryOpsBroadcast::None => grad,

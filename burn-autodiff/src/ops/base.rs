@@ -37,7 +37,10 @@ where
     BO: Backward<B, D, N, State = ()>,
 {
     /// Prepare a stateless operation.
-    pub fn stateless(self, output: <B as Backend>::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    pub fn stateless(
+        self,
+        output: <B as Backend>::FloatTensorPrimitive<D>,
+    ) -> AutodiffTensor<B, D> {
         match self.stateful() {
             OpsKind::Tracked(prep) => prep.finish((), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
@@ -77,7 +80,7 @@ where
     BO: Backward<B, D, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
-    pub fn finish(self, output: <B as Backend>::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    pub fn finish(self, output: <B as Backend>::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
         AutodiffTensor::from_parents(
             output,
             &self.nodes,
@@ -97,7 +100,7 @@ where
     pub fn finish(
         self,
         state: S,
-        output: <B as Backend>::TensorPrimitive<D>,
+        output: <B as Backend>::FloatTensorPrimitive<D>,
     ) -> AutodiffTensor<B, D> {
         let output = AutodiffTensor::from_parents(
             output,
@@ -164,9 +167,9 @@ where
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
 pub fn broadcast_shape<B: Backend, const D: usize>(
-    mut grad: B::TensorPrimitive<D>,
+    mut grad: B::FloatTensorPrimitive<D>,
     shape: &Shape<D>,
-) -> B::TensorPrimitive<D> {
+) -> B::FloatTensorPrimitive<D> {
     let shape_grad = B::shape(&grad);
 
     for i in 0..D {

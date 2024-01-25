@@ -91,7 +91,7 @@ where
     fn float_tensor<const D: usize>(
         handle: Self::Handle,
         shape: Shape<D>,
-    ) -> Self::TensorPrimitive<D> {
+    ) -> Self::FloatTensorPrimitive<D> {
         handle.into_tensor(shape)
     }
 
@@ -109,7 +109,7 @@ where
         handle.into_tensor(shape)
     }
 
-    fn float_tensor_handle<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Handle {
+    fn float_tensor_handle<const D: usize>(tensor: Self::FloatTensorPrimitive<D>) -> Self::Handle {
         tensor.into()
     }
 

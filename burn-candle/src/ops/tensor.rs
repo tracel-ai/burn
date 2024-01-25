@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor, TensorOps},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
@@ -11,7 +11,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I> {
+impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn from_data<const D: usize>(data: Data<F, D>, device: &Device<Self>) -> CandleTensor<F, D> {
         CandleTensor::from_data(data, *device)
     }
