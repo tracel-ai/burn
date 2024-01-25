@@ -58,13 +58,13 @@ jobs:
     strategy:
       matrix:
         os: [macos-13, ubuntu-22.04, windows-2022]
-        rust: [stable, 1.71.0]
+        rust: [stable, 1.72.0]
         test: ['std', 'no-std', 'examples']
         include:
           - cache: stable
             rust: stable
-          - cache: 1-71-0
-            rust: 1.71.0
+          - cache: 1-72-0
+            rust: 1.72.0
           - os: ubuntu-22.04
             coverage-flags: COVERAGE=1
             rust: stable
@@ -79,7 +79,7 @@ jobs:
             # auto-graphics-backend-flags: "AUTO_GRAPHICS_BACKEND=dx12";'
         exclude:
           # only need to check this once
-          - rust: 1.71.0
+          - rust: 1.72.0
             test: 'examples'
           # Do not run no-std tests on macos
           - os: macos-13
