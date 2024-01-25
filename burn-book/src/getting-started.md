@@ -165,16 +165,17 @@ Tensor {
 ```
 
 While the previous example is somewhat trivial, the upcoming
-[basic workflow section](./basic-workflow/README.md) will walk you through a much more relevant
-example for deep learning applications.
+[basic workflow section](./basic-workflow/) will walk you through a much more relevant example for
+deep learning applications.
 
 ## Running examples
 
-Burn uses a [Python library by HuggingFace](https://huggingface.co/docs/datasets/index) to download
-datasets. Therefore, in order to run examples, you will need to install Python. Follow the
-instructions on the [official website](https://www.python.org/downloads/) to install Python on your
-computer.
-
-Many Burn examples are available in the
+Many additional Burn examples available in the
 [examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. To run one, please refer
 to the example's README.md for the specific command to execute.
+
+Note that some examples use the
+[`datasets` library by HuggingFace](https://huggingface.co/docs/datasets/index) to download the
+datasets required in the examples. This is a Python library, which means that you will need to
+install Python before running these examples. This requirement will be clearly indicated in the
+example's README when applicable.

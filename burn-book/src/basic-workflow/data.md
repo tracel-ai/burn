@@ -11,7 +11,7 @@ used as input to our previously defined model.
 
 ```rust , ignore
 use burn::{
-    data::{dataloader::batcher::Batcher, dataset::source::huggingface::MNISTItem},
+    data::{dataloader::batcher::Batcher, dataset::vision::MNISTItem},
     tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
 };
 

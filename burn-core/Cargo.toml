@@ -42,6 +42,7 @@ std = [
 dataset = ["burn-dataset"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
+vision = ["burn-dataset?/vision"]
 
 wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 
