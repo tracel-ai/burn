@@ -140,7 +140,7 @@ function outcomes, making debugging and maintenance more straightforward for eve
 
 ## Others
 
-To bump for the next version, use this command:
+To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
 
 ```
 cargo set-version --bump minor

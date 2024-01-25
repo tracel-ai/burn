@@ -146,9 +146,11 @@ pub struct ONNXGraph {
     pub old_input_names: HashMap<String, String>,
 }
 
+/// Nodes produced by the ONNX parser
 #[derive(Debug, Clone)]
 pub struct Node {
     /// The type of the node.
+    /// This should be a valid ONNX operator.
     pub node_type: NodeType,
 
     /// The name of the node.

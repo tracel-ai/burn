@@ -4,6 +4,7 @@ use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
+use num_traits::ToPrimitive;
 
 /// Operations on float tensors.
 pub trait TensorOps<B: Backend> {
@@ -882,7 +883,47 @@ pub trait TensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
     fn log1p<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Returns a new tensor with values raised to the power of `value`.
+    /// Elementwise power with a FloatTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the power of the elements of `rhs`.
+    fn powf<const D: usize>(lhs: FloatTensor<B, D>, rhs: FloatTensor<B, D>) -> FloatTensor<B, D>;
+
+    /// Elementwise power with an IntTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side floatTensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn powi<const D: usize>(lhs: FloatTensor<B, D>, rhs: IntTensor<B, D>) -> FloatTensor<B, D> {
+        Self::powf(lhs, B::int_into_float::<D>(rhs))
+    }
+
+    /// raises a tensor to the power of a int scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn powi_scalar<const D: usize>(lhs: FloatTensor<B, D>, rhs: IntElem<B>) -> FloatTensor<B, D> {
+        Self::powf_scalar(lhs, rhs.to_f32().unwrap())
+    }
+
+    /// Returns a new tensor with values raised to the power of float `value`.
     ///
     /// # Arguments
     ///
@@ -892,7 +933,7 @@ pub trait TensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn powf<const D: usize>(tensor: FloatTensor<B, D>, value: f32) -> FloatTensor<B, D>;
+    fn powf_scalar<const D: usize>(tensor: FloatTensor<B, D>, value: f32) -> FloatTensor<B, D>;
 
     /// Returns a new tensor with square root values.
     ///

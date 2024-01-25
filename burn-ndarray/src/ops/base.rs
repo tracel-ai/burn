@@ -4,6 +4,7 @@ use burn_tensor::ElementConversion;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
+use ndarray::Zip;
 
 use burn_tensor::Shape;
 use ndarray::Axis;
@@ -478,6 +479,26 @@ where
         });
 
         tensor
+    }
+
+    pub(crate) fn elementwise_op<const D: usize, OtherE>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<OtherE, D>,
+        var_name: impl FnMut(&E, &OtherE) -> E,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayTensor::new(
+            Zip::from(lhs.array.view())
+                .and(rhs.array.view())
+                .map_collect(var_name)
+                .into_shared(),
+        )
+    }
+
+    pub(crate) fn elementwise_op_scalar<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        var_name: impl FnMut(E) -> E,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayTensor::new(lhs.array.mapv(var_name).into_shared())
     }
 }
 

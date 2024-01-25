@@ -388,4 +388,25 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
+
+    fn int_powi<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &i64| a.pow(*b as u32))
+    }
+
+    fn int_powf<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &E| a.pow(b.elem::<u32>()))
+    }
+
+    fn int_powf_scalar<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: f32,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: i64| a.pow(rhs as u32))
+    }
 }

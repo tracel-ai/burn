@@ -1384,8 +1384,8 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn powf<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
-        scalar_float_ops!(PowfOps, B::powf, f32);
+    fn powf_scalar<const D: usize>(lhs: FloatTensor<Self, D>, rhs: f32) -> FloatTensor<Self, D> {
+        scalar_float_ops!(PowfOps, B::powf_scalar, f32);
 
         let stream = lhs.stream;
         let out = lhs.client.tensor_uninitialized(lhs.shape.clone());
@@ -1397,7 +1397,7 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Powf(desc.clone())),
+            OperationDescription::Float(FloatOperationDescription::PowfScalar(desc.clone())),
             PowfOps::<D>::new(desc),
         );
 
@@ -1794,5 +1794,31 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         );
 
         (out, out_indices)
+    }
+
+    fn powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        binary_float_ops!(PowOps, B::powf);
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Powf(desc.clone())),
+            PowOps::<D>::new(desc),
+        );
+
+        out
     }
 }

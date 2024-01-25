@@ -34,5 +34,9 @@ pub fn var_with_mean_n<B: Backend, const D: usize>(
     dim: usize,
     n: usize,
 ) -> Tensor<B, D> {
-    tensor.sub(mean).powf(2.0).sum_dim(dim).div_scalar(n as f32)
+    tensor
+        .sub(mean)
+        .powf_scalar(2.0)
+        .sum_dim(dim)
+        .div_scalar(n as f32)
 }

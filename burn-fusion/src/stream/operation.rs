@@ -45,8 +45,8 @@ pub enum FloatOperationDescription {
     Log1p(UnaryOperationDescription),
     /// Operation corresponding to [erf](burn_tensor::ops::TensorOps::erf).
     Erf(UnaryOperationDescription),
-    /// Operation corresponding to [powf](burn_tensor::ops::TensorOps::powf).
-    Powf(ScalarOperationDescription<f32>),
+    /// Operation corresponding to [powf_scalar](burn_tensor::ops::TensorOps::powf_scalar).
+    PowfScalar(ScalarOperationDescription<f32>),
     /// Operation corresponding to [sqrt](burn_tensor::ops::TensorOps::sqrt).
     Sqrt(UnaryOperationDescription),
     /// Operation corresponding to [cos](burn_tensor::ops::TensorOps::cos).
@@ -388,6 +388,11 @@ pub enum NumericOperationDescription<E> {
     /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOperationDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Float => [powf](burn_tensor::ops::TensorOps::powf).
+    /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
+    Powf(BinaryOperationDescription),
 }
 
 /// Operation description specific to an int tensor.
@@ -1070,6 +1075,9 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
+            NumericOperationDescription::Powf(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
         }
     }
 }
@@ -1086,7 +1094,7 @@ impl FloatOperationDescription {
             FloatOperationDescription::Log1p(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Erf(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Recip(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Powf(desc) => vec![&desc.lhs, &desc.out],
+            FloatOperationDescription::PowfScalar(desc) => vec![&desc.lhs, &desc.out],
             FloatOperationDescription::Sqrt(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Cos(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
@@ -1275,6 +1283,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::MaxDim(desc) => desc.hash(state),
             NumericOperationDescription::MinDim(desc) => desc.hash(state),
             NumericOperationDescription::Clamp(desc) => desc.hash(state),
+            NumericOperationDescription::Powf(desc) => desc.hash(state),
         }
     }
 }
