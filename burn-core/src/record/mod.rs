@@ -17,3 +17,6 @@ mod file;
 pub use file::*;
 
 pub use primitive::ParamSerde;
+
+#[cfg(feature = "record-item-custom-serde")]
+pub mod serde;

@@ -16,6 +16,7 @@ members = [
     "burn-derive",
     "burn-import",
     "burn-import/onnx-tests",
+    "burn-import/pytorch-tests",
     "burn-ndarray",
     "burn-no-std-tests",
     "burn-tch",
@@ -26,6 +27,7 @@ members = [
     "burn-train",
     "xtask",
     "examples/*",
+    "examples/pytorch-import/model",
     "backend-comparison",
 ]
 
@@ -40,6 +42,9 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"
+candle-core = { version = "0.3.2" }
+clap = "4.4.11"
+console_error_panic_hook = "0.1.7"
 const-random = "0.1.17"
 csv = "1.3.0"
 dashmap = "5.5.3"
@@ -56,14 +61,18 @@ libm = "0.2.8"
 log = { default-features = false, version = "0.4.20" }
 pretty_assertions = "1.4"
 proc-macro2 = "1.0.69"
+protobuf = "3.3"
 protobuf-codegen = "3.3"
 quote = "1.0.33"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
 rayon = "1.8.0"
+regex = "1.10.2"
+reqwest = "0.11.23"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
 rusqlite = { version = "0.30.0" }
+rust-format = { version = "0.3.4" }
 sanitize-filename = "0.5.0"
 serde_rusqlite = "0.34.0"
 serde-wasm-bindgen = "0.6.1"
@@ -80,8 +89,6 @@ wasm-bindgen = "0.2.88"
 wasm-bindgen-futures = "0.4.38"
 wasm-logger = "0.2.0"
 wasm-timer = "0.2.5"
-console_error_panic_hook = "0.1.7"
-reqwest = "0.11.23"
 
 
 # WGPU stuff
@@ -90,14 +97,15 @@ pollster = "0.3"
 text_placeholder = { version = "0.5.0", features = ["struct_context"] }
 wgpu = "0.19.0"
 
-#
-# The following packages disable the "std" feature for no_std compatibility
-#
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
     "serde",
 ], default-features = false }
-derive-new = { version = "0.5.9", default-features = false }
+
+#
+# The following packages disable the "std" feature for no_std compatibility
+#
+derive-new = { version = "0.6.0", default-features = false }
 
 half = { version = "2.3.1", features = [
     "alloc",

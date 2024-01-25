@@ -28,6 +28,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
                 /// Field to be serialized.
                 pub #name: <#ty as burn::record::Record<B>>::Item<S>,
             });
+
             bounds.extend(quote! {
           <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
       });

@@ -11,7 +11,7 @@ use burn_tensor::{
 use core::marker::PhantomData;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
-#[derive(Debug, Clone, Copy, new)]
+#[derive(Debug, Clone, Copy, new, Default)]
 pub struct ConstantRecord;
 
 impl serde::Serialize for ConstantRecord {

@@ -1,7 +1,8 @@
 # Backend
 
-We have effectively written most of the necessary code for training our model. However, we have not
-explicitly designated the backend to be used at any point. Indeed, only the `main` function remains.
+We have effectively written most of the necessary code to train our model. However, we have not
+explicitly designated the backend to be used at any point. This will be defined in the main
+entrypoint of our program, namely the `main` function below.
 
 ```rust , ignore
 use burn::optim::AdamConfig;
@@ -20,6 +21,48 @@ fn main() {
     );
 }
 ```
+
+<details>
+<summary><strong>🦀 Packages, Crates and Modules</strong></summary>
+
+You might be wondering why we use the `guide` prefix to bring the different modules we just
+implemented into scope. Instead of including the code in the current guide in a single file, we
+separated it into different files which group related code into _modules_. The `guide` is simply the
+name we gave to our _crate_, which contains the different files. Below is a brief explanation of the
+different parts of the Rust module system.
+
+A **package** is a bundle of one or more crates that provides a set of functionality. A package
+contains a `Cargo.toml` file that describes how to build those crates. Burn is a package.
+
+A **crate** is a compilation unit in Rust. It could be a single file, but it is often easier to
+split up crates into multiple _modules_ and possibly multiple files. A crate can come in one of two
+forms: a binary crate or a library crate. When compiling a crate, the compiler first looks in the
+crate root file (usually `src/lib.rs` for a library crate or `src/main.rs` for a binary crate). Any
+module declared in the crate root file will be inserted in the crate for compilation.
+
+A **module** lets us organize code within a crate for readability and easy reuse. Modules also allow
+us to control the _privacy_ of items.
+
+For this guide, we defined a library crate with a single example where the `main` function is
+defined, as illustrated in the structure below.
+
+```
+guide
+├── Cargo.toml
+├── examples
+│   └── guide.rs
+└── src
+    ├── data.rs
+    ├── inference.rs
+    ├── lib.rs
+    ├── model.rs
+    └── training.rs
+```
+
+The source for this guide can be found in our
+[GitHub repository](https://github.com/tracel-ai/burn/tree/main/examples/guide).\
+
+</details><br>
 
 In this example, we use the `Wgpu` backend which is compatible with any operating system and will
 use the GPU. For other options, see the Burn README. This backend type takes the graphics api, the
