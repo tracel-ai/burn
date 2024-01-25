@@ -94,9 +94,10 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     }
 
     fn forward_inference<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
+        let device = input.device();
         let channels = input.dims()[1];
-        let mean = self.running_mean.value();
-        let var = self.running_var.value();
+        let mean = self.running_mean.value().to_device(&device);
+        let var = self.running_var.value().to_device(&device);
 
         let mut shape = [1; DI];
         shape[1] = channels;
@@ -133,19 +134,17 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
             .mean_dim(1)
             .reshape(shape_unsqueeze);
 
-        let running_mean = self.running_mean.value_sync();
-        let running_var = self.running_var.value_sync();
+        let running_mean = self.running_mean.value_sync().to_device(&mean.device());
+        let running_var = self.running_var.value_sync().to_device(&var.device());
 
-        let running_mean = running_mean.clone().mul_scalar(1.0 - self.momentum).add(
+        let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
             mean.clone()
-                .to_device(&running_mean.device())
                 .detach()
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
         );
-        let running_var = running_var.clone().mul_scalar(1.0 - self.momentum).add(
+        let running_var = running_var.mul_scalar(1.0 - self.momentum).add(
             var.clone()
-                .to_device(&running_var.device())
                 .detach()
                 .mul_scalar(self.momentum)
                 .reshape([channels]),
