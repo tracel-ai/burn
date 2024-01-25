@@ -2,7 +2,7 @@ use crate::{
     data::{MNISTBatch, MNISTBatcher},
     model::{Model, ModelConfig},
 };
-use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::vision::MNISTDataset;
 use burn::train::{
     metric::{AccuracyMetric, LossMetric},
     ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,

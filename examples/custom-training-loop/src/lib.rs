@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::vision::MNISTDataset;
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,

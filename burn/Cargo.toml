@@ -33,6 +33,8 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+vision = ["burn-core/vision"]
+
 # Backends
 autodiff = ["burn-core/autodiff"]
 fusion = ["burn-core/fusion"]
