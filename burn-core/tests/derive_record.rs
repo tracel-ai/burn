@@ -13,5 +13,5 @@ pub struct TestWithBackendRecord<B: Backend> {
 // It compiles
 #[derive(Record)]
 pub struct TestWithoutBackendRecord {
-    tensor: usize,
+    _tensor: usize,
 }

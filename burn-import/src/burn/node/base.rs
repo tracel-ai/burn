@@ -6,8 +6,8 @@ use super::{
     max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
+use burn::backend::NdArray;
 use burn::record::PrecisionSettings;
-use burn_ndarray::NdArray;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 

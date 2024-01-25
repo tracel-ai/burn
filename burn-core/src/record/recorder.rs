@@ -158,6 +158,9 @@ pub enum RecorderError {
     /// File not found.
     FileNotFound(String),
 
+    /// Failed to read file.
+    DeserializeError(String),
+
     /// Other error.
     Unknown(String),
 }
