@@ -4,6 +4,7 @@ mod logging;
 mod publish;
 mod runchecks;
 mod utils;
+mod vulnerabilities;
 
 #[macro_use]
 extern crate log;
@@ -27,13 +28,19 @@ enum Command {
         /// The environment to run checks against
         env: runchecks::CheckType,
     },
+    /// Run the specified vulnerability check locally. This command should be called with 'cargo +nightly'.
+    Vulnerabilities {
+        /// The vulnerability to run
+        vulnerability: vulnerabilities::VulnerabilityType,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::RunChecks { env } => runchecks::run(env),
         Command::Publish { name } => publish::run(name),
+        Command::RunChecks { env } => runchecks::run(env),
+        Command::Vulnerabilities { vulnerability } => vulnerabilities::run(vulnerability),
     }
 }

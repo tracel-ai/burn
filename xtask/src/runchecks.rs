@@ -5,11 +5,14 @@
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
 use crate::logging::init_logger;
-use crate::utils::{format_duration, get_workspaces, WorkspaceMemberType};
+use crate::utils::{
+    format_duration, get_workspaces, handle_child_process, run_cargo, run_cargo_with_path,
+    run_command, rustup_add_component, rustup_add_target, Params, WorkspaceMemberType,
+};
 use crate::{endgroup, group};
+use std::collections::HashMap;
 use std::env;
-use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::str;
 use std::time::Instant;
 
@@ -17,124 +20,52 @@ use std::time::Instant;
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
-// Handle child process
-fn handle_child_process(mut child: Child, error: &str) {
-    // Wait for the child process to finish
-    let status = child.wait().expect(error);
-
-    // If exit status is not a success, terminate the process with an error
-    if !status.success() {
-        // Use the exit code associated to a command to terminate the process,
-        // if any exit code had been found, use the default value 1
-        std::process::exit(status.code().unwrap_or(1));
-    }
-}
-
-// Run a command
-fn run_command(command: &str, args: &[&str], command_error: &str, child_error: &str) {
-    // Format command
-    info!("{command} {}\n\n", args.join(" "));
-
-    // Run command as child process
-    let command = Command::new(command)
-        .args(args)
-        .stdout(Stdio::inherit()) // Send stdout directly to terminal
-        .stderr(Stdio::inherit()) // Send stderr directly to terminal
-        .spawn()
-        .expect(command_error);
-
-    // Handle command child process
-    handle_child_process(command, child_error);
-}
-
-// Define and run rustup command
-fn rustup(command: &str, target: &str) {
-    group!("Rustup: {} add {}", command, target);
-    run_command(
-        "rustup",
-        &[command, "add", target],
-        "Failed to run rustup",
-        "Failed to wait for rustup child process",
-    );
-    endgroup!();
-}
-
-// Define and run a cargo command
-fn run_cargo(command: &str, params: Params, error: &str) {
-    run_cargo_with_path::<String>(command, params, None, error)
-}
-
-// Define and run a cargo command with curr dir
-fn run_cargo_with_path<P: AsRef<Path>>(
-    command: &str,
-    params: Params,
-    path: Option<P>,
-    error: &str,
-) {
-    // Print cargo command
-    info!("cargo {} {}\n", command, params);
-
-    // Run cargo
-    let mut cargo = Command::new("cargo");
-    cargo
-        .env("CARGO_INCREMENTAL", "0")
-        .arg(command)
-        .args(params.params)
-        .stdout(Stdio::inherit()) // Send stdout directly to terminal
-        .stderr(Stdio::inherit()); // Send stderr directly to terminal
-
-    if let Some(path) = path {
-        cargo.current_dir(path);
-    }
-
-    let cargo_process = cargo.spawn().expect(error);
-
-    // Handle cargo child process
-    handle_child_process(cargo_process, "Failed to wait for cargo child process");
-}
-
-// Run cargo build command
+/// Run cargo build command
 fn cargo_build(params: Params) {
     // Run cargo build
     run_cargo(
         "build",
         params + "--color=always",
+        HashMap::new(),
         "Failed to run cargo build",
     );
 }
 
-// Run cargo install command
+/// Run cargo install command
 fn cargo_install(params: Params) {
     // Run cargo install
     run_cargo(
         "install",
         params + "--color=always",
+        HashMap::new(),
         "Failed to run cargo install",
     );
 }
 
-// Run cargo test command
+/// Run cargo test command
 fn cargo_test(params: Params) {
     // Run cargo test
     run_cargo(
         "test",
         params + "--color=always" + "--" + "--color=always",
+        HashMap::new(),
         "Failed to run cargo test",
     );
 }
 
-// Run cargo fmt command
+/// Run cargo fmt command
 fn cargo_fmt() {
     group!("Cargo: fmt");
     run_cargo(
         "fmt",
         ["--check", "--all", "--", "--color=always"].into(),
+        HashMap::new(),
         "Failed to run cargo fmt",
     );
     endgroup!();
 }
 
-// Run cargo clippy command
+/// Run cargo clippy command
 fn cargo_clippy() {
     if std::env::var("CI").is_ok() {
         return;
@@ -143,14 +74,20 @@ fn cargo_clippy() {
     run_cargo(
         "clippy",
         ["--color=always", "--all-targets", "--", "-D", "warnings"].into(),
+        HashMap::new(),
         "Failed to run cargo clippy",
     );
 }
 
-// Run cargo doc command
+/// Run cargo doc command
 fn cargo_doc(params: Params) {
     // Run cargo doc
-    run_cargo("doc", params + "--color=always", "Failed to run cargo doc");
+    run_cargo(
+        "doc",
+        params + "--color=always",
+        HashMap::new(),
+        "Failed to run cargo doc",
+    );
 }
 
 // Build and test a crate in a no_std environment
@@ -191,7 +128,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
 // Setup code coverage
 fn setup_coverage() {
     // Install llvm-tools-preview
-    rustup("component", "llvm-tools-preview");
+    rustup_add_component("llvm-tools-preview");
 
     // Set coverage environment variables
     env::set_var("RUSTFLAGS", "-Cinstrument-coverage");
@@ -226,10 +163,10 @@ fn run_grcov() {
 // Run no_std checks
 fn no_std_checks() {
     // Install wasm32 target
-    rustup("target", WASM32_TARGET);
+    rustup_add_target(WASM32_TARGET);
 
     // Install ARM target
-    rustup("target", ARM_TARGET);
+    rustup_add_target(ARM_TARGET);
 
     // Run checks for the following crates
     build_and_test_no_std("burn", []);
@@ -394,6 +331,7 @@ fn check_examples() {
         run_cargo_with_path(
             "check",
             ["--examples"].into(),
+            HashMap::new(),
             Some(workspace.path),
             "Failed to check example",
         );
@@ -424,7 +362,6 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     let start = Instant::now();
 
     // The environment can assume ONLY "std", "no_std", "typos", "examples"
-    // as values.
     //
     // Depending on the input argument, the respective environment checks
     // are run.
@@ -456,40 +393,4 @@ pub fn run(env: CheckType) -> anyhow::Result<()> {
     );
 
     Ok(())
-}
-
-struct Params {
-    params: Vec<String>,
-}
-
-impl<const N: usize> From<[&str; N]> for Params {
-    fn from(value: [&str; N]) -> Self {
-        Self {
-            params: value.iter().map(|v| v.to_string()).collect(),
-        }
-    }
-}
-
-impl From<&str> for Params {
-    fn from(value: &str) -> Self {
-        Self {
-            params: vec![value.to_string()],
-        }
-    }
-}
-
-impl std::fmt::Display for Params {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.params.join(" ").as_str())
-    }
-}
-
-impl<Rhs: Into<Params>> std::ops::Add<Rhs> for Params {
-    type Output = Params;
-
-    fn add(mut self, rhs: Rhs) -> Self::Output {
-        let rhs: Params = rhs.into();
-        self.params.extend(rhs.params);
-        self
-    }
 }
