@@ -223,9 +223,7 @@ impl<B: Backend> Lstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        module::Param, nn::LinearRecord, TestAutodiffBackend, TestBackend,
-    };
+    use crate::{module::Param, nn::LinearRecord, TestAutodiffBackend, TestBackend};
     use burn_tensor::{Data, Distribution, Shape};
 
     #[test]
