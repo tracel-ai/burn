@@ -26,7 +26,7 @@ impl Gradients {
         };
         gradients.register::<B, D>(
             root_node,
-            B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
+            B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
         );
         gradients
     }

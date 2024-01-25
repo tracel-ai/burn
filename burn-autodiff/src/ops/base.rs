@@ -170,7 +170,7 @@ pub fn broadcast_shape<B: Backend, const D: usize>(
     mut grad: B::FloatTensorPrimitive<D>,
     shape: &Shape<D>,
 ) -> B::FloatTensorPrimitive<D> {
-    let shape_grad = B::shape(&grad);
+    let shape_grad = B::float_shape(&grad);
 
     for i in 0..D {
         if shape_grad.dims[i] != shape.dims[i] {
@@ -180,7 +180,7 @@ pub fn broadcast_shape<B: Backend, const D: usize>(
                     shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
                 );
             }
-            grad = B::sum_dim(grad, i);
+            grad = B::float_sum_dim(grad, i);
         }
     }
 

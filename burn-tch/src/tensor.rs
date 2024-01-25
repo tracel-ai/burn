@@ -70,7 +70,7 @@ impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        LibTorch::add(self, rhs)
+        LibTorch::float_add(self, rhs)
     }
 }
 
@@ -221,7 +221,7 @@ mod utils {
         where
             P: tch::kind::Element,
         {
-            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::into_data(self).read()
+            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::float_into_data(self).read()
         }
     }
 }

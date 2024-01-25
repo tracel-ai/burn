@@ -29,7 +29,7 @@ where
 
     let out = general_matmul(lhs, rhs);
 
-    NdArray::<E>::reshape(out, shape_out)
+    NdArray::<E>::float_reshape(out, shape_out)
 }
 
 fn general_matmul<E: FloatNdArrayElement>(
@@ -91,13 +91,13 @@ fn reshape<E: FloatNdArrayElement, const D: usize>(
     let shape = tensor.shape();
 
     if D < 2 {
-        NdArray::<E>::reshape(tensor, Shape::new([1, 1, shape.dims[0]]))
+        NdArray::<E>::float_reshape(tensor, Shape::new([1, 1, shape.dims[0]]))
     } else {
         let batch_size = batch_size(&shape);
         let size0 = shape.dims[D - 2];
         let size1 = shape.dims[D - 1];
 
-        NdArray::<E>::reshape(tensor, Shape::new([batch_size, size0, size1]))
+        NdArray::<E>::float_reshape(tensor, Shape::new([batch_size, size0, size1]))
     }
 }
 

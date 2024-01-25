@@ -54,7 +54,7 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_float_tensor(&tensor);
-        B::into_data(tensor)
+        B::float_into_data(tensor)
     }
 
     pub fn read_int<const D: usize>(
@@ -90,7 +90,7 @@ where
         server_device: &mut Self,
     ) -> Arc<TensorId> {
         let tensor = self.handles.get_float_tensor::<D>(tensor);
-        let tensor = B::to_device(tensor, device);
+        let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
