@@ -114,7 +114,7 @@ impl MNISTDataset {
         // Collect as vector of MNISTItemRaw
         let items: Vec<_> = images
             .into_iter()
-            .zip(labels.into_iter())
+            .zip(labels)
             .map(|(image_bytes, label)| MNISTItemRaw { image_bytes, label })
             .collect();
 
