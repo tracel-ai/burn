@@ -224,9 +224,9 @@ impl<B: Backend> Lstm<B> {
 mod tests {
     use super::*;
     use crate::{
-        module::Param, nn::LinearRecord, record::Record, TestAutodiffBackend, TestBackend,
+        module::Param, nn::LinearRecord, TestAutodiffBackend, TestBackend,
     };
-    use burn_tensor::{ops::BoolTensor, Bool, Data, Distribution, Shape};
+    use burn_tensor::{Data, Distribution, Shape};
 
     #[test]
     fn test_with_uniform_initializer() {
