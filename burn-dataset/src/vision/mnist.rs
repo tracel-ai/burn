@@ -1,5 +1,5 @@
 use std::fs::{create_dir_all, File};
-use std::os::unix::fs::FileExt;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use flate2::read::GzDecoder;
@@ -182,17 +182,17 @@ impl MNISTDataset {
         let file_name = root.as_ref().join(file_name);
 
         // Read number of images from 16-byte header metadata
-        let f = File::open(file_name).unwrap();
+        let mut f = File::open(file_name).unwrap();
         let mut buf = [0u8; 4];
-        f.read_exact_at(&mut buf, 4)
+        let _ = f.seek(SeekFrom::Start(4)).unwrap();
+        f.read_exact(&mut buf)
             .expect("Should be able to read image file header");
         let size = u32::from_be_bytes(buf);
 
         let mut buf_images: Vec<u8> = vec![0u8; WIDTH * HEIGHT * (size as usize)];
-        f.read_exact_at(&mut buf_images, 16)
-            .expect("Should be able to read images from file");
-
-        // println!("")
+        let _ = f.seek(SeekFrom::Start(16)).unwrap();
+        f.read_exact(&mut buf_images)
+            .expect("Should be able to read image file header");
 
         buf_images
             .chunks(WIDTH * HEIGHT)
@@ -210,14 +210,16 @@ impl MNISTDataset {
         let file_name = root.as_ref().join(file_name);
 
         // Read number of labels from 8-byte header metadata
-        let f = File::open(file_name).unwrap();
+        let mut f = File::open(file_name).unwrap();
         let mut buf = [0u8; 4];
-        f.read_exact_at(&mut buf, 4)
+        let _ = f.seek(SeekFrom::Start(4)).unwrap();
+        f.read_exact(&mut buf)
             .expect("Should be able to read label file header");
         let size = u32::from_be_bytes(buf);
 
         let mut buf_labels: Vec<u8> = vec![0u8; size as usize];
-        f.read_exact_at(&mut buf_labels, 8)
+        let _ = f.seek(SeekFrom::Start(8)).unwrap();
+        f.read_exact(&mut buf_labels)
             .expect("Should be able to read labels from file");
 
         buf_labels
