@@ -79,17 +79,6 @@ impl Dataset<MNISTItem> for MNISTDataset {
     }
 }
 
-fn dataset_base_dir(base_dir: Option<PathBuf>) -> PathBuf {
-    match base_dir {
-        Some(base_dir) => base_dir,
-        None => {
-            let home_dir = dirs::home_dir().expect("Could not get home directory");
-
-            home_dir.join(".cache").join("burn-dataset")
-        }
-    }
-}
-
 impl MNISTDataset {
     /// Creates a new train dataset.
     pub fn train() -> Self {
@@ -127,8 +116,12 @@ impl MNISTDataset {
     /// Download the MNIST dataset files from the web.
     /// Panics if the download cannot be completed or the content of the file cannot be written to disk.
     fn download(split: &str) -> PathBuf {
-        // Point file to current example directory
-        let split_dir = dataset_base_dir(None).join("mnist").join(split);
+        // Dataset files are stored un the burn-dataset cache directory
+        let cache_dir = dirs::home_dir()
+            .expect("Could not get home directory")
+            .join(".cache")
+            .join("burn-dataset");
+        let split_dir = cache_dir.join("mnist").join(split);
 
         if !split_dir.exists() {
             create_dir_all(&split_dir).expect("Failed to create base directory");
