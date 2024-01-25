@@ -50,7 +50,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
 }
 
 // The backend used for recording.
-type Backend = burn_ndarray::NdArray;
+type Backend = burn::backend::ndarray::NdArray;
 
 impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Register a new operation node into the graph.
@@ -400,7 +400,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                 pub fn from_embedded(device: &B::Device) -> Self {
                     let record = BinBytesRecorder::<#precision_ty>::default()
                     .load(EMBEDDED_STATES.to_vec(), device)
-                    .expect("Failed to decode state");
+                    .expect("Should decode state successfully");
 
                     Self::new_with(record)
                 }

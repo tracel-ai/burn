@@ -246,9 +246,18 @@ fn no_std_checks() {
 
 // Test burn-core with tch and wgpu backend
 fn burn_core_std() {
-    // Run cargo test --features test-tch
-    group!("Test: burn-core (tch)");
-    cargo_test(["-p", "burn-core", "--features", "test-tch"].into());
+    // Run cargo test --features test-tch, record-item-custom-serde
+    group!("Test: burn-core (tch) and record-item-custom-serde");
+    cargo_test(
+        [
+            "-p",
+            "burn-core",
+            "--features",
+            "test-tch",
+            "record-item-custom-serde",
+        ]
+        .into(),
+    );
     endgroup!();
 
     // Run cargo test --features test-wgpu
