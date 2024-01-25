@@ -110,7 +110,7 @@ impl<B: Backend> GroupNorm<B> {
         let mean = input.clone().sum_dim(2) / hidden_size as f64;
         let input = input.sub(mean);
 
-        let var = input.clone().powf(2.).sum_dim(2) / hidden_size as f64;
+        let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
         let input_normalized = input.div(var.sqrt().add_scalar(self.epsilon));
 
         if self.affine {
@@ -200,7 +200,7 @@ mod tests {
         module
             .gamma
             .as_ref()
-            .expect("Gamma is None")
+            .expect("gamma should not be None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::ones([6].into()), 3);
@@ -208,7 +208,7 @@ mod tests {
         module
             .beta
             .as_ref()
-            .expect("beta is None")
+            .expect("beta should not be None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);

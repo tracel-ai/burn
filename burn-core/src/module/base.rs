@@ -82,7 +82,7 @@ macro_rules! module {
 /// ```
 pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     /// Type to save and load the module.
-    type Record: Record;
+    type Record: Record<B>;
 
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
@@ -164,11 +164,15 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// The file extension is automatically added depending on the file recorder provided, you
     /// don't have to specify it.
-    fn save_file<FR: crate::record::FileRecorder, PB: Into<std::path::PathBuf>>(
+    fn save_file<FR, PB>(
         self,
         file_path: PB,
         recorder: &FR,
-    ) -> Result<(), crate::record::RecorderError> {
+    ) -> Result<(), crate::record::RecorderError>
+    where
+        FR: crate::record::FileRecorder<B>,
+        PB: Into<std::path::PathBuf>,
+    {
         let record = Self::into_record(self);
         recorder.record(record, file_path.into())
     }
@@ -183,12 +187,17 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     ///
     /// The file extension is automatically added depending on the file recorder provided, you
     /// don't have to specify it.
-    fn load_file<FR: crate::record::FileRecorder, PB: Into<std::path::PathBuf>>(
+    fn load_file<FR, PB>(
         self,
         file_path: PB,
         recorder: &FR,
-    ) -> Result<Self, crate::record::RecorderError> {
-        let record = recorder.load(file_path.into())?;
+        device: &B::Device,
+    ) -> Result<Self, crate::record::RecorderError>
+    where
+        FR: crate::record::FileRecorder<B>,
+        PB: Into<std::path::PathBuf>,
+    {
+        let record = recorder.load(file_path.into(), device)?;
 
         Ok(self.load_record(record))
     }

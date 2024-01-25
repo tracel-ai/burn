@@ -48,7 +48,7 @@ impl<B: Backend> MSELoss<B> {
         logits: Tensor<B, D>,
         targets: Tensor<B, D>,
     ) -> Tensor<B, D> {
-        logits.sub(targets).powf(2.0)
+        logits.sub(targets).powf_scalar(2.0)
     }
 }
 

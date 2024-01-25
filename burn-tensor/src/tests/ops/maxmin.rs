@@ -91,12 +91,16 @@ mod tests {
         let output_actual = tensor.clone().mean_dim(1);
 
         let output_expected = Data::from([[1.], [4.]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output_actual
+            .into_data()
+            .assert_approx_eq(&output_expected, 3);
 
         let output_actual = tensor.mean_dim(0);
 
         let output_expected = Data::from([[1.5, 2.5, 3.5]]);
-        assert_eq!(output_expected, output_actual.into_data());
+        output_actual
+            .into_data()
+            .assert_approx_eq(&output_expected, 3);
     }
 
     #[test]

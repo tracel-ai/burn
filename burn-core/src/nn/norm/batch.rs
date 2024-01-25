@@ -127,7 +127,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let var = input
             .clone()
             .sub(mean.clone())
-            .powf(2.0)
+            .powf_scalar(2.0)
             .swap_dims(0, 1)
             .reshape([channels, flatten_size])
             .mean_dim(1)

@@ -15,19 +15,26 @@ pub trait LearnerComponents {
     /// The backend in used for the training.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
-    type LrScheduler: LrScheduler;
+    type LrScheduler: LrScheduler<Self::Backend>;
     /// The model to train.
     type Model: AutodiffModule<Self::Backend> + core::fmt::Display + 'static;
     /// The optimizer used for the training.
     type Optimizer: Optimizer<Self::Model, Self::Backend>;
     /// The checkpointer used for the model.
-    type CheckpointerModel: Checkpointer<<Self::Model as Module<Self::Backend>>::Record>;
+    type CheckpointerModel: Checkpointer<
+        <Self::Model as Module<Self::Backend>>::Record,
+        Self::Backend,
+    >;
     /// The checkpointer used for the optimizer.
     type CheckpointerOptimizer: Checkpointer<
         <Self::Optimizer as Optimizer<Self::Model, Self::Backend>>::Record,
+        Self::Backend,
     >;
     /// The checkpointer used for the scheduler.
-    type CheckpointerLrScheduler: Checkpointer<<Self::LrScheduler as LrScheduler>::Record>;
+    type CheckpointerLrScheduler: Checkpointer<
+        <Self::LrScheduler as LrScheduler<Self::Backend>>::Record,
+        Self::Backend,
+    >;
     type EventProcessor: EventProcessor + 'static;
     /// The strategy to save and delete checkpoints.
     type CheckpointerStrategy: CheckpointingStrategy;
@@ -50,12 +57,12 @@ impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
     for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
     B: AutodiffBackend,
-    LR: LrScheduler,
+    LR: LrScheduler<B>,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
-    CM: Checkpointer<M::Record>,
-    CO: Checkpointer<O::Record>,
-    CS: Checkpointer<LR::Record>,
+    CM: Checkpointer<M::Record, B>,
+    CO: Checkpointer<O::Record, B>,
+    CS: Checkpointer<LR::Record, B>,
     EP: EventProcessor + 'static,
     S: CheckpointingStrategy,
 {

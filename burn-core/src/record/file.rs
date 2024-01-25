@@ -1,4 +1,5 @@
 use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
+use burn_tensor::backend::Backend;
 use core::marker::PhantomData;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{de::DeserializeOwned, Serialize};
@@ -6,8 +7,8 @@ use std::io::{BufReader, BufWriter};
 use std::{fs::File, path::PathBuf};
 
 /// Recorder trait specialized to save and load data to and from files.
-pub trait FileRecorder:
-    Recorder<RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
+pub trait FileRecorder<B: Backend>:
+    Recorder<B, RecordArgs = PathBuf, RecordOutput = (), LoadArgs = PathBuf>
 {
     /// File extension of the format used by the recorder.
     fn file_extension() -> &'static str;
@@ -52,34 +53,34 @@ pub struct NamedMpkFileRecorder<S: PrecisionSettings> {
     _settings: PhantomData<S>,
 }
 
-impl<S: PrecisionSettings> FileRecorder for BinGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for BinGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "bin.gz"
     }
 }
-impl<S: PrecisionSettings> FileRecorder for BinFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for BinFileRecorder<S> {
     fn file_extension() -> &'static str {
         "bin"
     }
 }
-impl<S: PrecisionSettings> FileRecorder for JsonGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for JsonGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "json.gz"
     }
 }
-impl<S: PrecisionSettings> FileRecorder for PrettyJsonFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for PrettyJsonFileRecorder<S> {
     fn file_extension() -> &'static str {
         "json"
     }
 }
 
-impl<S: PrecisionSettings> FileRecorder for NamedMpkGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for NamedMpkGzFileRecorder<S> {
     fn file_extension() -> &'static str {
         "mpk.gz"
     }
 }
 
-impl<S: PrecisionSettings> FileRecorder for NamedMpkFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> FileRecorder<B> for NamedMpkFileRecorder<S> {
     fn file_extension() -> &'static str {
         "mpk"
     }
@@ -89,7 +90,7 @@ macro_rules! str2reader {
     (
         $file:expr
     ) => {{
-        $file.set_extension(<Self as FileRecorder>::file_extension());
+        $file.set_extension(<Self as FileRecorder<B>>::file_extension());
         let path = $file.as_path();
 
         File::open(path)
@@ -105,8 +106,13 @@ macro_rules! str2writer {
     (
         $file:expr
     ) => {{
-        $file.set_extension(<Self as FileRecorder>::file_extension());
+        $file.set_extension(<Self as FileRecorder<B>>::file_extension());
         let path = $file.as_path();
+
+        // Add parent directories if they don't exist
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
 
         if path.exists() {
             log::info!("File exists, replacing");
@@ -122,7 +128,7 @@ macro_rules! str2writer {
     }};
 }
 
-impl<S: PrecisionSettings> Recorder for BinGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -153,7 +159,7 @@ impl<S: PrecisionSettings> Recorder for BinGzFileRecorder<S> {
     }
 }
 
-impl<S: PrecisionSettings> Recorder for BinFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -179,7 +185,7 @@ impl<S: PrecisionSettings> Recorder for BinFileRecorder<S> {
     }
 }
 
-impl<S: PrecisionSettings> Recorder for JsonGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for JsonGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -208,7 +214,7 @@ impl<S: PrecisionSettings> Recorder for JsonGzFileRecorder<S> {
     }
 }
 
-impl<S: PrecisionSettings> Recorder for PrettyJsonFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for PrettyJsonFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -234,7 +240,7 @@ impl<S: PrecisionSettings> Recorder for PrettyJsonFileRecorder<S> {
     }
 }
 
-impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkGzFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -263,7 +269,7 @@ impl<S: PrecisionSettings> Recorder for NamedMpkGzFileRecorder<S> {
     }
 }
 
-impl<S: PrecisionSettings> Recorder for NamedMpkFileRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
     type Settings = S;
     type RecordArgs = PathBuf;
     type RecordOutput = ();
@@ -346,14 +352,18 @@ mod tests {
         test_can_save_and_load(NamedMpkFileRecorder::<FullPrecisionSettings>::default())
     }
 
-    fn test_can_save_and_load<Recorder: FileRecorder>(recorder: Recorder) {
+    fn test_can_save_and_load<Recorder>(recorder: Recorder)
+    where
+        Recorder: FileRecorder<TestBackend>,
+    {
         let device = Default::default();
         let model_before = create_model(&device);
         recorder
             .record(model_before.clone().into_record(), file_path())
             .unwrap();
 
-        let model_after = create_model(&device).load_record(recorder.load(file_path()).unwrap());
+        let model_after =
+            create_model(&device).load_record(recorder.load(file_path(), &device).unwrap());
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder

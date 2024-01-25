@@ -133,7 +133,7 @@ impl<B: Backend> Model<B> {
     /// Constructor
     pub fn new(device: &B::Device) -> Self {
         Self {
-            model: SqueezenetModel::from_embedded(),
+            model: SqueezenetModel::from_embedded(device),
             normalizer: Normalizer::new(device),
         }
     }
