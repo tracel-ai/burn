@@ -329,6 +329,23 @@ where
         }
     }
 
+    fn prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        reduce::prod(tensor)
+    }
+
+    fn prod_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        #[cfg(feature = "autotune")]
+        {
+            reduce::prod_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::prod_dim(tensor, output, dim)
+        }
+    }
+
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         #[cfg(feature = "autotune")]
         {

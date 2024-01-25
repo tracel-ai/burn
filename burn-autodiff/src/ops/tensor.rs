@@ -1019,6 +1019,33 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
         }
     }
 
+    fn prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        #[derive(Debug)]
+        struct Prod<const D: usize>;
+
+        impl<B: Backend, const D: usize> Backward<B, 1, 1> for Prod<D> {
+            type State = Shape<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let val = B::ones(ops.state, &B::device(&grad));
+
+                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
+                    let val: Tensor<B, D> = Tensor::from_primitive(val);
+
+                    val.mul(grad.unsqueeze()).into_primitive()
+                });
+            }
+        }
+
+        match Prod.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                prep.finish(B::shape(&tensor.primitive), B::prod(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::prod(tensor.primitive)),
+        }
+    }
+
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct MeamDim;
@@ -1074,6 +1101,34 @@ impl<B: Backend> TensorOps<Self> for Autodiff<B> {
                 B::sum_dim(tensor.primitive, dim),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::sum_dim(tensor.primitive, dim)),
+        }
+    }
+
+    fn prod_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct ProdDim;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for ProdDim {
+            type State = (Shape<D>, usize);
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let (shape, dim) = ops.state;
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let ones = B::ones(shape, &B::device(&grad));
+                    let grad = B::prod_dim(grad, dim);
+
+                    B::mul(ones, grad)
+                });
+            }
+        }
+
+        match ProdDim.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => prep.finish(
+                (B::shape(&tensor.primitive), dim),
+                B::prod_dim(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::prod_dim(tensor.primitive, dim)),
         }
     }
 

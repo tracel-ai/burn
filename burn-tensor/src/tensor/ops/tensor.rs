@@ -774,6 +774,29 @@ pub trait TensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Product of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to prod.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the product of all elements in `tensor`.
+    fn prod<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1>;
+
+    /// Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to prod.
+    /// * `dim` - The dimension along which to prod.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the product of all elements in `tensor` along `dim`.
+    fn prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
+
     /// Mean of all elements in a tensor.
     ///
     /// # Arguments

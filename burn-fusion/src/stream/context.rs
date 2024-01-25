@@ -596,6 +596,19 @@ impl<E: Element> NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOperationDescription::Prod(desc) => {
+                NumericOperationDescription::Prod(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::ProdDim(desc) => {
+                NumericOperationDescription::ProdDim(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs, // Dim should stay the same.
+                    out: desc.out.to_relative(converter),
+                })
+            }
             NumericOperationDescription::EqualElem(desc) => {
                 NumericOperationDescription::EqualElem(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),

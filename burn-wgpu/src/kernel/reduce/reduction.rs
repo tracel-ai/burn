@@ -14,17 +14,28 @@ kernel_wgsl!(
     RecursiveSumRaw,
     "../../template/reduction/recursive_sum.wgsl"
 );
+kernel_wgsl!(
+    RecursiveProdRaw,
+    "../../template/reduction/recursive_prod.wgsl"
+);
 kernel_wgsl!(ReductionDimRaw, "../../template/reduction/reduce_dim.wgsl");
 kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
 
 pub(crate) struct ArgsMax;
 pub(crate) struct ArgsMin;
 pub(crate) struct SumDim;
+pub(crate) struct ProdDim;
 pub(crate) struct MeanDim;
 
 impl StaticKernelSource for SumDim {
     fn source() -> SourceTemplate {
         ReductionDimRaw::source().register("assign", "output[id] = sum;")
+    }
+}
+
+impl StaticKernelSource for ProdDim {
+    fn source() -> SourceTemplate {
+        ReductionDimRaw::source().register("assign", "output[id] = prod;")
     }
 }
 
@@ -91,6 +102,43 @@ pub fn sum_dim<E: WgpuElement, const D: usize>(
     dim: usize,
 ) -> WgpuTensor<E, D> {
     reduction_dim::<SumDim, E, D>(input, output, dim)
+}
+
+/// Prod all elements in the input buffer.
+pub fn prod<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTensor<E, 1> {
+    let mut input_handle = input.handle;
+    let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP_DEFAULT);
+
+    loop {
+        let num_invocations = workgroup.num_invocations();
+        let handle = input
+            .client
+            .empty(core::mem::size_of::<E>() * num_invocations);
+
+        let kernel = StaticKernel::<
+            KernelSettings<RecursiveProdRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(workgroup);
+
+        input
+            .client
+            .execute(Box::new(kernel), &[&input_handle, &handle]);
+
+        if num_invocations <= 1 {
+            return WgpuTensor::new(input.client, input.device, Shape::new([1]), handle);
+        }
+
+        input_handle = handle;
+        workgroup = elemwise_workgroup(num_invocations, WORKGROUP_DEFAULT);
+    }
+}
+
+/// Execute the prod dim kernel.
+pub fn prod_dim<E: WgpuElement, const D: usize>(
+    input: WgpuTensor<E, D>,
+    output: WgpuTensor<E, D>,
+    dim: usize,
+) -> WgpuTensor<E, D> {
+    reduction_dim::<ProdDim, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.

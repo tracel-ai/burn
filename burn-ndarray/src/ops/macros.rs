@@ -21,6 +21,17 @@ macro_rules! keepdim {
         shape.dims[$dim] = 1;
         NdArrayOps::reshape(tensor, shape)
     }};
+    (
+        $D:expr,
+        $dim:expr,
+        $self:expr,
+        prod
+    ) => {{
+        let tensor: NdArrayTensor<E, $D> = prod_dim($self.clone(), $dim);
+        let mut shape = $self.shape();
+        shape.dims[$dim] = 1;
+        NdArrayOps::reshape(tensor, shape)
+    }};
 }
 
 pub(crate) use keepdim;
@@ -44,4 +55,11 @@ pub(crate) fn sum_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
     let array = tensor.array.sum_axis(Axis(dim)).into_shared();
 
     NdArrayTensor { array }
+}
+
+pub(crate) fn prod_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
+    _tensor: NdArrayTensor<E, D1>,
+    _dim: usize,
+) -> NdArrayTensor<E, D2> {
+    todo!();
 }

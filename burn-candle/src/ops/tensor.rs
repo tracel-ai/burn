@@ -350,6 +350,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> TensorOps<Self> for Candle<F, I
         CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
+    fn prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        todo!();
+    }
+
+    fn prod_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        todo!();
+    }
+
     fn mean_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
         CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
     }

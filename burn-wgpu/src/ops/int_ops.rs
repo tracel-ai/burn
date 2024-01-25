@@ -267,6 +267,15 @@ where
         reduce::sum_dim(tensor, output, dim)
     }
 
+    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+        kernel::reduce::prod(tensor)
+    }
+
+    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        let output = init_reduce_output(&tensor, dim);
+        reduce::prod_dim(tensor, output, dim)
+    }
+
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         let output = init_reduce_output(&tensor, dim);
         reduce::mean_dim(tensor, output, dim)

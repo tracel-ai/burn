@@ -1233,6 +1233,47 @@ impl<B: FusionBackend> TensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        unary_float_ops!(ProdOps, B::prod);
+
+        let stream = tensor.stream;
+        let out = tensor.client.tensor_uninitialized(vec![1]);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::Prod(desc.clone())),
+            ProdOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn prod_dim<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> FloatTensor<Self, D> {
+        scalar_float_ops!(ProdDimOps, B::prod_dim, usize, noconvert);
+
+        let stream = tensor.stream;
+        let mut shape = tensor.shape.clone();
+        shape[dim] = 1;
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = ScalarOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::NumericFloat(NumericOperationDescription::ProdDim(desc.clone())),
+            ProdDimOps::<D>::new(desc),
+        );
+
+        out
+    }
+
     fn mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         unary_float_ops!(MeanOps, B::mean);
 

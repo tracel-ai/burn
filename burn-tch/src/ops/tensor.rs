@@ -315,12 +315,20 @@ impl<E: TchElement> TensorOps<Self> for LibTorch<E> {
         TchOps::sum(tensor)
     }
 
+    fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
+        TchOps::prod(tensor)
+    }
+
     fn mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::mean_dim(tensor, dim)
     }
 
     fn sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::sum_dim(tensor, dim)
+    }
+
+    fn prod_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchOps::prod_dim(tensor, dim)
     }
 
     fn to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
