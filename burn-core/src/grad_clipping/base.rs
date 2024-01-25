@@ -98,7 +98,7 @@ impl GradientClipping {
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
-        let squared = tensor.powf(2.0);
+        let squared = tensor.powf_scalar(2.0);
         let sum = squared.sum();
 
         sum.sqrt()

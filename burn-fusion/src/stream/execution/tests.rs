@@ -11,8 +11,8 @@ use crate::{
         store::{
             ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
         },
-        BinaryOperationDescription, NumericOperationDescription, OperationDescription,
-        ScalarOperationDescription,
+        BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
+        OperationDescription, ScalarOperationDescription,
     },
     OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
     TensorStatus,
@@ -32,7 +32,6 @@ struct TestStream {
 struct TestOptimizationBuilder {
     builder_id: usize,
     expected_operations: Vec<OperationDescription>,
-    expected_trigger: ExecutionTrigger,
     actual: Vec<OperationDescription>,
 }
 
@@ -54,10 +53,6 @@ struct TestSegment<'i> {
 ///
 /// While it's usually preferable to split tests into multiple independent scenarios, in this case, it is
 /// crucial to verify that the stream's state is correctly updated when various cases occur consecutively.
-///
-/// Although it might complicate identifying the source of a bug in the code, having this comprehensive
-/// test case covers nearly all aspects of the implementation, while remaining easy to read and
-/// maintainable.
 #[test]
 fn should_support_complex_stream() {
     // We have 2 different optimization builders in this test case.
@@ -69,22 +64,8 @@ fn should_support_complex_stream() {
     let plan_id_2 = 1;
     let plan_id_3 = 2;
 
-    // The first builder only contains 2 operations, and the optimization is always available when
-    // the pattern is met.
-    let builder_1 = TestOptimizationBuilder::new(
-        builder_id_1,
-        vec![operation_1(), operation_2()],
-        ExecutionTrigger::Always,
-    );
-    // The second builder also contains 2 operations, but only becomes available when an operation
-    // is met.
-    let builder_2 = TestOptimizationBuilder::new(
-        builder_id_2,
-        vec![operation_2(), operation_2()],
-        ExecutionTrigger::OnOperation(operation_1()),
-    );
-
-    // We finally build the stream with those optimization builders.
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
+    let builder_2 = TestOptimizationBuilder::new(builder_id_2, vec![operation_2(), operation_2()]);
     let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
 
     // builder_1 is still waiting to see next op is operation_2
@@ -133,22 +114,22 @@ fn should_support_complex_stream() {
 
     // Nothing to execute.
     stream.add(operation_2());
-    stream.assert_number_of_operations(2);
-    stream.assert_number_of_executions(2);
-
-    // Now we should trigger the second optimization builder.
-    stream.add(operation_1());
-    stream.assert_number_of_operations(1);
+    stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(3);
     stream.assert_last_executed(plan_id_3);
     stream.assert_plan(
         plan_id_3,
         ExecutionPlan {
             operations: vec![operation_2(), operation_2()],
-            triggers: vec![ExecutionTrigger::OnOperation(operation_1())],
+            triggers: vec![ExecutionTrigger::Always],
             strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
         },
     );
+
+    // Now we should trigger the second optimization builder.
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(3);
 
     // Now we should trigger the first optimization builder (second plan).
     stream.add(operation_2());
@@ -171,26 +152,212 @@ fn should_support_complex_stream() {
 
     // Nothing to execute.
     stream.add(operation_2());
-    stream.assert_number_of_operations(2);
-    stream.assert_number_of_executions(4);
-
-    // On sync we should execute all operations even if their trigger isn't met.
-    // In this case the optimization from builder 2 (plan 3).
-    stream.sync();
     stream.assert_number_of_operations(0);
     stream.assert_number_of_executions(5);
     stream.assert_last_executed(plan_id_3);
+}
+
+/// In this scenario we will never use an optimization, but we check that we reuse the execution plan stored.
+#[test]
+fn should_reuse_basic_operations() {
+    let builder_id_1 = 0;
+    let plan_id_1 = 0;
+    let plan_id_2 = 1;
+
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
+    let mut stream = TestStream::new(vec![Box::new(builder_1)]);
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_number_of_operations(0);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_number_of_operations(0);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    // Lazy try to build optimization 1.
+    stream.add(operation_1());
+    // But not possible.
+    stream.add(operation_3());
+
+    // Creates a new plan with both operations.
+    stream.assert_plan(
+        plan_id_2,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+    stream.assert_number_of_operations(0);
+    stream.assert_last_executed(plan_id_2);
+}
+
+// In this scenario we validate that we support multiple optimization builders with overlapping
+// operations.
+//
+// This is a very long scenario that validates a lot of things.
+#[test]
+fn should_support_overlapping_optimizations() {
+    // We have 2 different optimization builders in this test case.
+    let builder_id_1 = 0;
+    let builder_id_2 = 0;
+
+    // We will have a total of 5 execution plans to execute.
+    let plan_id_1 = 0;
+    let plan_id_2 = 1;
+    let plan_id_3 = 2;
+    let plan_id_4 = 3;
+    let plan_id_5 = 4;
+
+    let builder_1 = TestOptimizationBuilder::new(builder_id_1, vec![operation_1(), operation_2()]);
+    let builder_2 = TestOptimizationBuilder::new(
+        builder_id_2,
+        vec![operation_1(), operation_2(), operation_1(), operation_1()],
+    );
+    let mut stream = TestStream::new(vec![Box::new(builder_1), Box::new(builder_2)]);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(0);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id_1);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![ExecutionTrigger::OnOperations(vec![
+                operation_1(),
+                operation_2(),
+            ])],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(3);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![
+                ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
+                ExecutionTrigger::OnOperations(vec![operation_2()]),
+            ],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+    stream.assert_plan(
+        plan_id_2,
+        ExecutionPlan {
+            operations: vec![operation_2()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(3);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(4);
+
     stream.assert_plan(
         plan_id_3,
         ExecutionPlan {
-            operations: vec![operation_2(), operation_2()],
-            triggers: vec![
-                ExecutionTrigger::OnOperation(operation_1()),
-                ExecutionTrigger::OnSync, // We also add OnSync in the triggers.
-            ],
-            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_2, 2)),
+            operations: vec![operation_1(), operation_2(), operation_1(), operation_1()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 4)),
         },
     );
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(1);
+    stream.assert_number_of_executions(4);
+
+    stream.add(operation_2());
+    stream.assert_number_of_operations(2);
+    stream.assert_number_of_executions(4);
+
+    stream.add(operation_1());
+    stream.assert_number_of_operations(3);
+    stream.assert_number_of_executions(4);
+
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(6);
+    stream.assert_plan(
+        plan_id_1,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![
+                ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
+                ExecutionTrigger::OnOperations(vec![operation_2()]),
+                ExecutionTrigger::OnSync,
+            ],
+            strategy: ExecutionStrategy::Optimization(TestOptimization::new(builder_id_1, 2)),
+        },
+    );
+    stream.assert_plan(
+        plan_id_4,
+        ExecutionPlan {
+            operations: vec![operation_1()],
+            triggers: vec![ExecutionTrigger::OnSync],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_5);
+    stream.assert_plan(
+        plan_id_5,
+        ExecutionPlan {
+            operations: vec![operation_3()],
+            triggers: vec![ExecutionTrigger::Always],
+            strategy: ExecutionStrategy::Operations,
+        },
+    );
+
+    stream.add(operation_3());
+    stream.assert_last_executed(plan_id_5);
 }
 
 impl TestStream {
@@ -226,8 +393,8 @@ impl TestStream {
     /// Assert that the plan has been executed as provided.
     fn assert_plan(&self, id: ExecutionPlanId, expected: ExecutionPlan<TestOptimization>) {
         let actual = self.store.get_unchecked(id);
-        assert_eq!(actual.triggers, expected.triggers);
-        assert_eq!(actual.operations, expected.operations);
+        assert_eq!(actual.operations, expected.operations, "Same operations");
+        assert_eq!(actual.triggers, expected.triggers, "Same triggers");
     }
 
     /// Assert that the given plan id has been the last executed.
@@ -251,16 +418,11 @@ impl TestStream {
 
 impl TestOptimizationBuilder {
     /// Create a new optimization builder that follows a pattern with a trigger.
-    fn new(
-        builder_id: usize,
-        operations: Vec<OperationDescription>,
-        trigger: ExecutionTrigger,
-    ) -> Self {
+    fn new(builder_id: usize, operations: Vec<OperationDescription>) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
             actual: Vec::new(),
-            expected_trigger: trigger,
         }
     }
 }
@@ -283,8 +445,6 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
     /// Return the optimization status.
     fn status(&self) -> OptimizationStatus {
-        let actual_equal_expected = self.actual == self.expected_operations;
-
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
@@ -293,17 +453,6 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
                 true => OptimizationStatus::Open,
                 // Never gonna be possible on that stream.
                 false => OptimizationStatus::Closed,
-            };
-        }
-
-        if self.actual.len() == self.expected_operations.len() && actual_equal_expected {
-            return match self.expected_trigger {
-                // Stop right away.
-                ExecutionTrigger::Always => OptimizationStatus::Closed,
-                // Wait for the next operation to show up.
-                ExecutionTrigger::OnOperation(_) => OptimizationStatus::Open,
-                // Doesn't matter on sync, even open should trigger a build if possible.
-                ExecutionTrigger::OnSync => OptimizationStatus::Open,
             };
         }
 
@@ -400,6 +549,24 @@ fn operation_2() -> OperationDescription {
             rhs: 5.0,
             out: TensorDescription {
                 id: TensorId::new(2),
+                shape: vec![32, 32],
+                status: TensorStatus::NotInit,
+            },
+        },
+    ))
+}
+
+/// Just a simple operation.
+fn operation_3() -> OperationDescription {
+    OperationDescription::Float(FloatOperationDescription::Log(
+        crate::stream::UnaryOperationDescription {
+            input: TensorDescription {
+                id: TensorId::new(0),
+                shape: vec![32, 32],
+                status: TensorStatus::ReadOnly,
+            },
+            out: TensorDescription {
+                id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
             },

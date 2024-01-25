@@ -351,7 +351,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
+    fn powf_scalar<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
         let array = if value == 2.0 {
             // Happens often and is faster.
             tensor.array.mapv_into(|a| a * a).into_shared()
@@ -438,5 +438,12 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
+    }
+
+    fn powf<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
     }
 }

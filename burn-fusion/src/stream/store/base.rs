@@ -19,13 +19,9 @@ pub(crate) enum ExecutionStrategy<O> {
 }
 
 /// The trigger that indicates when to stop exploring.
-#[allow(clippy::large_enum_variant)]
-// Triggers are stored in a list, and you can have many `OnOperation` entries,
-// but only one `OnSync` entry and one `Always` entry, therefore we don't care if it takes more
-// space to store them.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionTrigger {
-    OnOperation(OperationDescription),
+    OnOperations(Vec<OperationDescription>),
     OnSync,
     Always,
 }
@@ -42,25 +38,6 @@ pub(crate) struct ExecutionPlan<O> {
     pub(crate) triggers: Vec<ExecutionTrigger>,
     /// The strategy that should be used when executing this plan.
     pub(crate) strategy: ExecutionStrategy<O>,
-}
-
-impl<O> ExecutionPlan<O> {
-    /// Whether exploration should be stop in an async mode.
-    pub fn should_stop_async(&self, ops: &OperationDescription) -> bool {
-        for item in self.triggers.iter() {
-            match item {
-                ExecutionTrigger::OnOperation(val) => {
-                    if val == ops {
-                        return true;
-                    }
-                }
-                ExecutionTrigger::Always => return true,
-                ExecutionTrigger::OnSync => continue,
-            }
-        }
-
-        false
-    }
 }
 
 impl<O> ExecutionPlanStore<O> {
@@ -81,6 +58,12 @@ impl<O> ExecutionPlanStore<O> {
         }
 
         let id = self.plans.len();
+        log::info!(
+            "New execution plan {} - Operations: {:?} - Triggers {:?}",
+            id,
+            exploration.operations.len(),
+            exploration.triggers.len(),
+        );
 
         self.index.insert(InsertQuery::NewPlan {
             operations: &exploration.operations,

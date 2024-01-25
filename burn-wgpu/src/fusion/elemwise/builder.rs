@@ -199,8 +199,8 @@ where
                 Operator::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::AssignLocal { input: _, out: _ } => {
-                    // Nothing to do here.
+                Operator::AssignLocal { input: _, out } => {
+                    mark(out, &mut local_tensor_ids_output);
                 }
                 Operator::ReadGlobalWithLayout {
                     variable: _,
@@ -435,7 +435,7 @@ where
                     Operator::Sin { input, out }
                 })
             }
-            FloatOperationDescription::Powf(desc) => self.register_scalar_ops(
+            FloatOperationDescription::PowfScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
                 |lhs, rhs, out| Operator::Powf { lhs, rhs, out },
@@ -590,6 +590,42 @@ where
                     rhs,
                     out,
                 });
+
+                true
+            }
+            NumericOperationDescription::Ones(desc) => {
+                if !self.output_is_compatible(desc) {
+                    return false;
+                }
+
+                let input = Variable::Constant(1.0, Item::Scalar(E::elem_type()));
+                let out = self.output_to_var(desc, E::elem_type());
+
+                self.operators.push(Operator::AssignLocal { input, out });
+
+                true
+            }
+            NumericOperationDescription::Zeros(desc) => {
+                if !self.output_is_compatible(desc) {
+                    return false;
+                }
+
+                let input = Variable::Constant(0.0, Item::Scalar(E::elem_type()));
+                let out = self.output_to_var(desc, E::elem_type());
+
+                self.operators.push(Operator::AssignLocal { input, out });
+
+                true
+            }
+            NumericOperationDescription::Full((desc, elem)) => {
+                if !self.output_is_compatible(desc) {
+                    return false;
+                }
+
+                let input = self.scalar_to_var(elem, E::elem_type());
+                let out = self.output_to_var(desc, E::elem_type());
+
+                self.operators.push(Operator::AssignLocal { input, out });
 
                 true
             }

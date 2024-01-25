@@ -548,6 +548,26 @@ where
     pub fn tril(self, diagonal: i64) -> Self {
         self.tri_compare(diagonal, Tensor::lower_elem)
     }
+
+    /// Applies element wise power operation with a float Tensor
+    pub fn powf(self, other: Self) -> Self {
+        Self::new(K::powf(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise power operation with a float scalar
+    pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(K::powf_scalar(self.primitive, other))
+    }
+
+    /// Applies element wise power operation with a integer Tensor
+    pub fn powi(self, other: Self) -> Self {
+        Self::new(K::powi(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise power operation with a integer scalar
+    pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(K::powi_scalar(self.primitive, other))
+    }
 }
 
 impl<B, K> Tensor<B, 2, K>
@@ -1589,6 +1609,42 @@ where
     /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a float tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
+        -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
+        -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a scalar float
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a scalar int
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1842,6 +1898,34 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::int_abs(tensor)
+    }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_powf(lhs, B::int_into_float(rhs))
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> <Int as TensorKind<B>>::Primitive<D> {
+        B::int_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn powi<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_powi(lhs, rhs)
+    }
+
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::int_powf_scalar(lhs, rhs.elem())
     }
 }
 
@@ -2097,6 +2181,34 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::abs(tensor)
+    }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::powf(lhs, rhs)
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::powf_scalar(lhs, rhs.elem())
+    }
+
+    fn powi<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::powf(lhs, rhs)
+    }
+
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::powf_scalar(lhs, rhs.elem())
     }
 }
 

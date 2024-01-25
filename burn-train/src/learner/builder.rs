@@ -29,16 +29,16 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
-    S: LrScheduler,
+    S: LrScheduler<B>,
 {
     // Not that complex and very convenient when the traits are
     // already constrained correctly. Extracting in another type
     // would be more complex.
     #[allow(clippy::type_complexity)]
     checkpointers: Option<(
-        AsyncCheckpointer<M::Record>,
-        AsyncCheckpointer<O::Record>,
-        AsyncCheckpointer<S::Record>,
+        AsyncCheckpointer<M::Record, B>,
+        AsyncCheckpointer<O::Record, B>,
+        AsyncCheckpointer<S::Record, B>,
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
@@ -62,7 +62,7 @@ where
     V: Send + Sync + 'static,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
-    S: LrScheduler,
+    S: LrScheduler<B>,
 {
     /// Creates a new learner builder.
     ///
@@ -235,7 +235,8 @@ where
     /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
-        FR: FileRecorder + 'static,
+        FR: FileRecorder<B> + 'static,
+        FR: FileRecorder<B::InnerBackend> + 'static,
         O::Record: 'static,
         M::Record: 'static,
         S::Record: 'static,
@@ -281,9 +282,9 @@ where
             S,
             M,
             O,
-            AsyncCheckpointer<M::Record>,
-            AsyncCheckpointer<O::Record>,
-            AsyncCheckpointer<S::Record>,
+            AsyncCheckpointer<M::Record, B>,
+            AsyncCheckpointer<O::Record, B>,
+            AsyncCheckpointer<S::Record, B>,
             FullEventProcessor<T, V>,
             Box<dyn CheckpointingStrategy>,
         >,

@@ -4,7 +4,6 @@
 ///   - [Vulkan](Vulkan)
 ///   - [Metal](Metal)
 ///   - [OpenGL](OpenGl)
-///   - [DirectX 11](Dx11)
 ///   - [DirectX 12](Dx12)
 ///   - [WebGpu](WebGpu)
 pub trait GraphicsApi: Send + Sync + core::fmt::Debug + Default + Clone + 'static {
@@ -23,10 +22,6 @@ pub struct Metal;
 /// OpenGL graphics API.
 #[derive(Default, Debug, Clone)]
 pub struct OpenGl;
-
-/// DirectX 11 graphics API.
-#[derive(Default, Debug, Clone)]
-pub struct Dx11;
 
 /// DirectX 12 graphics API.
 #[derive(Default, Debug, Clone)]
@@ -55,12 +50,6 @@ impl GraphicsApi for Metal {
 impl GraphicsApi for OpenGl {
     fn backend() -> wgpu::Backend {
         wgpu::Backend::Gl
-    }
-}
-
-impl GraphicsApi for Dx11 {
-    fn backend() -> wgpu::Backend {
-        wgpu::Backend::Dx11
     }
 }
 

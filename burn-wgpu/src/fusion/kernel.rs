@@ -74,9 +74,24 @@ impl FusionKernelSet {
             &outputs_description_updated,
         );
 
-        let mut info =
-            Vec::with_capacity((inputs.len() + outputs.len()) * inputs[0].shape.len() * 2);
-        let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
+        let rank_input = inputs.first().map(|desc| desc.shape.len()).unwrap_or(1);
+        let rank_output = outputs.first().map(|desc| desc.shape.len()).unwrap_or(1);
+        let rank = usize::max(rank_input, rank_output);
+
+        let num_tensors = inputs.len() + outputs.len();
+        // The buffer starts with the rank, then each tensor shape and stride.
+        let info_size = (num_tensors * rank * 2) + 1;
+
+        let mut num_handles = num_tensors + 1;
+        if scalars_f32 > 0 {
+            num_handles += 1;
+        }
+        if scalars_i32 > 0 {
+            num_handles += 1;
+        }
+
+        let mut info = Vec::with_capacity(info_size);
+        let mut handles = Vec::with_capacity(num_handles);
         let mut output_register = Vec::with_capacity(outputs_description_updated.len());
 
         // We register the info and handles for the inputs.

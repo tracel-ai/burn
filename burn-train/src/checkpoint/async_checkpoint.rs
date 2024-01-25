@@ -1,26 +1,35 @@
 use super::{Checkpointer, CheckpointerError};
-use burn_core::record::Record;
+use burn_core::{record::Record, tensor::backend::Backend};
 use std::sync::mpsc;
 
-enum Message<R> {
-    Restore(usize, mpsc::SyncSender<Result<R, CheckpointerError>>),
+enum Message<R, B: Backend> {
+    Restore(
+        usize,
+        B::Device,
+        mpsc::SyncSender<Result<R, CheckpointerError>>,
+    ),
     Save(usize, R),
     Delete(usize),
     End,
 }
 
 #[derive(new)]
-struct CheckpointerThread<C, R> {
+struct CheckpointerThread<C, R, B: Backend> {
     checkpointer: C,
-    receiver: mpsc::Receiver<Message<R>>,
+    receiver: mpsc::Receiver<Message<R, B>>,
 }
 
-impl<C: Checkpointer<R>, R: Record> CheckpointerThread<C, R> {
+impl<C, R, B> CheckpointerThread<C, R, B>
+where
+    C: Checkpointer<R, B>,
+    R: Record<B>,
+    B: Backend,
+{
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
-                Message::Restore(epoch, callback) => {
-                    let record = self.checkpointer.restore(epoch);
+                Message::Restore(epoch, device, callback) => {
+                    let record = self.checkpointer.restore(epoch, &device);
                     callback
                         .send(record)
                         .expect("Can send response through callback channel.");
@@ -42,12 +51,16 @@ impl<C: Checkpointer<R>, R: Record> CheckpointerThread<C, R> {
 }
 
 /// Async checkpointer.
-pub struct AsyncCheckpointer<Record> {
-    sender: mpsc::SyncSender<Message<Record>>,
+pub struct AsyncCheckpointer<Record, B: Backend> {
+    sender: mpsc::SyncSender<Message<Record, B>>,
     handler: Option<std::thread::JoinHandle<()>>,
 }
 
-impl<R: Record + 'static> AsyncCheckpointer<R> {
+impl<R, B> AsyncCheckpointer<R, B>
+where
+    R: Record<B> + 'static,
+    B: Backend,
+{
     /// Create a new async checkpointer.
     ///
     /// # Arguments
@@ -59,7 +72,7 @@ impl<R: Record + 'static> AsyncCheckpointer<R> {
     /// The async checkpointer.
     pub fn new<C>(checkpointer: C) -> Self
     where
-        C: Checkpointer<R> + Send + 'static,
+        C: Checkpointer<R, B> + Send + 'static,
     {
         // Only on checkpoint can be done in advance.
         let (sender, receiver) = mpsc::sync_channel(0);
@@ -70,9 +83,10 @@ impl<R: Record + 'static> AsyncCheckpointer<R> {
     }
 }
 
-impl<R> Checkpointer<R> for AsyncCheckpointer<R>
+impl<R, B> Checkpointer<R, B> for AsyncCheckpointer<R, B>
 where
-    R: Record + 'static,
+    R: Record<B> + 'static,
+    B: Backend,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         self.sender
@@ -82,10 +96,10 @@ where
         Ok(())
     }
 
-    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
+    fn restore(&self, epoch: usize, device: &B::Device) -> Result<R, CheckpointerError> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender
-            .send(Message::Restore(epoch, sender))
+            .send(Message::Restore(epoch, device.clone(), sender))
             .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
 
         if let Ok(record) = receiver.recv() {
@@ -104,7 +118,10 @@ where
     }
 }
 
-impl<E> Drop for AsyncCheckpointer<E> {
+impl<E, B> Drop for AsyncCheckpointer<E, B>
+where
+    B: Backend,
+{
     fn drop(&mut self) {
         self.sender
             .send(Message::End)
