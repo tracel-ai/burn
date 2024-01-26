@@ -4,7 +4,7 @@
 
 the following examples use matrix multiplication operation
 
-Test for Tensor operations (as in given this input, expect it match or approximate this output) are defined only in [`burn-tensor/src/test/ops`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-tensor/src/tests/ops/matmul.rs#L1) and not in the backends, with the exception of `burn-autodiff`. These test are added to the `testgen_all` macro rule in [`burn-tensor/src/test/mod.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-tensor/src/tests/mod.rs#L59). This is then propogated to the existing backends without any additional work.
+Test for Tensor operations (as in given this input, expect it match or approximate this output) are defined only in [`burn-tensor/src/test/ops`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-tensor/src/tests/ops/matmul.rs#L1) and not in the backends, with the exception of `burn-autodiff`. These test are added to the `testgen_all` macro rule in [`burn-tensor/src/test/mod.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-tensor/src/tests/mod.rs#L59). This is then propagated to the existing backends without any additional work.
 
 ### Test for Autodiff
 

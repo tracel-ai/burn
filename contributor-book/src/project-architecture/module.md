@@ -3,7 +3,6 @@
 Modules are a way of creating neural network structures that can be easily optimized, saved, and loaded with little to no boilerplate.
 Unlike other frameworks, a module does not force the declaration of the forward pass, leaving it up to the implementer to decide how it should be defined.
 
-
 Additionally, most modules are created using a (de)serializable configuration, which defines the structure of the module and its hyper-parameters.
 Parameters and hyper-parameters are not serialized into the same file and both are normally necessary to load a module for inference.
 

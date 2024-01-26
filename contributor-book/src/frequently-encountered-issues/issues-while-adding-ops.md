@@ -1,8 +1,8 @@
-## Issues encountered while adding ops
+# Issues encountered while adding ops
 
 Most issues were fairly straight forward, and I was able to play whack-a-bug until I hit ones were I needed outside help (on the discord channels), so I'll share some of the ones that had me stumped enough to ask for help in case you too encounter them.
 
-### Off by .000001 errors
+## Off by .000001 errors
 
 ```sh
 ---- fusion::base::tests::maxmin::tests::test_mean_dim_2d stdout ---- thread 'fusion::base::tests::maxmin::tests::test_mean_dim_2d' panicked at burn-wgpu/src/fusion/base.rs:185:5: assertion `left == right` failed left: Data { value: [1.0, 4.0], shape: Shape { dims: [2, 1] } } right: Data { value: [0.99999994, 3.9999998], shape: Shape { dims: [2, 1] } } ----
@@ -12,7 +12,7 @@ tests::maxmin::tests::test_mean_dim_2d stdout ---- thread 'tests::maxmin::tests:
 
 If you encounter this, swap out the `assert_eq!` in the failing test for `tensor1.assert_approx_eq` with `3` as the second argument.
 
-### Mismatched types and missing functions
+## Mismatched types and missing functions
 
 ```sh
 error[E0308]: mismatched types --> {burn_dir}/target/debug/build/onnx-tests-fed12aaf3671687f/out/model/pow.rs:48:45 | 48 | let pow1_out1 = input1.clone().powf(input1); | ---- ^^^^^^ expected `f32`, found `Tensor<B, 4>` | | | arguments to this method are incorrect | = note: expected type `f32` found struct `Tensor<B, 4>` 
