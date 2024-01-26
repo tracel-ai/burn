@@ -38,8 +38,8 @@ pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     }
 
     // Handle cargo child process
-    let rustup_process = cargo.spawn().expect(error);
-    handle_child_process(rustup_process, "Cargo process should run flawlessly");
+    let cargo_process = cargo.spawn().expect(error);
+    handle_child_process(cargo_process, "Cargo process should run flawlessly");
 }
 
 /// Ensure that a cargo command is installed
@@ -123,8 +123,8 @@ pub(crate) fn rustup(command: &str, params: Params, expected: &str) {
         .args(params.params)
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()); // Send stderr directly to terminal
-    let rustup_process = rustup.spawn().expect(expected);
-    handle_child_process(rustup_process, "Failed to wait for rustup child process");
+    let cargo_process = rustup.spawn().expect(expected);
+    handle_child_process(cargo_process, "Failed to wait for rustup child process");
 }
 
 /// Add a Rust target
