@@ -28,7 +28,7 @@ pub enum VulnerabilityCheckType {
     MemorySanitizer,
     /// Run another address sanitizer (like AddressSanitizer and HardwareAddressSanitizer but with lower overhead suitable for use as hardening for production binaries)
     MemTagSanitizer,
-    /// Run nightly-only checks through cargo-careful (https://crates.io/crates/cargo-careful)
+    /// Run nightly-only checks through cargo-careful `<https://crates.io/crates/cargo-careful>`
     NightlyChecks,
     /// Run SafeStack check (provides backward-edge control flow protection by separating
     /// stack into safe and unsafe regions)

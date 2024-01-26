@@ -37,7 +37,7 @@ enum Command {
     /// Run the specified vulnerability check locally. These commands must be called with 'cargo +nightly'.
     Vulnerabilities {
         /// The vulnerability check to run.
-        /// For the reference visit the page https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html
+        /// For the reference visit the page `<https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html>`
         vulnerability_check: vulnerabilities::VulnerabilityCheckType,
     },
 }

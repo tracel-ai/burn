@@ -14,11 +14,11 @@ pub enum DependencyCheckType {
     /// Run all dependency checks.
     #[default]
     All,
-    /// Perform an audit of all dependencies using the cargo-audit crate (https://crates.io/crates/cargo-audit)
+    /// Perform an audit of all dependencies using the cargo-audit crate `<https://crates.io/crates/cargo-audit>`
     Audit,
-    /// Run cargo-deny check (https://crates.io/crates/cargo-deny)
+    /// Run cargo-deny check `<https://crates.io/crates/cargo-deny>`
     Deny,
-    /// Run cargo-udeps to find unused dependencies (https://crates.io/crates/cargo-udeps)
+    /// Run cargo-udeps to find unused dependencies `<https://crates.io/crates/cargo-udeps>`
     Unused,
 }
 
