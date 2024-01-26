@@ -20,6 +20,62 @@ use std::time::Instant;
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
+#[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
+pub enum CheckType {
+    /// Run all checks.
+    #[default]
+    All,
+    /// Run `std` environment checks
+    Std,
+    /// Run `no-std` environment checks
+    NoStd,
+    /// Check for typos
+    Typos,
+    /// Test the examples
+    Examples,
+}
+
+pub fn run(env: CheckType) -> anyhow::Result<()> {
+    // Setup logger
+    init_logger().init();
+
+    // Start time measurement
+    let start = Instant::now();
+
+    // The environment can assume ONLY "std", "no_std", "typos", "examples"
+    //
+    // Depending on the input argument, the respective environment checks
+    // are run.
+    //
+    // If no environment has been passed, run all checks.
+    match env {
+        CheckType::Std => std_checks(),
+        CheckType::NoStd => no_std_checks(),
+        CheckType::Typos => check_typos(),
+        CheckType::Examples => check_examples(),
+        CheckType::All => {
+            /* Run all checks */
+            check_typos();
+            std_checks();
+            no_std_checks();
+            check_examples();
+        }
+    }
+
+    // Stop time measurement
+    //
+    // Compute runtime duration
+    let duration = start.elapsed();
+
+    // Print duration
+    info!(
+        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+        format_duration(&duration)
+    );
+
+    Ok(())
+}
+
 /// Run cargo build command
 fn cargo_build(params: Params) {
     // Run cargo build
@@ -337,60 +393,4 @@ fn check_examples() {
         );
         endgroup!();
     }
-}
-
-#[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub enum CheckType {
-    /// Run all checks.
-    #[default]
-    All,
-    /// Run `std` environment checks
-    Std,
-    /// Run `no-std` environment checks
-    NoStd,
-    /// Check for typos
-    Typos,
-    /// Test the examples
-    Examples,
-}
-
-pub fn run(env: CheckType) -> anyhow::Result<()> {
-    // Setup logger
-    init_logger().init();
-
-    // Start time measurement
-    let start = Instant::now();
-
-    // The environment can assume ONLY "std", "no_std", "typos", "examples"
-    //
-    // Depending on the input argument, the respective environment checks
-    // are run.
-    //
-    // If no environment has been passed, run all checks.
-    match env {
-        CheckType::Std => std_checks(),
-        CheckType::NoStd => no_std_checks(),
-        CheckType::Typos => check_typos(),
-        CheckType::Examples => check_examples(),
-        CheckType::All => {
-            /* Run all checks */
-            check_typos();
-            std_checks();
-            no_std_checks();
-            check_examples();
-        }
-    }
-
-    // Stop time measurement
-    //
-    // Compute runtime duration
-    let duration = start.elapsed();
-
-    // Print duration
-    info!(
-        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-        format_duration(&duration)
-    );
-
-    Ok(())
 }
