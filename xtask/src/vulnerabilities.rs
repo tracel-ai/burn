@@ -113,6 +113,7 @@ Install a nightly toolchain with 'rustup toolchain install nightly'."
 
 // Represents the various sanitizer available in nightly compiler
 // source: https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html
+#[allow(clippy::upper_case_acronyms)]
 enum Sanitizer {
     Address,
     CFI,

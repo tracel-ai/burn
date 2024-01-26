@@ -156,8 +156,7 @@ pub(crate) fn rustup_get_installed_targets() -> String {
         .stdout(Stdio::piped())
         .output()
         .expect("Rustup command should execute successfully");
-    let stdout = String::from_utf8(output.stdout).expect("Output should be valid UTF-8");
-    stdout
+    String::from_utf8(output.stdout).expect("Output should be valid UTF-8")
 }
 
 /// Returns true if the current toolchain is the nightly
