@@ -1,3 +1,4 @@
+# Adding a new operation to burn
 
 Let's discuss how one might go about adding new operators to burn, using the example of the recently added [pow operator](https://github.com/tracel-ai/burn/pull/1133/files) (as of 01/24/2024). In that PR, the following things took place (albeit not in this order)
 
@@ -96,23 +97,6 @@ Let's review the changes made for pow starting from `src/burn` and moving to `sr
 3. specify how dimensions for the output should be derived in [burn-import/src/onnx/dim_inference.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-import/src/onnx/dim_inference.rs#L103)
 
 And you're done! Congrats, you just fully added a new op to burn, and we are all one step closer to the answer to [are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and it's freaking fast!". Buy yourself a coffee
-
-## Making sure everything works
-
-This is definitely covered elsewhere but I'd run this prior to any commit
-
-1. `cargo clippy --fix --allow-dirty`
-2. `cargo fmt --alll`
-3. `./run_checks.sh all`
-
-If you are getting test failures you can copy past the test name `foo_test` to run them directly with cargo until you get it working:
-
-```
-cargo test -p foo --lib --tests foo_test -- --nocapture
-
-```
-
-where `foo` is the burn package (such as `burn-wgpu`) and `foo_test` is something like `fusion::base::tests::maxmin::tests::test_mean_dim_2d`.
 
 [^1]: for more on supertraits see [the advanced trait section of the rust book](https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#using-supertraits-to-require-one-traits-functionality-within-another-trait)
 [^2]: wiki link for  [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation)

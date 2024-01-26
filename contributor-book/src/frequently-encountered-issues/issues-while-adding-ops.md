@@ -10,7 +10,7 @@ Most issues were fairly straight forward, and I was able to play whack-a-bug unt
 tests::maxmin::tests::test_mean_dim_2d stdout ---- thread 'tests::maxmin::tests::test_mean_dim_2d' panicked at burn-wgpu/src/lib.rs:49:5: assertion `left == right` failed left: Data { value: [1.0, 4.0], shape: Shape { dims: [2, 1] } } right: Data { value: [0.99999994, 3.9999998], shape: Shape { dims: [2, 1] } }
 ```
 
-If you encounter this, swap out the `assert_eq!` in the failing test for `tensor1.assert_approx_eq`
+If you encounter this, swap out the `assert_eq!` in the failing test for `tensor1.assert_approx_eq` with `3` as the second argument.
 
 ### Mismatched types and missing functions
 
