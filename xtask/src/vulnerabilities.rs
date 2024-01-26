@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::utils::{
-    ensure_cargo_crate_is_installed, is_current_toolchain_nightly, run_cargo,
-    rustup_add_component, rustup_get_installed_targets, Params,
+    ensure_cargo_crate_is_installed, is_current_toolchain_nightly, run_cargo, rustup_add_component,
+    rustup_get_installed_targets, Params,
 };
 use crate::{endgroup, group};
 use crate::{logging::init_logger, utils::format_duration};
@@ -152,7 +152,8 @@ impl Sanitizer {
     fn run_tests(&self) {
         if is_current_toolchain_nightly() {
             group!("Sanitizer: {}", self.to_string());
-            if self.is_target_supported() {
+            let retriever = RustupTargetRetriever;
+            if self.is_target_supported(&retriever) {
                 let envs = vec![
                     (
                         "RUSTFLAGS",
@@ -169,7 +170,7 @@ impl Sanitizer {
                     "test",
                     args.into(),
                     envs.into_iter().collect(),
-                    "Failed to run cargo fmt",
+                    "Failed to run cargo test",
                 );
             } else {
                 info!("No supported target found for this sanitizer.");
@@ -251,19 +252,45 @@ impl Sanitizer {
     }
 
     // Returns true if the sanitizer is supported by the currently installed targets
-    fn is_target_supported(&self) -> bool {
-        let installed_targets = rustup_get_installed_targets();
+    fn is_target_supported<T: TargetRetriever>(&self, retriever: &T) -> bool {
+        let installed_targets = retriever.get_installed_targets();
         let supported = self.supported_targets();
-        installed_targets.lines().any(|installed| {
-            supported
-                .iter()
-                .any(|target| target.to_string().eq(installed.trim()))
+        installed_targets.iter().any(|installed| {
+            let installed_target = Target::from_str(installed.trim()).unwrap_or(Target::Unknown);
+            supported.iter().any(|target| target == &installed_target)
         })
     }
 }
 
+// Constants for target names
+const AARCH64_APPLE_DARWIN: &str = "aarch64-apple-darwin";
+const AARCH64_LINUX_ANDROID: &str = "aarch64-linux-android";
+const AARCH64_UNKNOWN_FUCHSIA: &str = "aarch64-unknown-fuchsia";
+const AARCH64_UNKNOWN_LINUX_GNU: &str = "aarch64-unknown-linux-gnu";
+const X8664_APPLE_DARWIN: &str = "x86_64-apple-darwin";
+const X8664_LINUX_ANDROID: &str = "x86_64-linux-android";
+const X8664_UNKNOWN_FUCHSIA: &str = "x86_64-unknown-fuchsia";
+const X8664_UNKNOWN_FREEBSD: &str = "x86_64-unknown-freebsd";
+const X8664_UNKNOWN_LINUX_GNU: &str = "x86_64-unknown-linux-gnu";
+
+trait TargetRetriever {
+    fn get_installed_targets(&self) -> Vec<String>;
+}
+
+struct RustupTargetRetriever;
+
+impl TargetRetriever for RustupTargetRetriever {
+    fn get_installed_targets(&self) -> Vec<String> {
+        rustup_get_installed_targets()
+            .lines()
+            .map(|s| s.to_string())
+            .collect()
+    }
+}
+
 // Represents Rust targets
-// Remark: we list only the targets that are supported by sanetizers
+// Remark: we list only the targets that are supported by sanitizers
+#[derive(Debug, PartialEq)]
 enum Target {
     Aarch64AppleDarwin,
     Aarch64LinuxAndroid,
@@ -274,20 +301,94 @@ enum Target {
     X8664UnknownFuchsia,
     X8664UnknownFreebsd,
     X8664UnknownLinuxGnu,
+    Unknown,
+}
+
+impl Target {
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            AARCH64_APPLE_DARWIN => Some(Self::Aarch64AppleDarwin),
+            AARCH64_LINUX_ANDROID => Some(Self::Aarch64LinuxAndroid),
+            AARCH64_UNKNOWN_FUCHSIA => Some(Self::Aarch64UnknownFuchsia),
+            AARCH64_UNKNOWN_LINUX_GNU => Some(Self::Aarch64UnknownLinuxGnu),
+            X8664_APPLE_DARWIN => Some(Self::X8664AppleDarwin),
+            X8664_LINUX_ANDROID => Some(Self::X8664LinuxAndroid),
+            X8664_UNKNOWN_FUCHSIA => Some(Self::X8664UnknownFuchsia),
+            X8664_UNKNOWN_FREEBSD => Some(Self::X8664UnknownFreebsd),
+            X8664_UNKNOWN_LINUX_GNU => Some(Self::X8664UnknownLinuxGnu),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Target {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Target::Aarch64AppleDarwin => write!(f, "aarch64-apple-darwin"),
-            Target::Aarch64LinuxAndroid => write!(f, "aarch64-linux-android"),
-            Target::Aarch64UnknownFuchsia => write!(f, "aarch64-unknown-fuchsia"),
-            Target::Aarch64UnknownLinuxGnu => write!(f, "aarch64-unknown-linux-gnu"),
-            Target::X8664AppleDarwin => write!(f, "x86_64-apple-darwin"),
-            Target::X8664LinuxAndroid => write!(f, "x86_64-linux-android"),
-            Target::X8664UnknownFuchsia => write!(f, "x86_64-unknown-fuchsia"),
-            Target::X8664UnknownFreebsd => write!(f, "x86_64-unknown-freebsd"),
-            Target::X8664UnknownLinuxGnu => write!(f, "x86_64-unknown-linux-gnu"),
+        let target_str = match self {
+            Target::Aarch64AppleDarwin => AARCH64_APPLE_DARWIN,
+            Target::Aarch64LinuxAndroid => AARCH64_LINUX_ANDROID,
+            Target::Aarch64UnknownFuchsia => AARCH64_UNKNOWN_FUCHSIA,
+            Target::Aarch64UnknownLinuxGnu => AARCH64_UNKNOWN_LINUX_GNU,
+            Target::X8664AppleDarwin => X8664_APPLE_DARWIN,
+            Target::X8664LinuxAndroid => X8664_LINUX_ANDROID,
+            Target::X8664UnknownFuchsia => X8664_UNKNOWN_FUCHSIA,
+            Target::X8664UnknownFreebsd => X8664_UNKNOWN_FREEBSD,
+            Target::X8664UnknownLinuxGnu => X8664_UNKNOWN_LINUX_GNU,
+            Target::Unknown => "",
+        };
+        write!(f, "{}", target_str)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    struct MockTargetRetriever {
+        mock_data: Vec<String>,
+    }
+
+    impl MockTargetRetriever {
+        fn new(mock_data: Vec<String>) -> Self {
+            Self { mock_data }
+        }
+    }
+
+    impl TargetRetriever for MockTargetRetriever {
+        fn get_installed_targets(&self) -> Vec<String> {
+            self.mock_data.clone()
+        }
+    }
+
+    #[rstest]
+    #[case(vec!["".to_string()], false)] // empty string
+    #[case(vec!["x86_64-pc-windows-msvc".to_string()], false)] // not supported target
+    #[case(vec!["x86_64-pc-windows-msvc".to_string(), "".to_string()], false)] // not supported target and empty string
+    #[case(vec!["x86_64-unknown-linux-gnu".to_string()], true)] // one supported target
+    #[case(vec!["aarch64-apple-darwin".to_string(), "x86_64-unknown-linux-gnu".to_string()], true)] // one unsupported target and one supported
+    fn test_is_target_supported(#[case] installed_targets: Vec<String>, #[case] expected: bool) {
+        let mock_retriever = MockTargetRetriever::new(installed_targets);
+        let sanitizer = Sanitizer::Memory;
+        assert_eq!(sanitizer.is_target_supported(&mock_retriever), expected);
+    }
+
+    #[test]
+    fn test_consistency_of_fmt_and_from_str_strings() {
+        let variants = vec![
+            Target::Aarch64AppleDarwin,
+            Target::Aarch64LinuxAndroid,
+            Target::Aarch64UnknownFuchsia,
+            Target::Aarch64UnknownLinuxGnu,
+            Target::X8664AppleDarwin,
+            Target::X8664LinuxAndroid,
+            Target::X8664UnknownFuchsia,
+            Target::X8664UnknownFreebsd,
+            Target::X8664UnknownLinuxGnu,
+        ];
+        for variant in variants {
+            let variant_str = format!("{}", variant);
+            let parsed_variant = Target::from_str(&variant_str);
+            assert_eq!(Some(variant), parsed_variant);
         }
     }
 }
