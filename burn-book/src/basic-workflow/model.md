@@ -283,7 +283,7 @@ standard in the field.
 Similar to neural network modules, the [`Tensor`](../building-blocks/tensor.md) struct given as a
 parameter also takes the Backend trait as a generic argument, alongside its rank(or dimensionality). Even if it is not
 used in this specific example, it is possible to add the kind of the tensor as a third generic
-argument. For example, a 3-dimensional Tensor of different data types(float, int, bool) would eb defined as following:
+argument. For example, a 3-dimensional Tensor of different data types(float, int, bool) would be defined as following:
 
 ```rust , ignore
 Tensor<B, 3> // Float tensor (default)
