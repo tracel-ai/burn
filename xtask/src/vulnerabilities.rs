@@ -153,10 +153,10 @@ impl Sanitizer {
             if self.is_target_supported() {
                 let envs = vec![
                     (
-                        "RUSTFLAGS".to_string(),
+                        "RUSTFLAGS",
                         format!("{} {}", self.flags(), Sanitizer::DEFAULT_RUSTFLAGS),
                     ),
-                    ("RUSTDOCFLAGS".to_string(), self.flags()),
+                    ("RUSTDOCFLAGS", self.flags().to_string()),
                 ];
 
                 let features = self.cargo_features();
@@ -181,20 +181,18 @@ impl Sanitizer {
         }
     }
 
-    fn flags(&self) -> String {
+    fn flags(&self) -> &'static str {
         match self {
-            Sanitizer::Address => "-Zsanitizer=address".to_string(),
-            Sanitizer::CFI => "-Zsanitizer=cfi -Clto".to_string(),
-            Sanitizer::HWAddress => {
-                "-Zsanitizer=hwaddress -Ctarget-feature=+tagged-globals".to_string()
-            }
-            Sanitizer::KCFI => "-Zsanitizer=kcfi".to_string(),
-            Sanitizer::Leak => "-Zsanitizer=leak".to_string(),
-            Sanitizer::Memory => "-Zsanitizer=memory -Zsanitizer-memory-track-origins".to_string(),
-            Sanitizer::MemTag => "--Zsanitizer=memtag -Ctarget-feature=\"+mte\"".to_string(),
-            Sanitizer::SafeStack => "-Zsanitizer=safestack".to_string(),
-            Sanitizer::ShadowCallStack => "-Zsanitizer=shadow-call-stack".to_string(),
-            Sanitizer::Thread => "-Zsanitizer=thread".to_string(),
+            Sanitizer::Address => "-Zsanitizer=address",
+            Sanitizer::CFI => "-Zsanitizer=cfi -Clto",
+            Sanitizer::HWAddress => "-Zsanitizer=hwaddress -Ctarget-feature=+tagged-globals",
+            Sanitizer::KCFI => "-Zsanitizer=kcfi",
+            Sanitizer::Leak => "-Zsanitizer=leak",
+            Sanitizer::Memory => "-Zsanitizer=memory -Zsanitizer-memory-track-origins",
+            Sanitizer::MemTag => "--Zsanitizer=memtag -Ctarget-feature=\"+mte\"",
+            Sanitizer::SafeStack => "-Zsanitizer=safestack",
+            Sanitizer::ShadowCallStack => "-Zsanitizer=shadow-call-stack",
+            Sanitizer::Thread => "-Zsanitizer=thread",
         }
     }
 

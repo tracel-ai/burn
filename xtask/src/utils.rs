@@ -19,7 +19,7 @@ pub(crate) fn run_cargo(command: &str, params: Params, envs: HashMap<&str, Strin
 pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     command: &str,
     params: Params,
-    envs: HashMap<String, String>,
+    envs: HashMap<&str, String>,
     path: Option<P>,
     error: &str,
 ) {
