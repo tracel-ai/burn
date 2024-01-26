@@ -1,7 +1,7 @@
 # Tensor
 
 As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
-generic arguments: the backend, the number of dimensions (rank) and the data type.
+generic arguments: the backend, the number of dimensions (rank) and the data type. 
 
 ```rust , ignore
 Tensor<B, D>           // Float tensor (default)
@@ -13,14 +13,85 @@ Tensor<B, D, Bool>     // Bool tensor
 Note that the specific element types used for `Float`, `Int`, and `Bool` tensors are defined by
 backend implementations.
 
-## Operations
+In contrast to PyTorch where a Tensor is characterised by the size of it's each dimension, a Burn Tensor is
+characterized by the number of dimensions D in its declaration. The actual shape of the tensor is inferred from
+its initialization. For eg, a Tensor of size: (5,) is initialized as below:
+```rust, ignore
+// correct: Tensor is 1-Dimensional with 5 elements
+let tensor_1 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0, 4.0, 5.0]);
+
+// incorrect: let tensor_1 = Tensor::<Backend, 5>::from_floats([1.0, 2.0, 3.0, 4.0, 5.0]);
+// this will lead to an error and is for creating a 5-D tensor
+```
+
+### Initialization
+
+Burn Tensors are primarily initialized using the `from_data()` method which takes the `Data` struct as input. 
+The `Data` struct has two fields: value & shape. To access the data of any tensor, we use the method `.to_data()`.
+Let's look at a couple of examples for initializing a tensor from different inputs. 
+
+```rust, ignore
+// Initialization from a float array
+let tensor_1 = Tensor::<Backend, 1>::from_data([1.0, 2.0, 3.0]);
+
+// equivalent to (recommended)
+let tensor_2 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0]);
+
+// Initialization from a custom type
+
+struct BMI {
+    age: i8,
+    height: i16,
+    weight: f32
+}
+
+let bmi = BMI{
+        age: 10,
+        height: 100,
+        weight: 50.0
+    };
+let tensor_3 = Tensor::<Backend, 1>::from_data(Data::from([bmi.age as f32, bmi.height as f32, bmi.weight]).convert());
+
+```
+The `.convert()` method for Data struct is called in the last example to ensure that the data's primitive type is 
+consistent across all backends. The convert operation can also be done at element wise level as: 
+`let tensor_4 = Tensor::<B, 1, Int>::from_data(Data::from([(item.age as i64).elem()])`.  
+
+## Ownership and Cloning
 
 Almost all Burn operations take ownership of the input tensors. Therefore, reusing a tensor multiple
-times will necessitate cloning it. Don't worry, the tensor's buffer isn't copied, but a reference to
-it is increased. This makes it possible to determine exactly how many times a tensor is used, which
-is very convenient for reusing tensor buffers and improving performance. For that reason, we don't
-provide explicit inplace operations. If a tensor is used only one time, inplace operations will
-always be used when available.
+times will necessitate cloning it. Let's look at an example to understand the ownership rules and cloning better.
+Suppose we want to do a simple min-max normalization of an input tensor. 
+```rust, ignore
+    let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+    let min = input.min();
+    let max = input.max();
+    let input = (input - min).div(max - min);
+```
+With PyTorch tensors, the above code would work as expected. However, Rust's strict ownership rules will give an error
+and prevent using the input tensor after the first `.min()` operation. The ownership of the input tensor is transferred
+to the variable `min` and the input tensor is no longer available for further operations. Burn Tensors like most 
+complex primitives do not implement the `Copy` trait and therefore have to be cloned explicitly. Now let's rewrite 
+a working example of doing min-max normalization with cloning.
+
+```rust, ignore
+    let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+    let min = input.clone().min();
+    let max = input.clone().max();
+    let input = (input.clone() - min.clone()).div(max - min);
+    println!("{:?}", input.to_data());      // Success: [0.0, 0.33333334, 0.6666667, 1.0]
+    
+    // Notice that max, min have been moved in last operation so the below print will give an error.
+    // If we want to utlize them as well for further operations, they will need to be cloned in similar fashion.
+    // println!("{:?}", min.to_data());    
+```
+
+We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't copied, 
+and only a reference to it is increased. This makes it possible to determine exactly how many times a tensor is used, 
+which is very convenient for reusing tensor buffers and improving performance. For that reason, we don't provide 
+explicit inplace operations. If a tensor is used only one time, inplace operations will always be used when available.
+
+## Tensor Operations
 
 Normally with PyTorch, explicit inplace operations aren't supported during the backward pass, making
 them useful only for data preprocessing or inference-only model implementations. With Burn, you can
