@@ -32,6 +32,50 @@ distributions.
 | `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
 | `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
 
+Let us look at the basic usages of each dataset transform and how they can be composed together. The full documentation
+of each transform can be found at the [API reference](https://burn.dev/docs/burn/data/dataset/transform/index.html).
+
+* **SamplerDataset**: This transform can be used to sample items from a dataset with(default) and without replacement.
+Transform is initialized with a sampling size which can be bigger or smaller than the input dataset size. This is
+particularly useful in cases where we want to checkpoint larger datasets more often during training
+and smaller datasets less often as the size of an epoch is now controlled by the sampling size. Sample usage:
+```rust, ignore
+type DbPedia = SqliteDataset<DbPediaItem>;
+let dataset: DbPedia = HuggingfaceDatasetLoader::new("dbpedia_14")
+        .dataset("train").
+        .unwrap();
+                
+let dataset = SamplerDataset<DbPedia, DbPediaItem>::new(dataset, 10000);
+```
+
+* **ShuffledDataset**: This transform can be used to shuffle the items of a dataset. Particularly useful before splitting
+the raw dataset into train/test splits. Can be initialized with a seed to ensure reproducibility. 
+```rust, ignore
+let dataset = ShuffledDataset<DbPedia, DbPediaItem>::with_seed(dataset, 42);
+```
+
+* **PartialDataset**: This transform is useful to return a view of the dataset with a specified start, end index. Used
+to create train/val/test splits. Below example we show how to chain ShuffledDataset and PartialDataset to create splits.
+```rust, ignore
+// define chained dataset type here for brevity
+let PartialData = PartialDataset<ShuffledDataset<DbPedia, DbPediaItem>>;
+let dataset_len = dataset.len();
+let split == "train"; // or "val"/"test"
+
+let data_split = match split {
+            "train" => PartialData::new(dataset, 0, len * 8 / 10), // Get first 80% dataset
+            "test" => PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
+            _ => panic!("Invalid split type"),                     // Handle unexpected split types
+        };
+```
+
+* **MapperDataset**: This transform is useful to apply a transformation on each of the items of a dataset. Particularly
+useful for normalization of image data when channel means are known. 
+
+* **ComposedDataset**: This transform is useful to compose multiple datasets downloaded from multiple sources(say 
+different HuggingfaceDatasetLoader sources) into a single bigger dataset which can be sampled from one source. 
+
+
 ## Storage
 
 There are multiple dataset storage options available for you to choose from. The choice of the
