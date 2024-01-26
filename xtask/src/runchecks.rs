@@ -5,10 +5,12 @@
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
 use crate::logging::init_logger;
-use crate::utils::{
-    format_duration, get_workspaces, handle_child_process, run_cargo, run_cargo_with_path,
-    run_command, rustup_add_component, rustup_add_target, Params, WorkspaceMemberType,
-};
+use crate::utils::cargo::{run_cargo, run_cargo_with_path};
+use crate::utils::process::{handle_child_process, run_command};
+use crate::utils::rustup::{rustup_add_component, rustup_add_target};
+use crate::utils::time::format_duration;
+use crate::utils::workspace::{get_workspaces, WorkspaceMemberType};
+use crate::utils::Params;
 use crate::{endgroup, group};
 use std::collections::HashMap;
 use std::env;

@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use crate::utils::{
-    ensure_cargo_crate_is_installed, is_current_toolchain_nightly, run_cargo, rustup_add_component,
-    rustup_get_installed_targets, Params,
+use crate::logging::init_logger;
+use crate::utils::cargo::{ensure_cargo_crate_is_installed, run_cargo};
+use crate::utils::rustup::{
+    is_current_toolchain_nightly, rustup_add_component, rustup_get_installed_targets,
 };
+use crate::utils::time::format_duration;
+use crate::utils::Params;
 use crate::{endgroup, group};
-use crate::{logging::init_logger, utils::format_duration};
 use std::fmt;
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]

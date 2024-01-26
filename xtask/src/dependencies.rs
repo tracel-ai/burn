@@ -4,7 +4,9 @@ use crate::{
     endgroup, group,
     logging::init_logger,
     utils::{
-        ensure_cargo_crate_is_installed, format_duration, is_current_toolchain_nightly, run_cargo,
+        cargo::{ensure_cargo_crate_is_installed, run_cargo},
+        rustup::is_current_toolchain_nightly,
+        time::format_duration,
         Params,
     },
 };
