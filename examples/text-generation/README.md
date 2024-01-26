@@ -1,5 +1,10 @@
 # Text Generation
 
+> **Note**  
+> This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)
+> library to download the datasets. Make sure you have [Python](https://www.python.org/downloads/)
+> installed on your computer.
+
 The example can be run like so:
 
 ## CUDA users
