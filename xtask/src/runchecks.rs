@@ -272,7 +272,7 @@ fn burn_dataset_features_std() {
     cargo_test(["-p", "burn-dataset", "--all-features"].into());
 
     // Run cargo doc --all-features
-    cargo_doc(["-p", "burn-dataset", "--all-features"].into());
+    cargo_doc(["-p", "burn-dataset", "--all-features", "--no-deps"].into());
 
     endgroup!();
 }
@@ -308,7 +308,7 @@ fn std_checks() {
 
     // Produce documentation for each workspace
     group!("Docs: workspaces");
-    cargo_doc(["--workspace"].into());
+    cargo_doc(["--workspace", "--no-deps"].into());
     endgroup!();
 
     // Setup code coverage
