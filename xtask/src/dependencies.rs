@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum DependencyCheckType {
+pub(crate) enum DependencyCheck {
     /// Run all dependency checks.
     #[default]
     All,
@@ -22,7 +22,7 @@ pub(crate) enum DependencyCheckType {
     Unused,
 }
 
-impl DependencyCheckType {
+impl DependencyCheck {
     pub(crate) fn run(&self) -> anyhow::Result<()> {
         // Setup logger
         init_logger().init();

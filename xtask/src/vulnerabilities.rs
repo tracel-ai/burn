@@ -10,7 +10,7 @@ use crate::{logging::init_logger, utils::format_duration};
 use std::fmt;
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub(crate) enum VulnerabilityCheckType {
+pub(crate) enum VulnerabilityCheck {
     /// Run all most useful vulnerability checks.
     #[default]
     All,
@@ -39,7 +39,7 @@ pub(crate) enum VulnerabilityCheckType {
     ThreadSanitizer,
 }
 
-impl VulnerabilityCheckType {
+impl VulnerabilityCheck {
     pub(crate) fn run(&self) -> anyhow::Result<()> {
         // Setup logger
         init_logger().init();

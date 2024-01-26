@@ -22,7 +22,7 @@ enum Command {
     /// Run the specified dependencies check locally
     Dependencies {
         /// The dependency check to run
-        dependency_check: dependencies::DependencyCheckType,
+        dependency_check: dependencies::DependencyCheck,
     },
     /// Publish a crate to crates.io
     Publish {
@@ -38,7 +38,7 @@ enum Command {
     Vulnerabilities {
         /// The vulnerability check to run.
         /// For the reference visit the page `<https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html>`
-        vulnerability_check: vulnerabilities::VulnerabilityCheckType,
+        vulnerability_check: vulnerabilities::VulnerabilityCheck,
     },
 }
 
