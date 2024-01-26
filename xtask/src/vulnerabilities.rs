@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::utils::{
-    ensure_cargo_command_is_installed, is_current_toolchain_nightly, run_cargo,
+    ensure_cargo_crate_is_installed, is_current_toolchain_nightly, run_cargo,
     rustup_add_component, rustup_get_installed_targets, Params,
 };
 use crate::{endgroup, group};
@@ -85,7 +85,7 @@ impl VulnerabilityCheck {
 /// Run cargo-careful
 fn cargo_careful() {
     if is_current_toolchain_nightly() {
-        ensure_cargo_command_is_installed("cargo-careful");
+        ensure_cargo_crate_is_installed("cargo-careful");
         rustup_add_component("rust-src");
         // prepare careful sysroot
         group!("Cargo: careful setup");

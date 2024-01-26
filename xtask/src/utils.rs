@@ -42,29 +42,29 @@ pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     handle_child_process(cargo_process, "Cargo process should run flawlessly");
 }
 
-/// Ensure that a cargo command is installed
-pub(crate) fn ensure_cargo_command_is_installed(command: &str) {
-    if !is_cargo_command_installed(command) {
-        group!("Cargo: install {} command", command);
+/// Ensure that a cargo crate is installed
+pub(crate) fn ensure_cargo_crate_is_installed(crate_name: &str) {
+    if !is_cargo_crate_installed(crate_name) {
+        group!("Cargo: install {} crate_name", crate_name);
         run_cargo(
             "install",
-            [command].into(),
+            [crate_name].into(),
             HashMap::new(),
-            &format!("{} should be installed", command),
+            &format!("{} should be installed", crate_name),
         );
         endgroup!();
     }
 }
 
-/// Returns true if the passed cargo command is installed locally
-fn is_cargo_command_installed(command: &str) -> bool {
+/// Returns true if the passed cargo crate is installed locally
+fn is_cargo_crate_installed(crate_name: &str) -> bool {
     let output = Command::new("cargo")
         .arg("install")
         .arg("--list")
         .output()
         .expect("Should get the list of installed cargo commands");
     let output_str = String::from_utf8_lossy(&output.stdout);
-    output_str.lines().any(|line| line.contains(command))
+    output_str.lines().any(|line| line.contains(crate_name))
 }
 
 pub(crate) struct Params {

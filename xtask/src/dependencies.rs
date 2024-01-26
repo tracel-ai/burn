@@ -4,7 +4,7 @@ use crate::{
     endgroup, group,
     logging::init_logger,
     utils::{
-        ensure_cargo_command_is_installed, format_duration, is_current_toolchain_nightly,
+        ensure_cargo_crate_is_installed, format_duration, is_current_toolchain_nightly,
         run_cargo, Params,
     },
 };
@@ -56,7 +56,7 @@ impl DependencyCheck {
 
 /// Run cargo-audit
 fn cargo_audit() {
-    ensure_cargo_command_is_installed("cargo-audit");
+    ensure_cargo_crate_is_installed("cargo-audit");
     // Run cargo audit
     group!("Cargo: run audit checks");
     run_cargo(
@@ -70,7 +70,7 @@ fn cargo_audit() {
 
 /// Run cargo-deny
 fn cargo_deny() {
-    ensure_cargo_command_is_installed("cargo-deny");
+    ensure_cargo_crate_is_installed("cargo-deny");
     // Run cargo deny
     group!("Cargo: run deny checks");
     run_cargo(
@@ -85,7 +85,7 @@ fn cargo_deny() {
 /// Run cargo-udeps
 fn cargo_udeps() {
     if is_current_toolchain_nightly() {
-        ensure_cargo_command_is_installed("cargo-udeps");
+        ensure_cargo_crate_is_installed("cargo-udeps");
         // Run cargo udeps
         group!("Cargo: run unused dependencies checks");
         run_cargo(
