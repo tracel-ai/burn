@@ -104,7 +104,7 @@ something like this:
 
    ```rust
    // Convert the PyTorch model to Burn's binary format in
-   // build.rs or in a separate executable. Then, include the generated file 
+   // build.rs or in a separate executable. Then, include the generated file
    // in your project. See `examples/pytorch-import` for an example.
 
    use crate::model;
@@ -139,7 +139,7 @@ something like this:
    }
    ```
 
-## Fixing and troubleshooting
+## Troubleshooting
 
 ### Adjusting the source model architecture
 
@@ -204,10 +204,9 @@ let model = Net::<Backend>::new_with(record);
 
 ### Loading the model weights to a partial model
 
-`PyTorchFileRecorder` supports loading parts of the model weights to a partial model. For example,
-if your source model contains an encoder and a decoder, but you only want to load the encoder
-weights, you can define the encoder in Burn and load the encoder weights to the encoder,
-ignoring the decoder weights.
+`PyTorchFileRecorder` enables selective weight loading into partial models. For instance, in a model
+with both an encoder and a decoder, it's possible to load only the encoder weights. This is done by
+defining the encoder in Burn, allowing the loading of its weights while excluding the decoder's.
 
 ## Current known issues
 
