@@ -1,7 +1,9 @@
 # Training
 
-We are now ready to write the necessary code to train our model on the MNIST dataset. Instead of a
-simple tensor, the model should output an item that can be understood by the learner, a struct whose
+We are now ready to write the necessary code to train our model on the MNIST dataset. 
+We shall define the code for this training section in the file: `src/training.rs`. 
+
+Instead of a simple tensor, the model should output an item that can be understood by the learner, a struct whose
 responsibility is to apply an optimizer to the model. The output struct is used for all metrics
 calculated during the training. Therefore it should include all the necessary information to
 calculate any metric that you want for a task.

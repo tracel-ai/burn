@@ -4,7 +4,12 @@ This guide will walk you through the process of creating a custom model built wi
 train a simple convolutional neural network model on the MNIST dataset and prepare it for inference.
 
 For clarity, we sometimes omit imports in our code snippets. For more details, please refer to the
-corresponding code in the `examples/guide` directory.
+corresponding code in the `examples/guide` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide)
+where this complete example is reproduced step-by-step from dataset & model definition to training.
+The demo example can be executed from burn's base directory using the command:
+```bash
+cargo run --example guide
+```
 
 ## Key Learnings
 

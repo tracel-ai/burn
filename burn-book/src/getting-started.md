@@ -165,7 +165,7 @@ Tensor {
 ```
 
 While the previous example is somewhat trivial, the upcoming
-[basic workflow section](./basic-workflow/) will walk you through a much more relevant example for
+[basic workflow section](./basic-workflow/README.md) will walk you through a much more relevant example for
 deep learning applications.
 
 ## Running examples
