@@ -36,14 +36,14 @@ now for step 2. Since a significant number of the people reading this probably h
 
 In the case of pow, since this is a binary operation, the left and right functions are the partial derivatives with respect to the left and right sided tensors.
 
-Let's define the operator as a function $f(x,y)=x^{y}$, where $x$ is the left hand tensor and $y$ is the right handed tensor. The two closures are defining the partial derivatives of $f$ with respect to $x$,$y$. The eli5 is treat the other variable as a constant
+Let's define the operator as a function \\(f(x,y)=x^{y}\\) , where \\(x\\) is the left hand tensor and \\(y\\) is the right handed tensor. The two closures are defining the partial derivatives of \\(f\\) with respect to \\(x\\),\\(y\\). The eli5 is treat the other variable as a constant
 
 $$\frac{\delta }{\delta x} (x^{y})= y \cdot x^{y-1}$$
 is the left handed closure, and
 
 $$\frac{\delta }{\delta y} (x^{y}) = x^{y} \cdot ln(x)$$
 
-is the right. If you aren't sure how to calculate these by hand, I recommend using [symbolab](https://www.symbolab.com/solver/partial-derivative-calculator/%5Cfrac%7B%5Cpartial%7D%7B%5Cpartial%20x%7D%5Cleft(x%5E%7By%7D%5Cright)?or=input), plug in your operator in terms of $x$ and $y$, and just swap out the variable $x$|$y$ in the partial derivative to get the other side.
+is the right. If you aren't sure how to calculate these by hand, I recommend using [symbolab](https://www.symbolab.com/solver/partial-derivative-calculator/%5Cfrac%7B%5Cpartial%7D%7B%5Cpartial%20x%7D%5Cleft(x%5E%7By%7D%5Cright)?or=input), plug in your operator in terms of \\(x\\) and \\(y\\), and just swap out the variable \\(x\\)|\\(y\\) in the partial derivative to get the other side.
 
 ### Testing autodiff
 
