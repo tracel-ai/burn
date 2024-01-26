@@ -5,9 +5,12 @@ authors = [
     "Louis Fortier-Dubois",
     "Dilshod Tadjibaev",
     "Guillaume Lagrange",
-    "Joshua Ferguson"
+    "Joshua Ferguson",
 ]
 language = "en"
 multilingual = false
 src = "src"
 title = "The Burn Developer Book 🔥"
+
+[output.html]
+mathjax-support = true
