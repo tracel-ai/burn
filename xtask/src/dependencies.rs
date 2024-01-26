@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub enum DependencyCheckType {
+pub(crate) enum DependencyCheckType {
     /// Run all dependency checks.
     #[default]
     All,
@@ -22,7 +22,7 @@ pub enum DependencyCheckType {
     Unused,
 }
 
-pub fn run(dependency_check: DependencyCheckType) -> anyhow::Result<()> {
+pub(crate) fn run(dependency_check: DependencyCheckType) -> anyhow::Result<()> {
     // Setup logger
     init_logger().init();
     // Start time measurement

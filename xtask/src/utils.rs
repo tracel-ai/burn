@@ -11,7 +11,7 @@ use crate::{endgroup, group};
 // Cargo utils -----------------------------------------------------------
 
 /// Run a cargo command
-pub(crate) fn run_cargo(command: &str, params: Params, envs: HashMap<String, String>, error: &str) {
+pub(crate) fn run_cargo(command: &str, params: Params, envs: HashMap<&str, String>, error: &str) {
     run_cargo_with_path::<String>(command, params, envs, None, error)
 }
 

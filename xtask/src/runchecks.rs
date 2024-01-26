@@ -21,7 +21,7 @@ const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
-pub enum CheckType {
+pub(crate) enum CheckType {
     /// Run all checks.
     #[default]
     All,
@@ -35,7 +35,7 @@ pub enum CheckType {
     Examples,
 }
 
-pub fn run(env: CheckType) -> anyhow::Result<()> {
+pub(crate) fn run(env: CheckType) -> anyhow::Result<()> {
     // Setup logger
     init_logger().init();
 
