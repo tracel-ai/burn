@@ -96,6 +96,7 @@ fn cargo_udeps() {
     } else {
         error!(
             "You must use 'cargo +nightly' to check for unused dependencies.
-Install a nightly toolchain with 'rustup toolchain install nightly'.")
+Install a nightly toolchain with 'rustup toolchain install nightly'."
+        )
     }
 }

@@ -104,8 +104,10 @@ fn cargo_careful() {
         );
         endgroup!();
     } else {
-        error!("You must use 'cargo +nightly' to run nightly checks.
-Install a nightly toolchain with 'rustup toolchain install nightly'.")
+        error!(
+            "You must use 'cargo +nightly' to run nightly checks.
+Install a nightly toolchain with 'rustup toolchain install nightly'."
+        )
     }
 }
 
@@ -145,30 +147,37 @@ impl Sanitizer {
     const DEFAULT_RUSTFLAGS: &'static str = "-Copt-level=3";
 
     fn run_tests(&self) {
-        group!("Sanitizer: {}", self.to_string());
-        if self.is_target_supported() {
-            let envs = vec![
-                (
-                    "RUSTFLAGS".to_string(),
-                    format!("{} {}", self.flags(), Sanitizer::DEFAULT_RUSTFLAGS),
-                ),
-                ("RUSTDOCFLAGS".to_string(), self.flags()),
-            ];
+        if is_current_toolchain_nightly() {
+            group!("Sanitizer: {}", self.to_string());
+            if self.is_target_supported() {
+                let envs = vec![
+                    (
+                        "RUSTFLAGS".to_string(),
+                        format!("{} {}", self.flags(), Sanitizer::DEFAULT_RUSTFLAGS),
+                    ),
+                    ("RUSTDOCFLAGS".to_string(), self.flags()),
+                ];
 
-            let features = self.cargo_features();
-            let mut args = vec!["--", "--color=always", "--no-capture"];
-            args.extend(features);
+                let features = self.cargo_features();
+                let mut args = vec!["--", "--color=always", "--no-capture"];
+                args.extend(features);
 
-            run_cargo(
-                "test",
-                args.into(),
-                envs.into_iter().collect(),
-                "Failed to run cargo fmt",
-            );
+                run_cargo(
+                    "test",
+                    args.into(),
+                    envs.into_iter().collect(),
+                    "Failed to run cargo fmt",
+                );
+            } else {
+                info!("No supported target found for this sanitizer.");
+            }
+            endgroup!();
         } else {
-            info!("No supported target found for this sanitizer.");
+            error!(
+                "You must use 'cargo +nightly' to run this check.
+ Install a nightly toolchain with 'rustup toolchain install nightly'."
+            )
         }
-        endgroup!();
     }
 
     fn flags(&self) -> String {
