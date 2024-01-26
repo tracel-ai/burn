@@ -14,7 +14,7 @@ The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable
 
 ## Installation
 
-[`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch libray (LibTorch) to be
+[`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to be
 available on your system. It is recommended to manually download the LibTorch distribution (v2.1.0
 as required by `tch-rs`) as per the instructions below, except for [MPS](#mps).
 
