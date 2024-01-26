@@ -22,34 +22,36 @@ pub(crate) enum DependencyCheckType {
     Unused,
 }
 
-pub(crate) fn run(dependency_check: DependencyCheckType) -> anyhow::Result<()> {
-    // Setup logger
-    init_logger().init();
-    // Start time measurement
-    let start = Instant::now();
-    match dependency_check {
-        DependencyCheckType::Audit => cargo_audit(),
-        DependencyCheckType::Deny => cargo_deny(),
-        DependencyCheckType::Unused => cargo_udeps(),
-        DependencyCheckType::All => {
-            cargo_audit();
-            cargo_deny();
-            cargo_udeps();
+impl DependencyCheckType {
+    pub(crate) fn run(&self) -> anyhow::Result<()> {
+        // Setup logger
+        init_logger().init();
+        // Start time measurement
+        let start = Instant::now();
+        match self {
+            Self::Audit => cargo_audit(),
+            Self::Deny => cargo_deny(),
+            Self::Unused => cargo_udeps(),
+            Self::All => {
+                cargo_audit();
+                cargo_deny();
+                cargo_udeps();
+            }
         }
+
+        // Stop time measurement
+        //
+        // Compute runtime duration
+        let duration = start.elapsed();
+
+        // Print duration
+        info!(
+            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+            format_duration(&duration)
+        );
+
+        Ok(())
     }
-
-    // Stop time measurement
-    //
-    // Compute runtime duration
-    let duration = start.elapsed();
-
-    // Print duration
-    info!(
-        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-        format_duration(&duration)
-    );
-
-    Ok(())
 }
 
 /// Run cargo-audit

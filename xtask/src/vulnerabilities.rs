@@ -39,45 +39,47 @@ pub(crate) enum VulnerabilityCheckType {
     ThreadSanitizer,
 }
 
-pub(crate) fn run(vulnerability_check: VulnerabilityCheckType) -> anyhow::Result<()> {
-    // Setup logger
-    init_logger().init();
-    // Start time measurement
-    let start = Instant::now();
-    match vulnerability_check {
-        VulnerabilityCheckType::NightlyChecks => cargo_careful(),
-        VulnerabilityCheckType::AddressSanitizer => Sanitizer::Address.run_tests(),
-        VulnerabilityCheckType::ControlFlowIntegrity => Sanitizer::CFI.run_tests(),
-        VulnerabilityCheckType::HWAddressSanitizer => Sanitizer::HWAddress.run_tests(),
-        VulnerabilityCheckType::KernelControlFlowIntegrity => Sanitizer::KCFI.run_tests(),
-        VulnerabilityCheckType::LeakSanitizer => Sanitizer::Leak.run_tests(),
-        VulnerabilityCheckType::MemorySanitizer => Sanitizer::Memory.run_tests(),
-        VulnerabilityCheckType::MemTagSanitizer => Sanitizer::MemTag.run_tests(),
-        VulnerabilityCheckType::SafeStack => Sanitizer::SafeStack.run_tests(),
-        VulnerabilityCheckType::ShadowCallStack => Sanitizer::ShadowCallStack.run_tests(),
-        VulnerabilityCheckType::ThreadSanitizer => Sanitizer::Thread.run_tests(),
-        VulnerabilityCheckType::All => {
-            cargo_careful();
-            Sanitizer::Address.run_tests();
-            Sanitizer::Leak.run_tests();
-            Sanitizer::Memory.run_tests();
-            Sanitizer::SafeStack.run_tests();
-            Sanitizer::Thread.run_tests();
+impl VulnerabilityCheckType {
+    pub(crate) fn run(&self) -> anyhow::Result<()> {
+        // Setup logger
+        init_logger().init();
+        // Start time measurement
+        let start = Instant::now();
+        match self {
+            Self::NightlyChecks => cargo_careful(),
+            Self::AddressSanitizer => Sanitizer::Address.run_tests(),
+            Self::ControlFlowIntegrity => Sanitizer::CFI.run_tests(),
+            Self::HWAddressSanitizer => Sanitizer::HWAddress.run_tests(),
+            Self::KernelControlFlowIntegrity => Sanitizer::KCFI.run_tests(),
+            Self::LeakSanitizer => Sanitizer::Leak.run_tests(),
+            Self::MemorySanitizer => Sanitizer::Memory.run_tests(),
+            Self::MemTagSanitizer => Sanitizer::MemTag.run_tests(),
+            Self::SafeStack => Sanitizer::SafeStack.run_tests(),
+            Self::ShadowCallStack => Sanitizer::ShadowCallStack.run_tests(),
+            Self::ThreadSanitizer => Sanitizer::Thread.run_tests(),
+            Self::All => {
+                cargo_careful();
+                Sanitizer::Address.run_tests();
+                Sanitizer::Leak.run_tests();
+                Sanitizer::Memory.run_tests();
+                Sanitizer::SafeStack.run_tests();
+                Sanitizer::Thread.run_tests();
+            }
         }
+
+        // Stop time measurement
+        //
+        // Compute runtime duration
+        let duration = start.elapsed();
+
+        // Print duration
+        info!(
+            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+            format_duration(&duration)
+        );
+
+        Ok(())
     }
-
-    // Stop time measurement
-    //
-    // Compute runtime duration
-    let duration = start.elapsed();
-
-    // Print duration
-    info!(
-        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-        format_duration(&duration)
-    );
-
-    Ok(())
 }
 
 /// Run cargo-careful
@@ -255,7 +257,7 @@ impl Sanitizer {
         installed_targets.lines().any(|installed| {
             supported
                 .iter()
-                .any(|target| target.to_string() == installed.trim())
+                .any(|target| target.to_string().eq(installed.trim()))
         })
     }
 }

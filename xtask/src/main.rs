@@ -46,11 +46,11 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        Command::Dependencies { dependency_check } => dependencies::run(dependency_check),
+        Command::Dependencies { dependency_check } => dependency_check.run(),
         Command::Publish { name } => publish::run(name),
-        Command::RunChecks { env } => runchecks::run(env),
+        Command::RunChecks { env } => env.run(),
         Command::Vulnerabilities {
             vulnerability_check,
-        } => vulnerabilities::run(vulnerability_check),
+        } => vulnerability_check.run(),
     }
 }

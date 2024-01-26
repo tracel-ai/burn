@@ -35,45 +35,47 @@ pub(crate) enum CheckType {
     Examples,
 }
 
-pub(crate) fn run(env: CheckType) -> anyhow::Result<()> {
-    // Setup logger
-    init_logger().init();
+impl CheckType {
+    pub(crate) fn run(&self) -> anyhow::Result<()> {
+        // Setup logger
+        init_logger().init();
 
-    // Start time measurement
-    let start = Instant::now();
+        // Start time measurement
+        let start = Instant::now();
 
-    // The environment can assume ONLY "std", "no_std", "typos", "examples"
-    //
-    // Depending on the input argument, the respective environment checks
-    // are run.
-    //
-    // If no environment has been passed, run all checks.
-    match env {
-        CheckType::Std => std_checks(),
-        CheckType::NoStd => no_std_checks(),
-        CheckType::Typos => check_typos(),
-        CheckType::Examples => check_examples(),
-        CheckType::All => {
-            /* Run all checks */
-            check_typos();
-            std_checks();
-            no_std_checks();
-            check_examples();
+        // The environment can assume ONLY "std", "no_std", "typos", "examples"
+        //
+        // Depending on the input argument, the respective environment checks
+        // are run.
+        //
+        // If no environment has been passed, run all checks.
+        match self {
+            Self::Std => std_checks(),
+            Self::NoStd => no_std_checks(),
+            Self::Typos => check_typos(),
+            Self::Examples => check_examples(),
+            Self::All => {
+                /* Run all checks */
+                check_typos();
+                std_checks();
+                no_std_checks();
+                check_examples();
+            }
         }
+
+        // Stop time measurement
+        //
+        // Compute runtime duration
+        let duration = start.elapsed();
+
+        // Print duration
+        info!(
+            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
+            format_duration(&duration)
+        );
+
+        Ok(())
     }
-
-    // Stop time measurement
-    //
-    // Compute runtime duration
-    let duration = start.elapsed();
-
-    // Print duration
-    info!(
-        "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-        format_duration(&duration)
-    );
-
-    Ok(())
 }
 
 /// Run cargo build command
