@@ -63,18 +63,18 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct WorkgroupSize {
-    pub x: usize,
-    pub y: usize,
-    pub z: usize,
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
 }
 
 impl Default for WorkgroupSize {
     fn default() -> Self {
         Self {
-            x: WORKGROUP_DEFAULT,
-            y: WORKGROUP_DEFAULT,
+            x: WORKGROUP_DEFAULT as u32,
+            y: WORKGROUP_DEFAULT as u32,
             z: 1,
         }
     }

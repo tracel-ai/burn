@@ -1,7 +1,8 @@
-use crate::compute::{compute_client, Kernel};
+use crate::compute::{compute_client, Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
+use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::TensorDescription;
 use burn_tensor::Device;
@@ -13,6 +14,31 @@ use burn_tensor::Device;
 #[derive(new)]
 pub struct FusionKernelSet {
     kernels: Vec<Box<dyn FusionKernel>>,
+}
+
+#[derive(new)]
+pub struct FusionKernelSetExecutable {
+    kernel: Box<dyn Kernel>,
+    handles: Vec<WgpuHandle>,
+    client: WgpuComputeClient,
+}
+
+impl FusionKernelSetExecutable {
+    pub fn execute(self) {
+        self.client
+            .clone()
+            .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
+    }
+}
+
+impl AutotuneOperation for FusionKernelSetExecutable {
+    fn execute(self: Box<Self>) {
+        FusionKernelSetExecutable::execute(*self)
+    }
+
+    fn clone(&self) -> Box<dyn AutotuneOperation> {
+        panic!("Can't clone")
+    }
 }
 
 /// The priority of a kernel.
@@ -54,7 +80,7 @@ pub trait FusionKernel: Send + Sync {
 
 impl FusionKernelSet {
     /// Execute the best kernel based on the given information.
-    pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
+    pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
@@ -62,7 +88,7 @@ impl FusionKernelSet {
         scalars_i32: usize,
         context: &mut Context<'_, Wgpu<G, F, I>>,
         device: Device<Wgpu<G, F, I>>,
-    ) {
+    ) -> FusionKernelSetExecutable {
         let client = compute_client::<G>(&device);
 
         let (handles_input, inputs_description_updated, outputs_description_updated) =
@@ -151,8 +177,7 @@ impl FusionKernelSet {
             context.handles.register_handle(id, handle);
         }
 
-        // Execute the kernel.
-        client.execute(selected.kernel, &handles.iter().collect::<Vec<_>>());
+        FusionKernelSetExecutable::new(selected.kernel, handles, client)
     }
 
     fn select_kernel(

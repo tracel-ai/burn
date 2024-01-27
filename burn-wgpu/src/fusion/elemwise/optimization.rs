@@ -1,8 +1,10 @@
+use std::sync::atomic::{AtomicU8, Ordering};
+
 use super::kernel::{ScalarElementWise, VecElementWise};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
-        ReadingStrategy, Vectorization, Visibility,
+        ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
     },
     fusion::{kernel::FusionKernelSet, source::DynKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
@@ -19,27 +21,28 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    inputs: Vec<(TensorDescription, Elem)>,
-    outputs: Vec<(TensorDescription, Elem)>,
-    locals: Vec<u16>,
-    scalars: Scalars,
-    operators: Vec<Operator>,
-    device: Device<Wgpu<G, F, I>>,
-    phase: Phase,
+    pub(super) inputs: Vec<(TensorDescription, Elem)>,
+    pub(super) outputs: Vec<(TensorDescription, Elem)>,
+    pub(super) locals: Vec<u16>,
+    pub(super) scalars: Scalars,
+    pub(super) operators: Vec<Operator>,
+    pub(super) device: Device<Wgpu<G, F, I>>,
+    pub(super) phase: Phase,
 }
 
 #[derive(new, Clone, Serialize, Deserialize)]
 pub struct Scalars {
-    num_f32: usize,
-    num_u32: usize,
-    num_i32: usize,
+    pub(super) num_f32: usize,
+    pub(super) num_u32: usize,
+    pub(super) num_i32: usize,
 }
 
 pub struct CompilationPhase;
 
 #[derive(new)]
 pub struct ExecutionPhase {
-    kernel_set: FusionKernelSet,
+    pub(super) kernel_set_1: FusionKernelSet,
+    pub(super) kernel_set_2: FusionKernelSet,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -144,79 +147,20 @@ where
             })
             .collect::<Vec<_>>();
 
-        let scalar = ScalarElementWise::new(
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .inplace(&mappings)
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            mappings.clone(),
-            outputs.len(),
+        let kernel_set_1 = build_kernel_set(
+            &inputs,
+            &outputs,
+            &self.operators,
+            &mappings,
+            WorkgroupSize::default(),
         );
-
-        let vec2 = VecElementWise::new(
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .vectorize(Vectorization::Vec2)
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .vectorize(Vectorization::Vec2)
-                    .inplace(&mappings)
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            mappings.clone(),
-            outputs.len(),
-            2,
+        let kernel_set_2 = build_kernel_set(
+            &inputs,
+            &outputs,
+            &self.operators,
+            &mappings,
+            WorkgroupSize::new(16, 16, 1),
         );
-        let vec4 = VecElementWise::new(
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .vectorize(Vectorization::Vec4)
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            DynKernelSource::new(
-                IdGenerator::generate(),
-                ElemWiseKernelCodegen::new()
-                    .vectorize(Vectorization::Vec4)
-                    .inplace(&mappings)
-                    .inputs(&inputs)
-                    .body(&self.operators)
-                    .outputs(&outputs)
-                    .compile(),
-            ),
-            mappings,
-            outputs.len(),
-            4,
-        );
-
-        let kernel_set =
-            FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)]);
 
         ElementWise {
             inputs: self.inputs,
@@ -225,10 +169,12 @@ where
             device: self.device,
             operators: self.operators,
             locals: self.locals,
-            phase: ExecutionPhase::new(kernel_set),
+            phase: ExecutionPhase::new(kernel_set_1, kernel_set_2),
         }
     }
 }
+
+static ELEM_WISE_MODE: AtomicU8 = AtomicU8::new(0);
 
 impl<G, F, I> ElementWise<G, F, I, ExecutionPhase>
 where
@@ -237,14 +183,29 @@ where
     I: IntElement,
 {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        self.phase.kernel_set.execute(
+        let kernel_set = match ELEM_WISE_MODE.load(Ordering::Relaxed) {
+            0 => 0,
+            1 => 1,
+            2 => todo!("Autotune"),
+            _ => panic!(),
+        };
+
+        let kernel_set = match kernel_set {
+            0 => &self.phase.kernel_set_1,
+            1 => &self.phase.kernel_set_2,
+            _ => panic!("Should be 0 or 1, got {kernel_set}"),
+        };
+
+        let kernel = kernel_set.select(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             self.scalars.num_f32,
             self.scalars.num_i32,
             context,
             self.device.clone(),
-        )
+        );
+
+        kernel.execute()
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -278,6 +239,93 @@ where
             locals: self.locals.clone(),
         }
     }
+}
+
+fn build_kernel_set(
+    inputs: &[Input],
+    outputs: &[Output],
+    operators: &[Operator],
+    mappings: &[InplaceMapping],
+    workgroup_size: WorkgroupSize,
+) -> FusionKernelSet {
+    let scalar = ScalarElementWise::new(
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .inplace(mappings)
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        mappings.to_vec(),
+        outputs.len(),
+    );
+
+    let vec2 = VecElementWise::new(
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .vectorize(Vectorization::Vec2)
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .vectorize(Vectorization::Vec2)
+                .inplace(mappings)
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        mappings.to_vec(),
+        outputs.len(),
+        2,
+    );
+    let vec4 = VecElementWise::new(
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .vectorize(Vectorization::Vec4)
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        DynKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new()
+                .vectorize(Vectorization::Vec4)
+                .inplace(mappings)
+                .inputs(inputs)
+                .body(operators)
+                .outputs(outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        mappings.to_vec(),
+        outputs.len(),
+        4,
+    );
+
+    FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)])
 }
 
 #[cfg(test)]
