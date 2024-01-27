@@ -7,7 +7,7 @@
 - [Architecture Overview](./project-architecture/ReadMe.md)
   - [Modules](./project-architecture/module.md)
   - [Serialization](./project-architecture/serialization.md)
-  - [Tensor](./project-architecture/tensor.md)
+  - [Tensor](./project-architecture/Tensor.md)
   - [Backend](./project-architecture/backend.md)
 - [Guides for Contributors](./guides/ReadMe.md)
   - [adding a new operation to burn](./guides/adding-a-new-operation-to-burn.md)

@@ -4,7 +4,7 @@ There are a couple of tools that need to be installed, and commands to be famili
 
 ## General
 
-there are a few commands you want to run prior to any commit for a non-draft PR:
+There are a few commands you want to run prior to any commit for a non-draft PR:
 
 1. `cargo clippy --fix --allow-dirty`, this will run clippy and fix any issues it can, the allow dirty flag is required whenever you have uncommitted changes
 2. `cargo fmt --all`, this will run rustfmt on all files in the project
@@ -12,21 +12,18 @@ there are a few commands you want to run prior to any commit for a non-draft PR:
 
 ## Updating the burn semver version
 
-To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
+To bump for the next version, edit the semantic version number in `burn/Cargo.toml`, and then run `cargo update` to update the lock file.
 
-```sh
-cargo set-version --bump minor
-```
 
-## Contributing to the Burn (Developer) Book
+## Contributing to the Burn (Contributor) Book
 
-Both the Burn book and the burn developer book are built with mdbook. To install mdbook, run the following command[^1]:
+Both the Burn book and the burn contributor book are built with mdbook. To install mdbook, run the following command[^1]:
 
 ```bash
 cargo install mdbook
 ```
 
-also instead of running `./run_checks.sh all`, you can run `./run_checks.sh typo` to only check for misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if any are encountered you should be able to run `typo -w /path/to/book` to fix them.
+Also instead of running `./run_checks.sh all`, you can run `./run_checks.sh typo` to only check for misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if any are encountered you should be able to run `typo -w /path/to/book` to fix them.
 
 [^1]: You might also want to install [cargo-update](https://github.com/nabijaczleweli/cargo-update) to easily keep your tools up to date, though it is in no way required.
-[^2]: if your system is running into issues with memory and you are on linux  you may want to switch to a [virtual console](https://wiki.archlinux.org/title/Linux_console#Virtual_consoles) to run the tests. To do this, press `ctrl+alt+f3` to switch to a virtual console(and log in), and either `ctrl+alt+f2` or `ctrl+alt+f1` to switch back to your graphical session.
+[^2]: If your system is running into issues with memory and you are on linux  you may want to switch to a [virtual console](https://wiki.archlinux.org/title/Linux_console#Virtual_consoles) to run the tests. To do this, press `ctrl+alt+f3` to switch to a virtual console(and log in), and either `ctrl+alt+f2` or `ctrl+alt+f1` to switch back to your graphical session.

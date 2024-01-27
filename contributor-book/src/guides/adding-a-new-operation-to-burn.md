@@ -4,9 +4,9 @@ Let's discuss how one might go about adding new operators to burn, using the exa
 
 ## Adding the Op to burn-tensor
 
-burn-tensor is the crate that defines all tensor operations that need to be implemented by the various backends. The core of this lies in  `burn-tensor/src/tensor/api/numeric.rs`, which is home to the numeric trait and it's implementation for the different ensor types. The implementations for the `Foo` kind call the op defined under `tensor/src/tensor/op/foo_tensor.rs`Which defines ops specific to that type for the backend.
+burn-tensor is the crate that defines all tensor operations that need to be implemented by the various backends. The core of this lies in  `burn-tensor/src/tensor/api/numeric.rs`, which is home to the numeric trait and it's implementation for the different ensor types. The numeric trait is the home of all tensor operations that are numeric in nature that are shared by `Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be found under the section for [Tensor Architecture](../project-architecture/Tensor.md#tensorops).
 
-here is where pow was added to [burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/api/numeric.rs#L1618)
+here is where pow was added to `burn-tensor/src/tensor/api/numeric.rs`:
 
 1. for the [`Tensor<Backend,Dimension,Kind>` struct](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/api/numeric.rs#L553)
 2. for the [numeric trait](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/api/numeric.rs#L1618)
@@ -20,7 +20,7 @@ The `Int` Tensor function use the ones defined for Float with 2 extra cast (LHS 
 
 ### Adding Test
 
-Additional Test should be added to `burn-tensor` under `burn-tensor/src/tests/ops/{op_name}.rs`(I would link to a file but I just realized I forgot to add one for non scalar pow ops). this file should then be added to `burn-tensor/src/tests/mod.rs` using the testgen macro. This test is then ran on every backend, save for those that require specific testing such as burn-autodiff
+Additional Test should be added to `burn-tensor` under `burn-tensor/src/tests/ops/{op_name}.rs`. This file should then be added to `burn-tensor/src/tests/mod.rs` using the testgen macro. This test is then ran on every backend, save for those that require specific testing such as burn-autodiff
 
 ## Adding the Op to the burn-autodiff
 

@@ -19,3 +19,25 @@ Tensors are thread-safe, which means that you can send a tensor to another threa
 Note that there are no in-place tensor operations since all tensor operations take owned tensors as parameters, which make it possible to mutate them.
 Tensors can be shared simply by cloning them, but if there is only one reference to a tensor, the backend implementation is free to reuse the tensor's allocated data.
 For more information about how it is done, you can have a look at this [blog post](https://burn.dev/blog/burn-rusty-approach-to-tensor-handling).
+
+## TensorOps
+
+Operations on Tensors are defined in traits (generally part of the Backend Supertrait) and implemented for the Tensor struct. The appropriate parent trait of an op depends on the type of operation:
+
+- `base` => All tensor kinds should implement these operations (Reshape, into_data, etc.). The implementation is in `burn-tensor/src/tensor/api/base.rs`.
+- `numeric` => All tensors that are numeric by nature should implement these operations (Add, Sub, Div, etc.). The implementation is in `burn-tensor/src/tensor/api/numeric.rs`.
+- `Float` => Tensor operations are only available for float tensors. The implementation is in `burn-tensor/src/tensor/api/float.rs`.
+- `Int` => Tensor operations are only available for int tensors. The implementation is in `burn-tensor/src/tensor/api/int.rs`.
+- `bool` => Tensor operations are only available for bool tensors. The implementation is in `burn-tensor/src/tensor/api/bool.rs`.
+
+`Numeric` is directly implemented for `Float` and `Int` tensors, and in general, The implementations for these methods are calling the corresponding `{Int|Float}TensorOp` method defined in the backend supertrait.
+
+Anything that is implemented by numeric should have an implementation in the `{Int|Float}TensorOp` traits, though it may be avoidable if the operation for one type requires casting to the other type. To provide an example, Powf should be implemented for `Int` tensors, but it should not be an Int Tensor Operation. The LHS should be converted to a float, and the output should be converted back to an int. So it's possible to avoid implementing `IntTensorOp` altogether.
+
+additionally there are some operations that should be defined as functions instead of tensor/tensor op methods. these are:
+
+`module` => These should be exported as functions instead of methods on tensors. The implementation is in `burn-tensor/src/tensor/module.rs` (Might be moved to `tensor/api/module.rs`).
+`activation` => These should also be exported as functions instead of methods on tensors. The implementation is in `burn-tensor/src/tensor/activation/base.rs` (Might be moved to `tensor/api/activation.rs`).
+
+Note that some activations are just a combination of backend operations and are not declared in `burn-tensor/src/tensor/ops/activation.rs`
+
