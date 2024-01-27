@@ -128,12 +128,12 @@ pub trait ModuleOps<B: Backend> {
     /// The output tensor.
     fn embedding(weights: FloatTensor<B, 2>, indices: IntTensor<B, 2>) -> FloatTensor<B, 3> {
         let [batch_size, seq_length] = B::int_shape(&indices).dims;
-        let [_, d_model] = B::shape(&weights).dims;
+        let [_, d_model] = B::float_shape(&weights).dims;
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
-        let output = B::select(weights, 0, indices);
+        let output = B::float_select(weights, 0, indices);
 
-        B::reshape(output, Shape::new([batch_size, seq_length, d_model]))
+        B::float_reshape(output, Shape::new([batch_size, seq_length, d_model]))
     }
 
     /// Embedding backward operation.
@@ -153,14 +153,15 @@ pub trait ModuleOps<B: Backend> {
         indices: IntTensor<B, 2>,
     ) -> FloatTensor<B, 2> {
         let [batch_size, seq_length] = B::int_shape(&indices).dims;
-        let [n_embeddings, d_model] = B::shape(&weights).dims;
-        let device = B::device(&weights);
+        let [n_embeddings, d_model] = B::float_shape(&weights).dims;
+        let device = B::float_device(&weights);
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
-        let output_grad = B::reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
-        let grad = B::zeros(Shape::new([n_embeddings, d_model]), &device);
+        let output_grad =
+            B::float_reshape(output_grad, Shape::new([batch_size * seq_length, d_model]));
+        let grad = B::float_zeros(Shape::new([n_embeddings, d_model]), &device);
 
-        B::select_assign(grad, 0, indices, output_grad)
+        B::float_select_assign(grad, 0, indices, output_grad)
     }
     /// One dimensional convolution.
     ///

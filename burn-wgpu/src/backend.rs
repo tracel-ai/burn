@@ -38,7 +38,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for Wgpu<
     type FloatElem = F;
     type IntElem = I;
 
-    type TensorPrimitive<const D: usize> = WgpuTensor<F, D>;
+    type FloatTensorPrimitive<const D: usize> = WgpuTensor<F, D>;
     type IntTensorPrimitive<const D: usize> = WgpuTensor<I, D>;
     type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
 
