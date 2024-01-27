@@ -20,7 +20,7 @@ The `Int` Tensor function use the ones defined for Float with 2 extra cast (LHS 
 
 ### Adding Test
 
-Additional Test should be added to `burn-tensor` under `burn-tensor/src/tests/ops/{op_name}.rs`. This file should then be added to `burn-tensor/src/tests/mod.rs` using the testgen macro. This test is then ran on every backend, save for those that require specific testing such as burn-autodiff
+Additional Test should be added to `burn-tensor` under [`burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/burn-tensor/src/tests/ops/powf.rs), inserting the module name into ``burn-tensor/src/tests/ops/mod.rs`. Then add it to`testgen_all` macro under `burn-tensor/src/tests/mod.rs`. This test is automatically added to the backends so it isn't necessary to add them there, save for those that require specific testing such as`burn-autodiff`
 
 ## Adding the Op to the burn-autodiff
 
@@ -86,7 +86,7 @@ There would have been a few other places additions would be necessary if some of
 
 ## Adding the Op to burn-import
 
-I won't comment on generating the test onnx files or the test, as that is already covered [here](https://github.com/tracel-ai/burn/blob/main/burn-import/DEVELOPMENT.md#adding-new-operators), this is more about the specific changes you need to make when adding new operators after you have generated the tests.
+I won't comment on generating the test onnx files or the test, as that is already covered [in the ONNX to burn guide](onnx-to-burn-conversion-tool.md#adding-new-operators), this is more about the specific changes you need to make when adding new operators after you have generated the tests.
 
 The crate is divided into two sections `src/burn` and `src/onnx`. The code under the former corresponds to the operation you've implemented earlier in this guide, and the latter to the operations defined in the onnx specification. So when you are loading a model, the operator is first parsed to an intermediate representation defined by `src/onnx`, and then mapped to a Burn operations  defined under `src/burn/node`.
 

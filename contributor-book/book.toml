@@ -10,7 +10,7 @@ authors = [
 language = "en"
 multilingual = false
 src = "src"
-title = "The Burn Developer Book 🔥"
+title = "The Burn Contributor Book 🔥"
 
 [output.html]
 mathjax-support = true

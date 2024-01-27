@@ -16,5 +16,4 @@ Test for autodiff go under [burn-autodiff/src/tests/{op_name}.rs](https://github
 2. pop open a terminal and launch `ipython` import `numpy` (or just use [google colab](https://colab.google/) if you don't have the packages installed and don't want to install them),  and do the calculations by hand.
 3. comparing the actual to expected output for lhs, rhs and regular operation
 
-generally, it seems preferable to use `actual_output_tensor.to_data().assert_approx_eq(&expected_tensor_data,3)` to `assert_eq!(...` due to occasional hiccups with floating point calculations.
-
+generally, it seems preferable to use `actual_output_tensor.into_data().assert_approx_eq(&expected_tensor_data,3)` to `assert_eq!(...` due to occasional hiccups with floating point calculations.

@@ -10,5 +10,6 @@
   - [Tensor](./project-architecture/Tensor.md)
   - [Backend](./project-architecture/backend.md)
 - [Guides for Contributors](./guides/ReadMe.md)
+  - [onnx to burn conversion tool: A Development Guide](./guides/onnx-to-burn-conversion-tool.md)
   - [adding a new operation to burn](./guides/adding-a-new-operation-to-burn.md)
 - [Issue related to adding operators](./frequently-encountered-issues/issues-while-adding-ops.md)
