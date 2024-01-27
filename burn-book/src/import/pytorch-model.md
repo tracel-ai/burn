@@ -19,9 +19,9 @@ Here is an example of how to export a PyTorch model:
 import torch
 import torch.nn as nn
 
-class MyModel(nn.Module):
+class Net(nn.Module):
     def __init__(self):
-        super(MyModel, self).__init__()
+        super(Net, self).__init__()
         self.conv1 = nn.Conv2d(2, 2, (2,2))
         self.conv2 = nn.Conv2d(2, 2, (2,2), bias=False)
 
@@ -32,7 +32,7 @@ class MyModel(nn.Module):
 
 def main():
     torch.manual_seed(42)  # To make it reproducible
-    model = MyModel().to(torch.device("cpu"))
+    model = Net().to(torch.device("cpu"))
     model_weights = model.state_dict()
     torch.save(model_weights, "conv2d.pt")
 ```
@@ -159,9 +159,9 @@ class ConvModule(nn.Module):
         x = self.conv2(x)
         return x
 
-class MyModel(nn.Module):
+class Net(nn.Module):
     def __init__(self):
-        super(MyModel, self).__init__()
+        super(Net, self).__init__()
         self.conv = ConvModule()
 
     def forward(self, x):
