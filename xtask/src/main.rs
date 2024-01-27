@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+mod books;
 mod dependencies;
 mod logging;
 mod publish;
@@ -19,6 +20,8 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Run commands to manage Burn Books
+    Books(books::BookArgs),
     /// Run the specified dependencies check locally
     Dependencies {
         /// The dependency check to run
@@ -46,6 +49,7 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
+        Command::Books(args) => args.parse(),
         Command::Dependencies { dependency_check } => dependency_check.run(),
         Command::Publish { name } => publish::run(name),
         Command::RunChecks { env } => env.run(),
