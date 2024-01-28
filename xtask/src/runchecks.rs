@@ -381,7 +381,6 @@ fn check_typos() {
 }
 
 fn check_examples() {
-    add_nightly();
     let workspaces = get_workspaces(WorkspaceMemberType::Example);
     for workspace in workspaces {
         if workspace.name == "notebook" {

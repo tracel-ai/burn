@@ -93,12 +93,6 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - name: install nightly rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          components: rustfmt, clippy
-          toolchain: nightly-2023-07-01
-
       - name: install rust
         uses: dtolnay/rust-toolchain@master
         with:
