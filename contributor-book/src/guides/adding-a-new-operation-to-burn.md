@@ -81,8 +81,10 @@ here is where code was added
 
 1. to the implementation of [`TensorOps` under `burn-wgpu/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/ops/float_ops.rs#L513)
 2. the function being called was added to [burn-wgpu/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/ops/numeric.rs#L199)
+3. the call to the fmt function use to generate wgsl code in [`burn-wgpu/src/codegen/kernel.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/codegen/kernel.rs#L208)
+4. A custom function generator was added to [`burn-wgpu/src/codegen/function.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/codegen/function.rs#L99)
 
-There would have been a few other places additions would be necessary if some of the code for powf hadn't already been defined, such as [`burn-wgpu/src/fusion/elemwise/builder.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/fusion/elemwise/optimization.rs) and [`burn-wgpu/src/fusion/elemwise/builder.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/fusion/elemwise/builder.rs#L276), but I don't know if there are other places within `burn-wgpu` where additions would be necessary.
+Much of the logic  for powf had already been defined, so not much needed to be added. The reason for the custom powf function is generated, rather than directly using the underlying function as is the case with other operations, is due to issues with case handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an even power being positive. We reused as much as the existing logic as possible, such as the operation output description generation in [`burn-wgpu/src/fusion/elemwise/builder.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/fusion/elemwise/optimization.rs) and then branched at the last point based off the var type of the rhs. I don't know if there are other places within `burn-wgpu` where additions would have been necessary otherwise.
 
 ## Adding the Op to burn-import
 
