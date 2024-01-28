@@ -5,6 +5,7 @@ use std::fmt::Display;
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Function {
+    PowfScalar(Item),
     Powf(Item),
     Erf(Item),
     #[cfg(target_os = "macos")]
@@ -14,6 +15,7 @@ pub enum Function {
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Function::PowfScalar(elem) => format_powf_scalar(f, elem),
             Function::Powf(elem) => format_powf(f, elem),
             Function::Erf(elem) => format_erf(f, elem),
             #[cfg(target_os = "macos")]
@@ -22,27 +24,8 @@ impl Display for Function {
     }
 }
 
-fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
-    let elem = item.elem();
-
-    f.write_fmt(format_args!(
-        "
-fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
-    let modulo = rhs % 2.0;
-
-    if (modulo == 0.0) {{
-        // Even number
-        return pow(abs(lhs), rhs);
-    }} else if (modulo == 1.0 && lhs < 0.0) {{
-        // Odd number
-        return -1.0 * pow(-1.0 * lhs, rhs);
-    }} else {{
-        // Float number
-        return pow(lhs, rhs);
-    }}
-}}
-"
-    ))?;
+fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+    base_powf_fmt(f, item)?;
 
     match item {
         Item::Vec4(elem) => f.write_fmt(format_args!(
@@ -74,6 +57,78 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
         powf_scalar(lhs[0], rhs),
         powf_scalar(lhs[1], rhs),
+    );
+}}
+"
+        )),
+        Item::Scalar(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
+    return powf_scalar(lhs, rhs);
+}}
+"
+        )),
+    }
+}
+
+fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std::fmt::Error> {
+    let elem = item.elem();
+    f.write_fmt(format_args!(
+        "
+fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
+    let modulo = rhs % 2.0;
+    if rhs==0.0 {{
+        return 1.0;
+    }}
+    if (modulo == 0.0) {{
+        // Even number
+        return pow(abs(lhs), rhs);
+    }} else if (modulo == 1.0 && lhs < 0.0) {{
+        // Odd number
+        return -1.0 * pow(-1.0 * lhs, rhs);
+    }} else {{
+        // Float number
+        return pow(lhs, rhs);
+    }}
+}}
+"
+    ))?;
+    Ok(())
+}
+
+fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+    base_powf_fmt(f, item)?;
+
+    match item {
+        Item::Vec4(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec4(
+        powf_scalar(lhs[0], rhs[0]),
+        powf_scalar(lhs[1], rhs[1]),
+        powf_scalar(lhs[2], rhs[2]),
+        powf_scalar(lhs[3], rhs[3]),
+    );
+}}
+"
+        )),
+        Item::Vec3(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec3(
+        powf_scalar(lhs[0], rhs[0]),
+        powf_scalar(lhs[1], rhs[1]),
+        powf_scalar(lhs[2], rhs[2]),
+    );
+}}
+"
+        )),
+        Item::Vec2(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec2(
+        powf_scalar(lhs[0], rhs[0]),
+        powf_scalar(lhs[1], rhs[1]),
     );
 }}
 "
