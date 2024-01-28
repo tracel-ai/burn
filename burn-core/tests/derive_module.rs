@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Int, Shape, Tensor};
@@ -24,6 +26,12 @@ impl<B: Backend> ModuleBasic<B> {
             weight_basic: Param::from(weight_basic),
         }
     }
+}
+
+#[derive(Module, Debug)]
+struct ModuleWithGenericModule<B: Backend, M> {
+    module: M,
+    _backend: PhantomData<B>,
 }
 
 #[derive(Module, Debug)]
@@ -151,7 +159,8 @@ mod require_grad {
     fn calculate_grads(
         module: &ModuleBasic<TestAutodiffBackend>,
     ) -> <TestAutodiffBackend as AutodiffBackend>::Gradients {
-        let x = Tensor::ones_devauto([20, 20]).require_grad();
+        let device = module.weight_basic.device();
+        let x = Tensor::ones([20, 20], &device).require_grad();
         let y = module.weight_basic.val().matmul(x);
 
         y.backward()

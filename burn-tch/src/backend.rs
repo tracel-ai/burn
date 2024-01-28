@@ -78,7 +78,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = LibTorch<f32>;
 
-    type TensorPrimitive<const D: usize> = TchTensor<E, D>;
+    type FloatTensorPrimitive<const D: usize> = TchTensor<E, D>;
     type FloatElem = E;
 
     type IntTensorPrimitive<const D: usize> = TchTensor<i64, D>;

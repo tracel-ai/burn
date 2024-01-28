@@ -61,6 +61,7 @@
 //!   - `audio`: Enables audio datasets (SpeechCommandsDataset)
 //!   - `sqlite`: Stores datasets in SQLite database
 //!   - `sqlite_bundled`: Use bundled version of SQLite
+//!   - `vision`: Enables vision datasets (MNISTDataset)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
 //!   - `candle`: Makes available the Candle backend

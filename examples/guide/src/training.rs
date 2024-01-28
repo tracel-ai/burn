@@ -2,7 +2,7 @@ use crate::{
     data::{MNISTBatch, MNISTBatcher},
     model::{Model, ModelConfig},
 };
-use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::vision::MNISTDataset;
 use burn::train::{
     metric::{AccuracyMetric, LossMetric},
     ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
@@ -12,7 +12,7 @@ use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
     module::Module,
-    nn::loss::CrossEntropyLoss,
+    nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
     record::CompactRecorder,
     tensor::{
@@ -28,7 +28,9 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::default().forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }

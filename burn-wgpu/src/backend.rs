@@ -15,7 +15,6 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan](crate::Vulkan) on Linux, Windows, and Android.
 ///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
-///   - [DirectX 11](crate::Dx11) on Windows.
 ///   - [DirectX 12](crate::Dx12) on Windows.
 ///   - [Metal](crate::Metal) on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
@@ -39,7 +38,7 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for Wgpu<
     type FloatElem = F;
     type IntElem = I;
 
-    type TensorPrimitive<const D: usize> = WgpuTensor<F, D>;
+    type FloatTensorPrimitive<const D: usize> = WgpuTensor<F, D>;
     type IntTensorPrimitive<const D: usize> = WgpuTensor<I, D>;
     type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
 

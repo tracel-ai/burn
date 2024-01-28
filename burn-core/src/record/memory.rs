@@ -1,5 +1,6 @@
 use super::{bin_config, PrecisionSettings, Recorder, RecorderError};
 use alloc::vec::Vec;
+use burn_tensor::backend::Backend;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Recorder trait specialized to save and load data to and from bytes.
@@ -8,8 +9,8 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// This is especially useful in no_std environment where weights are stored directly in
 /// compiled binaries.
-pub trait BytesRecorder:
-    Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
+pub trait BytesRecorder<B: Backend>:
+    Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>
 {
 }
 
@@ -19,9 +20,9 @@ pub struct BinBytesRecorder<S: PrecisionSettings> {
     _settings: core::marker::PhantomData<S>,
 }
 
-impl<S: PrecisionSettings> BytesRecorder for BinBytesRecorder<S> {}
+impl<S: PrecisionSettings, B: Backend> BytesRecorder<B> for BinBytesRecorder<S> {}
 
-impl<S: PrecisionSettings> Recorder for BinBytesRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for BinBytesRecorder<S> {
     type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
@@ -48,10 +49,10 @@ pub struct NamedMpkBytesRecorder<S: PrecisionSettings> {
 }
 
 #[cfg(feature = "std")]
-impl<S: PrecisionSettings> BytesRecorder for NamedMpkBytesRecorder<S> {}
+impl<S: PrecisionSettings, B: Backend> BytesRecorder<B> for NamedMpkBytesRecorder<S> {}
 
 #[cfg(feature = "std")]
-impl<S: PrecisionSettings> Recorder for NamedMpkBytesRecorder<S> {
+impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> {
     type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
@@ -87,14 +88,17 @@ mod tests {
         test_can_save_and_load(NamedMpkBytesRecorder::<FullPrecisionSettings>::default())
     }
 
-    fn test_can_save_and_load<Recorder: BytesRecorder>(recorder: Recorder) {
+    fn test_can_save_and_load<Recorder>(recorder: Recorder)
+    where
+        Recorder: BytesRecorder<TestBackend>,
+    {
         let device = Default::default();
         let model1 = create_model::<TestBackend>(&device);
         let model2 = create_model::<TestBackend>(&device);
         let bytes1 = recorder.record(model1.into_record(), ()).unwrap();
         let bytes2 = recorder.record(model2.clone().into_record(), ()).unwrap();
 
-        let model2_after = model2.load_record(recorder.load(bytes1.clone()).unwrap());
+        let model2_after = model2.load_record(recorder.load(bytes1.clone(), &device).unwrap());
         let bytes2_after = recorder.record(model2_after.into_record(), ()).unwrap();
 
         assert_ne!(bytes1, bytes2);

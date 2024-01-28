@@ -38,7 +38,7 @@ pub struct GroupNorm<B: Backend> {
 
 impl GroupNormConfig {
     /// Initialize a new [group norm](GroupNorm) module.
-    pub fn init<B: Backend>(&self) -> GroupNorm<B> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> GroupNorm<B> {
         assert_eq!(
             self.num_channels % self.num_groups,
             0,
@@ -46,8 +46,8 @@ impl GroupNormConfig {
         );
 
         let (gamma, beta) = if self.affine {
-            let gamma = Tensor::ones_devauto([self.num_channels]).into();
-            let beta = Tensor::zeros_devauto([self.num_channels]).into();
+            let gamma = Tensor::ones([self.num_channels], device).into();
+            let beta = Tensor::zeros([self.num_channels], device).into();
 
             (Some(gamma), Some(beta))
         } else {
@@ -110,7 +110,7 @@ impl<B: Backend> GroupNorm<B> {
         let mean = input.clone().sum_dim(2) / hidden_size as f64;
         let input = input.sub(mean);
 
-        let var = input.clone().powf(2.).sum_dim(2) / hidden_size as f64;
+        let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
         let input_normalized = input.div(var.sqrt().add_scalar(self.epsilon));
 
         if self.affine {
@@ -135,31 +135,35 @@ mod tests {
 
     #[test]
     fn group_norm_forward_affine_false() {
+        let device = Default::default();
         let module = GroupNormConfig::new(2, 6)
             .with_affine(false)
-            .init::<TestBackend>();
+            .init::<TestBackend>(&device);
 
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::from_data_devauto(Data::from([
-            [
-                [-0.3034, 0.2726, -0.9659],
-                [-1.1845, -1.3236, 0.0172],
-                [1.9507, 1.2554, -0.8625],
-                [1.0682, 0.3604, 0.3985],
-                [-0.4957, -0.4461, -0.9721],
-                [1.5157, -0.1546, -0.5596],
-            ],
-            [
-                [-1.6698, -0.4040, -0.7927],
-                [0.3736, -0.0975, -0.1351],
-                [-0.9461, 0.5461, -0.6334],
-                [-1.0919, -0.1158, 0.1213],
-                [-0.9535, 0.1281, 0.4372],
-                [-0.2845, 0.3488, 0.5641],
-            ],
-        ]));
+        let input = Tensor::from_data(
+            Data::from([
+                [
+                    [-0.3034, 0.2726, -0.9659],
+                    [-1.1845, -1.3236, 0.0172],
+                    [1.9507, 1.2554, -0.8625],
+                    [1.0682, 0.3604, 0.3985],
+                    [-0.4957, -0.4461, -0.9721],
+                    [1.5157, -0.1546, -0.5596],
+                ],
+                [
+                    [-1.6698, -0.4040, -0.7927],
+                    [0.3736, -0.0975, -0.1351],
+                    [-0.9461, 0.5461, -0.6334],
+                    [-1.0919, -0.1158, 0.1213],
+                    [-0.9535, 0.1281, 0.4372],
+                    [-0.2845, 0.3488, 0.5641],
+                ],
+            ]),
+            &device,
+        );
 
         let output = module.forward(input);
 
@@ -188,14 +192,15 @@ mod tests {
 
     #[test]
     fn group_norm_forward_affine_true() {
+        let device = Default::default();
         let module = GroupNormConfig::new(3, 6)
             .with_affine(true)
-            .init::<TestBackend>();
+            .init::<TestBackend>(&device);
 
         module
             .gamma
             .as_ref()
-            .expect("Gamma is None")
+            .expect("gamma should not be None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::ones([6].into()), 3);
@@ -203,29 +208,32 @@ mod tests {
         module
             .beta
             .as_ref()
-            .expect("beta is None")
+            .expect("beta should not be None")
             .val()
             .to_data()
             .assert_approx_eq(&Data::zeros([6]), 3);
 
-        let input = Tensor::from_data_devauto(Data::from([
-            [
-                [0.3345, 0.4429, 0.6639],
-                [0.5041, 0.4175, 0.8437],
-                [0.6159, 0.3758, 0.4071],
-                [0.5417, 0.5785, 0.7671],
-                [0.3837, 0.9883, 0.0420],
-                [0.4808, 0.8989, 0.6144],
-            ],
-            [
-                [0.3930, 0.2098, 0.0602],
-                [0.2298, 0.9425, 0.0333],
-                [0.7409, 0.8172, 0.8879],
-                [0.4846, 0.0486, 0.2029],
-                [0.6741, 0.9765, 0.6864],
-                [0.2827, 0.5534, 0.2125],
-            ],
-        ]));
+        let input = Tensor::from_data(
+            Data::from([
+                [
+                    [0.3345, 0.4429, 0.6639],
+                    [0.5041, 0.4175, 0.8437],
+                    [0.6159, 0.3758, 0.4071],
+                    [0.5417, 0.5785, 0.7671],
+                    [0.3837, 0.9883, 0.0420],
+                    [0.4808, 0.8989, 0.6144],
+                ],
+                [
+                    [0.3930, 0.2098, 0.0602],
+                    [0.2298, 0.9425, 0.0333],
+                    [0.7409, 0.8172, 0.8879],
+                    [0.4846, 0.0486, 0.2029],
+                    [0.6741, 0.9765, 0.6864],
+                    [0.2827, 0.5534, 0.2125],
+                ],
+            ]),
+            &device,
+        );
 
         let output = module.forward(input);
 

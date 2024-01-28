@@ -35,7 +35,7 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
     type FullPrecisionElem = f32;
     type FullPrecisionBackend = NdArray<f32>;
 
-    type TensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
+    type FloatTensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
     type FloatElem = E;
 
     type IntTensorPrimitive<const D: usize> = NdArrayTensor<i64, D>;

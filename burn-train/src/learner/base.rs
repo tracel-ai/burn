@@ -6,6 +6,7 @@ use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::Module;
 use burn_core::optim::Optimizer;
 use burn_core::tensor::backend::Backend;
+use burn_core::tensor::Device;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -80,23 +81,24 @@ impl<LC: LearnerComponents> LearnerCheckpointer<LC> {
         model: LC::Model,
         optim: LC::Optimizer,
         scheduler: LC::LrScheduler,
+        device: &Device<LC::Backend>,
         epoch: usize,
     ) -> (LC::Model, LC::Optimizer, LC::LrScheduler) {
         let record = self
             .model
-            .restore(epoch)
+            .restore(epoch, device)
             .expect("Can load model checkpoint.");
         let model = model.load_record(record);
 
         let record = self
             .optim
-            .restore(epoch)
+            .restore(epoch, device)
             .expect("Can load optimizer checkpoint.");
         let optim = optim.load_record(record);
 
         let record = self
             .lr_scheduler
-            .restore(epoch)
+            .restore(epoch, device)
             .expect("Can load learning rate scheduler checkpoint.");
         let scheduler = scheduler.load_record(record);
 

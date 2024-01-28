@@ -264,7 +264,7 @@ It can also be compiled to Web Assembly to run in the browser while leveraging t
 For more information on the benefits of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
 
 The WGPU backend is our first "in-house backend", which means we have complete control over its implementation details.
-It is fully optimized with the [performance characteristics mentioned earlier](#performance), as it serves as our research playgound for a variety of optimizations.
+It is fully optimized with the [performance characteristics mentioned earlier](#performance), as it serves as our research playground for a variety of optimizations.
 
 See the [WGPU Backend README](./burn-wgpu/README.md) for more details.
 
@@ -473,7 +473,7 @@ Why use Rust for Deep Learning? 🦀
 Deep Learning is a special form of software where you need very high level abstractions as well as extremely fast execution time.
 Rust is the perfect candidate for that use case since it provides zero-cost abstractions to easily create neural network modules, and fine-grained control over memory to optimize every detail.
 
-It's important that a framework be easy to use at a high level so that its users can concentrate on innovating in the AI field.
+It's important that a framework be easy to use at a high level so that its users can focus on innovating in the AI field.
 However, since running models relies so heavily on computations, performance can't be neglected.
 
 To this day, the mainstream solution to this problem has been to offer APIs in Python, but rely on bindings to low-level languages such as C/C++.

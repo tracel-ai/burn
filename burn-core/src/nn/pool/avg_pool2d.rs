@@ -37,7 +37,7 @@ pub struct AvgPool2dConfig {
 ///
 /// TODO: Add support for `count_include_pad=False`, see
 /// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Clone, Debug)]
 pub struct AvgPool2d {
     stride: [usize; 2],
     kernel_size: [usize; 2],

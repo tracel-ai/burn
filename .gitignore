@@ -5,7 +5,9 @@ Cargo.lock
 .DS_Store
 .cargo/config.toml
 
+.dir-locals.el
 .idea
 .vscode
-.fleet
 .vs
+.fleet
+.ipynb_checkpoints/

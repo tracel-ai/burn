@@ -119,9 +119,28 @@ Run `scripts/publish` using this command
 
 where `crate_name` is the name of the crate to publish
 
+## Code Guidelines
+
+We believe in clean and efficient code. While we don't enforce strict coding guidelines, we trust
+and use tools like `cargo fmt` and `cargo clippy` to maintain code quality. These are integrated
+into our `run-checks` script, ensuring consistency across our codebase.
+
+### Writing Expect Messages
+
+In Rust, the `expect()` function is a crucial tool for handling errors. However, the power of
+`expect()` lies in its ability to convey clear, actionable messages. When you use `expect()`, your
+message should describe the successful outcome of the function rather than focusing on the error.
+
+Here's a helpful tip from the [Rust documentation](https://doc.rust-lang.org/std/result/enum.Result.html#recommended-message-style):
+
+_Think of `expect()` messages as guidelines for future you and other developers. Frame them with the word “should” like “The ENV variable should be set by X function” or “The binary should be accessible and executable by the current user.”_
+
+This approach ensures that `expect()` messages are informative and aligned with the intended
+function outcomes, making debugging and maintenance more straightforward for everyone.
+
 ## Others
 
-To bump for the next version, use this command:
+To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
 
 ```
 cargo set-version --bump minor

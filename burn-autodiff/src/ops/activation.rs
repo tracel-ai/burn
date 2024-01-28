@@ -14,7 +14,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         struct Gelu<const D: usize>;
 
         impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let input = ops.state;
@@ -39,7 +39,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         struct Relu;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -52,6 +52,29 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         match Relu.prepare([tensor.node], [tensor.graph]).stateful() {
             OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
+        }
+    }
+
+    fn sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct Sigmoid;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
+            type State = B::FloatTensorPrimitive<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::sigmoid_backward(ops.state, grad)
+                });
+            }
+        }
+
+        match Sigmoid.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::sigmoid(tensor.primitive);
+                prep.finish(output.clone(), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::sigmoid(tensor.primitive)),
         }
     }
 }

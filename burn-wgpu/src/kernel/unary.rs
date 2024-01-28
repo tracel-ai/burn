@@ -42,13 +42,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -62,13 +62,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         visibility: $crate::codegen::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -95,7 +95,7 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            item: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
@@ -106,7 +106,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         local: 0,
                     }])
                     .compile();
@@ -121,7 +121,7 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            elem: E::elem_type(),
+                            item: $crate::codegen::Item::Scalar(E::elem_type()),
                             visibility: $crate::codegen::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
@@ -132,7 +132,7 @@ macro_rules! unary {
                     ])
                     .body(&[$ops(E::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        elem: E::elem_type(),
+                        item: $crate::codegen::Item::Scalar(E::elem_type()),
                         input: 0,
                         local: 0,
                     }])
@@ -202,19 +202,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::{Operator, Variable};
+    use crate::codegen::{Item, Operator, Variable};
     use crate::tests::{ReferenceBackend, TestBackend};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(|elem| Operator::Tanh {
-        input: Variable::Input(0, elem),
-        out: Variable::Local(0, elem),
+        input: Variable::Input(0, Item::Scalar(elem)),
+        out: Variable::Local(0, Item::Scalar(elem)),
     });
 
     #[test]
     fn unary_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
         let actual =
             unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
@@ -228,8 +230,10 @@ mod tests {
 
     #[test]
     fn unary_inplace_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 2>::random_devauto([6, 256], Distribution::Default);
-        let tensor_ref = Tensor::<ReferenceBackend, 2>::from_data_devauto(tensor.to_data());
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
         let actual =
             unary::<Ops<f32>, OpsInplace<f32>, f32, 2>(tensor.into_primitive(), None, true);
@@ -244,7 +248,7 @@ mod tests {
     #[test]
     fn tanh_should_not_have_numerical_bugs_on_macos() {
         fn tanh_one_value(input: f32) -> f32 {
-            let tensor = Tensor::<TestBackend, 1>::ones_devauto([1]) * input;
+            let tensor = Tensor::<TestBackend, 1>::ones([1], &Default::default()) * input;
             let output = tensor.tanh().into_primitive();
             Tensor::<TestBackend, 1>::from_primitive(output)
                 .into_data()

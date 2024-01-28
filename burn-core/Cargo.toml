@@ -42,6 +42,7 @@ std = [
 dataset = ["burn-dataset"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
+vision = ["burn-dataset?/vision"]
 
 wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 
@@ -51,6 +52,7 @@ fusion = ["burn-fusion", "burn-wgpu?/fusion"]
 
 ## Backend features
 cuda = ["burn-candle?/cuda"]
+metal = ["burn-candle?/metal"]
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
@@ -60,6 +62,9 @@ ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 candle = ["burn-candle"]
 wgpu = ["burn-wgpu"]
+
+# Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
+record-item-custom-serde = ["thiserror", "regex"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
@@ -104,6 +109,8 @@ bincode = { workspace = true }
 half = { workspace = true }
 rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std 
+thiserror = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -9,16 +9,25 @@
 //! aligns the imported model with Burn's model and converts tensor data into a format compatible with
 //! Burn.
 
+#[cfg(any(feature = "pytorch", feature = "onnx"))]
 #[macro_use]
 extern crate derive_new;
+
+// Enabled when the `pytorch` or `onnx` feature is enabled.
+#[cfg(any(feature = "pytorch", feature = "onnx"))]
+mod logger;
 
 /// The onnx module.
 #[cfg(feature = "onnx")]
 pub mod onnx;
 
 /// The module for generating the burn code.
+#[cfg(feature = "onnx")]
 pub mod burn;
 
+/// The PyTorch module for recorder.
+#[cfg(feature = "pytorch")]
+pub mod pytorch;
+
 mod formatter;
-mod logger;
 pub use formatter::*;
