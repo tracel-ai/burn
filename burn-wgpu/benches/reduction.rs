@@ -91,7 +91,7 @@ bench_reduce!(
 );
 
 #[allow(dead_code)]
-/// Runs the benchmarks for wgpu matmul implementations
+/// Runs the benchmarks for wgpu sum implementations
 pub fn bench_sum(device: &WgpuDevice) {
     let num_repeats = 3;
     let shape = Shape::new([32, 2048, 32]);
@@ -116,7 +116,7 @@ pub fn bench_sum(device: &WgpuDevice) {
 }
 
 #[allow(dead_code)]
-/// Runs the benchmarks for wgpu matmul implementations
+/// Runs the benchmarks for wgpu prod implementations
 pub fn bench_prod(device: &WgpuDevice) {
     let num_repeats = 3;
     let shape = Shape::new([32, 2048, 32]);

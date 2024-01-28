@@ -325,8 +325,11 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
-    pub fn prod_dim<const D: usize>(_tensor: TchTensor<E, D>, _dim: usize) -> TchTensor<E, D> {
-        todo!()
+    pub fn prod_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchTensor::from_existing(
+            tensor.tensor.prod_dim_int(dim as i64, true, E::KIND),
+            tensor.storage,
+        )
     }
 
     pub fn argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {

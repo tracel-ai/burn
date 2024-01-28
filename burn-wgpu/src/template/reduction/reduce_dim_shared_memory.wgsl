@@ -53,7 +53,7 @@ fn main(
     }
 
     // Ensure shared memory starts at 0
-    shared_memory[local_id] = {{ elem }}(0);
+    shared_memory[local_id] = {{ elem }}({{ initial }});
 
     for (var i = 0u; i < n_input_values_per_thread; i++) {
         let nth = local_id + i * n_threads;

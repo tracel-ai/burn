@@ -28,7 +28,8 @@ fn main(
 
     if id_local == 0u {
         var sum = {{ elem }}(0);
-        for (var i: u32 = 0u; i < WORKGROUP_SIZE; i++) {
+        // TODO (DO NOT LET PR THRU WO): Add edge test cases
+        for (var i: u32 = 0u; i < min(WORKGROUP_SIZE, arrayLength(&input) % WORKGROUP_SIZE); i++) {
             sum += data[i];
         }
 

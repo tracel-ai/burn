@@ -35,8 +35,8 @@ impl StaticKernelSource for ProdDimSharedMemory {
                 "shared_size",
                 (WORKGROUP_DEFAULT * WORKGROUP_DEFAULT).to_string(),
             )
-            .register("initial", 0.0.to_string())
-            .register("update", "shared_memory[local_id] += value; ")
+            .register("initial", 1.0.to_string())
+            .register("update", "shared_memory[local_id] *= value; ")
             .register("assign", "output[output_position] = final_value; ")
     }
 }

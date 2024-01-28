@@ -27,8 +27,8 @@ fn main(
     workgroupBarrier();
 
     if id_local == 0u {
-        var prod = {{ elem }}(0);
-        for (var i: u32 = 0u; i < WORKGROUP_SIZE; i++) {
+        var prod = {{ elem }}(1);
+        for (var i: u32 = 0u; i < min(WORKGROUP_SIZE, arrayLength(&input) % WORKGROUP_SIZE); i++) {
             prod *= data[i];
         }
 

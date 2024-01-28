@@ -62,6 +62,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_narrow!();
         burn_tensor::testgen_neg!();
         burn_tensor::testgen_one_hot!();
+        burn_tensor::testgen_prod_dim!();
         burn_tensor::testgen_powf_scalar!();
         burn_tensor::testgen_random!();
         burn_tensor::testgen_recip!();

@@ -18,7 +18,8 @@ kernel_wgsl!(
     RecursiveProdRaw,
     "../../template/reduction/recursive_prod.wgsl"
 );
-kernel_wgsl!(ReductionDimRaw, "../../template/reduction/reduce_dim.wgsl");
+kernel_wgsl!(ReductionDimProdRaw, "../../template/reduction/reduce_dim_prod.wgsl");
+kernel_wgsl!(ReductionDimSumRaw, "../../template/reduction/reduce_dim_sum.wgsl");
 kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
 
 pub(crate) struct ArgsMax;
@@ -29,19 +30,19 @@ pub(crate) struct MeanDim;
 
 impl StaticKernelSource for SumDim {
     fn source() -> SourceTemplate {
-        ReductionDimRaw::source().register("assign", "output[id] = sum;")
+        ReductionDimSumRaw::source().register("assign", "output[id] = sum;")
     }
 }
 
 impl StaticKernelSource for ProdDim {
     fn source() -> SourceTemplate {
-        ReductionDimRaw::source().register("assign", "output[id] = prod;")
+        ReductionDimProdRaw::source().register("assign", "output[id] = prod;")
     }
 }
 
 impl StaticKernelSource for MeanDim {
     fn source() -> SourceTemplate {
-        ReductionDimRaw::source()
+        ReductionDimSumRaw::source()
             .add_template(
                 "fn mean_dim(sum: {{ elem }}, dim: u32) -> {{ elem }} { 
     return sum / {{ elem }}(dim);
