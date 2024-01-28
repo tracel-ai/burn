@@ -77,7 +77,7 @@ fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std
         "
 fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
     let modulo = rhs % 2.0;
-    if rhs==0.0 {{
+    if rhs == 0.0 {{
         return 1.0;
     }}
     if (modulo == 0.0) {{
