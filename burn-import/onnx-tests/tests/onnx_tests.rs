@@ -841,4 +841,14 @@ mod tests {
 
         assert_eq!(output.to_data(), expected);
     }
+
+    #[test]
+    fn unsqueeze() {
+        let device = Default::default();
+        let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
+
+        let input = Tensor::ones(&[3, 4, 5], &device);
+        let output = model.forward(input, [0, 4]);
+    }
+    
 }

@@ -304,6 +304,59 @@ where
         self.reshape(shape)
     }
 
+    /// Creates a new tensor with added dimensions of size one inserted at the specified indices.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 4,5), &device);
+    ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dims([0, 4]);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 3, 4, 5, 1] }
+    /// }
+    /// ```
+    pub fn unsqueeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
+        let mut current_dims = [1; D2];
+        let shape = self.shape();
+        //for checking if the dimension is in the acceptable range
+        let output_rank = (D + dims.len()) as isize;
+        let mut current_num_dims = shape.dims.len();
+
+        let mut slow_runner = 0 as usize;
+
+        for d in dims {
+            // check if the dimension is in the acceptable range
+            if !(-output_rank..output_rank - 1).contains(d) {
+                panic!(
+                    "unsqueeze arg {} is out of range for the output tensor of rank {}",
+                    *d, output_rank
+                )
+            }
+            let dim = if *d > 0 {
+                *d as usize
+            } else {
+                current_num_dims + *d as usize
+            };
+            current_dims[slow_runner..dim].copy_from_slice(&shape.dims[slow_runner..dim]);
+            // slow_runner = dim;
+            // current_num_dims += 1;
+            // if dim < current_num_dims {
+            //     current_dims[dim] = 1;
+            //     current_dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
+            // } else {
+            //     current_dims[dim] = 1;
+            // }
+        }
+
+        let shape = Shape::new(current_dims);
+        self.reshape(shape)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
