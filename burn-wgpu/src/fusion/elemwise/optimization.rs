@@ -1,6 +1,7 @@
 use super::{
     kernel::{ScalarElementWise, VecElementWise},
     tune::ElementWiseAutotuneOperationSet,
+    FusionElemWiseAutotuneKey,
 };
 use crate::{
     codegen::{
@@ -185,7 +186,13 @@ where
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         let client = compute_client::<G>(&self.device);
 
-        if let Some(index) = client.autotune_fastest(&WgpuAutotuneKey::ElemWise(())) {
+        let shape = self.find_output_shape(context);
+        let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
+            self.operators.len(),
+            shape,
+        ));
+
+        if let Some(index) = client.autotune_fastest(&key) {
             let kernel_set = match index {
                 0 => &self.phase.kernel_set_1,
                 1 => &self.phase.kernel_set_2,
@@ -240,6 +247,7 @@ where
 
         // We only create one when necessary.
         let set = ElementWiseAutotuneOperationSet::new(
+            key,
             kernel_1.into(),
             kernel_2.into(),
             kernel_default.into(),
@@ -249,6 +257,23 @@ where
 
     pub(crate) fn len(&self) -> usize {
         self.operators.len()
+    }
+
+    pub(crate) fn find_output_shape<'a>(
+        &self,
+        context: &mut Context<'a, Wgpu<G, F, I>>,
+    ) -> &'a [usize] {
+        if let Some(tensor) = self.outputs.first() {
+            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+            return &tensor.shape;
+        }
+
+        if let Some(tensor) = self.inputs.first() {
+            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+            return &tensor.shape;
+        }
+
+        &[]
     }
 
     pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {

@@ -340,8 +340,8 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 }
 
 impl ElemWiseKernelCodegen<CompilationPhase> {
-    pub fn workgroup_size(mut self, workgroups_size: WorkgroupSize) -> Self {
-        self.workgroup_size = self.workgroup_size;
+    pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
+        self.workgroup_size = workgroup_size;
         self
     }
 
