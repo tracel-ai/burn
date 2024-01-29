@@ -383,7 +383,7 @@ pub enum NumericOperationDescription<E> {
     /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
     IntRandom(RandomOperationDescription),
     /// Operation corresponding to:
-    /// 
+    ///
     /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
     /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
     Powf(BinaryOperationDescription),
