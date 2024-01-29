@@ -252,7 +252,7 @@ where
             kernel_2.into(),
             kernel_default.into(),
         );
-        client.execute_autotune(Box::new(set));
+        client.autotune_execute(Box::new(set));
     }
 
     pub(crate) fn len(&self) -> usize {

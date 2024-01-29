@@ -15,7 +15,7 @@ pub struct ElementWiseAutotuneOperationSet {
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of reduce versions
 pub struct FusionElemWiseAutotuneKey {
-    num_operations: usize,
+    anchored_num_operations: usize,
     anchored_output_shape: Vec<usize>,
 }
 
@@ -24,7 +24,7 @@ impl Display for FusionElemWiseAutotuneKey {
         f.write_str(
             format!(
                 "Fusion ElemWise - num_operations: {:?} anchored_output_shape: {:?}",
-                self.num_operations, self.anchored_output_shape
+                self.anchored_num_operations, self.anchored_output_shape
             )
             .as_str(),
         )
@@ -56,7 +56,7 @@ impl FusionElemWiseAutotuneKey {
                 .into_iter()
                 .map(|x| anchor(*x, Some(4096)))
                 .collect(),
-            num_operations,
+            anchored_num_operations: anchor(num_operations, None),
         }
     }
 }

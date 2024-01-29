@@ -72,7 +72,7 @@ where
     }
 
     /// Executes the fastest kernel in the autotune operation, using (cached) runtime benchmarks
-    pub fn execute_autotune(
+    pub fn autotune_execute(
         &self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<Server::AutotuneKey>>,
     ) {
