@@ -1,12 +1,13 @@
 use super::EventStore;
 use super::{Aggregate, Direction, Event, Split};
-use crate::util;
+use crate::util::{self, AsyncTaskBoxed};
+use log::info;
 use std::sync::mpsc;
 
 /// Type that allows to communicate with an [event store](EventStore).
 pub struct EventStoreClient {
     sender: mpsc::Sender<Message>,
-    handler: Option<Box<dyn FnOnce() -> Result<(), ()>>>,
+    handler: Option<AsyncTaskBoxed>,
 }
 
 impl EventStoreClient {
@@ -154,7 +155,7 @@ impl Drop for EventStoreClient {
         let handler = self.handler.take();
 
         if let Some(handler) = handler {
-            handler().expect("The event store thread should stop.");
+            handler.join().expect("The event store thread should stop.");
         }
     }
 }
