@@ -4,7 +4,7 @@ Let's discuss how one might go about adding new operators to Burn, using the exa
 
 ## Adding the Op to burn-tensor
 
-burn-tensor is the crate that defines all tensor operations that need to be implemented by the various backends. The core of this lies in  `burn-tensor/src/tensor/api/numeric.rs`, which is home to the numeric trait and it's implementation for the different ensor types. The numeric trait is the home of all tensor operations that are numeric in nature that are shared by `Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be found under the section for [Tensor Architecture](../project-architecture/Tensor.md#tensorops).
+`burn-tensor` is the crate that defines all tensor operations that need to be implemented by the various backends. The core of this lies in  `burn-tensor/src/tensor/api/numeric.rs`, which is home to the numeric trait and its implementation for the different tensor types. The numeric trait is the home of all tensor operations that are numeric in nature and that are shared by `Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be found under the section for [Tensor Architecture](../project-architecture/Tensor.md#tensorops).
 
 here is where pow was added to `burn-tensor/src/tensor/api/numeric.rs`:
 
