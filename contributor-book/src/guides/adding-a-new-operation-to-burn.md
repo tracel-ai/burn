@@ -20,7 +20,7 @@ The `Int` Tensor function use the ones defined for Float with 2 extra cast (LHS 
 
 ### Adding Test
 
-Additional Test should be added to `burn-tensor` under [`burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/burn-tensor/src/tests/ops/powf.rs), inserting the module name into ``burn-tensor/src/tests/ops/mod.rs`. Then add it to`testgen_all` macro under `burn-tensor/src/tests/mod.rs`. This test is automatically added to the backends so it isn't necessary to add them there, save for those that require specific testing such as`burn-autodiff`
+Additional Test should be added to `burn-tensor` under [`burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/burn-tensor/src/tests/ops/powf.rs), inserting the module name into `burn-tensor/src/tests/ops/mod.rs`. Then add it to the `testgen_all` macro under `burn-tensor/src/tests/mod.rs`. This test is automatically added to the backends so it isn't necessary to add them there, save for those that require specific testing such as`burn-autodiff`
 
 ## Adding the Op to the burn-autodiff
 
@@ -71,7 +71,7 @@ Adding an operator to these backends is fairly straightforward, though due to wh
 
 here's how powf was added to burn fusion:
 
-1. added powf to the float ops under [burn-fusion/src/ops/float.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/ops/float.rs#L1758)
+1. added powf to the float ops under [`burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/ops/float.rs#L1758)
 2. added powf to the `FloatOperationDescription` enum under [burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/stream/operation.rs#L385)
 3. added powf to the implementations of `FloatOperationDescription` enum under [burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/stream/context.rs#L726)
 
@@ -101,5 +101,7 @@ Let's review the changes made for pow starting from `src/burn` and moving to `sr
 And you're done! Congrats, you just fully added a new op to burn, and we are all one step closer to the answer to [are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and it's freaking fast!". Buy yourself a coffee
 
 [^1]: for more on supertraits see [the advanced trait section of the rust book](https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#using-supertraits-to-require-one-traits-functionality-within-another-trait)
+
 [^2]: wiki link for  [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation)
+
 [^3]: for more information on unit structs see [the defining and instantiating structs section of the rust book](https://doc.rust-lang.org/book/ch05-01-defining-structs.html#unit-like-structs-without-any-fields)

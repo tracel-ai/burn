@@ -12,5 +12,5 @@
 - [Guides for Contributors](./guides/ReadMe.md)
   - [Onnx To Burn Conversion Tool: A Development Guide](./guides/onnx-to-burn-conversion-tool.md)
   - [Adding a New Operation to Burn](./guides/adding-a-new-operation-to-burn.md)
-  - [Frequently Encountered Issues](./guides/frequently-encountered-issues/ReadMe.md)
-    - [Issues Related To Adding Operators](./guides/frequently-encountered-issues/issues-while-adding-ops.md)
+- [Frequently Encountered Issues](./guides/frequently-encountered-issues/ReadMe.md)
+  - [Issues Related To Adding Operators](./guides/frequently-encountered-issues/issues-while-adding-ops.md)
