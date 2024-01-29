@@ -70,8 +70,9 @@ _Note: no MPS distribution is available for automatic download at this time, ple
 
 ### Manual Download
 
-To install `tch-rs` with a different LibTorch distribution, you will have to set the
-`custom-libtorch` feature flag and manually download the desired LibTorch distribution.
+To install `tch-rs` with a different LibTorch distribution, you will have to set the to manually
+download the desired LibTorch distribution. The instructions are detailed in the sections below for
+each platform.
 
 | Compute Platform          |              CPU               | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :------------------------ | :----------------------------: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |

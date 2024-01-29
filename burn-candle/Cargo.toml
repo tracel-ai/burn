@@ -29,7 +29,6 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.12.0", default-feature
     "export_tests",
 ] }
 burn-tch = { path = "../burn-tch", version = "0.12.0", default-features = false, features = [
-    "download-libtorch"
 ] }
 burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false, features = [
     "export_tests",

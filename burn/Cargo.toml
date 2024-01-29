@@ -50,7 +50,6 @@ blas-netlib = ["burn-core/blas-netlib"]
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
 tch = ["burn-core/tch"]
-tch-custom = ["burn-core/tch-custom"]
 candle = ["burn-core/candle"]
 
 # Experimental
