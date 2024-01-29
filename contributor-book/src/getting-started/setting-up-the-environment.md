@@ -17,7 +17,7 @@ To bump for the next version, edit the semantic version number in `burn/Cargo.to
 
 ## Contributing to either the Burn Book or Contributor Book
 
-Both the Burn book and the Contributor book are built with mdbook. To install mdbook, run the following command[^1]:
+Both the Burn Book and the Contributor Book are built with mdbook. To install mdbook, run the following command[^1]:
 
 ```bash
 cargo install mdbook
