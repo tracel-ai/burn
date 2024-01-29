@@ -15,9 +15,9 @@ There are a few commands you want to run prior to any commit for a non-draft PR:
 To bump for the next version, edit the semantic version number in `burn/Cargo.toml`, and then run `cargo update` to update the lock file.
 
 
-## Contributing to the Burn (Contributor) Book
+## Contributing to either the Burn Book or Contributor Book
 
-Both the Burn book and the burn contributor book are built with mdbook. To install mdbook, run the following command[^1]:
+Both the Burn book and the Contributor book are built with mdbook. To install mdbook, run the following command[^1]:
 
 ```bash
 cargo install mdbook

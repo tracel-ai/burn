@@ -1,6 +1,6 @@
 # Issues encountered while adding ops
 
-Most issues were fairly straight forward, and I was able to play whack-a-bug until I hit ones were I needed outside help (on the discord channels), so I'll share some of the ones that had me stumped enough to ask for help in case you too encounter them.
+Below are some of the issues that were encountered while adding ops to the project. If you encounter an issue while adding an op that isn't listed here, and it's not obvious how to fix it, please add it to this list.
 
 ## Off by .000001 errors
 
@@ -25,4 +25,4 @@ error[E0599]: no method named `powi` found for struct `Tensor` in the current sc
 For more information about an error, try `rustc --explain E0308`. error: could not compile `onnx-tests` (test "onnx_tests") due to 3 previous errors
 ```
 
-So if you are getting this, you probably didn't impl your operator for the actual Tensor struct. I wasn't aware of the existence or role of `burn-tensor/src/tensor/api/numeric.rs`, and had first defined just the Ops for the Int and Float tensors, that coupled with `powf` existing prior to the PR though for scalar values(which had been renamed, just not in the right place), led to this confusing issue where it looked like the function was found, but the type was wrong. If that's the case, make sure that it's implemented for the appropriate type, in this case `Float` under [burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-tensor/src/tensor/api/numeric.rs#L2186), and calling the `TensorOp.foo_op` defined under [burn-tensor/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-tensor/src/tensor/ops/tensor.rs#L873)
+So if you are getting this, you probably didn't impl your operator for the actual Tensor struct. This issue was encountered when adding the Pow operator. The operation was added to the `FloatTensorOps` and `IntTensorOp` traits, but not for the numeric trait (under `burn-tensor/src/tensor/api/numeric.rs`). This, coupled with `powf` existing prior to the PR though only for scalar values (which had been renamed, just not in the right place), led to this confusing issue where it looked like the function was found, but the type was wrong. If that's the case, make sure that it's implemented for the appropriate type, in this case `Float` under [burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-tensor/src/tensor/api/numeric.rs#L2186), and calling the `TensorOp.foo_op` defined under [burn-tensor/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-tensor/src/tensor/ops/tensor.rs#L873)
