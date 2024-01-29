@@ -60,6 +60,7 @@ blas-netlib = ["burn-ndarray?/blas-netlib"]
 
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
+tch-custom = ["burn-tch?/custom-libtorch"]
 candle = ["burn-candle"]
 wgpu = ["burn-wgpu"]
 

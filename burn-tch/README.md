@@ -14,9 +14,61 @@ The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable
 
 ## Installation
 
-[`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to be
-available on your system. It is recommended to manually download the LibTorch distribution (v2.1.0
-as required by `tch-rs`) as per the instructions below, except for [MPS](#mps).
+[`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to
+be available on your system.
+
+By default, the CPU distribution is installed for LibTorch v2.1.0 as required by `tch-rs`.
+
+<details>
+<summary><strong>CUDA</strong></summary>
+
+To install the latest compatible CUDA distribution, set the `TORCH_CUDA_VERSION` environment
+variable before the `tch-rs` dependency is retrieved with `cargo`.
+
+```shell
+export TORCH_CUDA_VERSION=cu118
+```
+
+On Windows:
+
+```powershell
+$Env:TORCH_CUDA_VERSION = "cu118"
+```
+
+_Note: `tch-rs` does not offer the option to download the CUDA 12.1 distribution at this time.
+Please refer to the [manual instructions](#cuda) instead._
+
+For example, running the validation sample for the first time could be done with the following
+commands:
+
+```shell
+export TORCH_CUDA_VERSION=cu118
+cargo run --bin cuda --release
+```
+
+**Important:** make sure your driver version is compatible with the selected CUDA version. A CUDA
+Toolkit installation is not required since LibTorch ships with the appropriate CUDA runtimes. Having
+the latest driver version is recommended, but you can always take a look at the
+[toolkit driver version table](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html#id4)
+or
+[minimum required driver version](https://docs.nvidia.com/deploy/cuda-compatibility/index.html#minor-version-compatibility)
+(limited feature-set, might not work with all operations).
+
+</details><br>
+
+Once your installation is complete, you should be able to build/run your project. You can also
+validate your installation by running the appropriate `cpu`, `cuda` or `mps` sample as below.
+
+```shell
+cargo run --bin cpu --release
+cargo run --bin cuda --release
+cargo run --bin mps --release
+```
+
+### Manual Download
+
+To install `tch-rs` with a different LibTorch distribution, you will have to set the `custom-libtorch`
+feature flag and manually download the desired LibTorch distribution.
 
 | Compute Platform          |              CPU               | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :------------------------ | :----------------------------: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
@@ -27,14 +79,7 @@ as required by `tch-rs`) as per the instructions below, except for [MPS](#mps).
 
 <sup><a id="cpu-sup">[1]</a> The LibTorch CUDA distribution also comes with CPU support.</sup>
 
-Once your installation is complete, you should be able to build/run your project. You can also
-validate your installation by running the simple example below.
-
-```shell
-cargo run --example simple-add --release
-```
-
-### CPU
+#### CPU
 
 <details open>
 <summary><strong>🐧 Linux</strong></summary>
@@ -96,12 +141,10 @@ $Env:Path += ";/absolute/path/to/libtorch/"
 
 </details><br>
 
-### CUDA
+#### CUDA
 
-LibTorch 2.1.0 currently supports CUDA
-[12.1](https://developer.nvidia.com/cuda-12-1-0-download-archive) or
-[11.8](https://developer.nvidia.com/cuda-11-8-0-download-archive). Just make sure you have the
-correct toolkit installed, otherwise a number of issues could arise.
+LibTorch 2.1.0 currently includes binary distributions with CUDA 12.1 or 11.8 runtimes. The manual
+installation instructions are detailed below.
 
 **CUDA 12.1**
 
@@ -191,7 +234,7 @@ $Env:Path += ";/absolute/path/to/libtorch/"
 
 </details><br>
 
-### Metal (MPS)
+#### Metal (MPS)
 
 There is no official LibTorch distribution with MPS support at this time, so the easiest alternative
 is to use a PyTorch installation. This requires a Python installation.
@@ -206,8 +249,8 @@ export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 
 ## Example Usage
 
-For a simple example, check out [simple-add.rs](examples/simple-add.rs). It automatically selects
-the device for your installation and performs a simple elementwise addition.
+For a simple example, check out any of the test programs in [`src/bin/`](./src/bin/). Each program
+sets the device to use and and performs a simple elementwise addition.
 
 For a more complete example using the `tch` backend, take a loot at the
 [Burn mnist example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
