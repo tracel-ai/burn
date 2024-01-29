@@ -32,10 +32,10 @@ fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fm
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
-        powf_scalar(lhs[2], rhs),
-        powf_scalar(lhs[3], rhs),
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
+        powf_primitive(lhs[2], rhs),
+        powf_primitive(lhs[3], rhs),
     );
 }}
 "
@@ -44,9 +44,9 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
-        powf_scalar(lhs[2], rhs),
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
+        powf_primitive(lhs[2], rhs),
     );
 }}
 "
@@ -55,8 +55,8 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
     );
 }}
 "
@@ -64,7 +64,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         Item::Scalar(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
-    return powf_scalar(lhs, rhs);
+    return powf_primitive(lhs, rhs);
 }}
 "
         )),
@@ -75,7 +75,7 @@ fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std
     let elem = item.elem();
     f.write_fmt(format_args!(
         "
-fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
+fn powf_primitive(lhs: {elem}, rhs: {elem}) -> {elem} {{
     let modulo = rhs % 2.0;
     if rhs == 0.0 {{
         return 1.0;
@@ -104,10 +104,10 @@ fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Resu
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
-        powf_scalar(lhs[0], rhs[0]),
-        powf_scalar(lhs[1], rhs[1]),
-        powf_scalar(lhs[2], rhs[2]),
-        powf_scalar(lhs[3], rhs[3]),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
+        powf_primitive(lhs[2], rhs[2]),
+        powf_primitive(lhs[3], rhs[3]),
     );
 }}
 "
@@ -116,9 +116,9 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
-        powf_scalar(lhs[0], rhs[0]),
-        powf_scalar(lhs[1], rhs[1]),
-        powf_scalar(lhs[2], rhs[2]),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
+        powf_primitive(lhs[2], rhs[2]),
     );
 }}
 "
@@ -127,8 +127,8 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
-        powf_scalar(lhs[0], rhs[0]),
-        powf_scalar(lhs[1], rhs[1]),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
     );
 }}
 "
@@ -136,7 +136,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         Item::Scalar(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
-    return powf_scalar(lhs, rhs);
+    return powf_primitive(lhs, rhs);
 }}
 "
         )),
