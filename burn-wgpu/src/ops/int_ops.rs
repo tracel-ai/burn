@@ -340,7 +340,7 @@ where
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let float_tensor = match distribution {
-            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 10.elem()),
+            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 255.elem()),
             Distribution::Uniform(low, high) => {
                 random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
             }

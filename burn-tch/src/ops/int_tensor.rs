@@ -428,7 +428,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             Distribution::Default => {
                 let mut tensor = TchTensor::<i64, D>::empty(shape, *device);
                 tensor
-                    .mut_ops(|tensor| tensor.rand_like_out(tensor))
+                    .mut_ops(|tensor| tensor.uniform_(0.0, 255.0))
                     .unwrap()
             }
             Distribution::Bernoulli(prob) => {

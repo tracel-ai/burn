@@ -390,11 +390,21 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         } else {
             get_seeded_rng()
         };
-        let tensor = Self::int_from_data(Data::random(shape, distribution, &mut rng), device);
+
+        let effective_distribution = if distribution == Distribution::Default {
+            Distribution::Uniform(0.0, 255.0) // Assuming UniformInt is the integer variant
+        } else {
+            distribution
+        };
+
+        let tensor = Self::int_from_data(
+            Data::random(shape, effective_distribution, &mut rng),
+            device,
+        );
         *seed = Some(rng);
         tensor
     }
-    
+
     fn int_powi<const D: usize>(
         lhs: NdArrayTensor<i64, D>,
         rhs: NdArrayTensor<i64, D>,

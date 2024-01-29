@@ -234,7 +234,7 @@ mod tests {
         let tensor_float = cast::<i32, f32, 2>(tensor);
         let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
 
-        data_float.assert_within_range(0..10);
+        data_float.assert_within_range(0..255);
     }
 
     #[test]
