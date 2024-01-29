@@ -82,8 +82,8 @@ where
             .execute_autotune(autotune_operation_set, self);
     }
 
-    /// toto
-    pub fn autotune_fastest(&self, key: &Server::AutotuneKey) -> Option<usize> {
+    /// Get the fastest kernel for the given autotune key if it exists.
+    pub fn autotune_result(&self, key: &Server::AutotuneKey) -> Option<usize> {
         self.tuner.read().unwrap().autotune_fastest(key)
     }
 }

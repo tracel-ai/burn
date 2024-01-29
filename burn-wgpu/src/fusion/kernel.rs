@@ -105,6 +105,7 @@ pub trait FusionKernel: Send + Sync {
 
 impl FusionKernelSet {
     /// Execute the best kernel based on the given information.
+    #[allow(clippy::too_many_arguments)]
     pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
         inputs: &[&TensorDescription],

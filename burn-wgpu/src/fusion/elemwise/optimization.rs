@@ -8,7 +8,7 @@ use crate::{
         Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
         ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
     },
-    compute::{compute_client, WgpuAutotuneKey},
+    compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
     fusion::{kernel::FusionKernelSet, source::DynKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -186,34 +186,50 @@ where
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
         let client = compute_client::<G>(&self.device);
 
-        let shape = self.find_output_shape(context);
         let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.operators.len(),
-            shape,
+            self.find_autotune_shape(context),
         ));
 
-        if let Some(index) = client.autotune_fastest(&key) {
-            let kernel_set = match index {
-                0 => &self.phase.kernel_set_1,
-                1 => &self.phase.kernel_set_2,
-                _ => panic!("Should be 0 or 1, got {index}"),
-            };
-
-            let kernel = kernel_set.select(
-                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-                self.scalars.num_f32,
-                self.scalars.num_i32,
-                context,
-                self.device.clone(),
-                client,
-                true,
-            );
-
-            kernel.execute();
-            return;
+        if let Some(index) = client.autotune_result(&key) {
+            self.run_kernel(context, client, index)
+        } else {
+            self.run_autotune(context, client, key)
         }
+    }
 
+    fn run_kernel(
+        &mut self,
+        context: &mut Context<'_, Wgpu<G, F, I>>,
+        client: WgpuComputeClient,
+        fastest_set_index: usize,
+    ) {
+        let kernel_set = match fastest_set_index {
+            0 => &self.phase.kernel_set_1,
+            1 => &self.phase.kernel_set_2,
+            _ => panic!("Should be 0 or 1, got {fastest_set_index}"),
+        };
+
+        let kernel = kernel_set.select(
+            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            self.scalars.num_f32,
+            self.scalars.num_i32,
+            context,
+            self.device.clone(),
+            client,
+            true,
+        );
+
+        kernel.execute();
+    }
+
+    fn run_autotune(
+        &mut self,
+        context: &mut Context<'_, Wgpu<G, F, I>>,
+        client: WgpuComputeClient,
+        key: WgpuAutotuneKey,
+    ) {
         let kernel_1 = self.phase.kernel_set_1.select(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
@@ -259,7 +275,8 @@ where
         self.operators.len()
     }
 
-    pub(crate) fn find_output_shape<'a>(
+    /// The first output is chosen when possible, otherwise the first input is chosen.
+    pub(crate) fn find_autotune_shape<'a>(
         &self,
         context: &mut Context<'a, Wgpu<G, F, I>>,
     ) -> &'a [usize] {
