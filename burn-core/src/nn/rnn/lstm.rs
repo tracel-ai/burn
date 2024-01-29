@@ -223,8 +223,11 @@ impl<B: Backend> Lstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{module::Param, nn::LinearRecord, TestAutodiffBackend, TestBackend};
+    use crate::{module::Param, nn::LinearRecord, TestBackend};
     use burn_tensor::{Data, Distribution, Shape};
+
+    #[cfg(feature = "std")]
+    use crate::TestAutodiffBackend;
 
     #[test]
     fn test_with_uniform_initializer() {
@@ -355,6 +358,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
