@@ -65,10 +65,13 @@ cargo run --bin cuda --release
 cargo run --bin mps --release
 ```
 
+_Note: no MPS distribution is available for automatic download at this time, please check out the
+[manual instructions](#metal-mps)._
+
 ### Manual Download
 
-To install `tch-rs` with a different LibTorch distribution, you will have to set the `custom-libtorch`
-feature flag and manually download the desired LibTorch distribution.
+To install `tch-rs` with a different LibTorch distribution, you will have to set the
+`custom-libtorch` feature flag and manually download the desired LibTorch distribution.
 
 | Compute Platform          |              CPU               | GPU | Linux | MacOS | Windows | Android | iOS | WASM |
 | :------------------------ | :----------------------------: | :-: | :---: | :---: | :-----: | :-----: | :-: | :--: |
