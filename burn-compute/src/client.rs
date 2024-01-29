@@ -6,15 +6,15 @@ use crate::{
 use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
 use burn_common::reader::Reader;
+use burn_common::stub::RwLock;
 use core::marker::PhantomData;
-use spin::Mutex;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
 #[derive(Debug)]
 pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
-    tuner: Arc<Mutex<Tuner<Server, Channel>>>,
+    tuner: Arc<RwLock<Tuner<Server, Channel>>>,
     _server: PhantomData<Server>,
 }
 
@@ -38,7 +38,7 @@ where
     Channel: ComputeChannel<Server>,
 {
     /// Create a new client.
-    pub fn new(channel: Channel, tuner: Arc<Mutex<Tuner<Server, Channel>>>) -> Self {
+    pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server, Channel>>>) -> Self {
         Self {
             channel,
             tuner,
@@ -77,12 +77,13 @@ where
         autotune_operation_set: Box<dyn AutotuneOperationSet<Server::AutotuneKey>>,
     ) {
         self.tuner
-            .lock()
+            .write()
+            .unwrap()
             .execute_autotune(autotune_operation_set, self);
     }
 
     /// toto
     pub fn autotune_fastest(&self, key: &Server::AutotuneKey) -> Option<usize> {
-        self.tuner.lock().autotune_fastest(key)
+        self.tuner.read().unwrap().autotune_fastest(key)
     }
 }

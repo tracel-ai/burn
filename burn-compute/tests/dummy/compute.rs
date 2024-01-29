@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use super::DummyServer;
+use burn_common::stub::RwLock;
 use burn_compute::channel::MutexComputeChannel;
 use burn_compute::client::ComputeClient;
 use burn_compute::memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy};
 use burn_compute::storage::BytesStorage;
 use burn_compute::tune::Tuner;
 use burn_compute::Compute;
-use spin::Mutex;
 
 /// The dummy device.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServ
         SimpleMemoryManagement::new(storage, DeallocStrategy::Never, SliceStrategy::Never);
     let server = DummyServer::new(memory_management);
     let channel = MutexComputeChannel::new(server);
-    let tuner = Arc::new(Mutex::new(Tuner::new(TUNER_DEVICE_ID)));
+    let tuner = Arc::new(RwLock::new(Tuner::new(TUNER_DEVICE_ID)));
     ComputeClient::new(channel, tuner)
 }
 
