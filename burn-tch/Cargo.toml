@@ -11,7 +11,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-tch"
 version.workspace = true
 
 [features]
-default = ["tch/download-libtorch"]
+default = ["download-libtorch"]
+download-libtorch = ["tch/download-libtorch"]
 custom-libtorch = ["tch"]
 doc = ["tch/doc-only"]
 
