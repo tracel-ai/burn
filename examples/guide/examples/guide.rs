@@ -18,7 +18,7 @@ fn main() {
     guide::inference::infer::<MyBackend>(
         artifact_dir,
         device,
-        burn::data::dataset::source::huggingface::MNISTDataset::test()
+        burn::data::dataset::vision::MNISTDataset::test()
             .get(42)
             .unwrap(),
     );

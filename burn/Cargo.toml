@@ -33,6 +33,8 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+vision = ["burn-core/vision"]
+
 # Backends
 autodiff = ["burn-core/autodiff"]
 fusion = ["burn-core/fusion"]
@@ -52,6 +54,9 @@ candle = ["burn-core/candle"]
 
 # Experimental
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
+
+# Records
+record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 [dependencies]
 

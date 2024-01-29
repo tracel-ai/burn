@@ -366,7 +366,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
 
     fn int_into_float<const D: usize>(
         tensor: <NdArray<E> as Backend>::IntTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::TensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }
@@ -393,5 +393,26 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         let tensor = Self::int_from_data(Data::random(shape, distribution, &mut rng), device);
         *seed = Some(rng);
         tensor
+    }
+    
+    fn int_powi<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<i64, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &i64| a.pow(*b as u32))
+    }
+
+    fn int_powf<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &i64, b: &E| a.pow(b.elem::<u32>()))
+    }
+
+    fn int_powf_scalar<const D: usize>(
+        lhs: NdArrayTensor<i64, D>,
+        rhs: f32,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: i64| a.pow(rhs as u32))
     }
 }

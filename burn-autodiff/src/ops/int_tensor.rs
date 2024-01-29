@@ -305,7 +305,7 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     }
     fn int_into_float<const D: usize>(
         tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
-    ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
         AutodiffTensor::new(B::int_into_float(tensor))
     }
 

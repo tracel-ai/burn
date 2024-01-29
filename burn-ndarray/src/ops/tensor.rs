@@ -10,7 +10,7 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::TensorOps, Data, ElementConversion, Shape};
+use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
 use burn_tensor::{Distribution, Reader};
 
 // External crates
@@ -20,12 +20,15 @@ use libm::{cos, erf, sin, tanh};
 #[allow(unused_imports)]
 use num_traits::Float;
 
-impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
-    fn from_data<const D: usize>(data: Data<E, D>, _device: &NdArrayDevice) -> NdArrayTensor<E, D> {
+impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
+    fn float_from_data<const D: usize>(
+        data: Data<E, D>,
+        _device: &NdArrayDevice,
+    ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
     }
 
-    fn random<const D: usize>(
+    fn float_random<const D: usize>(
         shape: Shape<D>,
         distribution: Distribution,
         device: &NdArrayDevice,
@@ -36,16 +39,16 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         } else {
             get_seeded_rng()
         };
-        let tensor = Self::from_data(Data::random(shape, distribution, &mut rng), device);
+        let tensor = Self::float_from_data(Data::random(shape, distribution, &mut rng), device);
         *seed = Some(rng);
         tensor
     }
 
-    fn shape<const D: usize>(tensor: &NdArrayTensor<E, D>) -> Shape<D> {
+    fn float_shape<const D: usize>(tensor: &NdArrayTensor<E, D>) -> Shape<D> {
         tensor.shape()
     }
 
-    fn into_data<const D: usize>(
+    fn float_into_data<const D: usize>(
         tensor: NdArrayTensor<E, D>,
     ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
         let shape = tensor.shape();
@@ -54,84 +57,84 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         Reader::Concrete(Data::new(values, shape))
     }
 
-    fn device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
+    fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
 
-    fn to_device<const D: usize>(
+    fn float_to_device<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         tensor
     }
 
-    fn empty<const D: usize>(
+    fn float_empty<const D: usize>(
         shape: Shape<D>,
         device: &<NdArray<E> as Backend>::Device,
     ) -> NdArrayTensor<E, D> {
-        NdArray::<E>::zeros(shape, device)
+        NdArray::<E>::float_zeros(shape, device)
     }
 
-    fn add<const D: usize>(
+    fn float_add<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::add(lhs, rhs)
     }
 
-    fn add_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    fn float_add_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::add_scalar(lhs, rhs)
     }
 
-    fn sub<const D: usize>(
+    fn float_sub<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sub(lhs, rhs)
     }
 
-    fn sub_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    fn float_sub_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sub_scalar(lhs, rhs)
     }
 
-    fn mul<const D: usize>(
+    fn float_mul<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::mul(lhs, rhs)
     }
 
-    fn mul_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    fn float_mul_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::mul_scalar(lhs, rhs)
     }
 
-    fn div<const D: usize>(
+    fn float_div<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::div(lhs, rhs)
     }
 
-    fn div_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    fn float_div_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::div_scalar(lhs, rhs)
     }
 
-    fn matmul<const D: usize>(
+    fn float_matmul<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
         matmul(lhs, rhs)
     }
 
-    fn neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
-        Self::mul_scalar(tensor, (-1f32).elem::<E>())
+    fn float_neg<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+        Self::float_mul_scalar(tensor, (-1f32).elem::<E>())
     }
 
-    fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         NdArrayMathOps::recip(tensor)
     }
 
-    fn swap_dims<const D: usize>(
+    fn float_swap_dims<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim1: usize,
         dim2: usize,
@@ -139,14 +142,14 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn reshape<const D1: usize, const D2: usize>(
+    fn float_reshape<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         shape: Shape<D2>,
     ) -> NdArrayTensor<E, D2> {
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn gather<const D: usize>(
+    fn float_gather<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<E, D>,
         indices: NdArrayTensor<i64, D>,
@@ -154,7 +157,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::gather(dim, tensor, indices)
     }
 
-    fn scatter<const D: usize>(
+    fn float_scatter<const D: usize>(
         dim: usize,
         tensor: NdArrayTensor<E, D>,
         indices: NdArrayTensor<i64, D>,
@@ -163,7 +166,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::scatter(dim, tensor, indices, value)
     }
 
-    fn select<const D: usize>(
+    fn float_select<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
         indices: NdArrayTensor<i64, 1>,
@@ -171,7 +174,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::select(tensor, dim, indices)
     }
 
-    fn select_assign<const D: usize>(
+    fn float_select_assign<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
         indices: NdArrayTensor<i64, 1>,
@@ -180,14 +183,14 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::select_assign(tensor, dim, indices, value)
     }
 
-    fn slice<const D1: usize, const D2: usize>(
+    fn float_slice<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         ranges: [Range<usize>; D2],
     ) -> NdArrayTensor<E, D1> {
         NdArrayOps::slice(tensor, ranges)
     }
 
-    fn slice_assign<const D1: usize, const D2: usize>(
+    fn float_slice_assign<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
         ranges: [Range<usize>; D2],
         value: NdArrayTensor<E, D1>,
@@ -195,7 +198,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
-    fn mask_where<const D: usize>(
+    fn float_mask_where<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         mask: NdArrayTensor<bool, D>,
         value: NdArrayTensor<E, D>,
@@ -203,7 +206,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::mask_where(tensor, mask, value)
     }
 
-    fn mask_fill<const D: usize>(
+    fn float_mask_fill<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         mask: NdArrayTensor<bool, D>,
         value: E,
@@ -211,47 +214,53 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayMathOps::mask_fill(tensor, mask, value)
     }
 
-    fn equal<const D: usize>(
+    fn float_equal<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::float_sub(lhs, rhs);
         let zero = 0.elem();
 
-        Self::equal_elem(tensor, zero)
+        Self::float_equal_elem(tensor, zero)
     }
 
-    fn equal_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn float_equal_elem<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
+    ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a == rhs).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn greater<const D: usize>(
+    fn float_greater<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::float_sub(lhs, rhs);
         let zero = 0.elem();
-        Self::greater_elem(tensor, zero)
+        Self::float_greater_elem(tensor, zero)
     }
 
-    fn greater_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn float_greater_elem<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
+    ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a > rhs).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn greater_equal<const D: usize>(
+    fn float_greater_equal<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::float_sub(lhs, rhs);
         let zero = 0.elem();
-        Self::greater_equal_elem(tensor, zero)
+        Self::float_greater_equal_elem(tensor, zero)
     }
 
-    fn greater_equal_elem<const D: usize>(
+    fn float_greater_equal_elem<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {
@@ -260,31 +269,34 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn lower<const D: usize>(
+    fn float_lower<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::float_sub(lhs, rhs);
         let zero = 0.elem();
-        Self::lower_elem(tensor, zero)
+        Self::float_lower_elem(tensor, zero)
     }
 
-    fn lower_elem<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<bool, D> {
+    fn float_lower_elem<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
+    ) -> NdArrayTensor<bool, D> {
         let array = lhs.array.mapv(|a| a < rhs).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn lower_equal<const D: usize>(
+    fn float_lower_equal<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::sub(lhs, rhs);
+        let tensor = NdArray::<E>::float_sub(lhs, rhs);
         let zero = 0.elem();
-        Self::lower_equal_elem(tensor, zero)
+        Self::float_lower_equal_elem(tensor, zero)
     }
 
-    fn lower_equal_elem<const D: usize>(
+    fn float_lower_equal_elem<const D: usize>(
         lhs: NdArrayTensor<E, D>,
         rhs: E,
     ) -> NdArrayTensor<bool, D> {
@@ -293,65 +305,84 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn detach<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_detach<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         tensor
     }
 
-    fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    fn float_mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         NdArrayMathOps::mean(tensor)
     }
 
-    fn sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    fn float_sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         NdArrayMathOps::sum(tensor)
     }
 
-    fn mean_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+    fn float_mean_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::mean_dim(tensor, dim)
     }
 
-    fn sum_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
+    fn float_sum_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
-    fn to_full_precision<const D: usize>(tensor: &NdArrayTensor<E, D>) -> NdArrayTensor<f32, D> {
+    fn float_to_full_precision<const D: usize>(
+        tensor: &NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<f32, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn from_full_precision<const D: usize>(tensor: NdArrayTensor<f32, D>) -> NdArrayTensor<E, D> {
+    fn float_from_full_precision<const D: usize>(
+        tensor: NdArrayTensor<f32, D>,
+    ) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn argmax<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
+    fn float_argmax<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::argmax(tensor, dim)
     }
 
-    fn argmin<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<i64, D> {
+    fn float_argmin<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::argmin(tensor, dim)
     }
 
-    fn exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn log<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_log<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.log_elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn log1p<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_log1p<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn powf<const D: usize>(tensor: NdArrayTensor<E, D>, value: f32) -> NdArrayTensor<E, D> {
+    fn float_powf_scalar<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        value: f32,
+    ) -> NdArrayTensor<E, D> {
         let array = if value == 2.0 {
             // Happens often and is faster.
             tensor.array.mapv_into(|a| a * a).into_shared()
@@ -369,19 +400,19 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn sqrt<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_sqrt<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.sqrt_elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn abs<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_abs<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
 
         NdArrayTensor::new(array)
     }
 
-    fn cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
             .mapv_into(|a| cos(a.to_f64().unwrap()).elem())
@@ -390,7 +421,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
             .mapv_into(|a| sin(a.to_f64().unwrap()).elem())
@@ -399,7 +430,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
             .mapv_into(|a| tanh(a.to_f64().unwrap()).elem())
@@ -408,7 +439,7 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn float_erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
             .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
@@ -417,26 +448,40 @@ impl<E: FloatNdArrayElement> TensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn cat<const D: usize>(tensors: Vec<NdArrayTensor<E, D>>, dim: usize) -> NdArrayTensor<E, D> {
+    fn float_cat<const D: usize>(
+        tensors: Vec<NdArrayTensor<E, D>>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
         NdArrayOps::cat(tensors, dim)
     }
 
-    fn clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
+    fn float_clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::clamp_min(tensor, min)
     }
 
-    fn clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
+    fn float_clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::clamp_max(tensor, max)
     }
 
-    fn clamp<const D: usize>(tensor: NdArrayTensor<E, D>, min: E, max: E) -> NdArrayTensor<E, D> {
+    fn float_clamp<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        min: E,
+        max: E,
+    ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::clamp(tensor, min, max)
     }
 
-    fn into_int<const D: usize>(
-        tensor: <NdArray<E> as Backend>::TensorPrimitive<D>,
+    fn float_into_int<const D: usize>(
+        tensor: <NdArray<E> as Backend>::FloatTensorPrimitive<D>,
     ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
+    }
+
+    fn float_powf<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
     }
 }

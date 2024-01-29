@@ -24,7 +24,7 @@ where
     }
 }
 
-type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
 
 impl<ID> TensorContainer<ID>
 where

@@ -8,7 +8,7 @@ publish = false
 version.workspace = true
 
 [dependencies]
-burn = {path = "../../burn", features=["autodiff", "wgpu", "train", "dataset"], default-features=false}
+burn = {path = "../../burn", features=["autodiff", "wgpu", "train", "dataset", "vision"], default-features=false}
 guide = {path = "../guide", default-features=false}
 
 # Serialization

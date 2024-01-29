@@ -22,7 +22,7 @@ pub async fn build_and_load_model() -> Model<Backend> {
 
     let model: Model<Backend> = Model::new(&Default::default());
     let record = BinBytesRecorder::<FullPrecisionSettings>::default()
-        .load(STATE_ENCODED.to_vec())
+        .load(STATE_ENCODED.to_vec(), &Default::default())
         .expect("Failed to decode state");
 
     model.load_record(record)

@@ -1,3 +1,5 @@
+pub(crate) mod validator;
+
 mod base;
 mod explorer;
 mod policy;
