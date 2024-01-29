@@ -8,7 +8,7 @@ There are a few commands you want to run prior to any commit for a non-draft PR:
 
 1. `cargo clippy --fix --allow-dirty`, this will run clippy and fix any issues it can, the allow dirty flag is required whenever you have uncommitted changes
 2. `cargo fmt --all`, this will run rustfmt on all files in the project
-3. `./run_checks.sh all`, this is a script located in the project root that builds and tests the project. It is required that this pass prior to merging a PR. Fair warning, running these tests can take a while[^2].
+3. `./run_checks.sh all`, this is a script located in the project root that builds and tests the project. It is required that this passes prior to merging a PR. Fair warning, running these tests can take a while[^2].
 
 ## Updating the burn semver version
 
