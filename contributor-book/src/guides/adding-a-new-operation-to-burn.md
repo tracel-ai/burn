@@ -1,6 +1,6 @@
 # Adding a new operation to burn
 
-Let's discuss how one might go about adding new operators to burn, using the example of the recently added [pow operator](https://github.com/tracel-ai/burn/pull/1133/files) (as of 01/24/2024). In that PR, the following things took place (albeit not in this order)
+Let's discuss how one might go about adding new operators to Burn, using the example of the recently added [pow operator](https://github.com/tracel-ai/burn/pull/1133/files) (as of 01/24/2024). In that PR, the following things took place (albeit not in this order)
 
 ## Adding the Op to burn-tensor
 
