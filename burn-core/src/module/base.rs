@@ -178,7 +178,7 @@ pub trait Module<B: Backend>: Clone + Send + Sync + core::fmt::Debug {
     }
 
     /// Return the module using [BytesRecorder](crate::record::BytesRecorder).
-    fn to_bytes<BR: crate::record::BytesRecorder>(
+    fn to_bytes<BR: crate::record::BytesRecorder<B>>(
         self,
         recorder: &BR,
     ) -> Result<Vec<u8>, crate::record::RecorderError> {
