@@ -386,7 +386,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         let device = &(*device).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
-                candle_core::Tensor::rand(0.elem::<F>(), 100.elem::<F>(), shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 255.elem::<F>(), shape, device)
                     .unwrap()
                     .to_dtype(I::DTYPE)
                     .unwrap(),
