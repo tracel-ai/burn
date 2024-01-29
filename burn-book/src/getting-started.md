@@ -28,7 +28,7 @@ libraries/packages your code depends on, and build said libraries.
 Below is a quick cheat sheet of the main `cargo` commands you might use throughout this guide.
 
 | Command             | Description                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------- |
+|---------------------|----------------------------------------------------------------------------------------------|
 | `cargo new` _path_  | Create a new Cargo package in the given directory.                                           |
 | `cargo add` _crate_ | Add dependencies to the Cargo.toml manifest file.                                            |
 | `cargo build`       | Compile the local package and all of its dependencies (in debug mode, use `-r` for release). |
@@ -165,7 +165,7 @@ Tensor {
 ```
 
 While the previous example is somewhat trivial, the upcoming
-[basic workflow section](./basic-workflow/README.md) will walk you through a much more relevant example for
+basic workflow section will walk you through a much more relevant example for
 deep learning applications.
 
 ## Running examples

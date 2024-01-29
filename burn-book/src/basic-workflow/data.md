@@ -9,8 +9,10 @@ To iterate over a dataset efficiently, we will define a struct which will implem
 trait. The goal of a batcher is to map individual dataset items into a batched tensor that can be
 used as input to our previously defined model.
 
-Let us start by defining our dataset functionalities in a file `src/data.rs`. We shall omit some of the imports for brevity,
-but the full code for following this guide can be found at `examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide).
+Let us start by defining our dataset functionalities in a file `src/data.rs`. We shall omit some of the imports for
+brevity,
+but the full code for following this guide can be found
+at `examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide).
 
 ```rust , ignore
 use burn::{
