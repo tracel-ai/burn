@@ -188,7 +188,7 @@ where
 
         let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.operators.len(),
-            self.find_autotune_shape(context),
+            self.autotune_shape(context),
         ));
 
         if let Some(index) = client.autotune_result(&key) {
@@ -261,14 +261,12 @@ where
             true, // Can do whatever with the context.
         );
 
-        // We only create one when necessary.
-        let set = ElementWiseAutotuneOperationSet::new(
+        client.autotune_execute(Box::new(ElementWiseAutotuneOperationSet::new(
             key,
             kernel_1.into(),
             kernel_2.into(),
             kernel_default.into(),
-        );
-        client.autotune_execute(Box::new(set));
+        )));
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -276,7 +274,7 @@ where
     }
 
     /// The first output is chosen when possible, otherwise the first input is chosen.
-    pub(crate) fn find_autotune_shape<'a>(
+    pub(crate) fn autotune_shape<'a>(
         &self,
         context: &mut Context<'a, Wgpu<G, F, I>>,
     ) -> &'a [usize] {

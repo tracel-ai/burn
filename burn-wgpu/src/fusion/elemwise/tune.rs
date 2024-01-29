@@ -1,19 +1,19 @@
 use std::fmt::Display;
 
-use crate::{compute::WgpuAutotuneKey, fusion::kernel::AutotuneFusionKernel, tune::anchor};
+use crate::{compute::WgpuAutotuneKey, fusion::kernel::AutotunableKernel, tune::anchor};
 use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 pub struct ElementWiseAutotuneOperationSet {
     key: WgpuAutotuneKey,
-    kernel_1: AutotuneFusionKernel,
-    kernel_2: AutotuneFusionKernel,
-    kernel_default: AutotuneFusionKernel,
+    kernel_1: AutotunableKernel,
+    kernel_2: AutotunableKernel,
+    kernel_default: AutotunableKernel,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-/// Autotune key representative of reduce versions
+/// Autotune key representative of a fused element wise kernel.
 pub struct FusionElemWiseAutotuneKey {
     anchored_num_operations: usize,
     anchored_shape: Vec<usize>,
@@ -49,13 +49,10 @@ impl AutotuneOperationSet<WgpuAutotuneKey> for ElementWiseAutotuneOperationSet {
 }
 
 impl FusionElemWiseAutotuneKey {
-    /// Create a matmul autotune key from the input shapes
-    pub fn new(num_operations: usize, output_shape: &[usize]) -> Self {
+    /// Create a fused element wise autotune key.
+    pub fn new(num_operations: usize, shape: &[usize]) -> Self {
         Self {
-            anchored_shape: output_shape
-                .iter()
-                .map(|x| anchor(*x, Some(4096)))
-                .collect(),
+            anchored_shape: shape.iter().map(|x| anchor(*x, Some(4096))).collect(),
             anchored_num_operations: anchor(num_operations, None),
         }
     }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
@@ -8,38 +6,71 @@ use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
+use std::sync::Arc;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
 ///
-/// This type makes it easy to group those potential kernels and execute the best one depending on
-/// the context.
+/// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
 pub struct FusionKernelSet {
     kernels: Vec<Box<dyn FusionKernel>>,
 }
 
+/// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
-pub struct FusionKernelSetExecutable {
+pub struct ExecutableKernel {
     kernel: Box<dyn Kernel>,
     handles: Vec<WgpuHandle>,
     client: WgpuComputeClient,
 }
 
-impl FusionKernelSetExecutable {
+/// An instantiation of a [kernel](Kernel) that can be autotuned.
+///
+/// The main difference with an [executable kernel](ExecutableKernel) is that this kernel can be
+/// cloned and executed multiple times to properly collect benchmarks.
+///
+/// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
+#[derive(new)]
+pub struct AutotunableKernel {
+    kernel: Arc<dyn Kernel>,
+    handles: Vec<WgpuHandle>,
+    client: WgpuComputeClient,
+}
+
+/// A selected kernel encapsulates a kernel that should be executed with the provided
+/// [output info](OutputInfo).
+///
+/// It isn't ready for execution yet but should provide all information necessary to
+/// a [kernel set](FusionKernelSet) to create an [executable kernel](ExecutableKernel).
+#[derive(new)]
+pub struct SelectedKernel {
+    kernel: Box<dyn Kernel>,
+    info: Vec<OutputInfo>,
+}
+
+/// The priority of a kernel.
+pub enum Priority {
+    /// When a kernel can be executed in the specified context with its priority, higher is better.
+    Available(u8),
+    /// When a kernel can't be executed in the specified context.
+    Unavailable,
+}
+
+// Information related to the output of this kernel.
+pub enum OutputInfo {
+    Inplace { input_index: usize },
+    Array { size: usize },
+}
+
+impl ExecutableKernel {
+    /// Execute the kernel.
     pub fn execute(self) {
         self.client
             .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
     }
 }
 
-#[derive(new)]
-pub struct AutotuneFusionKernel {
-    kernel: Arc<dyn Kernel>,
-    handles: Vec<WgpuHandle>,
-    client: WgpuComputeClient,
-}
-
-impl AutotuneOperation for AutotuneFusionKernel {
+impl AutotuneOperation for AutotunableKernel {
     fn execute(self: Box<Self>) {
         self.client.execute(
             Box::new(self.kernel),
@@ -56,34 +87,14 @@ impl AutotuneOperation for AutotuneFusionKernel {
     }
 }
 
-impl From<FusionKernelSetExecutable> for AutotuneFusionKernel {
-    fn from(value: FusionKernelSetExecutable) -> Self {
+impl From<ExecutableKernel> for AutotunableKernel {
+    fn from(value: ExecutableKernel) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
             handles: value.handles,
             client: value.client,
         }
     }
-}
-
-/// The priority of a kernel.
-pub enum Priority {
-    /// When a kernel can be executed in the specified context with its priority, higher is better.
-    Available(u8),
-    /// When a kernel can't be executed in the specified context.
-    Unavailable,
-}
-
-#[derive(new)]
-pub struct SelectedKernel {
-    kernel: Box<dyn Kernel>,
-    info: Vec<OutputInfo>,
-}
-
-// Information related to the output of this kernel.
-pub enum OutputInfo {
-    Inplace { input_index: usize },
-    Array { size: usize },
 }
 
 pub trait FusionKernel: Send + Sync {
@@ -104,7 +115,7 @@ pub trait FusionKernel: Send + Sync {
 }
 
 impl FusionKernelSet {
-    /// Execute the best kernel based on the given information.
+    /// Select the best kernel based on the given information.
     #[allow(clippy::too_many_arguments)]
     pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
@@ -116,7 +127,7 @@ impl FusionKernelSet {
         device: Device<Wgpu<G, F, I>>,
         client: WgpuComputeClient,
         stateful: bool,
-    ) -> FusionKernelSetExecutable {
+    ) -> ExecutableKernel {
         let (handles_input, inputs_description_updated, outputs_description_updated) =
             process_inputs_outputs(inputs, outputs, context, stateful);
 
@@ -203,7 +214,7 @@ impl FusionKernelSet {
             context.handles.register_handle(id, handle);
         }
 
-        FusionKernelSetExecutable::new(selected.kernel, handles, client)
+        ExecutableKernel::new(selected.kernel, handles, client)
     }
 
     fn select_kernel(
@@ -249,7 +260,7 @@ fn register_info_tensor(
     }
 }
 
-pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
+fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     context: &'a mut Context<'_, Wgpu<G, F, I>>,
