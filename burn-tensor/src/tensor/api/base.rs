@@ -322,14 +322,13 @@ where
     /// ```
     pub fn unsqueeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
         let mut current_dims = [1; D2];
+        let mut dim_indices = dims.to_vec();
         let shape = self.shape();
         //for checking if the dimension is in the acceptable range
         let output_rank = (D + dims.len()) as isize;
-        let mut current_num_dims = shape.dims.len();
 
-        let mut slow_runner = 0 as usize;
-
-        for d in dims {
+        //part 1:
+        dim_indices.iter_mut().for_each(|d| {
             // check if the dimension is in the acceptable range
             if !(-output_rank..output_rank - 1).contains(d) {
                 panic!(
@@ -337,22 +336,34 @@ where
                     *d, output_rank
                 )
             }
-            let dim = if *d > 0 {
-                *d as usize
-            } else {
-                current_num_dims + *d as usize
-            };
-            current_dims[slow_runner..dim].copy_from_slice(&shape.dims[slow_runner..dim]);
-            // slow_runner = dim;
-            // current_num_dims += 1;
-            // if dim < current_num_dims {
-            //     current_dims[dim] = 1;
-            //     current_dims[(dim + 1)..].copy_from_slice(&shape.dims[dim..]);
-            // } else {
-            //     current_dims[dim] = 1;
-            // }
-        }
+            if *d < 0 {
+                *d += output_rank;
+            }
+        });
+        //sort and deduplicate the indices
+        dim_indices.sort_unstable();
+        let mut prev_idx: isize = -1;
+        dim_indices.iter_mut().for_each(|d| {
+            if *d == prev_idx {
+                *d += 1
+            }
+            prev_idx = *d
+        });
+        //Now use this to copy the chunks of the dims
 
+        let mut prev_idx: usize = 0;
+        dim_indices.iter().for_each(|d| {
+            //copy the chunks of the dims
+            current_dims[prev_idx..*d as usize].copy_from_slice(&shape.dims[prev_idx..*d as usize]);
+            prev_idx = *d as usize;
+        });
+        //check if the last dim is equal to the output rank
+        if prev_idx < D2 {
+            current_dims[prev_idx..].copy_from_slice(&shape.dims[prev_idx..]);
+        }
+        //last index should already be one
+
+        //lastly, create the shape and reshape
         let shape = Shape::new(current_dims);
         self.reshape(shape)
     }
