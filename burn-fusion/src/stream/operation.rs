@@ -380,7 +380,6 @@ pub enum NumericOperationDescription<E> {
     Clamp(ClampOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [random](burn_tensor::ops::TensorOps::random).
     /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
     IntRandom(RandomOperationDescription),
     /// Operation corresponding to:
