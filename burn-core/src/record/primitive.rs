@@ -84,7 +84,14 @@ where
     }
 }
 
+/// A macro for generating implementations for tuple records of different sizes.
+/// For example: `impl_record_tuple!([R0, R1][0, 1])`.
+/// Would generate an implementation for a tuple of size 2.
+/// For this macro to work properly, please adhear to the convention:
+/// `impl_record_tuple!([R0, R1, ..., Rn][0, 1, ..., n])`.
 macro_rules! impl_record_tuple {
+    // `$r` represents the generic records.
+    // `$i` represents the indices of the records in the tuple.
     ([$($r:ident),*][$($i:tt),*]) => {
         impl<B, $($r,)*> Record<B> for ($($r,)*)
         where
