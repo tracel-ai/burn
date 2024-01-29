@@ -1,10 +1,12 @@
-use crate::compute::{compute_client, Kernel, WgpuComputeClient, WgpuHandle};
+use std::sync::Arc;
+
+use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
-use burn_fusion::TensorDescription;
+use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
@@ -26,18 +28,41 @@ pub struct FusionKernelSetExecutable {
 impl FusionKernelSetExecutable {
     pub fn execute(self) {
         self.client
-            .clone()
             .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
     }
 }
 
-impl AutotuneOperation for FusionKernelSetExecutable {
+#[derive(new)]
+pub struct AutotuneFusionKernel {
+    kernel: Arc<dyn Kernel>,
+    handles: Vec<WgpuHandle>,
+    client: WgpuComputeClient,
+}
+
+impl AutotuneOperation for AutotuneFusionKernel {
     fn execute(self: Box<Self>) {
-        FusionKernelSetExecutable::execute(*self)
+        self.client.execute(
+            Box::new(self.kernel),
+            &self.handles.iter().collect::<Vec<_>>(),
+        )
     }
 
     fn clone(&self) -> Box<dyn AutotuneOperation> {
-        panic!("Can't clone")
+        Box::new(Self {
+            kernel: self.kernel.clone(),
+            handles: self.handles.iter().map(Clone::clone).collect(),
+            client: self.client.clone(),
+        })
+    }
+}
+
+impl From<FusionKernelSetExecutable> for AutotuneFusionKernel {
+    fn from(value: FusionKernelSetExecutable) -> Self {
+        Self {
+            kernel: Arc::new(value.kernel),
+            handles: value.handles,
+            client: value.client,
+        }
     }
 }
 
@@ -88,11 +113,11 @@ impl FusionKernelSet {
         scalars_i32: usize,
         context: &mut Context<'_, Wgpu<G, F, I>>,
         device: Device<Wgpu<G, F, I>>,
+        client: WgpuComputeClient,
+        stateful: bool,
     ) -> FusionKernelSetExecutable {
-        let client = compute_client::<G>(&device);
-
         let (handles_input, inputs_description_updated, outputs_description_updated) =
-            process_inputs_outputs(inputs, outputs, context);
+            process_inputs_outputs(inputs, outputs, context, stateful);
 
         let selected = self.select_kernel(
             &handles_input,
@@ -227,6 +252,7 @@ pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     context: &'a mut Context<'_, Wgpu<G, F, I>>,
+    stateful: bool,
 ) -> (
     Vec<WgpuFusionHandle>,
     Vec<&'a TensorDescription>,
@@ -237,9 +263,14 @@ pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement
     let mut handles_input = Vec::new();
 
     for tensor in inputs.iter() {
-        let status = &tensor.status; // Important to take the status of the relative graph and not
-                                     // the global graph, since the status of the global graph
-                                     // might be of a later operation on the same tensor id.
+        let status = if stateful {
+            &tensor.status // Important to take the status of the relative graph and not
+                           // the global graph, since the status of the global graph
+                           // might be of a later operation on the same tensor id.
+        } else {
+            &TensorStatus::ReadOnly
+        };
+
         let tensor = context.tensors.get(&tensor.id).unwrap();
         let handle = context.handles.get_handle(&tensor.id, status);
 

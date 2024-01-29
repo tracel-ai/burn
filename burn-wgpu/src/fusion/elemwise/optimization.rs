@@ -1,11 +1,13 @@
-use std::sync::atomic::{AtomicU8, Ordering};
-
-use super::kernel::{ScalarElementWise, VecElementWise};
+use super::{
+    kernel::{ScalarElementWise, VecElementWise},
+    tune::ElementWiseAutotuneOperationSet,
+};
 use crate::{
     codegen::{
         Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
         ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
     },
+    compute::{compute_client, WgpuAutotuneKey},
     fusion::{kernel::FusionKernelSet, source::DynKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
@@ -174,8 +176,6 @@ where
     }
 }
 
-static ELEM_WISE_MODE: AtomicU8 = AtomicU8::new(0);
-
 impl<G, F, I> ElementWise<G, F, I, ExecutionPhase>
 where
     G: GraphicsApi,
@@ -183,29 +183,68 @@ where
     I: IntElement,
 {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
-        let kernel_set = match ELEM_WISE_MODE.load(Ordering::Relaxed) {
-            0 => 0,
-            1 => 1,
-            2 => todo!("Autotune"),
-            _ => panic!(),
-        };
+        let client = compute_client::<G>(&self.device);
 
-        let kernel_set = match kernel_set {
-            0 => &self.phase.kernel_set_1,
-            1 => &self.phase.kernel_set_2,
-            _ => panic!("Should be 0 or 1, got {kernel_set}"),
-        };
+        if let Some(index) = client.autotune_fastest(&WgpuAutotuneKey::ElemWise(())) {
+            let kernel_set = match index {
+                0 => &self.phase.kernel_set_1,
+                1 => &self.phase.kernel_set_2,
+                _ => panic!("Should be 0 or 1, got {index}"),
+            };
 
-        let kernel = kernel_set.select(
+            let kernel = kernel_set.select(
+                &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+                self.scalars.num_f32,
+                self.scalars.num_i32,
+                context,
+                self.device.clone(),
+                client,
+                true,
+            );
+
+            kernel.execute();
+            return;
+        }
+
+        let kernel_1 = self.phase.kernel_set_1.select(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             self.scalars.num_f32,
             self.scalars.num_i32,
             context,
             self.device.clone(),
+            client.clone(),
+            false, // Should not mutate the context.
+        );
+        let kernel_2 = self.phase.kernel_set_1.select(
+            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            self.scalars.num_f32,
+            self.scalars.num_i32,
+            context,
+            self.device.clone(),
+            client.clone(),
+            false, // Should not mutate the context.
+        );
+        let kernel_default = self.phase.kernel_set_1.select(
+            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            self.scalars.num_f32,
+            self.scalars.num_i32,
+            context,
+            self.device.clone(),
+            client.clone(),
+            true, // Can do whatever with the context.
         );
 
-        kernel.execute()
+        // We only create one when necessary.
+        let set = ElementWiseAutotuneOperationSet::new(
+            kernel_1.into(),
+            kernel_2.into(),
+            kernel_default.into(),
+        );
+        client.execute_autotune(Box::new(set));
     }
 
     pub(crate) fn len(&self) -> usize {

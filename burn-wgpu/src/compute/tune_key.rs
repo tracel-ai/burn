@@ -14,6 +14,7 @@ pub enum WgpuAutotuneKey {
     SumDim(ReduceAutotuneKey),
     /// Key for mean_dim operations
     MeanDim(ReduceAutotuneKey),
+    ElemWise(()),
 }
 
 impl Display for WgpuAutotuneKey {
@@ -22,6 +23,7 @@ impl Display for WgpuAutotuneKey {
             WgpuAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
             WgpuAutotuneKey::SumDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             WgpuAutotuneKey::MeanDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            WgpuAutotuneKey::ElemWise(reduce_key) => std::fmt::Display::fmt(&"a", f),
         }
     }
 }

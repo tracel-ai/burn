@@ -80,4 +80,9 @@ where
             .lock()
             .execute_autotune(autotune_operation_set, self);
     }
+
+    /// toto
+    pub fn autotune_fastest(&self, key: &Server::AutotuneKey) -> Option<usize> {
+        self.tuner.lock().autotune_fastest(key)
+    }
 }
