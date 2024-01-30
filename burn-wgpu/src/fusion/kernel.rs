@@ -1,18 +1,51 @@
-use crate::compute::{compute_client, Kernel};
+use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
+use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
-use burn_fusion::TensorDescription;
+use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
+use std::sync::Arc;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
 ///
-/// This type makes it easy to group those potential kernels and execute the best one depending on
-/// the context.
+/// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
 pub struct FusionKernelSet {
     kernels: Vec<Box<dyn FusionKernel>>,
+}
+
+/// An instantiation of a [kernel](Kernel) that can be executed.
+#[derive(new)]
+pub struct ExecutableKernel {
+    kernel: Box<dyn Kernel>,
+    handles: Vec<WgpuHandle>,
+    client: WgpuComputeClient,
+}
+
+/// An instantiation of a [kernel](Kernel) that can be autotuned.
+///
+/// The main difference with an [executable kernel](ExecutableKernel) is that this kernel can be
+/// cloned and executed multiple times to properly collect benchmarks.
+///
+/// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
+#[derive(new)]
+pub struct AutotunableKernel {
+    kernel: Arc<dyn Kernel>,
+    handles: Vec<WgpuHandle>,
+    client: WgpuComputeClient,
+}
+
+/// A selected kernel encapsulates a kernel that should be executed with the provided
+/// [output info](OutputInfo).
+///
+/// It isn't ready for execution yet but should provide all information necessary to
+/// a [kernel set](FusionKernelSet) to create an [executable kernel](ExecutableKernel).
+#[derive(new)]
+pub struct SelectedKernel {
+    kernel: Box<dyn Kernel>,
+    info: Vec<OutputInfo>,
 }
 
 /// The priority of a kernel.
@@ -23,16 +56,45 @@ pub enum Priority {
     Unavailable,
 }
 
-#[derive(new)]
-pub struct SelectedKernel {
-    kernel: Box<dyn Kernel>,
-    info: Vec<OutputInfo>,
-}
-
 // Information related to the output of this kernel.
 pub enum OutputInfo {
     Inplace { input_index: usize },
     Array { size: usize },
+}
+
+impl ExecutableKernel {
+    /// Execute the kernel.
+    pub fn execute(self) {
+        self.client
+            .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
+    }
+}
+
+impl AutotuneOperation for AutotunableKernel {
+    fn execute(self: Box<Self>) {
+        self.client.execute(
+            Box::new(self.kernel),
+            &self.handles.iter().collect::<Vec<_>>(),
+        )
+    }
+
+    fn clone(&self) -> Box<dyn AutotuneOperation> {
+        Box::new(Self {
+            kernel: self.kernel.clone(),
+            handles: self.handles.iter().map(Clone::clone).collect(),
+            client: self.client.clone(),
+        })
+    }
+}
+
+impl From<ExecutableKernel> for AutotunableKernel {
+    fn from(value: ExecutableKernel) -> Self {
+        Self {
+            kernel: Arc::new(value.kernel),
+            handles: value.handles,
+            client: value.client,
+        }
+    }
 }
 
 pub trait FusionKernel: Send + Sync {
@@ -53,8 +115,9 @@ pub trait FusionKernel: Send + Sync {
 }
 
 impl FusionKernelSet {
-    /// Execute the best kernel based on the given information.
-    pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
+    /// Select the best kernel based on the given information.
+    #[allow(clippy::too_many_arguments)]
+    pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
         &self,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
@@ -62,11 +125,11 @@ impl FusionKernelSet {
         scalars_i32: usize,
         context: &mut Context<'_, Wgpu<G, F, I>>,
         device: Device<Wgpu<G, F, I>>,
-    ) {
-        let client = compute_client::<G>(&device);
-
+        client: WgpuComputeClient,
+        stateful: bool,
+    ) -> ExecutableKernel {
         let (handles_input, inputs_description_updated, outputs_description_updated) =
-            process_inputs_outputs(inputs, outputs, context);
+            process_inputs_outputs(inputs, outputs, context, stateful);
 
         let selected = self.select_kernel(
             &handles_input,
@@ -151,8 +214,7 @@ impl FusionKernelSet {
             context.handles.register_handle(id, handle);
         }
 
-        // Execute the kernel.
-        client.execute(selected.kernel, &handles.iter().collect::<Vec<_>>());
+        ExecutableKernel::new(selected.kernel, handles, client)
     }
 
     fn select_kernel(
@@ -198,10 +260,11 @@ fn register_info_tensor(
     }
 }
 
-pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
+fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     context: &'a mut Context<'_, Wgpu<G, F, I>>,
+    stateful: bool,
 ) -> (
     Vec<WgpuFusionHandle>,
     Vec<&'a TensorDescription>,
@@ -212,9 +275,14 @@ pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement
     let mut handles_input = Vec::new();
 
     for tensor in inputs.iter() {
-        let status = &tensor.status; // Important to take the status of the relative graph and not
-                                     // the global graph, since the status of the global graph
-                                     // might be of a later operation on the same tensor id.
+        let status = if stateful {
+            &tensor.status // Important to take the status of the relative graph and not
+                           // the global graph, since the status of the global graph
+                           // might be of a later operation on the same tensor id.
+        } else {
+            &TensorStatus::ReadOnly
+        };
+
         let tensor = context.tensors.get(&tensor.id).unwrap();
         let handle = context.handles.get_handle(&tensor.id, status);
 

@@ -1,72 +1,13 @@
-# Burn Import: A Crate for ONNX Model Import into the Burn Framework
+# Importing Models
 
-`burn-import` facilitates the seamless import of machine learning models, particularly those in the
-ONNX format, into the Burn deep learning framework. It automatically generates Rust source code,
-aligns the model structure with Burn's native format, and converts tensor data for Burn
-compatibility.
+The Burn project supports the import of models from various frameworks, emphasizing efficiency and
+compatibility. Currently, it handles two primary model formats:
 
-> **Note**: This crate is in active development and currently supports a
-> [limited set of ONNX operators](SUPPORTED-ONNX-OPS.md).
+1. [ONNX](https://burn.dev/book/import/onnx-model.html): Facilitates direct import, ensuring the
+   model's performance and structure are maintained.
 
-## Working Examples
-
-For practical examples, please refer to:
-
-1. [ONNX Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
-2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
-
-## Usage
-
-### Importing ONNX Models
-
-Follow these steps to import an ONNX model into your Burn project:
-
-1. **Update `build.rs`**: Include the following Rust code in your `build.rs` file:
-
-   ```rust
-   use burn_import::onnx::ModelGen;
-
-   fn main() {
-       // Generate Rust code from the ONNX model file
-       ModelGen::new()
-           .input("src/model/model_name.onnx")
-           .out_dir("model/")
-           .run_from_script();
-   }
-   ```
-
-2. **Modify `mod.rs`**: Add this code to the `mod.rs` file located in `src/model`:
-
-   ```rust
-   pub mod model_name {
-       include!(concat!(env!("OUT_DIR"), "/model/model_name.rs"));
-   }
-   ```
-
-3. **Utilize Imported Model**: Use the following sample code to incorporate the imported model into
-   your application:
-
-   ```rust
-   mod model;
-
-   use burn::tensor;
-   use burn_ndarray::NdArray;
-   use model::model_name::Model;
-
-   fn main() {
-       // Initialize a new model instance
-       let model: Model<NdArray<f32>> = Model::new();
-
-       // Create a sample input tensor (zeros for demonstration)
-       let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28]);
-
-       // Execute the model
-       let output = model.forward(input);
-
-       // Display the output
-       println!("{:?}", output);
-   }
-   ```
+2. [PyTorch](https://burn.dev/book/import/pytorch-model.html): Enables the loading of PyTorch model
+   weights into Burn’s native model architecture, ensuring seamless integration.
 
 ## Contribution
 

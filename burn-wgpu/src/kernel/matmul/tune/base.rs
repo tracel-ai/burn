@@ -114,7 +114,7 @@ pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
         output.clone(),
     ));
 
-    client.execute_autotune(operation_set);
+    client.autotune_execute(operation_set);
 
     output
 }
