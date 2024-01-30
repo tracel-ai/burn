@@ -316,7 +316,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 4,5), &device);
-    ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dims([0, 4]);
+    ///     let tensor: Tensor<B, 5> = tensor.unsqueeze_dims(&[0, 4]);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 3, 4, 5, 1] }
     /// }
