@@ -16,6 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
+use crate::tensor::shape;
 use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
@@ -321,7 +322,7 @@ where
     /// }
     /// ```
     pub fn unsqueeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
-        let mut current_dims = [1; D2];
+        let mut new_dims = [1; D2];
         let mut dim_indices = dims.to_vec();
         let shape = self.shape();
         //for checking if the dimension is in the acceptable range
@@ -330,41 +331,43 @@ where
         //part 1:
         dim_indices.iter_mut().for_each(|d| {
             // check if the dimension is in the acceptable range
-            if !(-output_rank..output_rank - 1).contains(d) {
-                panic!(
-                    "unsqueeze arg {} is out of range for the output tensor of rank {}",
-                    *d, output_rank
-                )
-            }
+            check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
             if *d < 0 {
                 *d += output_rank;
             }
         });
         //sort and deduplicate the indices
         dim_indices.sort_unstable();
-        let mut prev_idx: isize = -1;
-        dim_indices.iter_mut().for_each(|d| {
-            if *d == prev_idx {
-                *d += 1
-            }
-            prev_idx = *d
-        });
-        //Now use this to copy the chunks of the dims
 
+        //Now use this to copy the chunks of the dims
         let mut prev_idx: usize = 0;
+        let mut current_left_b: usize = 0;
+        let mut current_right_b: usize = 0;
+        let mut offset: usize = 0;
         dim_indices.iter().for_each(|d| {
-            //copy the chunks of the dims
-            current_dims[prev_idx..*d as usize].copy_from_slice(&shape.dims[prev_idx..*d as usize]);
-            prev_idx = *d as usize;
+            //check if there is space for at least one dimension
+            if prev_idx < *d as usize {
+                current_right_b = *d as usize - offset;
+                //copy the chunks of the dims
+                new_dims[prev_idx..*d as usize]
+                    .copy_from_slice(&shape.dims[current_left_b..current_right_b as usize]);
+                prev_idx = *d as usize + 1;
+                //offset is equal to the number of extracted elements from the original shape
+                offset += current_right_b - current_left_b;
+                current_left_b = current_right_b;
+            } else {
+                //it's sorted so the only reason this would happen
+                //is if multiple indices are the same
+                prev_idx += 1;
+            }
         });
-        //check if the last dim is equal to the output rank
-        if prev_idx < D2 {
-            current_dims[prev_idx..].copy_from_slice(&shape.dims[prev_idx..]);
+        //copy over anything past the index of the last new dimension
+        if current_left_b < D {
+            new_dims[prev_idx..].copy_from_slice(&shape.dims[current_left_b..]);
         }
-        //last index should already be one
 
         //lastly, create the shape and reshape
-        let shape = Shape::new(current_dims);
+        let shape = Shape::new(new_dims);
         self.reshape(shape)
     }
 

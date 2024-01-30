@@ -69,4 +69,31 @@ mod tests {
         let tensor = Tensor::<TestBackend, 4>::ones(Shape::new([2, 3, 4, 5]), &Default::default());
         let unsqueezed_tensor: Tensor<TestBackend, 5> = tensor.unsqueeze_dim(5);
     }
+
+    #[test]
+    fn should_unsqueeze_dims_support_dim_inference() {
+        let input_tensor =
+            Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
+        let output_tensor = input_tensor.unsqueeze_dims(&[1, -2]);
+        let expected_shape = Shape::new([3, 1, 4, 1, 5]);
+        assert_eq!(output_tensor.shape(), expected_shape);
+    }
+
+    #[test]
+    fn should_unsqueeze_dims_work_with_single_dim() {
+        //bruh, just call unsqueeze_dim
+        let input_tensor =
+            Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
+        let output_tensor: Tensor<TestBackend, 4> = input_tensor.unsqueeze_dims(&[1]);
+        let expected_shape = Shape::new([3, 1, 4, 5]);
+        assert_eq!(output_tensor.shape(), expected_shape);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_unsqueeze_dims_panic() {
+        let input_tensor =
+            Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
+        let output_tensor: Tensor<TestBackend, 5> = input_tensor.unsqueeze_dims(&[0, -6]);
+    }
 }
