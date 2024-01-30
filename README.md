@@ -6,7 +6,7 @@
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
-[![Rust Version](https://img.shields.io/badge/Rust-1.72.0+-blue)](https://releases.rs/docs/1.72.0)
+[![Rust Version](https://img.shields.io/badge/Rust-1.73.0+-blue)](https://releases.rs/docs/1.73.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---
