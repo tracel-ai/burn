@@ -13,7 +13,7 @@ pub(crate) fn run_cargo(command: &str, params: Params, envs: HashMap<&str, Strin
     run_cargo_with_path::<String>(command, params, envs, None, error)
 }
 
-/// Run acargo command with the passed directory as the current directory
+/// Run a cargo command with the passed directory as the current directory
 pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     command: &str,
     params: Params,
