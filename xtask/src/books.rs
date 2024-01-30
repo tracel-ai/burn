@@ -13,34 +13,47 @@ use crate::{
 };
 
 #[derive(Args)]
-pub(crate) struct BookArgs {
+pub(crate) struct BooksArgs {
     #[command(subcommand)]
-    pub book: BookArg,
+    book: BookKind,
 }
 
 #[derive(Subcommand)]
-pub(crate) enum BookArg {
+pub(crate) enum BookKind {
     ///  Burn Book, a.k.a. the guide, made for the Burn users.
-    Burn { command: BookCommand },
+    Burn(BookKindArgs),
     /// Contributor book, made for people willing to get all the technical understanding and advices to contribute actively to the project.
-    Contributor { command: BookCommand },
+    Contributor(BookKindArgs),
 }
 
-#[derive(clap::ValueEnum, Default, Display, Clone)]
+#[derive(Args)]
+pub(crate) struct BookKindArgs {
+    #[command(subcommand)]
+    command: BookCommand,
+}
+
+#[derive(Subcommand, Display)]
 pub(crate) enum BookCommand {
     /// Build the book
     Build,
-    /// Open the book on a random port and rebuild it automatically upon changes
-    #[default]
-    Open,
+    /// Open the book on the specified port or random port and rebuild it automatically upon changes
+    Open(OpenArgs),
 }
 
+#[derive(Args, Display)]
+pub(crate) struct OpenArgs {
+    /// Specify the port to open the book on (defaults to a random port if not specified)
+    #[clap(long, default_value_t = random_port())]
+    port: u16,
+}
+
+/// Book information
 pub(crate) struct Book {
     name: &'static str,
     path: &'static Path,
 }
 
-impl BookArgs {
+impl BooksArgs {
     pub(crate) fn parse(&self) -> anyhow::Result<()> {
         init_logger().init();
         let start = Instant::now();
@@ -61,21 +74,21 @@ impl Book {
     const CONTRIBUTOR_BOOK_NAME: &'static str = "Contributor Book";
     const CONTRIBUTOR_BOOK_PATH: &'static str = "./burn-book";
 
-    pub(crate) fn run(book_arg: &BookArg) -> anyhow::Result<()> {
+    pub(crate) fn run(book_arg: &BookKind) -> anyhow::Result<()> {
         let (book, command) = match book_arg {
-            BookArg::Burn { command } => (
+            BookKind::Burn(args) => (
                 Self {
                     name: Self::BURN_BOOK_NAME,
                     path: Path::new(Self::BURN_BOOK_PATH),
                 },
-                command,
+                &args.command,
             ),
-            BookArg::Contributor { command } => (
+            BookKind::Contributor(args) => (
                 Self {
                     name: Self::CONTRIBUTOR_BOOK_NAME,
                     path: Path::new(Self::CONTRIBUTOR_BOOK_PATH),
                 },
-                command,
+                &args.command,
             ),
         };
         book.execute(command);
@@ -87,7 +100,7 @@ impl Book {
         group!("{}: {}", self.name, command);
         match command {
             BookCommand::Build => self.build(),
-            BookCommand::Open => self.open(),
+            BookCommand::Open(args) => self.open(args),
         };
         endgroup!();
     }
@@ -102,10 +115,10 @@ impl Book {
         );
     }
 
-    fn open(&self) {
+    fn open(&self, args: &OpenArgs) {
         run_mdbook_with_path(
             "serve",
-            Params::from(["--open", "--port", &random_port().to_string()]),
+            Params::from(["--open", "--port", &args.port.to_string()]),
             HashMap::new(),
             Some(self.path),
             "mdbook should build the book successfully",

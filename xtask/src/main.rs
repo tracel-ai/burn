@@ -21,7 +21,7 @@ struct Args {
 #[derive(Subcommand)]
 enum Command {
     /// Run commands to manage Burn Books
-    Books(books::BookArgs),
+    Books(books::BooksArgs),
     /// Run the specified dependencies check locally
     Dependencies {
         /// The dependency check to run
