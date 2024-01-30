@@ -3,13 +3,13 @@ use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory};
 use burn_wgpu::WgpuDevice;
-use burn_wgpu::{AutoGraphicsApi, Wgpu};
+use burn_wgpu::{AutoGraphicsApi, WgpuBackend};
 use derive_new::new;
 use std::marker::PhantomData;
 
 use burn_wgpu::GraphicsApi;
 
-type WTensor<G, const D: usize> = Tensor<Wgpu<G, f32, i32>, D>;
+type WTensor<G, const D: usize> = Tensor<WgpuBackend<G, f32, i32>, D>;
 
 #[derive(new)]
 struct ReduceBenchmark<B: Backend, F, const D: usize> {
@@ -24,7 +24,7 @@ trait ReduceFunction<G: GraphicsApi, const D: usize> {
     fn run(input: WTensor<G, D>, dim: usize) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark for ReduceBenchmark<Wgpu<G, f32, i32>, F, D>
+impl<F, const D: usize, G> Benchmark for ReduceBenchmark<WgpuBackend<G, f32, i32>, F, D>
 where
     F: ReduceFunction<G, D>,
     G: GraphicsApi,
@@ -55,7 +55,7 @@ where
     }
 
     fn sync(&self) {
-        Wgpu::<G, f32, i32>::sync(&self.device)
+        WgpuBackend::<G, f32, i32>::sync(&self.device)
     }
 }
 
