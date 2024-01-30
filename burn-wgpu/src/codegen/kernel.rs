@@ -61,6 +61,7 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     functions: Vec<Function>,
     vectorization: Vectorization,
     mappings_inplace: Vec<InplaceMapping>,
+    workgroup_size: WorkgroupSize,
     _phase: PhantomData<Phase>,
 }
 
@@ -99,6 +100,7 @@ impl Default for ElemWiseKernelCodegen<InputPhase> {
             functions: Vec::new(),
             vectorization: Vectorization::Scalar,
             mappings_inplace: Vec::new(),
+            workgroup_size: WorkgroupSize::default(),
             _phase: PhantomData,
         }
     }
@@ -183,6 +185,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
             functions: self.functions,
             vectorization: self.vectorization,
             mappings_inplace: self.mappings_inplace,
+            workgroup_size: self.workgroup_size,
             _phase: PhantomData,
         }
     }
@@ -231,6 +234,7 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             vectorization: self.vectorization,
             functions: self.functions,
             mappings_inplace: self.mappings_inplace,
+            workgroup_size: self.workgroup_size,
             _phase: PhantomData,
         }
     }
@@ -329,12 +333,18 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             functions: self.functions,
             vectorization: self.vectorization,
             mappings_inplace: self.mappings_inplace,
+            workgroup_size: self.workgroup_size,
             _phase: PhantomData,
         }
     }
 }
 
 impl ElemWiseKernelCodegen<CompilationPhase> {
+    pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
+        self.workgroup_size = workgroup_size;
+        self
+    }
+
     /// Compile the kernel into a [compute shader](ComputeShader).
     pub fn compile(self) -> ComputeShader {
         let inputs = self.input_bindings;
@@ -360,7 +370,7 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
             inputs,
             outputs,
             named,
-            workgroup_size: WorkgroupSize::default(),
+            workgroup_size: self.workgroup_size,
             body: Body::new(self.operations),
             num_workgroups: true,
             global_invocation_id: true,

@@ -91,6 +91,25 @@ impl<K: AutotuneKey> TuneCache<K> {
         }
     }
 
+    pub(crate) fn find_fastest(&self, key: &K) -> Option<usize> {
+        let result = self.in_memory_cache.get(key);
+
+        let val = match result {
+            Some(val) => val,
+            None => return None,
+        };
+
+        #[cfg(feature = "autotune-persistent-cache")]
+        if val.checksum_checked {
+            Some(val.fastest_index)
+        } else {
+            None
+        }
+
+        #[cfg(not(feature = "autotune-persistent-cache"))]
+        Some(val.fastest_index)
+    }
+
     pub(crate) fn try_cache(
         &mut self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<K>>,
