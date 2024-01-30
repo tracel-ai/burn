@@ -4,6 +4,12 @@
 //!
 //! It is also used to check that the code is formatted correctly and passes clippy.
 
+use std::collections::HashMap;
+use std::env;
+use std::process::{Command, Stdio};
+use std::str;
+use std::time::Instant;
+
 use crate::logging::init_logger;
 use crate::utils::cargo::{run_cargo, run_cargo_with_path};
 use crate::utils::process::{handle_child_process, run_command};
@@ -12,11 +18,6 @@ use crate::utils::time::format_duration;
 use crate::utils::workspace::{get_workspaces, WorkspaceMemberType};
 use crate::utils::Params;
 use crate::{endgroup, group};
-use std::collections::HashMap;
-use std::env;
-use std::process::{Command, Stdio};
-use std::str;
-use std::time::Instant;
 
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
@@ -354,7 +355,7 @@ fn std_checks() {
 }
 
 fn check_typos() {
-    // This path defines where typos-cl is installed on different
+    // This path defines where typos-cli is installed on different
     // operating systems.
     let typos_cli_path = std::env::var("CARGO_HOME")
         .map(|v| std::path::Path::new(&v).join("bin/typos-cli"))

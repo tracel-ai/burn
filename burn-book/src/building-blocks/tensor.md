@@ -1,7 +1,7 @@
 # Tensor
 
 As previously explained in the [model section](../basic-workflow/model.md), the Tensor struct has 3
-generic arguments: the backend, the number of dimensions (rank) and the data type.
+generic arguments: the backend B, the dimensionality D, and the data type.
 
 ```rust , ignore
 Tensor<B, D>           // Float tensor (default)
@@ -13,14 +13,104 @@ Tensor<B, D, Bool>     // Bool tensor
 Note that the specific element types used for `Float`, `Int`, and `Bool` tensors are defined by
 backend implementations.
 
-## Operations
+Burn Tensors are defined by the number of dimensions D in its declaration as opposed to its shape. The
+actual shape of the tensor is inferred from its initialization. For example, a Tensor of size (5,) is initialized as
+below:
+
+```rust, ignore
+// correct: Tensor is 1-Dimensional with 5 elements
+let tensor_1 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0, 4.0, 5.0]);
+
+// incorrect: let tensor_1 = Tensor::<Backend, 5>::from_floats([1.0, 2.0, 3.0, 4.0, 5.0]);
+// this will lead to an error and is for creating a 5-D tensor
+```
+
+### Initialization
+
+Burn Tensors are primarily initialized using the `from_data()` method which takes the `Data` struct as input.
+The `Data` struct has two fields: value & shape. To retrieve the data from a tensor, the method `.to_data()` should be
+employed when intending to reuse the tensor afterward. Alternatively, `.into_data()` is recommended for one-time use.
+Let's look at a couple of examples for initializing a tensor from different inputs.
+
+```rust, ignore
+
+// Initialization from a given Backend (Wgpu)
+let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0]);
+
+// Initialization from a generic Backend
+let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).convert());
+
+// Initialization using from_floats (Recommended for f32 ElementType)
+// Will be converted to Data internally. `.convert()` not needed as from_floats() defined for fixed ElementType
+let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0]);
+
+// Initalization of Int Tensor from array slices 
+let arr: [i32; 6] = [1, 2, 3, 4, 5, 6];
+let tensor_4 = Tensor::<Backend, 1, Int>::from_data(Data::from(&arr[0..3]).convert());
+
+// Initialization from a custom type
+
+struct BodyMetrics {
+    age: i8,
+    height: i16,
+    weight: f32
+}
+
+let bmi = BodyMetrics{
+        age: 25,
+        height: 180,
+        weight: 80.0
+    };
+let tensor_5 = Tensor::<Backend, 1>::from_data(Data::from([bmi.age as f32, bmi.height as f32, bmi.weight]).convert());
+
+```
+
+The `.convert()` method for Data struct is called to ensure that the data's primitive type is
+consistent across all backends. With `.from_floats()` method the ElementType is fixed as f32
+and therefore no convert operation is required across backends. This operation can also be done at element wise
+level as:
+`let tensor_6 = Tensor::<B, 1, Int>::from_data(Data::from([(item.age as i64).elem()])`. The `ElementConversion` trait
+however needs to be imported for the element wise operation.
+
+## Ownership and Cloning
 
 Almost all Burn operations take ownership of the input tensors. Therefore, reusing a tensor multiple
-times will necessitate cloning it. Don't worry, the tensor's buffer isn't copied, but a reference to
-it is increased. This makes it possible to determine exactly how many times a tensor is used, which
-is very convenient for reusing tensor buffers and improving performance. For that reason, we don't
-provide explicit inplace operations. If a tensor is used only one time, inplace operations will
-always be used when available.
+times will necessitate cloning it. Let's look at an example to understand the ownership rules and cloning better.
+Suppose we want to do a simple min-max normalization of an input tensor.
+
+```rust, ignore
+    let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+    let min = input.min();
+    let max = input.max();
+    let input = (input - min).div(max - min);
+```
+
+With PyTorch tensors, the above code would work as expected. However, Rust's strict ownership rules will give an error
+and prevent using the input tensor after the first `.min()` operation. The ownership of the input tensor is transferred
+to the variable `min` and the input tensor is no longer available for further operations. Burn Tensors like most
+complex primitives do not implement the `Copy` trait and therefore have to be cloned explicitly. Now let's rewrite
+a working example of doing min-max normalization with cloning.
+
+```rust, ignore
+    let input = Tensor::<Wgpu, 1>::from_floats([1.0, 2.0, 3.0, 4.0]);
+    let min = input.clone().min();
+    let max = input.clone().max();
+    let input = (input.clone() - min.clone()).div(max - min);
+    println!("{:?}", input.to_data());      // Success: [0.0, 0.33333334, 0.6666667, 1.0]
+    
+    // Notice that max, min have been moved in last operation so the below print will give an error.
+    // If we want to use them for further operations, they will need to be cloned in similar fashion.
+    // println!("{:?}", min.to_data());    
+```
+
+We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't copied,
+and only a reference to it is increased. This makes it possible to determine exactly how many times a tensor is used,
+which is very convenient for reusing tensor buffers or even fusing operations into a single
+kernel ([burn-fusion](https://burn.dev/docs/burn_fusion/index.htmls)).
+For that reason, we don't provide explicit inplace operations. If a tensor is used only one time, inplace operations
+will always be used when available.
+
+## Tensor Operations
 
 Normally with PyTorch, explicit inplace operations aren't supported during the backward pass, making
 them useful only for data preprocessing or inference-only model implementations. With Burn, you can
@@ -37,7 +127,7 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 | Burn                                  | PyTorch Equivalent                   |
-| ------------------------------------- | ------------------------------------ |
+|---------------------------------------|--------------------------------------|
 | `Tensor::empty(shape, device)`        | `torch.empty(shape, device=device)`  |
 | `tensor.dims()`                       | `tensor.size()`                      |
 | `tensor.shape()`                      | `tensor.shape`                       |
@@ -67,7 +157,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                             | PyTorch Equivalent                             |
-| ---------------------------------------------------------------- | ---------------------------------------------- |
+|------------------------------------------------------------------|------------------------------------------------|
 | `tensor.into_scalar()`                                           | `tensor.item()` (for single-element tensors)   |
 | `tensor + other` or `tensor.add(other)`                          | `tensor + other`                               |
 | `tensor + scalar` or `tensor.add_scalar(scalar)`                 | `tensor + scalar`                              |
@@ -123,7 +213,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                 |
-| -------------------------------------------- | ---------------------------------- |
+|----------------------------------------------|------------------------------------|
 | `tensor.exp()`                               | `tensor.exp()`                     |
 | `tensor.log()`                               | `tensor.log()`                     |
 | `tensor.log1p()`                             | `tensor.log1p()`                   |
@@ -155,7 +245,7 @@ Those operations are only available for `Float` tensors.
 Those operations are only available for `Int` tensors.
 
 | Burn API                               | PyTorch Equivalent                                      |
-| -------------------------------------- | ------------------------------------------------------- |
+|----------------------------------------|---------------------------------------------------------|
 | `tensor.from_ints(ints)`               | N/A                                                     |
 | `tensor.float()`                       | Similar to `tensor.to(torch.float)`                     |
 | `tensor.arange(5..10, device)       `  | `tensor.arange(start=5, end=10, device=device)`         |
@@ -167,7 +257,7 @@ Those operations are only available for `Int` tensors.
 Those operations are only available for `Bool` tensors.
 
 | Burn API         | PyTorch Equivalent                  |
-| ---------------- | ----------------------------------- |
+|------------------|-------------------------------------|
 | `tensor.float()` | Similar to `tensor.to(torch.float)` |
 | `tensor.int()`   | Similar to `tensor.to(torch.long)`  |
 | `tensor.not()`   | `tensor.logical_not()`              |
@@ -175,7 +265,7 @@ Those operations are only available for `Bool` tensors.
 ## Activation Functions
 
 | Burn API                                 | PyTorch Equivalent                                    |
-| ---------------------------------------- | ----------------------------------------------------- |
+|------------------------------------------|-------------------------------------------------------|
 | `activation::gelu(tensor)`               | Similar to `nn.functional.gelu(tensor)`               |
 | `activation::log_sigmoid(tensor)`        | Similar to `nn.functional.log_sigmoid(tensor)`        |
 | `activation::log_softmax(tensor, dim)`   | Similar to `nn.functional.log_softmax(tensor, dim)`   |

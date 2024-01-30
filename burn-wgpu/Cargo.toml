@@ -11,7 +11,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu"
 version.workspace = true
 
 [features]
-default = ["autotune", "std"]
+default = ["autotune", "std", "burn-compute/default"]
 std = []
 autotune = []
 fusion = ["burn-fusion"]
