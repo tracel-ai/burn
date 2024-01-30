@@ -14,7 +14,7 @@ Note that the specific element types used for `Float`, `Int`, and `Bool` tensors
 backend implementations.
 
 Burn Tensors are defined by the number of dimensions D in its declaration as opposed to its shape. The
-actual shape of the tensor is inferred from its initialization. For example, a Tensor of size: (5,) is initialized as
+actual shape of the tensor is inferred from its initialization. For example, a Tensor of size (5,) is initialized as
 below:
 
 ```rust, ignore
@@ -34,8 +34,8 @@ Let's look at a couple of examples for initializing a tensor from different inpu
 
 ```rust, ignore
 
-// Initialization from a given Backend (WGpu)
-let tensor_1 = Tensor::<WGpu, 1>::from_data([1.0, 2.0, 3.0]);
+// Initialization from a given Backend (Wgpu)
+let tensor_1 = Tensor::<Wgpu, 1>::from_data([1.0, 2.0, 3.0]);
 
 // Initialization from a generic Backend
 let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).convert());

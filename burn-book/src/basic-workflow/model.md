@@ -286,7 +286,7 @@ used in this specific example, it is possible to add the kind of the tensor as a
 argument. For example, a 3-dimensional Tensor of different data types(float, int, bool) would be defined as following:
 
 ```rust , ignore
-Tensor<B, 3 > // Float tensor (default)
+Tensor<B, 3> // Float tensor (default)
 Tensor<B, 3, Float> // Float tensor (explicit)
 Tensor<B, 3, Int> // Int tensor
 Tensor<B, 3, Bool> // Bool tensor
