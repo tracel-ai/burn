@@ -21,3 +21,6 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.12.0", opt
 
 derive-new = { workspace = true }
 spin = { workspace = true }
+
+[dev-dependencies]
+burn-wgpu = { path = "../burn-wgpu", version = "0.12.0" }
