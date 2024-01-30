@@ -17,7 +17,7 @@ pub(crate) mod matmul;
 pub(crate) mod max_pool2d;
 pub(crate) mod reshape;
 pub(crate) mod unary;
-
+pub(crate) mod unsqueeze;
 pub(crate) use base::*;
 
 #[cfg(test)]

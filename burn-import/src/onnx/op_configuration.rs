@@ -538,6 +538,32 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
+pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+    // if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
+    //     println!("{:?}", node.inputs);
+    //     panic!("Reshape: shape tensor must be present");
+    // }
+    let input_value = &node.inputs[1].value;
+    match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
+                shape.clone()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        ArgType::Scalar(val) => {
+            if let Some(Data::Int64(shape)) = input_value.as_ref() {
+                vec![*shape]
+            } else {
+                panic!("Scalar Argument for unsqueeze must be int64")
+            }
+        }
+        _ => panic!("Arg for unsqueeze must be tensor or scalar"),
+    }
+}
+
 pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;

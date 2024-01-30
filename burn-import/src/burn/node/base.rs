@@ -1,3 +1,4 @@
+use super::unsqueeze::UnsqueezeNode;
 use super::{
     avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
     concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
@@ -90,6 +91,7 @@ pub enum Node<PS: PrecisionSettings> {
     MaxPool2d(MaxPool2dNode),
     Reshape(ReshapeNode),
     Unary(UnaryNode),
+    Unsqueeze(UnsqueezeNode),
 }
 
 macro_rules! match_all {
@@ -113,6 +115,7 @@ macro_rules! match_all {
             Node::MaxPool2d(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Unary(node) => $func(node),
+            Node::Unsqueeze(node) => $func(node),
         }
     }};
 }
@@ -146,6 +149,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Reshape(_) => "reshape",
             Node::Unary(unary) => unary.kind.as_str(),
+            Node::Unsqueeze(_) => "unsqueeze",
         }
     }
 }
