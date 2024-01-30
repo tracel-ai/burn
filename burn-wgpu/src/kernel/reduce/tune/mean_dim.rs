@@ -200,7 +200,7 @@ pub fn int_mean_dim_autotune<I: IntElement, const D: usize>(
         reduce_dim,
     ));
 
-    client.execute_autotune(operation_set);
+    client.autotune_execute(operation_set);
 
     output
 }
