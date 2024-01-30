@@ -153,12 +153,12 @@ impl<I: IntElement, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
         );
 
         vec![
-            Box::new(MeanDimAutotune::<I, D>::new(
+            Box::new(MeanDimIntAutotune::<I, D>::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(MeanDimSharedMemoryAutotune::<I, D>::new(
+            Box::new(MeanDimIntSharedMemoryAutotune::<I, D>::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
