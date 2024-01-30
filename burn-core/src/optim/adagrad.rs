@@ -116,11 +116,11 @@ impl LRDecay {
         lr_decay_state: Option<LRDecayState<B, D>>,
     ) -> (Tensor<B, D>, LRDecayState<B, D>) {
         let state = if let Some(mut state) = lr_decay_state {
-            state.sum = state.sum.add(grad.clone().powf(2.));
+            state.sum = state.sum.add(grad.clone().powf_scalar(2.));
             state.time += 1;
             state
         } else {
-            LRDecayState::new(1, grad.clone().powf(2.))
+            LRDecayState::new(1, grad.clone().powf_scalar(2.))
         };
 
         let new_lr = lr / (1. + (state.time as f64 - 1.) * self.lr_decay);
@@ -188,6 +188,7 @@ mod tests {
 
     #[test]
     fn test_adagrad_optimizer_with_numbers() {
+        let device = Default::default();
         let linear = given_linear_layer(
             Data::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
@@ -199,15 +200,21 @@ mod tests {
             ]),
             Data::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
         );
-        let x_1 = Tensor::from_floats_devauto([
-            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
-            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-        ])
+        let x_1 = Tensor::from_floats(
+            [
+                [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+                [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+            ],
+            &device,
+        )
         .require_grad();
-        let x_2 = Tensor::from_floats_devauto([
-            [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
-            [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
-        ])
+        let x_2 = Tensor::from_floats(
+            [
+                [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
+                [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
+            ],
+            &device,
+        )
         .require_grad();
 
         let mut optimizer = AdaGradConfig::new()
@@ -257,9 +264,10 @@ mod tests {
         weight: Data<f32, 2>,
         bias: Data<f32, 1>,
     ) -> nn::Linear<TestAutodiffBackend> {
+        let device = Default::default();
         let record = nn::LinearRecord {
-            weight: Param::from(Tensor::from_data_devauto(weight)),
-            bias: Some(Param::from(Tensor::from_data_devauto(bias))),
+            weight: Param::from(Tensor::from_data(weight, &device)),
+            bias: Some(Param::from(Tensor::from_data(bias, &device))),
         };
 
         nn::LinearConfig::new(6, 6).init_with(record)

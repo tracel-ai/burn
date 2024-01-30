@@ -98,7 +98,7 @@ impl GradientClipping {
 
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
-        let squared = tensor.powf(2.0);
+        let squared = tensor.powf_scalar(2.0);
         let sum = squared.sum();
 
         sum.sqrt()
@@ -113,10 +113,13 @@ mod tests {
 
     #[test]
     fn test_clip_by_value() {
-        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats_devauto([
-            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
-            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-        ]);
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats(
+            [
+                [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+                [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+            ],
+            &Default::default(),
+        );
 
         let clipped_gradient = GradientClipping::Value(0.5).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
@@ -128,10 +131,13 @@ mod tests {
 
     #[test]
     fn test_clip_by_norm() {
-        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats_devauto([
-            [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
-            [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
-        ]);
+        let gradient: Tensor<TestBackend, 2> = Tensor::from_floats(
+            [
+                [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
+                [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
+            ],
+            &Default::default(),
+        );
 
         let clipped_gradient = GradientClipping::Norm(2.2).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();

@@ -6,7 +6,7 @@ For loading a model primed for inference, it is of course more efficient to dire
 weights into the model, bypassing the need to initially set arbitrary weights or worse, weights
 computed from a Xavier normal initialization only to then promptly replace them with the stored
 weights. With that in mind, let's create a new initialization function receiving the record as
-input.
+input. This new function can be defined alongside the `init` function for the `ModelConfig` struct in `src/model.rs`.
 
 ```rust , ignore
 impl ModelConfig {
@@ -30,17 +30,17 @@ It is important to note that the `ModelRecord` was automatically generated thank
 trait. It allows us to load the module state without having to deal with fetching the correct type
 manually. Everything is validated when loading the model with the record.
 
-Now let's create a simple `infer` method in which we will load our trained model.
+Now let's create a simple `infer` method in a new file `src/inference.rs` which we will use to load our trained model.
 
 ```rust , ignore
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MNISTItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model");
     let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into())
+        .load(format!("{artifact_dir}/model").into(), &device)
         .expect("Trained model should exist");
 
-    let model = config.model.init_with::<B>(record).to_device(&device);
+    let model = config.model.init_with::<B>(record);
 
     let label = item.label;
     let batcher = MNISTBatcher::new(device);

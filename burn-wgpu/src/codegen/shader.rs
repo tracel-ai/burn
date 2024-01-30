@@ -1,21 +1,22 @@
 use super::{Body, Function};
 use crate::kernel::WORKGROUP_DEFAULT;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Visibility {
     Read,
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub enum Elem {
     F32,
     I32,
@@ -23,31 +24,63 @@ pub enum Elem {
     Bool,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+pub enum Item {
+    Vec4(Elem),
+    Vec3(Elem),
+    Vec2(Elem),
+    Scalar(Elem),
+}
+
+impl Item {
+    pub fn elem(&self) -> Elem {
+        match self {
+            Self::Vec4(elem) => *elem,
+            Self::Vec3(elem) => *elem,
+            Self::Vec2(elem) => *elem,
+            Self::Scalar(elem) => *elem,
+        }
+    }
+}
+
+impl Elem {
+    /// Returns the size of the elem type in bytes.
+    pub fn size(&self) -> usize {
+        match self {
+            Elem::F32 => core::mem::size_of::<f32>(),
+            Elem::I32 => core::mem::size_of::<i32>(),
+            Elem::U32 => core::mem::size_of::<u32>(),
+            Elem::Bool => core::mem::size_of::<bool>(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
-    pub elem: Elem,
+    pub item: Item,
     pub size: Option<usize>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct WorkgroupSize {
-    pub x: usize,
-    pub y: usize,
-    pub z: usize,
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
 }
 
 impl Default for WorkgroupSize {
     fn default() -> Self {
         Self {
-            x: WORKGROUP_DEFAULT,
-            y: WORKGROUP_DEFAULT,
+            x: WORKGROUP_DEFAULT as u32,
+            y: WORKGROUP_DEFAULT as u32,
             z: 1,
         }
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
@@ -138,8 +171,8 @@ impl ComputeShader {
         num_entry: usize,
     ) -> core::fmt::Result {
         let ty = match binding.size {
-            Some(size) => format!("array<{}, {}>", binding.elem, size),
-            None => format!("array<{}>", binding.elem),
+            Some(size) => format!("array<{}, {}>", binding.item, size),
+            None => format!("array<{}>", binding.item),
         };
 
         f.write_fmt(format_args!(
@@ -179,6 +212,17 @@ impl Display for Visibility {
         match self {
             Visibility::Read => f.write_str("read"),
             Visibility::ReadWrite => f.write_str("read_write"),
+        }
+    }
+}
+
+impl Display for Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Item::Vec4(elem) => f.write_fmt(format_args!("vec4<{elem}>")),
+            Item::Vec3(elem) => f.write_fmt(format_args!("vec3<{elem}>")),
+            Item::Vec2(elem) => f.write_fmt(format_args!("vec2<{elem}>")),
+            Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
 }

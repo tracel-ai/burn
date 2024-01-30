@@ -1,12 +1,10 @@
+use crate::tune::anchor;
 use burn_tensor::Shape;
 use core::fmt::Debug;
-use std::{
-    cmp::{max, min},
-    fmt::Display,
-    hash::Hash,
-};
+use serde::{Deserialize, Serialize};
+use std::{cmp::max, fmt::Display, hash::Hash};
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of matmul versions
 pub struct MatmulAutotuneKey {
     round: bool,     // True when all matmul dims are multiples of 64
@@ -64,16 +62,6 @@ impl MatmulAutotuneKey {
             anchored_n: anchor(n, None),
             anchored_batch: anchor(batch_product, Some(256)),
         }
-    }
-}
-
-fn anchor(x: usize, max: Option<usize>) -> usize {
-    let exp = f32::ceil(f32::log2(x as f32)) as u32;
-    let power_of_2 = 2_u32.pow(exp) as usize;
-    if let Some(max) = max {
-        min(power_of_2, max)
-    } else {
-        power_of_2
     }
 }
 

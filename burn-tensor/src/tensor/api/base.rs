@@ -11,11 +11,12 @@ use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -51,11 +52,6 @@ where
     /// Converts from a primitive tensor into a tensor.
     pub fn from_primitive(tensor: K::Primitive<D>) -> Self {
         Self::new(tensor)
-    }
-
-    /// Create an empty tensor of the given shape.
-    pub fn empty_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::empty(shape, &B::Device::default())
     }
 
     /// Create an empty tensor of the given shape.
@@ -100,7 +96,8 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 3>::ones_devauto([2, 3, 4]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
     ///    // Given a 3D tensor with dimensions (2, 3, 4), reshape it to (2, 12)
     ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape([2, -1]);
     ///    // The resulting tensor will have dimensions (2, 12).
@@ -167,7 +164,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 4]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]), &device);
     ///
     ///     // Given a 3D tensor with dimensions (2, 3, 4), flatten the dimensions between indices 1 and 2:
     ///     let flattened_tensor: Tensor::<B, 2> = tensor.flatten(1, 2);
@@ -218,7 +216,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 1, 4]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]), &device);
     ///
     ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
     ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
@@ -250,7 +249,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones_devauto(Shape::new([3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
     ///     let tensor = tensor.unsqueeze::<4>();
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 1, 3, 3] }
@@ -278,7 +278,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 2>::ones_devauto(Shape::new([3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
     ///     let tensor: Tensor<B, 3> = tensor.unsqueeze_dim(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [3, 1, 3] }
@@ -316,22 +317,23 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
     ///     // Create a tensor with a single dimension of ints between 0 and 11
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_devauto(0..12);
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
     ///     // Select elements 0, 1, 2, 3 from the first dimension
     ///     let tensor_slices = tensor.clone().slice([0..4]);
     ///     println!("\nexpecting [0,1,2,3] : {:?}", tensor);
     ///     println!("expecting [4] : {:?}", tensor.dims());
     ///
     ///     // Create a Tensor with 3 dimensions
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     // This slice will select the element 0 on the first dimension,
     ///     // elements 0,1,2 of the second dimension and element 1 of third dimension
     ///     let tensor_slices = tensor.slice([0..1, 0..3, 1..2]);
     ///     println!("expecting [1, 3, 1] : {:?}", tensor_slices.dims());
     ///
     ///     // Create a tensor of ints from 0 to 11 and reshape it into three dimensions
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange_devauto(0..12);
+    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..12, &device);
     ///     let tensor = tensor.reshape([1, 3, 4]);
     ///     println!("\nexpecting [[[0,1,2,3],[4,5,6,7],[8,9,10,11]]] : {:?}", tensor);
     ///     println!("expecting [1, 3, 4] : {:?}", tensor.dims());
@@ -367,8 +369,9 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto([2, 3, 3]);
-    ///     let values = Tensor::<B, 3>::zeros_devauto([1, 1, 1]);
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones([2, 3, 3], &device);
+    ///     let values = Tensor::<B, 3>::zeros([1, 1, 1], &device);
     ///     let tensor_sliced = tensor.slice_assign([0..1, 0..1, 0..1], values);
     ///     println!("{:?}", tensor_sliced.dims()); // [2, 3, 3]
     /// }
@@ -420,14 +423,6 @@ where
         Self::into_data(self.clone())
     }
 
-    /// Create a tensor from the given data.
-    pub fn from_data_devauto<T>(data: T) -> Self
-    where
-        T: Into<Data<K::Elem, D>>,
-    {
-        Self::from_data(data, &B::Device::default())
-    }
-
     /// Create a tensor from the given data on the given device.
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
@@ -474,7 +469,7 @@ where
     /// # Panics
     ///
     /// If all tensors don't have the same shape.
-    /// Given dimension is not with range of 0..=D2
+    /// Given dimension is not with range of 0..D2
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
@@ -809,7 +804,8 @@ where
 /// use burn_tensor::{Tensor, T};
 ///
 /// fn example<B: Backend>() {
-///     let tensor = Tensor::<B, 2>::from_floats_devauto([[1.0, 2.0], [3.0, 4.0]]);
+///     let device = Default::default();
+///     let tensor = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
 ///     let transposed = tensor^T;
 /// }
 /// ```
@@ -1143,21 +1139,21 @@ impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::empty(shape, device)
+        B::float_empty(shape, device)
     }
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
-        B::shape(tensor)
+        B::float_shape(tensor)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::reshape(tensor, shape)
+        B::float_reshape(tensor, shape)
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::transpose(tensor)
+        B::float_transpose(tensor)
     }
 
     fn swap_dims<const D: usize>(
@@ -1166,14 +1162,14 @@ impl<B: Backend> BasicOps<B> for Float {
         dim2: usize,
     ) -> Self::Primitive<D> {
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        B::swap_dims(tensor, dim1, dim2)
+        B::float_swap_dims(tensor, dim1, dim2)
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::slice(tensor, ranges)
+        B::float_slice(tensor, ranges)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -1181,29 +1177,29 @@ impl<B: Backend> BasicOps<B> for Float {
         ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::slice_assign(tensor, ranges, value)
+        B::float_slice_assign(tensor, ranges, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
-        B::device(tensor)
+        B::float_device(tensor)
     }
 
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::to_device(tensor, device)
+        B::float_to_device(tensor, device)
     }
 
     fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::into_data(tensor)
+        B::float_into_data(tensor)
     }
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::from_data(data, device)
+        B::float_from_data(data, device)
     }
 
     fn repeat<const D: usize>(
@@ -1211,18 +1207,18 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::repeat(tensor, dim, times)
+        B::float_repeat(tensor, dim, times)
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        B::cat(vectors, dim)
+        B::float_cat(vectors, dim)
     }
 
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal(lhs, rhs))
+        Tensor::new(B::float_equal(lhs, rhs))
     }
 }
 
@@ -1483,5 +1479,37 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         let new_shape: [usize; D2] = new_shape.map(|x| x as usize);
 
         Shape::from(new_shape)
+    }
+}
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Debug + Copy + Serialize,
+{
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let data = self.to_data();
+        // manually construct instead of calling `serialize` to move instead of clone value
+        let serialized: DataSerialize<K::Elem> = DataSerialize {
+            value: data.value,
+            shape: data.shape.dims.to_vec(),
+        };
+        serialized.serialize(serializer)
+    }
+}
+
+impl<'de, B, const D: usize, K> Deserialize<'de> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Debug + Copy + Deserialize<'de>,
+{
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let data_res: Result<DataSerialize<K::Elem>, De::Error> =
+            DataSerialize::deserialize(deserializer);
+        let tensor = Tensor::from_data(data_res?, &<B::Device as Default>::default());
+        Ok(tensor)
     }
 }

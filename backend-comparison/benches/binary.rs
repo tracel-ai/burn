@@ -1,10 +1,9 @@
-use backend_comparison::persistence::Persistence;
+use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct BinaryBenchmark<B: Backend, const D: usize> {
     shape: Shape<D>,
-    num_repeats: usize,
     device: B::Device,
 }
 
@@ -12,14 +11,16 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
     type Args = (Tensor<B, D>, Tensor<B, D>);
 
     fn name(&self) -> String {
-        "Binary Ops".into()
+        "binary".into()
+    }
+
+    fn shapes(&self) -> Vec<Vec<usize>> {
+        vec![self.shape.dims.into()]
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
-        for _ in 0..self.num_repeats {
-            // Choice of add is arbitrary
-            B::add(lhs.clone().into_primitive(), rhs.clone().into_primitive());
-        }
+        // Choice of add is arbitrary
+        B::float_add(lhs.clone().into_primitive(), rhs.clone().into_primitive());
     }
 
     fn prepare(&self) -> Self::Args {
@@ -38,11 +39,10 @@ impl<B: Backend, const D: usize> Benchmark for BinaryBenchmark<B, D> {
 fn bench<B: Backend>(device: &B::Device) {
     let benchmark = BinaryBenchmark::<B, 3> {
         shape: [32, 512, 1024].into(),
-        num_repeats: 10,
         device: device.clone(),
     };
 
-    Persistence::persist::<B>(vec![run_benchmark(benchmark)], device)
+    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
 }
 
 fn main() {

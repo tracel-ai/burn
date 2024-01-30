@@ -1,5 +1,5 @@
 use crate::{element::TchElement, LibTorch, LibTorchDevice};
-use burn_tensor::{ops::TensorOps, Data, Shape};
+use burn_tensor::{ops::FloatTensorOps, Data, Shape};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -70,7 +70,7 @@ impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        LibTorch::add(self, rhs)
+        LibTorch::float_add(self, rhs)
     }
 }
 
@@ -221,7 +221,7 @@ mod utils {
         where
             P: tch::kind::Element,
         {
-            <LibTorch<P> as TensorOps<LibTorch<P>>>::into_data(self).read()
+            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::float_into_data(self).read()
         }
     }
 }
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats_devauto([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
@@ -292,7 +292,7 @@ mod tests {
 
     #[test]
     fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats_devauto([4.0, 4.0]);
+        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
         let tensor_2 = tensor_1.clone();
 
         let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);

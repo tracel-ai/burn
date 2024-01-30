@@ -1,6 +1,7 @@
 use super::WgpuServer;
 use crate::{compute::WgpuStorage, GraphicsApi, WgpuDevice};
 use alloc::sync::Arc;
+use burn_common::stub::RwLock;
 use burn_compute::{
     channel::MutexComputeChannel,
     client::ComputeClient,
@@ -8,8 +9,7 @@ use burn_compute::{
     tune::Tuner,
     Compute,
 };
-use spin::Mutex;
-use wgpu::DeviceDescriptor;
+use wgpu::{AdapterInfo, DeviceDescriptor};
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
 /// Wgpu [compute server](WgpuServer)
@@ -68,7 +68,8 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
     let channel = Channel::new(server);
 
-    ComputeClient::new(channel, Arc::new(Mutex::new(Tuner::new())))
+    let tuner_device_id = tuner_device_id(info);
+    ComputeClient::new(channel, Arc::new(RwLock::new(Tuner::new(&tuner_device_id))))
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
@@ -87,8 +88,8 @@ pub async fn select_device<G: GraphicsApi>(
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
-                limits,
+                required_features: wgpu::Features::empty(),
+                required_limits: limits,
             },
             None,
         )
@@ -103,6 +104,10 @@ pub async fn select_device<G: GraphicsApi>(
         .unwrap();
 
     (device, queue, adapter.get_info())
+}
+
+fn tuner_device_id(info: AdapterInfo) -> String {
+    format!("wgpu-{}-{}", info.device, info.backend.to_str())
 }
 
 #[cfg(target_family = "wasm")]
@@ -125,6 +130,7 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
 
     instance
         .enumerate_adapters(G::backend().into())
+        .into_iter()
         .for_each(|adapter| {
             let device_type = adapter.get_info().device_type;
 

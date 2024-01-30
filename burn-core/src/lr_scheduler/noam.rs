@@ -1,3 +1,5 @@
+use burn_tensor::backend::Backend;
+
 use crate as burn;
 
 use super::LrScheduler;
@@ -37,7 +39,7 @@ impl NoamLrSchedulerConfig {
     }
 }
 
-impl LrScheduler for NoamLrScheduler {
+impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
     type Record = usize;
 
     fn step(&mut self) -> LearningRate {
@@ -61,6 +63,8 @@ impl LrScheduler for NoamLrScheduler {
 
 #[cfg(test)]
 mod tests {
+    use crate::TestBackend;
+
     use super::*;
 
     #[test]
@@ -72,7 +76,7 @@ mod tests {
         let mut lr_current = 0.0;
 
         for _ in 0..warmup_steps {
-            let lr = scheduler.step();
+            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
             assert!(
                 lr > lr_current,
                 "Learning rate should increase before the warmup_steps is reached."
@@ -81,7 +85,7 @@ mod tests {
         }
 
         for _ in 0..warmup_steps {
-            let lr = scheduler.step();
+            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
             assert!(
                 lr < lr_current,
                 "Learning rate should decrease after the warmup_steps is reached."

@@ -1,7 +1,9 @@
 # Training
 
-We are now ready to write the necessary code to train our model on the MNIST dataset. Instead of a
-simple tensor, the model should output an item that can be understood by the learner, a struct whose
+We are now ready to write the necessary code to train our model on the MNIST dataset.
+We shall define the code for this training section in the file: `src/training.rs`.
+
+Instead of a simple tensor, the model should output an item that can be understood by the learner, a struct whose
 responsibility is to apply an optimizer to the model. The output struct is used for all metrics
 calculated during the training. Therefore it should include all the necessary information to
 calculate any metric that you want for a task.
@@ -32,7 +34,7 @@ calculation, without the inclusion of any padding token. We then return the clas
 containing the loss, the output tensor with all logits and the targets.
 
 Please take note that tensor operations receive owned tensors as input. For reusing a tensor
-multiple times, you need to use the clone function. There's no need to worry; this process won't
+multiple times, you need to use the `clone()` function. There's no need to worry; this process won't
 involve actual copying of the tensor data. Instead, it will simply indicate that the tensor is
 employed in multiple instances, implying that certain operations won't be performed in place. In
 summary, our API has been designed with owned tensors to optimize performance.
@@ -67,6 +69,27 @@ when debugging or writing custom training loops. One of the differences between 
 validation steps is that the former requires the backend to implement `AutodiffBackend` and not just
 `Backend`. Otherwise, the `backward` function is not available, as the backend does not support
 autodiff. We will see later how to create a backend with autodiff support.
+
+<details>
+<summary><strong>🦀 Generic Type Constraints in Method Definitions</strong></summary>
+
+Although generic data types, trait and trait bounds were already introduced in previous sections of
+this guide, the previous code snippet might be a lot to take in at first.
+
+In the example above, we implement the `TrainStep` and `ValidStep` trait for our `Model` struct,
+which is generic over the `Backend` trait as has been covered before. These traits are provided by
+`burn::train` and define a common `step` method that should be implemented for all structs. Since
+the trait is generic over the input and output types, the trait implementation must specify the
+concrete types used. This is where the additional type constraints appear
+`<MNISTBatch<B>, ClassificationOutput<B>>`. As we saw previously, the concrete input type for the
+batch is `MNISTBatch`, and the output of the forward pass is `ClassificationOutput`. The `step`
+method signature matches the concrete input and output types.
+
+For more details specific to constraints on generic types when defining methods, take a look at
+[this section](https://doc.rust-lang.org/book/ch10-01-syntax.html#in-method-definitions) of the Rust
+Book.
+
+</details><br>
 
 Let us move on to establishing the practical training configuration.
 
@@ -135,8 +158,8 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 It is a good practice to use the `Config` derive to create the experiment configuration. In the
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
-under this directory. We then initialize our dataloaders using our previously created batcher.
-Since no automatic differentiation is needed during the validation phase, the backend used for the
+under this directory. We then initialize our dataloaders using our previously created batcher. Since
+no automatic differentiation is needed during the validation phase, the backend used for the
 corresponding batcher is `B::InnerBackend` (see [Backend](./backend.md)). The autodiff capabilities
 are available through a type system, making it nearly impossible to forget to deactivate gradient
 calculation.

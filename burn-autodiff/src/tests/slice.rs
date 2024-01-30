@@ -8,8 +8,9 @@ mod tests {
         let data_1: Data<f32, 2> = Data::from([[1.0, 7.0], [2.0, 3.0]]);
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0, 100.0], [2.0, 3.0, 15.0]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data_devauto(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data_devauto(data_2).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
         let tensor_3 = tensor_2.clone().slice([0..2, 0..2]);
         let tensor_4 = tensor_1.clone().matmul(tensor_3);
@@ -31,9 +32,10 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_assigned: Data<f32, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data_devauto(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data_devauto(data_2).require_grad();
-        let tensor_assigned = TestAutodiffTensor::from_data_devauto(data_assigned).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_assigned = TestAutodiffTensor::from_data(data_assigned, &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_3.slice_assign([0..1, 0..1], tensor_assigned);
@@ -54,9 +56,10 @@ mod tests {
         let data_2: Data<f32, 2> = Data::from([[4.0, 7.0], [2.0, 3.0]]);
         let data_3: Data<f32, 2> = Data::from([[9.0]]);
 
-        let tensor_1 = TestAutodiffTensor::from_data_devauto(data_1).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data_devauto(data_2).require_grad();
-        let tensor_3 = TestAutodiffTensor::from_data_devauto(data_3).require_grad();
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
 
         let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_5 = tensor_2.clone().slice([0..1, 0..1]);
@@ -73,5 +76,44 @@ mod tests {
         assert_eq!(grad_3.to_data(), Data::from([[32.0]]));
         assert_eq!(grad_1.to_data(), Data::from([[85.0, 65.0], [118.0, 82.0]]));
         assert_eq!(grad_2.to_data(), Data::from([[88.0, 15.0], [24.0, 50.0]]));
+    }
+
+    #[test]
+    fn slice_assign_diff_should_give_same_results_as_cat() {
+        let data_1: Data<f32, 2> = Data::from([[1.0, 2.0], [3.0, 4.0]]);
+        let data_2: Data<f32, 2> = Data::from([[5.0, 6.0], [7.0, 8.0]]);
+        let data_3: Data<f32, 2> = Data::from([[14.0, 97.0, 100.0, 9.0], [2.0, 3.0, 15.0, 7.0]]);
+
+        let device = Default::default();
+        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+        let tensor_3 = TestAutodiffTensor::from_data(data_3, &device);
+
+        let slice_assign_output = TestAutodiffTensor::zeros([2, 4], &Default::default());
+        let slice_assign_output = slice_assign_output.slice_assign([0..2, 0..2], tensor_1.clone());
+        let slice_assign_output = slice_assign_output.slice_assign([0..2, 2..4], tensor_2.clone());
+        let slice_assign_output = slice_assign_output / tensor_3.clone();
+
+        let cat_output = TestAutodiffTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 1);
+        let cat_output = cat_output / tensor_3;
+
+        slice_assign_output
+            .to_data()
+            .assert_approx_eq(&cat_output.to_data(), 3);
+
+        let slice_assign_grads = slice_assign_output.backward();
+        let cat_grads = cat_output.backward();
+
+        let slice_assign_grad_1 = tensor_1.grad(&slice_assign_grads).unwrap();
+        let slice_assign_grad_2 = tensor_2.grad(&slice_assign_grads).unwrap();
+        let cat_grad_1 = tensor_1.grad(&cat_grads).unwrap();
+        let cat_grad_2 = tensor_2.grad(&cat_grads).unwrap();
+
+        slice_assign_grad_1
+            .to_data()
+            .assert_approx_eq(&cat_grad_1.to_data(), 3);
+        slice_assign_grad_2
+            .to_data()
+            .assert_approx_eq(&cat_grad_2.to_data(), 3);
     }
 }

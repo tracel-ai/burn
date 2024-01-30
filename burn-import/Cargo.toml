@@ -1,7 +1,7 @@
 [package]
 authors = [
-  "Dilshod Tadjibaev (@antimora)",
-  "Nathaniel Simard (@nathanielsimard)",
+    "Dilshod Tadjibaev (@antimora)",
+    "Nathaniel Simard (@nathanielsimard)",
 ]
 description = "Library for importing datamodels into the Burn framework"
 edition.workspace = true
@@ -9,35 +9,40 @@ license.workspace = true
 name = "burn-import"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/burn-import"
-
 version.workspace = true
 
+default-run = "onnx2burn"
+
 [features]
-default = ["onnx"]
+default = ["onnx", "pytorch"]
 onnx = []
+pytorch = ["burn/record-item-custom-serde", "thiserror"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.12.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
+burn = { path = "../burn", version = "0.12.0", features = ["ndarray"] }
 
 bytemuck = { workspace = true }
+candle-core = { workspace = true }
 derive-new = { workspace = true }
 half = { workspace = true }
 log = { workspace = true }
 proc-macro2 = { workspace = true }
-protobuf = { version = "3.3", features = ["with-bytes"] }
+protobuf = { workspace = true, features = ["with-bytes"] }
 quote = { workspace = true }
-rust-format = { version = "0.3", features = ["token_stream", "post_process"] }
-serde = { workspace = true }
+regex = { workspace = true }
+rust-format = { workspace = true, features = ["token_stream", "post_process"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 syn = { workspace = true, features = ["parsing"] }
-tracing-subscriber = { workspace = true }
+thiserror = { workspace = true, optional = true }
 tracing-core = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+rstest = { workspace = true }

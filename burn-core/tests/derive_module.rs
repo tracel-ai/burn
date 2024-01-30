@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Int, Shape, Tensor};
@@ -27,9 +29,16 @@ impl<B: Backend> ModuleBasic<B> {
 }
 
 #[derive(Module, Debug)]
+struct ModuleWithGenericModule<B: Backend, M> {
+    module: M,
+    _backend: PhantomData<B>,
+}
+
+#[derive(Module, Debug)]
 pub struct ModuleComposed<B: Backend> {
     weight: Param<Tensor<B, 2>>,
     basic: ModuleBasic<B>,
+    tuple: (ModuleBasic<B>, ModuleBasic<B>),
 }
 
 impl<B: Backend> ModuleComposed<B> {
@@ -38,6 +47,7 @@ impl<B: Backend> ModuleComposed<B> {
         Self {
             weight: Param::from(weight),
             basic: ModuleBasic::new(device),
+            tuple: (ModuleBasic::new(device), ModuleBasic::new(device)),
         }
     }
 }
@@ -101,7 +111,7 @@ mod num_params {
     fn should_output_state_composed() {
         let device = <TestBackend as Backend>::Device::default();
         let module = ModuleComposed::<TestBackend>::new(&device);
-        assert_eq!(2 * 20 * 20, module.num_params());
+        assert_eq!(4 * 20 * 20, module.num_params());
     }
 }
 
@@ -151,7 +161,8 @@ mod require_grad {
     fn calculate_grads(
         module: &ModuleBasic<TestAutodiffBackend>,
     ) -> <TestAutodiffBackend as AutodiffBackend>::Gradients {
-        let x = Tensor::ones_devauto([20, 20]).require_grad();
+        let device = module.weight_basic.device();
+        let x = Tensor::ones([20, 20], &device).require_grad();
         let y = module.weight_basic.val().matmul(x);
 
         y.backward()

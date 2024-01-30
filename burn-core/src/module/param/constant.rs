@@ -11,7 +11,7 @@ use burn_tensor::{
 use core::marker::PhantomData;
 
 /// Record used for constant type implementing the [module](crate::module::Module) trait.
-#[derive(Debug, Clone, Copy, new)]
+#[derive(Debug, Clone, Copy, new, Default)]
 pub struct ConstantRecord;
 
 impl serde::Serialize for ConstantRecord {
@@ -34,14 +34,14 @@ impl<'de> serde::Deserialize<'de> for ConstantRecord {
     }
 }
 
-impl Record for ConstantRecord {
+impl<B: Backend> Record<B> for ConstantRecord {
     type Item<S: PrecisionSettings> = ConstantRecord;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         self
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
         item
     }
 }
@@ -213,7 +213,7 @@ mod tests {
     use core::marker::PhantomData;
 
     use burn_tensor::backend::Backend;
-    use burn_tensor::Tensor;
+    use burn_tensor::{Device, Tensor};
 
     use crate::TestBackend;
     use crate::{
@@ -226,21 +226,31 @@ mod tests {
 
     #[test]
     fn tensor_load_record_setting() {
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones_devauto([3, 3]);
+        let device: &Device<TestAutodiffBackend> = &Default::default();
+        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
-        let bytes = byte_recorder
-            .record(tensor.clone().into_record(), ())
-            .unwrap();
+        let bytes = Recorder::<TestAutodiffBackend>::record(
+            &byte_recorder,
+            tensor.clone().into_record(),
+            (),
+        )
+        .unwrap();
 
         let no_grad_is_require_grad = tensor
             .clone()
             .no_grad()
-            .load_record(byte_recorder.load(bytes.clone()).unwrap())
+            .load_record(
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
+                    .unwrap(),
+            )
             .is_require_grad();
 
         let with_default_is_require_grad = tensor
-            .load_record(byte_recorder.load(bytes).unwrap())
+            .load_record(
+                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
+                    .unwrap(),
+            )
             .is_require_grad();
 
         assert!(!no_grad_is_require_grad);

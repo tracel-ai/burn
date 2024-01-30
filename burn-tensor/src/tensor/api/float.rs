@@ -35,77 +35,53 @@ where
     ///
     /// `y = e^x`
     pub fn exp(self) -> Self {
-        Self::new(B::exp(self.primitive))
+        Self::new(B::float_exp(self.primitive))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
     pub fn log(self) -> Self {
-        Self::new(B::log(self.primitive))
+        Self::new(B::float_log(self.primitive))
     }
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     /// `y = log(x+1)`
     pub fn log1p(self) -> Self {
-        Self::new(B::log1p(self.primitive))
+        Self::new(B::float_log1p(self.primitive))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`
     pub fn erf(self) -> Self {
-        Self::new(B::erf(self.primitive))
-    }
-
-    /// Applies element wise power operation.
-    ///
-    /// `y = x^a`
-    pub fn powf(self, value: f32) -> Self {
-        Self::new(B::powf(self.primitive, value))
+        Self::new(B::float_erf(self.primitive))
     }
 
     /// Applies element wise reciprocal operation.
     pub fn recip(self) -> Self {
-        Self::new(B::recip(self.primitive))
+        Self::new(B::float_recip(self.primitive))
     }
 
     /// Applies element wise root square operation.
     pub fn sqrt(self) -> Self {
-        Self::new(B::sqrt(self.primitive))
+        Self::new(B::float_sqrt(self.primitive))
     }
 
     /// Applies element wise cosine operation.
     pub fn cos(self) -> Self {
-        Self::new(B::cos(self.primitive))
+        Self::new(B::float_cos(self.primitive))
     }
 
     /// Applies element wise sine operation.
     pub fn sin(self) -> Self {
-        Self::new(B::sin(self.primitive))
+        Self::new(B::float_sin(self.primitive))
     }
 
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
-        Self::new(B::tanh(self.primitive))
-    }
-
-    /// Create a tensor from floats (f32).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let _ = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
-    ///     let _ = Tensor::<B, 2>::from_floats_devauto([[1.0, 2.0], [3.0, 4.0]]);
-    /// }
-    /// ```
-    pub fn from_floats_devauto<A: Into<Data<f32, D>>>(floats: A) -> Self {
-        Self::from_data_devauto(floats.into().convert())
+        Self::new(B::float_tanh(self.primitive))
     }
 
     /// Create a tensor from floats (f32) on a given device.
@@ -136,28 +112,29 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let float_tensor = Tensor::<B, 1>::from_floats_devauto([1.0, 2.0]);
+    ///     let device = Default::default();
+    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0], &device);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::into_int(self.primitive))
+        Tensor::new(B::float_into_int(self.primitive))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::zeros(self.shape(), &self.device()))
+        Tensor::new(B::float_zeros(self.shape(), &self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::ones(self.shape(), &self.device()))
+        Tensor::new(B::float_ones(self.shape(), &self.device()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Tensor::new(B::random(self.shape(), distribution, &self.device()))
+        Tensor::new(B::float_random(self.shape(), distribution, &self.device()))
     }
 
     /// Create a one hot tensor.
@@ -169,21 +146,24 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
-    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10);
+    ///     let device = Default::default();
+    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10, &device);
     ///     println!("{}", one_hot.to_data());
     ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     /// }
     /// ```
-    pub fn one_hot(index: usize, num_classes: usize) -> Self {
+    pub fn one_hot(index: usize, num_classes: usize, device: &B::Device) -> Self {
+        check!(TensorCheck::one_hot(index, num_classes));
+
         let mut dims = [1; D];
         dims[D - 1] = num_classes;
         let shape = Shape::new(dims);
         let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
-        let tensor = Tensor::zeros_devauto(shape);
+        let tensor = Tensor::zeros(shape, device);
         let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
         ranges[D - 1] = index..index + 1;
 
-        tensor.slice_assign(ranges, Tensor::ones_devauto(Shape::new([1; D])))
+        tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D]), device))
     }
 
     /// Applies the matrix multiplication operation.
@@ -195,7 +175,7 @@ where
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
-        Self::new(B::matmul(self.primitive, other.primitive))
+        Self::new(B::float_matmul(self.primitive, other.primitive))
     }
 
     /// Calculate the variance along the given dimension.
@@ -222,13 +202,6 @@ where
         (var, mean)
     }
 
-    /// Create a random tensor of the given shape where each element is sampled from the given
-    /// distribution.
-    pub fn random_devauto<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
-        let tensor = B::random(shape.into(), distribution, &B::Device::default());
-        Self::new(tensor)
-    }
-
     /// Create a random tensor of the given shape on the given device where each element is
     /// sampled from the given distribution.
     pub fn random<S: Into<Shape<D>>>(
@@ -236,17 +209,17 @@ where
         distribution: Distribution,
         device: &B::Device,
     ) -> Self {
-        let tensor = B::random(shape.into(), distribution, device);
+        let tensor = B::float_random(shape.into(), distribution, device);
         Self::new(tensor)
     }
     /// Returns a tensor with full precision based on the selected backend.
     pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
-        Tensor::new(B::to_full_precision(&self.primitive))
+        Tensor::new(B::float_to_full_precision(&self.primitive))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.
     pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
-        Self::new(B::from_full_precision(tensor.primitive))
+        Self::new(B::float_from_full_precision(tensor.primitive))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -255,7 +228,7 @@ where
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(B::detach(self.primitive))
+        Self::new(B::float_detach(self.primitive))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
@@ -267,7 +240,7 @@ where
 
     /// Returns true if the tensor requires gradients during the backward pass.
     pub fn is_require_grad(&self) -> bool {
-        B::is_require_grad(&self.primitive)
+        B::float_is_require_grad(&self.primitive)
     }
 
     /// Mark the tensor as tracked or untracked depending on the require grad argument.
@@ -275,7 +248,7 @@ where
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        Self::new(B::set_require_grad(self.primitive, require_grad))
+        Self::new(B::float_set_require_grad(self.primitive, require_grad))
     }
 
     /// Applies the relu function to the tensor.

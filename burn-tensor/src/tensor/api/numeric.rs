@@ -106,28 +106,13 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::zeros(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::ones(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::ones(shape.into(), device))
-    }
-
-    /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full_devauto<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
-        Self::full(shape, fill_value, &B::Device::default())
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -335,7 +320,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -380,7 +366,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -508,11 +495,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///    let tensor = tensor.triu(1);
     ///    println!("{}", tensor);
     ///    // Tensor { data: [
@@ -535,11 +526,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///
     ///    let tensor = tensor.tril(-1);
     ///    println!("{}", tensor);
@@ -552,6 +547,26 @@ where
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
         self.tri_compare(diagonal, Tensor::lower_elem)
+    }
+
+    /// Applies element wise power operation with a float Tensor
+    pub fn powf(self, other: Self) -> Self {
+        Self::new(K::powf(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise power operation with a float scalar
+    pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(K::powf_scalar(self.primitive, other))
+    }
+
+    /// Applies element wise power operation with a integer Tensor
+    pub fn powi(self, other: Self) -> Self {
+        Self::new(K::powi(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise power operation with a integer scalar
+    pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(K::powi_scalar(self.primitive, other))
     }
 }
 
@@ -1594,6 +1609,42 @@ where
     /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a float tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
+        -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
+        -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a scalar float
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D>;
+
+    /// elementwise power of a tensor to a scalar int
+    ///
+    /// # Arguments
+    /// * `tensor` - The tensor to apply power to.
+    /// * `power` - The power to apply to the tensor.
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -1848,6 +1899,34 @@ impl<B: Backend> Numeric<B> for Int {
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
         B::int_abs(tensor)
     }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_powf(lhs, B::int_into_float(rhs))
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> <Int as TensorKind<B>>::Primitive<D> {
+        B::int_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn powi<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::int_powi(lhs, rhs)
+    }
+
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::int_powf_scalar(lhs, rhs.elem())
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -1855,133 +1934,133 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        B::add(lhs, rhs)
+        B::float_add(lhs, rhs)
     }
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::add_scalar(lhs, rhs.elem())
+        B::float_add_scalar(lhs, rhs.elem())
     }
     fn sub<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        B::sub(lhs, rhs)
+        B::float_sub(lhs, rhs)
     }
     fn sub_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::sub_scalar(lhs, rhs.elem())
+        B::float_sub_scalar(lhs, rhs.elem())
     }
     fn div<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        B::div(lhs, rhs)
+        B::float_div(lhs, rhs)
     }
     fn div_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::div_scalar(lhs, rhs.elem())
+        B::float_div_scalar(lhs, rhs.elem())
     }
     fn mul<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        B::mul(lhs, rhs)
+        B::float_mul(lhs, rhs)
     }
     fn mul_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        B::mul_scalar(lhs, rhs.elem())
+        B::float_mul_scalar(lhs, rhs.elem())
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::neg(tensor)
+        B::float_neg(tensor)
     }
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::zeros(shape, device)
+        B::float_zeros(shape, device)
     }
     fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::ones(shape, device)
+        B::float_ones(shape, device)
     }
     fn full<const D: usize, E: ElementConversion>(
         shape: Shape<D>,
         fill_value: E,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::full(shape, fill_value.elem(), device)
+        B::float_full(shape, fill_value.elem(), device)
     }
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::sum(tensor)
+        B::float_sum(tensor)
     }
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::sum_dim(tensor, dim)
+        B::float_sum_dim(tensor, dim)
     }
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::mean(tensor)
+        B::float_mean(tensor)
     }
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::mean_dim(tensor, dim)
+        B::float_mean_dim(tensor, dim)
     }
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal_elem(lhs, rhs))
+        Tensor::new(B::float_equal_elem(lhs, rhs))
     }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater(lhs, rhs))
+        Tensor::new(B::float_greater(lhs, rhs))
     }
 
     fn greater_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_elem(lhs, rhs))
+        Tensor::new(B::float_greater_elem(lhs, rhs))
     }
 
     fn greater_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_equal(lhs, rhs))
+        Tensor::new(B::float_greater_equal(lhs, rhs))
     }
 
     fn greater_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::greater_equal_elem(lhs, rhs))
+        Tensor::new(B::float_greater_equal_elem(lhs, rhs))
     }
 
     fn lower<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower(lhs, rhs))
+        Tensor::new(B::float_lower(lhs, rhs))
     }
 
     fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_elem(lhs, rhs))
+        Tensor::new(B::float_lower_elem(lhs, rhs))
     }
 
     fn lower_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_equal(lhs, rhs))
+        Tensor::new(B::float_lower_equal(lhs, rhs))
     }
 
     fn lower_equal_elem<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Elem,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::lower_equal_elem(lhs, rhs))
+        Tensor::new(B::float_lower_equal_elem(lhs, rhs))
     }
 
     fn mask_where<const D: usize>(
@@ -1989,7 +2068,7 @@ impl<B: Backend> Numeric<B> for Float {
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::mask_where(tensor, mask.primitive, source)
+        B::float_mask_where(tensor, mask.primitive, source)
     }
 
     fn mask_fill<const D: usize>(
@@ -1997,7 +2076,7 @@ impl<B: Backend> Numeric<B> for Float {
         mask: Tensor<B, D, Bool>,
         value: Self::Elem,
     ) -> Self::Primitive<D> {
-        B::mask_fill(tensor, mask.primitive, value)
+        B::float_mask_fill(tensor, mask.primitive, value)
     }
 
     fn select<const D: usize>(
@@ -2005,7 +2084,7 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         indices: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        B::select(tensor, dim, indices.primitive)
+        B::float_select(tensor, dim, indices.primitive)
     }
 
     fn select_assign<const D: usize>(
@@ -2014,7 +2093,7 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::select_assign(tensor, dim, indices.primitive, values)
+        B::float_select_assign(tensor, dim, indices.primitive, values)
     }
 
     fn gather<const D: usize>(
@@ -2022,7 +2101,7 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive<D>,
         indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        B::gather(dim, tensor, indices.primitive)
+        B::float_gather(dim, tensor, indices.primitive)
     }
 
     fn scatter<const D: usize>(
@@ -2031,51 +2110,51 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        B::scatter(dim, tensor, indices.primitive, values)
+        B::float_scatter(dim, tensor, indices.primitive, values)
     }
 
     fn argmax<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        B::argmax(tensor, dim)
+        B::float_argmax(tensor, dim)
     }
 
     fn argmin<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        B::argmin(tensor, dim)
+        B::float_argmin(tensor, dim)
     }
 
     fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::max(tensor)
+        B::float_max(tensor)
     }
 
     fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::max_dim(tensor, dim)
+        B::float_max_dim(tensor, dim)
     }
 
     fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::max_dim_with_indices(tensor, dim)
+        B::float_max_dim_with_indices(tensor, dim)
     }
 
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::min(tensor)
+        B::float_min(tensor)
     }
 
     fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::min_dim(tensor, dim)
+        B::float_min_dim(tensor, dim)
     }
 
     fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        B::min_dim_with_indices(tensor, dim)
+        B::float_min_dim_with_indices(tensor, dim)
     }
 
     fn clamp<const D: usize>(
@@ -2083,25 +2162,53 @@ impl<B: Backend> Numeric<B> for Float {
         min: B::FloatElem,
         max: B::FloatElem,
     ) -> Self::Primitive<D> {
-        B::clamp(tensor, min, max)
+        B::float_clamp(tensor, min, max)
     }
 
     fn clamp_min<const D: usize>(
         tensor: Self::Primitive<D>,
         min: B::FloatElem,
     ) -> Self::Primitive<D> {
-        B::clamp_min(tensor, min)
+        B::float_clamp_min(tensor, min)
     }
 
     fn clamp_max<const D: usize>(
         tensor: Self::Primitive<D>,
         max: B::FloatElem,
     ) -> Self::Primitive<D> {
-        B::clamp_max(tensor, max)
+        B::float_clamp_max(tensor, max)
     }
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::abs(tensor)
+        B::float_abs(tensor)
+    }
+
+    fn powf<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::float_powf(lhs, rhs)
+    }
+
+    fn powf_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::float_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn powi<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Self::Primitive<D> {
+        B::float_powf(lhs, rhs)
+    }
+
+    fn powi_scalar<const D: usize, E: ElementConversion>(
+        lhs: Self::Primitive<D>,
+        rhs: E,
+    ) -> Self::Primitive<D> {
+        B::float_powf_scalar(lhs, rhs.elem())
     }
 }
 

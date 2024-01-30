@@ -11,7 +11,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu"
 version.workspace = true
 
 [features]
-default = ["autotune", "std"]
+default = ["autotune", "std", "burn-compute/default"]
 std = []
 autotune = []
 fusion = ["burn-fusion"]
@@ -53,7 +53,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = 
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.12.0" }
-serial_test = "2.0.0"
+serial_test = "3.0.0"
 
 [[bench]]
 name = "matmul"

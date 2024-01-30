@@ -1,10 +1,12 @@
+use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
+use burn_compute::tune::AutotuneKey;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use burn_compute::tune::AutotuneKey;
+#[cfg(any(feature = "fusion", test))]
+use crate::fusion::FusionElemWiseAutotuneKey;
 
-use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Key for all autotune-enabled operations
 pub enum WgpuAutotuneKey {
     /// Key for matmul operation
@@ -13,6 +15,9 @@ pub enum WgpuAutotuneKey {
     SumDim(ReduceAutotuneKey),
     /// Key for mean_dim operations
     MeanDim(ReduceAutotuneKey),
+    #[cfg(any(feature = "fusion", test))]
+    /// Key for fused element wise operations.
+    FusionElemWise(FusionElemWiseAutotuneKey),
 }
 
 impl Display for WgpuAutotuneKey {
@@ -21,6 +26,8 @@ impl Display for WgpuAutotuneKey {
             WgpuAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
             WgpuAutotuneKey::SumDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             WgpuAutotuneKey::MeanDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            #[cfg(any(feature = "fusion", test))]
+            WgpuAutotuneKey::FusionElemWise(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
         }
     }
 }

@@ -1,0 +1,24 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "pytorch-import"
+publish = false
+version = "0.12.0"
+
+[dependencies]
+burn = { path = "../../burn", features = [
+    "ndarray",
+    "dataset",
+    "vision",
+] }
+
+model = { path = "./model" }
+
+
+[build-dependencies]
+model = { path = "./model" }
+burn = { path = "../../burn", features = ["ndarray"] }
+burn-import = { path = "../../burn-import", features = [
+    "pytorch",
+], default-features = false }

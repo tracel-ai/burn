@@ -91,12 +91,6 @@ impl<B: Backend> TransformerEncoderInput<B> {
 }
 impl TransformerEncoderConfig {
     /// Initialize a new [transformer encoder](TransformerEncoder) module.
-    pub fn init_devauto<B: Backend>(&self) -> TransformerEncoder<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
-    /// Initialize a new [transformer encoder](TransformerEncoder) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerEncoder<B> {
         let layers = (0..self.n_layers)
             .map(|_| TransformerEncoderLayer::new(self, device))
@@ -234,79 +228,115 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 
     fn forward(
         &self,
-        mut input: Tensor<B, 3>,
+        input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
         mask_attn: Option<Tensor<B, 3, Bool>>,
     ) -> Tensor<B, 3> {
+        // Multi-head attention residual path.
+        let x = input;
+        let mut residual_path = x.clone();
+
+        // Normalize.
         if self.norm_first {
-            input = self.norm_2.forward(input)
+            residual_path = self.norm_2.forward(residual_path)
         }
 
-        let mut input_mhs = MhaInput::self_attn(input.clone());
-
+        // Multi-head attention.
+        let mut input_mhs = MhaInput::self_attn(residual_path);
         if let Some(mask_pad) = mask_pad {
             input_mhs = input_mhs.mask_pad(mask_pad);
         }
-
         if let Some(mask_attn) = mask_attn {
             input_mhs = input_mhs.mask_attn(mask_attn);
         }
+        let residual_path = self.mha.forward(input_mhs).context;
 
-        let x_1 = self.mha.forward(input_mhs);
-        let x_1 = self.dropout.forward(x_1.context) + input;
-        let x_1 = self.norm_1.forward(x_1);
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
-        let x_2 = self.pwff.forward(x_1.clone());
-        let mut x_2 = self.dropout.forward(x_2) + x_1;
+        // Feed forward residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            self.norm_1.forward(x.clone())
+        } else {
+            x = self.norm_1.forward(x);
+            x.clone()
+        };
 
+        // Feed forward.
+        let residual_path = self.pwff.forward(residual_path);
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
+
+        // Main path.
+        // Normalize.
         if !self.norm_first {
-            x_2 = self.norm_2.forward(x_2)
+            x = self.norm_2.forward(x)
         }
 
-        x_2
+        x
     }
 
     fn forward_autoregressive_inference(
         &self,
-        mut input: Tensor<B, 3>,
+        input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
         mask_attn: Option<Tensor<B, 3, Bool>>,
         cache: &mut TransformerEncoderLayerAutoregressiveCache<B>,
     ) -> Tensor<B, 3> {
+        // Multi-head attention residual path.
+        let x = input;
+        let mut residual_path = x.clone();
+
+        // Normalize.
         if self.norm_first {
-            input = cache
+            residual_path = cache
                 .norm_2
-                .forward_autoregressive(input, 1, |input| self.norm_2.forward(input));
+                .forward_autoregressive(residual_path, 1, |x| self.norm_2.forward(x))
         }
 
-        let mut input_mhs = MhaInput::self_attn(input.clone());
-
+        // Multi-head attention.
+        let mut input_mhs = MhaInput::self_attn(residual_path);
         if let Some(mask_pad) = mask_pad {
             input_mhs = input_mhs.mask_pad(mask_pad);
         }
-
         if let Some(mask_attn) = mask_attn {
             input_mhs = input_mhs.mask_attn(mask_attn);
         }
+        let residual_path = self.mha.forward_cache(input_mhs, &mut cache.mha).context;
 
-        let x_1 = self.mha.forward_cache(input_mhs, &mut cache.mha);
-        let x_1 = self.dropout.forward(x_1.context) + input;
-        let x_1 = cache
-            .norm_1
-            .forward_autoregressive(x_1, 1, |x_1| self.norm_1.forward(x_1));
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
-        let x_2 = cache
+        // Feed forward residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            cache
+                .norm_1
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+        } else {
+            x = cache
+                .norm_1
+                .forward_autoregressive(x, 1, |x| self.norm_1.forward(x));
+            x.clone()
+        };
+
+        // Feed forward.
+        let residual_path = cache
             .pwff
-            .forward_autoregressive(x_1.clone(), 1, |x_1| self.pwff.forward(x_1));
-        let mut x_2 = self.dropout.forward(x_2) + x_1;
+            .forward_autoregressive(residual_path, 1, |x| self.pwff.forward(x));
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
+        // Main path.
+        // Normalize.
         if !self.norm_first {
-            x_2 = cache
+            x = cache
                 .norm_2
-                .forward_autoregressive(x_2, 1, |x_2| self.norm_2.forward(x_2));
+                .forward_autoregressive(x, 1, |x| self.norm_2.forward(x))
         }
 
-        x_2
+        x
     }
 }
 
@@ -350,13 +380,6 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn_tensor::Distribution;
-
-    #[test]
-    fn test_initialization_on_default_device() {
-        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        let _module = TransformerEncoderConfig::new(d_model, d_ff, n_heads, num_layers)
-            .init_devauto::<TestBackend>();
-    }
 
     #[test]
     fn test_autoregressive_norm_last() {

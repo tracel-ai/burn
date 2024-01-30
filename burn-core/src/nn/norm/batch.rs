@@ -33,12 +33,6 @@ pub struct BatchNorm<B: Backend, const D: usize> {
 }
 
 impl BatchNormConfig {
-    /// Initialize a new [batch norm](BatchNorm) module on an automatically selected device.
-    pub fn init_devauto<B: Backend, const D: usize>(&self) -> BatchNorm<B, D> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [batch norm](BatchNorm) module.
     pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> BatchNorm<B, D> {
         let gamma = Tensor::ones([self.num_features], device);
@@ -100,9 +94,10 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     }
 
     fn forward_inference<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
+        let device = input.device();
         let channels = input.dims()[1];
-        let mean = self.running_mean.value();
-        let var = self.running_var.value();
+        let mean = self.running_mean.value().to_device(&device);
+        let var = self.running_var.value().to_device(&device);
 
         let mut shape = [1; DI];
         shape[1] = channels;
@@ -133,14 +128,14 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
         let var = input
             .clone()
             .sub(mean.clone())
-            .powf(2.0)
+            .powf_scalar(2.0)
             .swap_dims(0, 1)
             .reshape([channels, flatten_size])
             .mean_dim(1)
             .reshape(shape_unsqueeze);
 
-        let running_mean = self.running_mean.value_sync();
-        let running_var = self.running_var.value_sync();
+        let running_mean = self.running_mean.value_sync().to_device(&mean.device());
+        let running_var = self.running_var.value_sync().to_device(&var.device());
 
         let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
             mean.clone()
@@ -188,11 +183,6 @@ mod tests_1d {
     use super::*;
     use crate::{module::AutodiffModule, TestAutodiffBackend};
     use burn_tensor::Data;
-
-    #[test]
-    fn default_device_initialization() {
-        let _module = BatchNormConfig::new(3).init_devauto::<TestAutodiffBackend, 1>();
-    }
 
     #[test]
     fn batch_norm_forward_train() {

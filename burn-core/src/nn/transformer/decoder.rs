@@ -61,12 +61,6 @@ pub struct TransformerDecoder<B: Backend> {
 
 impl TransformerDecoderConfig {
     /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
-    pub fn init_devauto<B: Backend>(&self) -> TransformerDecoder<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
-    /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerDecoder<B> {
         let layers = (0..self.n_layers)
             .map(|_| TransformerDecoderLayer::new(self, device))
@@ -263,45 +257,71 @@ impl<B: Backend> TransformerDecoderLayer<B> {
     }
 
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
-        let mut x_0 = input.target;
+        // Self attention residual path.
+        let x = input.target;
+        let mut residual_path = x.clone();
 
+        // Normalize.
         if self.norm_first {
-            x_0 = self.norm_3.forward(x_0);
+            residual_path = self.norm_3.forward(residual_path);
         }
 
-        let mut self_attn_input = MhaInput::self_attn(x_0.clone());
+        // Self attention.
+        let mut self_attn_input = MhaInput::self_attn(residual_path);
         if let Some(mask_pad) = &input.target_mask_pad {
             self_attn_input = self_attn_input.mask_pad(mask_pad.clone());
         }
         if let Some(mask_attn) = &input.target_mask_attn {
             self_attn_input = self_attn_input.mask_attn(mask_attn.clone());
         }
+        let residual_path = self.self_attn.forward(self_attn_input).context;
 
-        let x_1 = self.self_attn.forward(self_attn_input);
-        let x_1 = self.dropout.forward(x_1.context) + x_0;
-        let x_1 = self.norm_1.forward(x_1);
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
+        // Cross attention residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            self.norm_1.forward(x.clone())
+        } else {
+            x = self.norm_1.forward(x);
+            x.clone()
+        };
+
+        // Cross attention.
         let mut cross_attn_input =
-            MhaInput::new(x_1.clone(), input.memory.clone(), input.memory.clone());
+            MhaInput::new(residual_path, input.memory.clone(), input.memory.clone());
         if let Some(mask_pad) = &input.memory_mask_pad {
             cross_attn_input = cross_attn_input.mask_pad(mask_pad.clone());
         }
         if let Some(mask_attn) = &input.memory_mask_attn {
             cross_attn_input = cross_attn_input.mask_attn(mask_attn.clone());
         }
+        let residual_path = self.cross_attn.forward(cross_attn_input).context;
 
-        let x_2 = self.cross_attn.forward(cross_attn_input);
-        let x_2 = self.dropout.forward(x_2.context) + x_1;
-        let x_2 = self.norm_2.forward(x_2);
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
-        let x_3 = self.pwff.forward(x_2.clone());
-        let mut x_3 = self.dropout.forward(x_3) + x_2;
+        // Feed forward residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            self.norm_2.forward(x.clone())
+        } else {
+            x = self.norm_2.forward(x);
+            x.clone()
+        };
 
+        let residual_path = self.pwff.forward(residual_path);
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
+
+        // Main path.
+        // Normalize.
         if !self.norm_first {
-            x_3 = self.norm_3.forward(x_3)
+            x = self.norm_3.forward(x)
         }
 
-        input.target = x_3;
+        input.target = x;
         input
     }
 
@@ -310,58 +330,91 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         mut input: TransformerDecoderInput<B>,
         cache: &mut TransformerDecoderLayerAutoregressiveCache<B>,
     ) -> TransformerDecoderInput<B> {
-        let mut x_0 = input.target;
+        // Self attention residual path.
+        let x = input.target;
+        let mut residual_path = x.clone();
 
+        // Normalize.
         if self.norm_first {
-            x_0 = cache
+            residual_path = cache
                 .norm_3
-                .forward_autoregressive(x_0, 1, |x| self.norm_3.forward(x));
+                .forward_autoregressive(residual_path, 1, |x| self.norm_3.forward(x));
         }
 
-        let mut self_attn_input = MhaInput::self_attn(x_0.clone());
+        // Self attention.
+        let mut self_attn_input = MhaInput::self_attn(residual_path);
         if let Some(mask_pad) = &input.target_mask_pad {
             self_attn_input = self_attn_input.mask_pad(mask_pad.clone());
         }
         if let Some(mask_attn) = &input.target_mask_attn {
             self_attn_input = self_attn_input.mask_attn(mask_attn.clone());
         }
-
-        let x_1 = self
+        let residual_path = self
             .self_attn
-            .forward_cache(self_attn_input, &mut cache.self_attn);
-        let x_1 = self.dropout.forward(x_1.context) + x_0;
-        let x_1 = cache
-            .norm_1
-            .forward_autoregressive(x_1, 1, |x| self.norm_1.forward(x));
+            .forward_cache(self_attn_input, &mut cache.self_attn)
+            .context;
 
-        let mut mha_input = MhaInput::new(x_1.clone(), input.memory.clone(), input.memory.clone());
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
+
+        // Cross attention residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            cache
+                .norm_1
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+        } else {
+            x = cache
+                .norm_1
+                .forward_autoregressive(x, 1, |x| self.norm_1.forward(x));
+            x.clone()
+        };
+
+        // Cross attention.
+        let mut cross_attn_input =
+            MhaInput::new(residual_path, input.memory.clone(), input.memory.clone());
         if let Some(mask_pad) = &input.memory_mask_pad {
-            mha_input = mha_input.mask_pad(mask_pad.clone());
+            cross_attn_input = cross_attn_input.mask_pad(mask_pad.clone());
         }
         if let Some(mask_attn) = &input.memory_mask_attn {
-            mha_input = mha_input.mask_attn(mask_attn.clone());
+            cross_attn_input = cross_attn_input.mask_attn(mask_attn.clone());
         }
-
-        let x_2 = self
+        let residual_path = self
             .cross_attn
-            .forward_cache(mha_input, &mut cache.cross_attn);
-        let x_2 = self.dropout.forward(x_2.context) + x_1;
-        let x_2 = cache
-            .norm_2
-            .forward_autoregressive(x_2, 1, |x| self.norm_2.forward(x));
+            .forward_cache(cross_attn_input, &mut cache.cross_attn)
+            .context;
 
-        let x_3 = cache
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
+
+        // Feed forward residual path.
+        // Normalize.
+        let residual_path = if self.norm_first {
+            cache
+                .norm_2
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
+        } else {
+            x = cache
+                .norm_2
+                .forward_autoregressive(x, 1, |x| self.norm_2.forward(x));
+            x.clone()
+        };
+
+        let residual_path = cache
             .pwff
-            .forward_autoregressive(x_2.clone(), 1, |x| self.pwff.forward(x));
-        let mut x_3 = self.dropout.forward(x_3) + x_2;
+            .forward_autoregressive(residual_path, 1, |x| self.pwff.forward(x));
+        let residual_path = self.dropout.forward(residual_path);
+        let mut x = x + residual_path;
 
+        // Main path.
+        // Normalize.
         if !self.norm_first {
-            x_3 = cache
+            x = cache
                 .norm_3
-                .forward_autoregressive(x_3, 1, |x| self.norm_3.forward(x));
+                .forward_autoregressive(x, 1, |x| self.norm_3.forward(x))
         }
 
-        input.target = x_3;
+        input.target = x;
         input
     }
 }
@@ -402,15 +455,6 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn_tensor::Distribution;
-
-    #[test]
-    fn test_initialization_on_default_device() {
-        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        TestBackend::seed(0);
-        let _module = TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers)
-            .with_norm_first(false)
-            .init_devauto::<TestBackend>();
-    }
 
     #[test]
     fn test_autoregressive_norm_last() {
