@@ -1,7 +1,7 @@
 use crate::transform::{Mapper, MapperDataset};
 use crate::{Dataset, InMemDataset};
 
-use globwalk;
+use globwalk::{self, DirEntry};
 use image::{self, ColorType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -18,6 +18,42 @@ pub enum DataType {
     U16(u16),
     /// 32-bit floating point.
     F32(f32),
+}
+
+impl TryFrom<DataType> for u8 {
+    type Error = &'static str;
+
+    fn try_from(value: DataType) -> Result<Self, Self::Error> {
+        if let DataType::U8(v) = value {
+            Ok(v)
+        } else {
+            Err("Value is not u8")
+        }
+    }
+}
+
+impl TryFrom<DataType> for u16 {
+    type Error = &'static str;
+
+    fn try_from(value: DataType) -> Result<Self, Self::Error> {
+        if let DataType::U16(v) = value {
+            Ok(v)
+        } else {
+            Err("Value is not u16")
+        }
+    }
+}
+
+impl TryFrom<DataType> for f32 {
+    type Error = &'static str;
+
+    fn try_from(value: DataType) -> Result<Self, Self::Error> {
+        if let DataType::F32(v) = value {
+            Ok(v)
+        } else {
+            Err("Value is not f32")
+        }
+    }
 }
 
 /// Image target for different tasks.
@@ -210,6 +246,7 @@ impl ImageFolderDataset {
             )],
         )
         .follow_links(true)
+        .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
         .unwrap()
         .into_iter()
