@@ -1,5 +1,5 @@
-use std::process::{Child, Command, Stdio};
 use rand::Rng;
+use std::process::{Child, Command, Stdio};
 
 /// Handle child process
 pub(crate) fn handle_child_process(mut child: Child, error: &str) {
@@ -33,6 +33,6 @@ pub(crate) fn run_command(command: &str, args: &[&str], command_error: &str, chi
 
 /// Return a random port between 3000 and 9999
 pub(crate) fn random_port() -> u16 {
-        let mut rng = rand::thread_rng();
-        rng.gen_range(3000..=9999)
-    }
+    let mut rng = rand::thread_rng();
+    rng.gen_range(3000..=9999)
+}

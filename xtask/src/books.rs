@@ -7,8 +7,8 @@ use crate::{
     endgroup, group,
     logging::init_logger,
     utils::{
-        cargo::ensure_cargo_crate_is_installed, mdbook::run_mdbook_with_path,
-        time::format_duration, Params, process::random_port,
+        cargo::ensure_cargo_crate_is_installed, mdbook::run_mdbook_with_path, process::random_port,
+        time::format_duration, Params,
     },
 };
 
@@ -105,15 +105,10 @@ impl Book {
     fn open(&self) {
         run_mdbook_with_path(
             "serve",
-            Params::from([
-                "--open",
-                "--port",
-                &random_port().to_string(),
-            ]),
+            Params::from(["--open", "--port", &random_port().to_string()]),
             HashMap::new(),
             Some(self.path),
             "mdbook should build the book successfully",
         );
     }
-
 }
