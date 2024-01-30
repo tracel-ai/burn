@@ -1,0 +1,22 @@
+[package]
+authors = ["guillaumelagrange <lagrange.guillaume.1@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "custom-image-dataset"
+description = "Example implementation for loading a custom image dataset from disk"
+publish = false
+version.workspace = true
+
+[features]
+default = ["burn/dataset", "burn/vision"]
+
+[dependencies]
+burn = {path = "../../burn"}
+
+# File download
+flate2 = { workspace = true }
+image = "0.24.7"
+indicatif = { workspace = true }
+reqwest = { workspace = true }
+tar = "0.4.40"
+tokio = { workspace = true }
