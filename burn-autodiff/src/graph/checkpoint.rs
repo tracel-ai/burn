@@ -71,6 +71,7 @@ type StateContent = Box<dyn Any + Send + Sync>;
 
 #[derive(Debug)]
 enum State {
+    // Weird nomenclature. Isn't it more lazy to not re-compute?
     Lazy {
         node_id: NodeID, // whose forward is required to compute state (is it needed, as States has it as the key)
         n_required: usize, // how many times it's used (has counter += and -=)
@@ -190,6 +191,20 @@ mod tests {
         );
     }
 
+    fn insert_computed(
+        id: NodeID,
+        inner_states: &mut HashMap<NodeID, State>,
+        state_content: StateContent,
+    ) {
+        inner_states.insert(
+            id.clone(),
+            State::Computed {
+                state_content,
+                n_required: 1,
+            },
+        );
+    }
+
     fn make_leaves<B: Backend>(
         device: &B::Device,
         ids: [NodeID; 4],
@@ -254,9 +269,9 @@ mod tests {
     }
 
     fn div_lazy_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> States {
-        // A: t1 / t2         B: t3 / t4
-        //       --> C: t5 / t6 <--
-        //                 t7
+        // 4: 0 / 1         5: 2 / 3 -> 5
+        //       --> 6: t4 / t5 <--
+
         let id_0 = ids[0].clone();
         let id_1 = ids[1].clone();
         let id_2 = ids[2].clone();
@@ -294,7 +309,55 @@ mod tests {
         States::new(inner_states, retro_forwards, nodes)
     }
 
-    // fn div_computed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) ->
+    fn div_computed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> States {
+        // Here we hardcode a result for 5 (wrong for ensuring it doesn't just do the lazy computation)
+        // We can then test that 5 gives that result, and that 6 gives the implied result
+        // 4: 0 / 1         5: 2 / 3 -> 5 is Computed
+        //       --> 6: t4 / t5 <--
+
+        let id_0 = ids[0].clone();
+        let id_1 = ids[1].clone();
+        let id_2 = ids[2].clone();
+        let id_3 = ids[3].clone();
+
+        let leaves = make_leaves::<B>(
+            device,
+            [id_0.clone(), id_1.clone(), id_2.clone(), id_3.clone()],
+        );
+        let mut inner_states = leaves.0;
+        let mut retro_forwards = leaves.1;
+        let mut nodes = leaves.2;
+
+        let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
+            let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
+            let retro_div =
+                RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone(), id.clone());
+            retro_forwards.insert(id.clone(), Box::new(retro_div));
+            nodes.insert(id.clone(), n);
+        };
+
+        // Node 4: 0/t1
+        make_div_node(ids[4].clone(), &[id_0, id_1]);
+
+        // Node 5: t2/t3
+        make_div_node(ids[5].clone(), &[id_2, id_3]);
+
+        // Node 6: t4/t5
+        make_div_node(ids[6].clone(), &[ids[4].clone(), ids[5].clone()]);
+
+        insert_lazy(ids[4].clone(), &mut inner_states);
+        insert_computed(
+            ids[5].clone(),
+            &mut inner_states,
+            Box::new(Tensor::<B, 2>::from_data(
+                Data::<f32, 2>::from([[10.0, 10.0], [10.0, 10.0]]).convert(),
+                device,
+            )),
+        );
+        insert_lazy(ids[6].clone(), &mut inner_states);
+
+        States::new(inner_states, retro_forwards, nodes)
+    }
 
     fn expect_tensor<B: Backend>(states: &mut States, id: NodeID, expected: Tensor<B, 2>) {
         let state_content = states.get(id.clone());
@@ -308,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn div_tree_has_expected_leaves() {
+    fn div_lazy_tree_has_expected_leaves() {
         let device = Default::default();
         let ids = [
             NodeID::new(),
@@ -335,7 +398,7 @@ mod tests {
     }
 
     #[test]
-    fn div_tree_has_expected_nodes() {
+    fn div_lazy_tree_has_expected_nodes() {
         let device = Default::default();
         let ids = [
             NodeID::new(),
@@ -364,6 +427,39 @@ mod tests {
             &mut states,
             ids[6].clone(),
             Tensor::<TestBackend, 2>::from_data([[-0.4444, -1.3328], [-0.78125, -0.5555]], &device),
+        );
+    }
+
+    #[test]
+    fn div_computed_tree_has_expected_nodes() {
+        let device = Default::default();
+        let ids = [
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+        ];
+        let mut states = div_computed_tree::<TestBackend>(&device, ids.clone());
+
+        expect_tensor(
+            &mut states,
+            ids[4].clone(),
+            Tensor::<TestBackend, 2>::from_data([[0.6666, -0.1666], [0.625, -0.2222]], &device),
+        );
+
+        expect_tensor(
+            &mut states,
+            ids[5].clone(),
+            Tensor::<TestBackend, 2>::from_data([[10.0, 10.0], [10.0, 10.0]], &device),
+        );
+
+        expect_tensor(
+            &mut states,
+            ids[6].clone(),
+            Tensor::<TestBackend, 2>::from_data([[0.0666, -0.0166], [0.0625, -0.0222]], &device),
         );
     }
 }
