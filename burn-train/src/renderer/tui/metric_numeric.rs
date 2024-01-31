@@ -161,13 +161,25 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(axes.labels_x.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_x
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_y
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_y),
             )
     }
@@ -206,7 +218,7 @@ impl<'a> NumericMetricView<'a> {
 
                 let titles = titles
                     .iter()
-                    .map(|i| Line::from(vec![i.yellow()]))
+                    .map(|i| Line::from(vec![i.clone().yellow()]))
                     .collect();
 
                 let tabs = Tabs::new(titles)
