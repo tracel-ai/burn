@@ -38,9 +38,7 @@ In this case, we only don't need to worry about `Bool` Tensors. Ops for `Float` 
 [burn-tensor/src/tensor/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/ops/tensor.rs#L873),
 and for `Int` under
 [`burn-tensor/src/tensor/ops/int_tensor.rs`](https://github.com/tracel-ai/burn/blob/e1d873abe2c2fa0bb316719c4761eaf796291166/burn-tensor/src/tensor/ops/int_tensor.rs#L486).
-The current convention is for int and bool ops, to be prefixed with `int` or `bool`, respectively.
-As we need to use floating point powers to ensure precision, the `powi` functions are given a
-default implementation that converts the right hand side of the operator to a float.
+The current convention is ops of each type, if not unique to that type, are prefixed with the type. so `powf` and sundry would be defined as `int_powf` for `IntTensorOps` and `float_powf` for `FloatTensorOps`. If an op is unique to a type, then it should be implemented under `burn-tensor/src/api/{type}.rs`. For example, here is an implementation for [`sin` under `burn-tensor/src/api/float.rs`](https://github.com/tracel-ai/burn/blob/2acf6561dc9e173870d4209ed40ebbdcf7e3888c/burn-tensor/src/tensor/api/float.rs#L78) which obviously doesn't make sense for `Int`  or `Bool` tensors.
 
 The `Int` Tensor function use the ones defined for Float with 2 extra cast (LHS to a `Float` tensor,
 Output to an `Int`). Given that the rest of the code will only look at the float implementations.
@@ -98,8 +96,8 @@ plug in your operator in terms of \\(x\\) and \\(y\\), and just swap out the var
 ### Testing autodiff
 
 Test for autodiff go under
-[burn-autodiff/src/tests/foo.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-autodiff/src/tests/pow.rs#L31)
-(replacing foo for whatever makes sense for your op), and for tensor operations both the left and
+[burn-autodiff/src/tests/{op_name}.rs](https://github.com/tracel-ai/burn/blob/4ca3e31601228952bb1c1492bc9cd2adf15b5cf1/burn-autodiff/src/tests/pow.rs#L31)
+(replacing `op_name` for whatever makes sense for your op), and for tensor operations both the left and
 right side need to be verified. The easiest way to do this, is to
 
 1. use small tensors with simple values
