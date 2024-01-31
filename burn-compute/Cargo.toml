@@ -42,11 +42,11 @@ hashbrown = { workspace = true }
 dirs = { workspace = true , optional = true}
 serde = { workspace = true, optional = true}
 serde_json = { workspace = true, features=["std"], optional = true}
-md5 = { version = "0.7.0", optional = true }
+md5 = { workspace = true, optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-web-time = { version = "1.0.0" }
+web-time = { workspace = true }
 
 [dev-dependencies]
-serial_test = "3.0.0"
+serial_test = { workspace = true }
 rand = { workspace = true }
