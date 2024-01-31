@@ -254,7 +254,10 @@ where
     /// Applies the leaky relu function to the tensor.
     /// The leaky relu function is defined as `x` if `x > 0` and `alpha * x` otherwise.
     pub fn leaky_relu(self, alpha: f64) -> Self {
-        Self::new(B::leaky_relu(self.primitive, crate::ElementConversion::elem(alpha)))
+        Self::new(B::leaky_relu(
+            self.primitive,
+            crate::ElementConversion::elem(alpha),
+        ))
     }
 
     /// Applies the relu function to the tensor.

@@ -9,7 +9,7 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 }
 
 /// Applies the leaky rectified linear unit function.
-/// 
+///
 /// f(x) = alpha * x for x < 0, f(x) = x for x >= 0
 pub fn leaky_relu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
     tensor.leaky_relu(alpha)

@@ -9,7 +9,6 @@ use super::FloatTensor;
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
-
     /// Applies the LeakyReLU activation function.
     ///
     /// # Arguments
@@ -20,11 +19,14 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn leaky_relu<const D: usize>(tensor: FloatTensor<B, D>, alpha: super::FloatElem<B>) -> FloatTensor<B, D> {
+    fn leaky_relu<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        alpha: super::FloatElem<B>,
+    ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
-        let ones = B::float_ones(Shape{dims: [1;D]}, &B::float_device(&tensor));
-        let alpha_tensor=B::float_full(Shape{dims: [1;D]}, alpha,&B::float_device(&tensor));
-        let mul_mask=B::float_mask_where(ones, mask, alpha_tensor);
+        let ones = B::float_ones(Shape { dims: [1; D] }, &B::float_device(&tensor));
+        let alpha_tensor = B::float_full(Shape { dims: [1; D] }, alpha, &B::float_device(&tensor));
+        let mul_mask = B::float_mask_where(ones, mask, alpha_tensor);
         B::float_mul(tensor, mul_mask)
     }
 
@@ -41,11 +43,11 @@ pub trait ActivationOps<B: Backend> {
     fn leaky_relu_backward<const D: usize>(
         output: FloatTensor<B, D>,
         grad: FloatTensor<B, D>,
-        alpha: FloatTensor<B,D>,
+        alpha: FloatTensor<B, D>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(output.clone(), 0.elem());
-        let ones = B::float_ones(Shape{dims: [1;D]}, &B::float_device(&output));
-        let mul_mask=B::float_mask_where(ones, mask, alpha);
+        let ones = B::float_ones(Shape { dims: [1; D] }, &B::float_device(&output));
+        let mul_mask = B::float_mask_where(ones, mask, alpha);
         B::float_mul(grad, mul_mask)
     }
 

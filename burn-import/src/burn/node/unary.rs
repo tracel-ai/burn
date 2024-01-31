@@ -146,7 +146,6 @@ impl UnaryNode {
         Self::new(input, output, UnaryNodeKind::Relu, Rc::new(function))
     }
 
-
     pub(crate) fn sigmoid(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::sigmoid(#input) };
         Self::new(input, output, UnaryNodeKind::Sigmoid, Rc::new(function))
@@ -313,7 +312,6 @@ mod tests {
             vec!["tensor2".to_string()],
         );
     }
-
 
     #[test]
     fn test_unary_codegen_leaky_relu() {
