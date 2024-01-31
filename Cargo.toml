@@ -91,6 +91,9 @@ wasm-bindgen-futures = "0.4.38"
 wasm-logger = "0.2.0"
 wasm-timer = "0.2.5"
 
+# Terminal UI
+ratatui = "0.25"
+crossterm = "0.27"
 
 # WGPU stuff
 futures-intrusive = "0.5"
