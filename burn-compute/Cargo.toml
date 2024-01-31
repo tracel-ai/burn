@@ -45,7 +45,7 @@ serde_json = { workspace = true, features=["std"], optional = true}
 md5 = { version = "0.7.0", optional = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-web-time = { version = "0.2.3" }
+web-time = { version = "1.0.0" }
 
 [dev-dependencies]
 serial_test = "3.0.0"
