@@ -29,7 +29,7 @@ sysinfo = { version = "0.29.10", optional = true }
 systemstat = { version = "0.2.3", optional = true }
 
 # Text UI
-ratatui = { version = "0.23", optional = true, features = ["all-widgets"] }
+ratatui = { version = "0.25", optional = true, features = ["all-widgets"] }
 crossterm = { version = "0.27", optional = true }
 
 # Utilities
