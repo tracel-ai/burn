@@ -29,7 +29,7 @@ following command[^1]:
 cargo install mdbook
 ```
 
-Also instead of running `./run_checks.sh all`, you can run `./run_checks.sh typo` to only check for
+Also instead of running `./run_checks.sh all`, you can run `./run_checks.sh typo`, or `cargo xtasks run-checks typo`, to only check for
 misspellings. This will install [typo](https://crates.io/crates/typos-cli), and if any are
 encountered you should be able to run `typo -w /path/to/book` to fix them.
 
