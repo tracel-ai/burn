@@ -1,7 +1,7 @@
 use crate::renderer::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -107,6 +107,10 @@ impl NumericMetricsState {
     /// Handle the current event.
     pub(crate) fn on_event(&mut self, event: &Event) {
         if let Event::Key(key) = event {
+            match key.kind {
+                KeyEventKind::Release | KeyEventKind::Repeat => (),
+                KeyEventKind::Press => return,
+            }
             match key.code {
                 KeyCode::Right => self.next_metric(),
                 KeyCode::Left => self.previous_metric(),
