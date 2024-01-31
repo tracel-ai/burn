@@ -4742,9 +4742,9 @@ dependencies = [
 
 [[package]]
 name = "web-time"
-version = "0.2.4"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa30049b1c872b72c89866d458eae9f20380ab280ffd1b1e18df2d3e2d98cfe0"
+checksum = "2ee269d72cc29bf77a2c4bc689cc750fb39f5cbd493d2205bbb3f5c7779cf7b0"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
