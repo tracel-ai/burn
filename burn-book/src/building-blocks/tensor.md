@@ -97,10 +97,10 @@ a working example of doing min-max normalization with cloning.
     let max = input.clone().max();
     let input = (input.clone() - min.clone()).div(max - min);
     println!("{:?}", input.to_data());      // Success: [0.0, 0.33333334, 0.6666667, 1.0]
-    
+
     // Notice that max, min have been moved in last operation so the below print will give an error.
     // If we want to use them for further operations, they will need to be cloned in similar fashion.
-    // println!("{:?}", min.to_data());    
+    // println!("{:?}", min.to_data());
 ```
 
 We don't need to be worried about memory overhead because with cloning, the tensor's buffer isn't copied,
