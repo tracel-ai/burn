@@ -9,9 +9,11 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.8", features = ["derive"] }
+derive_more = { version = "0.99.17", features = ["display"], default-features = false }
 env_logger = "0.10.0"
 log = "0.4.17"
+rand = { workspace = true, features = ["std"] }
 serde_json = { version = "1" }
 
 [dev-dependencies]
-rstest.workspace = true
+rstest = { workspace = true }

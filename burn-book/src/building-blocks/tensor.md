@@ -44,7 +44,7 @@ let tensor_2 = Tensor::<Backend, 1>::from_data(Data::from([1.0, 2.0, 3.0]).conve
 // Will be converted to Data internally. `.convert()` not needed as from_floats() defined for fixed ElementType
 let tensor_3 = Tensor::<Backend, 1>::from_floats([1.0, 2.0, 3.0]);
 
-// Initialization of Int Tensor from array slices 
+// Initialization of Int Tensor from array slices
 let arr: [i32; 6] = [1, 2, 3, 4, 5, 6];
 let tensor_4 = Tensor::<Backend, 1, Int>::from_data(Data::from(&arr[0..3]).convert());
 
