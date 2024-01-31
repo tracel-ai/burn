@@ -30,6 +30,7 @@ pub enum UnaryNodeKind {
     LogSoftmax,
     Neg,
     Reciprocal,
+    LeakyRelu,
     Relu,
     Sigmoid,
     Softmax,
@@ -51,6 +52,7 @@ impl UnaryNodeKind {
             Self::LogSoftmax => "log_softmax",
             Self::Neg => "neg",
             Self::Reciprocal => "reciprocal",
+            Self::LeakyRelu => "leaky_relu",
             Self::Relu => "relu",
             Self::Sigmoid => "sigmoid",
             Self::Softmax => "softmax",
@@ -137,6 +139,13 @@ impl UnaryNode {
         let function = move |input| quote! { burn::tensor::activation::relu(#input) };
         Self::new(input, output, UnaryNodeKind::Relu, Rc::new(function))
     }
+
+    pub(crate) fn leaky_relu(input: Type, output: Type, alpha: f64) -> Self {
+        let alpha = alpha.to_tokens();
+        let function = move |input| quote! { burn::tensor::activation::leaky_relu(#input, #alpha) };
+        Self::new(input, output, UnaryNodeKind::Relu, Rc::new(function))
+    }
+
 
     pub(crate) fn sigmoid(input: Type, output: Type) -> Self {
         let function = move |input| quote! { burn::tensor::activation::sigmoid(#input) };
@@ -296,6 +305,27 @@ mod tests {
             quote! {
                 pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
                     let tensor2 = burn::tensor::activation::relu(tensor1);
+
+                    tensor2
+                }
+            },
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+    }
+
+
+    #[test]
+    fn test_unary_codegen_leaky_relu() {
+        one_node_graph(
+            UnaryNode::leaky_relu(
+                Type::Tensor(TensorType::new_float("tensor1", 4)),
+                Type::Tensor(TensorType::new_float("tensor2", 4)),
+                0.1,
+            ),
+            quote! {
+                pub fn forward(&self, tensor1: Tensor<B, 4>) -> Tensor<B, 4> {
+                    let tensor2 = burn::tensor::activation::leaky_relu(tensor1, 0.1);
 
                     tensor2
                 }

@@ -1,4 +1,5 @@
 use crate::tensor::ops::tensor::FloatTensorOps;
+use crate::Shape;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
@@ -8,6 +9,46 @@ use super::FloatTensor;
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
+
+    /// Applies the LeakyReLU activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `alpha` - The alpha value that values smaller than 0 are multiplied with.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn leaky_relu<const D: usize>(tensor: FloatTensor<B, D>, alpha: super::FloatElem<B>) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(tensor.clone(), 0.elem());
+        let ones = B::float_ones(Shape{dims: [1;D]}, &B::float_device(&tensor));
+        let alpha_tensor=B::float_full(Shape{dims: [1;D]}, alpha,&B::float_device(&tensor));
+        let mul_mask=B::float_mask_where(ones, mask, alpha_tensor);
+        B::float_mul(tensor, mul_mask)
+    }
+
+    /// Applies the LeakyReLU activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The output tensor.
+    /// * `alpha` - The alpha value that values smaller than 0 are multiplied with.
+    ///
+    /// # Returns
+    ///
+    /// The gradient.
+    fn leaky_relu_backward<const D: usize>(
+        output: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+        alpha: FloatTensor<B,D>,
+    ) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(output.clone(), 0.elem());
+        let ones = B::float_ones(Shape{dims: [1;D]}, &B::float_device(&output));
+        let mul_mask=B::float_mask_where(ones, mask, alpha);
+        B::float_mul(grad, mul_mask)
+    }
+
     /// Applies the ReLU activation function.
     ///
     /// # Arguments
