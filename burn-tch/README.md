@@ -17,7 +17,7 @@ The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable
 [`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to
 be available on your system.
 
-By default, the CPU distribution is installed for LibTorch v2.1.0 as required by `tch-rs`.
+By default, the CPU distribution is installed for LibTorch v2.2.0 as required by `tch-rs`.
 
 <details>
 <summary><strong>CUDA</strong></summary>
@@ -26,23 +26,20 @@ To install the latest compatible CUDA distribution, set the `TORCH_CUDA_VERSION`
 variable before the `tch-rs` dependency is retrieved with `cargo`.
 
 ```shell
-export TORCH_CUDA_VERSION=cu118
+export TORCH_CUDA_VERSION=cu121
 ```
 
 On Windows:
 
 ```powershell
-$Env:TORCH_CUDA_VERSION = "cu118"
+$Env:TORCH_CUDA_VERSION = "cu121"
 ```
-
-_Note: `tch-rs` does not offer the option to download the CUDA 12.1 distribution at this time.
-Please refer to the [manual instructions](#cuda) instead._
 
 For example, running the validation sample for the first time could be done with the following
 commands:
 
 ```shell
-export TORCH_CUDA_VERSION=cu118
+export TORCH_CUDA_VERSION=cu121
 cargo run --bin cuda --release
 ```
 
@@ -91,7 +88,7 @@ platform.
 First, download the LibTorch CPU distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.1.0%2Bcpu.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.2.0%2Bcpu.zip
 unzip libtorch.zip
 ```
 
@@ -111,7 +108,7 @@ export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 First, download the LibTorch CPU distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-macos-2.1.0.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.2.0.zip
 unzip libtorch.zip
 ```
 
@@ -131,7 +128,7 @@ export DYLD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$DYLD_LIBRARY_PATH
 First, download the LibTorch CPU distribution.
 
 ```powershell
-wget https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.1.0%2Bcpu.zip -OutFile libtorch.zip
+wget https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.2.0%2Bcpu.zip -OutFile libtorch.zip
 Expand-Archive libtorch.zip
 ```
 
@@ -147,18 +144,18 @@ $Env:Path += ";/absolute/path/to/libtorch/"
 
 #### CUDA
 
-LibTorch 2.1.0 currently includes binary distributions with CUDA 12.1 or 11.8 runtimes. The manual
+LibTorch 2.2.0 currently includes binary distributions with CUDA 11.8 or 12.1 runtimes. The manual
 installation instructions are detailed below.
 
-**CUDA 12.1**
+**CUDA 11.8**
 
 <details open>
 <summary><strong>🐧 Linux</strong></summary>
 
-First, download the LibTorch CUDA 12.1 distribution.
+First, download the LibTorch CUDA 11.8 distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.1.0%2Bcu121.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cu118/libtorch-cxx11-abi-shared-with-deps-2.2.0%2Bcu118.zip
 unzip libtorch.zip
 ```
 
@@ -177,10 +174,10 @@ export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 <details>
 <summary><strong>🪟 Windows</strong></summary>
 
-First, download the LibTorch CUDA 12.1 distribution.
+First, download the LibTorch CUDA 11.8 distribution.
 
 ```powershell
-wget https://download.pytorch.org/libtorch/cu121/libtorch-win-shared-with-deps-2.1.0%2Bcu121.zip -OutFile libtorch.zip
+wget https://download.pytorch.org/libtorch/cu118/libtorch-win-shared-with-deps-2.2.0%2Bcu118.zip -OutFile libtorch.zip
 Expand-Archive libtorch.zip
 ```
 
@@ -194,15 +191,15 @@ $Env:Path += ";/absolute/path/to/libtorch/"
 
 </details><br>
 
-**CUDA 11.8**
+**CUDA 12.1**
 
 <details open>
 <summary><strong>🐧 Linux</strong></summary>
 
-First, download the LibTorch CUDA 11.8 distribution.
+First, download the LibTorch CUDA 12.1 distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cu118/libtorch-cxx11-abi-shared-with-deps-2.1.0%2Bcu118.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.0%2Bcu121.zip
 unzip libtorch.zip
 ```
 
@@ -221,10 +218,10 @@ export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 <details>
 <summary><strong>🪟 Windows</strong></summary>
 
-First, download the LibTorch CUDA 11.8 distribution.
+First, download the LibTorch CUDA 12.1 distribution.
 
 ```powershell
-wget https://download.pytorch.org/libtorch/cu118/libtorch-win-shared-with-deps-2.1.0%2Bcu118.zip -OutFile libtorch.zip
+wget https://download.pytorch.org/libtorch/cu121/libtorch-win-shared-with-deps-2.2.0%2Bcu121.zip -OutFile libtorch.zip
 Expand-Archive libtorch.zip
 ```
 
@@ -246,7 +243,7 @@ is to use a PyTorch installation. This requires a Python installation.
 _Note: MPS acceleration is available on MacOS 12.3+._
 
 ```shell
-pip install torch==2.1.0
+pip install torch==2.2.0
 export LIBTORCH_USE_PYTORCH=1
 export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ```
