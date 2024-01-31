@@ -315,9 +315,18 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             let a: f64 = a.into();
             let b: f64 = b.into();
 
+            //if they are both nan, then they are equally nan
+            let both_nan = a.is_nan() && b.is_nan();
+            //this works for both infinities
+            let both_inf = a.is_infinite() && b.is_infinite() && a.signum() == b.signum();
+
+            if both_nan || both_inf {
+                continue;
+            }
+
             let err = libm::sqrt(libm::pow(a - b, 2.0));
 
-            if err > tolerance {
+            if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
