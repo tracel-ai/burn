@@ -318,7 +318,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
             //if they are both nan, then they are equally nan
             let both_nan = a.is_nan() && b.is_nan();
             //this works for both infinities
-            let both_inf = a.is_infinite() && b.is_infinite() && a.signum() == b.signum();
+            let both_inf = a.is_infinite() && b.is_infinite() && ((a > 0.) == (b > 0.));
 
             if both_nan || both_inf {
                 continue;
