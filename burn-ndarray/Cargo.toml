@@ -49,15 +49,13 @@ burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = 
   "export_tests",
 ] }
 
-matrixmultiply = { version = "0.3.8", default-features = false }
+matrixmultiply = { workspace = true, default-features = false }
 rayon = { workspace = true, optional = true }
-
-blas-src = { version = "0.9.0", default-features = false, optional = true } # no-std compatible         
-
+blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible         
 derive-new = { workspace = true }
 libm = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
-openblas-src = { version = "0.10.8", optional = true }
+openblas-src = { workspace = true, optional = true }
 rand = { workspace = true }
 spin = { workspace = true }                            # using in place of use std::sync::Mutex;

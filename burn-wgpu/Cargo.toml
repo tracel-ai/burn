@@ -35,7 +35,7 @@ wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
 
 # Template
 serde = { workspace = true }
-text_placeholder = { version = "0.5.0", features = ["struct_context"] }
+text_placeholder = { workspace = true, features = ["struct_context"] }
 
 hashbrown = { workspace = true }
 burn-compute = { path = "../burn-compute", version = "0.12.0", default-features = false, features = [
@@ -53,7 +53,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = 
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.12.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.12.0" }
-serial_test = "3.0.0"
+serial_test = { workspace = true }
 
 [[bench]]
 name = "matmul"
