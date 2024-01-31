@@ -35,7 +35,7 @@ wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
 
 # Template
 serde = { workspace = true }
-text_placeholder = { version = "0.5.0", features = ["struct_context"] }
+text_placeholder = { workspace = true, features = ["struct_context"] }
 
 hashbrown = { workspace = true }
 burn-compute = { path = "../burn-compute", version = "0.12.1", default-features = false, features = [
