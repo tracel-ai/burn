@@ -17,6 +17,7 @@ pub mod grads;
 /// Operation module.
 pub mod ops;
 
+pub(crate) mod checkpoint;
 pub(crate) mod graph;
 pub(crate) mod tensor;
 pub(crate) mod utils;
