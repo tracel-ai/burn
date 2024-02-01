@@ -31,4 +31,4 @@ burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = 
 ] }
 
 [package.metadata.docs.rs]
-features = [ "doc" ]
+features = ["doc"]
