@@ -205,13 +205,20 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             match ops {
                 Operator::Powf {
                     lhs: _,
-                    rhs: _,
+                    rhs,
                     out: _,
-                } => {
-                    register_function(Function::Powf(
-                        Item::Scalar(Elem::F32).vectorize(self.vectorization),
-                    ));
-                }
+                } => match rhs {
+                    Variable::Scalar(_, _) => {
+                        register_function(Function::PowfScalar(
+                            Item::Scalar(Elem::F32).vectorize(self.vectorization),
+                        ));
+                    }
+                    _ => {
+                        register_function(Function::Powf(
+                            Item::Scalar(Elem::F32).vectorize(self.vectorization),
+                        ));
+                    }
+                },
                 Operator::Erf { input: _, out: _ } => {
                     register_function(Function::Erf(
                         Item::Scalar(Elem::F32).vectorize(self.vectorization),

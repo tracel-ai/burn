@@ -28,7 +28,7 @@ wgpu-fusion = ["wgpu", "burn/fusion"]
 burn = { path = "../burn", default-features = false }
 derive-new = { workspace = true }
 rand = { workspace = true }
-burn-common = { path = "../burn-common", version = "0.12.0" }
+burn-common = { path = "../burn-common", version = "0.13.0" }
 serde_json = { workspace = true }
 dirs = "5.0.1"
 
