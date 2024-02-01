@@ -88,8 +88,8 @@ pub async fn select_device<G: GraphicsApi>(
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: limits,
+                features: wgpu::Features::empty(),
+                limits: limits,
             },
             None,
         )
