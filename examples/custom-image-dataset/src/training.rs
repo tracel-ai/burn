@@ -7,7 +7,6 @@ use crate::{
 };
 use burn::data::{dataloader::DataLoaderBuilder, dataset::vision::ImageFolderDataset};
 use burn::train::{
-    logger::{FileMetricLogger, MetricLogger},
     metric::{AccuracyMetric, LossMetric},
     ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 };
@@ -119,10 +118,4 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
     model_trained
         .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
-
-    // Report the final accuracy
-    let mut logger = FileMetricLogger::new(&format!("{ARTIFACT_DIR}/valid"));
-    let acc = logger
-        .read_numeric("Accuracy", config.num_epochs + 1)
-        .unwrap();
 }

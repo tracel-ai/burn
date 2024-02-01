@@ -110,8 +110,6 @@ impl<B: Backend> CNN<B> {
         let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
 
-        let x = self.fc2.forward(x);
-
-        x
+        self.fc2.forward(x)
     }
 }

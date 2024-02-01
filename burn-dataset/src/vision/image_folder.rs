@@ -253,7 +253,6 @@ impl ImageFolderDataset {
         .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
         .unwrap()
-        .into_iter()
         .filter_map(Result::ok);
 
         // Get all dataset items
