@@ -1,6 +1,6 @@
 mod downloader;
-mod image;
+mod image_folder;
 mod mnist;
 
-pub use image::*;
+pub use image_folder::*;
 pub use mnist::*;
