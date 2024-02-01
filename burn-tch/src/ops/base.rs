@@ -15,6 +15,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     ) -> TchTensor<E, D> {
         let device = (*device).into();
 
+        // We have to manually check if the device is the same, since when it's the case, we need to keep
+        // the same storage reference and not create a new one.
         if tensor.tensor.device() == device {
             return tensor;
         }
