@@ -1,20 +1,51 @@
-use burn::data::dataset::{
-    vision::{ImageFolderDataset, ImageTarget},
-    Dataset,
-};
-use custom_image_dataset::dataset::CIFAR10Loader;
+#[cfg(feature = "tch-gpu")]
+mod tch_gpu {
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::backend::Autodiff;
+    use burn::optim::momentum::MomentumConfig;
+    use burn::optim::SgdConfig;
+    use custom_image_dataset::training::{train, TrainingConfig};
 
-use image::{DynamicImage, RgbImage};
+    pub fn run() {
+        #[cfg(not(target_os = "macos"))]
+        let device = LibTorchDevice::Cuda(0);
+        #[cfg(target_os = "macos")]
+        let device = LibTorchDevice::Mps;
+
+        train::<Autodiff<LibTorch>>(
+            TrainingConfig::new(SgdConfig::new().with_momentum(Some(MomentumConfig {
+                momentum: 0.9,
+                dampening: 0.,
+                nesterov: false,
+            }))),
+            device,
+        );
+    }
+}
+
+#[cfg(feature = "wgpu")]
+mod wgpu {
+    use burn::backend::wgpu::{Wgpu, WgpuDevice};
+    use burn::backend::Autodiff;
+    use burn::optim::momentum::MomentumConfig;
+    use burn::optim::SgdConfig;
+    use custom_image_dataset::training::{train, TrainingConfig};
+
+    pub fn run() {
+        train::<Autodiff<Wgpu>>(
+            TrainingConfig::new(SgdConfig::new().with_momentum(Some(MomentumConfig {
+                momentum: 0.9,
+                dampening: 0.,
+                nesterov: false,
+            }))),
+            WgpuDevice::default(),
+        );
+    }
+}
 
 fn main() {
-    let index = 0;
-    let dataset = ImageFolderDataset::cifar10_test();
-
-    println!("Dataset loaded with {} images", dataset.len());
-
-    // Display first element label
-    let item = dataset.get(index).unwrap();
-    if let ImageTarget::Label(y) = item.target {
-        println!("Element {} has label {}", index, y);
-    }
+    #[cfg(feature = "tch-gpu")]
+    tch_gpu::run();
+    #[cfg(feature = "wgpu")]
+    wgpu::run();
 }

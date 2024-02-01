@@ -8,14 +8,15 @@ publish = false
 version.workspace = true
 
 [features]
-default = ["burn/dataset", "burn/vision"]
+default = ["burn/default"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn"}
+burn = {path = "../../burn", features = ["train", "vision"]}
 
 # File download
 flate2 = { workspace = true }
-image = "0.24.7"
 indicatif = { workspace = true }
 reqwest = { workspace = true }
 tar = "0.4.40"
