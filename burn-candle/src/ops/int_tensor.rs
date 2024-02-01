@@ -313,8 +313,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
-        // Refer: https://github.com/huggingface/candle/issues/1621
-        panic!("Not supported by Candle")
+        panic!("Waiting for platform support. Refer: https://github.com/huggingface/candle/issues/1621.")
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
