@@ -352,7 +352,6 @@ dependencies = [
  "burn-common",
  "burn-dataset",
  "burn-derive",
- "burn-fusion",
  "burn-ndarray",
  "burn-tch",
  "burn-tensor",
