@@ -1,4 +1,5 @@
 pub(crate) mod cargo;
+pub(crate) mod mdbook;
 pub(crate) mod process;
 pub(crate) mod rustup;
 pub(crate) mod time;

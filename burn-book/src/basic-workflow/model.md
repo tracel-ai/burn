@@ -19,7 +19,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.12.0", features = ["train", "wgpu"] }
+burn = { version = "0.13.0", features = ["train", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
