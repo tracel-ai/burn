@@ -40,6 +40,16 @@ std = [
 ]
 doc = [
     "std",
+    # Backends
+    "dataset",
+    "candle",
+    "fusion",
+    "ndarray",
+    "tch",
+    "wgpu",
+    "vision",
+    "autodiff",
+    # Doc features
     "burn-candle/doc",
     "burn-common/doc",
     "burn-dataset/doc",
