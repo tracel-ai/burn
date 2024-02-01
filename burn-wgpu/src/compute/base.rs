@@ -88,8 +88,8 @@ pub async fn select_device<G: GraphicsApi>(
         .request_device(
             &DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: limits,
+                features: wgpu::Features::empty(),
+                limits,
             },
             None,
         )
@@ -130,7 +130,6 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
 
     instance
         .enumerate_adapters(G::backend().into())
-        .into_iter()
         .for_each(|adapter| {
             let device_type = adapter.get_info().device_type;
 
