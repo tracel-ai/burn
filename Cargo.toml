@@ -42,7 +42,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"
-candle-core = { version = "0.3.2" }
+candle-core = { version = "0.3.3" }
 clap = "4.4.11"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1.17"
