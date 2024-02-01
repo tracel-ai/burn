@@ -5,7 +5,7 @@ use burn_tensor::{backend::Backend, Tensor};
 use super::{NodeID, NodeRef};
 
 trait RetroForward {
-    fn forward(&self, states: &mut HashMap<NodeID, State>);
+    fn forward(&self, states: &mut InnerStates);
 }
 
 #[derive(new)]
@@ -15,7 +15,7 @@ pub struct RetroLeaf<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> RetroForward for RetroLeaf<B, D> {
-    fn forward(&self, states: &mut HashMap<NodeID, State>) {
+    fn forward(&self, states: &mut InnerStates) {
         states.insert(
             self.out.clone(),
             State::Computed {
@@ -35,22 +35,18 @@ pub struct RetroDiv<B, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
-    fn forward(&self, states: &mut HashMap<NodeID, State>) {
+    fn forward(&self, states: &mut InnerStates) {
         // We assume hashmap filled with parents
-        println!("{:?}", &self.out);
         let lhs: B::FloatTensorPrimitive<D> = states
             .get(&self.lhs)
-            .unwrap()
             .get_state_content()
             .downcast_ref::<Tensor<B, D>>()
             .unwrap()
             .clone()
             .into_primitive();
 
-        println!("{:?}", &self.out);
         let rhs: B::FloatTensorPrimitive<D> = states
             .get(&self.rhs) // TODO get_mut because change num_required -=1
-            .unwrap()
             .get_state_content()
             .downcast_ref::<Tensor<B, D>>()
             .unwrap()
@@ -105,11 +101,11 @@ struct RetroForwards {
 }
 
 impl RetroForwards {
-    pub fn forward(&self, node_id: &NodeID, inner_states: &mut HashMap<NodeID, State>) {
+    pub fn forward(&self, node_id: &NodeID, inner_states: &mut InnerStates) {
         if let State::Lazy {
             node_id,
             n_required,
-        } = inner_states.get(node_id).unwrap()
+        } = inner_states.get(node_id)
         {
             self.map.get(node_id).unwrap().forward(inner_states);
         }
@@ -120,9 +116,25 @@ impl RetroForwards {
     }
 }
 
+// wrapper to keep track of n_requiered. if zero remove and give ownership. in the REAL forward +=1 n_required
+#[derive(new, Default)]
+struct InnerStates {
+    map: HashMap<NodeID, State>,
+}
+
+impl InnerStates {
+    pub fn get(&self, node_id: &NodeID) -> &State {
+        self.map.get(node_id).unwrap()
+    }
+
+    pub fn insert(&mut self, node_id: NodeID, state: State) {
+        self.map.insert(node_id, state);
+    }
+}
+
 #[derive(new)]
 struct States {
-    inner_states: HashMap<NodeID, State>, // TODO wrapper to keep track of n_requiered. if zero remove and give ownership. in the REAL forward +=1 n_required
+    inner_states: InnerStates,
     retro_forwards: RetroForwards,
     nodes: HashMap<NodeID, NodeRef>,
 }
@@ -133,11 +145,11 @@ impl States {
             .iter()
             .for_each(|node| self.retro_forwards.forward(&node, &mut self.inner_states));
 
-        self.inner_states.get(&node_id).unwrap().get_state_content()
+        self.inner_states.get(&node_id).get_state_content()
     }
 
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
-        match self.inner_states.get(&node_id).unwrap() {
+        match self.inner_states.get(&node_id) {
             State::Lazy {
                 node_id: _,
                 n_required: _,
@@ -195,7 +207,7 @@ mod tests {
     #[cfg(feature = "std")]
     pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
-    fn insert_lazy(id: NodeID, inner_states: &mut HashMap<NodeID, State>) {
+    fn insert_lazy(id: NodeID, inner_states: &mut InnerStates) {
         inner_states.insert(
             id.clone(),
             State::Lazy {
@@ -205,11 +217,7 @@ mod tests {
         );
     }
 
-    fn insert_computed(
-        id: NodeID,
-        inner_states: &mut HashMap<NodeID, State>,
-        state_content: StateContent,
-    ) {
+    fn insert_computed(id: NodeID, inner_states: &mut InnerStates, state_content: StateContent) {
         inner_states.insert(
             id.clone(),
             State::Computed {
@@ -222,14 +230,10 @@ mod tests {
     fn make_leaves<B: Backend>(
         device: &B::Device,
         ids: [NodeID; 4],
-    ) -> (
-        HashMap<NodeID, State>,
-        RetroForwards,
-        HashMap<NodeID, NodeRef>,
-    ) {
+    ) -> (InnerStates, RetroForwards, HashMap<NodeID, NodeRef>) {
         let mut retro_forwards = RetroForwards::default();
         let mut nodes = HashMap::new();
-        let mut inner_states = HashMap::new();
+        let mut inner_states = InnerStates::default();
 
         let mut make_leaf = |id: NodeID, t: Tensor<B, 2>| {
             let n: NodeRef = Arc::new(Node::new(Vec::new(), 0, id.clone(), Requirement::Grad));
