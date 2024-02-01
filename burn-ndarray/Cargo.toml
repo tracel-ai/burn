@@ -48,13 +48,9 @@ blas-openblas-system = [
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-autodiff = { path = "../burn-autodiff", version = "0.12.1", features = [
-  "export_tests",
-], optional = true }
+burn-autodiff = { path = "../burn-autodiff", version = "0.12.1", optional = true }
 burn-common = { path = "../burn-common", version = "0.12.1", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
-  "export_tests",
-] }
+burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false }
 
 matrixmultiply = { workspace = true, default-features = false }
 rayon = { workspace = true, optional = true }
@@ -66,6 +62,14 @@ num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 rand = { workspace = true }
 spin = { workspace = true }                            # using in place of use std::sync::Mutex;
+
+[dev-dependencies]
+burn-autodiff = { path = "../burn-autodiff", version = "0.12.1", default-features = false, features = [
+  "export_tests",
+] }
+burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
+  "export_tests",
+] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

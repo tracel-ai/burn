@@ -11,7 +11,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/burn-autodiff"
 version.workspace = true
 
 [features]
-default = ["export_tests"]
+default = []
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
@@ -21,3 +21,10 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.12.1", opt
 
 derive-new = { workspace = true }
 spin = { workspace = true }
+
+[dev-dependencies]
+burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
+  "export_tests",
+] }
+
+
