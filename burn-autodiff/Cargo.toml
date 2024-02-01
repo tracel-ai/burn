@@ -15,15 +15,15 @@ default = []
 export_tests = ["burn-tensor-testgen"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.12.1" }
-burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.12.1", optional = true }
+burn-common = { path = "../burn-common", version = "0.12.2" }
+burn-tensor = { path = "../burn-tensor", version = "0.12.2", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.12.2", optional = true }
 
 derive-new = { workspace = true }
 spin = { workspace = true }
 
 [dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.12.2", default-features = false, features = [
   "export_tests",
 ] }
 

@@ -15,7 +15,7 @@ default = []
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.12.1" }
+burn-tensor = { path = "../burn-tensor", version = "0.12.2" }
 
 half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
@@ -23,10 +23,10 @@ rand = { workspace = true, features = ["std"] }
 tch = { workspace = true, features = ["download-libtorch"] }
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.12.1", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.12.2", default-features = false, features = [
   "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.12.2", default-features = false, features = [
   "export_tests",
 ] }
 

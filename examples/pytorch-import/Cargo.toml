@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "pytorch-import"
 publish = false
-version = "0.12.1"
+version = "0.12.2"
 
 [dependencies]
 burn = { path = "../../burn", features = [

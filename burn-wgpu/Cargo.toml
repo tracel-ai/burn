@@ -18,9 +18,9 @@ autotune = []
 fusion = ["burn-fusion"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.12.1" }
-burn-tensor = { path = "../burn-tensor", version = "0.12.1" }
-burn-fusion = { path = "../burn-fusion", version = "0.12.1", optional = true }
+burn-common = { path = "../burn-common", version = "0.12.2" }
+burn-tensor = { path = "../burn-tensor", version = "0.12.2" }
+burn-fusion = { path = "../burn-fusion", version = "0.12.2", optional = true }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
@@ -39,21 +39,21 @@ serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
 hashbrown = { workspace = true }
-burn-compute = { path = "../burn-compute", version = "0.12.1", default-features = false, features = [
+burn-compute = { path = "../burn-compute", version = "0.12.2", default-features = false, features = [
   "channel-mutex",
   "std",
 ] }
 
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.12.1", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.12.2", default-features = false, features = [
   "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.12.1", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.12.2", default-features = false, features = [
   "export_tests",
 ] }
-burn-ndarray = { path = "../burn-ndarray", version = "0.12.1" }
-burn-fusion = { path = "../burn-fusion", version = "0.12.1" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.12.2" }
+burn-fusion = { path = "../burn-fusion", version = "0.12.2" }
 serial_test = { workspace = true }
 
 [[bench]]
