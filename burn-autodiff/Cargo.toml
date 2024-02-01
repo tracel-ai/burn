@@ -13,6 +13,7 @@ version.workspace = true
 [features]
 default = ["export_tests"]
 export_tests = ["burn-tensor-testgen"]
+doc = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.13.0" }
@@ -21,3 +22,6 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.0", opt
 
 derive-new = { workspace = true }
 spin = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]

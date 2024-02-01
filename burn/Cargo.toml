@@ -16,8 +16,20 @@ default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
 doc = [
   "default",
+  "burn-autodiff/doc",
+  "burn-candle/doc",
+  "burn-common/doc",
+  "burn-compute/doc",
   "burn-core/doc",
+  "burn-dataset/doc",
+  "burn-derive/doc",
+  "burn-fusion/doc",
+  "burn-import/doc",
+  "burn-ndarray/doc",
+  "burn-tch/doc",
+  "burn-tensor/doc",
   "burn-train/doc",
+  "burn-wgpu/doc",
 ]
 
 # Training with full features

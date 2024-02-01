@@ -13,8 +13,14 @@ version.workspace = true
 [lib]
 proc-macro = true
 
+[features]
+doc = []
+
 [dependencies]
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
 derive-new = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]

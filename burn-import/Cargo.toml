@@ -15,6 +15,7 @@ default-run = "onnx2burn"
 
 [features]
 default = ["onnx", "pytorch"]
+doc = ["default"]
 onnx = []
 pytorch = ["burn/record-item-custom-serde", "thiserror"]
 
@@ -46,3 +47,6 @@ protobuf-codegen = { workspace = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]

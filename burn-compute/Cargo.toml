@@ -22,6 +22,7 @@ default = [
 std = [
     "burn-common/std",
 ]
+doc = ["default"]
 channel-mutex = []
 channel-cell = []
 channel-mpsc = [] # Assume std
@@ -50,3 +51,6 @@ web-time = { workspace = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 rand = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
