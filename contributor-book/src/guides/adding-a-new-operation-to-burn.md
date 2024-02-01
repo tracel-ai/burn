@@ -101,7 +101,7 @@ Test for autodiff go under
 right side need to be verified. The easiest way to do this, is to
 
 1. use small tensors with simple values
-2. Compute the expected results for the chosen tensors, using some independant and reliable tool. For instance, you can pop open a terminal and launch `ipython` import `numpy` (or just use
+2. Compute the expected results for the chosen tensors, using some independent and reliable tool. For instance, you can pop open a terminal and launch `ipython` import `numpy` (or just use
    [google colab](https://colab.google/) if you don't have the packages installed and don't want to
    install them), and do the calculations by hand.
 3. comparing the actual to expected output for lhs, rhs and regular operation
