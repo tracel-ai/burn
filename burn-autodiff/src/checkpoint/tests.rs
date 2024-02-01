@@ -1,3 +1,36 @@
+use std::marker::PhantomData;
+
+use burn_tensor::{backend::Backend, Tensor};
+
+use crate::graph::NodeID;
+
+use super::{base::InnerStates, retro::RetroForward, state::State};
+
+#[derive(new)]
+pub struct RetroDiv<B, const D: usize> {
+    lhs: NodeID,
+    rhs: NodeID,
+    out: NodeID,
+    _backend: PhantomData<B>,
+}
+
+impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
+    fn forward(&self, states: &mut InnerStates) {
+        let lhs: B::FloatTensorPrimitive<D> = states.get_own::<B, D>(&self.lhs).into_primitive();
+        let rhs: B::FloatTensorPrimitive<D> = states.get_own::<B, D>(&self.rhs).into_primitive();
+
+        let out: Tensor<B, D> = Tensor::<B, D>::from_primitive(B::float_div(lhs, rhs));
+
+        states.insert(
+            self.out.clone(),
+            State::Computed {
+                state_content: Box::new(out),
+                n_required: states.get_ref(&self.out).n_required(),
+            },
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -7,9 +40,9 @@ mod tests {
 
     use crate::{
         checkpoint::{
-            retro::{RetroDiv, RetroLeaf},
+            base::{Checkpoint, InnerStates, NodeTree, RetroForwards},
+            retro::RetroLeaf,
             state::{State, StateContent},
-            states::{InnerStates, NodeTree, RetroForwards, States},
         },
         graph::{Node, NodeID, NodeRef, Requirement},
     };
@@ -104,7 +137,7 @@ mod tests {
         (inner_states, retro_forwards, node_tree)
     }
 
-    fn div_lazy_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> States {
+    fn div_lazy_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Checkpoint {
         // 4: 0 / 1         5: 2 / 3 -> 5
         //       --> 6: t4 / t5 <--
 
@@ -142,10 +175,10 @@ mod tests {
         insert_lazy(ids[5].clone(), &mut inner_states);
         insert_lazy(ids[6].clone(), &mut inner_states);
 
-        States::new(inner_states, retro_forwards, nodes)
+        Checkpoint::new(inner_states, retro_forwards, nodes)
     }
 
-    fn div_computed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> States {
+    fn div_computed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Checkpoint {
         // Here we hardcode a result for 5 (wrong for ensuring it doesn't just do the lazy computation)
         // We can then test that 5 gives that result, and that 6 gives the implied result
         // 4: 0 / 1         5: 2 / 3 -> 5 is Computed
@@ -192,15 +225,11 @@ mod tests {
         );
         insert_lazy(ids[6].clone(), &mut inner_states);
 
-        States::new(inner_states, retro_forwards, nodes)
+        Checkpoint::new(inner_states, retro_forwards, nodes)
     }
 
-    fn expect_tensor<B: Backend>(states: &mut States, id: NodeID, expected: Tensor<B, 2>) {
-        let state_content = states.get(id.clone());
-        let obtained: Tensor<B, 2> = state_content
-            .downcast_ref::<Tensor<B, 2>>()
-            .unwrap()
-            .clone();
+    fn expect_tensor<B: Backend>(states: &mut Checkpoint, id: NodeID, expected: Tensor<B, 2>) {
+        let obtained: Tensor<B, 2> = states.get(id.clone());
         let x: Data<f32, 2> = expected.to_data().convert();
         let y: Data<f32, 2> = obtained.to_data().convert();
         x.assert_approx_eq(&y, 3);
@@ -259,6 +288,43 @@ mod tests {
             Tensor::<TestBackend, 2>::from_data([[-1.5, 0.125], [-0.8, 0.4]], &device),
         );
 
+        expect_tensor(
+            &mut states,
+            ids[6].clone(),
+            Tensor::<TestBackend, 2>::from_data([[-0.4444, -1.3328], [-0.78125, -0.5555]], &device),
+        );
+    }
+
+    #[test]
+    fn div_lazy_tree_called_twice_uses_cached_values() {
+        let device = Default::default();
+        let ids = [
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+        ];
+        let mut states = div_lazy_tree::<TestBackend>(&device, ids.clone());
+
+        // First call
+        states.get::<TestBackend, 2>(ids[6].clone());
+
+        // Artificially changes parent answer and should not impact already computed child
+        states.insert_pre_computed(
+            ids[4].clone(),
+            State::Computed {
+                state_content: Box::new(Tensor::<TestBackend, 2>::from_data(
+                    [[99., 99.], [99., 99.]],
+                    &device,
+                )),
+                n_required: 1,
+            },
+        );
+
+        // Second call
         expect_tensor(
             &mut states,
             ids[6].clone(),

@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use burn_tensor::{backend::Backend, Tensor};
+
 use crate::graph::NodeID;
 
 pub(crate) type StateContent = Box<dyn Any + Send + Sync>;
@@ -28,6 +30,19 @@ impl State {
                 state_content,
                 n_required: _,
             } => state_content,
+        }
+    }
+
+    pub fn n_required(&self) -> usize {
+        match self {
+            State::Lazy {
+                node_id,
+                n_required,
+            } => n_required.clone(),
+            Self::Computed {
+                state_content,
+                n_required,
+            } => n_required.clone(),
         }
     }
 }
