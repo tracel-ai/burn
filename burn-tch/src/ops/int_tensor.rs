@@ -38,7 +38,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         tensor: TchTensor<i64, D>,
         device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
-        TchTensor::new(tensor.tensor.to((*device).into()))
+        TchOps::to_device(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
