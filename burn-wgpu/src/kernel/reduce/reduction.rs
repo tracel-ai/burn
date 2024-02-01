@@ -18,8 +18,14 @@ kernel_wgsl!(
     RecursiveProdRaw,
     "../../template/reduction/recursive_prod.wgsl"
 );
-kernel_wgsl!(ReductionDimProdRaw, "../../template/reduction/reduce_dim_prod.wgsl");
-kernel_wgsl!(ReductionDimSumRaw, "../../template/reduction/reduce_dim_sum.wgsl");
+kernel_wgsl!(
+    ReductionDimProdRaw,
+    "../../template/reduction/reduce_dim_prod.wgsl"
+);
+kernel_wgsl!(
+    ReductionDimSumRaw,
+    "../../template/reduction/reduce_dim_sum.wgsl"
+);
 kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
 
 pub(crate) struct ArgsMax;

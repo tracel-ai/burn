@@ -313,14 +313,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        // Refer: https://github.com/huggingface/candle/issues/1620
-        todo!("prod");
+        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
     }
 
     fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        // Refer: https://github.com/huggingface/candle/issues/1620
-        todo!("prod");
+        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {

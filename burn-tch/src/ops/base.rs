@@ -459,8 +459,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::binary_ops_tensor(
             tensor,
             exponent,
+            |lhs, rhs| lhs.f_pow_tensor_(rhs).unwrap(),
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
-            |lhs, rhs| rhs.f_pow(lhs).unwrap(),
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
         )
     }

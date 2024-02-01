@@ -22,7 +22,7 @@ pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
 }
 
 impl<B: Backend> TensorKind<B> for Float {
-    type Primitive<const D: usize> = B::TensorPrimitive<D>;
+    type Primitive<const D: usize> = B::FloatTensorPrimitive<D>;
     fn name() -> &'static str {
         "Float"
     }

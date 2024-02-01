@@ -62,6 +62,5 @@ pub(crate) fn prod_dim<E: NdArrayElement, const D1: usize, const D2: usize>(
     _dim: usize,
 ) -> NdArrayTensor<E, D2> {
     // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-    // Refer: https://github.com/rust-ndarray/ndarray/issues/1351
-    todo!("prod");
+    todo!("Waiting on platform implementation. Tracked by https://github.com/rust-ndarray/ndarray/issues/1351");
 }

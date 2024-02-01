@@ -7,7 +7,7 @@ publish = false
 version.workspace = true
 
 [features]
-default = ["burn/dataset", "burn/sqlite-bundled"]
+default = ["burn/dataset", "burn/vision"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]

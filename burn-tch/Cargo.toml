@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "Tch backend for the Burn framework"
+description = "LibTorch backend for the Burn framework using the tch bindings."
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
@@ -15,18 +15,18 @@ default = []
 doc = ["tch/doc-only"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.12.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.13.0" }
 
 half = { workspace = true, features = ["std"] }
-libc = "0.2.150"
+libc = { workspace = true }
 rand = { workspace = true, features = ["std"] }
-tch = { version = "0.14.0", features = ["download-libtorch"] }
+tch = { workspace = true, features = ["download-libtorch"] }
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.12.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.13.0", default-features = false, features = [
   "export_tests",
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false, features = [
   "export_tests",
 ] }
 

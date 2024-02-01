@@ -46,6 +46,34 @@ pub trait Kernel: 'static + Send + Sync {
     fn workgroup(&self) -> WorkGroup;
 }
 
+impl Kernel for Arc<dyn Kernel> {
+    fn source(&self) -> SourceTemplate {
+        self.as_ref().source()
+    }
+
+    fn id(&self) -> String {
+        self.as_ref().id()
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.as_ref().workgroup()
+    }
+}
+
+impl Kernel for Box<dyn Kernel> {
+    fn source(&self) -> SourceTemplate {
+        self.as_ref().source()
+    }
+
+    fn id(&self) -> String {
+        self.as_ref().id()
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.as_ref().workgroup()
+    }
+}
+
 impl<MM> WgpuServer<MM>
 where
     MM: MemoryManagement<WgpuStorage>,

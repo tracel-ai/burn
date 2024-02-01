@@ -186,14 +186,17 @@ impl<const D: usize, B: Backend> RunningState<Tensor<B, D>> {
     }
 
     fn update_value(&self, map: &mut HashMap<ThreadId, Tensor<B, D>>) {
-        let mut value_updated = None;
+        let mut value_updated: Option<Tensor<B, D>> = None;
         let mut counter = 0;
 
         for (_key, tensor) in map.drain() {
             counter += 1;
 
             value_updated = match value_updated {
-                Some(current) => Some(tensor.add(current)),
+                Some(current) => {
+                    let device = current.device();
+                    Some(tensor.to_device(&device).add(current))
+                }
                 None => Some(tensor),
             };
         }

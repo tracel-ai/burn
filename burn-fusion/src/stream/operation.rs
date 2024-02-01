@@ -37,31 +37,31 @@ pub enum OperationDescription {
 /// Operation description specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOperationDescription {
-    /// Operation corresponding to [exp](burn_tensor::ops::TensorOps::exp).
+    /// Operation corresponding to [exp](burn_tensor::ops::FloatTensorOps::float_exp).
     Exp(UnaryOperationDescription),
-    /// Operation corresponding to [log](burn_tensor::ops::TensorOps::log).
+    /// Operation corresponding to [log](burn_tensor::ops::FloatTensorOps::float_log).
     Log(UnaryOperationDescription),
-    /// Operation corresponding to [log1p](burn_tensor::ops::TensorOps::log1p).
+    /// Operation corresponding to [log1p](burn_tensor::ops::FloatTensorOps::float_log1p).
     Log1p(UnaryOperationDescription),
-    /// Operation corresponding to [erf](burn_tensor::ops::TensorOps::erf).
+    /// Operation corresponding to [erf](burn_tensor::ops::FloatTensorOps::float_erf).
     Erf(UnaryOperationDescription),
-    /// Operation corresponding to [powf_scalar](burn_tensor::ops::TensorOps::powf_scalar).
+    /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOperationDescription<f32>),
-    /// Operation corresponding to [sqrt](burn_tensor::ops::TensorOps::sqrt).
+    /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOperationDescription),
-    /// Operation corresponding to [cos](burn_tensor::ops::TensorOps::cos).
+    /// Operation corresponding to [cos](burn_tensor::ops::FloatTensorOps::float_cos).
     Cos(UnaryOperationDescription),
-    /// Operation corresponding to [sin](burn_tensor::ops::TensorOps::sin).
+    /// Operation corresponding to [sin](burn_tensor::ops::FloatTensorOps::float_sin).
     Sin(UnaryOperationDescription),
-    /// Operation corresponding to [tanh](burn_tensor::ops::TensorOps::tanh).
+    /// Operation corresponding to [tanh](burn_tensor::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOperationDescription),
-    /// Operation corresponding to [into_int](burn_tensor::ops::TensorOps::into_int).
+    /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
-    /// Operation corresponding to [matmul](burn_tensor::ops::TensorOps::matmul).
+    /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOperationDescription),
-    /// Operation corresponding to [random](burn_tensor::ops::TensorOps::random).
+    /// Operation corresponding to [random](burn_tensor::ops::FloatTensorOps::float_random).
     Random(RandomOperationDescription),
-    /// Operation corresponding to [recip](burn_tensor::ops::TensorOps::recip).
+    /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
     Recip(UnaryOperationDescription),
 }
 
@@ -127,49 +127,49 @@ pub enum ModuleOperationDescription {
 pub enum BaseOperationDescription {
     /// Operation corresponding to:
     ///
-    /// Float => [to device](burn_tensor::ops::TensorOps::to_device).
+    /// Float => [to device](burn_tensor::ops::FloatTensorOps::float_to_device).
     /// Int => [to device](burn_tensor::ops::IntTensorOps::int_to_device).
     /// Bool => [to device](burn_tensor::ops::BoolTensorOps::bool_to_device).
     ToDevice(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [reshape](burn_tensor::ops::TensorOps::reshape).
+    /// Float => [reshape](burn_tensor::ops::FloatTensorOps::float_reshape).
     /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
     Reshape(ReshapeDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [swap_dims](burn_tensor::ops::TensorOps::swap_dims).
+    /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
     /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
     /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [slice](burn_tensor::ops::TensorOps::slice).
+    /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
     /// Int => [slice](burn_tensor::ops::IntTensorOps::int_slice).
     /// Bool => [slice](burn_tensor::ops::BoolTensorOps::bool_slice).
     Slice(SliceOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [slice assign](burn_tensor::ops::TensorOps::slice_assign).
+    /// Float => [slice assign](burn_tensor::ops::FloatTensorOps::float_slice_assign).
     /// Int => [slice assign](burn_tensor::ops::IntTensorOps::int_slice_assign).
     /// Bool => [slice assign](burn_tensor::ops::BoolTensorOps::bool_slice_assign).
     SliceAssign(SliceAssignOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [equal](burn_tensor::ops::TensorOps::equal).
+    /// Float => [equal](burn_tensor::ops::FloatTensorOps::float_equal).
     /// Int => [equal](burn_tensor::ops::IntTensorOps::int_equal).
     /// Bool => [equal](burn_tensor::ops::BoolTensorOps::bool_equal).
     Equal(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [repeat](burn_tensor::ops::TensorOps::repeat).
+    /// Float => [repeat](burn_tensor::ops::FloatTensorOps::float_repeat).
     /// Int => [repeat](burn_tensor::ops::IntTensorOps::int_repeat).
     /// Bool => [repeat](burn_tensor::ops::BoolTensorOps::bool_repeat).
     Repeat(RepeatOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [cat](burn_tensor::ops::TensorOps::cat).
+    /// Float => [cat](burn_tensor::ops::FloatTensorOps::float_cat).
     /// Int => [cat](burn_tensor::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_tensor::ops::BoolTensorOps::bool_cat).
     Cat(CatOperationDescription),
@@ -180,217 +180,217 @@ pub enum BaseOperationDescription {
 pub enum NumericOperationDescription<E> {
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::TensorOps::add).
+    /// Float => [add](burn_tensor::ops::FloatTensorOps::float_add).
     /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
     Add(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [add scalar](burn_tensor::ops::TensorOps::add_scalar).
+    /// Float => [add scalar](burn_tensor::ops::FloatTensorOps::float_add_scalar).
     /// Int => [add scalar](burn_tensor::ops::IntTensorOps::int_add_scalar).
     AddScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [sub](burn_tensor::ops::TensorOps::sub).
+    /// Float => [sub](burn_tensor::ops::FloatTensorOps::float_sub).
     /// Int => [sub](burn_tensor::ops::IntTensorOps::int_sub).
     Sub(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sub scalar](burn_tensor::ops::TensorOps::sub_scalar).
+    /// Float => [sub scalar](burn_tensor::ops::FloatTensorOps::float_sub_scalar).
     /// Int => [sub scalar](burn_tensor::ops::IntTensorOps::int_sub_scalar).
     SubScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [div](burn_tensor::ops::TensorOps::div).
+    /// Float => [div](burn_tensor::ops::FloatTensorOps::float_div).
     /// Int => [div](burn_tensor::ops::IntTensorOps::int_div).
     Div(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [div scalar](burn_tensor::ops::TensorOps::div_scalar).
+    /// Float => [div scalar](burn_tensor::ops::FloatTensorOps::float_div_scalar).
     /// Int => [div scalar](burn_tensor::ops::IntTensorOps::int_div_scalar).
     DivScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [mul](burn_tensor::ops::TensorOps::mul).
+    /// Float => [mul](burn_tensor::ops::FloatTensorOps::float_mul).
     /// Int => [mul](burn_tensor::ops::IntTensorOps::int_mul).
     Mul(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mul scalar](burn_tensor::ops::TensorOps::mul_scalar).
+    /// Float => [mul scalar](burn_tensor::ops::FloatTensorOps::float_mul_scalar).
     /// Int => [mul scalar](burn_tensor::ops::IntTensorOps::int_mul_scalar).
     MulScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [abs](burn_tensor::ops::TensorOps::abs).
+    /// Float => [abs](burn_tensor::ops::FloatTensorOps::float_abs).
     /// Int => [abs](burn_tensor::ops::IntTensorOps::int_abs).
     Abs(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [ones](burn_tensor::ops::TensorOps::ones).
+    /// Float => [ones](burn_tensor::ops::FloatTensorOps::float_ones).
     /// Int => [ones](burn_tensor::ops::IntTensorOps::int_ones).
     Ones(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [zeros](burn_tensor::ops::TensorOps::zeros).
+    /// Float => [zeros](burn_tensor::ops::FloatTensorOps::float_zeros).
     /// Int => [zeros](burn_tensor::ops::IntTensorOps::int_zeros).
     Zeros(TensorDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [full](burn_tensor::ops::TensorOps::full).
+    /// Float => [full](burn_tensor::ops::FloatTensorOps::float_full).
     /// Int => [full](burn_tensor::ops::IntTensorOps::int_full).
     Full((TensorDescription, E)),
     /// Operation corresponding to:
     ///
-    /// Float => [gather](burn_tensor::ops::TensorOps::gather).
+    /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
     /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
     Gather(GatherOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [scatter](burn_tensor::ops::TensorOps::scatter).
+    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter).
     /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter).
     Scatter(ScatterOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [select](burn_tensor::ops::TensorOps::select).
+    /// Float => [select](burn_tensor::ops::FloatTensorOps::float_select).
     /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
     Select(SelectOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [select assign](burn_tensor::ops::TensorOps::select_assign).
+    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_assign).
     /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_assign).
     SelectAssign(SelectAssignOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mask where](burn_tensor::ops::TensorOps::mask_where).
+    /// Float => [mask where](burn_tensor::ops::FloatTensorOps::float_mask_where).
     /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
     MaskWhere(MaskWhereOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [mask fill](burn_tensor::ops::TensorOps::mask_fill).
+    /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
     /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
     MaskFill(MaskFillOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [mean dim](burn_tensor::ops::TensorOps::mean_dim).
+    /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
     /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
     MeanDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [mean](burn_tensor::ops::TensorOps::mean).
+    /// Float => [mean](burn_tensor::ops::FloatTensorOps::float_mean).
     /// Int => [mean](burn_tensor::ops::IntTensorOps::int_mean).
     Mean(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sum](burn_tensor::ops::TensorOps::sum).
+    /// Float => [sum](burn_tensor::ops::FloatTensorOps::float_sum).
     /// Int => [sum](burn_tensor::ops::IntTensorOps::int_sum).
     Sum(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [sum dim](burn_tensor::ops::TensorOps::sum_dim).
+    /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
     SumDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [prod](burn_tensor::ops::TensorOps::prod).
+    /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
     /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
     Prod(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [prod dim](burn_tensor::ops::TensorOps::prod_dim).
+    /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
     ProdDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [equal elem](burn_tensor::ops::TensorOps::equal_elem).
+    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
     /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
     EqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [greater](burn_tensor::ops::TensorOps::greater).
+    /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
     /// Int => [greater](burn_tensor::ops::IntTensorOps::int_greater).
     Greater(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [greater elem](burn_tensor::ops::TensorOps::greater_elem).
+    /// Float => [greater elem](burn_tensor::ops::FloatTensorOps::float_greater_elem).
     /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
     GreaterElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal](burn_tensor::ops::TensorOps::greater_elem).
+    /// Float => [greater equal](burn_tensor::ops::FloatTensorOps::float_greater_elem).
     /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
     GreaterEqual(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal elem](burn_tensor::ops::TensorOps::greater_equal_elem).
+    /// Float => [greater equal elem](burn_tensor::ops::FloatTensorOps::float_greater_equal_elem).
     /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
     GreaterEqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [lower](burn_tensor::ops::TensorOps::lower).
+    /// Float => [lower](burn_tensor::ops::FloatTensorOps::float_lower).
     /// Int => [lower](burn_tensor::ops::IntTensorOps::int_lower).
     Lower(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [lower elem](burn_tensor::ops::TensorOps::lower_elem).
+    /// Float => [lower elem](burn_tensor::ops::FloatTensorOps::float_lower_elem).
     /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
     LowerElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal](burn_tensor::ops::TensorOps::lower_equal).
+    /// Float => [lower equal](burn_tensor::ops::FloatTensorOps::float_lower_equal).
     /// Int => [lower equal](burn_tensor::ops::IntTensorOps::int_lower_equal).
     LowerEqual(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal elem](burn_tensor::ops::TensorOps::lower_equal_elem).
+    /// Float => [lower equal elem](burn_tensor::ops::FloatTensorOps::float_lower_equal_elem).
     /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
     LowerEqualElem(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [argmax](burn_tensor::ops::TensorOps::argmax).
+    /// Float => [argmax](burn_tensor::ops::FloatTensorOps::float_argmax).
     /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
     ArgMax(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [argmin](burn_tensor::ops::TensorOps::argmin).
+    /// Float => [argmin](burn_tensor::ops::FloatTensorOps::float_argmin).
     /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
     ArgMin(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [max](burn_tensor::ops::TensorOps::max).
+    /// Float => [max](burn_tensor::ops::FloatTensorOps::float_max).
     /// Int => [max](burn_tensor::ops::IntTensorOps::int_max).
     Max(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim with indices](burn_tensor::ops::TensorOps::max_dim_with_indices).
+    /// Float => [max dim with indices](burn_tensor::ops::FloatTensorOps::float_max_dim_with_indices).
     /// Int => [max dim with indices](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
     MaxDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim with indices](burn_tensor::ops::TensorOps::min_dim_with_indices).
+    /// Float => [min dim with indices](burn_tensor::ops::FloatTensorOps::float_min_dim_with_indices).
     /// Int => [min dim with indices](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
     MinDimWithIndices(ReduceDimWithIndicesDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [min](burn_tensor::ops::TensorOps::min).
+    /// Float => [min](burn_tensor::ops::FloatTensorOps::float_min).
     /// Int => [min](burn_tensor::ops::IntTensorOps::int_min).
     Min(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim](burn_tensor::ops::TensorOps::max_dim).
+    /// Float => [max dim](burn_tensor::ops::FloatTensorOps::float_max_dim).
     /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
     MaxDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim](burn_tensor::ops::TensorOps::min_dim).
+    /// Float => [min dim](burn_tensor::ops::FloatTensorOps::float_min_dim).
     /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
     MinDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [clamp](burn_tensor::ops::TensorOps::clamp).
+    /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
     /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
     Clamp(ClampOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [powf](burn_tensor::ops::TensorOps::powf).
+    /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
     /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
     Powf(BinaryOperationDescription),
 }

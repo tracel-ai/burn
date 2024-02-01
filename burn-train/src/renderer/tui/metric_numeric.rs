@@ -1,7 +1,7 @@
 use crate::renderer::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -107,6 +107,10 @@ impl NumericMetricsState {
     /// Handle the current event.
     pub(crate) fn on_event(&mut self, event: &Event) {
         if let Event::Key(key) = event {
+            match key.kind {
+                KeyEventKind::Release | KeyEventKind::Repeat => (),
+                KeyEventKind::Press => return,
+            }
             match key.code {
                 KeyCode::Right => self.next_metric(),
                 KeyCode::Left => self.previous_metric(),
@@ -157,13 +161,25 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(axes.labels_x.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_x
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_y
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_y),
             )
     }
@@ -202,7 +218,7 @@ impl<'a> NumericMetricView<'a> {
 
                 let titles = titles
                     .iter()
-                    .map(|i| Line::from(vec![i.yellow()]))
+                    .map(|i| Line::from(vec![i.clone().yellow()]))
                     .collect();
 
                 let tabs = Tabs::new(titles)
