@@ -1,9 +1,7 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::kernel::reduce::{
-    init_reduce_output, prod_dim, prod_dim_shared_memory, sum_dim, sum_dim_shared_memory,
-};
+use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory};
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, Wgpu};
 use derive_new::new;
@@ -83,13 +81,6 @@ bench_reduce!(
     sum_dim_shared_memory
 );
 
-bench_reduce!(ProdDimBenchmark, ProdDim, prod_dim);
-bench_reduce!(
-    ProdDimSharedMemoryBenchmark,
-    ProdDimSharedMemory,
-    prod_dim_shared_memory
-);
-
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu sum implementations
 pub fn bench_sum(device: &WgpuDevice) {
@@ -115,32 +106,6 @@ pub fn bench_sum(device: &WgpuDevice) {
     run_reduce_benchmark!(SumDimBenchmark);
 }
 
-#[allow(dead_code)]
-/// Runs the benchmarks for wgpu prod implementations
-pub fn bench_prod(device: &WgpuDevice) {
-    let num_repeats = 3;
-    let shape = Shape::new([32, 2048, 32]);
-    let dim = 2;
-
-    macro_rules! run_reduce_benchmark {
-        ($benchmark:ident) => {
-            println!(
-                "{}",
-                run_benchmark($benchmark::new(
-                    shape.clone(),
-                    dim,
-                    num_repeats,
-                    device.clone(),
-                ))
-            );
-        };
-    }
-
-    run_reduce_benchmark!(ProdDimSharedMemoryBenchmark);
-    run_reduce_benchmark!(ProdDimBenchmark);
-}
-
 fn main() {
     bench_sum(&WgpuDevice::BestAvailable);
-    bench_prod(&WgpuDevice::BestAvailable)
 }

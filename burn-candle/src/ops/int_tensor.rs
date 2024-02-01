@@ -311,16 +311,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
-    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
-        // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
-    }
-
-    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
-    }
-
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
         // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
         // Refer: https://github.com/huggingface/candle/issues/1621

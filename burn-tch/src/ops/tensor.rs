@@ -332,20 +332,12 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::sum(tensor)
     }
 
-    fn float_prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        TchOps::prod(tensor)
-    }
-
     fn float_mean_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::mean_dim(tensor, dim)
     }
 
     fn float_sum_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
         TchOps::sum_dim(tensor, dim)
-    }
-
-    fn float_prod_dim<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
-        TchOps::prod_dim(tensor, dim)
     }
 
     fn float_to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {

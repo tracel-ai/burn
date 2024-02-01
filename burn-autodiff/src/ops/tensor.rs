@@ -1045,34 +1045,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn float_prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        #[derive(Debug)]
-        struct Prod<const D: usize>;
-
-        impl<B: Backend, const D: usize> Backward<B, 1, 1> for Prod<D> {
-            type State = Shape<D>;
-
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let val = B::float_ones(ops.state, &B::float_device(&grad));
-
-                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
-                    let val: Tensor<B, D> = Tensor::from_primitive(val);
-
-                    val.mul(grad.unsqueeze()).into_primitive()
-                });
-            }
-        }
-
-        match Prod.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                B::float_shape(&tensor.primitive),
-                B::float_prod(tensor.primitive),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_prod(tensor.primitive)),
-        }
-    }
-
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -1134,37 +1106,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 B::float_sum_dim(tensor.primitive, dim),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_sum_dim(tensor.primitive, dim)),
-        }
-    }
-
-    fn float_prod_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
-        #[derive(Debug)]
-        struct ProdDim;
-
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for ProdDim {
-            type State = (Shape<D>, usize);
-
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let (shape, dim) = ops.state;
-
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let ones = B::float_ones(shape, &B::float_device(&grad));
-                    let grad = B::float_prod_dim(grad, dim);
-
-                    B::float_mul(ones, grad)
-                });
-            }
-        }
-
-        match ProdDim.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                (B::float_shape(&tensor.primitive), dim),
-                B::float_prod_dim(tensor.primitive, dim),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_prod_dim(tensor.primitive, dim)),
         }
     }
 

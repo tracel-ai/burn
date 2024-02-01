@@ -176,10 +176,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `Tensor::full(shape, fill_value, device)`                        | `torch.full(shape, fill_value, device=device)` |
 | `tensor.mean()`                                                  | `tensor.mean()`                                |
 | `tensor.sum()`                                                   | `tensor.sum()`                                 |
-| `tensor.prod()`                                                  | `tensor.prod()`                                |
 | `tensor.mean_dim(dim)`                                           | `tensor.mean(dim)`                             |
 | `tensor.sum_dim(dim)`                                            | `tensor.sum(dim)`                              |
-| `tensor.prod_dim(dim)`                                           | `tensor.prod(dim)`                             |
 | `tensor.equal_elem(other)`                                       | `tensor.eq(other)`                             |
 | `tensor.greater(other)`                                          | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                    | `tensor.gt(scalar)`                            |

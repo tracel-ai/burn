@@ -317,10 +317,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sum(tensor)
     }
 
-    fn float_prod<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        NdArrayMathOps::prod(tensor)
-    }
-
     fn float_mean_dim<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
@@ -333,13 +329,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         dim: usize,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sum_dim(tensor, dim)
-    }
-
-    fn float_prod_dim<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::prod_dim(tensor, dim)
     }
 
     fn float_to_full_precision<const D: usize>(

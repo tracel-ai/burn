@@ -290,16 +290,6 @@ pub enum NumericOperationDescription<E> {
     SumDim(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
-    /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
-    /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
-    Prod(UnaryOperationDescription),
-    /// Operation corresponding to:
-    ///
-    /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
-    /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
-    ProdDim(ScalarOperationDescription<usize>),
-    /// Operation corresponding to:
-    ///
     /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
     /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
     EqualElem(ScalarOperationDescription<E>),
@@ -1051,12 +1041,6 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::SumDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Prod(desc) => {
-                vec![&desc.input, &desc.out]
-            }
-            NumericOperationDescription::ProdDim(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
             NumericOperationDescription::Max(desc) => {
                 vec![&desc.input, &desc.out]
             }
@@ -1263,8 +1247,6 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::Mean(desc) => desc.hash(state),
             NumericOperationDescription::Sum(desc) => desc.hash(state),
             NumericOperationDescription::SumDim(desc) => desc.hash(state),
-            NumericOperationDescription::Prod(desc) => desc.hash(state),
-            NumericOperationDescription::ProdDim(desc) => desc.hash(state),
             NumericOperationDescription::EqualElem(desc) => desc.hash(state),
             NumericOperationDescription::Greater(desc) => desc.hash(state),
             NumericOperationDescription::GreaterElem(desc) => desc.hash(state),

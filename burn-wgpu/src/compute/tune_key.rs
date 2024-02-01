@@ -13,8 +13,6 @@ pub enum WgpuAutotuneKey {
     Matmul(MatmulAutotuneKey),
     /// Key for sum_dim operations
     SumDim(ReduceAutotuneKey),
-    /// Key for prod_dim operations
-    ProdDim(ReduceAutotuneKey),
     /// Key for mean_dim operations
     MeanDim(ReduceAutotuneKey),
     #[cfg(any(feature = "fusion", test))]
@@ -27,7 +25,6 @@ impl Display for WgpuAutotuneKey {
         match self {
             WgpuAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
             WgpuAutotuneKey::SumDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
-            WgpuAutotuneKey::ProdDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             WgpuAutotuneKey::MeanDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             #[cfg(any(feature = "fusion", test))]
             WgpuAutotuneKey::FusionElemWise(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),

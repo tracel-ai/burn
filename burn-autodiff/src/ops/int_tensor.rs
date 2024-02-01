@@ -154,14 +154,6 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
         B::int_sum_dim(tensor, dim)
     }
 
-    fn int_prod<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
-        B::int_prod(tensor)
-    }
-
-    fn int_prod_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
-        B::int_prod_dim(tensor, dim)
-    }
-
     fn int_mean<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
         B::int_mean(tensor)
     }

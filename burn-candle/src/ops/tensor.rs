@@ -359,19 +359,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
-    fn float_prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
-    }
-
-    fn float_prod_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
-        // NOTE: Temporary implementation here. Once platform supports this, remove this code and call platform instead.
-        todo!("Waiting on platform implementation. Tracked by https://github.com/huggingface/candle/issues/1620");
-    }
-
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,

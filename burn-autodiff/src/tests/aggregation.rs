@@ -77,55 +77,6 @@ mod tests {
     }
 
     #[test]
-    fn should_diff_prod_1() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
-
-        let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-
-        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        let tensor_4 = tensor_1.clone().mul(tensor_3.prod().unsqueeze());
-        let grads = tensor_4.backward();
-
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
-
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[14.0, 38.0], [14.0, 38.0]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[-3.0, -3.0], [12.0, 12.0]]), 5);
-    }
-
-    #[test]
-    fn should_diff_prod_2() {
-        let data_1 = Data::from([[0.0, 1.0], [3.0, 4.0]]);
-        let data_2 = Data::from([[6.0, 7.0], [9.0, 10.0]]);
-
-        let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-
-        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        let tensor_4 = tensor_3.clone().prod_dim(1);
-        let tensor_5 = tensor_4.mul(tensor_3);
-
-        let grads = tensor_5.prod().backward();
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
-
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[494.0, 722.0], [2990.0, 4370.0]]), 3);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[690.0, 690.0], [958.0, 958.0]]), 3);
-    }
-
-    #[test]
     fn should_diff_mean_dim() {
         let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
         let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
@@ -160,30 +111,6 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_4 = tensor_1.clone().mul(tensor_3.sum_dim(1).unsqueeze());
-        let grads = tensor_4.backward();
-
-        let grad_1 = tensor_1.grad(&grads).unwrap();
-        let grad_2 = tensor_2.grad(&grads).unwrap();
-
-        grad_1
-            .to_data()
-            .assert_approx_eq(&Data::from([[8.0, 72.0], [6.0, -34.0]]), 5);
-        grad_2
-            .to_data()
-            .assert_approx_eq(&Data::from([[18.0, 18.0], [71.0, 71.0]]), 5);
-    }
-
-    #[test]
-    fn should_diff_prod_dim() {
-        let data_1 = Data::<f32, 2>::from([[1.0, 7.0], [-2.0, -3.0]]);
-        let data_2 = Data::<f32, 2>::from([[4.0, -7.0], [2.0, 3.0]]);
-
-        let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-        let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-
-        let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        let tensor_4 = tensor_1.clone().mul(tensor_3.prod_dim(1).unsqueeze());
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

@@ -134,11 +134,6 @@ where
         Tensor::new(K::sum(self.primitive))
     }
 
-    /// Aggregate all elements in the tensor with the prod operation.
-    pub fn prod(self) -> Tensor<B, 1, K> {
-        Tensor::new(K::prod(self.primitive))
-    }
-
     /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the mean operation.
     pub fn mean_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Mean", dim));
@@ -149,12 +144,6 @@ where
     pub fn sum_dim(self, dim: usize) -> Self {
         check!(TensorCheck::aggregate_dim::<D>("Sum", dim));
         Self::new(K::sum_dim(self.primitive, dim))
-    }
-
-    /// Aggregate all elements along the given *dimension* or *axis* in the tensor with the prod operation.
-    pub fn prod_dim(self, dim: usize) -> Self {
-        check!(TensorCheck::aggregate_dim::<D>("Prod", dim));
-        Self::new(K::prod_dim(self.primitive, dim))
     }
 
     /// Applies element wise equal comparison and returns a boolean tensor.
@@ -917,47 +906,6 @@ where
     /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::sum_dim](Tensor::sum_dim) function,
     /// which is more high-level and designed for public use.
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
-
-    /// Computes product of all the elements of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to prod.
-    ///
-    /// # Returns
-    ///
-    /// The prod of all the elements of the tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For computing product of all the elements of a tensor, users should prefer the [Tensor::prod](Tensor::prod) function,
-    /// which is more high-level and designed for public use.
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
-
-    /// Computes product of all the elements of the tensor along a dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to prod.
-    /// * `dim` - The dimension along which to prod.
-    ///
-    /// # Returns
-    ///
-    /// The product of all the elements of the tensor along the specified dimension.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For computing product of all the elements of a tensor along a dimension, users should prefer the [Tensor::prod_dim](Tensor::prod_dim) function,
-    /// which is more high-level and designed for public use.
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
 
     /// Computes the mean of all the elements of the tensor.
     ///
@@ -1770,12 +1718,6 @@ impl<B: Backend> Numeric<B> for Int {
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::int_sum_dim(tensor, dim)
     }
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::int_prod(tensor)
-    }
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::int_prod_dim(tensor, dim)
-    }
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::int_mean(tensor)
     }
@@ -2057,12 +1999,6 @@ impl<B: Backend> Numeric<B> for Float {
     }
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
         B::float_sum_dim(tensor, dim)
-    }
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        B::float_prod(tensor)
-    }
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        B::float_prod_dim(tensor, dim)
     }
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
         B::float_mean(tensor)

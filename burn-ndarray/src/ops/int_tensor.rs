@@ -277,17 +277,6 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
-    fn int_prod<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, 1> {
-        NdArrayMathOps::prod(tensor)
-    }
-
-    fn int_prod_dim<const D: usize>(
-        tensor: NdArrayTensor<i64, D>,
-        dim: usize,
-    ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::prod_dim(tensor, dim)
-    }
-
     fn int_mean<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, 1> {
         NdArrayMathOps::mean(tensor)
     }

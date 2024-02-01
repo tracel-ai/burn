@@ -13,7 +13,7 @@ use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
 use crate::element::NdArrayElement;
-use crate::ops::macros::{keepdim, mean_dim, prod_dim, sum_dim};
+use crate::ops::macros::{keepdim, mean_dim, sum_dim};
 use crate::{reshape, tensor::NdArrayTensor};
 
 pub struct NdArrayOps<E> {
@@ -201,11 +201,6 @@ where
         NdArrayTensor::from_data(data)
     }
 
-    pub fn prod<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        let data = Data::from([tensor.array.product()]);
-        NdArrayTensor::from_data(data)
-    }
-
     pub fn mean_dim<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
@@ -229,21 +224,6 @@ where
             4 => keepdim!(3, dim, tensor, sum),
             5 => keepdim!(4, dim, tensor, sum),
             6 => keepdim!(5, dim, tensor, sum),
-            _ => panic!("Dim not supported {D}"),
-        }
-    }
-
-    pub fn prod_dim<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        match D {
-            1 => keepdim!(0, dim, tensor, prod),
-            2 => keepdim!(1, dim, tensor, prod),
-            3 => keepdim!(2, dim, tensor, prod),
-            4 => keepdim!(3, dim, tensor, prod),
-            5 => keepdim!(4, dim, tensor, prod),
-            6 => keepdim!(5, dim, tensor, prod),
             _ => panic!("Dim not supported {D}"),
         }
     }
