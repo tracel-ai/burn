@@ -288,28 +288,68 @@ fn mean_update_outputs(node: &mut Node) {
 ///
 /// # Remarks
 ///
-/// Unsqueeze is not implemented fully. This is left WIP from the past.
+///
 fn unsqueeze_update_outputs(node: &mut Node) {
-    let node_input = node
-        .inputs
-        .first_mut()
-        .expect("Unsqueeze: an input is required");
-
-    if let ArgType::Tensor(tensor) = &mut node_input.ty {
-        tensor.dim += 1;
-
-        // add a new dimension to the input tensor by extending the shape
-        // TODO: support unsqueezing configurations
-        if let Some(shape) = &mut tensor.shape {
-            shape.insert(0, 1);
-        } else {
-            todo!("Unsqueeze: support unsqueezing a tensor without shape");
-        }
-
-        node.outputs[0].ty = ArgType::Tensor(tensor.clone());
-    } else {
-        panic!("Only tensor input is valid");
+    if node.inputs.len() != 2 {
+        panic!("Unsqueeze: wrong number of inputs");
     }
+    //god I love myself
+    let [input, axes] = &node.inputs[..2];
+
+    match (&input.ty, &axes.ty) {
+        (ArgType::Tensor(tensor), ArgType::Tensor(axes)) => {
+            let mut tensor = tensor.clone();
+            match (tensor.shape, axes.shape) {
+                (Some(tens_shape), Some(axes_shape)) => {
+                    let mut shape = Vec::with_capacity(tens_shape.len() + axes_shape.len());
+                    let mut axes = axes_shape.clone();
+                    for &axis in axes {
+                        let axis = axis as usize;
+                        shape.insert(axis, 1);
+                    }
+                    tensor.shape = Some(shape);
+                }
+                _ => panic!("Unsqueeze: support unsqueezing a tensor without shape"),
+            }
+
+            let mut shape = Vec::with_capacity(tensor.shape.len() + axes.shape.len());
+            tensor.shape.clone().unwrap();
+
+            for &axis in axes {
+                let axis = axis as usize;
+                shape.insert(axis, 1);
+            }
+            
+            tensor.shape = Some(shape);
+            todo!("Not Finished")
+        }
+        (ArgType::Tensor(tensor), ArgType::Scalar(ax)) => {
+            //note this isn't technically to the spec, but pytorch seems to generate this anyway
+
+            tensor.dim += 1;
+
+            // add a new dimension to the input tensor by extending the shape
+            // TODO: support unsqueezing configurations
+
+            if let Some(shape) = &mut tensor.shape {
+                match ax {
+                    ElementType::Int64 => {
+                        shape.insert(, 1);
+                    }
+                    ElementType::Int32 => {
+                        shape.insert(0, 1);
+                    }
+                    _ => panic!("Unsqueeze: invalid input types"),
+                }
+                shape.insert(ax as usize, 1);
+            } else {
+                todo!("Unsqueeze: support unsqueezing a tensor without shape");
+            }
+        }
+        _ => panic!("Unsqueeze: invalid input types"),
+    }
+
+    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
 }
 
 fn same_as_input(node: &mut Node) {

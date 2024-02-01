@@ -51,7 +51,8 @@ include_models!(
     transpose,
     conv_transpose2d,
     pow,
-    pow_int
+    pow_int,
+    unsqueeze,
 );
 
 #[cfg(test)]
@@ -850,5 +851,4 @@ mod tests {
         let input = Tensor::ones(&[3, 4, 5], &device);
         let output = model.forward(input, [0, 4]);
     }
-    
 }

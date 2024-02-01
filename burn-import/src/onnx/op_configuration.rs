@@ -543,23 +543,28 @@ pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
     //     println!("{:?}", node.inputs);
     //     panic!("Reshape: shape tensor must be present");
     // }
-    let input_value = &node.inputs[1].value;
+    println!("{:?}", node.inputs);
+    let input_value = &node.inputs[1];
+
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
-                shape.clone()
+            if let Some(data) = input_value.as_ref() {
+                println!("{:?}", data);
+                match data {
+                    Data::Int64s(shape) => shape.clone(),
+                    Data::Int32s(shape) => shape.iter().map(|x| *x as i64).collect(),
+                    _ => panic!("Tensor data type must be int64"),
+                }
             } else {
                 panic!("Tensor data type must be int64")
             }
         }
-        ArgType::Scalar(val) => {
-            if let Some(Data::Int64(shape)) = input_value.as_ref() {
-                vec![*shape]
-            } else {
-                panic!("Scalar Argument for unsqueeze must be int64")
-            }
-        }
+        ArgType::Scalar(val) => match input_value.as_ref() {
+            Some(Data::Int64(shape)) => vec![*shape],
+            Some(Data::Int32(shape)) => vec![*shape as i64],
+            _ => panic!("Scalar Argument for unsqueeze must be int64"),
+        },
         _ => panic!("Arg for unsqueeze must be tensor or scalar"),
     }
 }
