@@ -29,7 +29,6 @@ mod tests {
 
     #[test]
     fn should_support_neg_values_with_even_power() {
-
         let data = Data::from([[1.0, -1.0, -2.0], [-3.0, -4.0, -5.0]]);
         let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
         let pow = Data::from([[2.0, 2.0, 4.0], [4.0, 4.0, 2.0]]);
