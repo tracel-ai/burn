@@ -48,7 +48,7 @@ as is done in [`CIFAR10Loader`](src/dataset.rs) for this example.
 ## Example Usage
 
 The CNN model and training recipe used in this example are fairly simple since the objective is to
-demonstrate how to load a custom image classifcation dataset from disk. Nonetheless, it still
+demonstrate how to load a custom image classification dataset from disk. Nonetheless, it still
 achieves 70-80% accuracy on the test set after just 30 epochs.
 
 ```sh
