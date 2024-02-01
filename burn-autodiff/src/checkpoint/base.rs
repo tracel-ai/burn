@@ -13,7 +13,7 @@ pub(crate) struct RetroForwards {
 
 impl RetroForwards {
     pub fn forward(&self, node_id: &NodeID, inner_states: &mut InnerStates) {
-        // elsewhere because needs <B,D>. here we'll assume it's lazy and then B,D can be unknown
+        println!("a");
         if let State::Lazy {
             node_id,
             n_required: _,
@@ -31,15 +31,13 @@ impl RetroForwards {
 // wrapper to keep track of n_requiered. if zero remove and give ownership. in the REAL forward +=1 n_required
 #[derive(new, Default)]
 pub(crate) struct InnerStates {
-    // We wrap inside an arc because when we get we might or might not have ownership.
-    // Arc allows to track that. It's not for tracking n_required.
     map: HashMap<NodeID, State>,
 }
 
 impl InnerStates {
     pub fn get_own<B: Backend, const D: usize>(&mut self, node_id: &NodeID) -> Tensor<B, D> {
         let state = self.map.remove(node_id).unwrap();
-        let n_required = state.n_required();
+        let remaining_n_required = state.n_required() - 1;
 
         let tensor = state
             .get_state_content()
@@ -47,33 +45,33 @@ impl InnerStates {
             .unwrap()
             .clone();
 
-        // decrement and clone
-        let new_stored_state = match state {
-            State::Lazy {
-                node_id,
-                n_required,
-            } => State::Lazy {
-                node_id,
-                n_required: n_required - 1,
-            },
-            State::Computed {
-                state_content,
-                n_required,
-            } => State::Computed {
-                state_content: Box::new(tensor.clone()),
-                n_required: n_required - 1,
-            },
-        };
+        if remaining_n_required > 0 {
+            // decrement and clone
+            let new_stored_state = match state {
+                State::Lazy {
+                    node_id,
+                    n_required,
+                } => State::Lazy {
+                    node_id,
+                    n_required: remaining_n_required,
+                },
+                State::Computed {
+                    state_content: _,
+                    n_required,
+                } => State::Computed {
+                    state_content: Box::new(tensor.clone()),
+                    n_required: remaining_n_required,
+                },
+            };
 
-        if n_required > 0 {
             self.insert(node_id.clone(), new_stored_state);
         }
 
         tensor
     }
 
+    /// useful when don't know B, D but need state info
     pub fn get_ref(&self, node_id: &NodeID) -> &State {
-        // useful when don't know B, D
         self.map.get(node_id).unwrap()
     }
 
@@ -126,6 +124,7 @@ impl Checkpoint {
     }
 
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
+        println!("b");
         match self.inner_states.get_ref(&node_id) {
             State::Lazy {
                 node_id: _,

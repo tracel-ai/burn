@@ -21,6 +21,7 @@ impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
 
         let out: Tensor<B, D> = Tensor::<B, D>::from_primitive(B::float_div(lhs, rhs));
 
+        println!("c");
         states.insert(
             self.out.clone(),
             State::Computed {
@@ -263,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn div_lazy_tree_has_expected_nodes() {
+    fn div_lazy_tree_accepts_several_node_gets() {
         let device = Default::default();
         let ids = [
             NodeID::new(),
@@ -288,6 +289,8 @@ mod tests {
             Tensor::<TestBackend, 2>::from_data([[-1.5, 0.125], [-0.8, 0.4]], &device),
         );
 
+        // fails at the third one. something to do with n_required not high enough
+        // when should we increment..?
         expect_tensor(
             &mut states,
             ids[6].clone(),
