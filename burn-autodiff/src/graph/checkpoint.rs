@@ -37,6 +37,7 @@ pub struct RetroDiv<B, const D: usize> {
 impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
     fn forward(&self, states: &mut HashMap<NodeID, State>) {
         // We assume hashmap filled with parents
+        println!("{:?}", &self.out);
         let lhs: B::FloatTensorPrimitive<D> = states
             .get(&self.lhs)
             .unwrap()
@@ -46,6 +47,7 @@ impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
             .clone()
             .into_primitive();
 
+        println!("{:?}", &self.out);
         let rhs: B::FloatTensorPrimitive<D> = states
             .get(&self.rhs) // TODO get_mut because change num_required -=1
             .unwrap()
@@ -97,28 +99,40 @@ impl State {
     }
 }
 
+#[derive(new, Default)]
+struct RetroForwards {
+    map: HashMap<NodeID, Box<dyn RetroForward>>,
+}
+
+impl RetroForwards {
+    pub fn forward(&self, node_id: &NodeID, inner_states: &mut HashMap<NodeID, State>) {
+        if let State::Lazy {
+            node_id,
+            n_required,
+        } = inner_states.get(node_id).unwrap()
+        {
+            self.map.get(node_id).unwrap().forward(inner_states);
+        }
+    }
+
+    pub fn insert(&mut self, node_id: NodeID, retro_forward: Box<dyn RetroForward>) {
+        self.map.insert(node_id, retro_forward);
+    }
+}
+
 #[derive(new)]
 struct States {
     inner_states: HashMap<NodeID, State>, // TODO wrapper to keep track of n_requiered. if zero remove and give ownership. in the REAL forward +=1 n_required
-    retro_forwards: HashMap<NodeID, Box<dyn RetroForward>>,
+    retro_forwards: RetroForwards,
     nodes: HashMap<NodeID, NodeRef>,
 }
 
 impl States {
     pub fn get(&mut self, node_id: NodeID) -> &StateContent {
-        // get is called by backward, knowing exactly what it wants, so knows B and D
-        // but must not be called recursively as D may change (and it's just a bad idea in general with muts)
+        self.topological_sort(node_id.clone())
+            .iter()
+            .for_each(|node| self.retro_forwards.forward(&node, &mut self.inner_states));
 
-        // we should build a topological sort as we only need to make sure parents are called before their children
-        // then it's just a matter of adding to the hashmap in an order that won't panic, not caring about types :)
-        let node_order: Vec<NodeID> = self.topological_sort(node_id.clone());
-
-        for node in node_order {
-            let retro_forward = self.retro_forwards.get(&node).unwrap();
-            retro_forward.forward(&mut self.inner_states);
-        }
-
-        println!("{:?}", self.inner_states);
         self.inner_states.get(&node_id).unwrap().get_state_content()
     }
 
@@ -210,10 +224,10 @@ mod tests {
         ids: [NodeID; 4],
     ) -> (
         HashMap<NodeID, State>,
-        HashMap<NodeID, Box<dyn RetroForward>>,
+        RetroForwards,
         HashMap<NodeID, NodeRef>,
     ) {
-        let mut retro_forwards: HashMap<NodeID, Box<dyn RetroForward>> = HashMap::new();
+        let mut retro_forwards = RetroForwards::default();
         let mut nodes = HashMap::new();
         let mut inner_states = HashMap::new();
 
@@ -431,7 +445,7 @@ mod tests {
     }
 
     #[test]
-    fn div_computed_tree_has_expected_nodes() {
+    fn div_computed_tree_has_expected_directly_computed_node() {
         let device = Default::default();
         let ids = [
             NodeID::new(),
@@ -455,6 +469,21 @@ mod tests {
             ids[5].clone(),
             Tensor::<TestBackend, 2>::from_data([[10.0, 10.0], [10.0, 10.0]], &device),
         );
+    }
+
+    #[test]
+    fn div_computed_tree_has_expected_lazily_computed_node() {
+        let device = Default::default();
+        let ids = [
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+            NodeID::new(),
+        ];
+        let mut states = div_computed_tree::<TestBackend>(&device, ids.clone());
 
         expect_tensor(
             &mut states,
