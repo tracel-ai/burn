@@ -161,7 +161,7 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "backend-comparison"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-common",
@@ -280,7 +280,7 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
 name = "burn"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-core",
  "burn-train",
@@ -288,7 +288,7 @@ dependencies = [
 
 [[package]]
 name = "burn-autodiff"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "burn-candle"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-autodiff",
  "burn-tch",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "burn-common"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "burn-compute"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-common",
  "derive-new",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "burn-core"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "bincode",
  "burn-autodiff",
@@ -375,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "burn-dataset"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "csv",
  "derive-new",
@@ -407,7 +407,7 @@ dependencies = [
 
 [[package]]
 name = "burn-derive"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "burn-fusion"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -430,7 +430,7 @@ dependencies = [
 
 [[package]]
 name = "burn-import"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -458,7 +458,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ndarray"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "blas-src",
  "burn-autodiff",
@@ -477,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "burn-no-std-tests"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -486,7 +486,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tch"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-autodiff",
  "burn-tensor",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-common",
  "burn-tensor-testgen",
@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor-testgen"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "burn-train"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-core",
  "burn-ndarray",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "burn-wgpu"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn-autodiff",
  "burn-common",
@@ -1003,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "custom-csv-dataset"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "csv",
@@ -1013,7 +1013,7 @@ dependencies = [
 
 [[package]]
 name = "custom-renderer"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1025,7 +1025,7 @@ dependencies = [
 
 [[package]]
 name = "custom-training-loop"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1037,7 +1037,7 @@ dependencies = [
 
 [[package]]
 name = "custom-wgpu-kernel"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1901,7 +1901,7 @@ dependencies = [
 
 [[package]]
 name = "guide"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "log",
@@ -2164,7 +2164,7 @@ dependencies = [
 
 [[package]]
 name = "image-classification-web"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-candle",
@@ -2532,7 +2532,7 @@ dependencies = [
 
 [[package]]
 name = "mnist"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "log",
@@ -2541,7 +2541,7 @@ dependencies = [
 
 [[package]]
 name = "mnist-inference-web"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "console_error_panic_hook",
@@ -2554,7 +2554,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -2603,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "named-tensor"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "serde",
@@ -2826,7 +2826,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-inference"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -2835,7 +2835,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-tests"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3181,7 +3181,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-import"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3190,7 +3190,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-tests"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "burn-import",
@@ -3430,7 +3430,7 @@ checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
 name = "regression"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "log",
@@ -4181,7 +4181,7 @@ dependencies = [
 
 [[package]]
 name = "text-classification"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "derive-new",
@@ -4191,7 +4191,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation"
-version = "0.12.0"
+version = "0.12.1"
 dependencies = [
  "burn",
  "derive-new",
@@ -5114,7 +5114,7 @@ checksum = "0fcb9cbac069e033553e8bb871be2fbdffcab578eb25bd0f7c508cedc6dcd75a"
 
 [[package]]
 name = "xtask"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
