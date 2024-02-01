@@ -365,7 +365,7 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
 
     fn int_into_float<const D: usize>(
         tensor: <NdArray<E> as Backend>::IntTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::TensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| a.elem()).into_shared();
         NdArrayTensor { array }
     }

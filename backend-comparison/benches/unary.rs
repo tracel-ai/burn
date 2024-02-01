@@ -22,7 +22,7 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
 
     fn execute(&self, args: Self::Args) {
         // Choice of tanh is arbitrary
-        B::tanh(args.clone().into_primitive());
+        B::float_tanh(args.clone().into_primitive());
     }
 
     fn prepare(&self) -> Self::Args {

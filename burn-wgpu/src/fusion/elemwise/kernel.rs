@@ -6,7 +6,7 @@ use crate::{
         source::DynKernelSource,
         WgpuFusionHandle,
     },
-    kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
+    kernel::elemwise_workgroup,
 };
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
@@ -99,11 +99,19 @@ impl ElementWiseSource {
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
+        let workgroup_size_x = self.source_normal.shader.workgroup_size.x;
+        let workgroup_size_y = self.source_normal.shader.workgroup_size.y;
+        assert_eq!(
+            workgroup_size_x, workgroup_size_y,
+            "The grid must be a square"
+        );
+        let workgroup_size = workgroup_size_x as usize;
+
         match inplace_available(&self.mappings, handles_inputs) {
             true => {
                 let reference_tensor = inputs[self.mappings[0].position_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
                 let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
                 let output_infos =
                     self.inplace_output2input
@@ -129,7 +137,7 @@ impl ElementWiseSource {
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
                 let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let elem = self.source_normal.shader.outputs[pos].item.elem();
