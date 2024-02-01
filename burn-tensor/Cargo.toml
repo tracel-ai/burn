@@ -12,6 +12,7 @@ version.workspace = true
 
 [features]
 default = ["std"]
+doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std"]
@@ -36,3 +37,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
+
+[package.metadata.docs.rs]
+features = ["doc"]

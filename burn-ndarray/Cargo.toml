@@ -12,28 +12,35 @@ version.workspace = true
 
 [features]
 default = ["std"]
-
 std = [
-  "rand/std",
-  "burn-tensor/std",
-  "burn-common/std",
   "burn-autodiff",
-  "rayon",
-  "ndarray/std",
-  "ndarray/rayon",
+  "burn-common/std",
+  "burn-tensor/std",
   "matrixmultiply/std",
   "matrixmultiply/threading",
+  "ndarray/rayon",
+  "ndarray/std",
+  "rand/std",
+  "rayon",
 ]
+doc = ["default"]
 
 blas-accelerate = [
+  "blas-src/accelerate",  # Accelerate framework (macOS only)
   "ndarray/blas",
-  "blas-src/accelerate",
-] # Accelerate framework (macOS only)
-blas-netlib = ["ndarray/blas", "blas-src/netlib"]
-blas-openblas = ["ndarray/blas", "blas-src/openblas", "openblas-src"]
-blas-openblas-system = [
+]
+blas-netlib = [
+  "blas-src/netlib",
   "ndarray/blas",
+]
+blas-openblas = [
   "blas-src/openblas",
+  "ndarray/blas",
+  "openblas-src",
+]
+blas-openblas-system = [
+  "blas-src/openblas",
+  "ndarray/blas",
   "openblas-src/system",
 ]
 
@@ -59,3 +66,6 @@ num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 rand = { workspace = true }
 spin = { workspace = true }                            # using in place of use std::sync::Mutex;
+
+[package.metadata.docs.rs]
+features = ["doc"]
