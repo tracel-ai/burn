@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 
 /// Image data type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     /// 8-bit unsigned.
     U8(u8),
@@ -57,7 +57,7 @@ impl TryFrom<DataType> for f32 {
 }
 
 /// Image target for different tasks.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ImageTarget {
     /// Image-level label.
     Label(usize),
@@ -70,14 +70,14 @@ pub enum ImageTarget {
 /// Segmentation mask target.
 /// For semantic segmentation, a mask has a single channel (C = 1).
 /// For instance segmentation, there may be multiple masks per image (C >= 1).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SegmentationMask {
     /// Segmentation mask.
     pub mask: Vec<usize>,
 }
 
 /// Object detection bounding box target.
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct BoundingBox {
     /// Coordinates.
     pub coords: [f32; 4],
@@ -87,7 +87,7 @@ pub struct BoundingBox {
 }
 
 /// Image dataset item.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImageDatasetItem {
     /// Image as a vector with a valid image type.
     pub image: Vec<DataType>,
@@ -229,7 +229,11 @@ impl ImageFolderDataset {
     {
         fn check_extension<S: AsRef<str>>(extension: &S) -> String {
             let extension = extension.as_ref();
-            assert!(SUPPORTED_FILES.contains(&extension));
+            assert!(
+                SUPPORTED_FILES.contains(&extension),
+                "Invalid extension '{}'",
+                extension
+            );
 
             extension.to_string()
         }
@@ -292,5 +296,45 @@ impl ImageFolderDataset {
         let dataset = MapperDataset::new(dataset, mapper);
 
         Self { dataset }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    const DATASET_ROOT: &str = "tests/data/image_folder";
+
+    #[test]
+    pub fn image_folder_dataset() {
+        let dataset = ImageFolderDataset::new(DATASET_ROOT);
+
+        // Dataset has 3 elements
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.get(3), None);
+
+        // Dataset elements should be: orange (0), red (1), red (1)
+        assert_eq!(dataset.get(0).unwrap().target, ImageTarget::Label(0));
+        assert_eq!(dataset.get(1).unwrap().target, ImageTarget::Label(1));
+        assert_eq!(dataset.get(2).unwrap().target, ImageTarget::Label(1));
+    }
+
+    #[test]
+    pub fn image_folder_dataset_filtered() {
+        let dataset = ImageFolderDataset::new_with(DATASET_ROOT, &["jpg"]);
+
+        // Filtered dataset has 2 elements
+        assert_eq!(dataset.len(), 2);
+        assert_eq!(dataset.get(2), None);
+
+        // Dataset elements should be: orange (0), red (1)
+        assert_eq!(dataset.get(0).unwrap().target, ImageTarget::Label(0));
+        assert_eq!(dataset.get(1).unwrap().target, ImageTarget::Label(1));
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn image_folder_dataset_invalid_extension() {
+        // Some invalid file extension
+        let _ = ImageFolderDataset::new_with(DATASET_ROOT, &["ico"]);
     }
 }
