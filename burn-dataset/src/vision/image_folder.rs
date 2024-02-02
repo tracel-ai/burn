@@ -11,7 +11,7 @@ const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 
 /// Image data type.
 #[derive(Debug, Clone, PartialEq)]
-pub enum DataType {
+pub enum PixelDepth {
     /// 8-bit unsigned.
     U8(u8),
     /// 16-bit unsigned.
@@ -20,11 +20,11 @@ pub enum DataType {
     F32(f32),
 }
 
-impl TryFrom<DataType> for u8 {
+impl TryFrom<PixelDepth> for u8 {
     type Error = &'static str;
 
-    fn try_from(value: DataType) -> Result<Self, Self::Error> {
-        if let DataType::U8(v) = value {
+    fn try_from(value: PixelDepth) -> Result<Self, Self::Error> {
+        if let PixelDepth::U8(v) = value {
             Ok(v)
         } else {
             Err("Value is not u8")
@@ -32,11 +32,11 @@ impl TryFrom<DataType> for u8 {
     }
 }
 
-impl TryFrom<DataType> for u16 {
+impl TryFrom<PixelDepth> for u16 {
     type Error = &'static str;
 
-    fn try_from(value: DataType) -> Result<Self, Self::Error> {
-        if let DataType::U16(v) = value {
+    fn try_from(value: PixelDepth) -> Result<Self, Self::Error> {
+        if let PixelDepth::U16(v) = value {
             Ok(v)
         } else {
             Err("Value is not u16")
@@ -44,11 +44,11 @@ impl TryFrom<DataType> for u16 {
     }
 }
 
-impl TryFrom<DataType> for f32 {
+impl TryFrom<PixelDepth> for f32 {
     type Error = &'static str;
 
-    fn try_from(value: DataType) -> Result<Self, Self::Error> {
-        if let DataType::F32(v) = value {
+    fn try_from(value: PixelDepth) -> Result<Self, Self::Error> {
+        if let PixelDepth::F32(v) = value {
             Ok(v)
         } else {
             Err("Value is not f32")
@@ -90,7 +90,7 @@ pub struct BoundingBox {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageDatasetItem {
     /// Image as a vector with a valid image type.
-    pub image: Vec<DataType>,
+    pub image: Vec<PixelDepth>,
 
     /// Target for the image.
     pub target: ImageTarget,
@@ -119,53 +119,57 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageClassification
         // Load image from disk
         let image = image::open(&item.image_path).unwrap();
 
-        // Image as Vec<DataType>
+        // Image as Vec<PixelDepth>
         let img_vec = match image.color() {
             ColorType::L8 => image
                 .into_luma8()
                 .iter()
-                .map(|&x| DataType::U8(x))
+                .map(|&x| PixelDepth::U8(x))
                 .collect(),
             ColorType::La8 => image
                 .into_luma_alpha8()
                 .iter()
-                .map(|&x| DataType::U8(x))
+                .map(|&x| PixelDepth::U8(x))
                 .collect(),
             ColorType::L16 => image
                 .into_luma16()
                 .iter()
-                .map(|&x| DataType::U16(x))
+                .map(|&x| PixelDepth::U16(x))
                 .collect(),
             ColorType::La16 => image
                 .into_luma_alpha16()
                 .iter()
-                .map(|&x| DataType::U16(x))
+                .map(|&x| PixelDepth::U16(x))
                 .collect(),
-            ColorType::Rgb8 => image.into_rgb8().iter().map(|&x| DataType::U8(x)).collect(),
+            ColorType::Rgb8 => image
+                .into_rgb8()
+                .iter()
+                .map(|&x| PixelDepth::U8(x))
+                .collect(),
             ColorType::Rgba8 => image
                 .into_rgba8()
                 .iter()
-                .map(|&x| DataType::U8(x))
+                .map(|&x| PixelDepth::U8(x))
                 .collect(),
             ColorType::Rgb16 => image
                 .into_rgb16()
                 .iter()
-                .map(|&x| DataType::U16(x))
+                .map(|&x| PixelDepth::U16(x))
                 .collect(),
             ColorType::Rgba16 => image
                 .into_rgba16()
                 .iter()
-                .map(|&x| DataType::U16(x))
+                .map(|&x| PixelDepth::U16(x))
                 .collect(),
             ColorType::Rgb32F => image
                 .into_rgb32f()
                 .iter()
-                .map(|&x| DataType::F32(x))
+                .map(|&x| PixelDepth::F32(x))
                 .collect(),
             ColorType::Rgba32F => image
                 .into_rgba32f()
                 .iter()
-                .map(|&x| DataType::F32(x))
+                .map(|&x| PixelDepth::F32(x))
                 .collect(),
             _ => panic!("Unrecognized image color type"),
         };
@@ -335,5 +339,44 @@ mod tests {
     pub fn image_folder_dataset_invalid_extension() {
         // Some invalid file extension
         let _ = ImageFolderDataset::new_with(DATASET_ROOT, &["ico"]);
+    }
+
+    #[test]
+    pub fn pixel_depth_try_into_u8() {
+        let val = u8::MAX;
+        let pix: u8 = PixelDepth::U8(val).try_into().unwrap();
+        assert_eq!(pix, val);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn pixel_depth_try_into_u8_invalid() {
+        let _: u8 = PixelDepth::U16(u8::MAX as u16 + 1).try_into().unwrap();
+    }
+
+    #[test]
+    pub fn pixel_depth_try_into_u16() {
+        let val = u16::MAX;
+        let pix: u16 = PixelDepth::U16(val).try_into().unwrap();
+        assert_eq!(pix, val);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn pixel_depth_try_into_u16_invalid() {
+        let _: u16 = PixelDepth::F32(u16::MAX as f32).try_into().unwrap();
+    }
+
+    #[test]
+    pub fn pixel_depth_try_into_f32() {
+        let val = f32::MAX;
+        let pix: f32 = PixelDepth::F32(val).try_into().unwrap();
+        assert_eq!(pix, val);
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn pixel_depth_try_into_f32_invalid() {
+        let _: f32 = PixelDepth::U16(u16::MAX).try_into().unwrap();
     }
 }

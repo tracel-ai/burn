@@ -1,7 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::vision::{DataType, ImageDatasetItem, ImageTarget},
+        dataset::vision::{ImageDatasetItem, ImageTarget, PixelDepth},
     },
     tensor::{backend::Backend, Data, Device, ElementConversion, Int, Shape, Tensor},
 };
@@ -55,10 +55,10 @@ impl<B: Backend> ClassificationBatcher<B> {
 impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for ClassificationBatcher<B> {
     fn batch(&self, items: Vec<ImageDatasetItem>) -> ClassificationBatch<B> {
         fn image_as_vec_u8(item: ImageDatasetItem) -> Vec<u8> {
-            // Convert Vec<DataType> to Vec<u8> (we know that CIFAR images are u8)
+            // Convert Vec<PixelDepth> to Vec<u8> (we know that CIFAR images are u8)
             item.image
                 .into_iter()
-                .map(|p: DataType| -> u8 { p.try_into().unwrap() })
+                .map(|p: PixelDepth| -> u8 { p.try_into().unwrap() })
                 .collect::<Vec<u8>>()
         }
 
