@@ -76,6 +76,12 @@ mod tests {
     burn_tensor::testgen_maxmin!();
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
+
+    // TODO: https://github.com/tracel-ai/burn/issues/1237
+    //
+    // burn_tensor::testgen_powf_scalar!();
+    // burn_tensor::testgen_powf!();
+
     burn_tensor::testgen_random!();
     burn_tensor::testgen_repeat!();
     burn_tensor::testgen_reshape!();

@@ -35,14 +35,14 @@ exclude = ["examples/notebook"]
 
 [workspace.package]
 edition = "2021"
-version = "0.12.0"
+version = "0.13.0"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"
-candle-core = { version = "0.3.2" }
+candle-core = { version = "0.3.3" }
 clap = "4.4.11"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1.17"
@@ -68,7 +68,7 @@ r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
 rayon = "1.8.0"
 regex = "1.10.2"
-reqwest = "0.11.23"
+reqwest = "0.11.24"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
 rusqlite = { version = "0.30.0" }
@@ -90,13 +90,21 @@ wasm-bindgen = "0.2.88"
 wasm-bindgen-futures = "0.4.38"
 wasm-logger = "0.2.0"
 wasm-timer = "0.2.5"
+md5 = "0.7.0"
+serial_test = "3.0.0"
+web-time = "1.0.0"
+hound = "3.5.1"
+image = "0.24.7"
 
+# Terminal UI
+ratatui = "0.25"
+crossterm = "0.27"
 
 # WGPU stuff
 futures-intrusive = "0.5"
+text_placeholder = "0.5.0"
 pollster = "0.3"
-text_placeholder = { version = "0.5.0", features = ["struct_context"] }
-wgpu = "0.19.0"
+wgpu = "0.18.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
@@ -114,6 +122,9 @@ half = { version = "2.3.1", features = [
     "serde",
 ], default-features = false }
 ndarray = { version = "0.15.6", default-features = false }
+matrixmultiply = { version = "0.3.8", default-features = false }
+openblas-src = "0.10.8"
+blas-src = { version = "0.9.0", default-features = false }
 num-traits = { version = "0.2.17", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
@@ -127,6 +138,14 @@ serde = { version = "1.0.192", default-features = false, features = [
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.108", default-features = false }
 uuid = { version = "1.5.0", default-features = false }
+
+libc = "0.2.153"
+tch = "0.15.0"
+nvml-wrapper = "0.9.0"
+sysinfo = "0.29.10"
+systemstat = "0.2.3"
+
+
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
