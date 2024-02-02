@@ -4,28 +4,39 @@ use burn_tensor::{backend::Backend, Tensor};
 
 use crate::graph::NodeID;
 
-use super::{base::InnerStates, retro::RetroForward, state::State};
+use super::{base::InnerStates, base::RetroForward, state::State};
 
 #[derive(new)]
+/// For testing purpose, all operations are float divisions.
 pub struct RetroDiv<B, const D: usize> {
-    lhs: NodeID,
-    rhs: NodeID,
-    out: NodeID,
+    lhs_parent_id: NodeID,
+    rhs_parent_id: NodeID,
+    self_id: NodeID,
     _backend: PhantomData<B>,
 }
 
 impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
+    /// Typical content of a [RetroForward] function.
     fn forward(&self, states: &mut InnerStates) {
-        let lhs: B::FloatTensorPrimitive<D> = states.get_own::<B, D>(&self.lhs).into_primitive();
-        let rhs: B::FloatTensorPrimitive<D> = states.get_own::<B, D>(&self.rhs).into_primitive();
+        // Get the needed outputs downcasted to their expected types
+        // This will decrement n_required for both parent states
+        let lhs: B::FloatTensorPrimitive<D> = states
+            .get_owned_and_downcasted::<Tensor<B, D>>(&self.lhs_parent_id)
+            .into_primitive();
+        let rhs: B::FloatTensorPrimitive<D> = states
+            .get_owned_and_downcasted::<Tensor<B, D>>(&self.rhs_parent_id)
+            .into_primitive();
 
+        // Compute the output through a call to the inner backend operation
         let out: Tensor<B, D> = Tensor::<B, D>::from_primitive(B::float_div(lhs, rhs));
 
+        // Replace the state for this node id by the new computed output
+        // without changing n_required
         states.insert(
-            self.out.clone(),
+            self.self_id.clone(),
             State::Computed {
                 state_content: Box::new(out),
-                n_required: states.get_ref(&self.out).unwrap().n_required(),
+                n_required: states.get_ref(&self.self_id).unwrap().n_required(),
             },
         );
     }
@@ -41,7 +52,6 @@ mod tests {
     use crate::{
         checkpoint::{
             base::{Checkpoint, InnerStates, NodeTree, RetroForwards},
-            retro::RetroLeaf,
             state::{State, StateContent},
         },
         graph::{Node, NodeID, NodeRef, Requirement},
@@ -58,11 +68,13 @@ mod tests {
     #[cfg(feature = "std")]
     pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
-    fn insert_lazy(id: NodeID, inner_states: &mut InnerStates, n_required: Option<usize>) {
+    /// Inserts a state that needs recompute.
+    /// Number of times required is defined here for tests; normally it should be incremented
+    /// during the forward pass while building the autodiff graph
+    fn insert_recompute(id: NodeID, inner_states: &mut InnerStates, n_required: Option<usize>) {
         inner_states.insert(
             id.clone(),
-            State::Lazy {
-                node_id: id.clone(),
+            State::Recompute {
                 n_required: match n_required {
                     Some(n) => n,
                     None => 1,
@@ -71,7 +83,8 @@ mod tests {
         );
     }
 
-    fn insert_computed(id: NodeID, inner_states: &mut InnerStates, state_content: StateContent) {
+    /// Inserts a pre-computed state
+    fn insert_precomputed(id: NodeID, inner_states: &mut InnerStates, state_content: StateContent) {
         inner_states.insert(
             id.clone(),
             State::Computed {
@@ -81,6 +94,7 @@ mod tests {
         );
     }
 
+    /// Asserts the tensor obtained through checkpointing is the right one
     fn expect_tensor<B: Backend>(states: &mut Checkpoint, id: NodeID, expected: Tensor<B, 2>) {
         let obtained: Tensor<B, 2> = states.get(id.clone());
         let x: Data<f32, 2> = expected.to_data().convert();
@@ -88,6 +102,7 @@ mod tests {
         x.assert_approx_eq(&y, 3);
     }
 
+    /// Ids for the div tree of 7 nodes
     fn make_ids() -> [NodeID; 7] {
         [
             NodeID::new(),
@@ -100,20 +115,16 @@ mod tests {
         ]
     }
 
-    fn make_leaves<B: Backend>(
-        device: &B::Device,
-        ids: [NodeID; 4],
-    ) -> (InnerStates, RetroForwards, NodeTree) {
-        let mut retro_forwards = RetroForwards::default();
+    /// Make the leaves for a div tree
+    fn make_leaves<B: Backend>(device: &B::Device, ids: [NodeID; 4]) -> (InnerStates, NodeTree) {
         let mut node_tree = NodeTree::default();
         let mut inner_states = InnerStates::default();
 
+        // Leaves are just tensors, so they are always precomputed
         let mut make_leaf = |id: NodeID, t: Tensor<B, 2>| {
             let n: NodeRef = Arc::new(Node::new(Vec::new(), 0, id.clone(), Requirement::Grad));
-            let retro_leaf = RetroLeaf::new(id.clone(), t);
-            retro_forwards.insert(id.clone(), Box::new(retro_leaf));
             node_tree.insert(id.clone(), n);
-            insert_lazy(id, &mut inner_states, None);
+            insert_precomputed(id, &mut inner_states, Box::new(t));
         };
 
         // Leaf 0
@@ -156,17 +167,19 @@ mod tests {
             .require_grad(),
         );
 
-        (inner_states, retro_forwards, node_tree)
+        (inner_states, node_tree)
     }
 
-    fn div_lazy_tree<B: Backend>(
+    /// Makes a tree where every node except leaves are in a Recompute state
+    /// Ids at indices 0, 1, 2, 3 correspond leaves
+    /// Then ids 5, 6, 7 correspond to division nodes like in the folowing
+    /// 4: 0 / 1         5: 2 / 3
+    ///        6: t4 / t5
+    fn div_recompute_tree<B: Backend>(
         device: &B::Device,
         ids: [NodeID; 7],
         n_required_changed: HashMap<NodeID, usize>,
     ) -> Checkpoint {
-        // 4: 0 / 1         5: 2 / 3 -> 5
-        //       --> 6: t4 / t5 <--
-
         let id_0 = ids[0].clone();
         let id_1 = ids[1].clone();
         let id_2 = ids[2].clone();
@@ -177,8 +190,8 @@ mod tests {
             [id_0.clone(), id_1.clone(), id_2.clone(), id_3.clone()],
         );
         let mut inner_states = leaves.0;
-        let mut retro_forwards = leaves.1;
-        let mut nodes = leaves.2;
+        let mut nodes = leaves.1;
+        let mut retro_forwards = RetroForwards::default();
 
         let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
             let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
@@ -197,17 +210,17 @@ mod tests {
         // Node 6: t4/t5
         make_div_node(ids[6].clone(), &[ids[4].clone(), ids[5].clone()]);
 
-        insert_lazy(
+        insert_recompute(
             ids[4].clone(),
             &mut inner_states,
             n_required_changed.get(&ids[4]).map(|x| *x),
         );
-        insert_lazy(
+        insert_recompute(
             ids[5].clone(),
             &mut inner_states,
             n_required_changed.get(&ids[5]).map(|x| *x),
         );
-        insert_lazy(
+        insert_recompute(
             ids[6].clone(),
             &mut inner_states,
             n_required_changed.get(&ids[6]).map(|x| *x),
@@ -216,12 +229,15 @@ mod tests {
         Checkpoint::new(inner_states, retro_forwards, nodes)
     }
 
-    fn div_computed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Checkpoint {
-        // Here we hardcode a result for 5 (wrong for ensuring it doesn't just do the lazy computation)
-        // We can then test that 5 gives that result, and that 6 gives the implied result
-        // 4: 0 / 1         5: 2 / 3 -> 5 is Computed
-        //       --> 6: t4 / t5 <--
-
+    /// Makes a tree like div_recompute_tree but where node id 5 is precomputed
+    /// Ids at indices 0, 1, 2, 3 correspond leaves
+    /// Then ids 5, 6, 7 correspond to division nodes like in the folowing
+    /// 4: 0 / 1         5: 2 / 3
+    ///        6: 4 / 5
+    ///
+    /// Note: precomputed result for 5 is wrong on purpose so it's possible to
+    /// differentiate between precomputed and recompute states.
+    fn div_precomputed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Checkpoint {
         let id_0 = ids[0].clone();
         let id_1 = ids[1].clone();
         let id_2 = ids[2].clone();
@@ -232,8 +248,8 @@ mod tests {
             [id_0.clone(), id_1.clone(), id_2.clone(), id_3.clone()],
         );
         let mut inner_states = leaves.0;
-        let mut retro_forwards = leaves.1;
-        let mut nodes = leaves.2;
+        let mut nodes = leaves.1;
+        let mut retro_forwards = RetroForwards::default();
 
         let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
             let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
@@ -252,8 +268,8 @@ mod tests {
         // Node 6: t4/t5
         make_div_node(ids[6].clone(), &[ids[4].clone(), ids[5].clone()]);
 
-        insert_lazy(ids[4].clone(), &mut inner_states, None);
-        insert_computed(
+        insert_recompute(ids[4].clone(), &mut inner_states, None);
+        insert_precomputed(
             ids[5].clone(),
             &mut inner_states,
             Box::new(Tensor::<B, 2>::from_data(
@@ -261,7 +277,7 @@ mod tests {
                 device,
             )),
         );
-        insert_lazy(ids[6].clone(), &mut inner_states, None);
+        insert_recompute(ids[6].clone(), &mut inner_states, None);
 
         Checkpoint::new(inner_states, retro_forwards, nodes)
     }
@@ -269,7 +285,7 @@ mod tests {
     fn div_lazy_tree_has_expected_leaves() {
         let device = Default::default();
         let ids = make_ids();
-        let mut states = div_lazy_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+        let mut states = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
 
         expect_tensor(
             &mut states,
@@ -288,7 +304,7 @@ mod tests {
     fn div_lazy_tree_accepts_several_independant_node_gets() {
         let device = Default::default();
         let ids = make_ids();
-        let mut states = div_lazy_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+        let mut states = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
 
         expect_tensor(
             &mut states,
@@ -308,7 +324,7 @@ mod tests {
     fn div_lazy_tree_rejects_more_gets_than_required() {
         let device = Default::default();
         let ids = make_ids();
-        let mut states = div_lazy_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+        let mut states = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
 
         expect_tensor(
             &mut states,
@@ -329,10 +345,11 @@ mod tests {
         let ids = make_ids();
         let mut n_required_changed = HashMap::new();
         n_required_changed.insert(ids[6].clone(), 2);
-        let mut checkpoint = div_lazy_tree::<TestBackend>(&device, ids.clone(), n_required_changed);
+        let mut checkpoint =
+            div_recompute_tree::<TestBackend>(&device, ids.clone(), n_required_changed);
 
         // First call
-        checkpoint.get::<TestBackend, 2>(ids[6].clone());
+        checkpoint.get::<Tensor<TestBackend, 2>>(ids[6].clone());
 
         // Artificially changes parent answer and should not impact already computed child
         checkpoint.insert_pre_computed(
@@ -358,7 +375,7 @@ mod tests {
     fn div_computed_tree_has_expected_directly_computed_node() {
         let device = Default::default();
         let ids = make_ids();
-        let mut states = div_computed_tree::<TestBackend>(&device, ids.clone());
+        let mut states = div_precomputed_tree::<TestBackend>(&device, ids.clone());
 
         expect_tensor(
             &mut states,
@@ -377,7 +394,7 @@ mod tests {
     fn div_computed_tree_has_expected_lazily_computed_node() {
         let device = Default::default();
         let ids = make_ids();
-        let mut states = div_computed_tree::<TestBackend>(&device, ids.clone());
+        let mut states = div_precomputed_tree::<TestBackend>(&device, ids.clone());
 
         expect_tensor(
             &mut states,
