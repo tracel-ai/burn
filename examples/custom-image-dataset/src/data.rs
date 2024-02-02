@@ -37,6 +37,7 @@ impl<B: Backend> Normalizer<B> {
 }
 
 pub struct ClassificationBatcher<B: Backend> {
+    normalizer: Normalizer<B>,
     device: B::Device,
 }
 
@@ -48,7 +49,10 @@ pub struct ClassificationBatch<B: Backend> {
 
 impl<B: Backend> ClassificationBatcher<B> {
     pub fn new(device: B::Device) -> Self {
-        Self { device }
+        Self {
+            normalizer: Normalizer::<B>::new(&device),
+            device,
+        }
     }
 }
 
@@ -89,8 +93,7 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
         let images = Tensor::stack(images, 0);
         let targets = Tensor::cat(targets, 0);
 
-        let normalizer = Normalizer::<B>::new(&self.device);
-        let images = normalizer.normalize(images);
+        let images = self.normalizer.normalize(images);
 
         ClassificationBatch { images, targets }
     }
