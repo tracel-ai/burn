@@ -61,8 +61,8 @@ impl TryFrom<PixelDepth> for f32 {
 pub enum Annotation {
     /// Image-level label.
     Label(usize),
-    /// Object bounding box.
-    BoundingBox(BoundingBox),
+    /// Object bounding boxes.
+    BoundingBoxes(Vec<BoundingBox>),
     /// Segmentation mask.
     SegmentationMask(SegmentationMask),
 }
@@ -106,15 +106,25 @@ struct ImageDatasetItemRaw {
     pub annotation: String,
 }
 
-struct PathToImageClassificationItem {
+struct PathToImageDatasetItem {
     classes: HashMap<String, usize>,
 }
 
-impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageClassificationItem {
+/// Parse the image annotation to the corresponding type.
+fn parse_image_annotation(annotation: &str, classes: &HashMap<String, usize>) -> Annotation {
+    // TODO: add support for other annotations
+    // - [ ] Object bounding boxes
+    // - [ ] Segmentation mask
+    // For now, only image classification labels are supported.
+
+    // Map class string to label id
+    Annotation::Label(*classes.get(annotation).unwrap())
+}
+
+impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
     /// Convert a raw image dataset item (path-like) to a 3D image array with a target label.
     fn map(&self, item: &ImageDatasetItemRaw) -> ImageDatasetItem {
-        // Map class string to label id
-        let label = self.classes.get(&item.annotation).unwrap();
+        let annotation = parse_image_annotation(&item.annotation, &self.classes);
 
         // Load image from disk
         let image = image::open(&item.image_path).unwrap();
@@ -176,20 +186,17 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageClassification
 
         ImageDatasetItem {
             image: img_vec,
-            annotation: Annotation::Label(*label),
+            annotation,
         }
     }
 }
 
-type ClassificationDatasetMapper = MapperDataset<
-    InMemDataset<ImageDatasetItemRaw>,
-    PathToImageClassificationItem,
-    ImageDatasetItemRaw,
->;
+type ImageDatasetMapper =
+    MapperDataset<InMemDataset<ImageDatasetItemRaw>, PathToImageDatasetItem, ImageDatasetItemRaw>;
 
 /// A generic dataset to load classification images from disk.
 pub struct ImageFolderDataset {
-    dataset: ClassificationDatasetMapper,
+    dataset: ImageDatasetMapper,
 }
 
 impl Dataset<ImageDatasetItem> for ImageFolderDataset {
@@ -293,7 +300,7 @@ impl ImageFolderDataset {
             .map(|(idx, cls)| (cls, idx))
             .collect();
 
-        let mapper = PathToImageClassificationItem {
+        let mapper = PathToImageDatasetItem {
             classes: classes_map,
         };
         let dataset = MapperDataset::new(dataset, mapper);
