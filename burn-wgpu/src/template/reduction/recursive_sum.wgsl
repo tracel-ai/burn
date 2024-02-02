@@ -28,7 +28,11 @@ fn main(
 
     if id_local == 0u {
         var sum = {{ elem }}(0);
-        for (var i: u32 = 0u; i < min(WORKGROUP_SIZE, arrayLength(&input) % WORKGROUP_SIZE); i++) {
+        var num_data = min(WORKGROUP_SIZE, arrayLength(&input) % WORKGROUP_SIZE);
+        if (num_data == 0u) {
+            num_data = WORKGROUP_SIZE;
+        }
+        for (var i: u32 = 0u; i < num_data; i++) {
             sum += data[i];
         }
 
