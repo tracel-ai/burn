@@ -9,10 +9,10 @@ import torch.nn as nn
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
+        self.axis = 3
 
-    def forward(self, x, axes):
-        for ax in axes:
-            x = torch.unsqueeze(x, ax)
+    def forward(self, x):
+        x = torch.unsqueeze(x, self.axis)
         return x
 
 
@@ -31,11 +31,9 @@ def main():
     test_input = torch.randn(3, 4, 5, device=device)
     model = Model()
 
-    output = model.forward(test_input, [0, 4])
+    output = model.forward(test_input)
 
-    torch.onnx.export(
-        model, (test_input, [0, 4]), file_name, verbose=False, opset_version=16
-    )
+    torch.onnx.export(model, (test_input), file_name, verbose=False, opset_version=16)
 
     print(f"Finished exporting model to {file_name}")
 
