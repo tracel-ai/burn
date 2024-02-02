@@ -35,7 +35,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         tensor: TchTensor<bool, D>,
         device: &LibTorchDevice,
     ) -> TchTensor<bool, D> {
-        TchTensor::new(tensor.tensor.to((*device).into()))
+        TchOps::to_device(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(

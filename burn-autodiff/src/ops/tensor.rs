@@ -1577,15 +1577,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
             type State = (
-                Option<B::FloatTensorPrimitive<D>>,
-                Option<B::FloatTensorPrimitive<D>>,
+                B::FloatTensorPrimitive<D>,
+                B::FloatTensorPrimitive<D>,
                 BinaryOpsBroadcast<D>,
             );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let (lhs, rhs, broadcast) = ops.state;
-                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
-                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, lhs.clone());
+                // Both lhs and rhs are needed for both lhs and rhs gradients, but we clone them
+                // the number of times required by the parents specification.
+                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, Some(rhs));
+                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, Some(lhs));
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -1621,8 +1623,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        let lhs_tracked = lhs.is_tracked();
-        let rhs_tracked = rhs.is_tracked();
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match PowF
@@ -1630,11 +1630,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
-                (
-                    rhs_tracked.then(|| lhs.primitive.clone()),
-                    (lhs_tracked || rhs_tracked).then(|| rhs.primitive.clone()),
-                    broadcast,
-                ),
+                (lhs.primitive.clone(), rhs.primitive.clone(), broadcast),
                 B::float_powf(lhs.primitive, rhs.primitive),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_powf(lhs.primitive, rhs.primitive)),
