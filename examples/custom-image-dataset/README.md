@@ -39,8 +39,8 @@ To load the training and test dataset splits, it is as simple as providing the r
 folders
 
 ```rust
-let train_ds = ImageFolderDataset::new("/path/to/cifar10/train");
-let test = ImageFolderDataset::new("/path/to/cifar10/test");
+let train_ds = ImageFolderDataset::new_classification("/path/to/cifar10/train");
+let test_ds = ImageFolderDataset::new_classification("/path/to/cifar10/test");
 ```
 
 as is done in [`CIFAR10Loader`](src/dataset.rs) for this example.

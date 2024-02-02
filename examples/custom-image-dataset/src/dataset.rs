@@ -23,14 +23,14 @@ impl CIFAR10Loader for ImageFolderDataset {
     fn cifar10_train() -> Self {
         let root = download();
 
-        Self::new(root.join("train"))
+        Self::new_classification(root.join("train"))
     }
 
     /// Creates a new CIFAR10 test dataset.
     fn cifar10_test() -> Self {
         let root = download();
 
-        Self::new(root.join("test"))
+        Self::new_classification(root.join("test"))
     }
 }
 

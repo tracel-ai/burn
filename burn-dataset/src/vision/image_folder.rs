@@ -211,9 +211,9 @@ impl ImageFolderDataset {
     ///
     /// # Returns
     /// A new dataset instance.
-    pub fn new<P: AsRef<Path>>(root: P) -> Self {
+    pub fn new_classification<P: AsRef<Path>>(root: P) -> Self {
         // New dataset containing any of the supported file types
-        ImageFolderDataset::new_with(root, &SUPPORTED_FILES)
+        ImageFolderDataset::new_classification_with(root, &SUPPORTED_FILES)
     }
 
     /// Create an image classification dataset from the root folder.
@@ -226,7 +226,7 @@ impl ImageFolderDataset {
     ///
     /// # Returns
     /// A new dataset instance.
-    pub fn new_with<P, S>(root: P, extensions: &[S]) -> Self
+    pub fn new_classification_with<P, S>(root: P, extensions: &[S]) -> Self
     where
         P: AsRef<Path>,
         S: AsRef<str>,
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     pub fn image_folder_dataset() {
-        let dataset = ImageFolderDataset::new(DATASET_ROOT);
+        let dataset = ImageFolderDataset::new_classification(DATASET_ROOT);
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     pub fn image_folder_dataset_filtered() {
-        let dataset = ImageFolderDataset::new_with(DATASET_ROOT, &["jpg"]);
+        let dataset = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["jpg"]);
 
         // Filtered dataset has 2 elements
         assert_eq!(dataset.len(), 2);
@@ -338,7 +338,7 @@ mod tests {
     #[should_panic]
     pub fn image_folder_dataset_invalid_extension() {
         // Some invalid file extension
-        let _ = ImageFolderDataset::new_with(DATASET_ROOT, &["ico"]);
+        let _ = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["ico"]);
     }
 
     #[test]
