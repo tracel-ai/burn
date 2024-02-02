@@ -31,10 +31,10 @@ defined by it's
 one of `Bool`, `Float`, or `Int` (those linked in 3). These call the ops for that data type defined
 in the
 [`Backend`](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/backend/base.rs#L52)
-supertrait[^1]. This is the trait that is then implemented by the different `burn-` backends (such
+supertrait[^supertrait]. This is the trait that is then implemented by the different `burn-` backends (such
 as `burn-ndarray` and `burn-wgpu`) which implement the functions if no default is provided.
 
-In this case, we only need to worry about `Bool` Tensors. Ops for `Float` is implemented under
+In this case, we don't need to worry about `Bool` Tensors. Ops for `Float` is implemented under
 [burn-tensor/src/tensor/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/3b7d9feede702cd616c273fa9eba9fbf14f66964/burn-tensor/src/tensor/ops/tensor.rs#L873),
 and for `Int` under
 [`burn-tensor/src/tensor/ops/int_tensor.rs`](https://github.com/tracel-ai/burn/blob/e1d873abe2c2fa0bb316719c4761eaf796291166/burn-tensor/src/tensor/ops/int_tensor.rs#L486).
@@ -48,19 +48,18 @@ Output to an `Int`). Given that the rest of the code will only look at the float
 Additional Test should be added to `burn-tensor` under
 [`burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/burn-tensor/src/tests/ops/powf.rs),
 inserting the module name into `burn-tensor/src/tests/ops/mod.rs`. Then add it to the `testgen_all`
-macro under `burn-tensor/src/tests/mod.rs`. This test is automatically added to the backends so it
-isn't necessary to add them there, save for those that require specific testing such
+macro under `burn-tensor/src/tests/mod.rs`. This macro is called from the `lib.rs` file in each backend, which autogenerates the tests for that specific backend. It isn't necessary to define tests in the backends directly, save for those that require specific testing such
 as`burn-autodiff`
 
 ## Adding the Op to the burn-autodiff
 
 Since this is probably the hardest and the least straightforward, we'll cover this backend
-separately. Burn-autodiff enables other backends to use autodifferentiation[^2]. Ops for float types
+separately. Burn-autodiff enables other backends to use autodifferentiation[^autodiff]. Ops for float types
 are implemented in
 [burn-autodiff/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/e1d873abe2c2fa0bb316719c4761eaf796291166/burn-autodiff/src/ops/tensor.rs#L1523)
 and need to:
 
-1. define a unit struct [^3] that implements a backward (pass) function
+1. define a unit struct [^absolute_units] that implements a backward (pass) function
 2. Within the backward function, as this is an elementwise binary operation it implements the binary
    function (from backward.rs under the same directory), the last 2 arguments are two closures that
    define the left and right partial derivatives.
@@ -72,12 +71,10 @@ of the same type (binary, unary) and change the name of the struct, and ensure t
 sides have the data they need (if they need to have a copy of the opposite sided tensor, clone its
 contents).
 
-Now for step 2. Since a significant number of the people reading this probably haven't touched
-calculus either ever, or since however long ago you took the appropriate course, I'll assume that
-you, the observer, have some prior knowledge of calculus but would benefit from a review of the
-concepts. If this is not the case, I apologize, you can probably skim this section.
+For those that need it, here is a quick refresher on the necessary calculus. If you
+are familiar with how to calculate partial derivatives, you can skip this section.
 
-In the case of pow, since this is a binary operation, the left and right functions are the partial
+Since pow is a binary operation, the left and right functions are the partial
 derivatives with respect to the left and right sided tensors.
 
 Let's define the operator as a function \\(f(x,y)=x^{y}\\) , where \\(x\\) is the left hand tensor
@@ -147,12 +144,9 @@ Here's how powf was added to burn fusion:
 3. added powf to the implementations of `FloatOperationDescription` enum under
    [burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-fusion/src/stream/context.rs#L726)
 
-Adding pow to wgpu was actually pretty easy due to the design. Element-wise tensor ops are just
-vectorized scalar ops, and given that raising a tensor to a scalar power prior to the tensor
-version, I just reused the code for scalar powf.
+Adding pow to wgpu was actually pretty easy due to the design. The way wgpu handles tensor-scalar operations is by transforming both into a sequence of vectorized scalar operations. Since powf already existed in burn-wgpu, It was pretty easy to reuse the existing implementation for the situation where both sides of the operation were tensors.
 
-Here is where code was added
-
+Here is where code was added for powf in burn-wgpu:
 1. to the implementation of
    [`TensorOps` under `burn-wgpu/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/0368409eb3a7beaeda598c0c8ce1dc0c2c8c07cc/burn-wgpu/src/ops/float_ops.rs#L513)
 2. the function being called was added to
@@ -162,14 +156,11 @@ Here is where code was added
 4. A custom function generator was added to
    [`burn-wgpu/src/codegen/function.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/codegen/function.rs#L99)
 
-Much of the logic for powf had already been defined, so not much needed to be added. The reason for
-the custom powf function is generated, rather than directly using the underlying function as is the
-case with other operations, is due to issues with case handling of the wgsl pow function, like 0 to
+We needed to generate some custom wgsl code for powf, primarily due to issues with proper case handling of the wgsl pow function, like 0 to
 the 0 power being 1, and any negative number to an even power being positive. We reused as much as
 the existing logic as possible, such as the operation output description generation in
 [`burn-wgpu/src/fusion/elemwise/builder.rs`](https://github.com/tracel-ai/burn/blob/main/burn-wgpu/src/fusion/elemwise/optimization.rs)
-and then branched at the last point based off the var type of the rhs. I don't know if there are
-other places within `burn-wgpu` where additions would have been necessary otherwise.
+and then branched at the last point based off the var type of the rhs. 
 
 ## Adding the Op to burn-import
 
@@ -203,14 +194,8 @@ And you're done! Congrats, you just fully added a new op to burn, and we are all
 the answer to [are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and it's
 freaking fast!". Buy yourself a coffee
 
-[^1]:
-    for more on supertraits see
-    [the advanced trait section of the rust book](https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#using-supertraits-to-require-one-traits-functionality-within-another-trait)
+[^supertrait]: for more on supertraits see [the advanced trait section of the rust book](https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#using-supertraits-to-require-one-traits-functionality-within-another-trait)
 
-[^2]:
-    wiki link for
-    [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation)
+[^autodiff]: wiki link for [automatic differentiation](https://en.wikipedia.org/wiki/Automatic_differentiation)
 
-[^3]:
-    for more information on unit structs see
-    [the defining and instantiating structs section of the rust book](https://doc.rust-lang.org/book/ch05-01-defining-structs.html#unit-like-structs-without-any-fields)
+[^absolute_units]: for more information on unit structs see [the defining and instantiating structs section of the rust book](https://doc.rust-lang.org/book/ch05-01-defining-structs.html#unit-like-structs-without-any-fields)
