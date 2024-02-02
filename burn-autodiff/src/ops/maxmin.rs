@@ -11,10 +11,10 @@ impl<B: Backend, const D: usize> Backward<B, D, 1> for MaxMinDim {
     fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
         unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
             let (indices, shape) = ops.state;
-            let device = B::device(&grad);
-            let zeros = B::zeros(shape, &device);
+            let device = B::float_device(&grad);
+            let zeros = B::float_zeros(shape, &device);
 
-            B::scatter(D - 1, zeros, indices, grad)
+            B::float_scatter(D - 1, zeros, indices, grad)
         });
     }
 }

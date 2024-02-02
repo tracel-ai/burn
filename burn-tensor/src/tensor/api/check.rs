@@ -833,21 +833,25 @@ impl TensorError {
     }
 }
 
-/// We use a macro for all checks, since the panic message file and line number will match the
-/// function that does the check instead of a the generic error.rs crate private unrelated file
-/// and line number.
-#[macro_export(local_inner_macros)]
-macro_rules! check {
-    ($check:expr) => {
-        if let TensorCheck::Failed(check) = $check {
-            core::panic!("{}", check.format());
-        }
-    };
+/// Module where we defined macros that can be used only in the project.
+pub(crate) mod macros {
+    /// We use a macro for all checks, since the panic message file and line number will match the
+    /// function that does the check instead of a the generic error.rs crate private unrelated file
+    /// and line number.
+    macro_rules! check {
+        ($check:expr) => {
+            if let TensorCheck::Failed(check) = $check {
+                core::panic!("{}", check.format());
+            }
+        };
+    }
+    pub(crate) use check;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use macros::check;
 
     #[test]
     #[should_panic]
