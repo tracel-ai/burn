@@ -6,6 +6,7 @@ use image::{self, ColorType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 const SUPPORTED_FILES: [&str; 4] = ["bmp", "jpg", "jpeg", "png"];
 
@@ -191,6 +192,22 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
     }
 }
 
+/// Error type for [ImageFolderDataset](ImageFolderDataset).
+#[derive(Error, Debug)]
+pub enum ImageLoaderError {
+    /// Unknown error.
+    #[error("unknown: `{0}`")]
+    Unknown(String),
+
+    /// I/O operation error.
+    #[error("I/O error: `{0}`")]
+    IOError(String),
+
+    /// Invalid file error.
+    #[error("Invalid file extension: `{0}`")]
+    InvalidFileExtensionError(String),
+}
+
 type ImageDatasetMapper =
     MapperDataset<InMemDataset<ImageDatasetItemRaw>, PathToImageDatasetItem, ImageDatasetItemRaw>;
 
@@ -218,7 +235,7 @@ impl ImageFolderDataset {
     ///
     /// # Returns
     /// A new dataset instance.
-    pub fn new_classification<P: AsRef<Path>>(root: P) -> Self {
+    pub fn new_classification<P: AsRef<Path>>(root: P) -> Result<Self, ImageLoaderError> {
         // New dataset containing any of the supported file types
         ImageFolderDataset::new_classification_with(root, &SUPPORTED_FILES)
     }
@@ -233,21 +250,26 @@ impl ImageFolderDataset {
     ///
     /// # Returns
     /// A new dataset instance.
-    pub fn new_classification_with<P, S>(root: P, extensions: &[S]) -> Self
+    pub fn new_classification_with<P, S>(
+        root: P,
+        extensions: &[S],
+    ) -> Result<Self, ImageLoaderError>
     where
         P: AsRef<Path>,
         S: AsRef<str>,
     {
-        fn check_extension<S: AsRef<str>>(extension: &S) -> String {
+        /// Check if extension is supported.
+        fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
             let extension = extension.as_ref();
-            assert!(
-                SUPPORTED_FILES.contains(&extension),
-                "Invalid extension '{}'",
-                extension
-            );
-
-            extension.to_string()
+            if !SUPPORTED_FILES.contains(&extension) {
+                Err(ImageLoaderError::InvalidFileExtensionError(
+                    extension.to_string(),
+                ))
+            } else {
+                Ok(extension.to_string())
+            }
         }
+
         // Glob all images with extensions
         let walker = globwalk::GlobWalkerBuilder::from_patterns(
             root.as_ref(),
@@ -256,14 +278,14 @@ impl ImageFolderDataset {
                 extensions
                     .iter()
                     .map(check_extension)
-                    .collect::<Vec<_>>()
+                    .collect::<Result<Vec<_>, _>>()?
                     .join(",")
             )],
         )
         .follow_links(true)
         .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
-        .unwrap()
+        .map_err(|err| ImageLoaderError::Unknown(format!("{err:?}")))?
         .filter_map(Result::ok);
 
         // Get all dataset items
@@ -275,9 +297,15 @@ impl ImageFolderDataset {
             // Label name is represented by the parent folder name
             let label = image_path
                 .parent()
-                .unwrap()
+                .ok_or_else(|| {
+                    ImageLoaderError::IOError("Could not resolve image parent folder".to_string())
+                })?
                 .file_name()
-                .unwrap()
+                .ok_or_else(|| {
+                    ImageLoaderError::IOError(
+                        "Could not resolve image parent folder name".to_string(),
+                    )
+                })?
                 .to_string_lossy()
                 .into_owned();
 
@@ -305,7 +333,7 @@ impl ImageFolderDataset {
         };
         let dataset = MapperDataset::new(dataset, mapper);
 
-        Self { dataset }
+        Ok(Self { dataset })
     }
 }
 
@@ -316,7 +344,7 @@ mod tests {
 
     #[test]
     pub fn image_folder_dataset() {
-        let dataset = ImageFolderDataset::new_classification(DATASET_ROOT);
+        let dataset = ImageFolderDataset::new_classification(DATASET_ROOT).unwrap();
 
         // Dataset has 3 elements
         assert_eq!(dataset.len(), 3);
@@ -330,7 +358,7 @@ mod tests {
 
     #[test]
     pub fn image_folder_dataset_filtered() {
-        let dataset = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["jpg"]);
+        let dataset = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["jpg"]).unwrap();
 
         // Filtered dataset has 2 elements
         assert_eq!(dataset.len(), 2);
@@ -345,7 +373,7 @@ mod tests {
     #[should_panic]
     pub fn image_folder_dataset_invalid_extension() {
         // Some invalid file extension
-        let _ = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["ico"]);
+        let _ = ImageFolderDataset::new_classification_with(DATASET_ROOT, &["ico"]).unwrap();
     }
 
     #[test]
