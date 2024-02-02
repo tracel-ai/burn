@@ -50,7 +50,7 @@ To provide an example, Powf should be implemented for `Int` tensors, but it shou
 Tensor Operation. The LHS should be converted to a float, and the output should be converted back to
 an int. So it's possible to avoid implementing `IntTensorOp` altogether.
 
-additionally there are some operations that should be defined as functions instead of tensor/tensor
+Additionally there are some operations that should be defined as functions instead of tensor/tensor
 op methods. these are:
 
 `module` => These should be exported as functions instead of methods on tensors. The implementation

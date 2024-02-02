@@ -12,7 +12,7 @@ haven't already done it.
 - [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
-2. Open `Command Palette` with Ctrl+Shift+P or F1 and type
+2. Open `Command Palette` with `Ctrl+Shift+P` or `F1` and type
    `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file
    that should be saved as `.vscode/launch.json`.
 

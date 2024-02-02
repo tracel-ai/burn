@@ -51,7 +51,7 @@ parameter tensors.
 
 #### SimpleOptimizer
 
-located in
+Located in
 [`burn-core/src/optim/simple/base.rs`](https://github.com/tracel-ai/burn/blob/b9bd42959b0d3e755a25e383cb5b38beb25559b8/burn-core/src/optim/simple/base.rs#L9)
 
 The `SimpleOptimizer` has two major assumptions:
@@ -87,7 +87,7 @@ When performing an optimization step, the adaptor handles the following:
 5. Updates the state for the current parameter and returns the updated tensor, making sure it's
    properly registered into the autodiff graph if gradients are marked as required.
 
-Note that a parameter can still be updated by another process, as is the case with running metrics
+Note that a parameter can still be updated by another process, as it is the case with running metrics
 used in batch norm. These tensors are still wrapped using the `Param` struct so that they are
 included in the module's state and given a proper parameter ID, but they are not registered in the
 autodiff graph.

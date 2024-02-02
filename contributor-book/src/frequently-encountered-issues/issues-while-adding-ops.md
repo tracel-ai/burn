@@ -28,7 +28,7 @@ error[E0599]: no method named `powi` found for struct `Tensor` in the current sc
 For more information about an error, try `rustc --explain E0308`. error: could not compile `onnx-tests` (test "onnx_tests") due to 3 previous errors
 ```
 
-So if you are getting this, you probably didn't impl your operator for the actual Tensor struct.
+If you are getting this error, you probably didn't implement your operator for the actual Tensor struct.
 This issue was encountered when adding the Pow operator. The operation was added to the
 `FloatTensorOps` and `IntTensorOp` traits, but not for the numeric trait (under
 `burn-tensor/src/tensor/api/numeric.rs`). This, coupled with `powf` existing prior to the PR though
