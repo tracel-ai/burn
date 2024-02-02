@@ -7,6 +7,14 @@ on:
     tags:
       - 'v*.*.*' # Run when a new version is being published
 
+env:
+  #
+  # Dependency versioning
+  #
+
+  # Udeps version
+  UDEPS_VERSION: "0.1.143"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -39,9 +47,8 @@ jobs:
       - name: Install cargo-udeps
         env:
           UDEPS_LINK: https://github.com/est31/cargo-udeps/releases/download
-          UDEPS_VERSION: v0.1.43
         run: |
-          curl -L "$UDEPS_LINK/$UDEPS_VERSION/cargo-udeps-$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
+          curl -L "$UDEPS_LINK/v$UDEPS_VERSION/cargo-udeps-v$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
           tar xz -C $HOME/.cargo/bin --strip-components 2
 
       - name: Run cargo-udeps
