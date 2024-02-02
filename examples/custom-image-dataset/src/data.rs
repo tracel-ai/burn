@@ -1,7 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::vision::{ImageDatasetItem, ImageTarget, PixelDepth},
+        dataset::vision::{Annotation, ImageDatasetItem, PixelDepth},
     },
     tensor::{backend::Backend, Data, Device, ElementConversion, Int, Shape, Tensor},
 };
@@ -66,7 +66,7 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             .iter()
             .map(|item| {
                 // Expect class label (int) as target
-                if let ImageTarget::Label(y) = item.target {
+                if let Annotation::Label(y) = item.annotation {
                     Tensor::<B, 1, Int>::from_data(Data::from([(y as i64).elem()]), &self.device)
                 } else {
                     panic!("Invalid target type")

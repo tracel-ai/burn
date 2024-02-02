@@ -58,7 +58,7 @@ impl TryFrom<PixelDepth> for f32 {
 
 /// Image target for different tasks.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ImageTarget {
+pub enum Annotation {
     /// Image-level label.
     Label(usize),
     /// Object bounding box.
@@ -67,7 +67,7 @@ pub enum ImageTarget {
     SegmentationMask(SegmentationMask),
 }
 
-/// Segmentation mask target.
+/// Segmentation mask annotation.
 /// For semantic segmentation, a mask has a single channel (C = 1).
 /// For instance segmentation, there may be multiple masks per image (C >= 1).
 #[derive(Debug, Clone, PartialEq)]
@@ -76,7 +76,7 @@ pub struct SegmentationMask {
     pub mask: Vec<usize>,
 }
 
-/// Object detection bounding box target.
+/// Object detection bounding box annotation.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct BoundingBox {
     /// Coordinates.
@@ -92,8 +92,8 @@ pub struct ImageDatasetItem {
     /// Image as a vector with a valid image type.
     pub image: Vec<PixelDepth>,
 
-    /// Target for the image.
-    pub target: ImageTarget,
+    /// Annotation for the image.
+    pub annotation: Annotation,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -101,9 +101,9 @@ struct ImageDatasetItemRaw {
     /// Image path.
     pub image_path: PathBuf,
 
-    /// Image target.
-    /// The target string can be a category name or path to annotation file.
-    pub target: String,
+    /// Image annotation.
+    /// The annotation string can be a category name or path to annotation file.
+    pub annotation: String,
 }
 
 struct PathToImageClassificationItem {
@@ -114,7 +114,7 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageClassification
     /// Convert a raw image dataset item (path-like) to a 3D image array with a target label.
     fn map(&self, item: &ImageDatasetItemRaw) -> ImageDatasetItem {
         // Map class string to label id
-        let label = self.classes.get(&item.target).unwrap();
+        let label = self.classes.get(&item.annotation).unwrap();
 
         // Load image from disk
         let image = image::open(&item.image_path).unwrap();
@@ -176,7 +176,7 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageClassification
 
         ImageDatasetItem {
             image: img_vec,
-            target: ImageTarget::Label(*label),
+            annotation: Annotation::Label(*label),
         }
     }
 }
@@ -265,8 +265,8 @@ impl ImageFolderDataset {
         for img in walker {
             let image_path = img.path();
 
-            // Target name is represented by the parent folder name
-            let target = image_path
+            // Label name is represented by the parent folder name
+            let label = image_path
                 .parent()
                 .unwrap()
                 .file_name()
@@ -274,11 +274,11 @@ impl ImageFolderDataset {
                 .to_string_lossy()
                 .into_owned();
 
-            classes.insert(target.clone());
+            classes.insert(label.clone());
 
             items.push(ImageDatasetItemRaw {
                 image_path: image_path.to_path_buf(),
-                target,
+                annotation: label,
             })
         }
 
@@ -316,9 +316,9 @@ mod tests {
         assert_eq!(dataset.get(3), None);
 
         // Dataset elements should be: orange (0), red (1), red (1)
-        assert_eq!(dataset.get(0).unwrap().target, ImageTarget::Label(0));
-        assert_eq!(dataset.get(1).unwrap().target, ImageTarget::Label(1));
-        assert_eq!(dataset.get(2).unwrap().target, ImageTarget::Label(1));
+        assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
+        assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
+        assert_eq!(dataset.get(2).unwrap().annotation, Annotation::Label(1));
     }
 
     #[test]
@@ -330,8 +330,8 @@ mod tests {
         assert_eq!(dataset.get(2), None);
 
         // Dataset elements should be: orange (0), red (1)
-        assert_eq!(dataset.get(0).unwrap().target, ImageTarget::Label(0));
-        assert_eq!(dataset.get(1).unwrap().target, ImageTarget::Label(1));
+        assert_eq!(dataset.get(0).unwrap().annotation, Annotation::Label(0));
+        assert_eq!(dataset.get(1).unwrap().annotation, Annotation::Label(1));
     }
 
     #[test]
