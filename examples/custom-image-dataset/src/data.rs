@@ -1,7 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::vision::{ImageDatasetItem, ImageTarget},
+        dataset::vision::{DataType, ImageDatasetItem, ImageTarget},
     },
     tensor::{backend::Backend, Data, Device, ElementConversion, Int, Shape, Tensor},
 };
@@ -58,7 +58,7 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             // Convert Vec<DataType> to Vec<u8> (we know that CIFAR images are u8)
             item.image
                 .into_iter()
-                .map(|p| p.try_into().unwrap())
+                .map(|p: DataType| -> u8 { p.try_into().unwrap() })
                 .collect::<Vec<u8>>()
         }
 
