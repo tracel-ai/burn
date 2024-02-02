@@ -72,7 +72,7 @@ impl Book {
     const BURN_BOOK_PATH: &'static str = "./burn-book";
 
     const CONTRIBUTOR_BOOK_NAME: &'static str = "Contributor Book";
-    const CONTRIBUTOR_BOOK_PATH: &'static str = "./burn-book";
+    const CONTRIBUTOR_BOOK_PATH: &'static str = "./contributor-book";
 
     pub(crate) fn run(book_arg: &BookKind) -> anyhow::Result<()> {
         let (book, command) = match book_arg {
