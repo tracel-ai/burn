@@ -17,7 +17,7 @@ We have crafted some sections for you:
   operation to Burn.
 
 - [Frequently Encountered Issues](./frequently-encountered-issues): If you are running into an issue
-  that has you stumped, this is the section to check out prior to asking on the discord. It's a
+  that has you stumped, this is the section to check out prior to asking on the [discord](https://discord.gg/uPEBbYYDB6). It's a
   collection of errors encountered by contributors, what caused them, and how they were resolved.
 
 As this book is geared towards contributors and not towards users of Burn, we'll assume you have a

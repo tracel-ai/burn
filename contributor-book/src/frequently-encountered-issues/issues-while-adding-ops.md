@@ -2,7 +2,7 @@
 
 Below are some of the issues that were encountered while adding ops to the project. If you encounter
 an issue while adding an op that isn't listed here, and it's not obvious how to fix it, please add
-it to this list.
+it to this list. Also, reach out on the [discord server](https://discord.gg/uPEBbYYDB6) if you need help.
 
 ## Off by .000001 errors
 
