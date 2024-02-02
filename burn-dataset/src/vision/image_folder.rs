@@ -103,8 +103,8 @@ struct ImageDatasetItemRaw {
     pub image_path: PathBuf,
 
     /// Image annotation.
-    /// The annotation string can be a category name or path to annotation file.
-    pub annotation: String,
+    /// The annotation bytes can represent a string (category name) or path to annotation file.
+    pub annotation: Vec<u8>,
 }
 
 struct PathToImageDatasetItem {
@@ -112,14 +112,15 @@ struct PathToImageDatasetItem {
 }
 
 /// Parse the image annotation to the corresponding type.
-fn parse_image_annotation(annotation: &str, classes: &HashMap<String, usize>) -> Annotation {
+fn parse_image_annotation(annotation: &[u8], classes: &HashMap<String, usize>) -> Annotation {
     // TODO: add support for other annotations
     // - [ ] Object bounding boxes
     // - [ ] Segmentation mask
     // For now, only image classification labels are supported.
 
     // Map class string to label id
-    Annotation::Label(*classes.get(annotation).unwrap())
+    let name = std::str::from_utf8(annotation).unwrap();
+    Annotation::Label(*classes.get(name).unwrap())
 }
 
 impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
@@ -313,7 +314,7 @@ impl ImageFolderDataset {
 
             items.push(ImageDatasetItemRaw {
                 image_path: image_path.to_path_buf(),
-                annotation: label,
+                annotation: label.into_bytes(),
             })
         }
 
@@ -413,5 +414,14 @@ mod tests {
     #[should_panic]
     pub fn pixel_depth_try_into_f32_invalid() {
         let _: f32 = PixelDepth::U16(u16::MAX).try_into().unwrap();
+    }
+
+    #[test]
+    pub fn parse_image_annotation_string() {
+        let classes = HashMap::from([("0".to_string(), 0_usize), ("1".to_string(), 1_usize)]);
+        assert_eq!(
+            parse_image_annotation(&"0".to_string().into_bytes(), &classes),
+            Annotation::Label(0)
+        );
     }
 }
