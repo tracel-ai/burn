@@ -13,7 +13,7 @@ pub(crate) fn run_cargo(command: &str, params: Params, envs: HashMap<&str, Strin
     run_cargo_with_path::<String>(command, params, envs, None, error)
 }
 
-/// Run acargo command with the passed directory as the current directory
+/// Run a cargo command with the passed directory as the current directory
 pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
     command: &str,
     params: Params,
@@ -43,12 +43,12 @@ pub(crate) fn run_cargo_with_path<P: AsRef<Path>>(
 /// Ensure that a cargo crate is installed
 pub(crate) fn ensure_cargo_crate_is_installed(crate_name: &str) {
     if !is_cargo_crate_installed(crate_name) {
-        group!("Cargo: install {} crate_name", crate_name);
+        group!("Cargo: install crate '{}'", crate_name);
         run_cargo(
             "install",
             [crate_name].into(),
             HashMap::new(),
-            &format!("{} should be installed", crate_name),
+            &format!("crate '{}' should be installed", crate_name),
         );
         endgroup!();
     }

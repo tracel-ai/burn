@@ -32,6 +32,10 @@ impl<S: ComputeServer, C: ComputeChannel<S>> Tuner<S, C> {
         }
     }
 
+    pub(crate) fn autotune_fastest(&self, key: &S::AutotuneKey) -> Option<usize> {
+        self.tune_cache.find_fastest(key)
+    }
+
     pub(crate) fn execute_autotune(
         &mut self,
         autotune_operation_set: Box<dyn AutotuneOperationSet<S::AutotuneKey>>,

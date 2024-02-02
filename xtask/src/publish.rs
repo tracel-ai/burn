@@ -8,6 +8,8 @@ use std::env;
 use std::process::{Command, Stdio};
 use std::str;
 
+use crate::{endgroup, group};
+
 // Crates.io API token
 const CRATES_IO_API_TOKEN: &str = "CRATES_IO_API_TOKEN";
 
@@ -93,14 +95,14 @@ fn publish(crate_name: String) {
     cargo_publish(&["-p", &crate_name, "--token", &crates_io_token]);
 }
 
-pub fn run(crate_name: String) -> anyhow::Result<()> {
-    println!("Publishing {crate_name}...\n");
+pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
+    group!("Publishing {}...\n", crate_name);
 
     // Retrieve local version for crate
     let local_version = local_version(&crate_name);
 
     // Print local version for crate
-    println!("{crate_name} local version: {local_version}");
+    info!("{crate_name} local version: {local_version}");
 
     // Retrieve remote version for crate
     //
@@ -108,21 +110,23 @@ pub fn run(crate_name: String) -> anyhow::Result<()> {
     // on crates.io
     if let Some(remote_version) = remote_version(&crate_name) {
         // Print local version for crate
-        println!("{crate_name} remote version: {remote_version}\n");
+        info!("{crate_name} remote version: {remote_version}\n");
 
         // If local and remote versions are equal, do not publish
         if local_version == remote_version {
-            println!("Remote version {remote_version} is up to date, skipping deployment");
+            info!("Remote version {remote_version} is up to date, skipping deployment");
         } else {
             // Publish crate
             publish(crate_name);
         }
     } else {
         // Print crate publishing message
-        println!("\nFirst time publishing {crate_name} on crates.io!\n");
+        info!("\nFirst time publishing {crate_name} on crates.io!\n");
         // Publish crate
         publish(crate_name);
     }
+
+    endgroup!();
 
     Ok(())
 }
