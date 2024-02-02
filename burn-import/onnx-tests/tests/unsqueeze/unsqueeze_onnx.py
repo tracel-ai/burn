@@ -4,7 +4,7 @@ from numpy.typing import ArrayLike, NDArray
 import onnx
 import onnxruntime
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field, InitVar
 
 
 def validate_sequence(arr: List | Tuple) -> None:
@@ -26,7 +26,7 @@ def validate_sequence(arr: List | Tuple) -> None:
 
 
 # extracting because match statement doesn't work nested
-def array_handler(name: str, arr: np.ndarray) -> onnx.TensorProto:
+def get_tensor_type(arr: np.ndarray) -> int:
     """Function for mapping different numpy dtypes to onnx tensor types.
 
     Args:
@@ -40,31 +40,39 @@ def array_handler(name: str, arr: np.ndarray) -> onnx.TensorProto:
     Returns:
         onnx.TensorProto: a tensor proto with the data type and shape of the input array.
     """
+    tensor_type: int
     match arr.dtype:
         case np.float32:
-            return onnx.helper.make_tensor_value_info(
-                name, onnx.TensorProto.FLOAT, arr.shape
-            )
+            tensor_type = onnx.TensorProto.FLOAT
         case np.float64:
-            return onnx.helper.make_tensor_value_info(
-                name, onnx.TensorProto.DOUBLE, arr.shape
-            )
-
+            tensor_type = onnx.TensorProto.DOUBLE
         case np.int32:
-            return onnx.helper.make_tensor_value_info(
-                name, onnx.TensorProto.INT32, arr.shape
-            )
+            tensor_type = onnx.TensorProto.INT32
         case np.int64:
-            return onnx.helper.make_tensor_value_info(
-                name, onnx.TensorProto.INT64, arr.shape
-            )
-
+            tensor_type = onnx.TensorProto.INT64
         case _:
             raise ValueError(f"Unsupported dtype: {arr.dtype}")
 
+    return tensor_type
+
+
+def get_tensor(name: str, arr: np.ndarray, constant: bool = False):
+    tensor_type = get_tensor_type(arr)
+    if constant:
+        return onnx.helper.make_tensor(name, tensor_type, arr.shape, arr.flatten())
+    else:
+        return onnx.helper.make_tensor_value_info(name, tensor_type, arr.shape)
+
+
+def get_scalar(name: str, scalar_type: int, constant: bool = False):
+    if constant:
+        return onnx.helper.make_tensor(name, scalar_type, [])
+    else:
+        return onnx.helper.make_value_info(name, scalar_type)
+
 
 def make_onnx_types(
-    name: str, input_data: ArrayLike
+    name: str, input_data: ArrayLike, is_constant: bool = False
 ) -> onnx.TensorProto | onnx.ValueInfoProto:
     """Function to map inputs to OnnxOpData to onnx types
 
@@ -81,18 +89,27 @@ def make_onnx_types(
     print(type(input_data))
     match input_data:
         case np.ndarray():
-            return array_handler(name, input_data)  # type: ignore
+            return get_tensor(name, input_data, is_constant)  # type: ignore
         case list() | tuple():
             validate_sequence(input_data)  # type: ignore
-            return array_handler(name, np.array(input_data))
+            return get_tensor(name, np.array(input_data), is_constant)  # type: ignore
         case int():
-            return onnx.helper.make_value_info(name, onnx.ValueInfoProto.INT64)
+            return get_scalar(name, onnx.ValueInfoProto.INT64, is_constant)
         case float():
-            return onnx.helper.make_value_info(name, onnx.ValueInfoProto.FLOAT)
+            return get_scalar(name, onnx.ValueInfoProto.FLOAT, is_constant)
         case bool():
-            return onnx.helper.make_value_info(name, onnx.ValueInfoProto.BOOL)
+            return get_scalar(name, onnx.ValueInfoProto.BOOL, is_constant)
         case _:
             raise ValueError(f"Unsupported type: {type(input_data)}")
+
+
+def constant(name: str, val: ArrayLike):
+    return onnx.helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=[name],
+        value=make_onnx_types(name, val, True),
+    )
 
 
 @dataclass
@@ -108,6 +125,28 @@ class OnnxOpData:
     name: str
     inputs: dict[str, ArrayLike]
     output: dict[str, ArrayLike]
+    rhs_constant: InitVar[bool] = field(default=False)
+    __constants: set[str] = field(init=False, default_factory=set)
+    __nodes: List[onnx.NodeProto] = field(init=False, default_factory=list)
+
+    def __post_init__(self, rhs_constant=False):
+        if rhs_constant:
+            self.make_constant(list(self.inputs.keys())[1])
+
+        self.__nodes.append(
+            onnx.helper.make_node(
+                self.name,  # you learn something new every day
+                inputs=self.input_names,
+                outputs=self.output_names,
+            )
+        )
+
+    def make_constant(self, name: str):
+        if name not in self.inputs:
+            raise ValueError(f"{name} not found in inputs")
+        self.__constants.add(name)
+        self.__nodes.append(constant(name, self.inputs[name]))
+        print(self.__nodes)
 
     @property
     def input_names(self) -> List[str]:
@@ -119,7 +158,11 @@ class OnnxOpData:
 
     @property
     def graph_inputs(self) -> List[onnx.TensorProto | onnx.ValueInfoProto]:
-        return [make_onnx_types(k, v) for k, v in self.inputs.items()]
+        return [
+            make_onnx_types(k, v)
+            for k, v in self.inputs.items()
+            if k not in self.__constants
+        ]
 
     @property
     def graph_outputs(self) -> List[onnx.TensorProto | onnx.ValueInfoProto]:
@@ -130,14 +173,9 @@ class OnnxOpData:
 
         Args:
             op_inputs: The input tensor to the node."""
-        node = onnx.helper.make_node(
-            op_name or self.name,  # you learn something new every day
-            inputs=self.input_names,
-            outputs=self.output_names,
-        )
 
         graph: onnx.GraphProto = onnx.helper.make_graph(
-            [node],
+            self.__nodes,
             f"{self.name}_test",
             self.graph_inputs,
             outputs=self.graph_outputs,
@@ -171,7 +209,10 @@ class OnnxOpData:
         """
         sess = onnxruntime.InferenceSession(f"{self.name.lower()}.onnx")
         sess_inputs = [inp.name for inp in sess.get_inputs()]
-        outputs = sess.run(self.output_names, self.inputs)
+        outputs = sess.run(
+            self.output_names,
+            {k: v for k, v in self.inputs.items() if k not in self.__constants},
+        )
         for i, k in enumerate(self.output.keys()):
             assert np.allclose(self.output[k], outputs[i])
         print("Output is the same as expected. Test passed.")
@@ -206,15 +247,19 @@ if __name__ == "__main__":
 
     data = OnnxOpData(
         name="Unsqueeze",
-        inputs={"x": x, "axes": axes},
+        inputs={"x": x, "axes": axes},  # type: ignore
         output={"output": y},
+        rhs_constant=True,
     )
 
-    # graph = data.make_onnx_graph("Unsqueeze")
-    data.model_to_txt()
-    # data.save_model()
-    # result = data.validate_model()
+    print(data.inputs)
+    print(data.output)
+
+    graph = data.make_onnx_graph("Unsqueeze")
+    # data.model_to_txt()
+    data.save_model()
+    result = data.validate_model()
     # print(result[0].shape)
     # print(data.output["output"])
-    # assert np.allclose(result[0], data.output["output"])
+    assert np.allclose(result[0], data.output["output"])
     # print("Test passed")
