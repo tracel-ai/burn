@@ -87,7 +87,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn float_arange(range: std::ops::Range<usize>, device: &Device<Self>) -> IntTensor<Self, 1> {
+    fn float_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
         B::float_arange(range, device)
     }
 

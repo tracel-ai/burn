@@ -162,7 +162,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Remarks
     ///
     /// Uses `arange_step` with a step size of 1 under the hood.
-    fn float_arange(range: Range<usize>, device: &Device<B>) -> IntTensor<B, 1> {
+    fn float_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B, 1> {
         Self::float_arange_step(range, 1, device)
     }
 
@@ -188,10 +188,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given values.
-    fn float_arange_step(range: Range<usize>, step: usize, device: &Device<B>) -> IntTensor<B, 1> {
+    fn float_arange_step(range: Range<i64>, step: usize, device: &Device<B>) -> IntTensor<B, 1> {
         let value = range
             .step_by(step)
-            .map(|i| (i as i64).elem())
+            .map(|i| i.elem())
             .collect::<Vec<IntElem<B>>>();
         let shape = Shape::new([value.len()]);
         let data = Data::new(value, shape);
