@@ -13,11 +13,10 @@ pub(crate) struct RetroForwards {
 
 impl RetroForwards {
     pub fn forward(&self, node_id: &NodeID, inner_states: &mut InnerStates) {
-        println!("a");
         if let State::Lazy {
             node_id,
             n_required: _,
-        } = inner_states.get_ref(node_id)
+        } = inner_states.get_ref(node_id).unwrap()
         {
             self.map.get(&node_id).unwrap().forward(inner_states);
         }
@@ -28,7 +27,7 @@ impl RetroForwards {
     }
 }
 
-// wrapper to keep track of n_requiered. if zero remove and give ownership. in the REAL forward +=1 n_required
+/// wrapper to keep track of n_required. if zero remove and give ownership. in the REAL forward +=1 n_required
 #[derive(new, Default)]
 pub(crate) struct InnerStates {
     map: HashMap<NodeID, State>,
@@ -50,14 +49,14 @@ impl InnerStates {
             let new_stored_state = match state {
                 State::Lazy {
                     node_id,
-                    n_required,
+                    n_required: _,
                 } => State::Lazy {
                     node_id,
                     n_required: remaining_n_required,
                 },
                 State::Computed {
                     state_content: _,
-                    n_required,
+                    n_required: _,
                 } => State::Computed {
                     state_content: Box::new(tensor.clone()),
                     n_required: remaining_n_required,
@@ -71,8 +70,8 @@ impl InnerStates {
     }
 
     /// useful when don't know B, D but need state info
-    pub fn get_ref(&self, node_id: &NodeID) -> &State {
-        self.map.get(node_id).unwrap()
+    pub fn get_ref(&self, node_id: &NodeID) -> Option<&State> {
+        self.map.get(node_id)
     }
 
     pub fn insert(&mut self, node_id: NodeID, state: State) {
@@ -124,23 +123,35 @@ impl Checkpoint {
     }
 
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
-        println!("b");
         match self.inner_states.get_ref(&node_id) {
-            State::Lazy {
-                node_id: _,
-                n_required: _,
-            } => {
-                let mut sorted = Vec::new();
-                for parent_node in self.node_tree.parents(&node_id) {
-                    sorted.extend(self.topological_sort(parent_node));
+            Some(state) => 
+            {
+                match state {
+                State::Lazy {
+                    node_id: _,
+                    n_required: _,
+                } => {
+                    let mut sorted = Vec::new();
+                    for parent_node in self.node_tree.parents(&node_id) {
+                        sorted.extend(self.topological_sort(parent_node));
+                    }
+                    sorted.push(node_id);
+                    sorted
                 }
-                sorted.push(node_id);
-                sorted
-            }
-            State::Computed {
-                state_content: _,
-                n_required: _,
-            } => vec![node_id],
+                State::Computed {
+                    state_content: _,
+                    n_required: _,
+                } => vec![node_id],   
+            }}
+            None => panic!("Node is not in the map. You may have tried to access it more times than n_required allowed.")
         }
     }
 }
+
+// For each get_own, which does the decrement, we should have an increment.
+// Well, at least it should match.
+// n_required should at its peak be the total number of get_own it will get.
+// when does a tensor get a get_own.
+// - at expect_tensor
+// - by the node that use them as input
+// expect_tensor is not a real use case, one is not supposed to get in the middle of the tree
