@@ -33,6 +33,7 @@ include_models!(
     gather,
     gelu,
     global_avr_pool,
+    leaky_relu,
     linear,
     log_softmax,
     log,
@@ -482,6 +483,29 @@ mod tests {
         let output_sum = output.sum().into_scalar();
         let expected_sum = 19.999_802; // from pytorch
         assert!(expected_sum.approx_eq(output_sum, (1.0e-8, 2)));
+    }
+
+    #[test]
+    fn leaky_relu() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+        let model: leaky_relu::Model<Backend> = leaky_relu::Model::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [
+                [0.33669037, 0.0, 0.23446237],
+                [0.23033303, -1.122_856, -0.18632829],
+            ],
+            &device,
+        );
+        let output = model.forward(input);
+        let expected = Data::from([
+            [0.33669037, 0.0, 0.23446237],
+            [0.23033303, -0.01122_856, -0.0018632829],
+        ]);
+
+        assert_eq!(output.to_data(), expected);
     }
 
     #[test]

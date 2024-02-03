@@ -1,5 +1,4 @@
 use crate::tensor::ops::tensor::FloatTensorOps;
-use crate::Shape;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
@@ -24,10 +23,11 @@ pub trait ActivationOps<B: Backend> {
         alpha: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
-        let ones = B::float_ones(Shape { dims: [1; D] }, &B::float_device(&tensor));
-        let alpha_tensor = B::float_full(Shape { dims: [1; D] }, alpha, &B::float_device(&tensor));
-        let mul_mask = B::float_mask_where(ones, mask, alpha_tensor);
-        B::float_mul(tensor, mul_mask)
+        let alpha_tensor = B::float_full(B::float_shape(&tensor), alpha, &B::float_device(&tensor));
+        let scaled_tensor = B::float_mul(tensor.clone(), alpha_tensor);
+        
+        // Update the tensor where the values are `> 0` by `tensor * alpha`.
+        B::float_mask_where(tensor, mask, scaled_tensor)
     }
 
     /// Applies the LeakyReLU activation function backward.
@@ -43,12 +43,14 @@ pub trait ActivationOps<B: Backend> {
     fn leaky_relu_backward<const D: usize>(
         output: FloatTensor<B, D>,
         grad: FloatTensor<B, D>,
-        alpha: FloatTensor<B, D>,
+        alpha: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(output.clone(), 0.elem());
-        let ones = B::float_ones(Shape { dims: [1; D] }, &B::float_device(&output));
-        let mul_mask = B::float_mask_where(ones, mask, alpha);
-        B::float_mul(grad, mul_mask)
+        let alpha_tensor = B::float_full(B::float_shape(&output), alpha, &B::float_device(&output));
+        let scaled_tensor = B::float_mul(output.clone(), alpha_tensor);
+        
+        // Update the tensor where the values are `> 0` by `tensor * alpha`.
+        B::float_mask_where(grad, mask, scaled_tensor)
     }
 
     /// Applies the ReLU activation function.
