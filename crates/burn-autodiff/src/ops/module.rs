@@ -877,6 +877,14 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
+
+    fn interpolate(
+        _x: AutodiffTensor<B, 4>,
+        _output_size: [usize; 2],
+        _options: InterpolateOptions,
+    ) -> AutodiffTensor<B, 4> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug)]
