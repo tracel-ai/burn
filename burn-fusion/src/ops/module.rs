@@ -17,8 +17,8 @@ use burn_tensor::ops::{
         calculate_conv_output_size, calculate_conv_transpose_output_size,
         calculate_pool_output_size,
     },
-    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool1dBackward,
-    MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateOptions,
+    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 macro_rules! make_ops {
@@ -975,5 +975,13 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         );
 
         out
+    }
+
+    fn interpolate(
+        _x: FloatTensor<Self, 4>,
+        _output_size: [usize; 2],
+        _options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        unimplemented!()
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     backend::Backend,
-    ops::{ConvOptions, ConvTransposeOptions, UnfoldOptions},
+    ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions},
     Int, Tensor,
 };
 
@@ -218,4 +218,16 @@ where
     B: Backend,
 {
     Tensor::new(B::adaptive_avg_pool1d(x.primitive, output_size))
+}
+
+/// Applies a [2D interpolation](crate::ops::ModuleOps::interpolate).
+pub fn interpolate<B>(
+    x: Tensor<B, 4>,
+    output_size: [usize; 2],
+    options: InterpolateOptions,
+) -> Tensor<B, 4>
+where
+    B: Backend,
+{
+    Tensor::new(B::interpolate(x.primitive, output_size, options))
 }

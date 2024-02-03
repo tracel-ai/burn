@@ -1,7 +1,7 @@
 use crate::{element::TchElement, LibTorch, TchTensor};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
@@ -280,6 +280,28 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
 
     fn adaptive_avg_pool1d(x: TchTensor<E, 3>, output_size: usize) -> TchTensor<E, 3> {
         let tensor = tch::Tensor::adaptive_avg_pool1d(&x.tensor, output_size as i64);
+
+        TchTensor::new(tensor)
+    }
+
+    fn interpolate(
+        x: TchTensor<E, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> TchTensor<E, 4> {
+        let output_size = output_size.map(|e| e as i64);
+
+        let tensor = match options.mode {
+            InterpolateMode::Nearest => {
+                tch::Tensor::upsample_nearest2d(&x.tensor, output_size, None, None)
+            }
+            InterpolateMode::Bilinear => {
+                tch::Tensor::upsample_bilinear2d(&x.tensor, output_size, true, None, None)
+            }
+            InterpolateMode::Bicubic => {
+                tch::Tensor::upsample_bicubic2d(&x.tensor, output_size, true, None, None)
+            }
+        };
 
         TchTensor::new(tensor)
     }

@@ -17,6 +17,8 @@ pub use unary::*;
 
 /// Convolution kernels
 pub mod conv;
+/// Interpolation kernels
+pub mod interpolate;
 /// Matmul kernels
 pub mod matmul;
 /// Pooling kernels
