@@ -23,8 +23,7 @@ pub trait ActivationOps<B: Backend> {
         alpha: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
-        let alpha_tensor = B::float_full(B::float_shape(&tensor), alpha, &B::float_device(&tensor));
-        let scaled_tensor = B::float_mul(tensor.clone(), alpha_tensor);
+        let scaled_tensor = B::float_mul_scalar(tensor.clone(), alpha.elem());
 
         // Update the tensor where the values are `> 0` by `tensor * alpha`.
         B::float_mask_where(tensor, mask, scaled_tensor)
@@ -46,8 +45,7 @@ pub trait ActivationOps<B: Backend> {
         alpha: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(output.clone(), 0.elem());
-        let alpha_tensor = B::float_full(B::float_shape(&output), alpha, &B::float_device(&output));
-        let scaled_tensor = B::float_mul(output.clone(), alpha_tensor);
+        let scaled_tensor = B::float_mul_scalar(output.clone(), alpha.elem());
 
         // Update the tensor where the values are `> 0` by `tensor * alpha`.
         B::float_mask_where(grad, mask, scaled_tensor)
