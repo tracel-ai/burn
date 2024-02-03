@@ -12,7 +12,10 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 ///
 /// f(x) = alpha * x for x < 0, f(x) = x for x >= 0
 pub fn leaky_relu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
-    Tensor::from_primitive(B::leaky_relu(tensor.primitive, crate::ElementConversion::elem(alpha)))
+    Tensor::from_primitive(B::leaky_relu(
+        tensor.primitive,
+        crate::ElementConversion::elem(alpha),
+    ))
 }
 
 /// Applies the Gaussian Error Linear Units function as described in the paper in [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).

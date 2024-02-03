@@ -1,7 +1,7 @@
 pub(crate) mod gelu;
+pub(crate) mod leaky_relu;
 pub(crate) mod mish;
 pub(crate) mod relu;
-pub(crate) mod leaky_relu;
 pub(crate) mod sigmoid;
 pub(crate) mod silu;
 pub(crate) mod softmax;
