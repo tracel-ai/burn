@@ -109,7 +109,10 @@ impl NumericMetricsState {
         if let Event::Key(key) = event {
             match key.kind {
                 KeyEventKind::Release | KeyEventKind::Repeat => (),
+                #[cfg(target_os = "windows")] // Fix the double toggle on Windows.
                 KeyEventKind::Press => return,
+                #[cfg(not(target_os = "windows"))]
+                KeyEventKind::Press => (),
             }
             match key.code {
                 KeyCode::Right => self.next_metric(),
@@ -161,13 +164,25 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(axes.labels_x.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_x
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(axes.labels_y.iter().map(|s| s.bold()).collect())
+                    .labels(
+                        axes.labels_y
+                            .clone()
+                            .into_iter()
+                            .map(|s| s.bold())
+                            .collect(),
+                    )
                     .bounds(axes.bounds_y),
             )
     }
@@ -206,7 +221,7 @@ impl<'a> NumericMetricView<'a> {
 
                 let titles = titles
                     .iter()
-                    .map(|i| Line::from(vec![i.yellow()]))
+                    .map(|i| Line::from(vec![i.clone().yellow()]))
                     .collect();
 
                 let tabs = Tabs::new(titles)

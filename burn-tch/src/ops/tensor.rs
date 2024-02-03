@@ -102,7 +102,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor: TchTensor<E, D>,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
-        TchTensor::new(tensor.tensor.to((*device).into()))
+        TchOps::to_device(tensor, device)
     }
 
     fn float_empty<const D: usize>(

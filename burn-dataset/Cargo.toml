@@ -12,6 +12,7 @@ version.workspace = true
 
 [features]
 default = ["sqlite-bundled"]
+doc = ["default"]
 
 audio = ["hound"]
 
@@ -20,7 +21,7 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
-vision = ["dep:flate2", "dep:indicatif", "dep:reqwest", "dep:tokio"]
+vision = ["dep:flate2", "dep:globwalk", "dep:image", "dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 # internal
 __sqlite-shared = [
@@ -38,8 +39,9 @@ dirs = { workspace = true }
 fake = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 gix-tempfile = { workspace = true, optional = true }
-hound = { version = "3.5.1", optional = true }
-image = { version = "0.24.7", features = ["png"], optional = true }
+globwalk = { workspace = true, optional = true}
+hound = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
@@ -64,3 +66,6 @@ fake = { workspace = true }
 
 [package.metadata.cargo-udeps.ignore]
 normal = ["strum", "strum_macros"]
+
+[package.metadata.docs.rs]
+features = ["doc"]

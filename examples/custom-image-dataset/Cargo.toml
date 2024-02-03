@@ -1,0 +1,23 @@
+[package]
+authors = ["guillaumelagrange <lagrange.guillaume.1@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "custom-image-dataset"
+description = "Example implementation for loading a custom image dataset from disk"
+publish = false
+version.workspace = true
+
+[features]
+default = ["burn/default"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+
+[dependencies]
+burn = {path = "../../burn", features = ["train", "vision"]}
+
+# File download
+flate2 = { workspace = true }
+indicatif = { workspace = true }
+reqwest = { workspace = true }
+tar = "0.4.40"
+tokio = { workspace = true }
