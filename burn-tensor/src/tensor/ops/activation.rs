@@ -45,7 +45,7 @@ pub trait ActivationOps<B: Backend> {
         alpha: super::FloatElem<B>,
     ) -> FloatTensor<B, D> {
         let mask = B::float_lower_elem(output.clone(), 0.elem());
-        let scaled_tensor = B::float_mul_scalar(output.clone(), alpha.elem());
+        let scaled_tensor = B::float_mul_scalar(grad.clone(), alpha.elem());
 
         // Update the tensor where the values are `> 0` by `tensor * alpha`.
         B::float_mask_where(grad, mask, scaled_tensor)
