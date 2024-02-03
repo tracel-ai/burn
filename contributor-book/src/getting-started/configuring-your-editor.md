@@ -19,9 +19,9 @@ To use the debugger, follow these steps:
 2. Select the configuration from the "run and debug" side panel (it have a infested play button), then select the target from
 3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
 
-<div align="center">
-<img src="./assets/debug-options-vscode.png" width="700px"/>
-<div align="left">
+
+![debug-options](debug-options-vscode.png)
+
 
 If you're creating a new library or binary, keep in mind to repeat the step 1. to always keep a fresh list of targets.
 

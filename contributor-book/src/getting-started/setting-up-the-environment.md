@@ -1,4 +1,4 @@
-# setting up the environment
+# Setting up the environment
 
 There are a couple of tools that need to be installed, and commands to be familiar with, depending
 on what part of the project you plan on contributing to. This section should be up to date with
