@@ -3,7 +3,6 @@ use ndarray::Array4;
 
 use crate::{iter_range_par, run_par, FloatNdArrayElement, NdArrayTensor};
 
-// FIXME: this function gives different result with other backends
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     output_size: [usize; 2],

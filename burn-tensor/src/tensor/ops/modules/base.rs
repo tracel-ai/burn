@@ -117,15 +117,15 @@ pub struct UnfoldOptions {
 /// Algorithm used for upsampling.
 pub enum InterpolateMode {
     /// Nearest-neighbor interpolation.
-    /// https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation
+    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
     Nearest,
 
     /// Bilinear interpolation.
-    /// https://en.wikipedia.org/wiki/Bilinear_interpolation
+    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
     Bilinear,
 
     /// Bicubic interpolation.
-    /// https://en.wikipedia.org/wiki/Bicubic_interpolation
+    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
     Bicubic,
 }
 
