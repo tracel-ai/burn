@@ -117,6 +117,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Linear`    | `nn.Linear`                             |
 | `Embedding` | `nn.Embedding`                          |
 | `Relu`      | `nn.ReLU`                               |
+| `LeakyRelu` | `nn.LeakyReLU`                          |
 
 ### Convolutions
 
