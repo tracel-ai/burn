@@ -49,8 +49,8 @@ pub struct Conv2dConfig {
 /// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
-    weight: Param<Tensor<B, 4>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    pub weight: Param<Tensor<B, 4>>,
+    pub bias: Option<Param<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
     dilation: [usize; 2],

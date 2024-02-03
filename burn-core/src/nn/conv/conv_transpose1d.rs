@@ -51,8 +51,8 @@ pub struct ConvTranspose1dConfig {
 /// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct ConvTranspose1d<B: Backend> {
-    weight: Param<Tensor<B, 3>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    pub weight: Param<Tensor<B, 3>>,
+    pub bias: Option<Param<Tensor<B, 1>>>,
     stride: usize,
     kernel_size: usize,
     dilation: usize,
