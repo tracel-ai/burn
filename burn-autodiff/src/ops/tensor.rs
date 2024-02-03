@@ -87,10 +87,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn float_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
-        B::float_arange(range, device)
-    }
-
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_empty(shape, device))
     }

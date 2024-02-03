@@ -148,24 +148,6 @@ pub trait FloatTensorOps<B: Backend> {
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
-    /// Creates a new tensor with values from the given range.
-    ///
-    /// # Arguments
-    ///
-    /// * `range` - The range of values.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the given values.
-    ///
-    /// # Remarks
-    ///
-    /// Uses `arange_step` with a step size of 1 under the hood.
-    fn float_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B, 1> {
-        Self::float_arange_step(range, 1, device)
-    }
-
     /// Converts float tensor to int tensor.
     ///
     /// # Arguments
@@ -176,27 +158,6 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The int tensor with the same data as the float tensor.
     fn float_into_int<const D: usize>(tensor: FloatTensor<B, D>) -> IntTensor<B, D>;
-
-    /// Creates a new tensor with values from the given range with the given step size.
-    ///
-    /// # Arguments
-    ///
-    /// * `range` - The range of values.
-    /// * `step` - The step size.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the given values.
-    fn float_arange_step(range: Range<i64>, step: usize, device: &Device<B>) -> IntTensor<B, 1> {
-        let value = range
-            .step_by(step)
-            .map(|i| i.elem())
-            .collect::<Vec<IntElem<B>>>();
-        let shape = Shape::new([value.len()]);
-        let data = Data::new(value, shape);
-        B::int_from_data(data, device)
-    }
 
     /// Creates an empty tensor with the given shape.
     ///

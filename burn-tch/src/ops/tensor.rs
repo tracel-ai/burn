@@ -42,17 +42,6 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         }
     }
 
-    fn float_arange(range: Range<i64>, device: &LibTorchDevice) -> TchTensor<i64, 1> {
-        let device: tch::Device = (*device).into();
-        let mut tensor = tch::Tensor::arange(range.end - range.start, (tch::Kind::Int64, device));
-
-        if range.start != 0 {
-            tensor = tensor.f_add_scalar_(range.start).unwrap();
-        }
-
-        TchTensor::new(tensor)
-    }
-
     fn float_repeat<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,

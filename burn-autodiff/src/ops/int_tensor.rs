@@ -333,4 +333,8 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
         B::int_chunk(tensor, chunks, dim)
     }
+
+    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
+        B::int_arange(range, device)
+    }
 }
