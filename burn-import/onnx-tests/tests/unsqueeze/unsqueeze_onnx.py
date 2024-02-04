@@ -136,6 +136,7 @@ class OnnxOpData:
         self.__nodes.append(
             onnx.helper.make_node(
                 self.name,  # you learn something new every day
+                name=self.name,
                 inputs=self.input_names,
                 outputs=self.output_names,
             )
@@ -248,7 +249,7 @@ if __name__ == "__main__":
     data = OnnxOpData(
         name="Unsqueeze",
         inputs={"x": x, "axes": axes},  # type: ignore
-        output={"output": y},
+        output={"y": y},
         rhs_constant=True,
     )
 
@@ -261,5 +262,5 @@ if __name__ == "__main__":
     result = data.validate_model()
     # print(result[0].shape)
     # print(data.output["output"])
-    assert np.allclose(result[0], data.output["output"])
+    assert np.allclose(result[0], data.output["y"])
     # print("Test passed")

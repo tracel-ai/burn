@@ -21,6 +21,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ReshapeNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        println!("ReshapeNode::forward");
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
         let shape_values = &self.shape.to_tokens();

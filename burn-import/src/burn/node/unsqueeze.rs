@@ -26,7 +26,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
         let shape_values = &self.axes.to_tokens();
 
         quote! {
-            let #output = #input.unsqueeze(#shape_values);
+            let #output = #input.unsqueeze_dims(&#shape_values);
         }
     }
 

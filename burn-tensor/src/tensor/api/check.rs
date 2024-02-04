@@ -280,7 +280,8 @@ impl TensorCheck {
     pub(crate) fn unsqueeze_dims<const D: usize>(dim: isize) -> Self {
         let mut check = Self::Ok;
         let output_rank = D as isize;
-        if !(-output_rank..output_rank - 1).contains(&dim) {
+        //contains is right exclusive, so this is to spec
+        if !(-output_rank..output_rank).contains(&dim) {
             check = check.register(
                 "Unsqeeze",
                 TensorError::new(format!(

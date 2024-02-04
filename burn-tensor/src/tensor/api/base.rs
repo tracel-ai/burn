@@ -16,7 +16,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::tensor::shape;
 use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
@@ -315,7 +314,7 @@ where
     ///
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 4,5), &device);
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([3, 4,5]), &device);
     ///     let tensor: Tensor<B, 5> = tensor.unsqueeze_dims(&[0, 4]);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 3, 4, 5, 1] }
@@ -323,19 +322,21 @@ where
     /// ```
     pub fn unsqueeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
         let mut new_dims = [1; D2];
-        let mut dim_indices = dims.to_vec();
+        let dim_indices = dims.to_vec();
         let shape = self.shape();
         //for checking if the dimension is in the acceptable range
         let output_rank = (D + dims.len()) as isize;
 
         //part 1:
-        dim_indices.iter_mut().for_each(|d| {
-            // check if the dimension is in the acceptable range
-            check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
-            if *d < 0 {
-                *d += output_rank;
-            }
-        });
+        let mut dim_indices = dim_indices
+            .into_iter()
+            .map(|d| {
+                // check if the dimension is in the acceptable range
+                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(d));
+                (if d < 0 { d + output_rank } else { d }) as usize
+            })
+            .collect::<Vec<usize>>();
+
         //sort and deduplicate the indices
         dim_indices.sort_unstable();
 
@@ -346,12 +347,18 @@ where
         let mut offset: usize = 0;
         dim_indices.iter().for_each(|d| {
             //check if there is space for at least one dimension
-            if prev_idx < *d as usize {
-                current_right_b = *d as usize - offset;
+            if prev_idx < *d {
+                current_right_b = *d - offset;
                 //copy the chunks of the dims
-                new_dims[prev_idx..*d as usize]
-                    .copy_from_slice(&shape.dims[current_left_b..current_right_b as usize]);
-                prev_idx = *d as usize + 1;
+                if current_right_b < D {
+                    new_dims[prev_idx..*d]
+                        .copy_from_slice(&shape.dims[current_left_b..current_right_b]);
+                } else {
+                    //despite range being right exclusive, setting the right bound to the length
+                    //will result in a runtime panic
+                    new_dims[prev_idx..*d].copy_from_slice(&shape.dims[current_left_b..]);
+                }
+                prev_idx = *d + 1;
                 //offset is equal to the number of extracted elements from the original shape
                 offset += current_right_b - current_left_b;
                 current_left_b = current_right_b;

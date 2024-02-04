@@ -80,6 +80,15 @@ mod tests {
     }
 
     #[test]
+    fn should_unsqueeze_dims_handle_first_last() {
+        let input_tensor =
+            Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
+        let output_tensor = input_tensor.unsqueeze_dims(&[0, 4]);
+        let expected_shape = Shape::new([1, 3, 4, 5, 1]);
+        assert_eq!(output_tensor.shape(), expected_shape);
+    }
+
+    #[test]
     fn should_unsqueeze_dims_work_with_single_dim() {
         //bruh, just call unsqueeze_dim
         let input_tensor =

@@ -149,7 +149,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::MaxPool2d(_) => "max_pool2d",
             Node::Reshape(_) => "reshape",
             Node::Unary(unary) => unary.kind.as_str(),
-            Node::Unsqueeze(_) => "unsqueeze",
+            Node::Unsqueeze(_) => "unsqueeze_dims",
         }
     }
 }

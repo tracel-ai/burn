@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 
 use protobuf::Enum;
@@ -284,6 +285,8 @@ fn mean_update_outputs(node: &mut Node) {
         node.outputs[0].ty = ArgType::Tensor(TensorType { dim: 1, ..tensor });
     }
 }
+
+//fn __unsqueeze_shape
 /// Infers the shape of a Unsqueeze node and replaces the shape of the output tensor.
 ///
 /// # Remarks
@@ -293,63 +296,117 @@ fn unsqueeze_update_outputs(node: &mut Node) {
     if node.inputs.len() != 2 {
         panic!("Unsqueeze: wrong number of inputs");
     }
-    //god I love myself
-    let [input, axes] = &node.inputs[..2];
-
-    match (&input.ty, &axes.ty) {
-        (ArgType::Tensor(tensor), ArgType::Tensor(axes)) => {
-            let mut tensor = tensor.clone();
-            match (tensor.shape, axes.shape) {
-                (Some(tens_shape), Some(axes_shape)) => {
-                    let mut shape = Vec::with_capacity(tens_shape.len() + axes_shape.len());
-                    let mut axes = axes_shape.clone();
-                    for &axis in axes {
-                        let axis = axis as usize;
-                        shape.insert(axis, 1);
-                    }
-                    tensor.shape = Some(shape);
-                }
-                _ => panic!("Unsqueeze: support unsqueezing a tensor without shape"),
-            }
-
-            let mut shape = Vec::with_capacity(tensor.shape.len() + axes.shape.len());
-            tensor.shape.clone().unwrap();
-
-            for &axis in axes {
-                let axis = axis as usize;
-                shape.insert(axis, 1);
-            }
-            
-            tensor.shape = Some(shape);
-            todo!("Not Finished")
-        }
-        (ArgType::Tensor(tensor), ArgType::Scalar(ax)) => {
-            //note this isn't technically to the spec, but pytorch seems to generate this anyway
-
-            tensor.dim += 1;
-
-            // add a new dimension to the input tensor by extending the shape
-            // TODO: support unsqueezing configurations
-
-            if let Some(shape) = &mut tensor.shape {
-                match ax {
-                    ElementType::Int64 => {
-                        shape.insert(, 1);
-                    }
-                    ElementType::Int32 => {
-                        shape.insert(0, 1);
-                    }
+    // get the values while making sure the types are correct
+    let (input, axes) = match (&node.inputs[0].ty, &node.inputs[1].ty) {
+        (ArgType::Tensor(tensor), ArgType::Tensor(_axes)) => (
+            tensor.clone(),
+            match &node.inputs[1].value {
+                Some(value) => match &value {
+                    Data::Int64s(axes) => Some(axes.clone()),
                     _ => panic!("Unsqueeze: invalid input types"),
-                }
-                shape.insert(ax as usize, 1);
-            } else {
-                todo!("Unsqueeze: support unsqueezing a tensor without shape");
-            }
-        }
+                },
+                None => None,
+            },
+        ),
         _ => panic!("Unsqueeze: invalid input types"),
-    }
+    };
+    //need output way up here to avoid borrowing issues
+    let (mut tensor, output_shape) = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => (tensor.clone(), tensor.shape.clone()),
+        _ => panic!("Unsqueeze: invalid output types"),
+    };
+    let mut remap_node = false;
+    println!("{:?}", node);
+    match (&axes, tensor.shape) {
+        //case 1: axes is constant -> output shape is input shape with 1s inserted at the axes
+        (Some(dim_indices), _) => {
+            let output_rank = (dim_indices.len() + input.dim) as i64;
+            let mut dim_indices = dim_indices
+                .to_vec()
+                .iter()
+                .map(|&d| {
+                    if (-output_rank..output_rank).contains(&d) {
+                        (if d < 0 { d + output_rank } else { d }) as usize
+                    } else {
+                        panic!("Unsqueeze: invalid axis")
+                    }
+                })
+                .collect::<Vec<usize>>();
+            dim_indices.sort_unstable();
+            let mut new_dims = vec![1; output_rank as usize];
 
-    node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+            tensor.dim = output_rank as usize;
+            let old_dims = input.shape.unwrap();
+            //Now use this to copy the chunks of the dims
+            let mut prev_idx: usize = 0;
+            let mut current_left_b: usize = 0;
+            let mut current_right_b: usize = 0;
+            let mut offset: usize = 0;
+
+            dim_indices.iter().for_each(|d| {
+                //check if there is space for at least one dimension
+                if prev_idx < *d {
+                    current_right_b = *d - offset;
+
+                    //copy the chunks of the dims
+                    if current_right_b < old_dims.len() {
+                        new_dims[prev_idx..*d]
+                            .copy_from_slice(&old_dims[current_left_b..current_right_b])
+                    } else {
+                        new_dims[prev_idx..*d].copy_from_slice(&old_dims[current_left_b..]);
+                    }
+                    prev_idx = *d + 1;
+                    //offset is equal to the number of extracted elements from the original shape
+                    offset += current_right_b - current_left_b;
+                    current_left_b = current_right_b;
+                } else {
+                    //it's sorted so the only reason this would happen
+                    //is if multiple indices are the same
+                    prev_idx += 1;
+                }
+            });
+            //copy over anything past the index of the last new dimension
+            if current_left_b < old_dims.len() {
+                new_dims[prev_idx..].copy_from_slice(&old_dims[current_left_b..]);
+            }
+            tensor.shape = Some(new_dims);
+            node.outputs[0].ty = ArgType::Tensor(tensor.clone());
+        }
+        //case 2: output shape isn't dynamic -> map the node to a reshape
+        (None, Some(_)) => {
+            remap_node = true;
+        }
+        //case 3: output shape is dynamic -> black magic or unsupported
+        (None, None) => {
+            panic!("Unsqueeze: dynamic output shape is not currently supported");
+        }
+    }
+    //need to move out of the match to avoid borrowing issues
+    if remap_node {
+        let mut new_node = node.clone();
+        new_node.node_type = NodeType::Reshape;
+        let rhs_arg = Argument {
+            name: "shape".to_string(),
+            ty: ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                dim: 1,
+                shape: Some(vec![tensor.dim]),
+            }),
+            value: Some(Data::Int64s(
+                output_shape
+                    .unwrap()
+                    .into_iter()
+                    .map(|ax_len| ax_len as i64)
+                    .collect::<Vec<i64>>(),
+            )),
+
+            passed: false,
+        };
+        new_node.inputs = vec![node.inputs[0].clone(), rhs_arg];
+        new_node.outputs = vec![node.outputs[0].clone()];
+        reshape_update_outputs(&mut new_node);
+        *node = new_node;
+    }
 }
 
 fn same_as_input(node: &mut Node) {

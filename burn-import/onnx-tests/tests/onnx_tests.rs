@@ -52,7 +52,7 @@ include_models!(
     conv_transpose2d,
     pow,
     pow_int,
-    unsqueeze,
+    unsqueeze
 );
 
 #[cfg(test)]
@@ -847,8 +847,10 @@ mod tests {
     fn unsqueeze() {
         let device = Default::default();
         let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
-
-        let input = Tensor::ones(&[3, 4, 5], &device);
-        let output = model.forward(input, [0, 4]);
+        let input_shape = Shape::from([3, 4, 5]);
+        let expected_shape = Shape::from([1, 3, 4, 5, 1]);
+        let input = Tensor::ones(input_shape, &device);
+        let output = model.forward(input);
+        assert_eq!(output.shape(), expected_shape);
     }
 }
