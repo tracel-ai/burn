@@ -13,9 +13,7 @@ use ratatui::{
 use std::{io, time::Duration};
 
 use crate::burnbenchapp::{
-    tui::components::regions::*,
-    Application,
-    BackendValues, BenchmarkValues
+    tui::components::regions::*, Application, BackendValues, BenchmarkValues,
 };
 
 type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
@@ -34,7 +32,7 @@ impl Application for TuiApplication {
     fn init(&mut self) {}
 
     #[allow(unused)]
-    fn run(&mut self, benches: &Vec<BenchmarkValues>, backends: &Vec<BackendValues>) {
+    fn run(&mut self, benches: &[BenchmarkValues], backends: &[BackendValues]) {
         // TODO initialize widgets given passed benches and backends on the command line
         loop {
             self.terminal
@@ -105,6 +103,5 @@ impl TuiApplication {
                 vertical: 10,
             }),
         );
-
     }
 }

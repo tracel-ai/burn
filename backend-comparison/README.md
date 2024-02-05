@@ -79,7 +79,7 @@ This is a work in progress.
 ## Execute benchmarks with cargo
 
 To execute a benchmark against a given backend using only cargo is done with the
-`bench` commmand. In this case the backend is a feature of this crate.
+`bench` command. In this case the backend is a feature of this crate.
 
 ```sh
 > cargo bench --features wgpu-fusion

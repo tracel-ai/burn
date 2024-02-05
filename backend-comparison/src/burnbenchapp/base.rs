@@ -10,7 +10,7 @@ pub(crate) trait Application {
     fn init(&mut self) {}
 
     #[allow(unused)]
-    fn run(&mut self, benches: &Vec<BenchmarkValues>, backends: &Vec<BackendValues>) {}
+    fn run(&mut self, benches: &[BenchmarkValues], backends: &[BackendValues]) {}
 
     fn cleanup(&mut self) {}
 }
