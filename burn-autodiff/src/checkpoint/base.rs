@@ -8,7 +8,7 @@ use super::state::State;
 /// This is different from the normal forward function because it reads and writes from
 /// the [InnerStates] map instead of having a clear function signature.
 pub(crate) trait RetroForward {
-    fn forward(&self, states: &mut InnerStates);
+    fn forward(&self, states: &mut OutputStates);
 }
 
 #[derive(new, Default)]
@@ -20,8 +20,8 @@ pub(crate) struct RetroForwards {
 impl RetroForwards {
     /// Executes the [RetroForward] for a given [NodeID] if the node's
     /// [State] is [State::Recompute], otherwise does nothing.
-    pub fn forward(&mut self, node_id: NodeID, inner_states: &mut InnerStates) {
-        let n_required = match inner_states.get_ref(&node_id).unwrap() {
+    fn execute_retro_forward(&mut self, node_id: NodeID, inner_states: &mut OutputStates) {
+        let n_required = match inner_states.get_state_ref(&node_id).unwrap() {
             State::Recompute { n_required } => n_required.clone(),
             State::Computed {
                 state_content: _,
@@ -37,22 +37,22 @@ impl RetroForwards {
     }
 
     /// Associates a [RetroForward] to its [NodeID]
-    pub fn insert(&mut self, node_id: NodeID, retro_forward: Box<dyn RetroForward>) {
+    pub(crate) fn insert_retro_forward(&mut self, node_id: NodeID, retro_forward: Box<dyn RetroForward>) {
         self.map.insert(node_id, retro_forward);
     }
 }
 
 #[derive(new, Default)]
 /// Links [NodeID]s to their current [State]
-pub(crate) struct InnerStates {
+pub(crate) struct OutputStates {
     map: HashMap<NodeID, State>,
 }
 
-impl InnerStates {
+impl OutputStates {
     /// Returns the output in the [State] of the given [NodeID],
     /// and decrements the number of times this state is required.
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
-    pub fn get_owned_and_downcasted<T>(&mut self, node_id: &NodeID) -> T
+    pub(crate) fn get_state<T>(&mut self, node_id: &NodeID) -> T
     where
         T: Clone + Send + Sync + 'static,
     {
@@ -82,7 +82,7 @@ impl InnerStates {
                 .unwrap()
                 .clone();
 
-            self.insert(node_id.clone(), new_stored_state);
+            self.insert_state(node_id.clone(), new_stored_state);
 
             downcasted
         } else {
@@ -93,12 +93,12 @@ impl InnerStates {
 
     /// Returns a reference to the [State] of the given node
     /// Useful when we need [State] information without needing the underlying tensor
-    pub fn get_ref(&self, node_id: &NodeID) -> Option<&State> {
+    pub(crate) fn get_state_ref(&self, node_id: &NodeID) -> Option<&State> {
         self.map.get(node_id)
     }
 
     /// Associates a [State] to its [NodeID]
-    pub fn insert(&mut self, node_id: NodeID, state: State) {
+    pub(crate) fn insert_state(&mut self, node_id: NodeID, state: State) {
         self.map.insert(node_id, state);
     }
 }
@@ -111,56 +111,59 @@ pub(crate) struct NodeTree {
 
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
-    pub fn parents(&self, node_id: &NodeID) -> Vec<NodeID> {
+    fn parents(&self, node_id: &NodeID) -> Vec<NodeID> {
         self.map.get(node_id).unwrap().parents.clone()
     }
 
     // Associates a [NodeRef] to its [NodeID]
-    pub fn insert(&mut self, node_id: NodeID, node_ref: NodeRef) {
+    pub(crate) fn insert_node(&mut self, node_id: NodeID, node_ref: NodeRef) {
         self.map.insert(node_id, node_ref);
     }
 }
 
 #[derive(new)]
 /// Struct responsible of fetching the output for a node in the autodiff graph during a backward pass
-pub struct Checkpoint {
-    inner_states: InnerStates,
+pub struct Checkpointer {
+    inner_states: OutputStates,
     retro_forwards: RetroForwards,
     node_tree: NodeTree,
 }
 
-impl Checkpoint {
+impl Checkpointer {
     /// Gives the output of the given node, by recursively asking parents to compute themselves
     /// or give their pre-computed tensors.
-    pub fn get<T>(&mut self, node_id: NodeID) -> T
+    pub fn retrieve_output<T>(&mut self, node_id: NodeID) -> T
     where
         T: Clone + Send + Sync + 'static,
     {
         self.topological_sort(node_id.clone())
             .into_iter()
-            .for_each(|node| self.retro_forwards.forward(node, &mut self.inner_states));
+            .for_each(|node| {
+                self.retro_forwards
+                    .execute_retro_forward(node, &mut self.inner_states)
+            });
 
-        self.inner_states.get_owned_and_downcasted::<T>(&node_id)
+        self.inner_states.get_state::<T>(&node_id)
     }
 
     /// Insert a [State::Precomputed] at [NodeID]
-    /// This is the actual checkpointing
-    pub fn insert_pre_computed(&mut self, node_id: NodeID, state: State) {
-        if let State::Computed {
-            state_content: _,
-            n_required: _,
-        } = state
-        {
-            self.inner_states.insert(node_id, state);
-        } else {
-            panic!("Can't insert Recompute state manually")
-        }
+    pub fn checkpoint<T>(&mut self, node_id: NodeID, saved_output: T, n_required: usize)
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        self.inner_states.insert_state(
+            node_id,
+            State::Computed {
+                state_content: Box::new(saved_output),
+                n_required,
+            },
+        );
     }
 
     /// Sorts the ancestors of NodeID in a way such that all parents come before their children
     /// Useful to avoid recursivity later when mutating the states
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
-        match self.inner_states.get_ref(&node_id) {
+        match self.inner_states.get_state_ref(&node_id) {
             Some(state) =>
             {
                 match state {
