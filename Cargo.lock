@@ -540,6 +540,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-vision"
+version = "0.13.0"
+dependencies = [
+ "burn-core",
+ "image",
+]
+
+[[package]]
 name = "burn-wgpu"
 version = "0.13.0"
 dependencies = [
