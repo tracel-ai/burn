@@ -64,9 +64,5 @@ name = "custom_gelu"
 harness = false
 
 [[bin]]
-name = "run-benchmarks"
-path = "src/bin/run-benchmarks.rs"
-
-[[bin]]
 name = "burnbench"
 path = "src/bin/burnbench.rs"

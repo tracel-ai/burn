@@ -7,21 +7,20 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Alignment, Margin},
     prelude::Frame,
-    style::{Modifier, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
     Terminal,
 };
 use std::{io, time::Duration};
 
 use crate::burnbenchapp::{
-    tui::components::{multilist::*, regions::*},
+    tui::components::regions::*,
     Application,
+    BackendValues, BenchmarkValues
 };
-
-use super::components::checkboxes::Checkboxes;
 
 type BenchTerminal = Terminal<CrosstermBackend<io::Stdout>>;
 
+#[derive(PartialEq)]
 enum Message {
     QuitApplication,
 }
@@ -34,18 +33,20 @@ pub struct TuiApplication {
 impl Application for TuiApplication {
     fn init(&mut self) {}
 
+    #[allow(unused)]
     fn run(&mut self, benches: &Vec<BenchmarkValues>, backends: &Vec<BackendValues>) {
+        // TODO initialize widgets given passed benches and backends on the command line
         loop {
             self.terminal
                 .draw(|f| TuiApplication::render_app(&mut self.regions, f))
                 .expect("frame should be drawn");
             let mut current_msg = self.handle_event();
-            while current_msg.is_some() {
-                current_msg = self.update(current_msg.unwrap());
-            }
-
-            if Self::should_quit() {
+            if let Some(Message::QuitApplication) = current_msg {
                 break;
+            } else {
+                while current_msg.is_some() {
+                    current_msg = self.update(current_msg.unwrap());
+                }
             }
         }
     }
@@ -70,7 +71,7 @@ impl TuiApplication {
 
     fn setup_terminal() -> BenchTerminal {
         let mut stdout = io::stdout();
-        enable_raw_mode().expect("enable terminal raw mode");
+        enable_raw_mode().expect("Terminal raw mode should be enabled");
         execute!(stdout, EnterAlternateScreen).expect("Alternate screen should be enabled");
         BenchTerminal::new(CrosstermBackend::new(stdout)).unwrap()
     }
@@ -78,20 +79,25 @@ impl TuiApplication {
     fn handle_event(&mut self) -> Option<Message> {
         if event::poll(Duration::from_millis(250)).unwrap() {
             if let Event::Key(key) = event::read().unwrap() {
-                self.regions.set_focus(key.code);
+                match key.code {
+                    KeyCode::Char('q') => return Some(Message::QuitApplication),
+                    _ => {
+                        self.regions.set_focus(key.code);
+                    }
+                }
             }
         }
         None
     }
 
-    fn update(&mut self, msg: Message) -> Option<Message> {
+    fn update(&mut self, _msg: Message) -> Option<Message> {
         None
     }
 
     fn render_app(regions: &mut Regions<LeftRegion, RightRegion>, frame: &mut Frame) {
         regions.draw(frame);
         let greeting =
-            Paragraph::new("Hello World! \n\n(press 'q' to quit)").alignment(Alignment::Center);
+            Paragraph::new("Work in Progress\n\n(press 'q' to quit)").alignment(Alignment::Center);
         frame.render_widget(
             greeting,
             regions.right.rect(&RightRegion::Top).inner(&Margin {
@@ -100,75 +106,5 @@ impl TuiApplication {
             }),
         );
 
-        // let checkboxes = Checkboxes::new()
-
-        // let mut state = ListState::default();
-        // let items = [
-        //     ListItem::new("wgpu"),
-        //     ListItem::new("wgpu-fusion"),
-        //     ListItem::new("tch"),
-        //     ListItem::new("tch-cpu"),
-        //     ListItem::new("wgpu"),
-        //     ListItem::new("wgpu-fusion"),
-        //     ListItem::new("tch"),
-        //     ListItem::new("tch-cpu"),
-        //     ListItem::new("wgpu"),
-        //     ListItem::new("wgpu-fusion"),
-        //     ListItem::new("tch"),
-        //     ListItem::new("tch-cpu"),
-        //     ListItem::new("wgpu"),
-        //     ListItem::new("wgpu-fusion"),
-        //     ListItem::new("tch"),
-        //     ListItem::new("tch-cpu"),
-        //     ListItem::new("wgpu"),
-        //     ListItem::new("wgpu-fusion"),
-        //     ListItem::new("tch"),
-        //     ListItem::new("tch-cpu"),
-        // ]
-        // .to_vec();
-        // let list = List::new(items)
-        //     .block(Block::default())
-        //     .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
-        //     .highlight_symbol(">>  ");
-        // state.select(1);
-        // state.select(2);
-        // frame.render_stateful_widget(
-        //     list,
-        //     regions.left.rect(&LeftRegion::Top).inner(&Margin {
-        //         horizontal: 5,
-        //         vertical: 1,
-        //     }),
-        //     &mut state,
-        // );
-
-        // let mut state2 = ListState::default();
-        // let items2 = ["Item 1", "Item 2", "Item 3"];
-        // let list2 = List::new(items)
-        //     .block(Block::default())
-        //     .highlight_style(Style::new().add_modifier(Modifier::REVERSED))
-        //     .highlight_symbol(">>")
-        //     .repeat_highlight_symbol(true);
-        // state2.select(Some(1));
-        // frame.render_stateful_widget(
-        //     list2,
-        //     regions.left.rect(&LeftRegion::Middle).inner(&Margin { horizontal: 5, vertical: 1 }),
-        //     &mut state2);
-
-        // let checkbox = CustomCheckBox::new(String::from("My checkbox"));
-        // let mut checkbox_state = CustomCheckBoxState::default();
-        // frame.render_stateful_widget(
-        //     checkbox,
-        //     regions.right.get_rect(RightRegionPosition::Bottom),
-        //     &mut checkbox_state,
-        // );
-    }
-
-    fn should_quit() -> bool {
-        if event::poll(Duration::from_millis(250)).unwrap() {
-            if let Event::Key(key) = event::read().unwrap() {
-                return KeyCode::Char('q') == key.code;
-            }
-        }
-        false
     }
 }

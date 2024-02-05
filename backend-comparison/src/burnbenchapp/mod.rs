@@ -1,6 +1,5 @@
 mod base;
 pub use base::*;
-mod model;
 
 #[cfg(feature = "tui")]
 mod tui;

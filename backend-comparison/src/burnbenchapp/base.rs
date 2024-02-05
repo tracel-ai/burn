@@ -1,7 +1,7 @@
-use std::{io, process::{Command, Stdio}};
 use clap::{Parser, Subcommand, ValueEnum};
+use std::process::{Command, Stdio};
 use strum::IntoEnumIterator;
-use strum_macros::{EnumIter, Display};
+use strum_macros::{Display, EnumIter};
 
 use super::App;
 
@@ -95,23 +95,35 @@ pub fn run() {
             for bench in BenchmarkValues::iter() {
                 println!("- {}", bench);
             }
-        },
+        }
         Commands::Run(run_args) => {
-            let backends = run_args.backends;
-            let benches = run_args.benches;
+            if run_args.backends.is_empty() || run_args.benches.is_empty() {
+                println!("No backends or benchmarks specified. Please select at least one backend and one benchmark.");
+                return;
+            }
+
+            let total_combinations = run_args.backends.len() * run_args.benches.len();
+            println!(
+                "Executing the following benchmark and backend combinations (Total: {}):",
+                total_combinations
+            );
+            for backend in &run_args.backends {
+                for bench in &run_args.benches {
+                    println!("- Benchmark: {}, Backend: {}", bench, backend);
+                }
+            }
+
             let mut app = App::new();
             app.init();
-            app.run(&benches, &backends);
+            println!("Running benchmarks...");
+            app.run(&run_args.benches, &run_args.backends);
             app.cleanup();
+            println!("Cleanup completed. Benchmark run(s) finished.");
         }
     }
 }
 
-pub(crate) fn execute_cargo_bench(benches: &str, backends: &str) -> io::Result<()> {
-    run_cargo("bench", &["--bench", benches, "--features", backends]);
-    Ok(())
-}
-
+#[allow(unused)] // for tui as this is WIP
 pub(crate) fn run_cargo(command: &str, params: &[&str]) {
     let mut cargo = Command::new("cargo")
         .arg(command)
@@ -123,8 +135,6 @@ pub(crate) fn run_cargo(command: &str, params: &[&str]) {
         .expect("cargo process should run");
     let status = cargo.wait().expect("");
     if !status.success() {
-        // Use the exit code associated to a command to terminate the process,
-        // if any exit code had been found, use the default value 1
         std::process::exit(status.code().unwrap_or(1));
     }
 }

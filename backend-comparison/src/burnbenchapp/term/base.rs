@@ -1,4 +1,4 @@
-use crate::burnbenchapp::{Application, execute_cargo_bench, BenchmarkValues, BackendValues};
+use crate::burnbenchapp::{Application, BackendValues, BenchmarkValues, run_cargo};
 
 use derive_new::new;
 
@@ -12,7 +12,7 @@ impl Application for TermApplication {
         // Iterate over each combination of backend and bench
         for backend in backends.iter() {
             for bench in benches.iter() {
-                execute_cargo_bench(&bench.to_string(), &backend.to_string()).unwrap();
+                run_cargo("bench", &["--bench", &bench.to_string(), "--features", &backend.to_string()]);
             }
         }
     }
