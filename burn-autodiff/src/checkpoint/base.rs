@@ -51,12 +51,6 @@ impl InnerStates {
         let remaining_n_required = state.n_required() - 1;
 
         // Downcast the state to whatever it is supposed to be
-        let downcasted = state
-            .get_state_content()
-            .downcast_ref::<T>()
-            .unwrap()
-            .clone();
-
         // If still needed after giving ownership, we copy it back to the hashmap
         if remaining_n_required > 0 {
             let new_stored_state = match state {
@@ -64,18 +58,27 @@ impl InnerStates {
                     n_required: remaining_n_required,
                 },
                 State::Computed {
-                    state_content: _,
+                    state_content,
                     n_required: _,
                 } => State::Computed {
-                    state_content: Box::new(downcasted.clone()),
+                    state_content,
                     n_required: remaining_n_required,
                 },
             };
 
-            self.insert(node_id.clone(), new_stored_state);
-        }
+            let downcasted = new_stored_state
+                .to_state_content()
+                .downcast_ref::<T>()
+                .unwrap()
+                .clone();
 
-        downcasted
+            self.insert(node_id.clone(), new_stored_state);
+
+            downcasted
+        } else {
+            let downcasted = state.into_state_content().downcast::<T>().unwrap();
+            *downcasted
+        }
     }
 
     /// Returns a reference to the [State] of the given node
@@ -124,7 +127,7 @@ impl Checkpoint {
         T: Clone + Send + Sync + 'static,
     {
         self.topological_sort(node_id.clone())
-            .iter()
+            .into_iter()
             .for_each(|node| self.retro_forwards.forward(&node, &mut self.inner_states));
 
         self.inner_states.get_owned_and_downcasted::<T>(&node_id)
@@ -156,7 +159,9 @@ impl Checkpoint {
                 } => {
                     let mut sorted = Vec::new();
                     for parent_node in self.node_tree.parents(&node_id) {
-                        sorted.extend(self.topological_sort(parent_node));
+                        if !sorted.contains(&parent_node){
+                            sorted.extend(self.topological_sort(parent_node));
+                        }
                     }
                     sorted.push(node_id);
                     sorted

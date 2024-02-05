@@ -20,7 +20,20 @@ pub(crate) enum State {
 
 impl State {
     /// Returns a reference to the (not yet) downcasted node output, if checkpointed
-    pub fn get_state_content(&self) -> &StateContent {
+    pub fn to_state_content(&self) -> &StateContent {
+        match self {
+            State::Recompute { n_required: _ } => {
+                unreachable!("A child has been accessed before its parents")
+            }
+            State::Computed {
+                state_content,
+                n_required: _,
+            } => state_content,
+        }
+    }
+
+    /// Returns a (not yet) downcasted node output, if checkpointed
+    pub fn into_state_content(self) -> StateContent {
         match self {
             State::Recompute { n_required: _ } => {
                 unreachable!("A child has been accessed before its parents")
