@@ -1,6 +1,6 @@
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+    ModuleOps,
 };
 
 use crate::{
@@ -117,10 +117,6 @@ where
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Self, 4> {
-        match options.mode {
-            InterpolateMode::Nearest => todo!(),
-            InterpolateMode::Bilinear => kernel::interpolate::bilinear_interpolate(x, output_size),
-            InterpolateMode::Bicubic => todo!(),
-        }
+        kernel::interpolate::interpolate(x, output_size, options)
     }
 }
