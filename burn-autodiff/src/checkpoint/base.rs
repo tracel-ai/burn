@@ -20,9 +20,19 @@ pub(crate) struct RetroForwards {
 impl RetroForwards {
     /// Executes the [RetroForward] for a given [NodeID] if the node's
     /// [State] is [State::Recompute], otherwise does nothing.
-    pub fn forward(&self, node_id: &NodeID, inner_states: &mut InnerStates) {
-        if let State::Recompute { n_required: _ } = inner_states.get_ref(node_id).unwrap() {
-            self.map.get(&node_id).unwrap().forward(inner_states);
+    pub fn forward(&mut self, node_id: NodeID, inner_states: &mut InnerStates) {
+        let n_required = match inner_states.get_ref(&node_id).unwrap() {
+            State::Recompute { n_required } => n_required.clone(),
+            State::Computed {
+                state_content: _,
+                n_required: _,
+            } => return,
+        };
+
+        let retro_forward = self.map.remove(&node_id).unwrap();
+        retro_forward.forward(inner_states);
+        if n_required > 1 {
+            self.map.insert(node_id, retro_forward);
         }
     }
 
@@ -128,7 +138,7 @@ impl Checkpoint {
     {
         self.topological_sort(node_id.clone())
             .into_iter()
-            .for_each(|node| self.retro_forwards.forward(&node, &mut self.inner_states));
+            .for_each(|node| self.retro_forwards.forward(node, &mut self.inner_states));
 
         self.inner_states.get_owned_and_downcasted::<T>(&node_id)
     }
