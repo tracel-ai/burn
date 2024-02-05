@@ -42,7 +42,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"
-candle-core = { version = "0.3.2" }
+candle-core = { version = "0.3.3" }
 clap = "4.4.11"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1.17"
@@ -54,6 +54,7 @@ flate2 = "1.0.28"
 float-cmp = "0.9.0"
 getrandom = { version = "0.2.11", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
+globwalk = "0.9.1"
 hashbrown = "0.14.2"
 indicatif = "0.17.7"
 js-sys = "0.3.65"
@@ -68,7 +69,7 @@ r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
 rayon = "1.8.0"
 regex = "1.10.2"
-reqwest = "0.11.23"
+reqwest = "0.11.24"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
 rusqlite = { version = "0.30.0" }
@@ -139,7 +140,7 @@ serde = { version = "1.0.192", default-features = false, features = [
 serde_json = { version = "1.0.108", default-features = false }
 uuid = { version = "1.5.0", default-features = false }
 
-libc = "0.2.150"
+libc = "0.2.153"
 tch = "0.15.0"
 nvml-wrapper = "0.9.0"
 sysinfo = "0.29.10"
