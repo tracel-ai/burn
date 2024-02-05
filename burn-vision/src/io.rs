@@ -5,7 +5,8 @@ use std::fs::File;
 use std::error::Error;
 
 use burn_core::tensor::{backend::Backend, Tensor, Data, Shape};
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
+use image::ColorType::Rgba8;
 
 #[derive(Debug)]
 pub enum ImageReaderError {
@@ -69,12 +70,12 @@ impl<B: Backend> ImageReader<B> {
                 let r = data.value[(y * width + x) * 3 + 0] as u8;
                 let g = data.value[(y * width + x) * 3 + 1] as u8;
                 let b = data.value[(y * width + x) * 3 + 2] as u8;
-                img.put_pixel(x as u32, y as u32, image::Rgb([r, g, b]));
+                img.put_pixel(x, y, image::Rgba([r, g, b, 255]));
             }
         }
 
-        let file = File::create(path).map_err(ImageReaderError::Io)?;
-        img.write_to(file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
+        let mut file = File::create(path).map_err(ImageReaderError::Io)?;
+        img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
         Ok(())
     }
 
