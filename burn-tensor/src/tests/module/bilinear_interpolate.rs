@@ -1,4 +1,4 @@
-#[burn_tensor_testgen::testgen(module_interpolate)]
+#[burn_tensor_testgen::testgen(module_bilinear_interpolate)]
 mod tests {
     use super::*;
     use burn_tensor::module::interpolate;
@@ -106,7 +106,7 @@ mod tests {
             let output = interpolate(
                 x,
                 [self.height_out, self.width_out],
-                InterpolateOptions::new(InterpolateMode::Bilinear), // for now bilinear only
+                InterpolateOptions::new(InterpolateMode::Bilinear),
             );
 
             y.to_data().assert_approx_eq(&output.into_data(), 3);

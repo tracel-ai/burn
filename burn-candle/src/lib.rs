@@ -40,6 +40,7 @@ mod tests {
     // test module
     burn_tensor::testgen_module_forward!();
     burn_tensor::testgen_module_conv1d!();
+    burn_tensor::testgen_module_nearest_interpolate!();
     // burn_tensor::testgen_module_conv2d!();
     // burn_tensor::testgen_module_conv_transpose1d!();
     // burn_tensor::testgen_module_conv_transpose2d!();

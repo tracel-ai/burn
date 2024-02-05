@@ -3,6 +3,51 @@ use ndarray::Array4;
 
 use crate::{iter_range_par, run_par, FloatNdArrayElement, NdArrayTensor};
 
+pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
+    x: NdArrayTensor<E, 4>,
+    output_size: [usize; 2],
+) -> NdArrayTensor<E, 4> {
+    let x = x.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+
+    let (batch_size, channels, in_height, in_width) = x.dim();
+    let [out_height, out_width] = output_size;
+
+    let y_ratio = (in_height as f64) / (out_height as f64);
+    let x_ratio = (in_width as f64) / (out_width as f64);
+
+    let out_element_num = batch_size * channels * out_height * out_width;
+    let strides = (
+        channels * out_height * out_width,
+        out_height * out_width,
+        out_width,
+    );
+
+    let mut output_data = Vec::with_capacity(out_element_num);
+
+    run_par!(|| {
+        iter_range_par!(0, out_element_num)
+            .map(|id| {
+                let (b, c, h, w) = (
+                    id / strides.0,
+                    id % strides.0 / strides.1,
+                    id % strides.1 / strides.2,
+                    id % strides.2,
+                );
+
+                let y_in = (y_ratio * h as f64).floor() as usize;
+                let x_in = (x_ratio * w as f64).floor() as usize;
+
+                x[(b, c, y_in, x_in)]
+            })
+            .collect_into_vec(&mut output_data);
+    });
+
+    let output =
+        Array4::from_shape_vec((batch_size, channels, out_height, out_width), output_data).unwrap();
+
+    NdArrayTensor::new(output.into_dyn().into_shared())
+}
+
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     output_size: [usize; 2],
