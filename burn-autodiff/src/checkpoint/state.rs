@@ -50,11 +50,11 @@ impl State {
     /// Returns the number of time the state is required
     pub(crate) fn n_required(&self) -> usize {
         match self {
-            State::Recompute { n_required } => n_required.clone(),
+            State::Recompute { n_required } => *n_required,
             State::Computed {
                 state_content: _,
                 n_required,
-            } => n_required.clone(),
+            } => *n_required,
         }
     }
 }

@@ -335,17 +335,17 @@ fn div_recompute_tree<B: Backend>(
     insert_recompute(
         ids[4].clone(),
         &mut inner_states,
-        n_required_changed.get(&ids[4]).map(|x| *x),
+        n_required_changed.get(&ids[4]).copied(),
     );
     insert_recompute(
         ids[5].clone(),
         &mut inner_states,
-        n_required_changed.get(&ids[5]).map(|x| *x),
+        n_required_changed.get(&ids[5]).copied(),
     );
     insert_recompute(
         ids[6].clone(),
         &mut inner_states,
-        n_required_changed.get(&ids[6]).map(|x| *x),
+        n_required_changed.get(&ids[6]).copied(),
     );
 
     Checkpointer::new(inner_states, retro_forwards, nodes)

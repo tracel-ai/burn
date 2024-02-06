@@ -22,7 +22,7 @@ impl RetroForwards {
     /// [State] is [State::Recompute], otherwise does nothing.
     fn execute_retro_forward(&mut self, node_id: NodeID, backward_states: &mut BackwardStates) {
         let n_required = match backward_states.get_state_ref(&node_id).unwrap() {
-            State::Recompute { n_required } => n_required.clone(),
+            State::Recompute { n_required } => *n_required,
             State::Computed {
                 state_content: _,
                 n_required: _,
