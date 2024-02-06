@@ -5,10 +5,10 @@ use crate::{
         AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
         AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
         AvgPool2dDescription, Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription,
-        ConvTranspose2dDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
-        MaxPool1dWithIndicesDescription, MaxPool2dDescription,
-        MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription, Operation,
-        OperationDescription,
+        ConvTranspose2dDescription, InterpolateDescription, MaxPool1dDescription,
+        MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
+        MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
+        MaxPool2dWithIndicesDescription, Operation, OperationDescription,
     },
     Fusion, FusionBackend, HandleContainer,
 };
@@ -978,10 +978,39 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn interpolate(
-        _x: FloatTensor<Self, 4>,
-        _output_size: [usize; 2],
-        _options: InterpolateOptions,
+        x: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
     ) -> FloatTensor<Self, 4> {
-        unimplemented!()
+        make_ops!(
+            InterpolateOps,
+            InterpolateDescription,
+            |args: InterpolateDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let output = B::interpolate(x, args.output_size, args.options.clone().into());
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
+
+        let stream = x.stream;
+        let shape = vec![x.shape[0], x.shape[1], output_size[0], output_size[1]];
+        let out = x.client.tensor_uninitialized(shape);
+
+        let desc = InterpolateDescription {
+            x: x.into_description(),
+            output_size,
+            options: options.into(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::Module(crate::stream::ModuleOperationDescription::Interpolate(
+                desc.clone(),
+            )),
+            InterpolateOps::new(desc),
+        );
+
+        out
     }
 }

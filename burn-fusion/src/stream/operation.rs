@@ -1,6 +1,6 @@
 use crate::FusionBackend;
 use crate::{HandleContainer, TensorDescription};
-use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
+use burn_tensor::ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions};
 use burn_tensor::{Distribution, Element};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
@@ -120,6 +120,8 @@ pub enum ModuleOperationDescription {
     /// Operation corresponding to
     /// [max pool 2d with indices backward](burn_tensor::ops::ModuleOps::max_pool2d_with_indices_backward).
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
+    /// Operation corresponding to [interpolate](burn_tensor::ops::ModuleOps::interpolate).
+    Interpolate(InterpolateDescription),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -898,6 +900,65 @@ pub struct MaxPool2dWithIndicesBackwardDescription {
     pub out: TensorDescription,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum InterpolateModeDescription {
+    Nearest,
+    Bilinear,
+    Bicubic,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct InterpolateOptionsDescription {
+    pub mode: InterpolateModeDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct InterpolateDescription {
+    pub x: TensorDescription,
+    pub output_size: [usize; 2],
+    pub options: InterpolateOptionsDescription,
+    pub out: TensorDescription,
+}
+
+impl From<InterpolateModeDescription> for InterpolateMode {
+    fn from(val: InterpolateModeDescription) -> Self {
+        match val {
+            InterpolateModeDescription::Nearest => Self::Nearest,
+            InterpolateModeDescription::Bilinear => Self::Bilinear,
+            InterpolateModeDescription::Bicubic => Self::Bicubic,
+        }
+    }
+}
+
+impl From<InterpolateOptionsDescription> for InterpolateOptions {
+    fn from(val: InterpolateOptionsDescription) -> Self {
+        Self {
+            mode: val.mode.into(),
+        }
+    }
+}
+
+impl From<InterpolateMode> for InterpolateModeDescription {
+    fn from(val: InterpolateMode) -> Self {
+        match val {
+            InterpolateMode::Nearest => Self::Nearest,
+            InterpolateMode::Bilinear => Self::Bilinear,
+            InterpolateMode::Bicubic => Self::Bicubic,
+        }
+    }
+}
+
+impl From<InterpolateOptions> for InterpolateOptionsDescription {
+    fn from(val: InterpolateOptions) -> Self {
+        Self {
+            mode: val.mode.into(),
+        }
+    }
+}
+
 impl OperationDescription {
     /// Cleanup the remaining tensor handles that have not been used.
     pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
@@ -1184,6 +1245,9 @@ impl ModuleOperationDescription {
             }
             ModuleOperationDescription::MaxPool2dWithIndicesBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
+            }
+            ModuleOperationDescription::Interpolate(desc) => {
+                vec![&desc.x, &desc.out]
             }
         }
     }

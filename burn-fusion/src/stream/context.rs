@@ -5,14 +5,15 @@ use super::{
     BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
     Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
     EmbeddingBackwardDescription, EmbeddingDescription, FloatOperationDescription,
-    GatherOperationDescription, IntOperationDescription, MaskFillOperationDescription,
-    MaskWhereOperationDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
-    MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
-    MaxPool2dWithIndicesDescription, ModuleOperationDescription, NumericOperationDescription,
-    OperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-    ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
-    SelectAssignOperationDescription, SelectOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+    GatherOperationDescription, IntOperationDescription, InterpolateDescription,
+    MaskFillOperationDescription, MaskWhereOperationDescription, MaxPool1dDescription,
+    MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription, MaxPool2dDescription,
+    MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
+    ModuleOperationDescription, NumericOperationDescription, OperationDescription,
+    RandomOperationDescription, ReduceDimWithIndicesDescription, ReshapeDescription,
+    ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+    SelectOperationDescription, SliceOperationDescription, SwapDimsDescription,
+    UnaryOperationDescription,
 };
 use crate::{FusionBackend, HandleContainer, TensorDescription, TensorId};
 use burn_tensor::{Element, ElementConversion};
@@ -312,6 +313,14 @@ impl ModuleOperationDescription {
                         out: desc.out.to_relative(converter),
                     },
                 )
+            }
+            ModuleOperationDescription::Interpolate(desc) => {
+                ModuleOperationDescription::Interpolate(InterpolateDescription {
+                    x: desc.x.to_relative(converter),
+                    output_size: desc.output_size,
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
             }
         }
     }
