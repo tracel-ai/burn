@@ -1,12 +1,26 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, ops::FloatTensor, Data, Tensor};
-use burn_wgpu::{AutoGraphicsApi, Wgpu};
+use burn_tensor::{backend::Backend, Data, Tensor};
+use burn_wgpu::AutoGraphicsApi;
 
 use crate::graph::NodeID;
 
-use super::{base::BackwardStates, base::RetroForward, state::State};
 use std::{collections::HashMap, sync::Arc};
+
+use crate::{
+    checkpoint::{
+        base::{Checkpointer, NodeTree, RetroForwards},
+        state::StateContent,
+    },
+    graph::{Node, NodeRef, Requirement},
+};
+
+use super::{
+    base::RetroForward,
+    state::{BackwardStates, State},
+};
+
+pub type TestBackend = burn_wgpu::Wgpu<AutoGraphicsApi, f32, i32>;
 
 #[derive(new)]
 /// For testing purpose, all operations are float divisions.
@@ -19,7 +33,6 @@ pub struct RetroDiv<B, const D: usize> {
 
 impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
     /// Typical content of a [RetroForward] function.
-    // fn forward(&self, states: &mut OutputStates) {
     fn forward(&self, states: &mut BackwardStates) {
         // Get the needed outputs downcasted to their expected types
         // This will decrement n_required for both parent states
@@ -34,16 +47,6 @@ impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
         states.save(self.self_id.clone(), out);
     }
 }
-
-use crate::{
-    checkpoint::{
-        base::{Checkpointer, NodeTree, RetroForwards},
-        state::StateContent,
-    },
-    graph::{Node, NodeRef, Requirement},
-};
-
-pub type TestBackend = burn_wgpu::Wgpu<AutoGraphicsApi, f32, i32>;
 
 #[test]
 fn div_lazy_tree_has_expected_leaves() {
