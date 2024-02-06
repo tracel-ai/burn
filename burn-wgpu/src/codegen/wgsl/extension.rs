@@ -1,34 +1,33 @@
-use super::Item;
-use serde::{Deserialize, Serialize};
+use super::base::WgslItem;
 use std::fmt::Display;
 
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum Function {
-    PowfScalar(Item),
-    Powf(Item),
-    Erf(Item),
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum WgslExtension {
+    PowfScalar(WgslItem),
+    Powf(WgslItem),
+    Erf(WgslItem),
     #[cfg(target_os = "macos")]
-    SafeTanh(Item),
+    SafeTanh(WgslItem),
 }
 
-impl Display for Function {
+impl Display for WgslExtension {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Function::PowfScalar(elem) => format_powf_scalar(f, elem),
-            Function::Powf(elem) => format_powf(f, elem),
-            Function::Erf(elem) => format_erf(f, elem),
+            WgslExtension::PowfScalar(elem) => format_powf_scalar(f, elem),
+            WgslExtension::Powf(elem) => format_powf(f, elem),
+            WgslExtension::Erf(elem) => format_erf(f, elem),
             #[cfg(target_os = "macos")]
-            Function::SafeTanh(elem) => format_safe_tanh(f, elem),
+            WgslExtension::SafeTanh(elem) => format_safe_tanh(f, elem),
         }
     }
 }
 
-fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &WgslItem) -> core::fmt::Result {
     base_powf_fmt(f, item)?;
 
     match item {
-        Item::Vec4(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec4(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
@@ -40,7 +39,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec3(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec3(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
@@ -51,7 +50,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec2(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec2(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
@@ -61,7 +60,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Scalar(elem) => f.write_fmt(format_args!(
+        WgslItem::Scalar(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     return powf_primitive(lhs, rhs);
@@ -71,7 +70,7 @@ fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     }
 }
 
-fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std::fmt::Error> {
+fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &WgslItem) -> Result<(), std::fmt::Error> {
     let elem = item.elem();
     f.write_fmt(format_args!(
         "
@@ -96,11 +95,11 @@ fn powf_primitive(lhs: {elem}, rhs: {elem}) -> {elem} {{
     Ok(())
 }
 
-fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &WgslItem) -> core::fmt::Result {
     base_powf_fmt(f, item)?;
 
     match item {
-        Item::Vec4(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec4(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
@@ -112,7 +111,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec3(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec3(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
@@ -123,7 +122,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec2(elem) => f.write_fmt(format_args!(
+        WgslItem::Vec2(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
@@ -133,7 +132,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Scalar(elem) => f.write_fmt(format_args!(
+        WgslItem::Scalar(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     return powf_primitive(lhs, rhs);
@@ -143,7 +142,7 @@ fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     }
 }
 
-fn format_erf(f: &mut core::fmt::Formatter<'_>, ty: &Item) -> core::fmt::Result {
+fn format_erf(f: &mut core::fmt::Formatter<'_>, ty: &WgslItem) -> core::fmt::Result {
     let elem = ty.elem();
     f.write_fmt(format_args!(
         "
@@ -176,7 +175,7 @@ fn erf_scalar(x: {elem}) -> {elem} {{
     ))?;
 
     match ty {
-        Item::Vec4(_) => f.write_fmt(format_args!(
+        WgslItem::Vec4(_) => f.write_fmt(format_args!(
             "
 fn erf(x: {ty}) -> {ty} {{
     return vec4(
@@ -188,7 +187,7 @@ fn erf(x: {ty}) -> {ty} {{
 }}
                 "
         )),
-        Item::Vec3(_) => f.write_fmt(format_args!(
+        WgslItem::Vec3(_) => f.write_fmt(format_args!(
             "
 fn erf(x: {ty}) -> {ty} {{
     return vec3(
@@ -199,7 +198,7 @@ fn erf(x: {ty}) -> {ty} {{
 }}
                 "
         )),
-        Item::Vec2(_) => f.write_fmt(format_args!(
+        WgslItem::Vec2(_) => f.write_fmt(format_args!(
             "
 fn erf(x: {ty}) -> {ty} {{
     return vec2(
@@ -209,7 +208,7 @@ fn erf(x: {ty}) -> {ty} {{
 }}
                 "
         )),
-        Item::Scalar(_) => f.write_fmt(format_args!(
+        WgslItem::Scalar(_) => f.write_fmt(format_args!(
             "
 fn erf(x: {ty}) -> {ty} {{
    return erf_scalar(x);
@@ -220,7 +219,7 @@ fn erf(x: {ty}) -> {ty} {{
 }
 
 #[cfg(target_os = "macos")]
-fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+fn format_safe_tanh(f: &mut core::fmt::Formatter<'_>, item: &WgslItem) -> core::fmt::Result {
     let elem = item.elem();
 
     f.write_fmt(format_args!(
@@ -237,7 +236,7 @@ fn safe_tanh_scalar(x: {elem}) -> {elem} {{
     ))?;
 
     match item {
-        Item::Vec4(_) => f.write_fmt(format_args!(
+        WgslItem::Vec4(_) => f.write_fmt(format_args!(
             "
 fn safe_tanh(x: {item}) -> {item} {{
     return vec4(
@@ -249,7 +248,7 @@ fn safe_tanh(x: {item}) -> {item} {{
 }}
 "
         )),
-        Item::Vec3(_) => f.write_fmt(format_args!(
+        WgslItem::Vec3(_) => f.write_fmt(format_args!(
             "
 fn safe_tanh(x: {item}) -> {item} {{
     return vec3(
@@ -260,7 +259,7 @@ fn safe_tanh(x: {item}) -> {item} {{
 }}
 "
         )),
-        Item::Vec2(_) => f.write_fmt(format_args!(
+        WgslItem::Vec2(_) => f.write_fmt(format_args!(
             "
 fn safe_tanh(x: {item}) -> {item} {{
     return vec2(
@@ -270,7 +269,7 @@ fn safe_tanh(x: {item}) -> {item} {{
 }}
 "
         )),
-        Item::Scalar(_) => f.write_fmt(format_args!(
+        WgslItem::Scalar(_) => f.write_fmt(format_args!(
             "
 fn safe_tanh(x: {item}) -> {item} {{
     return safe_tanh_scalar(x);

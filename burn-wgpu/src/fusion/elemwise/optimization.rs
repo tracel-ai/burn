@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     codegen::{
-        Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
+        Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operation, Output,
         ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
     },
     compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
@@ -28,7 +28,7 @@ where
     pub(super) outputs: Vec<(TensorDescription, Elem)>,
     pub(super) locals: Vec<u16>,
     pub(super) scalars: Scalars,
-    pub(super) operators: Vec<Operator>,
+    pub(super) operators: Vec<Operation>,
     pub(super) device: Device<Wgpu<G, F, I>>,
     pub(super) phase: Phase,
 }
@@ -53,7 +53,7 @@ pub struct ElementWiseState {
     inputs: Vec<(TensorDescription, Elem)>,
     outputs: Vec<(TensorDescription, Elem)>,
     scalars: Scalars,
-    operators: Vec<Operator>,
+    operators: Vec<Operation>,
     locals: Vec<u16>,
 }
 
@@ -323,7 +323,7 @@ where
 fn build_kernel_set(
     inputs: &[Input],
     outputs: &[Output],
-    operators: &[Operator],
+    operators: &[Operation],
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet {

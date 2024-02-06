@@ -1,4 +1,4 @@
-use crate::codegen::{Elem, Item, Operator, Variable};
+use crate::codegen::{Elem, Item, Operation, Variable};
 use crate::compute::{compute_client, WgpuComputeClient};
 use crate::{binary, GraphicsApi, WgpuDevice};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
@@ -23,7 +23,7 @@ pub fn full_device<E: WgpuElement + Element, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     unary!(
-        operator: |elem: Elem| Operator::AssignLocal {
+        operator: |elem: Elem| Operation::AssignLocal {
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         },
@@ -81,7 +81,7 @@ pub fn add<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Add {
+        operator: |elem: Elem| Operation::Add {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -96,7 +96,7 @@ pub fn add_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operator::Add {
+        operator: |elem: Elem| Operation::Add {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -111,7 +111,7 @@ pub fn sub<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Sub {
+        operator: |elem: Elem| Operation::Sub {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -126,7 +126,7 @@ pub fn sub_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operator::Sub {
+        operator: |elem: Elem| Operation::Sub {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -141,7 +141,7 @@ pub fn mul<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Mul {
+        operator: |elem: Elem| Operation::Mul {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -156,7 +156,7 @@ pub fn mul_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operator::Mul {
+        operator: |elem: Elem| Operation::Mul {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -171,7 +171,7 @@ pub fn div<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Div {
+        operator: |elem: Elem| Operation::Div {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -186,7 +186,7 @@ pub fn div_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operator::Div {
+        operator: |elem: Elem| Operation::Div {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -201,7 +201,7 @@ pub fn pow<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operator::Powf {
+        operator: |elem: Elem| Operation::Powf {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),

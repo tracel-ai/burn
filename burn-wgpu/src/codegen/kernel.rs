@@ -1,13 +1,12 @@
 use crate::codegen::{
-    Binding, Body, ComputeShader, Elem, Function, Location, Operator, Variable, Visibility,
-    WorkgroupSize,
+    Binding, Body, ComputeShader, Elem, Location, Operation, Variable, Visibility, WorkgroupSize,
 };
 use crate::compute::{StaticKernel, WgpuComputeClient, WgpuHandle};
 use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
 
-use super::Item;
+use super::{Item, ReadGlobalOperation, ReadGlobalWithLayoutOperation, UnaryOperation};
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
@@ -54,11 +53,10 @@ pub enum Vectorization {
 ///   4. [Compilation Phase](CompilationPhase)
 ///     Now that all other phases are completed, we can actually compile the kernel.
 pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
-    operations: Vec<Operator>,
+    operations: Vec<Operation>,
     input_bindings: Vec<Binding>,
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
-    functions: Vec<Function>,
     vectorization: Vectorization,
     mappings_inplace: Vec<InplaceMapping>,
     workgroup_size: WorkgroupSize,
@@ -97,7 +95,6 @@ impl Default for ElemWiseKernelCodegen<InputPhase> {
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
-            functions: Vec::new(),
             vectorization: Vectorization::Scalar,
             mappings_inplace: Vec::new(),
             workgroup_size: WorkgroupSize::default(),
@@ -145,17 +142,20 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
                     match strategy {
                         ReadingStrategy::OutputLayout => {
-                            self.operations.push(Operator::ReadGlobalWithLayout {
-                                variable: Variable::Input(index, item),
-                                tensor_read_pos: index as usize,
-                                tensor_layout_pos: 0, // Will set the right value during the output
-                                                      // phase.
-                            });
+                            self.operations.push(Operation::ReadGlobalWithLayout(
+                                ReadGlobalWithLayoutOperation {
+                                    variable: Variable::Input(index, item),
+                                    tensor_read_pos: index as usize,
+                                    tensor_layout_pos: 0, // Will set the right value during the output
+                                                          // phase.
+                                },
+                            ));
                         }
                         ReadingStrategy::Plain => {
-                            self.operations.push(Operator::ReadGlobal {
-                                variable: Variable::Input(index, item),
-                            });
+                            self.operations
+                                .push(Operation::ReadGlobal(ReadGlobalOperation {
+                                    variable: Variable::Input(index, item),
+                                }));
                         }
                     }
 
@@ -182,7 +182,6 @@ impl ElemWiseKernelCodegen<InputPhase> {
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
-            functions: self.functions,
             vectorization: self.vectorization,
             mappings_inplace: self.mappings_inplace,
             workgroup_size: self.workgroup_size,
@@ -193,43 +192,8 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
 impl ElemWiseKernelCodegen<BodyPhase> {
     /// Register the [operators](Operator) that the kernel must execute in the order provided.
-    pub fn body(mut self, operators: &[Operator]) -> ElemWiseKernelCodegen<OutputPhase> {
-        let mut register_function = |function: Function| {
-            if !self.functions.contains(&function) {
-                self.functions.push(function);
-            }
-        };
-
-        // Since not all operators are native to WGSL, we need to add the custom ones.
+    pub fn body(mut self, operators: &[Operation]) -> ElemWiseKernelCodegen<OutputPhase> {
         for ops in operators.iter() {
-            match ops {
-                Operator::Powf {
-                    lhs: _,
-                    rhs,
-                    out: _,
-                } => match rhs {
-                    Variable::Scalar(_, _) => {
-                        register_function(Function::PowfScalar(
-                            Item::Scalar(Elem::F32).vectorize(self.vectorization),
-                        ));
-                    }
-                    _ => {
-                        register_function(Function::Powf(
-                            Item::Scalar(Elem::F32).vectorize(self.vectorization),
-                        ));
-                    }
-                },
-                Operator::Erf { input: _, out: _ } => {
-                    register_function(Function::Erf(
-                        Item::Scalar(Elem::F32).vectorize(self.vectorization),
-                    ));
-                }
-                #[cfg(target_os = "macos")]
-                Operator::Tanh { input: _, out: _ } => register_function(Function::SafeTanh(
-                    Item::Scalar(Elem::F32).vectorize(self.vectorization),
-                )),
-                _ => {}
-            }
             self.operations.push(ops.vectorize(self.vectorization));
         }
 
@@ -239,7 +203,6 @@ impl ElemWiseKernelCodegen<BodyPhase> {
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
             vectorization: self.vectorization,
-            functions: self.functions,
             mappings_inplace: self.mappings_inplace,
             workgroup_size: self.workgroup_size,
             _phase: PhantomData,
@@ -295,10 +258,11 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         location: Location::Storage,
                         size: None,
                     });
-                    self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, item),
-                        out: Variable::Output(index, elem_adapted),
-                    });
+                    self.operations
+                        .push(Operation::AssignGlobal(UnaryOperation {
+                            input: Variable::Local(*local, item),
+                            out: Variable::Output(index, elem_adapted),
+                        }));
                     index += 1;
 
                     if index == 1 {
@@ -309,10 +273,11 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                 Output::Input { item, input, local } => {
                     let item = item.vectorize(self.vectorization);
 
-                    self.operations.push(Operator::AssignGlobal {
-                        input: Variable::Local(*local, item),
-                        out: Variable::Input(*input, bool_item(item)),
-                    });
+                    self.operations
+                        .push(Operation::AssignGlobal(UnaryOperation {
+                            input: Variable::Local(*local, item),
+                            out: Variable::Input(*input, bool_item(item)),
+                        }));
                     position_out = *input as usize; // Input number when we use inplace operation.
                 }
             }
@@ -320,11 +285,11 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 
         // We set the output number that will be used for the stride definition.
         for i in 0..self.input_bindings.len() {
-            if let Some(Operator::ReadGlobalWithLayout {
+            if let Some(Operation::ReadGlobalWithLayout(ReadGlobalWithLayoutOperation {
                 variable: _,
                 tensor_read_pos: _,
                 tensor_layout_pos,
-            }) = self.operations.get_mut(i)
+            })) = self.operations.get_mut(i)
             {
                 {
                     *tensor_layout_pos = position_out;
@@ -337,7 +302,6 @@ impl ElemWiseKernelCodegen<OutputPhase> {
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
-            functions: self.functions,
             vectorization: self.vectorization,
             mappings_inplace: self.mappings_inplace,
             workgroup_size: self.workgroup_size,
@@ -381,7 +345,6 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
             body: Body::new(self.operations),
             num_workgroups: true,
             global_invocation_id: true,
-            functions: self.functions,
         }
     }
 }

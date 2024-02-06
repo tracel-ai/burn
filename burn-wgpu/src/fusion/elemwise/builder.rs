@@ -1,6 +1,6 @@
 use super::{optimization::ElementWise, CompilationPhase, Scalars};
 use crate::{
-    codegen::{Elem, Item, Operator, Variable},
+    codegen::{Elem, Item, Operation, Variable},
     element::WgpuElement,
     fusion::WgpuOptimization,
     FloatElement, GraphicsApi, IntElement, Wgpu,
@@ -30,7 +30,7 @@ where
     pub(crate) scalars_i32: usize,
     pub(crate) scalars_u32: usize,
     pub(crate) booleans: usize,
-    pub(crate) operators: Vec<Operator>,
+    pub(crate) operators: Vec<Operation>,
     pub(crate) current_output_shape: Vec<usize>,
     pub(crate) status: OptimizationStatus,
     pub(crate) device: Device<Wgpu<G, F, I>>,
@@ -196,75 +196,75 @@ where
         // For all operators, mark their local tensor id in the proper set.
         for ops in self.operators.iter() {
             match ops {
-                Operator::AssignGlobal { input: _, out: _ } => {
+                Operation::AssignGlobal { input: _, out: _ } => {
                     // Nothing to do here.
                 }
-                Operator::AssignLocal { input: _, out } => {
+                Operation::AssignLocal { input: _, out } => {
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::ReadGlobalWithLayout {
+                Operation::ReadGlobalWithLayout {
                     variable: _,
                     tensor_read_pos: _,
                     tensor_layout_pos: _,
                 } => {
                     // Nothing to do here.
                 }
-                Operator::ReadGlobal { variable: _ } => {
+                Operation::ReadGlobal { variable: _ } => {
                     // Nothing to do here.
                 }
-                Operator::Add { lhs, rhs, out } => {
+                Operation::Add { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Sub { lhs, rhs, out } => {
+                Operation::Sub { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Mul { lhs, rhs, out } => {
+                Operation::Mul { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Div { lhs, rhs, out } => {
+                Operation::Div { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Exp { input, out } => {
+                Operation::Exp { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Abs { input, out } => {
+                Operation::Abs { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Erf { input, out } => {
+                Operation::Erf { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Log { input, out } => {
+                Operation::Log { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Log1p { input, out } => {
+                Operation::Log1p { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Cos { input, out } => {
+                Operation::Cos { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Sin { input, out } => {
+                Operation::Sin { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Tanh { input, out } => {
+                Operation::Tanh { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Clamp {
+                Operation::Clamp {
                     input,
                     min_value: _,
                     max_value: _,
@@ -273,41 +273,41 @@ where
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Powf { lhs, rhs, out } => {
+                Operation::Powf { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Recip { input, out } => {
+                Operation::Recip { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Lower { lhs, rhs, out } => {
+                Operation::Lower { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Greater { lhs, rhs, out } => {
+                Operation::Greater { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::LowerEqual { lhs, rhs, out } => {
+                Operation::LowerEqual { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::GreaterEqual { lhs, rhs, out } => {
+                Operation::GreaterEqual { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Equal { lhs, rhs, out } => {
+                Operation::Equal { lhs, rhs, out } => {
                     mark(lhs, &mut local_tensor_ids_input);
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::ConditionalAssign {
+                Operation::ConditionalAssign {
                     cond,
                     lhs,
                     rhs,
@@ -318,7 +318,7 @@ where
                     mark(rhs, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
-                Operator::Sqrt { input, out } => {
+                Operation::Sqrt { input, out } => {
                     mark(input, &mut local_tensor_ids_input);
                     mark(out, &mut local_tensor_ids_output);
                 }
@@ -402,7 +402,7 @@ where
             BaseOperationDescription::Equal(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Equal { lhs, rhs, out },
             ),
             _ => false,
         }
@@ -412,47 +412,47 @@ where
         match ops {
             FloatOperationDescription::Exp(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Exp { input, out }
+                    Operation::Exp { input, out }
                 })
             }
             FloatOperationDescription::Log(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Log { input, out }
+                    Operation::Log { input, out }
                 })
             }
             FloatOperationDescription::Log1p(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Log1p { input, out }
+                    Operation::Log1p { input, out }
                 })
             }
             FloatOperationDescription::Cos(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Cos { input, out }
+                    Operation::Cos { input, out }
                 })
             }
             FloatOperationDescription::Sin(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Sin { input, out }
+                    Operation::Sin { input, out }
                 })
             }
             FloatOperationDescription::PowfScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Powf { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Powf { lhs, rhs, out },
             ),
             FloatOperationDescription::Tanh(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Tanh { input, out }
+                    Operation::Tanh { input, out }
                 })
             }
             FloatOperationDescription::Erf(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Erf { input, out }
+                    Operation::Erf { input, out }
                 })
             }
             FloatOperationDescription::Recip(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Recip { input, out }
+                    Operation::Recip { input, out }
                 })
             }
             _ => false,
@@ -467,92 +467,92 @@ where
             NumericOperationDescription::Add(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Add { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Add { lhs, rhs, out },
             ),
             NumericOperationDescription::AddScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Add { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Add { lhs, rhs, out },
             ),
             NumericOperationDescription::Sub(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Sub { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Sub { lhs, rhs, out },
             ),
             NumericOperationDescription::SubScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Sub { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Sub { lhs, rhs, out },
             ),
             NumericOperationDescription::Mul(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Mul { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Mul { lhs, rhs, out },
             ),
             NumericOperationDescription::MulScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Mul { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Mul { lhs, rhs, out },
             ),
             NumericOperationDescription::Div(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Div { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Div { lhs, rhs, out },
             ),
             NumericOperationDescription::DivScalar(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), E::elem_type()),
-                |lhs, rhs, out| Operator::Div { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Div { lhs, rhs, out },
             ),
             NumericOperationDescription::Abs(desc) => {
                 self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
-                    Operator::Abs { input, out }
+                    Operation::Abs { input, out }
                 })
             }
             NumericOperationDescription::Lower(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Lower { lhs, rhs, out },
             ),
             NumericOperationDescription::LowerElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Lower { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Lower { lhs, rhs, out },
             ),
             NumericOperationDescription::Greater(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Greater { lhs, rhs, out },
             ),
             NumericOperationDescription::GreaterElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Greater { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Greater { lhs, rhs, out },
             ),
             NumericOperationDescription::LowerEqual(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
+                |lhs, rhs, out| Operation::LowerEqual { lhs, rhs, out },
             ),
             NumericOperationDescription::LowerEqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::LowerEqual { lhs, rhs, out },
+                |lhs, rhs, out| Operation::LowerEqual { lhs, rhs, out },
             ),
             NumericOperationDescription::GreaterEqual(desc) => self.register_binary_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
+                |lhs, rhs, out| Operation::GreaterEqual { lhs, rhs, out },
             ),
             NumericOperationDescription::GreaterEqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::GreaterEqual { lhs, rhs, out },
+                |lhs, rhs, out| Operation::GreaterEqual { lhs, rhs, out },
             ),
             NumericOperationDescription::EqualElem(desc) => self.register_scalar_ops(
                 desc,
                 (E::elem_type(), E::elem_type(), Elem::Bool),
-                |lhs, rhs, out| Operator::Equal { lhs, rhs, out },
+                |lhs, rhs, out| Operation::Equal { lhs, rhs, out },
             ),
             NumericOperationDescription::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
@@ -564,7 +564,7 @@ where
                 let rhs = self.input_to_var(&desc.tensor, E::elem_type());
                 let out = self.output_to_var(&desc.out, E::elem_type());
 
-                let ops = Operator::ConditionalAssign {
+                let ops = Operation::ConditionalAssign {
                     cond,
                     lhs,
                     rhs,
@@ -584,7 +584,7 @@ where
                 let rhs = self.input_to_var(&desc.tensor, E::elem_type());
                 let out = self.output_to_var(&desc.out, E::elem_type());
 
-                self.operators.push(Operator::ConditionalAssign {
+                self.operators.push(Operation::ConditionalAssign {
                     cond,
                     lhs,
                     rhs,
@@ -601,7 +601,7 @@ where
                 let input = Variable::Constant(1.0, Item::Scalar(E::elem_type()));
                 let out = self.output_to_var(desc, E::elem_type());
 
-                self.operators.push(Operator::AssignLocal { input, out });
+                self.operators.push(Operation::AssignLocal { input, out });
 
                 true
             }
@@ -613,7 +613,7 @@ where
                 let input = Variable::Constant(0.0, Item::Scalar(E::elem_type()));
                 let out = self.output_to_var(desc, E::elem_type());
 
-                self.operators.push(Operator::AssignLocal { input, out });
+                self.operators.push(Operation::AssignLocal { input, out });
 
                 true
             }
@@ -625,7 +625,7 @@ where
                 let input = self.scalar_to_var(elem, E::elem_type());
                 let out = self.output_to_var(desc, E::elem_type());
 
-                self.operators.push(Operator::AssignLocal { input, out });
+                self.operators.push(Operation::AssignLocal { input, out });
 
                 true
             }
@@ -640,7 +640,7 @@ where
         func: Func,
     ) -> bool
     where
-        Func: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable, Variable) -> Operation,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -662,7 +662,7 @@ where
         func: Func,
     ) -> bool
     where
-        Func: Fn(Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable) -> Operation,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -683,7 +683,7 @@ where
         func: Func,
     ) -> bool
     where
-        Func: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Variable, Variable, Variable) -> Operation,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;

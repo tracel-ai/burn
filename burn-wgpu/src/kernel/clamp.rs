@@ -1,13 +1,13 @@
 use super::unary;
 use crate::{
-    codegen::{Item, Operator, Variable},
+    codegen::{Item, Operation, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,
 };
 
 unary!(
-    |elem| Operator::Clamp {
+    |elem| Operation::Clamp {
         input: Variable::Input(0, Item::Scalar(elem)),
         min_value: Variable::Scalar(0, Item::Scalar(elem)),
         max_value: Variable::Scalar(1, Item::Scalar(elem)),

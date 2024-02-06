@@ -202,11 +202,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::{Item, Operator, Variable};
+    use crate::codegen::{Item, Operation, Variable};
     use crate::tests::{ReferenceBackend, TestBackend};
     use burn_tensor::{Distribution, Tensor};
 
-    unary!(|elem| Operator::Tanh {
+    unary!(|elem| Operation::Tanh {
         input: Variable::Input(0, Item::Scalar(elem)),
         out: Variable::Local(0, Item::Scalar(elem)),
     });
