@@ -177,7 +177,6 @@ pub fn remap<T>(
         for (pattern, replacement) in &key_remap {
             if pattern.is_match(&name) {
                 new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
-                break;
             }
         }
         remapped.insert(new_name, tensor);
