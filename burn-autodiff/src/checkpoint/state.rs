@@ -59,9 +59,9 @@ impl State {
     }
 }
 
-#[derive(new, Default)]
+#[derive(new, Default, Debug)]
 /// Links [NodeID]s to their current [State]
-pub(crate) struct BackwardStates {
+pub struct BackwardStates {
     map: HashMap<NodeID, State>,
 }
 
@@ -131,5 +131,11 @@ impl BackwardStates {
                 n_required,
             },
         );
+    }
+
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self {
+            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
+        }
     }
 }

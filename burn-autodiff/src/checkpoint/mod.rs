@@ -1,4 +1,4 @@
-mod base;
-mod state;
+pub(crate) mod base;
+pub(crate) mod state;
 #[cfg(test)]
 mod tests;

@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 
 use crate::graph::{NodeID, NodeRef};
+use std::fmt::Debug;
 
 use super::state::{BackwardStates, State};
 
 /// Definition of the forward function of a node, called during retropropagation only.
 /// This is different from the normal forward function because it reads and writes from
 /// the [InnerStates] map instead of having a clear function signature.
-pub(crate) trait RetroForward {
-    fn forward(&self, states: &mut BackwardStates);
+pub trait RetroForward: Debug + Send + Sync + 'static {
+    fn forward(&self, states: &mut BackwardStates, out_node: NodeID);
 }
 
-#[derive(new, Default)]
+#[derive(new, Default, Debug)]
 /// Links [NodeID]s to their corresponding [RetroForward]
 pub(crate) struct RetroForwards {
     map: HashMap<NodeID, Box<dyn RetroForward>>,
@@ -30,7 +31,7 @@ impl RetroForwards {
         };
 
         let retro_forward = self.map.remove(&node_id).unwrap();
-        retro_forward.forward(backward_states);
+        retro_forward.forward(backward_states, node_id.clone());
         if n_required > 1 {
             self.map.insert(node_id, retro_forward);
         }
@@ -44,9 +45,15 @@ impl RetroForwards {
     ) {
         self.map.insert(node_id, retro_forward);
     }
+
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self {
+            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
+        }
+    }
 }
 
-#[derive(new, Default)]
+#[derive(new, Default, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]
 pub(crate) struct NodeTree {
     map: HashMap<NodeID, NodeRef>,
@@ -62,9 +69,15 @@ impl NodeTree {
     pub(crate) fn insert_node(&mut self, node_id: NodeID, node_ref: NodeRef) {
         self.map.insert(node_id, node_ref);
     }
+
+    pub(crate) fn merge(self, other: Self) -> Self {
+        Self {
+            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
+        }
+    }
 }
 
-#[derive(new)]
+#[derive(new, Debug, Default)]
 /// Struct responsible of fetching the output for a node in the autodiff graph during a backward pass
 pub struct Checkpointer {
     backward_states: BackwardStates,
@@ -129,5 +142,23 @@ impl Checkpointer {
             }}
             None => panic!("Node is not in the map. You may have tried to access it more times than n_required allowed.")
         }
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        // TODO mut with extend
+        Self {
+            backward_states: self.backward_states.merge(other.backward_states),
+            node_tree: self.node_tree.merge(other.node_tree),
+            retro_forwards: self.retro_forwards.merge(other.retro_forwards),
+        }
+    }
+
+    pub fn register_retro_forward(
+        &mut self,
+        node_id: NodeID,
+        retro_forward: Box<dyn RetroForward>,
+    ) {
+        self.retro_forwards
+            .insert_retro_forward(node_id, retro_forward)
     }
 }

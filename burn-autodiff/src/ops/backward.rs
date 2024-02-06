@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use super::{Ops, OpsPrep};
 use crate::{
+    checkpoint::base::Checkpointer,
     grads::Gradients,
     graph::{Graph, NodeRef, Requirement},
     utils::duplicate,
@@ -22,7 +25,12 @@ where
     type State: Clone + Send + Sync + std::fmt::Debug + 'static;
 
     /// The backward pass.
-    fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients);
+    fn backward(
+        self,
+        ops: Ops<Self::State, N>,
+        grads: &mut Gradients,
+        checkpointer: &mut Checkpointer,
+    );
 
     /// Prepare the backward ops.
     fn prepare(
@@ -31,7 +39,7 @@ where
         graphs: [Graph; N],
     ) -> OpsPrep<Self, B, Self::State, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
-        OpsPrep::new(nodes, graphs, requirement, self)
+        OpsPrep::new(nodes, graphs, requirement, self, None, None)
     }
 }
 

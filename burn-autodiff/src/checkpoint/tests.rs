@@ -22,18 +22,17 @@ use super::{
 
 pub type TestBackend = burn_wgpu::Wgpu<AutoGraphicsApi, f32, i32>;
 
-#[derive(new)]
+#[derive(new, Debug)]
 /// For testing purpose, all operations are float divisions.
 pub struct RetroDiv<B, const D: usize> {
     lhs_parent_id: NodeID,
     rhs_parent_id: NodeID,
-    self_id: NodeID,
     _backend: PhantomData<B>,
 }
 
 impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
     /// Typical content of a [RetroForward] function.
-    fn forward(&self, states: &mut BackwardStates) {
+    fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
         // Get the needed outputs downcasted to their expected types
         // This will decrement n_required for both parent states
         let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_parent_id);
@@ -44,7 +43,7 @@ impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
 
         // Replace the state for this node id by the new computed output
         // without changing n_required
-        states.save(self.self_id.clone(), out);
+        states.save(out_node, out);
     }
 }
 
@@ -241,13 +240,13 @@ fn make_ids() -> [NodeID; 7] {
 /// Make the leaves for a div tree
 fn make_leaves<B: Backend>(device: &B::Device, ids: [NodeID; 4]) -> (BackwardStates, NodeTree) {
     let mut node_tree = NodeTree::default();
-    let mut inner_states = BackwardStates::default();
+    let mut backward_states = BackwardStates::default();
 
     // Leaves are just tensors, so they are always precomputed
     let mut make_leaf = |id: NodeID, t: B::FloatTensorPrimitive<2>| {
         let n: NodeRef = Arc::new(Node::new(Vec::new(), 0, id.clone(), Requirement::Grad));
         node_tree.insert_node(id.clone(), n);
-        insert_precomputed(id, &mut inner_states, Box::new(t), None);
+        insert_precomputed(id, &mut backward_states, Box::new(t), None);
     };
 
     // Leaf 0
@@ -290,7 +289,7 @@ fn make_leaves<B: Backend>(device: &B::Device, ids: [NodeID; 4]) -> (BackwardSta
         .into_primitive(),
     );
 
-    (inner_states, node_tree)
+    (backward_states, node_tree)
 }
 
 /// Makes a tree where every node except leaves are in a Recompute state
@@ -318,7 +317,7 @@ fn div_recompute_tree<B: Backend>(
 
     let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
         let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone(), id.clone());
+        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
         retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
         nodes.insert_node(id.clone(), n);
     };
@@ -375,7 +374,7 @@ fn div_precomputed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Che
 
     let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
         let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone(), id.clone());
+        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
         retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
         nodes.insert_node(id.clone(), n);
     };
@@ -448,7 +447,7 @@ fn div_lazy_graph_with_duplicate<B: Backend>(device: &B::Device, ids: [NodeID; 4
 
     let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
         let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone(), id.clone());
+        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
         retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
         node_tree.insert_node(id.clone(), n);
     };

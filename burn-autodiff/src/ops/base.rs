@@ -1,5 +1,6 @@
 use super::Backward;
 use crate::{
+    checkpoint::base::{Checkpointer, RetroForward},
     grads::Gradients,
     graph::{
         NodeRef, Requirement, {Graph, Step},
@@ -7,7 +8,19 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
+
+pub enum CheckpointStrategy {
+    Computed,
+    Recompute {
+        retro_forward: Box<dyn RetroForward>,
+    },
+}
+
+pub enum StateStrategy {
+    Saved,
+    FromInputs,
+}
 
 /// Operation in preparation.
 ///
@@ -19,6 +32,8 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
     graphs: [Graph; N],
     requirement: Requirement,
     backward: Backward,
+    checkpoint_strategy: Option<CheckpointStrategy>,
+    state_strategy: Option<StateStrategy>,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
     marker: PhantomData<Mode>,
@@ -26,12 +41,44 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
 
 /// Init operation tag.
 pub struct Init;
+/// TODO unsure, and name ugly
+pub struct CheckpointDecided;
 /// Tracked operation tag.
 pub struct Tracked;
 /// Untracked operation tag.
 pub struct UnTracked;
 
-impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, Init>
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Init>
+where
+    B: Backend,
+    BO: Backward<B, D, N, State = S>,
+{
+    pub fn checkpointed(self) -> OpsPrep<BO, B, S, D, N, CheckpointDecided> {
+        OpsPrep::new(
+            self.nodes,
+            self.graphs,
+            self.requirement,
+            self.backward,
+            Some(CheckpointStrategy::Computed),
+            None,
+        )
+    }
+    pub fn recomputed(
+        self,
+        retro_forward: Box<dyn RetroForward>,
+    ) -> OpsPrep<BO, B, S, D, N, CheckpointDecided> {
+        OpsPrep::new(
+            self.nodes,
+            self.graphs,
+            self.requirement,
+            self.backward,
+            Some(CheckpointStrategy::Recompute { retro_forward }),
+            None,
+        )
+    }
+}
+
+impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, CheckpointDecided>
 where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
@@ -48,7 +95,7 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Init>
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, CheckpointDecided>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -62,12 +109,38 @@ where
                 self.graphs,
                 self.requirement,
                 self.backward,
+                self.checkpoint_strategy,
+                Some(StateStrategy::Saved),
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
                 self.graphs,
                 self.requirement,
                 self.backward,
+                self.checkpoint_strategy,
+                Some(StateStrategy::Saved),
+            )),
+        }
+    }
+
+    /// Prepare an operation that requires a state during the backward pass but is not saved
+    pub fn state_lazy(self) -> OpsKind<BO, B, S, D, N> {
+        match self.requirement.is_none() {
+            false => OpsKind::Tracked(OpsPrep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+                self.checkpoint_strategy,
+                Some(StateStrategy::FromInputs),
+            )),
+            true => OpsKind::UnTracked(OpsPrep::new(
+                self.nodes,
+                self.graphs,
+                self.requirement,
+                self.backward,
+                self.checkpoint_strategy,
+                Some(StateStrategy::FromInputs),
             )),
         }
     }
@@ -86,6 +159,7 @@ where
             &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
+            self.checkpoint_strategy.unwrap(),
         )
     }
 }
@@ -107,9 +181,17 @@ where
             &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
+            self.checkpoint_strategy.unwrap(),
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
-        let ops = Ops::new(parents, output.node.clone(), state);
+        let ops = Ops::new(
+            parents,
+            output.node.clone(),
+            match self.state_strategy.unwrap() {
+                StateStrategy::Saved => Some(state),
+                StateStrategy::FromInputs => None,
+            },
+        );
 
         output.register_step(OpsStep::new(ops, self.backward))
     }
@@ -131,7 +213,7 @@ pub struct Ops<S, const N: usize> {
     /// The node.
     pub node: NodeRef,
     /// The state.
-    pub state: S,
+    pub state: Option<S>,
 }
 
 /// Operation implementing backward [step](Step) with type erasing.
@@ -153,8 +235,8 @@ where
     T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
-    fn step(self: Box<Self>, grads: &mut Gradients) {
-        self.backward.backward(self.ops, grads);
+    fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
+        self.backward.backward(self.ops, grads, checkpointer);
     }
 
     fn node(&self) -> NodeRef {

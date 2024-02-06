@@ -1,10 +1,12 @@
 use burn_tensor::backend::Backend;
 
 use crate::{
+    checkpoint::{self, base::Checkpointer},
     grads::Gradients,
     graph::{
         Node, NodeID, NodeRef, Requirement, {Graph, Step},
     },
+    ops::CheckpointStrategy,
 };
 
 #[derive(Debug, Clone)]
@@ -20,7 +22,7 @@ struct RootStep {
 }
 
 impl Step for RootStep {
-    fn step(self: Box<Self>, _grads: &mut Gradients) {
+    fn step(self: Box<Self>, _grads: &mut Gradients, checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 
@@ -35,10 +37,13 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         let id = NodeID::new();
         let node = Node::new(vec![], 0, id, Requirement::None);
 
+        let graph = Graph::new();
+        graph.checkpoint_register(node.id, primitive, 1); // n_required arbitrary
+
         Self {
             primitive,
             node: node.into(),
-            graph: Graph::new(),
+            graph,
         }
     }
 
@@ -72,6 +77,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,
+        checkpoint_strategy: CheckpointStrategy,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
@@ -90,6 +96,13 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             NodeID::new(),
             requirement,
         );
+
+        match checkpoint_strategy {
+            CheckpointStrategy::Computed => graph.checkpoint_register(node.id, output, 1),
+            CheckpointStrategy::Recompute { retro_forward } => {
+                graph.retro_register(node.id, retro_forward)
+            }
+        }
 
         Self {
             primitive: output,
