@@ -37,10 +37,10 @@ mod fusion;
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
-///   - [Vulkan](crate::Vulkan) on Linux, Windows, and Android.
+///   - [Vulkan] on Linux, Windows, and Android.
 ///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
 ///   - [DirectX 12](crate::Dx12) on Windows.
-///   - [Metal](crate::Metal) on Apple hardware.
+///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// # Notes
@@ -56,10 +56,10 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = burn_fusion::Fusion<WgpuB
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
-///   - [Vulkan](crate::Vulkan) on Linux, Windows, and Android.
+///   - [Vulkan] on Linux, Windows, and Android.
 ///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
 ///   - [DirectX 12](crate::Dx12) on Windows.
-///   - [Metal](crate::Metal) on Apple hardware.
+///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
 /// # Notes
