@@ -297,6 +297,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 }
 
 impl ElemWiseKernelCodegen<CompilationPhase> {
+    #[allow(dead_code)]
     pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
         self.workgroup_size = workgroup_size;
         self

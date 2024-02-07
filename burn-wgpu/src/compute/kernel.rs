@@ -75,16 +75,12 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::dialect::{
-            gpu::{BinaryOperation, Elem, Item, Operation, Variable},
-            wgsl,
-        },
+        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         compute::compute_client,
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
+        tests::TestCompiler,
         AutoGraphicsApi, WgpuDevice,
     };
-
-    type Compiler = wgsl::WgslCompiler<f32, i32>;
 
     #[test]
     fn can_run_kernel() {
@@ -94,7 +90,7 @@ mod tests {
                 rhs: Variable::Input(1, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: Compiler,
+            compiler: TestCompiler,
             elem_in: f32,
             elem_out: f32
         );
@@ -111,7 +107,7 @@ mod tests {
         let info = client.create(bytemuck::cast_slice(&info));
 
         type Kernel = KernelSettings<
-            Ops<Compiler, f32, f32>,
+            Ops<TestCompiler, f32, f32>,
             f32,
             i32,
             WORKGROUP_DEFAULT,

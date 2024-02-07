@@ -1,3 +1,5 @@
+use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
+use crate::kernel_wgsl;
 use crate::{
     codegen::dialect::wgsl,
     element::WgpuElement,
@@ -5,10 +7,6 @@ use crate::{
     tensor::WgpuTensor,
 };
 use std::marker::PhantomData;
-
-use crate::kernel_wgsl;
-
-use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
 
 kernel_wgsl!(
     MatmulTiling2Dvec4Raw,
@@ -55,10 +53,7 @@ pub fn matmul_tiling_2d_vec4<E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
-        tests::TestCompiler,
-    };
+    use crate::kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims};
 
     #[test]
     pub fn test_matmul_vec4_primitive_straightforward() {

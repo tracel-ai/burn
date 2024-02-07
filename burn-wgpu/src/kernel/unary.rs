@@ -231,18 +231,15 @@ where
 mod tests {
     use super::*;
     use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::codegen::dialect::wgsl;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
     use burn_tensor::{Distribution, Tensor};
-
-    type Compiler = wgsl::WgslCompiler<f32, i32>;
 
     unary!(
         operator: |elem| Operation::Tanh(UnaryOperation {
             input: Variable::Input(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: Compiler
+        compiler: TestCompiler
     );
 
     #[test]
@@ -252,7 +249,7 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<Compiler, f32>, OpsInplace<Compiler, f32>, f32, 2>(
+        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
             tensor.into_primitive(),
             None,
             true,
@@ -272,7 +269,7 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<Compiler, f32>, OpsInplace<Compiler, f32>, f32, 2>(
+        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
             tensor.into_primitive(),
             None,
             true,

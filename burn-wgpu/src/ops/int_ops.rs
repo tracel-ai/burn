@@ -1,5 +1,4 @@
 use super::numeric;
-
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::dialect::wgsl;
 use crate::kernel::reduce::{self, init_reduce_output};
@@ -68,7 +67,7 @@ where
         ranges: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        kernel::slice_assign::<wgsl::WgslCompiler<f32, i32>, _, D1, D2>(tensor, ranges, value)
+        kernel::slice_assign::<wgsl::WgslCompiler<F, I>, _, D1, D2>(tensor, ranges, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -286,7 +285,7 @@ where
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        kernel::clamp::<wgsl::WgslCompiler<f32, i32>, _, D>(tensor, min, max)
+        kernel::clamp::<wgsl::WgslCompiler<F, I>, _, D>(tensor, min, max)
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
@@ -295,7 +294,7 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: wgsl::WgslCompiler<f32, i32>,
+            compiler: wgsl::WgslCompiler<F, I>,
             input: tensor,
             elem: I
         )

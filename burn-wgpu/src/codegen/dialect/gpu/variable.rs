@@ -9,9 +9,3 @@ pub enum Variable {
     Output(u16, Item),
     Constant(f64, Item),
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IndexedVariable {
-    var: Variable,
-    index: usize,
-}

@@ -50,6 +50,7 @@ pub fn matmul_tiling_2d_vec4_lhs<E: WgpuElement + Element, const D: usize>(
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = MatmulTiling2DVec4Lhs::<E>::new();
+    // TODO: don't hardcode the compiler.
     matmul_tiling_2d_launch::<wgsl::WgslCompiler<f32, i32>, _, D, _>(lhs, rhs, out, kernel)
 }
 

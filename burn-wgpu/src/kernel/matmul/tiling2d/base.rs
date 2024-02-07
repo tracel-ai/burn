@@ -7,7 +7,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::WgpuTensor,
 };
-use burn_tensor::{Element, Shape};
+use burn_tensor::Shape;
 
 pub(crate) const B_M: usize = 64;
 pub(crate) const B_N: usize = 64;
