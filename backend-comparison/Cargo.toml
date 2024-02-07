@@ -21,16 +21,22 @@ ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu", "burn/autotune"]
-wgpu-fusion = ["wgpu", "burn/fusion"]
+tui = ["ratatui", "crossterm"]
+wgpu = ["burn/wgpu"]
+wgpu-fusion = ["burn/default", "burn/wgpu", "burn/fusion"]
 
 [dependencies]
-burn = { path = "../burn", default-features = false }
-derive-new = { workspace = true }
-rand = { workspace = true }
+burn = { path = "../burn" }
 burn-common = { path = "../burn-common", version = "0.13.0" }
+clap = { workspace = true }
+crossterm = { workspace = true, optional = true }
+derive-new = { workspace = true }
+dirs = { workspace = true }
+rand = { workspace = true }
+ratatui = { workspace = true, optional = true }
 serde_json = { workspace = true }
-dirs = "5.0.1"
+strum = { workspace = true }
+strum_macros = { workspace = true }
 
 [dev-dependencies]
 
@@ -54,3 +60,7 @@ harness = false
 [[bench]]
 name = "custom_gelu"
 harness = false
+
+[[bin]]
+name = "burnbench"
+path = "src/bin/burnbench.rs"

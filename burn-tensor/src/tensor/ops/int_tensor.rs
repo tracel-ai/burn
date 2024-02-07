@@ -958,4 +958,43 @@ pub trait IntTensorOps<B: Backend> {
     ) -> Vec<IntTensor<B, D>> {
         chunk::<B, D, Int>(tensor, chunks, dim)
     }
+
+    /// Creates a new tensor with values from the given range with the given step size.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values.
+    /// * `step` - The step size.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given values.
+    fn int_arange_step(range: Range<i64>, step: usize, device: &Device<B>) -> IntTensor<B, 1> {
+        let value = range
+            .step_by(step)
+            .map(|i| i.elem())
+            .collect::<Vec<IntElem<B>>>();
+        let shape = Shape::new([value.len()]);
+        let data = Data::new(value, shape);
+        B::int_from_data(data, device)
+    }
+
+    /// Creates a new tensor with values from the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given values.
+    ///
+    /// # Remarks
+    ///
+    /// Uses `arange_step` with a step size of 1 under the hood.
+    fn int_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B, 1> {
+        Self::int_arange_step(range, 1, device)
+    }
 }
