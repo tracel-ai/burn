@@ -1,6 +1,7 @@
 use burn_tensor::Element;
 
 use crate::{
+    codegen::dialect::wgsl,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
@@ -49,7 +50,7 @@ pub fn matmul_tiling_2d_vec4_lhs<E: WgpuElement + Element, const D: usize>(
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = MatmulTiling2DVec4Lhs::<E>::new();
-    matmul_tiling_2d_launch(lhs, rhs, out, kernel)
+    matmul_tiling_2d_launch::<wgsl::WgslCompiler<f32, i32>, _, D, _>(lhs, rhs, out, kernel)
 }
 
 #[cfg(test)]

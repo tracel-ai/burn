@@ -1,27 +1,31 @@
 use super::unary;
 use crate::{
-    codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
+    codegen::{
+        dialect::gpu::{ClampOperation, Item, Operation, Variable},
+        Compiler,
+    },
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,
 };
 
-unary!(
-    |elem| Operation::Clamp(ClampOperation {
-        input: Variable::Input(0, Item::Scalar(elem)),
-        min_value: Variable::Scalar(0, Item::Scalar(elem)),
-        max_value: Variable::Scalar(1, Item::Scalar(elem)),
-        out: Variable::Local(0, Item::Scalar(elem)),
-    }),
-    scalar 2
-);
-
-pub(crate) fn clamp<E: WgpuElement, const D: usize>(
+pub(crate) fn clamp<C: Compiler, E: WgpuElement, const D: usize>(
     input: WgpuTensor<E, D>,
     min_value: E,
     max_value: E,
 ) -> WgpuTensor<E, D> {
-    unary::<Ops<E>, OpsInplace<E>, E, D>(input, Some(&[min_value, max_value]), true)
+    unary!(
+        operator: |elem| Operation::Clamp(ClampOperation {
+            input: Variable::Input(0, Item::Scalar(elem)),
+            min_value: Variable::Scalar(0, Item::Scalar(elem)),
+            max_value: Variable::Scalar(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(elem)),
+        }),
+        compiler: C,
+        scalar 2
+    );
+
+    unary::<Ops<C, E>, OpsInplace<C, E>, E, D>(input, Some(&[min_value, max_value]), true)
 }
 
 #[cfg(test)]

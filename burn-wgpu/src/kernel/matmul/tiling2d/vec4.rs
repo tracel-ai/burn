@@ -1,6 +1,5 @@
-use burn_tensor::Element;
-
 use crate::{
+    codegen::dialect::wgsl,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
@@ -43,19 +42,23 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs
-pub fn matmul_tiling_2d_vec4<E: WgpuElement + Element, const D: usize>(
+pub fn matmul_tiling_2d_vec4<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = MatmulTiling2Dvec4::<E>::new();
-    matmul_tiling_2d_launch(lhs, rhs, out, kernel)
+    // TODO: don't hardcode the compiler.
+    matmul_tiling_2d_launch::<wgsl::WgslCompiler<f32, i32>, _, D, _>(lhs, rhs, out, kernel)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims};
+    use crate::{
+        kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
+        tests::TestCompiler,
+    };
 
     #[test]
     pub fn test_matmul_vec4_primitive_straightforward() {

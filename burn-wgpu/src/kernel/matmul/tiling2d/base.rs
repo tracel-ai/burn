@@ -1,5 +1,6 @@
 use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
+    codegen::Compiler,
     compute::{DynamicKernel, WgpuHandle, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
@@ -35,7 +36,8 @@ pub(super) fn make_info_handle<E: WgpuElement, const D: usize>(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<
-    E: WgpuElement + Element,
+    C: Compiler,
+    E: WgpuElement,
     const D: usize,
     K: DynamicKernelSource + 'static,
 >(
@@ -48,14 +50,14 @@ pub(super) fn matmul_tiling_2d_launch<
     // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
     // kernel handles it without needing to turn it into contiguous.
-    let round_lhs = pad_round(lhs, B_M, B_K);
+    let round_lhs = pad_round::<C, E, D>(lhs, B_M, B_K);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)
         }
         _ => round_lhs.into_tensor(),
     };
-    let round_rhs = pad_round(rhs, B_K, B_N);
+    let round_rhs = pad_round::<C, E, D>(rhs, B_K, B_N);
     let rhs = match round_rhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)

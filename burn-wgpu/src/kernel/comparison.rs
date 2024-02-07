@@ -24,12 +24,13 @@ macro_rules! comparison {
 
     (
         unary: $ops:expr,
+        compiler: $compiler:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        unary!($ops, scalar 1);
+        unary!(operator: $ops, compiler: $compiler, scalar 1);
 
-        launch_unary::<Ops<E>, OpsInplace<E>, E, D>($lhs, $rhs)
+        launch_unary::<Ops<$compiler, E>, OpsInplace<$compiler, E>, E, D>($lhs, $rhs)
     }};
 }
 
@@ -113,7 +114,7 @@ pub fn lower_equal<C: Compiler, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn equal_elem<E: WgpuElement, const D: usize>(
+pub fn equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -123,12 +124,13 @@ pub fn equal_elem<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_elem<E: WgpuElement, const D: usize>(
+pub fn greater_elem<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -138,12 +140,13 @@ pub fn greater_elem<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_elem<E: WgpuElement, const D: usize>(
+pub fn lower_elem<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -153,12 +156,13 @@ pub fn lower_elem<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_equal_elem<E: WgpuElement, const D: usize>(
+pub fn greater_equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -168,12 +172,13 @@ pub fn greater_equal_elem<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_equal_elem<E: WgpuElement, const D: usize>(
+pub fn lower_equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<u32, D> {
@@ -183,6 +188,7 @@ pub fn lower_equal_elem<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )

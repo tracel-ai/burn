@@ -5,19 +5,19 @@ use crate::codegen::Compiler;
 use crate::compute::{compute_client, WgpuComputeClient};
 use crate::{binary, GraphicsApi, WgpuDevice};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
-use burn_tensor::{Element, ElementConversion, Shape};
+use burn_tensor::{ElementConversion, Shape};
 
-pub fn full<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+pub fn full<C: Compiler, G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
     value: E,
 ) -> WgpuTensor<E, D> {
     let client = compute_client::<G>(device);
 
-    full_device(client, shape, device.clone(), value)
+    full_device::<C, E, D>(client, shape, device.clone(), value)
 }
 
-pub fn full_device<E: WgpuElement + Element, const D: usize>(
+pub fn full_device<C: Compiler, E: WgpuElement, const D: usize>(
     client: WgpuComputeClient,
     shape: Shape<D>,
     device: WgpuDevice,
@@ -30,43 +30,44 @@ pub fn full_device<E: WgpuElement + Element, const D: usize>(
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
+        compiler: C,
         input: empty; value,
         elem: E
     )
 }
 
-pub fn zeros<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+pub fn zeros<C: Compiler, G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
     let client = compute_client::<G>(device);
 
-    zeros_device(client, device.clone(), shape)
+    zeros_device::<C, E, D>(client, device.clone(), shape)
 }
 
-pub fn zeros_device<E: WgpuElement + Element, const D: usize>(
+pub fn zeros_device<C: Compiler, E: WgpuElement, const D: usize>(
     client: WgpuComputeClient,
     device: WgpuDevice,
     shape: Shape<D>,
 ) -> WgpuTensor<E, D> {
-    full_device::<E, D>(client, shape, device, 0.elem())
+    full_device::<C, E, D>(client, shape, device, 0.elem())
 }
 
-pub fn ones<G: GraphicsApi, E: WgpuElement + Element, const D: usize>(
+pub fn ones<C: Compiler, G: GraphicsApi, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
 ) -> WgpuTensor<E, D> {
     let client = compute_client::<G>(device);
 
-    ones_device(client, device.clone(), shape)
+    ones_device::<C, E, D>(client, device.clone(), shape)
 }
 
-pub fn ones_device<E: WgpuElement + Element, const D: usize>(
+pub fn ones_device<C: Compiler, E: WgpuElement, const D: usize>(
     client: WgpuComputeClient,
     device: WgpuDevice,
     shape: Shape<D>,
 ) -> WgpuTensor<E, D> {
-    full_device::<E, D>(client, shape, device, 1.elem())
+    full_device::<C, E, D>(client, shape, device, 1.elem())
 }
 
 pub fn empty_device<E: WgpuElement, const D: usize>(
@@ -95,7 +96,7 @@ pub fn add<C: Compiler, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn add_scalar<E: WgpuElement, const D: usize>(
+pub fn add_scalar<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
@@ -105,6 +106,7 @@ pub fn add_scalar<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
@@ -126,7 +128,7 @@ pub fn sub<C: Compiler, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn sub_scalar<E: WgpuElement, const D: usize>(
+pub fn sub_scalar<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
@@ -136,6 +138,7 @@ pub fn sub_scalar<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
@@ -157,7 +160,7 @@ pub fn mul<C: Compiler, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn mul_scalar<E: WgpuElement, const D: usize>(
+pub fn mul_scalar<C: Compiler, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: E,
 ) -> WgpuTensor<E, D> {
@@ -167,6 +170,7 @@ pub fn mul_scalar<E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
@@ -198,6 +202,7 @@ pub fn div_scalar<C: Compiler, E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
+        compiler: C,
         input: lhs; rhs,
         elem: E
     )
