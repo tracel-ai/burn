@@ -411,7 +411,7 @@ where
         match ops {
             BaseOperationDescription::Equal(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Equal(BinaryOperation { lhs, rhs, out }),
             ),
             _ => false,
@@ -421,47 +421,47 @@ where
     fn register_float<E: WgpuElement>(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
             FloatOperationDescription::Exp(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Exp(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Log(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Log(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Log1p(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Log1p(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Cos(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Cos(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Sin(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Sin(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::PowfScalar(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Powf(BinaryOperation { lhs, rhs, out }),
             ),
             FloatOperationDescription::Tanh(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Tanh(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Erf(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Erf(UnaryOperation { input, out })
                 })
             }
             FloatOperationDescription::Recip(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Recip(UnaryOperation { input, out })
                 })
             }
@@ -476,92 +476,92 @@ where
         match ops {
             NumericOperationDescription::Add(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Add(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::AddScalar(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Add(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::Sub(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Sub(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::SubScalar(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Sub(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::Mul(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Mul(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::MulScalar(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Mul(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::Div(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Div(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::DivScalar(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), E::elem_type()),
+                (E::gpu_elem(), E::gpu_elem(), E::gpu_elem()),
                 |lhs, rhs, out| Operation::Div(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::Abs(desc) => {
-                self.register_unary_ops(desc, (E::elem_type(), E::elem_type()), |input, out| {
+                self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
                     Operation::Abs(UnaryOperation { input, out })
                 })
             }
             NumericOperationDescription::Lower(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Lower(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::LowerElem(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Lower(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::Greater(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Greater(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::GreaterElem(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Greater(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::LowerEqual(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::LowerEqual(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::LowerEqualElem(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::LowerEqual(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::GreaterEqual(desc) => self.register_binary_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::GreaterEqual(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::GreaterEqualElem(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::GreaterEqual(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::EqualElem(desc) => self.register_scalar_ops(
                 desc,
-                (E::elem_type(), E::elem_type(), Elem::Bool),
+                (E::gpu_elem(), E::gpu_elem(), Elem::Bool),
                 |lhs, rhs, out| Operation::Equal(BinaryOperation { lhs, rhs, out }),
             ),
             NumericOperationDescription::MaskWhere(desc) => {
@@ -570,9 +570,9 @@ where
                 }
 
                 let cond = self.input_to_var(&desc.mask, Elem::Bool);
-                let lhs = self.input_to_var(&desc.value, E::elem_type());
-                let rhs = self.input_to_var(&desc.tensor, E::elem_type());
-                let out = self.output_to_var(&desc.out, E::elem_type());
+                let lhs = self.input_to_var(&desc.value, E::gpu_elem());
+                let rhs = self.input_to_var(&desc.tensor, E::gpu_elem());
+                let out = self.output_to_var(&desc.out, E::gpu_elem());
 
                 let ops = Operation::ConditionalAssign(ConditionalAssignOperation {
                     cond,
@@ -590,9 +590,9 @@ where
                 }
 
                 let cond = self.input_to_var(&desc.mask, Elem::Bool);
-                let lhs = self.scalar_to_var(&desc.value, E::elem_type());
-                let rhs = self.input_to_var(&desc.tensor, E::elem_type());
-                let out = self.output_to_var(&desc.out, E::elem_type());
+                let lhs = self.scalar_to_var(&desc.value, E::gpu_elem());
+                let rhs = self.input_to_var(&desc.tensor, E::gpu_elem());
+                let out = self.output_to_var(&desc.out, E::gpu_elem());
 
                 self.operators
                     .push(Operation::ConditionalAssign(ConditionalAssignOperation {
@@ -609,8 +609,8 @@ where
                     return false;
                 }
 
-                let input = Variable::Constant(1.0, Item::Scalar(E::elem_type()));
-                let out = self.output_to_var(desc, E::elem_type());
+                let input = Variable::Constant(1.0, Item::Scalar(E::gpu_elem()));
+                let out = self.output_to_var(desc, E::gpu_elem());
 
                 self.operators
                     .push(Operation::AssignLocal(UnaryOperation { input, out }));
@@ -622,8 +622,8 @@ where
                     return false;
                 }
 
-                let input = Variable::Constant(0.0, Item::Scalar(E::elem_type()));
-                let out = self.output_to_var(desc, E::elem_type());
+                let input = Variable::Constant(0.0, Item::Scalar(E::gpu_elem()));
+                let out = self.output_to_var(desc, E::gpu_elem());
 
                 self.operators
                     .push(Operation::AssignLocal(UnaryOperation { input, out }));
@@ -635,8 +635,8 @@ where
                     return false;
                 }
 
-                let input = self.scalar_to_var(elem, E::elem_type());
-                let out = self.output_to_var(desc, E::elem_type());
+                let input = self.scalar_to_var(elem, E::gpu_elem());
+                let out = self.output_to_var(desc, E::gpu_elem());
 
                 self.operators
                     .push(Operation::AssignLocal(UnaryOperation { input, out }));

@@ -1,8 +1,5 @@
 use crate::{
-    element::{FloatElement, IntElement},
-    kernel,
-    tensor::WgpuTensor,
-    GraphicsApi, Wgpu,
+    codegen::dialect::wgsl, element::{FloatElement, IntElement}, kernel, tensor::WgpuTensor, GraphicsApi, Wgpu
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
@@ -102,7 +99,7 @@ where
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal(lhs, rhs)
+        kernel::equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {

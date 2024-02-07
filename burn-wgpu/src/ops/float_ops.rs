@@ -2,6 +2,7 @@ use super::numeric;
 use crate::codegen::dialect::gpu::{
     BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
 };
+use crate::codegen::dialect::wgsl;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
@@ -82,7 +83,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::add(lhs, rhs)
+        numeric::add::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_add_scalar<const D: usize>(
@@ -112,7 +113,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::sub(lhs, rhs)
+        numeric::sub::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_sub_scalar<const D: usize>(
@@ -126,7 +127,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::mul(lhs, rhs)
+        numeric::mul::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_mul_scalar<const D: usize>(
@@ -140,14 +141,14 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::div(lhs, rhs)
+        numeric::div::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::div_scalar(lhs, rhs)
+        numeric::div_scalar::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_matmul<const D: usize>(
@@ -250,7 +251,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal(lhs, rhs)
+        kernel::equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_equal_elem<const D: usize>(
@@ -264,7 +265,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater(lhs, rhs)
+        kernel::greater::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_greater_elem<const D: usize>(
@@ -278,7 +279,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal(lhs, rhs)
+        kernel::greater_equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_greater_equal_elem<const D: usize>(
@@ -292,7 +293,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower(lhs, rhs)
+        kernel::lower::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_lower_elem<const D: usize>(
@@ -306,7 +307,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal(lhs, rhs)
+        kernel::lower_equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn float_lower_equal_elem<const D: usize>(
@@ -536,6 +537,6 @@ where
         lhs: FloatTensor<Wgpu<G, F, I>, D>,
         rhs: FloatTensor<Wgpu<G, F, I>, D>,
     ) -> FloatTensor<Wgpu<G, F, I>, D> {
-        numeric::pow(lhs, rhs)
+        numeric::pow::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 }

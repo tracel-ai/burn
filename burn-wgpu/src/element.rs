@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu;
+use crate::codegen::dialect::{gpu, wgsl};
 use burn_tensor::Element;
 
 /// The base element trait for the wgou backend.
@@ -10,7 +10,8 @@ where
     fn type_name() -> &'static str;
     fn as_bytes(slice: &[Self]) -> &[u8];
     fn from_bytes(bytes: &[u8]) -> &[Self];
-    fn elem_type() -> gpu::Elem;
+    fn gpu_elem() -> gpu::Elem;
+    fn wgsl_elem() -> wgsl::Elem;
 }
 
 /// The float element type for the wgpu backend.
@@ -29,8 +30,11 @@ impl WgpuElement for u32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem_type() -> gpu::Elem {
+    fn gpu_elem() -> gpu::Elem {
         gpu::Elem::UInt
+    }
+    fn wgsl_elem() -> wgsl::Elem {
+        wgsl::Elem::U32
     }
 }
 
@@ -44,8 +48,11 @@ impl WgpuElement for i32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-    fn elem_type() -> gpu::Elem {
+    fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Int
+    }
+    fn wgsl_elem() -> wgsl::Elem {
+        wgsl::Elem::I32
     }
 }
 
@@ -60,8 +67,11 @@ impl WgpuElement for f32 {
         bytemuck::cast_slice(bytes)
     }
 
-    fn elem_type() -> gpu::Elem {
+    fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Float
+    }
+    fn wgsl_elem() -> wgsl::Elem {
+        wgsl::Elem::F32
     }
 }
 

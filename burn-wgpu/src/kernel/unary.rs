@@ -42,13 +42,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(E::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         local: 0,
                     }])
                     .compile();
@@ -63,13 +63,13 @@ macro_rules! unary {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[$crate::codegen::Input::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(E::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
                         local: 0,
                     }])
@@ -97,18 +97,18 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                             visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Scalar {
-                            elem: E::elem_type(),
+                            elem: E::gpu_elem(),
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(E::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         local: 0,
                     }])
                     .compile();
@@ -124,18 +124,18 @@ macro_rules! unary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                             visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                         $crate::codegen::Input::Scalar {
-                            elem: E::elem_type(),
+                            elem: E::gpu_elem(),
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::elem_type())])
+                    .body(&[$ops(E::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
                         local: 0,
                     }])

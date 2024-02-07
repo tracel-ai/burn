@@ -1,6 +1,7 @@
 use super::numeric;
 
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::wgsl;
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},
@@ -128,7 +129,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<I, D>(lhs, rhs)
+        kernel::equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(
@@ -142,7 +143,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<I, D>(lhs, rhs)
+        kernel::greater::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater_elem<const D: usize>(
@@ -156,7 +157,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<I, D>(lhs, rhs)
+        kernel::greater_equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater_equal_elem<const D: usize>(
@@ -170,7 +171,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<I, D>(lhs, rhs)
+        kernel::lower::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower_elem<const D: usize>(
@@ -184,7 +185,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<I, D>(lhs, rhs)
+        kernel::lower_equal::<wgsl::WgslCompiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower_equal_elem<const D: usize>(
@@ -198,7 +199,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::add::<I, D>(lhs, rhs)
+        numeric::add::<wgsl::WgslCompiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
@@ -212,7 +213,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::sub(lhs, rhs)
+        numeric::sub::<wgsl::WgslCompiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
@@ -226,7 +227,7 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::mul(lhs, rhs)
+        numeric::mul::<wgsl::WgslCompiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
@@ -240,14 +241,14 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::div(lhs, rhs)
+        numeric::div::<wgsl::WgslCompiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::div_scalar(lhs, rhs)
+        numeric::div_scalar::<wgsl::WgslCompiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {

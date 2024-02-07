@@ -15,22 +15,3 @@ pub struct IndexedVariable {
     var: Variable,
     index: usize,
 }
-
-impl Variable {
-    pub fn index(&self, index: usize) -> IndexedVariable {
-        IndexedVariable {
-            var: self.clone(),
-            index,
-        }
-    }
-
-    pub fn item(&self) -> &Item {
-        match self {
-            Variable::Input(_, e) => e,
-            Variable::Scalar(_, e) => e,
-            Variable::Local(_, e) => e,
-            Variable::Output(_, e) => e,
-            Variable::Constant(_, e) => e,
-        }
-    }
-}
