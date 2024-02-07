@@ -44,11 +44,11 @@ Available Benchmarks:
 ```
 
 To execute a given benchmark against a specific backend we use the `run` command
-with the arguments `--bench` and `--backend` respectively. In the following
+with the arguments `--benches` and `--backends` respectively. In the following
 example we execute the `unary` benchmark against the `wgpu-fusion` backend:
 
 ```sh
-> cargo run --bin burnbench -- run --bench unary --backend wgpu-fusion
+> cargo run --bin burnbench -- run --benches unary --backends wgpu-fusion
 ```
 
 Shorthands can be used, the following command line is the same:
@@ -61,9 +61,9 @@ Multiple benchmarks and backends can be passed on the same command line. In this
 case, all the combinations of benchmarks with backends will be executed.
 
 ```sh
-> cargo run --bin burnbench -- run --bench unary --bench binary --backend wgpu-fusion --backend tch-gpu
+> cargo run --bin burnbench -- run --benches unary binary --backends wgpu-fusion tch-gpu
     Finished dev [unoptimized] target(s) in 0.09s
-     Running `target/debug/burnbench run --bench unary --bench binary --backend wgpu-fusion --backend wgpu`
+     Running `target/debug/burnbench run --benches unary binary --backends wgpu-fusion wgpu`
 Executing the following benchmark and backend combinations (Total: 4):
 - Benchmark: unary, Backend: wgpu-fusion
 - Benchmark: binary, Backend: wgpu-fusion

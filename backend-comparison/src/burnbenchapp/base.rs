@@ -33,11 +33,11 @@ enum Commands {
 #[derive(Parser, Debug)]
 struct RunArgs {
     /// Comma-separated list of backends to include
-    #[clap(short = 'B', long = "backend", value_name = "BACKEND,BACKEND,...", num_args(0..))]
+    #[clap(short = 'B', long = "backends", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     backends: Vec<BackendValues>,
 
     /// Comma-separated list of benches to run
-    #[clap(short = 'b', long = "bench", name = "bench", value_name = "BACKEND,BACKEND,...", num_args(0..))]
+    #[clap(short = 'b', long = "benches", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     benches: Vec<BenchmarkValues>,
 }
 
