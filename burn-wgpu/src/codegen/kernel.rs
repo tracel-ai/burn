@@ -1,6 +1,7 @@
 use crate::codegen::dialect::gpu::{
     Binding, Body, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
-    ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Visibility, WorkgroupSize,
+    ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Vectorization, Visibility,
+    WorkgroupSize,
 };
 use crate::compute::{StaticKernel, WgpuComputeClient, WgpuHandle};
 use crate::element::WgpuElement;
@@ -20,20 +21,6 @@ pub struct CompilationPhase;
 pub struct InplaceMapping {
     pub position_input: usize,
     pub position_output: usize,
-}
-
-/// Define a vectorization scheme.
-#[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
-pub enum Vectorization {
-    /// Use vec4 for vectorization.
-    Vec4,
-    /// Use vec3 for vectorization.
-    Vec3,
-    /// Use vec2 for vectorization.
-    Vec2,
-    /// Don't vectorize.
-    Scalar,
 }
 
 /// Allows to create custom wgsl kernels based on configured inputs, body and outputs.

@@ -1,5 +1,4 @@
 use super::Item;
-use crate::codegen::Vectorization;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,39 +17,6 @@ pub struct IndexedVariable {
 }
 
 impl Variable {
-    pub fn vectorize(&self, vectorize: Vectorization) -> Self {
-        match vectorize {
-            Vectorization::Vec4 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec4(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec4(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec4(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec4(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Vec3 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec3(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec3(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec3(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec3(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Vec2 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec2(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec2(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec2(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec2(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Scalar => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Scalar(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Scalar(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Scalar(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Scalar(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-        }
-    }
-
     pub fn index(&self, index: usize) -> IndexedVariable {
         IndexedVariable {
             var: self.clone(),

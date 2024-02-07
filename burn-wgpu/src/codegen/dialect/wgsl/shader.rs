@@ -1,8 +1,5 @@
-use super::base::WgslVariable;
-use super::operations::WgslOperation;
-use super::{base::WgslItem, body::WgslBody};
+use super::{WgslBody, WgslExtension, WgslItem, WgslOperation, WgslVariable};
 use crate::codegen::dialect::gpu::{self, WorkgroupSize};
-use crate::codegen::dialect::wgsl::WgslExtension;
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
