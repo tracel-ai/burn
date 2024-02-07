@@ -29,9 +29,9 @@ where
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
-    pub(crate) scalars_f32: usize,
-    pub(crate) scalars_i32: usize,
-    pub(crate) scalars_u32: usize,
+    pub(crate) scalars_float: usize,
+    pub(crate) scalars_int: usize,
+    pub(crate) scalars_uint: usize,
     pub(crate) booleans: usize,
     pub(crate) operators: Vec<Operation>,
     pub(crate) current_output_shape: Vec<usize>,
@@ -102,7 +102,7 @@ where
             inputs,
             outputs,
             locals,
-            Scalars::new(self.scalars_f32, self.scalars_u32, self.scalars_i32),
+            Scalars::new(self.scalars_float, self.scalars_uint, self.scalars_int),
             self.operators.clone(),
             self.device.clone(),
             CompilationPhase,
@@ -119,9 +119,9 @@ where
         self.inputs.clear();
         self.locals.drain();
         self.tensors.clear();
-        self.scalars_f32 = 0;
-        self.scalars_i32 = 0;
-        self.scalars_u32 = 0;
+        self.scalars_float = 0;
+        self.scalars_int = 0;
+        self.scalars_uint = 0;
         self.booleans = 0;
         self.operators.clear();
         self.status = OptimizationStatus::Open;
@@ -153,9 +153,9 @@ where
             inputs: Vec::new(),
             locals: HashMap::new(),
             tensors: HashMap::new(),
-            scalars_f32: 0,
-            scalars_i32: 0,
-            scalars_u32: 0,
+            scalars_float: 0,
+            scalars_int: 0,
+            scalars_uint: 0,
             booleans: 0,
             operators: Vec::new(),
             current_output_shape: Vec::new(),
@@ -714,17 +714,17 @@ where
 
     fn scalar_to_var<E: Element>(&mut self, _value: &E, elem_type: Elem) -> Variable {
         match elem_type {
-            Elem::F32 => {
-                self.scalars_f32 += 1;
-                Variable::Scalar(self.scalars_f32 as u16 - 1, Item::Scalar(Elem::F32))
+            Elem::Float => {
+                self.scalars_float += 1;
+                Variable::Scalar(self.scalars_float as u16 - 1, Item::Scalar(Elem::Float))
             }
-            Elem::I32 => {
-                self.scalars_i32 += 1;
-                Variable::Scalar(self.scalars_i32 as u16 - 1, Item::Scalar(Elem::I32))
+            Elem::Int => {
+                self.scalars_int += 1;
+                Variable::Scalar(self.scalars_int as u16 - 1, Item::Scalar(Elem::Int))
             }
-            Elem::U32 => {
-                self.scalars_u32 += 1;
-                Variable::Scalar(self.scalars_u32 as u16 - 1, Item::Scalar(Elem::U32))
+            Elem::UInt => {
+                self.scalars_uint += 1;
+                Variable::Scalar(self.scalars_uint as u16 - 1, Item::Scalar(Elem::UInt))
             }
             Elem::Bool => {
                 panic!("Bool scalars not supported")

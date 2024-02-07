@@ -30,7 +30,7 @@ impl WgpuElement for u32 {
         bytemuck::cast_slice(bytes)
     }
     fn elem_type() -> gpu::Elem {
-        gpu::Elem::U32
+        gpu::Elem::UInt
     }
 }
 
@@ -45,7 +45,7 @@ impl WgpuElement for i32 {
         bytemuck::cast_slice(bytes)
     }
     fn elem_type() -> gpu::Elem {
-        gpu::Elem::I32
+        gpu::Elem::Int
     }
 }
 
@@ -61,7 +61,7 @@ impl WgpuElement for f32 {
     }
 
     fn elem_type() -> gpu::Elem {
-        gpu::Elem::F32
+        gpu::Elem::Float
     }
 }
 

@@ -27,11 +27,3 @@ impl Display for WgslBody {
         Ok(())
     }
 }
-
-impl From<gpu::Body> for WgslBody {
-    fn from(value: gpu::Body) -> Self {
-        Self {
-            operators: value.operators.into_iter().map(From::from).collect(),
-        }
-    }
-}

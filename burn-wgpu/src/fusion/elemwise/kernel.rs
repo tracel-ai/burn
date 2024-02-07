@@ -3,7 +3,7 @@ use crate::{
     compute::DynamicKernel,
     fusion::{
         kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
-        source::DynKernelSource,
+        source::GpuKernelSource,
         WgpuFusionHandle,
     },
     kernel::elemwise_workgroup,
@@ -152,8 +152,8 @@ impl ElementWiseSource {
 }
 
 struct ElementWiseSource {
-    source_normal: Arc<DynKernelSource>,
-    source_inplace: Arc<DynKernelSource>,
+    source_normal: Arc<GpuKernelSource>,
+    source_inplace: Arc<GpuKernelSource>,
     mappings: Vec<InplaceMapping>,
     inplace_output2input: Vec<Option<usize>>,
     factor: usize,
@@ -161,8 +161,8 @@ struct ElementWiseSource {
 
 impl ElementWiseSource {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource,
+        inplace: GpuKernelSource,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -185,8 +185,8 @@ impl ElementWiseSource {
 
 impl ScalarElementWise {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource,
+        inplace: GpuKernelSource,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
     ) -> Self {
@@ -198,8 +198,8 @@ impl ScalarElementWise {
 
 impl VecElementWise {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource,
+        inplace: GpuKernelSource,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,

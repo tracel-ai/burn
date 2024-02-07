@@ -127,131 +127,6 @@ pub enum WgslOperation {
     },
 }
 
-impl From<gpu::Operation> for WgslOperation {
-    fn from(value: gpu::Operation) -> Self {
-        match value {
-            gpu::Operation::Add(op) => Self::Add {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Sub(op) => Self::Sub {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Mul(op) => Self::Mul {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Div(op) => Self::Div {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Abs(op) => Self::Abs {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Exp(op) => Self::Exp {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Log(op) => Self::Log {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Log1p(op) => Self::Log1p {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Cos(op) => Self::Cos {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Sin(op) => Self::Sin {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Tanh(op) => Self::Tanh {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Powf(op) => Self::Powf {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Sqrt(op) => Self::Sqrt {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Erf(op) => Self::Erf {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Recip(op) => Self::Recip {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Equal(op) => Self::Equal {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Lower(op) => Self::Lower {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Clamp(op) => Self::Clamp {
-                input: op.input.into(),
-                min_value: op.min_value.into(),
-                max_value: op.max_value.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::Greater(op) => Self::Greater {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::LowerEqual(op) => Self::LowerEqual {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::GreaterEqual(op) => Self::GreaterEqual {
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::ConditionalAssign(op) => Self::ConditionalAssign {
-                cond: op.cond.into(),
-                lhs: op.lhs.into(),
-                rhs: op.rhs.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::AssignGlobal(op) => Self::AssignGlobal {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::AssignLocal(op) => Self::AssignLocal {
-                input: op.input.into(),
-                out: op.out.into(),
-            },
-            gpu::Operation::ReadGlobal(op) => Self::ReadGlobal {
-                variable: op.variable.into(),
-            },
-            gpu::Operation::ReadGlobalWithLayout(op) => Self::ReadGlobalWithLayout {
-                variable: op.variable.into(),
-                tensor_read_pos: op.tensor_read_pos.into(),
-                tensor_layout_pos: op.tensor_layout_pos.into(),
-            },
-        }
-    }
-}
-
 impl Display for WgslOperation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -368,7 +243,7 @@ impl Display for WgslOperation {
                 WgslVariable::Output(number, _elem) => f.write_fmt(format_args!(
                     "let output_{number} = output_{number}_global[id];"
                 )),
-                WgslVariable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                WgslVariable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
                 WgslVariable::Constant(_, _) => panic!("Can't read global constant variable."),
             },
             WgslOperation::ReadGlobalWithLayout {
@@ -388,7 +263,7 @@ impl Display for WgslOperation {
                         format!("output_{number}"),
                         elem,
                     ),
-                    WgslVariable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                    WgslVariable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
                     WgslVariable::Constant(_, _) => panic!("Can't read global constant variable."),
                 };
 

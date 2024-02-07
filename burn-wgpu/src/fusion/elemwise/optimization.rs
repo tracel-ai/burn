@@ -5,9 +5,13 @@ use super::{
 };
 use crate::{
     codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
-    codegen::{ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy},
+    codegen::{
+        compiler::Compiler,
+        dialect::wgsl::{WgslCompiler, WgslComputeShader},
+        ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy,
+    },
     compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
-    fusion::{kernel::FusionKernelSet, source::DynKernelSource},
+    fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
     FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
@@ -84,21 +88,21 @@ where
 
         if self.scalars.num_f32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::F32,
+                elem: Elem::Float,
                 size: self.scalars.num_f32,
             })
         }
 
         if self.scalars.num_u32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::U32,
+                elem: Elem::UInt,
                 size: self.scalars.num_u32,
             })
         }
 
         if self.scalars.num_i32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::I32,
+                elem: Elem::Int,
                 size: self.scalars.num_i32,
             })
         }
@@ -148,14 +152,14 @@ where
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set(
+        let kernel_set_1 = build_kernel_set::<WgslCompiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set(
+        let kernel_set_2 = build_kernel_set::<WgslCompiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
@@ -318,15 +322,18 @@ where
     }
 }
 
-fn build_kernel_set(
+fn build_kernel_set<C>(
     inputs: &[Input],
     outputs: &[Output],
     operators: &[Operation],
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet {
+) -> FusionKernelSet
+where
+    C: Compiler<Representation = WgslComputeShader>,
+{
     let scalar = ScalarElementWise::new(
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inputs(inputs)
@@ -335,7 +342,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inplace(mappings)
@@ -350,7 +357,7 @@ fn build_kernel_set(
     );
 
     let vec2 = VecElementWise::new(
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -360,7 +367,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -376,7 +383,7 @@ fn build_kernel_set(
         2,
     );
     let vec4 = VecElementWise::new(
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
@@ -386,7 +393,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new::<C>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)

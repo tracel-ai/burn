@@ -311,7 +311,7 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
         named.push((
             "info".to_string(),
             Binding {
-                item: Item::Scalar(Elem::U32),
+                item: Item::Scalar(Elem::UInt),
                 visibility: Visibility::Read,
                 location: Location::Storage,
                 size: None, // We avoid putting the length here since it will force a new kernel
@@ -453,7 +453,7 @@ fn bool_item(ty: Item) -> Item {
 fn bool_elem(elem: Elem) -> Elem {
     match elem {
         // U32 are used for bool tensors
-        Elem::Bool => Elem::U32,
+        Elem::Bool => Elem::UInt,
         _ => elem,
     }
 }

@@ -4,7 +4,7 @@ use std::fmt::Display;
 #[derive(Debug, Clone)]
 pub enum WgslVariable {
     Input(u16, WgslItem),
-    Scalar(u16, WgslItem),
+    Scalar(u16, WgslItem, gpu::Elem),
     Local(u16, WgslItem),
     Output(u16, WgslItem),
     Constant(f64, WgslItem),
@@ -43,7 +43,7 @@ impl WgslVariable {
     pub fn item(&self) -> &WgslItem {
         match self {
             Self::Input(_, e) => e,
-            Self::Scalar(_, e) => e,
+            Self::Scalar(_, e, _) => e,
             Self::Local(_, e) => e,
             Self::Output(_, e) => e,
             Self::Constant(_, e) => e,
@@ -101,8 +101,8 @@ impl Display for WgslVariable {
             WgslVariable::Input(number, _) => f.write_fmt(format_args!("input_{number}")),
             WgslVariable::Local(number, _) => f.write_fmt(format_args!("local_{number}")),
             WgslVariable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
-            WgslVariable::Scalar(number, item) => {
-                f.write_fmt(format_args!("scalars_{item}[{number}]"))
+            WgslVariable::Scalar(number, _, elem) => {
+                f.write_fmt(format_args!("scalars_{elem}[{number}]"))
             }
             WgslVariable::Constant(number, item) => match item {
                 WgslItem::Vec4(elem) => f.write_fmt(format_args!(
@@ -149,45 +149,11 @@ impl Display for IndexedWgslVariable {
         let index = self.index;
 
         match self.var {
-            WgslVariable::Scalar(_, _) => f.write_fmt(format_args!("{var}")),
+            WgslVariable::Scalar(_, _, _) => f.write_fmt(format_args!("{var}")),
             _ => match should_index(item) {
                 true => f.write_fmt(format_args!("{var}[{index}]")),
                 false => f.write_fmt(format_args!("{var}")),
             },
-        }
-    }
-}
-
-impl From<gpu::Item> for WgslItem {
-    fn from(value: gpu::Item) -> Self {
-        match value {
-            gpu::Item::Vec4(elem) => Self::Vec4(elem.into()),
-            gpu::Item::Vec3(elem) => Self::Vec3(elem.into()),
-            gpu::Item::Vec2(elem) => Self::Vec2(elem.into()),
-            gpu::Item::Scalar(elem) => Self::Scalar(elem.into()),
-        }
-    }
-}
-
-impl From<gpu::Elem> for WgslElem {
-    fn from(value: gpu::Elem) -> Self {
-        match value {
-            gpu::Elem::F32 => Self::F32,
-            gpu::Elem::I32 => Self::I32,
-            gpu::Elem::U32 => Self::U32,
-            gpu::Elem::Bool => Self::Bool,
-        }
-    }
-}
-
-impl From<gpu::Variable> for WgslVariable {
-    fn from(value: gpu::Variable) -> Self {
-        match value {
-            gpu::Variable::Input(index, item) => Self::Input(index, item.into()),
-            gpu::Variable::Scalar(index, item) => Self::Scalar(index, item.into()),
-            gpu::Variable::Local(index, item) => Self::Local(index, item.into()),
-            gpu::Variable::Output(index, item) => Self::Output(index, item.into()),
-            gpu::Variable::Constant(index, item) => Self::Constant(index, item.into()),
         }
     }
 }

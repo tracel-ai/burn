@@ -65,7 +65,7 @@ macro_rules! binary {
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler<f32, i32> as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
@@ -99,7 +99,7 @@ macro_rules! binary {
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler<f32, i32> as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
@@ -133,7 +133,7 @@ macro_rules! binary {
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler<f32, i32> as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }

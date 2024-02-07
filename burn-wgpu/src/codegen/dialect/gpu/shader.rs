@@ -18,18 +18,18 @@ pub enum Visibility {
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub enum Elem {
-    F32,
-    I32,
-    U32,
+    Float,
+    Int,
+    UInt,
     Bool,
 }
 
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::F32 => f.write_str("f32"),
-            Self::I32 => f.write_str("i32"),
-            Self::U32 => f.write_str("u32"),
+            Self::Float => f.write_str("float"),
+            Self::Int => f.write_str("int"),
+            Self::UInt => f.write_str("uint"),
             Self::Bool => f.write_str("bool"),
         }
     }
@@ -50,18 +50,6 @@ impl Item {
             Self::Vec3(elem) => *elem,
             Self::Vec2(elem) => *elem,
             Self::Scalar(elem) => *elem,
-        }
-    }
-}
-
-impl Elem {
-    /// Returns the size of the elem type in bytes.
-    pub fn size(&self) -> usize {
-        match self {
-            Elem::F32 => core::mem::size_of::<f32>(),
-            Elem::I32 => core::mem::size_of::<i32>(),
-            Elem::U32 => core::mem::size_of::<u32>(),
-            Elem::Bool => core::mem::size_of::<bool>(),
         }
     }
 }
