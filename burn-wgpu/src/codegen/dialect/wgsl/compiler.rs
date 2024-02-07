@@ -1,19 +1,19 @@
 use super::{shader::ComputeShader, Item};
 use crate::{
     codegen::{
-        compiler::Compiler,
+        compiler,
         dialect::{gpu, wgsl},
     },
     element::WgpuElement,
 };
 use std::marker::PhantomData;
 
-pub struct WgslCompiler<F: WgpuElement, I: WgpuElement> {
+pub struct Compiler<F: WgpuElement, I: WgpuElement> {
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
 
-impl<F: WgpuElement, I: WgpuElement> Compiler for WgslCompiler<F, I> {
+impl<F: WgpuElement, I: WgpuElement> compiler::Compiler for Compiler<F, I> {
     type Representation = ComputeShader;
 
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {
@@ -21,7 +21,7 @@ impl<F: WgpuElement, I: WgpuElement> Compiler for WgslCompiler<F, I> {
     }
 }
 
-impl<F: WgpuElement, I: WgpuElement> WgslCompiler<F, I> {
+impl<F: WgpuElement, I: WgpuElement> Compiler<F, I> {
     fn compile_item(item: gpu::Item) -> Item {
         match item {
             gpu::Item::Vec4(elem) => wgsl::Item::Vec4(Self::compile_elem(elem)),

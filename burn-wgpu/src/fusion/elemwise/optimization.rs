@@ -151,14 +151,14 @@ where
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set::<wgsl::WgslCompiler<F, I>>(
+        let kernel_set_1 = build_kernel_set::<wgsl::Compiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set::<wgsl::WgslCompiler<F, I>>(
+        let kernel_set_2 = build_kernel_set::<wgsl::Compiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
