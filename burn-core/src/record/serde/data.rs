@@ -175,8 +175,10 @@ pub fn remap<T>(
     for (name, tensor) in tensors.drain() {
         let mut new_name = name.clone();
         for (pattern, replacement) in &key_remap {
-            if pattern.is_match(&name) {
-                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
+            if pattern.is_match(&new_name) {
+                new_name = pattern
+                    .replace_all(&new_name, replacement.as_str())
+                    .to_string();
             }
         }
         remapped.insert(new_name, tensor);
