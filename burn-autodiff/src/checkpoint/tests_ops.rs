@@ -161,3 +161,20 @@ fn should_diff_mul_div_tree() {
     grad_c.assert_approx_eq(&expected_c, 3);
     grad_d.assert_approx_eq(&expected_d, 3);
 }
+
+// TODO
+// - Creating a tensor should put a state in the checkpointer
+// - n_required: should be the number of children of a node.
+//     - The parent cannot know in advance how many
+//     - If children are stateful they don't increment it
+//     - If children are state_lazy then they increment their parents
+//     - If n_required is always zero, would be nice if not copied
+// - If parents are not tracked they should not be put in the state as Some()
+//     - Maybe something related to n_required?
+// - Cleanup
+//     - The Options in ops prep are not nice
+//     - The match at the beginning of backward
+//     - The Box needed in .recompute()
+// - Check if all works fine
+//     - Make several test trees, with many variations, including sharing a parent node
+//     - Check if the checkpointer extend is well done and there's only one
