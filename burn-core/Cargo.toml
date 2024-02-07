@@ -13,7 +13,6 @@ version.workspace = true
 [features]
 default = [
     "std",
-    "fusion",
     "burn-candle?/default",
     "burn-common/default",
     "burn-dataset?/default",
