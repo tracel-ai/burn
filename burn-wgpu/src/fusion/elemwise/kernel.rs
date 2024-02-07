@@ -9,7 +9,7 @@ use crate::{
     kernel::elemwise_workgroup,
 };
 use burn_fusion::TensorDescription;
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
 pub struct ScalarElementWise<C: Compiler> {
     source: ElementWiseSource<C>,
