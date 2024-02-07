@@ -302,18 +302,18 @@ mod tests {
             ]);
             let device = Default::default();
             let weights = TestTensor::from(
-                TestTensorInt::arange(0..shape_weights.num_elements(), &device)
+                TestTensorInt::arange(0..shape_weights.num_elements() as i64, &device)
                     .reshape(shape_weights)
                     .into_data()
                     .convert(),
             );
             let bias = TestTensor::from(
-                TestTensorInt::arange(0..self.channels_out, &device)
+                TestTensorInt::arange(0..self.channels_out as i64, &device)
                     .into_data()
                     .convert(),
             );
             let x = TestTensor::from(
-                TestTensorInt::arange(0..shape_x.num_elements(), &device)
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

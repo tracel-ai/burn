@@ -90,7 +90,7 @@ mod tests {
         fn assert_shape(self, expected_shape: [usize; 3]) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let x = TestTensor::from(
-                TestTensorInt::arange(0..shape_x.num_elements(), &Default::default())
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
@@ -112,7 +112,7 @@ mod tests {
         fn assert_output(self, expected: TestTensor<3>) {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let x = TestTensor::from(
-                TestTensorInt::arange(0..shape_x.num_elements(), &Default::default())
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

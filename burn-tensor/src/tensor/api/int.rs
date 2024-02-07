@@ -11,8 +11,8 @@ where
     ///
     /// * `range` - The range of values to generate.
     /// * `device` - The device to create the tensor on.
-    pub fn arange(range: Range<usize>, device: &B::Device) -> Self {
-        Tensor::new(B::float_arange(range, device))
+    pub fn arange(range: Range<i64>, device: &B::Device) -> Self {
+        Tensor::new(B::int_arange(range, device))
     }
 
     /// Returns a new integer tensor on the specified device.
@@ -21,8 +21,8 @@ where
     ///
     /// * `range` - The range of values to generate.
     /// * `step` - The step between each value.
-    pub fn arange_step(range: Range<usize>, step: usize, device: &B::Device) -> Self {
-        Tensor::new(B::float_arange_step(range, step, device))
+    pub fn arange_step(range: Range<i64>, step: usize, device: &B::Device) -> Self {
+        Tensor::new(B::int_arange_step(range, step, device))
     }
 }
 

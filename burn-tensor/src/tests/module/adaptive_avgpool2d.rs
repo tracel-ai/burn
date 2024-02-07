@@ -90,7 +90,7 @@ mod tests {
         fn assert_output(self, y: TestTensor<4>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
             let x = TestTensor::from(
-                TestTensorInt::arange(0..shape_x.num_elements(), &y.device())
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
