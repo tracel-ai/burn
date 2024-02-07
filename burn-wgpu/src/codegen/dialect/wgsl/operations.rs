@@ -1,157 +1,150 @@
-use super::base::{WgslItem, WgslVariable};
-use crate::codegen::dialect::gpu;
+use super::base::{Item, Variable};
 use std::fmt::Display;
 
 /// All operators that can be fused in a WGSL compute shader.
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants might not be used with different flags
-pub enum WgslOperation {
+pub enum Operation {
     Add {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Sub {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Mul {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Div {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Abs {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Exp {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Log {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Log1p {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Cos {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Sin {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Tanh {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Powf {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Sqrt {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Erf {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Recip {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     Equal {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Lower {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     Clamp {
-        input: WgslVariable,
-        min_value: WgslVariable,
-        max_value: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        min_value: Variable,
+        max_value: Variable,
+        out: Variable,
     },
     Greater {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     LowerEqual {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     GreaterEqual {
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     ConditionalAssign {
-        cond: WgslVariable,
-        lhs: WgslVariable,
-        rhs: WgslVariable,
-        out: WgslVariable,
+        cond: Variable,
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
     },
     AssignGlobal {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     AssignLocal {
-        input: WgslVariable,
-        out: WgslVariable,
+        input: Variable,
+        out: Variable,
     },
     ReadGlobal {
-        variable: WgslVariable,
+        variable: Variable,
     },
     /// Read the tensor in a way to be compatible with another tensor layout.
     ReadGlobalWithLayout {
-        variable: WgslVariable,
+        variable: Variable,
         tensor_read_pos: usize,
         tensor_layout_pos: usize,
     },
 }
 
-impl Display for WgslOperation {
+impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgslOperation::Add { lhs, rhs, out } => {
+            Operation::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} + {rhs};"))
             }
-            WgslOperation::Sub { lhs, rhs, out } => {
+            Operation::Sub { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
             }
-            WgslOperation::Mul { lhs, rhs, out } => {
+            Operation::Mul { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} * {rhs};"))
             }
-            WgslOperation::Div { lhs, rhs, out } => {
+            Operation::Div { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} / {rhs};"))
             }
-            WgslOperation::Abs { input, out } => {
-                f.write_fmt(format_args!("let {out} = abs({input});"))
-            }
-            WgslOperation::Exp { input, out } => {
-                f.write_fmt(format_args!("let {out} = exp({input});"))
-            }
-            WgslOperation::Log { input, out } => {
-                f.write_fmt(format_args!("let {out} = log({input});"))
-            }
-            WgslOperation::Clamp {
+            Operation::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
+            Operation::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
+            Operation::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operation::Clamp {
                 input,
                 min_value,
                 max_value,
@@ -159,22 +152,18 @@ impl Display for WgslOperation {
             } => f.write_fmt(format_args!(
                 "let {out} = clamp({input}, {min_value}, {max_value});"
             )),
-            WgslOperation::Powf { lhs, rhs, out } => {
+            Operation::Powf { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
             }
-            WgslOperation::Sqrt { input, out } => {
+            Operation::Sqrt { input, out } => {
                 f.write_fmt(format_args!("let {out} = sqrt({input});"))
             }
-            WgslOperation::Log1p { input, out } => {
+            Operation::Log1p { input, out } => {
                 f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
             }
-            WgslOperation::Cos { input, out } => {
-                f.write_fmt(format_args!("let {out} = cos({input});"))
-            }
-            WgslOperation::Sin { input, out } => {
-                f.write_fmt(format_args!("let {out} = sin({input});"))
-            }
-            WgslOperation::Tanh { input, out } => {
+            Operation::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
+            Operation::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
+            Operation::Tanh { input, out } => {
                 #[cfg(target_os = "macos")]
                 let result = f.write_fmt(format_args!("let {out} = safe_tanh({input});"));
                 #[cfg(not(target_os = "macos"))]
@@ -182,24 +171,22 @@ impl Display for WgslOperation {
 
                 result
             }
-            WgslOperation::Erf { input, out } => {
-                f.write_fmt(format_args!("let {out} = erf({input});"))
-            }
-            WgslOperation::Recip { input, out } => {
+            Operation::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
+            Operation::Recip { input, out } => {
                 f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
             }
-            WgslOperation::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
-            WgslOperation::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
-            WgslOperation::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
-            WgslOperation::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
-            WgslOperation::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
-            WgslOperation::AssignGlobal { input, out } => {
+            Operation::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
+            Operation::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
+            Operation::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
+            Operation::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
+            Operation::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Operation::AssignGlobal { input, out } => {
                 let elem_out = out.item();
                 let elem_in = input.item();
 
                 if elem_out != elem_in {
                     match elem_out {
-                        WgslItem::Vec4(elem) => f.write_fmt(format_args!(
+                        Item::Vec4(elem) => f.write_fmt(format_args!(
                             "
 {out}_global[id] = vec4(
     {elem}({input}[0]),
@@ -208,7 +195,7 @@ impl Display for WgslOperation {
     {elem}({input}[3]),
 );"
                         )),
-                        WgslItem::Vec3(elem) => f.write_fmt(format_args!(
+                        Item::Vec3(elem) => f.write_fmt(format_args!(
                             "
 {out}_global[id] = vec3(
     {elem}({input}[0]),
@@ -216,14 +203,14 @@ impl Display for WgslOperation {
     {elem}({input}[2]),
 );"
                         )),
-                        WgslItem::Vec2(elem) => f.write_fmt(format_args!(
+                        Item::Vec2(elem) => f.write_fmt(format_args!(
                             "
 {out}_global[id] = vec2(
     {elem}({input}[0]),
     {elem}({input}[1]),
 );"
                         )),
-                        WgslItem::Scalar(elem) => {
+                        Item::Scalar(elem) => {
                             f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
                         }
                     }
@@ -231,47 +218,47 @@ impl Display for WgslOperation {
                     f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});"))
                 }
             }
-            WgslOperation::AssignLocal { input, out } => {
+            Operation::AssignLocal { input, out } => {
                 let elem = out.item();
                 f.write_fmt(format_args!("let {out} = {elem}({input});"))
             }
-            WgslOperation::ReadGlobal { variable } => match variable {
-                WgslVariable::Input(number, _elem) => f.write_fmt(format_args!(
+            Operation::ReadGlobal { variable } => match variable {
+                Variable::Input(number, _elem) => f.write_fmt(format_args!(
                     "let input_{number} = input_{number}_global[id];"
                 )),
-                WgslVariable::Local(_, _) => panic!("can't read global local variable."),
-                WgslVariable::Output(number, _elem) => f.write_fmt(format_args!(
+                Variable::Local(_, _) => panic!("can't read global local variable."),
+                Variable::Output(number, _elem) => f.write_fmt(format_args!(
                     "let output_{number} = output_{number}_global[id];"
                 )),
-                WgslVariable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                WgslVariable::Constant(_, _) => panic!("Can't read global constant variable."),
+                Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
+                Variable::Constant(_, _) => panic!("Can't read global constant variable."),
             },
-            WgslOperation::ReadGlobalWithLayout {
+            Operation::ReadGlobalWithLayout {
                 variable,
                 tensor_read_pos: position,
                 tensor_layout_pos: position_out,
             } => {
                 let (global, local, elem) = match variable {
-                    WgslVariable::Input(number, elem) => (
+                    Variable::Input(number, elem) => (
                         format!("input_{number}_global"),
                         format!("input_{number}"),
                         elem,
                     ),
-                    WgslVariable::Local(_, _) => panic!("can't read global local variable."),
-                    WgslVariable::Output(number, elem) => (
+                    Variable::Local(_, _) => panic!("can't read global local variable."),
+                    Variable::Output(number, elem) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),
                         elem,
                     ),
-                    WgslVariable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                    WgslVariable::Constant(_, _) => panic!("Can't read global constant variable."),
+                    Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
+                    Variable::Constant(_, _) => panic!("Can't read global constant variable."),
                 };
 
                 let offset = match elem {
-                    WgslItem::Vec4(_) => 4,
-                    WgslItem::Vec3(_) => 3,
-                    WgslItem::Vec2(_) => 2,
-                    WgslItem::Scalar(_) => 1,
+                    Item::Vec4(_) => 4,
+                    Item::Vec3(_) => 3,
+                    Item::Vec2(_) => 2,
+                    Item::Scalar(_) => 1,
                 };
 
                 f.write_fmt(format_args!(
@@ -293,7 +280,7 @@ let {local} = {elem}({global}[index_{local} /  {offset}u]);
 "
                 ))
             }
-            WgslOperation::ConditionalAssign {
+            Operation::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
@@ -302,7 +289,7 @@ let {local} = {elem}({global}[index_{local} /  {offset}u]);
                 let elem = out.item();
 
                 match elem {
-                    WgslItem::Vec4(_) => {
+                    Item::Vec4(_) => {
                         let lhs0 = lhs.index(0);
                         let lhs1 = lhs.index(1);
                         let lhs2 = lhs.index(2);
@@ -338,7 +325,7 @@ if {cond}[3] {{
 "
                         ))
                     }
-                    WgslItem::Vec3(_) => {
+                    Item::Vec3(_) => {
                         let lhs0 = lhs.index(0);
                         let lhs1 = lhs.index(1);
                         let lhs2 = lhs.index(2);
@@ -367,7 +354,7 @@ if {cond}[2] {{
 "
                         ))
                     }
-                    WgslItem::Vec2(_) => {
+                    Item::Vec2(_) => {
                         let lhs0 = lhs.index(0);
                         let lhs1 = lhs.index(1);
                         let rhs0 = rhs.index(0);
@@ -389,7 +376,7 @@ if {cond}[1] {{
 "
                         ))
                     }
-                    WgslItem::Scalar(_) => f.write_fmt(format_args!(
+                    Item::Scalar(_) => f.write_fmt(format_args!(
                         "
 var {out}: {elem};
 if {cond} {{
@@ -406,14 +393,14 @@ if {cond} {{
 }
 
 fn comparison(
-    lhs: &WgslVariable,
-    rhs: &WgslVariable,
-    out: &WgslVariable,
+    lhs: &Variable,
+    rhs: &Variable,
+    out: &Variable,
     op: &str,
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
     match out.item() {
-        WgslItem::Vec4(_) => {
+        Item::Vec4(_) => {
             let lhs0 = lhs.index(0);
             let lhs1 = lhs.index(1);
             let lhs2 = lhs.index(2);
@@ -429,7 +416,7 @@ let {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lh
 "
             ))
         }
-        WgslItem::Vec3(_) => {
+        Item::Vec3(_) => {
             let lhs0 = lhs.index(0);
             let lhs1 = lhs.index(1);
             let lhs2 = lhs.index(2);
@@ -443,7 +430,7 @@ let {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
 "
             ))
         }
-        WgslItem::Vec2(_) => {
+        Item::Vec2(_) => {
             let lhs0 = lhs.index(0);
             let lhs1 = lhs.index(1);
             let rhs0 = rhs.index(0);
@@ -455,8 +442,8 @@ let {out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
 "
             ))
         }
-        WgslItem::Scalar(_) => match rhs.item() {
-            WgslItem::Scalar(_) => f.write_fmt(format_args!("let {out} = {lhs} {op} {rhs};")),
+        Item::Scalar(_) => match rhs.item() {
+            Item::Scalar(_) => f.write_fmt(format_args!("let {out} = {lhs} {op} {rhs};")),
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }

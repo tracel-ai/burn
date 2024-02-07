@@ -6,9 +6,8 @@ use super::{
 use crate::{
     codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
     codegen::{
-        compiler::Compiler,
-        dialect::wgsl::{WgslCompiler, WgslComputeShader},
-        ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy,
+        compiler::Compiler, dialect::wgsl, ElemWiseKernelCodegen, InplaceMapping, Input, Output,
+        ReadingStrategy,
     },
     compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
@@ -152,14 +151,14 @@ where
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set::<WgslCompiler<F, I>>(
+        let kernel_set_1 = build_kernel_set::<wgsl::WgslCompiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set::<WgslCompiler<F, I>>(
+        let kernel_set_2 = build_kernel_set::<wgsl::WgslCompiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
@@ -330,7 +329,7 @@ fn build_kernel_set<C>(
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet
 where
-    C: Compiler<Representation = WgslComputeShader>,
+    C: Compiler<Representation = wgsl::ComputeShader>,
 {
     let scalar = ScalarElementWise::new(
         GpuKernelSource::new::<C>(

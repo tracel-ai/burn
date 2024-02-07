@@ -1,6 +1,4 @@
-use crate::codegen::dialect::gpu;
-
-use super::WgslOperation;
+use super::Operation;
 use std::fmt::Display;
 
 /// A body is composed of a list of [operators](Operator).
@@ -8,11 +6,11 @@ use std::fmt::Display;
 /// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
 /// X and Y, but with Z=1.
 #[derive(Debug, Clone)]
-pub struct WgslBody {
-    pub operators: Vec<WgslOperation>,
+pub struct Body {
+    pub operators: Vec<Operation>,
 }
 
-impl Display for WgslBody {
+impl Display for Body {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
             "let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;\n",

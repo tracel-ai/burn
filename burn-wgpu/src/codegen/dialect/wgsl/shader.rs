@@ -1,41 +1,41 @@
-use super::{WgslBody, WgslExtension, WgslItem, WgslOperation, WgslVariable};
-use crate::codegen::dialect::gpu::{self, WorkgroupSize};
+use super::{Body, Extension, Item};
+use crate::codegen::dialect::gpu::WorkgroupSize;
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum WgslLocation {
+pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum WgslVisibility {
+pub enum Visibility {
     Read,
     ReadWrite,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct WgslBinding {
-    pub location: WgslLocation,
-    pub visibility: WgslVisibility,
-    pub item: WgslItem,
+pub struct Binding {
+    pub location: Location,
+    pub visibility: Visibility,
+    pub item: Item,
     pub size: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WgslComputeShader {
-    pub inputs: Vec<WgslBinding>,
-    pub outputs: Vec<WgslBinding>,
-    pub named: Vec<(String, WgslBinding)>,
+pub struct ComputeShader {
+    pub inputs: Vec<Binding>,
+    pub outputs: Vec<Binding>,
+    pub named: Vec<(String, Binding)>,
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
-    pub body: WgslBody,
-    pub extensions: Vec<WgslExtension>,
+    pub body: Body,
+    pub extensions: Vec<Extension>,
 }
 
-impl Display for WgslComputeShader {
+impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
@@ -88,11 +88,11 @@ fn main(
     }
 }
 
-impl WgslComputeShader {
+impl ComputeShader {
     fn format_bindings(
         f: &mut core::fmt::Formatter<'_>,
         prefix: &str,
-        bindings: &[WgslBinding],
+        bindings: &[Binding],
         num_entry: usize,
     ) -> core::fmt::Result {
         for (i, binding) in bindings.iter().enumerate() {
@@ -110,7 +110,7 @@ impl WgslComputeShader {
     fn format_binding(
         f: &mut core::fmt::Formatter<'_>,
         name: &str,
-        binding: &WgslBinding,
+        binding: &Binding,
         num_entry: usize,
     ) -> core::fmt::Result {
         let ty = match binding.size {
@@ -130,20 +130,20 @@ var<{}, {}> {}: {};
     }
 }
 
-impl Display for WgslLocation {
+impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgslLocation::Storage => f.write_str("storage"),
-            WgslLocation::Workgroup => f.write_str("workgroup"),
+            Location::Storage => f.write_str("storage"),
+            Location::Workgroup => f.write_str("workgroup"),
         }
     }
 }
 
-impl Display for WgslVisibility {
+impl Display for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgslVisibility::Read => f.write_str("read"),
-            WgslVisibility::ReadWrite => f.write_str("read_write"),
+            Visibility::Read => f.write_str("read"),
+            Visibility::ReadWrite => f.write_str("read_write"),
         }
     }
 }

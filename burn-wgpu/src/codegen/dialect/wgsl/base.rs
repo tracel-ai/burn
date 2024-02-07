@@ -2,16 +2,16 @@ use crate::codegen::dialect::gpu;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
-pub enum WgslVariable {
-    Input(u16, WgslItem),
-    Scalar(u16, WgslItem, gpu::Elem),
-    Local(u16, WgslItem),
-    Output(u16, WgslItem),
-    Constant(f64, WgslItem),
+pub enum Variable {
+    Input(u16, Item),
+    Scalar(u16, Item, gpu::Elem),
+    Local(u16, Item),
+    Output(u16, Item),
+    Constant(f64, Item),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum WgslElem {
+pub enum Elem {
     F32,
     I32,
     U32,
@@ -19,28 +19,28 @@ pub enum WgslElem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum WgslItem {
-    Vec4(WgslElem),
-    Vec3(WgslElem),
-    Vec2(WgslElem),
-    Scalar(WgslElem),
+pub enum Item {
+    Vec4(Elem),
+    Vec3(Elem),
+    Vec2(Elem),
+    Scalar(Elem),
 }
 
 #[derive(Debug, Clone)]
-pub struct IndexedWgslVariable {
-    var: WgslVariable,
+pub struct IndexedVariable {
+    var: Variable,
     index: usize,
 }
 
-impl WgslVariable {
-    pub fn index(&self, index: usize) -> IndexedWgslVariable {
-        IndexedWgslVariable {
+impl Variable {
+    pub fn index(&self, index: usize) -> IndexedVariable {
+        IndexedVariable {
             var: self.clone(),
             index,
         }
     }
 
-    pub fn item(&self) -> &WgslItem {
+    pub fn item(&self) -> &Item {
         match self {
             Self::Input(_, e) => e,
             Self::Scalar(_, e, _) => e,
@@ -51,18 +51,18 @@ impl WgslVariable {
     }
 }
 
-impl WgslItem {
-    pub fn elem(&self) -> &WgslElem {
+impl Item {
+    pub fn elem(&self) -> &Elem {
         match self {
-            WgslItem::Vec4(e) => e,
-            WgslItem::Vec3(e) => e,
-            WgslItem::Vec2(e) => e,
-            WgslItem::Scalar(e) => e,
+            Item::Vec4(e) => e,
+            Item::Vec3(e) => e,
+            Item::Vec2(e) => e,
+            Item::Scalar(e) => e,
         }
     }
 }
 
-impl WgslElem {
+impl Elem {
     pub fn size(&self) -> usize {
         match self {
             Self::F32 => core::mem::size_of::<f32>(),
@@ -73,7 +73,7 @@ impl WgslElem {
     }
 }
 
-impl Display for WgslElem {
+impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::F32 => f.write_str("f32"),
@@ -84,28 +84,28 @@ impl Display for WgslElem {
     }
 }
 
-impl Display for WgslItem {
+impl Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgslItem::Vec4(elem) => f.write_fmt(format_args!("vec4<{elem}>")),
-            WgslItem::Vec3(elem) => f.write_fmt(format_args!("vec3<{elem}>")),
-            WgslItem::Vec2(elem) => f.write_fmt(format_args!("vec2<{elem}>")),
-            WgslItem::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
+            Item::Vec4(elem) => f.write_fmt(format_args!("vec4<{elem}>")),
+            Item::Vec3(elem) => f.write_fmt(format_args!("vec3<{elem}>")),
+            Item::Vec2(elem) => f.write_fmt(format_args!("vec2<{elem}>")),
+            Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
 }
 
-impl Display for WgslVariable {
+impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WgslVariable::Input(number, _) => f.write_fmt(format_args!("input_{number}")),
-            WgslVariable::Local(number, _) => f.write_fmt(format_args!("local_{number}")),
-            WgslVariable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
-            WgslVariable::Scalar(number, _, elem) => {
+            Variable::Input(number, _) => f.write_fmt(format_args!("input_{number}")),
+            Variable::Local(number, _) => f.write_fmt(format_args!("local_{number}")),
+            Variable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
+            Variable::Scalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))
             }
-            WgslVariable::Constant(number, item) => match item {
-                WgslItem::Vec4(elem) => f.write_fmt(format_args!(
+            Variable::Constant(number, item) => match item {
+                Item::Vec4(elem) => f.write_fmt(format_args!(
                     "
 vec4(
     {elem}({number}),
@@ -114,7 +114,7 @@ vec4(
     {elem}({number}),
 )"
                 )),
-                WgslItem::Vec3(elem) => f.write_fmt(format_args!(
+                Item::Vec3(elem) => f.write_fmt(format_args!(
                     "
 vec3(
     {elem}({number}),
@@ -122,26 +122,26 @@ vec3(
     {elem}({number}),
 )"
                 )),
-                WgslItem::Vec2(elem) => f.write_fmt(format_args!(
+                Item::Vec2(elem) => f.write_fmt(format_args!(
                     "
 vec2(
     {elem}({number}),
     {elem}({number}),
 )"
                 )),
-                WgslItem::Scalar(elem) => f.write_fmt(format_args!("{elem}({number})")),
+                Item::Scalar(elem) => f.write_fmt(format_args!("{elem}({number})")),
             },
         }
     }
 }
 
-impl Display for IndexedWgslVariable {
+impl Display for IndexedVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let should_index = |item: &WgslItem| match item {
-            WgslItem::Vec4(_) => true,
-            WgslItem::Vec3(_) => true,
-            WgslItem::Vec2(_) => true,
-            WgslItem::Scalar(_) => false,
+        let should_index = |item: &Item| match item {
+            Item::Vec4(_) => true,
+            Item::Vec3(_) => true,
+            Item::Vec2(_) => true,
+            Item::Scalar(_) => false,
         };
 
         let var = &self.var;
@@ -149,7 +149,7 @@ impl Display for IndexedWgslVariable {
         let index = self.index;
 
         match self.var {
-            WgslVariable::Scalar(_, _, _) => f.write_fmt(format_args!("{var}")),
+            Variable::Scalar(_, _, _) => f.write_fmt(format_args!("{var}")),
             _ => match should_index(item) {
                 true => f.write_fmt(format_args!("{var}[{index}]")),
                 false => f.write_fmt(format_args!("{var}")),

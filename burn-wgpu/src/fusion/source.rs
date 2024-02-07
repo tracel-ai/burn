@@ -1,18 +1,21 @@
 use crate::{
-    codegen::{compiler::Compiler, dialect::gpu::ComputeShader, dialect::wgsl::WgslComputeShader},
+    codegen::{
+        compiler::Compiler,
+        dialect::{gpu, wgsl},
+    },
     kernel::{DynamicKernelSource, SourceTemplate},
 };
 use std::sync::Arc;
 
 pub struct GpuKernelSource {
     pub(crate) id: String,
-    pub(crate) shader: WgslComputeShader,
+    pub(crate) shader: wgsl::ComputeShader,
 }
 
 impl GpuKernelSource {
-    pub fn new<C>(id: String, shader: ComputeShader) -> Self
+    pub fn new<C>(id: String, shader: gpu::ComputeShader) -> Self
     where
-        C: Compiler<Representation = WgslComputeShader>,
+        C: Compiler<Representation = wgsl::ComputeShader>,
     {
         let shader = C::compile(shader);
 
