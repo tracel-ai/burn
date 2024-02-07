@@ -1,3 +1,4 @@
+use crate::codegen::{Elem, Item, Variable};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
@@ -153,6 +154,40 @@ impl Display for IndexedWgslVariable {
                 true => f.write_fmt(format_args!("{var}[{index}]")),
                 false => f.write_fmt(format_args!("{var}")),
             },
+        }
+    }
+}
+
+impl From<Item> for WgslItem {
+    fn from(value: Item) -> Self {
+        match value {
+            Item::Vec4(elem) => Self::Vec4(elem.into()),
+            Item::Vec3(elem) => Self::Vec3(elem.into()),
+            Item::Vec2(elem) => Self::Vec2(elem.into()),
+            Item::Scalar(elem) => Self::Scalar(elem.into()),
+        }
+    }
+}
+
+impl From<Elem> for WgslElem {
+    fn from(value: Elem) -> Self {
+        match value {
+            Elem::F32 => Self::F32,
+            Elem::I32 => Self::I32,
+            Elem::U32 => Self::U32,
+            Elem::Bool => Self::Bool,
+        }
+    }
+}
+
+impl From<Variable> for WgslVariable {
+    fn from(value: Variable) -> Self {
+        match value {
+            Variable::Input(index, item) => Self::Input(index, item.into()),
+            Variable::Scalar(index, item) => Self::Scalar(index, item.into()),
+            Variable::Local(index, item) => Self::Local(index, item.into()),
+            Variable::Output(index, item) => Self::Output(index, item.into()),
+            Variable::Constant(index, item) => Self::Constant(index, item.into()),
         }
     }
 }

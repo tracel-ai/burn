@@ -130,32 +130,124 @@ pub enum WgslOperation {
 impl From<Operation> for WgslOperation {
     fn from(value: Operation) -> Self {
         match value {
-            Operation::Add(_) => todo!(),
-            Operation::Sub(_) => todo!(),
-            Operation::Mul(_) => todo!(),
-            Operation::Div(_) => todo!(),
-            Operation::Abs(_) => todo!(),
-            Operation::Exp(_) => todo!(),
-            Operation::Log(_) => todo!(),
-            Operation::Log1p(_) => todo!(),
-            Operation::Cos(_) => todo!(),
-            Operation::Sin(_) => todo!(),
-            Operation::Tanh(_) => todo!(),
-            Operation::Powf(_) => todo!(),
-            Operation::Sqrt(_) => todo!(),
-            Operation::Erf(_) => todo!(),
-            Operation::Recip(_) => todo!(),
-            Operation::Equal(_) => todo!(),
-            Operation::Lower(_) => todo!(),
-            Operation::Clamp(_) => todo!(),
-            Operation::Greater(_) => todo!(),
-            Operation::LowerEqual(_) => todo!(),
-            Operation::GreaterEqual(_) => todo!(),
-            Operation::ConditionalAssign(_) => todo!(),
-            Operation::AssignGlobal(_) => todo!(),
-            Operation::AssignLocal(_) => todo!(),
-            Operation::ReadGlobal(_) => todo!(),
-            Operation::ReadGlobalWithLayout(_) => todo!(),
+            Operation::Add(op) => Self::Add {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Sub(op) => Self::Sub {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Mul(op) => Self::Mul {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Div(op) => Self::Div {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Abs(op) => Self::Abs {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Exp(op) => Self::Exp {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Log(op) => Self::Log {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Log1p(op) => Self::Log1p {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Cos(op) => Self::Cos {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Sin(op) => Self::Sin {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Tanh(op) => Self::Tanh {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Powf(op) => Self::Powf {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Sqrt(op) => Self::Sqrt {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Erf(op) => Self::Erf {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Recip(op) => Self::Recip {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::Equal(op) => Self::Equal {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Lower(op) => Self::Lower {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::Clamp(op) => Self::Clamp {
+                input: op.input.into(),
+                min_value: op.min_value.into(),
+                max_value: op.max_value.into(),
+                out: op.out.into(),
+            },
+            Operation::Greater(op) => Self::Greater {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::LowerEqual(op) => Self::LowerEqual {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::GreaterEqual(op) => Self::GreaterEqual {
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::ConditionalAssign(op) => Self::ConditionalAssign {
+                cond: op.cond.into(),
+                lhs: op.lhs.into(),
+                rhs: op.rhs.into(),
+                out: op.out.into(),
+            },
+            Operation::AssignGlobal(op) => Self::AssignGlobal {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::AssignLocal(op) => Self::AssignLocal {
+                input: op.input.into(),
+                out: op.out.into(),
+            },
+            Operation::ReadGlobal(op) => Self::ReadGlobal {
+                variable: op.variable.into(),
+            },
+            Operation::ReadGlobalWithLayout(op) => Self::ReadGlobalWithLayout {
+                variable: op.variable.into(),
+                tensor_read_pos: op.tensor_read_pos.into(),
+                tensor_layout_pos: op.tensor_layout_pos.into(),
+            },
         }
     }
 }

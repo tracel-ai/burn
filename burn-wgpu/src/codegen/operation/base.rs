@@ -82,6 +82,7 @@ pub struct ReadGlobalWithLayoutOperation {
 
 impl Operation {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        println!("Vectorize Operation {vectorization:?}");
         match self {
             Operation::Add(op) => Operation::Add(op.vectorize(vectorization)),
             Operation::Sub(op) => Operation::Sub(op.vectorize(vectorization)),

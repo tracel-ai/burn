@@ -7,5 +7,5 @@ use serde::{Deserialize, Serialize};
 /// X and Y, but with Z=1.
 #[derive(Debug, Clone, Serialize, Deserialize, new)]
 pub struct Body {
-    operators: Vec<Operation>,
+    pub operators: Vec<Operation>,
 }

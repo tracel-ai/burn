@@ -25,7 +25,7 @@ pub struct InplaceMapping {
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
     Vec4,

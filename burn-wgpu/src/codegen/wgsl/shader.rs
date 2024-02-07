@@ -2,8 +2,7 @@ use super::base::WgslVariable;
 use super::operations::WgslOperation;
 use super::{base::WgslItem, body::WgslBody};
 use crate::codegen::wgsl::extension::WgslExtension;
-use crate::codegen::{Binding, ComputeShader};
-use crate::kernel::WORKGROUP_DEFAULT;
+use crate::codegen::{Binding, ComputeShader, Location, Visibility, WorkgroupSize};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -25,23 +24,6 @@ pub struct WgslBinding {
     pub visibility: WgslVisibility,
     pub item: WgslItem,
     pub size: Option<usize>,
-}
-
-#[derive(new, Debug, PartialEq, Eq, Clone, Copy)]
-pub struct WorkgroupSize {
-    pub x: u32,
-    pub y: u32,
-    pub z: u32,
-}
-
-impl Default for WorkgroupSize {
-    fn default() -> Self {
-        Self {
-            x: WORKGROUP_DEFAULT as u32,
-            y: WORKGROUP_DEFAULT as u32,
-            z: 1,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -169,27 +151,6 @@ impl Display for WgslVisibility {
     }
 }
 
-impl From<Binding> for WgslBinding {
-    fn from(value: Binding) -> Self {
-        todo!()
-    }
-}
-
-impl From<ComputeShader> for WgslComputeShader {
-    fn from(value: ComputeShader) -> Self {
-        Self {
-            inputs: value.inputs.into_iter().map(From::from).collect(),
-            outputs: value.outputs.into_iter().map(From::from).collect(),
-            named: todo!(),
-            workgroup_size: todo!(),
-            global_invocation_id: todo!(),
-            num_workgroups: todo!(),
-            body: todo!(),
-            extensions: todo!(),
-        }
-    }
-}
-
 fn register_extensions(body: &WgslBody) -> Vec<WgslExtension> {
     let mut extensions = Vec::new();
 
@@ -205,13 +166,13 @@ fn register_extensions(body: &WgslBody) -> Vec<WgslExtension> {
             WgslOperation::Powf {
                 lhs: _,
                 rhs,
-                out: _,
+                out,
             } => match rhs {
                 WgslVariable::Scalar(_, _) => {
-                    register_extension(WgslExtension::PowfScalar(*rhs.item()));
+                    register_extension(WgslExtension::PowfScalar(*out.item()));
                 }
                 _ => {
-                    register_extension(WgslExtension::Powf(*rhs.item()));
+                    register_extension(WgslExtension::Powf(*out.item()));
                 }
             },
             WgslOperation::Erf { input, out: _ } => {
@@ -226,4 +187,56 @@ fn register_extensions(body: &WgslBody) -> Vec<WgslExtension> {
     }
 
     extensions
+}
+
+impl From<Location> for WgslLocation {
+    fn from(value: Location) -> Self {
+        match value {
+            Location::Storage => WgslLocation::Storage,
+            Location::Workgroup => WgslLocation::Workgroup,
+        }
+    }
+}
+
+impl From<Visibility> for WgslVisibility {
+    fn from(value: Visibility) -> Self {
+        match value {
+            Visibility::Read => WgslVisibility::Read,
+            Visibility::ReadWrite => WgslVisibility::ReadWrite,
+        }
+    }
+}
+
+impl From<Binding> for WgslBinding {
+    fn from(value: Binding) -> Self {
+        Self {
+            visibility: value.visibility.into(),
+            location: value.location.into(),
+            item: value.item.into(),
+            size: value.size,
+        }
+    }
+}
+
+impl From<ComputeShader> for WgslComputeShader {
+    fn from(value: ComputeShader) -> Self {
+        let body = value.body.into();
+        let extensions = register_extensions(&body);
+
+
+        Self {
+            inputs: value.inputs.into_iter().map(From::from).collect(),
+            outputs: value.outputs.into_iter().map(From::from).collect(),
+            named: value
+                .named
+                .into_iter()
+                .map(|(name, binding)| (name, binding.into()))
+                .collect(),
+            workgroup_size: value.workgroup_size,
+            global_invocation_id: value.global_invocation_id,
+            num_workgroups: value.num_workgroups,
+            body,
+            extensions,
+        }
+    }
 }

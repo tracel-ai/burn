@@ -1,4 +1,4 @@
-use crate::codegen::wgsl::operations::WgslOperation;
+use crate::codegen::{wgsl::operations::WgslOperation, Body};
 use std::fmt::Display;
 
 /// A body is composed of a list of [operators](Operator).
@@ -23,5 +23,13 @@ impl Display for WgslBody {
         }
 
         Ok(())
+    }
+}
+
+impl From<Body> for WgslBody {
+    fn from(value: Body) -> Self {
+        Self {
+            operators: value.operators.into_iter().map(From::from).collect(),
+        }
     }
 }
