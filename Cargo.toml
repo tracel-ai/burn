@@ -42,7 +42,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 async-trait = "0.1.74"
 bytemuck = "1.14"
-candle-core = { version = "0.3.2" }
+candle-core = { version = "0.3.3" }
 clap = "4.4.11"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1.17"
@@ -54,6 +54,7 @@ flate2 = "1.0.28"
 float-cmp = "0.9.0"
 getrandom = { version = "0.2.11", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
+globwalk = "0.9.1"
 hashbrown = "0.14.2"
 indicatif = "0.17.7"
 js-sys = "0.3.65"
@@ -68,7 +69,7 @@ r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
 rayon = "1.8.0"
 regex = "1.10.2"
-reqwest = "0.11.23"
+reqwest = "0.11.24"
 rmp-serde = "1.1.2"
 rstest = "0.18.2"
 rusqlite = { version = "0.30.0" }
@@ -82,7 +83,7 @@ strum_macros = "0.25.3"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 tempfile = "3.8.1"
 thiserror = "1.0.50"
-tokio = { version = "1.35.1", features = ["rt", "macros"] }
+tokio = { version = "1.36.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.32"
 tracing-subscriber = "0.3.18"
@@ -104,7 +105,7 @@ crossterm = "0.27"
 futures-intrusive = "0.5"
 text_placeholder = "0.5.0"
 pollster = "0.3"
-wgpu = "0.19.0"
+wgpu = "0.18.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
     "alloc",
@@ -123,7 +124,7 @@ half = { version = "2.3.1", features = [
 ], default-features = false }
 ndarray = { version = "0.15.6", default-features = false }
 matrixmultiply = { version = "0.3.8", default-features = false }
-openblas-src = "0.10.8"
+openblas-src = "0.10.9"
 blas-src = { version = "0.9.0", default-features = false }
 num-traits = { version = "0.2.17", default-features = false, features = [
     "libm",
@@ -139,7 +140,7 @@ serde = { version = "1.0.192", default-features = false, features = [
 serde_json = { version = "1.0.108", default-features = false }
 uuid = { version = "1.5.0", default-features = false }
 
-libc = "0.2.150"
+libc = "0.2.153"
 tch = "0.15.0"
 nvml-wrapper = "0.9.0"
 sysinfo = "0.29.10"

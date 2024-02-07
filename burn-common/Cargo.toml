@@ -12,15 +12,15 @@ version.workspace = true
 
 [features]
 default = ["std"]
-
 std = ["rand/std"]
-
+doc = ["default"]
 wasm-sync = []
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 async-trait = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
 web-time = { version = "1.0.0" }
+
 
 [dependencies]
 # ** Please make sure all dependencies support no_std when std is disabled **
@@ -33,3 +33,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]

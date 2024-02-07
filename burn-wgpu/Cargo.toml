@@ -13,6 +13,7 @@ version.workspace = true
 [features]
 default = ["autotune", "std", "burn-compute/default"]
 std = []
+doc = ["default"]
 autotune = []
 fusion = ["burn-fusion"]
 
@@ -66,3 +67,6 @@ harness = false
 [[bench]]
 name = "reduction"
 harness = false
+
+[package.metadata.docs.rs]
+features = ["doc"]

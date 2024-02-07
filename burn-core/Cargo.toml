@@ -13,31 +13,49 @@ version.workspace = true
 [features]
 default = [
     "std",
-    "autotune",
     "fusion",
+    "burn-candle?/default",
+    "burn-common/default",
     "burn-dataset?/default",
     "burn-ndarray?/default",
-    "burn-candle?/default",
-    "burn-wgpu?/default",
     "burn-tch?/default",
-    "burn-dataset?/default",
-    "burn-common/default",
     "burn-tensor/default",
+    "burn-wgpu?/default",
 ]
 std = [
+    "bincode/std",
+    "burn-candle?/std",
+    "burn-common/std",
+    "burn-ndarray?/std",
+    "burn-tensor/std",
+    "burn-wgpu?/std",
     "flate2",
+    "half/std",
     "log",
     "rand/std",
     "rmp-serde",
     "serde/std",
     "serde_json/std",
-    "bincode/std",
-    "half/std",
-    "burn-ndarray?/std",
-    "burn-candle?/std",
-    "burn-wgpu?/std",
-    "burn-common/std",
-    "burn-tensor/std",
+]
+doc = [
+    "std",
+    # Backends
+    "dataset",
+    "candle",
+    "fusion",
+    "ndarray",
+    "tch",
+    "wgpu",
+    "vision",
+    "autodiff",
+    # Doc features
+    "burn-candle/doc",
+    "burn-common/doc",
+    "burn-dataset/doc",
+    "burn-ndarray/doc",
+    "burn-tch/doc",
+    "burn-tensor/doc",
+    "burn-wgpu/doc",
 ]
 dataset = ["burn-dataset"]
 sqlite = ["burn-dataset?/sqlite"]
@@ -73,9 +91,7 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 test-tch = ["tch"]   # To use tch during testing, default uses ndarray.
 test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
 
-
 [dependencies]
-
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
@@ -120,3 +136,6 @@ burn-dataset = { path = "../burn-dataset", version = "0.13.0", features = [
 
 burn-ndarray = { path = "../burn-ndarray", version = "0.13.0", default-features = false }
 burn-autodiff = { path = "../burn-autodiff", version = "0.13.0" }
+
+[package.metadata.docs.rs]
+features = ["doc"]

@@ -13,6 +13,7 @@ version.workspace = true
 [features]
 default = ["std"]
 std = ["serde/std"]
+doc = ["default"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false }
@@ -22,3 +23,6 @@ derive-new = {workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]

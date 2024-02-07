@@ -109,7 +109,10 @@ impl NumericMetricsState {
         if let Event::Key(key) = event {
             match key.kind {
                 KeyEventKind::Release | KeyEventKind::Repeat => (),
+                #[cfg(target_os = "windows")] // Fix the double toggle on Windows.
                 KeyEventKind::Press => return,
+                #[cfg(not(target_os = "windows"))]
+                KeyEventKind::Press => (),
             }
             match key.code {
                 KeyCode::Right => self.next_metric(),

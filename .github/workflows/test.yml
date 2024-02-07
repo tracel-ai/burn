@@ -48,6 +48,12 @@ env:
   # Corresponds to https://github.com/gfx-rs/ci-build/releases
   CI_BINARY_BUILD: "build18"
 
+  # Typos version
+  TYPOS_VERSION: "1.16.20"
+
+  # Grcov version
+  GRCOV_VERSION: "0.8.18"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -140,9 +146,8 @@ jobs:
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
         env:
           GRCOV_LINK: https://github.com/mozilla/grcov/releases/download
-          GRCOV_VERSION: v0.8.18
         run: |
-          curl -L "$GRCOV_LINK/$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+          curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
 
       # -----------------------------------------------------------------------------------
@@ -251,7 +256,7 @@ jobs:
 
       - name: Codecov upload
         if: runner.os == 'Linux' && matrix.rust == 'stable' && matrix.test == 'std'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: lcov.info
 
@@ -270,9 +275,8 @@ jobs:
       - name: Install typos
         env:
           TYPOS_LINK: https://github.com/crate-ci/typos/releases/download
-          TYPOS_VERSION: v1.16.20
         run: |
-          curl -L "$TYPOS_LINK/$TYPOS_VERSION/typos-$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
+          curl -L "$TYPOS_LINK/v$TYPOS_VERSION/typos-v$TYPOS_VERSION-x86_64-unknown-linux-musl.tar.gz" |
           tar xz -C $HOME/.cargo/bin
 
       - name: run spelling checks using typos

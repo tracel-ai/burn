@@ -12,6 +12,7 @@ version.workspace = true
 
 [features]
 default = ["metrics", "tui"]
+doc = ["default"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "crossterm"]
 
@@ -38,3 +39,6 @@ serde = { workspace = true, features = ["std", "derive"] }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.13.0" }
+
+[package.metadata.docs.rs]
+features = ["doc"]
