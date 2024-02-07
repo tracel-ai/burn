@@ -290,7 +290,7 @@ where
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Abs(UnaryOperation {
+            operation: |elem: Elem| Operation::Abs(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),

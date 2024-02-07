@@ -367,7 +367,7 @@ where
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Exp(UnaryOperation {
+            operation: |elem: Elem| Operation::Exp(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -379,7 +379,7 @@ where
 
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Log(UnaryOperation {
+            operation: |elem: Elem| Operation::Log(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -391,7 +391,7 @@ where
 
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Log1p(UnaryOperation {
+            operation: |elem: Elem| Operation::Log1p(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -406,7 +406,7 @@ where
         rhs: f32,
     ) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Powf(BinaryOperation {
+            operation: |elem: Elem| Operation::Powf(BinaryOperation {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Scalar(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
@@ -419,7 +419,7 @@ where
 
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Sqrt(UnaryOperation {
+            operation: |elem: Elem| Operation::Sqrt(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -431,7 +431,7 @@ where
 
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Abs(UnaryOperation {
+            operation: |elem: Elem| Operation::Abs(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -443,7 +443,7 @@ where
 
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Cos(UnaryOperation {
+            operation: |elem: Elem| Operation::Cos(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -455,7 +455,7 @@ where
 
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Sin(UnaryOperation {
+            operation: |elem: Elem| Operation::Sin(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -467,7 +467,7 @@ where
 
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Tanh(UnaryOperation {
+            operation: |elem: Elem| Operation::Tanh(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -479,7 +479,7 @@ where
 
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Erf(UnaryOperation {
+            operation: |elem: Elem| Operation::Erf(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
@@ -526,7 +526,7 @@ where
         tensor: FloatTensor<Wgpu<G, F, I>, D>,
     ) -> FloatTensor<Wgpu<G, F, I>, D> {
         unary!(
-            operator: |elem: Elem| Operation::Recip(UnaryOperation {
+            operation: |elem: Elem| Operation::Recip(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),

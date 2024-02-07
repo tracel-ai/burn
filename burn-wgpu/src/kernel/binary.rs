@@ -9,12 +9,12 @@ use burn_tensor::Shape;
 #[macro_export]
 macro_rules! binary {
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operator: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
 
         $crate::kernel::binary::<Ops<$compiler, $elem, $elem>, OpsInplaceLhs<$compiler, $elem, $elem>, OpsInplaceRhs<$compiler, $elem, $elem>, $elem, D>(
             $lhs, $rhs, true
@@ -22,7 +22,7 @@ macro_rules! binary {
     }};
 
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty,
         elem_in: $elem_in:ty,
         elem_out: $elem_out:ty

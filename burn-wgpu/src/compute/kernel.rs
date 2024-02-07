@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn can_run_kernel() {
         binary!(
-            operator: |elem: Elem| Operation::Add(BinaryOperation {
+            operation: |elem: Elem| Operation::Add(BinaryOperation {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Input(1, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),

@@ -9,28 +9,28 @@ use crate::{
 #[macro_export]
 macro_rules! unary {
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty,
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operator: $ops, compiler: $compiler);
+        unary!(operation: $ops, compiler: $compiler);
 
         $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, None, true)
     }};
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty,
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operator: $ops, compiler: $compiler, scalar 1);
+        unary!(operation: $ops, compiler: $compiler, scalar 1);
 
         $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, Some(&[$scalar]), true)
     }};
 
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty
     ) => {
         pub struct Ops<C, E> {
@@ -94,7 +94,7 @@ macro_rules! unary {
         }
     };
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
         compiler: $compiler:ty,
         scalar $num:expr
     ) => {
@@ -235,7 +235,7 @@ mod tests {
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
-        operator: |elem| Operation::Tanh(UnaryOperation {
+        operation: |elem| Operation::Tanh(UnaryOperation {
             input: Variable::Input(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),

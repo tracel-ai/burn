@@ -15,7 +15,7 @@ pub(crate) fn clamp<C: Compiler, E: WgpuElement, const D: usize>(
     max_value: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem| Operation::Clamp(ClampOperation {
+        operation: |elem| Operation::Clamp(ClampOperation {
             input: Variable::Input(0, Item::Scalar(elem)),
             min_value: Variable::Scalar(0, Item::Scalar(elem)),
             max_value: Variable::Scalar(1, Item::Scalar(elem)),

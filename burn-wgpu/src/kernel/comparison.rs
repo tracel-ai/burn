@@ -17,7 +17,7 @@ macro_rules! comparison {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operator: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
 
         launch_binary::<Ops<$compiler, E, u32>, OpsInplaceLhs<$compiler, E, u32>, OpsInplaceRhs<$compiler, E, u32>, E, D>($lhs, $rhs)
     }};
@@ -28,7 +28,7 @@ macro_rules! comparison {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operator: $ops, compiler: $compiler, scalar 1);
+        unary!(operation: $ops, compiler: $compiler, scalar 1);
 
         launch_unary::<Ops<$compiler, E>, OpsInplace<$compiler, E>, E, D>($lhs, $rhs)
     }};
