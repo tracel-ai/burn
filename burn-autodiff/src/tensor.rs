@@ -38,7 +38,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         let node = Node::new(vec![], 0, id, Requirement::None);
 
         let graph = Graph::new();
-        graph.checkpoint_register(node.id, primitive, 1); // n_required arbitrary
+        graph.checkpoint_register(node.id.clone(), primitive.clone(), 1); // n_required arbitrary
 
         Self {
             primitive,
@@ -98,9 +98,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         );
 
         match checkpoint_strategy {
-            CheckpointStrategy::Computed => graph.checkpoint_register(node.id, output, 1),
+            CheckpointStrategy::Computed => {
+                graph.checkpoint_register(node.id.clone(), output.clone(), 1)
+            }
             CheckpointStrategy::Recompute { retro_forward } => {
-                graph.retro_register(node.id, retro_forward)
+                graph.retro_register(node.id.clone(), retro_forward)
             }
         }
 

@@ -333,10 +333,10 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 let (lhs, rhs, broadcast) = match ops.state {
                     Some(state) => state,
                     None => {
-                        let lhs: B::FloatTensorPrimitive<D> =
-                            checkpointer.retrieve_output(ops.parents[0].unwrap().id);
-                        let rhs: B::FloatTensorPrimitive<D> =
-                            checkpointer.retrieve_output(ops.parents[1].unwrap().id);
+                        let lhs: B::FloatTensorPrimitive<D> = checkpointer
+                            .retrieve_output(ops.parents[0].clone().unwrap().id.clone());
+                        let rhs: B::FloatTensorPrimitive<D> = checkpointer
+                            .retrieve_output(ops.parents[1].clone().unwrap().id.clone());
                         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs, &rhs);
                         // TODO None if not tracked
                         (Some(lhs), Some(rhs), broadcast)
@@ -371,9 +371,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let rhs_tracked = rhs.is_tracked();
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
+        // TODO had to add a lot of clone, for nodes then for their ids. same goes for parents in backward()
         match Div
-            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .recomputed(Box::new(RetroDiv::<B, D>::new(lhs.node.id, rhs.node.id))) // the box is painful, try to remove from api
+            .prepare([lhs.node.clone(), rhs.node.clone()], [lhs.graph, rhs.graph])
+            .recomputed(Box::new(RetroDiv::<B, D>::new(
+                lhs.node.id.clone(),
+                rhs.node.id.clone(),
+            ))) // the box is painful, try to remove from api
             .state_lazy()
         {
             // TODO if state is lazy then we just ignore the state below. should not compute it for nothing

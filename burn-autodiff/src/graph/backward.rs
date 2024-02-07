@@ -6,9 +6,10 @@ use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
 pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
+    let checkpointer = root.graph.take_checkpointer();
     let tape = build_tape(root.node, root.graph);
 
-    execute_steps(tape, grads, root.graph.get_checkpointer())
+    execute_steps(tape, grads, checkpointer)
 }
 
 fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
@@ -32,12 +33,12 @@ fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
 fn execute_steps(
     tape: Vec<Vec<StepBoxed>>,
     mut grads: Gradients,
-    checkpointer: &mut Checkpointer,
+    mut checkpointer: Checkpointer,
 ) -> Gradients {
     tape.into_iter().rev().for_each(|steps| {
         steps
             .into_iter()
-            .for_each(|step| step.step(&mut grads, checkpointer))
+            .for_each(|step| step.step(&mut grads, &mut checkpointer))
     });
     grads
 }

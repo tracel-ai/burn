@@ -46,10 +46,12 @@ impl RetroForwards {
         self.map.insert(node_id, retro_forward);
     }
 
-    pub(crate) fn merge(self, other: Self) -> Self {
-        Self {
-            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
-        }
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.map.extend(other.map);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.map.len()
     }
 }
 
@@ -70,10 +72,8 @@ impl NodeTree {
         self.map.insert(node_id, node_ref);
     }
 
-    pub(crate) fn merge(self, other: Self) -> Self {
-        Self {
-            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
-        }
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.map.extend(other.map);
     }
 }
 
@@ -144,13 +144,14 @@ impl Checkpointer {
         }
     }
 
-    pub fn merge(self, other: Self) -> Self {
-        // TODO mut with extend
-        Self {
-            backward_states: self.backward_states.merge(other.backward_states),
-            node_tree: self.node_tree.merge(other.node_tree),
-            retro_forwards: self.retro_forwards.merge(other.retro_forwards),
-        }
+    pub fn extend(&mut self, other: Self) {
+        self.backward_states.extend(other.backward_states);
+        self.node_tree.extend(other.node_tree);
+        self.retro_forwards.extend(other.retro_forwards);
+    }
+
+    pub fn len(&self) -> usize {
+        self.backward_states.len() + self.retro_forwards.len()
     }
 
     pub fn register_retro_forward(

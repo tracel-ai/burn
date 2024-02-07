@@ -45,7 +45,7 @@ impl Graph {
     /// keeping all the tensors alive for multiple backward call is a heavy waste of resources.
     pub fn steps(self) -> NodeSteps {
         let mut map_drain = HashMap::new();
-        self.execute_mut(|map| {
+        self.execute_mut_steps(|map| {
             std::mem::swap(&mut *map, &mut map_drain);
         });
         map_drain
@@ -53,7 +53,7 @@ impl Graph {
 
     /// Register a new step into the graph.
     pub fn register(self, id: &NodeID, ops: StepBoxed) -> Self {
-        self.execute_mut(|map| {
+        self.execute_mut_steps(|map| {
             map.insert(id.clone(), ops);
         })
     }
@@ -67,7 +67,7 @@ impl Graph {
         self.merge_different(other)
     }
 
-    fn execute_mut<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
+    fn execute_mut_steps<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
                 let map = mutex.get_mut();
@@ -84,12 +84,10 @@ impl Graph {
     }
 
     fn merge_different(self, other: Self) -> Self {
-        // TODO better follow the same pattern where largest extends itself with largest
-        let checkpointer = self.checkpointer.lock().merge(*other.checkpointer.lock());
+        let mut map2 = other.clone().steps();
+        let mut checkpointer2 = other.checkpointer_own();
 
-        let mut map2 = other.steps();
-
-        self.execute_mut(|map1| {
+        self.execute_mut_steps(|map1| {
             if map1.len() > map2.len() {
                 map1.extend(map2);
             } else {
@@ -97,6 +95,16 @@ impl Graph {
                 std::mem::swap(map1, &mut map_drain);
                 map2.extend(map_drain);
                 std::mem::swap(map1, &mut map2);
+            }
+        })
+        .execute_mut_checkpointer(|checkpointer1| {
+            if checkpointer1.len() > checkpointer2.len() {
+                checkpointer1.extend(checkpointer2);
+            } else {
+                let mut checkpointer_drain = Checkpointer::default();
+                std::mem::swap(checkpointer1, &mut checkpointer_drain);
+                checkpointer2.extend(checkpointer_drain);
+                std::mem::swap(checkpointer1, &mut checkpointer2);
             }
         })
     }
@@ -118,7 +126,36 @@ impl Graph {
             .register_retro_forward(node_id, retro_forward)
     }
 
-    pub fn get_checkpointer(&self) -> &mut Checkpointer {
-        &mut self.checkpointer.lock()
+    /// # Notes
+    ///
+    /// This is a owned method, so the current checkpointer will be freed.
+    pub fn checkpointer_own(self) -> Checkpointer {
+        let mut checkpointer_drain = Checkpointer::default();
+        self.execute_mut_checkpointer(|checkpointer| {
+            std::mem::swap(&mut *checkpointer, &mut checkpointer_drain);
+        });
+        checkpointer_drain
+    }
+
+    fn execute_mut_checkpointer<F: FnOnce(&mut Checkpointer)>(mut self, func: F) -> Self {
+        match Arc::get_mut(&mut self.checkpointer) {
+            Some(mutex) => {
+                let map = mutex.get_mut();
+                func(map);
+            }
+            None => {
+                // Only lock when there are multiple references to the graph.
+                let mut checkpointer = self.checkpointer.lock();
+                func(&mut checkpointer);
+            }
+        };
+
+        self
+    }
+
+    pub fn take_checkpointer(&self) -> Checkpointer {
+        let mut guard = self.checkpointer.lock();
+        let owned: Checkpointer = std::mem::replace(&mut *guard, Checkpointer::default());
+        owned
     }
 }

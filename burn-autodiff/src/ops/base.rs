@@ -8,6 +8,7 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
+use spin::Mutex;
 use std::{marker::PhantomData, sync::Arc};
 
 pub enum CheckpointStrategy {

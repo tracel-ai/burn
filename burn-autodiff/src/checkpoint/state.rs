@@ -133,9 +133,11 @@ impl BackwardStates {
         );
     }
 
-    pub(crate) fn merge(self, other: Self) -> Self {
-        Self {
-            map: self.map.into_iter().chain(other.map.into_iter()).collect(),
-        }
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.map.extend(other.map);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.map.len()
     }
 }
