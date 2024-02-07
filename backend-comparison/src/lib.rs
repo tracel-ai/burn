@@ -1,3 +1,4 @@
+pub mod burnbenchapp;
 pub mod persistence;
 
 #[macro_export]
