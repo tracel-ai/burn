@@ -1,7 +1,7 @@
 use super::Operation;
 use std::fmt::Display;
 
-/// A body is composed of a list of [operators](Operator).
+/// A body is composed of a list of [operations](Operation).
 ///
 /// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
 /// X and Y, but with Z=1.

@@ -1,7 +1,7 @@
 use super::Variable;
 use serde::{Deserialize, Serialize};
 
-/// All operators that can be fused in a WGSL compute shader.
+/// All operations that can be used in a GPU compute shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {

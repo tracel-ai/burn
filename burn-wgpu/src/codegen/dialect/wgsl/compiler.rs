@@ -19,6 +19,10 @@ impl<F: WgpuElement, I: WgpuElement> compiler::Compiler for Compiler<F, I> {
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {
         Self::compile_shader(shader)
     }
+
+    fn elem_size(elem: gpu::Elem) -> usize {
+        Self::compile_elem(elem).size()
+    }
 }
 
 impl<F: WgpuElement, I: WgpuElement> Compiler<F, I> {
@@ -271,7 +275,7 @@ fn register_extensions(body: &wgsl::Body) -> Vec<wgsl::Extension> {
             }
             #[cfg(target_os = "macos")]
             wgsl::Operation::Tanh { input, out: _ } => {
-                register_function(wgsl::Extension::SafeTanh(*input.item()))
+                register_extension(wgsl::Extension::SafeTanh(*input.item()))
             }
             _ => {}
         }

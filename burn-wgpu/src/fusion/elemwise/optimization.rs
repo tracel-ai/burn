@@ -329,10 +329,10 @@ fn build_kernel_set<C>(
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet
 where
-    C: Compiler<Representation = wgsl::ComputeShader>,
+    C: Compiler,
 {
-    let scalar = ScalarElementWise::new(
-        GpuKernelSource::new::<C>(
+    let scalar = ScalarElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inputs(inputs)
@@ -341,7 +341,7 @@ where
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        GpuKernelSource::new::<C>(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inplace(mappings)
@@ -355,8 +355,8 @@ where
         outputs.len(),
     );
 
-    let vec2 = VecElementWise::new(
-        GpuKernelSource::new::<C>(
+    let vec2 = VecElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -366,7 +366,7 @@ where
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        GpuKernelSource::new::<C>(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -381,8 +381,8 @@ where
         outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::new(
-        GpuKernelSource::new::<C>(
+    let vec4 = VecElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
@@ -392,7 +392,7 @@ where
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        GpuKernelSource::new::<C>(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)

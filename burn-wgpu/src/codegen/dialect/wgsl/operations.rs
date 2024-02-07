@@ -1,7 +1,7 @@
 use super::base::{Item, Variable};
 use std::fmt::Display;
 
-/// All operators that can be fused in a WGSL compute shader.
+/// All operations that can be used in a WGSL compute shader.
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {

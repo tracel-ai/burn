@@ -129,35 +129,26 @@ impl ReadGlobalWithLayoutOperation {
 
 impl Variable {
     pub fn vectorize(&self, vectorize: Vectorization) -> Self {
+        match self {
+            Variable::Input(index, item) => Variable::Input(*index, item.vectorize(vectorize)),
+            Variable::Local(index, item) => Variable::Local(*index, item.vectorize(vectorize)),
+            Variable::Output(index, item) => Variable::Output(*index, item.vectorize(vectorize)),
+            Variable::Constant(index, item) => {
+                Variable::Constant(*index, item.vectorize(vectorize))
+            }
+            Variable::Scalar(index, item) => Variable::Scalar(*index, *item), // Don't vectorize
+                                                                              // scalar variables.
+        }
+    }
+}
+
+impl Item {
+    pub fn vectorize(&self, vectorize: Vectorization) -> Item {
         match vectorize {
-            Vectorization::Vec4 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec4(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec4(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec4(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec4(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Vec3 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec3(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec3(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec3(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec3(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Vec2 => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Vec2(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Vec2(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Vec2(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Vec2(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
-            Vectorization::Scalar => match self {
-                Variable::Input(id, ty) => Variable::Input(*id, Item::Scalar(ty.elem())),
-                Variable::Local(id, ty) => Variable::Local(*id, Item::Scalar(ty.elem())),
-                Variable::Output(id, ty) => Variable::Output(*id, Item::Scalar(ty.elem())),
-                Variable::Constant(id, ty) => Variable::Constant(*id, Item::Scalar(ty.elem())),
-                Variable::Scalar(_, _) => self.clone(),
-            },
+            Vectorization::Vec4 => Item::Vec4(self.elem()),
+            Vectorization::Vec3 => Item::Vec3(self.elem()),
+            Vectorization::Vec2 => Item::Vec2(self.elem()),
+            Vectorization::Scalar => Item::Scalar(self.elem()),
         }
     }
 }

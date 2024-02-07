@@ -431,17 +431,6 @@ pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {
     num_elems
 }
 
-impl Item {
-    fn vectorize(&self, vectorize: Vectorization) -> Item {
-        match vectorize {
-            Vectorization::Vec4 => Item::Vec4(self.elem()),
-            Vectorization::Vec3 => Item::Vec3(self.elem()),
-            Vectorization::Vec2 => Item::Vec2(self.elem()),
-            Vectorization::Scalar => Item::Scalar(self.elem()),
-        }
-    }
-}
-
 fn bool_item(ty: Item) -> Item {
     match ty {
         Item::Vec4(elem) => Item::Vec4(bool_elem(elem)),
