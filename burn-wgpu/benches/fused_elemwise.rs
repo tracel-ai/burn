@@ -55,11 +55,13 @@ impl<B: Backend> Benchmark for ElemWiseBenchmark<B> {
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
-    run_benchmark(ElemWiseBenchmark::<Wgpu>::new(
+    let result = run_benchmark(ElemWiseBenchmark::<Wgpu>::new(
         Shape::new([256, 256, 1024]),
         device.clone(),
         10,
     ));
+
+    println!("{result}");
 }
 
 fn main() {

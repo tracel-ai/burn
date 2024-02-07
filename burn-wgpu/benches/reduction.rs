@@ -70,7 +70,7 @@ macro_rules! bench_reduce {
             }
         }
         type $benchmark<const D: usize> =
-            ReduceBenchmark<Wgpu<AutoGraphicsApi, f32, i32>, $reduce_name, D>;
+            ReduceBenchmark<WgpuBackend<AutoGraphicsApi, f32, i32>, $reduce_name, D>;
     };
 }
 
