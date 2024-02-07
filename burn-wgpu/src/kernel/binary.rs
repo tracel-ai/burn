@@ -48,24 +48,24 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::Item::Scalar(O::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(O::elem_type()),
                         local: 0,
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
@@ -81,25 +81,25 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::ReadWrite,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::Item::Scalar(I::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
                         input: 0,
                         local: 0,
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
@@ -115,25 +115,25 @@ macro_rules! binary {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::ReadWrite,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                     ])
                     .body(&[$ops(I::elem_type())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::Item::Scalar(I::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::elem_type()),
                         input: 1,
                         local: 0,
                     }])
                     .compile();
 
-                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                let compiled = <$crate::codegen::dialect::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
                 $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }

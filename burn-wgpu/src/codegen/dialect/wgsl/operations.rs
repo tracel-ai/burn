@@ -1,5 +1,5 @@
 use super::base::{WgslItem, WgslVariable};
-use crate::codegen::Operation;
+use crate::codegen::dialect::gpu;
 use std::fmt::Display;
 
 /// All operators that can be fused in a WGSL compute shader.
@@ -127,123 +127,123 @@ pub enum WgslOperation {
     },
 }
 
-impl From<Operation> for WgslOperation {
-    fn from(value: Operation) -> Self {
+impl From<gpu::Operation> for WgslOperation {
+    fn from(value: gpu::Operation) -> Self {
         match value {
-            Operation::Add(op) => Self::Add {
+            gpu::Operation::Add(op) => Self::Add {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Sub(op) => Self::Sub {
+            gpu::Operation::Sub(op) => Self::Sub {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Mul(op) => Self::Mul {
+            gpu::Operation::Mul(op) => Self::Mul {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Div(op) => Self::Div {
+            gpu::Operation::Div(op) => Self::Div {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Abs(op) => Self::Abs {
+            gpu::Operation::Abs(op) => Self::Abs {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Exp(op) => Self::Exp {
+            gpu::Operation::Exp(op) => Self::Exp {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Log(op) => Self::Log {
+            gpu::Operation::Log(op) => Self::Log {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Log1p(op) => Self::Log1p {
+            gpu::Operation::Log1p(op) => Self::Log1p {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Cos(op) => Self::Cos {
+            gpu::Operation::Cos(op) => Self::Cos {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Sin(op) => Self::Sin {
+            gpu::Operation::Sin(op) => Self::Sin {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Tanh(op) => Self::Tanh {
+            gpu::Operation::Tanh(op) => Self::Tanh {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Powf(op) => Self::Powf {
+            gpu::Operation::Powf(op) => Self::Powf {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Sqrt(op) => Self::Sqrt {
+            gpu::Operation::Sqrt(op) => Self::Sqrt {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Erf(op) => Self::Erf {
+            gpu::Operation::Erf(op) => Self::Erf {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Recip(op) => Self::Recip {
+            gpu::Operation::Recip(op) => Self::Recip {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::Equal(op) => Self::Equal {
+            gpu::Operation::Equal(op) => Self::Equal {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Lower(op) => Self::Lower {
+            gpu::Operation::Lower(op) => Self::Lower {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::Clamp(op) => Self::Clamp {
+            gpu::Operation::Clamp(op) => Self::Clamp {
                 input: op.input.into(),
                 min_value: op.min_value.into(),
                 max_value: op.max_value.into(),
                 out: op.out.into(),
             },
-            Operation::Greater(op) => Self::Greater {
+            gpu::Operation::Greater(op) => Self::Greater {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::LowerEqual(op) => Self::LowerEqual {
+            gpu::Operation::LowerEqual(op) => Self::LowerEqual {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::GreaterEqual(op) => Self::GreaterEqual {
+            gpu::Operation::GreaterEqual(op) => Self::GreaterEqual {
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::ConditionalAssign(op) => Self::ConditionalAssign {
+            gpu::Operation::ConditionalAssign(op) => Self::ConditionalAssign {
                 cond: op.cond.into(),
                 lhs: op.lhs.into(),
                 rhs: op.rhs.into(),
                 out: op.out.into(),
             },
-            Operation::AssignGlobal(op) => Self::AssignGlobal {
+            gpu::Operation::AssignGlobal(op) => Self::AssignGlobal {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::AssignLocal(op) => Self::AssignLocal {
+            gpu::Operation::AssignLocal(op) => Self::AssignLocal {
                 input: op.input.into(),
                 out: op.out.into(),
             },
-            Operation::ReadGlobal(op) => Self::ReadGlobal {
+            gpu::Operation::ReadGlobal(op) => Self::ReadGlobal {
                 variable: op.variable.into(),
             },
-            Operation::ReadGlobalWithLayout(op) => Self::ReadGlobalWithLayout {
+            gpu::Operation::ReadGlobalWithLayout(op) => Self::ReadGlobalWithLayout {
                 variable: op.variable.into(),
                 tensor_read_pos: op.tensor_read_pos.into(),
                 tensor_layout_pos: op.tensor_layout_pos.into(),

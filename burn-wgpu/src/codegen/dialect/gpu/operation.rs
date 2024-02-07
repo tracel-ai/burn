@@ -1,4 +1,5 @@
-use crate::codegen::{Variable, Vectorization};
+use super::Variable;
+use crate::codegen::Vectorization;
 use serde::{Deserialize, Serialize};
 
 /// All operators that can be fused in a WGSL compute shader.

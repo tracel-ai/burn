@@ -1,8 +1,8 @@
 use crate::{
     codegen::{
         compiler::Compiler,
-        wgsl::{shader::WgslComputeShader, WgslCompiler},
-        ComputeShader,
+        dialect::gpu::ComputeShader,
+        dialect::wgsl::{WgslCompiler, WgslComputeShader},
     },
     kernel::{DynamicKernelSource, SourceTemplate},
 };

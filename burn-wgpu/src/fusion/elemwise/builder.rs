@@ -1,6 +1,6 @@
 use super::{optimization::ElementWise, CompilationPhase, Scalars};
 use crate::{
-    codegen::{
+    codegen::dialect::gpu::{
         BinaryOperation, ConditionalAssignOperation, Elem, Item, Operation, UnaryOperation,
         Variable,
     },

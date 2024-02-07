@@ -1,6 +1,6 @@
 use super::numeric;
 
-use crate::codegen::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},

@@ -4,9 +4,9 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
+    codegen::dialect::gpu::{Elem, Item, Operation, Visibility, WorkgroupSize},
     codegen::{
-        Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operation, Output,
-        ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
+        ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy, Vectorization,
     },
     compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
     fusion::{kernel::FusionKernelSet, source::DynKernelSource},

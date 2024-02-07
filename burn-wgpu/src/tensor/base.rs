@@ -1,4 +1,4 @@
-use crate::codegen::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},

@@ -1,4 +1,6 @@
-use crate::codegen::{BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::gpu::{
+    BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
+};
 use crate::compute::{compute_client, WgpuComputeClient};
 use crate::{binary, GraphicsApi, WgpuDevice};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};

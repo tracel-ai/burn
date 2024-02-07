@@ -1,4 +1,5 @@
-use super::{Item, Vectorization};
+use super::Item;
+use crate::codegen::Vectorization;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

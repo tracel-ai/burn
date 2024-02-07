@@ -1,8 +1,8 @@
 use super::base::WgslVariable;
 use super::operations::WgslOperation;
 use super::{base::WgslItem, body::WgslBody};
-use crate::codegen::wgsl::extension::WgslExtension;
-use crate::codegen::{Binding, ComputeShader, Location, Visibility, WorkgroupSize};
+use crate::codegen::dialect::gpu::{self, WorkgroupSize};
+use crate::codegen::dialect::wgsl::WgslExtension;
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -163,11 +163,7 @@ fn register_extensions(body: &WgslBody) -> Vec<WgslExtension> {
     // Since not all operators are native to WGSL, we need to add the custom ones.
     for op in body.operators.iter() {
         match op {
-            WgslOperation::Powf {
-                lhs: _,
-                rhs,
-                out,
-            } => match rhs {
+            WgslOperation::Powf { lhs: _, rhs, out } => match rhs {
                 WgslVariable::Scalar(_, _) => {
                     register_extension(WgslExtension::PowfScalar(*out.item()));
                 }
@@ -189,26 +185,26 @@ fn register_extensions(body: &WgslBody) -> Vec<WgslExtension> {
     extensions
 }
 
-impl From<Location> for WgslLocation {
-    fn from(value: Location) -> Self {
+impl From<gpu::Location> for WgslLocation {
+    fn from(value: gpu::Location) -> Self {
         match value {
-            Location::Storage => WgslLocation::Storage,
-            Location::Workgroup => WgslLocation::Workgroup,
+            gpu::Location::Storage => WgslLocation::Storage,
+            gpu::Location::Workgroup => WgslLocation::Workgroup,
         }
     }
 }
 
-impl From<Visibility> for WgslVisibility {
-    fn from(value: Visibility) -> Self {
+impl From<gpu::Visibility> for WgslVisibility {
+    fn from(value: gpu::Visibility) -> Self {
         match value {
-            Visibility::Read => WgslVisibility::Read,
-            Visibility::ReadWrite => WgslVisibility::ReadWrite,
+            gpu::Visibility::Read => WgslVisibility::Read,
+            gpu::Visibility::ReadWrite => WgslVisibility::ReadWrite,
         }
     }
 }
 
-impl From<Binding> for WgslBinding {
-    fn from(value: Binding) -> Self {
+impl From<gpu::Binding> for WgslBinding {
+    fn from(value: gpu::Binding) -> Self {
         Self {
             visibility: value.visibility.into(),
             location: value.location.into(),
@@ -218,11 +214,10 @@ impl From<Binding> for WgslBinding {
     }
 }
 
-impl From<ComputeShader> for WgslComputeShader {
-    fn from(value: ComputeShader) -> Self {
+impl From<gpu::ComputeShader> for WgslComputeShader {
+    fn from(value: gpu::ComputeShader) -> Self {
         let body = value.body.into();
         let extensions = register_extensions(&body);
-
 
         Self {
             inputs: value.inputs.into_iter().map(From::from).collect(),

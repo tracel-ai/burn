@@ -1,6 +1,6 @@
 use crate::{
     binary,
-    codegen::{BinaryOperation, Elem, Item, Operation, Variable},
+    codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
     element::WgpuElement,
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},

@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::{BinaryOperation, Elem, Item, Operation, Variable},
+        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         compute::compute_client,
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
         AutoGraphicsApi, WgpuDevice,

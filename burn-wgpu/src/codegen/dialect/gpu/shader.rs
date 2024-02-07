@@ -1,8 +1,7 @@
-use std::fmt::Display;
-
 use super::Body;
 use crate::kernel::WORKGROUP_DEFAULT;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Location {

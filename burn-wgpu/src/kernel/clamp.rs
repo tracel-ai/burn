@@ -1,6 +1,6 @@
 use super::unary;
 use crate::{
-    codegen::{ClampOperation, Item, Operation, Variable},
+    codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,

@@ -1,12 +1,11 @@
-use crate::codegen::{
-    Binding, Body, ComputeShader, Elem, Location, Operation, Variable, Visibility, WorkgroupSize,
+use crate::codegen::dialect::gpu::{
+    Binding, Body, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
+    ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Visibility, WorkgroupSize,
 };
 use crate::compute::{StaticKernel, WgpuComputeClient, WgpuHandle};
 use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use std::marker::PhantomData;
-
-use super::{Item, ReadGlobalOperation, ReadGlobalWithLayoutOperation, UnaryOperation};
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
