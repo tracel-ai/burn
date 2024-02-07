@@ -220,54 +220,90 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        todo!()
-        // #[derive(Debug)]
-        // struct Mul;
+        #[derive(Debug)]
+        struct Mul;
 
-        // impl<B: Backend, const D: usize> Backward<B, D, 2> for Mul {
-        //     type State = (
-        //         Option<B::TensorPrimitive<D>>,
-        //         Option<B::TensorPrimitive<D>>,
-        //         BinaryOpsBroadcast<D>,
-        //     );
+        #[derive(new, Debug)]
+        struct RetroMul<B, const D: usize> {
+            lhs_id: NodeID,
+            rhs_id: NodeID,
+            _backend: PhantomData<B>,
+        }
+        impl<B: Backend, const D: usize> RetroForward for RetroMul<B, D> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_id);
+                let rhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.rhs_id);
+                let out = B::float_mul(lhs, rhs);
+                states.save(out_node, out)
+            }
+        }
 
-        //     fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-        //         let (lhs, rhs, broadcast) = ops.state;
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for Mul {
+            type State = (
+                Option<B::FloatTensorPrimitive<D>>,
+                Option<B::FloatTensorPrimitive<D>>,
+                BinaryOpsBroadcast<D>,
+            );
 
-        //         binary::<B, D, D, D, _, _>(
-        //             ops.parents,
-        //             ops.node,
-        //             grads,
-        //             |grad| {
-        //                 let grad = B::mul(grad, rhs.unwrap());
-        //                 broadcast.backward_lhs::<B>(grad)
-        //             },
-        //             |grad| {
-        //                 let grad = B::mul(grad, lhs.unwrap());
-        //                 broadcast.backward_rhs::<B>(grad)
-        //             },
-        //         );
-        //     }
-        // }
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (lhs, rhs, broadcast) = match ops.state {
+                    Some(state) => state,
+                    None => {
+                        let lhs: B::FloatTensorPrimitive<D> = checkpointer
+                            .retrieve_output(ops.parents[0].clone().unwrap().id.clone());
+                        let rhs: B::FloatTensorPrimitive<D> = checkpointer
+                            .retrieve_output(ops.parents[1].clone().unwrap().id.clone());
+                        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs, &rhs);
+                        // TODO None if not tracked
+                        (Some(lhs), Some(rhs), broadcast)
+                    }
+                };
 
-        // let lhs_tracked = lhs.is_tracked();
-        // let rhs_tracked = rhs.is_tracked();
-        // let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        let grad = B::float_mul(grad, rhs.unwrap());
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        let grad = B::float_mul(grad, lhs.unwrap());
+                        broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
 
-        // match Mul
-        //     .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-        //     .stateful()
-        // {
-        //     OpsKind::Tracked(prep) => prep.finish(
-        //         (
-        //             rhs_tracked.then(|| lhs.primitive.clone()),
-        //             lhs_tracked.then(|| rhs.primitive.clone()),
-        //             broadcast,
-        //         ),
-        //         B::mul(lhs.primitive, rhs.primitive),
-        //     ),
-        //     OpsKind::UnTracked(prep) => prep.finish(B::mul(lhs.primitive, rhs.primitive)),
-        // }
+        let lhs_tracked = lhs.is_tracked();
+        let rhs_tracked = rhs.is_tracked();
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+
+        match Mul
+            .prepare([lhs.node.clone(), rhs.node.clone()], [lhs.graph, rhs.graph])
+            // .checkpointed()
+            .recomputed(Box::new(RetroMul::<B, D>::new(
+                lhs.node.id.clone(),
+                rhs.node.id.clone(),
+            )))
+            // .stateful()
+            .state_lazy()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    rhs_tracked.then(|| lhs.primitive.clone()),
+                    lhs_tracked.then(|| rhs.primitive.clone()),
+                    broadcast,
+                ),
+                B::float_mul(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_mul(lhs.primitive, rhs.primitive)),
+        }
     }
 
     fn float_mul_scalar<const D: usize>(
@@ -374,11 +410,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // TODO had to add a lot of clone, for nodes then for their ids. same goes for parents in backward()
         match Div
             .prepare([lhs.node.clone(), rhs.node.clone()], [lhs.graph, rhs.graph])
-            .recomputed(Box::new(RetroDiv::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))) // the box is painful, try to remove from api
-            .state_lazy()
+            .checkpointed()
+            .stateful()
+            // .recomputed(Box::new(RetroDiv::<B, D>::new(
+            //     lhs.node.id.clone(),
+            //     rhs.node.id.clone(),
+            // ))) // the box is painful, try to remove from api
+            // .state_lazy()
         {
             // TODO if state is lazy then we just ignore the state below. should not compute it for nothing
             OpsKind::Tracked(prep) => prep.finish(
