@@ -2,7 +2,7 @@ use super::base::WgslVariable;
 use super::operations::WgslOperation;
 use super::{base::WgslItem, body::WgslBody};
 use crate::codegen::wgsl::extension::WgslExtension;
-use crate::codegen::ComputeShader;
+use crate::codegen::{Binding, ComputeShader};
 use crate::kernel::WORKGROUP_DEFAULT;
 use std::fmt::Display;
 
@@ -169,9 +169,24 @@ impl Display for WgslVisibility {
     }
 }
 
+impl From<Binding> for WgslBinding {
+    fn from(value: Binding) -> Self {
+        todo!()
+    }
+}
+
 impl From<ComputeShader> for WgslComputeShader {
     fn from(value: ComputeShader) -> Self {
-        todo!()
+        Self {
+            inputs: value.inputs.into_iter().map(From::from).collect(),
+            outputs: value.outputs.into_iter().map(From::from).collect(),
+            named: todo!(),
+            workgroup_size: todo!(),
+            global_invocation_id: todo!(),
+            num_workgroups: todo!(),
+            body: todo!(),
+            extensions: todo!(),
+        }
     }
 }
 

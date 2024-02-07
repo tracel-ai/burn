@@ -61,6 +61,17 @@ impl WgslItem {
     }
 }
 
+impl WgslElem {
+    pub fn size(&self) -> usize {
+        match self {
+            Self::F32 => core::mem::size_of::<f32>(),
+            Self::I32 => core::mem::size_of::<i32>(),
+            Self::U32 => core::mem::size_of::<u32>(),
+            Self::Bool => core::mem::size_of::<bool>(),
+        }
+    }
+}
+
 impl Display for WgslElem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

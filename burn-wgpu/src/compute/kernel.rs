@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::{Elem, Item, Operation, Variable},
+        codegen::{BinaryOperation, Elem, Item, Operation, Variable},
         compute::compute_client,
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
         AutoGraphicsApi, WgpuDevice,
@@ -84,11 +84,11 @@ mod tests {
     #[test]
     fn can_run_kernel() {
         binary!(
-            operator: |elem: Elem| Operation::Add {
+            operator: |elem: Elem| Operation::Add(BinaryOperation {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Input(1, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
             elem_in: f32,
             elem_out: f32
         );

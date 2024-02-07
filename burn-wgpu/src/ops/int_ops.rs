@@ -1,6 +1,6 @@
 use super::numeric;
 
-use crate::codegen::{Elem, Item, Operation, Variable};
+use crate::codegen::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},
@@ -290,10 +290,10 @@ where
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operation::Abs {
+            operator: |elem: Elem| Operation::Abs(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
             input: tensor,
             elem: I
         )

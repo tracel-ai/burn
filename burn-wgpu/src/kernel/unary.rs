@@ -53,7 +53,8 @@ macro_rules! unary {
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
 
@@ -74,7 +75,8 @@ macro_rules! unary {
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
     };
@@ -111,7 +113,8 @@ macro_rules! unary {
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
 
@@ -138,7 +141,8 @@ macro_rules! unary {
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = <$crate::codegen::wgsl::WgslCompiler as $crate::codegen::compiler::Compiler>::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
     };
@@ -202,14 +206,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::{Item, Operation, Variable};
+    use crate::codegen::{Item, Operation, UnaryOperation, Variable};
     use crate::tests::{ReferenceBackend, TestBackend};
     use burn_tensor::{Distribution, Tensor};
 
-    unary!(|elem| Operation::Tanh {
+    unary!(|elem| Operation::Tanh(UnaryOperation {
         input: Variable::Input(0, Item::Scalar(elem)),
         out: Variable::Local(0, Item::Scalar(elem)),
-    });
+    }));
 
     #[test]
     fn unary_should_work_with_multiple_invocations() {

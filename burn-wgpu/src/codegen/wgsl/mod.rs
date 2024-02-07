@@ -1,4 +1,5 @@
-pub mod compiler;
+mod compiler;
+pub use compiler::*;
 
 pub(crate) mod base;
 pub(crate) mod body;

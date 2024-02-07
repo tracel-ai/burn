@@ -1,4 +1,4 @@
-use crate::codegen::{Elem, Item, Operation, Variable};
+use crate::codegen::{BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable};
 use crate::compute::{compute_client, WgpuComputeClient};
 use crate::{binary, GraphicsApi, WgpuDevice};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
@@ -23,10 +23,10 @@ pub fn full_device<E: WgpuElement + Element, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     unary!(
-        operator: |elem: Elem| Operation::AssignLocal {
+        operator: |elem: Elem| Operation::AssignLocal(UnaryOperation {
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: empty; value,
         elem: E
     )
@@ -81,11 +81,11 @@ pub fn add<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operation::Add {
+        operator: |elem: Elem| Operation::Add(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -96,11 +96,11 @@ pub fn add_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operation::Add {
+        operator: |elem: Elem| Operation::Add(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -111,11 +111,11 @@ pub fn sub<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operation::Sub {
+        operator: |elem: Elem| Operation::Sub(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -126,11 +126,11 @@ pub fn sub_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operation::Sub {
+        operator: |elem: Elem| Operation::Sub(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -141,11 +141,11 @@ pub fn mul<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operation::Mul {
+        operator: |elem: Elem| Operation::Mul(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -156,11 +156,11 @@ pub fn mul_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operation::Mul {
+        operator: |elem: Elem| Operation::Mul(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -171,11 +171,11 @@ pub fn div<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operation::Div {
+        operator: |elem: Elem| Operation::Div(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -186,11 +186,11 @@ pub fn div_scalar<E: WgpuElement, const D: usize>(
     rhs: E,
 ) -> WgpuTensor<E, D> {
     unary!(
-        operator: |elem: Elem| Operation::Div {
+        operator: |elem: Elem| Operation::Div(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )
@@ -201,11 +201,11 @@ pub fn pow<E: WgpuElement, const D: usize>(
     rhs: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     binary!(
-        operator: |elem: Elem| Operation::Powf {
+        operator: |elem: Elem| Operation::Powf(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
-        },
+        }),
         input: lhs; rhs,
         elem: E
     )

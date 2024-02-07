@@ -1,18 +1,18 @@
 use super::unary;
 use crate::{
-    codegen::{Item, Operation, Variable},
+    codegen::{ClampOperation, Item, Operation, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary,
 };
 
 unary!(
-    |elem| Operation::Clamp {
+    |elem| Operation::Clamp(ClampOperation {
         input: Variable::Input(0, Item::Scalar(elem)),
         min_value: Variable::Scalar(0, Item::Scalar(elem)),
         max_value: Variable::Scalar(1, Item::Scalar(elem)),
         out: Variable::Local(0, Item::Scalar(elem)),
-    },
+    }),
     scalar 2
 );
 

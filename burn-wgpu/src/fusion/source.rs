@@ -1,15 +1,24 @@
-use std::sync::Arc;
-
 use crate::{
-    codegen::ComputeShader,
+    codegen::{
+        compiler::Compiler,
+        wgsl::{shader::WgslComputeShader, WgslCompiler},
+        ComputeShader,
+    },
     kernel::{DynamicKernelSource, SourceTemplate},
 };
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-#[derive(new, Clone, Serialize, Deserialize)]
 pub struct DynKernelSource {
     pub(crate) id: String,
-    pub(crate) shader: ComputeShader,
+    pub(crate) shader: WgslComputeShader,
+}
+
+impl DynKernelSource {
+    pub fn new(id: String, shader: ComputeShader) -> Self {
+        let shader = <WgslCompiler as Compiler>::compile(shader);
+
+        Self { id, shader }
+    }
 }
 
 impl DynamicKernelSource for Arc<DynKernelSource> {
