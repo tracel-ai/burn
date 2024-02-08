@@ -8,5 +8,5 @@ license.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.13.0" }
+burn-core = { path = "../burn-core", version = "0.13.0", features = ["wgpu"] }
 image.workspace = true

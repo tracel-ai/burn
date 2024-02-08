@@ -1,15 +1,11 @@
 use std::fmt;
 use std::{fmt::Display, io};
-use std::path::Path; 
+use std::path::Path;
 use std::fs::File;
 use std::error::Error;
 
-use burn_core::serde::de::value;
 use burn_core::tensor::{backend::Backend, Tensor, Data, Shape};
 use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
-use image::ColorType::Rgba8;
-use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
-use image::ColorType::Rgba8;
 
 #[derive(Debug)]
 pub enum ImageReaderError {
@@ -33,7 +29,7 @@ impl Error for ImageReaderError {
             ImageReaderError::Image(err) => Some(err),
         }
     }
-} 
+}
 
 
 pub struct ImageReader<B: Backend> {
@@ -57,12 +53,12 @@ impl<B: Backend> ImageReader<B> {
             value: raw_pixels,
             shape: Shape::new([height as usize, width as usize, 3]),
         };
-        
+
         Ok(Tensor::<B, 3>::from_data(data.convert(), &self.device))
     }
 
     pub fn write_image<P: AsRef<Path>>(&self, tensor: &Tensor<B, 3>, path: P) -> Result<(), ImageReaderError> {
-    
+
         // First normalize the image to fall in the range of [0, 255]
         let tensor = tensor.clone();
         let min = tensor.clone().min().into_scalar();
@@ -76,7 +72,7 @@ impl<B: Backend> ImageReader<B> {
         //       to make sure they look sensible)
         let max = tensor.clone().max().into_scalar();
         let tensor = tensor.div_scalar(max).mul_scalar(255);
-        
+
 
         let data = tensor.to_data().convert::<u8>();
         let shape = data.shape;
@@ -89,14 +85,40 @@ impl<B: Backend> ImageReader<B> {
                 let g = data.value[(y * width + x) * 3 + 1];
                 let b = data.value[(y * width + x) * 3 + 2];
 
-                img.put_pixel(x as u32, y as u32, image::Rgba([r, g, b, 255]));
+                img.put_pixel(x as u32, y as u32, Rgba([r, g, b, 255]));
             }
         }
 
         let mut file = File::create(path).map_err(ImageReaderError::Io)?;
         img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
-        let mut file = File::create(path).map_err(ImageReaderError::Io)?;
-        img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Test reading the image and the writing it back to the same directory
+    use super::*;
+    use burn_core::backend::wgpu::{WgpuDevice, Wgpu};
+    use std::path::PathBuf;
+    use std::env;
+
+    #[test]
+    fn test_image_io() {
+        let device = WgpuDevice::default();
+        let reader: ImageReader<Wgpu> = ImageReader::new(device);
+
+        let mut path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        path.push("src");
+        path.push("tests");
+        path.push("helicopter.png");
+        println!("Reading image from: {:?}", path);
+
+        let tensor = reader.read_image(path).unwrap();
+        let mut path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        path.push("src");
+        path.push("tests");
+        path.push("helicopter_out.png");
+        reader.write_image(&tensor, path).unwrap();
     }
 }
