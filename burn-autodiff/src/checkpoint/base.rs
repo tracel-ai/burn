@@ -103,17 +103,22 @@ impl Checkpointer {
     }
 
     /// Insert a [State::Precomputed] at [NodeID]
-    pub fn checkpoint<T>(&mut self, node_ref: NodeRef, saved_output: T, n_required: usize)
+    pub fn checkpoint_compute<T>(&mut self, node_ref: NodeRef, saved_output: T)
     where
         T: Clone + Send + Sync + 'static,
     {
         let node_id = node_ref.id.clone();
+        if let Some(state) = self.backward_states.get_mut(&node_id){
+            state.increment();
+            return;
+        }
+
         self.node_tree.insert_node(node_id.clone(), node_ref);
         self.backward_states.insert_state(
             node_id,
             State::Computed {
                 state_content: Box::new(saved_output),
-                n_required,
+                n_required: 1,
             },
         );
     }

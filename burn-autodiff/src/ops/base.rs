@@ -2,9 +2,7 @@ use super::Backward;
 use crate::{
     checkpoint::base::{Checkpointer, RetroForward},
     grads::Gradients,
-    graph::{
-        NodeRef, Requirement, {Graph, Step},
-    },
+    graph::{ComputingProperties, Graph, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
@@ -33,8 +31,9 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
     graphs: [Graph; N],
     requirement: Requirement,
     backward: Backward,
-    checkpoint_strategy: Option<CheckpointStrategy>,
+    compute_properties: Option<ComputingProperties>,
     state_strategy: Option<StateStrategy>,
+    checkpointer: Option<Checkpointer>,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
     marker: PhantomData<Mode>,
@@ -54,26 +53,28 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
-    pub fn checkpointed(self) -> OpsPrep<BO, B, S, D, N, CheckpointDecided> {
+    pub fn compute_bound(self) -> OpsPrep<BO, B, S, D, N, CheckpointDecided> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
             self.requirement,
             self.backward,
-            Some(CheckpointStrategy::Computed),
+            Some(ComputingProperties::ComputeBound),
             None,
         )
     }
-    pub fn recomputed(
+    pub fn memory_bound<R: RetroForward>(
         self,
-        retro_forward: Box<dyn RetroForward>,
+        retro_forward: R,
     ) -> OpsPrep<BO, B, S, D, N, CheckpointDecided> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
             self.requirement,
             self.backward,
-            Some(CheckpointStrategy::Recompute { retro_forward }),
+            Some(ComputingProperties::MemoryBound {
+                retro_forward: Arc::new(retro_forward),
+            }),
             None,
         )
     }
@@ -110,7 +111,7 @@ where
                 self.graphs,
                 self.requirement,
                 self.backward,
-                self.checkpoint_strategy,
+                self.compute_properties,
                 Some(StateStrategy::Saved),
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
@@ -118,7 +119,7 @@ where
                 self.graphs,
                 self.requirement,
                 self.backward,
-                self.checkpoint_strategy,
+                self.compute_properties,
                 Some(StateStrategy::Saved),
             )),
         }
@@ -132,7 +133,7 @@ where
                 self.graphs,
                 self.requirement,
                 self.backward,
-                self.checkpoint_strategy,
+                self.compute_properties,
                 Some(StateStrategy::FromInputs),
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
@@ -140,7 +141,7 @@ where
                 self.graphs,
                 self.requirement,
                 self.backward,
-                self.checkpoint_strategy,
+                self.compute_properties,
                 Some(StateStrategy::FromInputs),
             )),
         }
@@ -160,10 +161,13 @@ where
             &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
-            self.checkpoint_strategy.unwrap(),
+            self.compute_properties.unwrap(),
         )
     }
 }
+
+// TODO change
+type CheckpointID = NodeID;
 
 impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Tracked>
 where
@@ -182,7 +186,8 @@ where
             &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
-            self.checkpoint_strategy.unwrap(),
+            self.compute_properties.unwrap(),
+            self.checkpointer,
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(
@@ -195,6 +200,28 @@ where
         );
 
         output.register_step(OpsStep::new(ops, self.backward))
+    }
+
+    pub fn checkpoint<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> CheckpointID {
+        // add the checkpoint strategy
+        if let Some(checkpointer) = self.checkpointer.as_mut() {
+        } else {
+            *self.checkpointer = Some(Checkpointer::default())
+        }
+        match tensor.node.properties {
+            ComputingProperties::ComputeBound => self
+                .checkpointer
+                .unwrap()
+                .checkpoint_compute(tensor.node.clone(), tensor.primitive.clone()),
+            ComputingProperties::MemoryBound { retro_forward } => self
+                .checkpointer
+                .unwrap()
+                .checkpoint_lazy(tensor.node.clone(), retro_forward),
+            ComputingProperties::Ambiguous => self
+                .checkpointer
+                .unwrap()
+                .checkpoint_compute(tensor.node.clone(), tensor.primitive.clone()), // TODO they are considered as compute bound for now
+        }
     }
 }
 

@@ -117,7 +117,7 @@ impl Graph {
     ) {
         self.checkpointer
             .lock()
-            .checkpoint(node_ref, output, n_required);
+            .checkpoint_compute(node_ref, output, n_required);
     }
 
     pub fn retro_register(

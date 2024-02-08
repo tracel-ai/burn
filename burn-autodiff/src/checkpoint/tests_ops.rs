@@ -162,13 +162,47 @@ fn should_diff_mul_div_tree() {
     grad_d.assert_approx_eq(&expected_d, 3);
 }
 
+#[test]
+fn should_diff_mul_div_tree_with_reuse() {
+    // For this test please put div checkpointed/stateful and mul lazy
+    // (a/b)(b/c)
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
+
+    let tensor_e = tensor_a.clone().div(tensor_b.clone());
+    let tensor_f = tensor_b.clone().div(tensor_c.clone());
+    let tensor_g = tensor_e.mul(tensor_f);
+
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+
+    let expected_a = Data::from([0.3333, 0.1429]);
+    let expected_b = Data::from([0., 0.]);
+    let expected_c = Data::from([-0.1111, -0.1429]);
+
+    grad_a.assert_approx_eq(&expected_a, 3);
+    grad_b.assert_approx_eq(&expected_b, 3);
+    grad_c.assert_approx_eq(&expected_c, 3);
+}
+
 // TODO
-// - Creating a tensor should put a state in the checkpointer
-//     - Problem is actually probably the fact that node tree is always empty
 // - n_required: should be the number of children of a node.
 //     - The parent cannot know in advance how many
-//     - If children are stateful they don't increment it
-//     - If children are state_lazy then they increment their parents
+//     - If children are stateful they don't increment it -> not true, stateful means they are able to compute their own backward, but they might do retroforward for others
+//          - If children are CHECKPOINTED they don't increment it?? -> but if they are state_lazy?
+//     - Then the condition for not incrementing is that they are BOTH STATEFUL AND CHECKPOINTED (they won't ask for it neither for themselves nor their children)
+//          - Sadly, the state of the previous cannot be prevented from being copied as we learn too late it's useless
+//          - But both stateful and checkpointed is probably not so common
+//     - If incremented, by how much?
+//          - How many decrementations will there be?
 //     - If n_required is always zero, would be nice if not copied
 // - If parents are not tracked they should not be put in the state as Some()
 //     - Maybe something related to n_required?
@@ -176,6 +210,7 @@ fn should_diff_mul_div_tree() {
 //     - The Options in ops prep are not nice
 //     - The match at the beginning of backward
 //     - The Box needed in .recompute()
+//     - Both get states and retrieve outputs are called within an ops. confusing
 // - Check if all works fine
 //     - Make several test trees, with many variations, including sharing a parent node
 //     - Check if the checkpointer extend is well done and there's only one
