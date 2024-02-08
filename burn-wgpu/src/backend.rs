@@ -30,7 +30,7 @@ where
     C::Int: IntElement,
 {
     type Device = WgpuDevice;
-    type FullPrecisionBackend = GpuBackend<G, C>;
+    type FullPrecisionBackend = GpuBackend<G, C::FullPrecisionCompiler>;
 
     type FullPrecisionElem = f32;
     type FloatElem = C::Float;

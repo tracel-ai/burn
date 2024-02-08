@@ -4,19 +4,37 @@ use crate::{
         compiler,
         dialect::{gpu, wgsl},
     },
-    element::WgpuElement,
+    FloatElement, IntElement,
 };
 use std::marker::PhantomData;
 
-pub struct Compiler<F: WgpuElement, I: WgpuElement> {
+/// Wgsl Compiler.
+#[derive(Clone)]
+pub struct Compiler<F: FloatElement, I: IntElement> {
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
 
-impl<F: WgpuElement, I: WgpuElement> compiler::Compiler for Compiler<F, I> {
+impl<F: FloatElement, I: IntElement> core::fmt::Debug for Compiler<F, I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("WgslCompiler")
+    }
+}
+
+impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
+    fn default() -> Self {
+        Self {
+            _float: PhantomData,
+            _int: PhantomData,
+        }
+    }
+}
+
+impl<F: FloatElement, I: IntElement> compiler::Compiler for Compiler<F, I> {
     type Representation = ComputeShader;
     type Float = F;
     type Int = I;
+    type FullPrecisionCompiler = Compiler<f32, i32>;
 
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {
         Self::compile_shader(shader)
@@ -27,7 +45,7 @@ impl<F: WgpuElement, I: WgpuElement> compiler::Compiler for Compiler<F, I> {
     }
 }
 
-impl<F: WgpuElement, I: WgpuElement> Compiler<F, I> {
+impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     fn compile_item(item: gpu::Item) -> Item {
         match item {
             gpu::Item::Vec4(elem) => wgsl::Item::Vec4(Self::compile_elem(elem)),

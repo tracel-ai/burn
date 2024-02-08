@@ -5,7 +5,7 @@ use crate::{
     element::WgpuElement,
     fusion::ElementWiseBuilder,
     tensor::WgpuTensor,
-    FloatElement, GpuBackend, GraphicsApi, IntElement, WgpuDevice,
+    GpuBackend, GraphicsApi, WgpuDevice,
 };
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;

@@ -12,10 +12,12 @@ use std::marker::PhantomData;
 
 use burn_wgpu::{
     kernel::matmul::{matmul_mem_coalescing_default, matmul_naive_default},
+    wgsl::Compiler,
     GraphicsApi,
 };
 
-type WTensor<G, const D: usize> = Tensor<GpuBackend<G, f32, i32>, D>;
+type WBackend<G> = GpuBackend<G, Compiler<f32, i32>>;
+type WTensor<G, const D: usize> = Tensor<GpuBackend<G, Compiler<f32, i32>>, D>;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, F, const D: usize> {
@@ -30,7 +32,7 @@ trait MatmulFunction<G: GraphicsApi, const D: usize> {
     fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark for MatmulBenchmark<GpuBackend<G, f32, i32>, F, D>
+impl<F, const D: usize, G> Benchmark for MatmulBenchmark<WBackend<G>, F, D>
 where
     F: MatmulFunction<G, D>,
     G: GraphicsApi,
@@ -64,7 +66,7 @@ where
     }
 
     fn sync(&self) {
-        GpuBackend::<G, f32, i32>::sync(&self.device)
+        WBackend::<G>::sync(&self.device)
     }
 }
 
@@ -80,7 +82,7 @@ macro_rules! bench_matmul {
             }
         }
         type $benchmark<const D: usize> =
-            MatmulBenchmark<WgpuBackend<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
+            MatmulBenchmark<WBackend<AutoGraphicsApi>, $matmul_name, D>;
     };
 }
 bench_matmul!(NaiveMatmulBenchmark, NaiveMatmul, matmul_naive_default);

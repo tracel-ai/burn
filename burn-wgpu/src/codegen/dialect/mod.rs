@@ -7,4 +7,4 @@
 pub(crate) mod gpu;
 /// WGSL dialect module that contains a representation that can be compiled to WebGPU shading
 /// language (wgsl).
-pub(crate) mod wgsl;
+pub mod wgsl;

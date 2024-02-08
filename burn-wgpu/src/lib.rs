@@ -19,7 +19,7 @@ pub(crate) mod codegen;
 pub(crate) mod tune;
 
 mod element;
-use codegen::dialect::wgsl;
+pub use codegen::dialect::wgsl;
 pub use element::{FloatElement, IntElement};
 
 mod device;

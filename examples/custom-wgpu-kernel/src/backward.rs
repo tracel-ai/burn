@@ -1,16 +1,19 @@
 use crate::FloatTensor;
 
 use super::{AutodiffBackend, Backend};
-use burn::backend::autodiff::{
-    grads::Gradients,
-    ops::{broadcast_shape, Backward, Ops, OpsKind},
-    Autodiff,
-};
 use burn::backend::wgpu::{FloatElement, GpuBackend, GraphicsApi, IntElement};
+use burn::backend::{
+    autodiff::{
+        grads::Gradients,
+        ops::{broadcast_shape, Backward, Ops, OpsKind},
+        Autodiff,
+    },
+    wgpu::wgsl,
+};
 use burn::tensor::Shape;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<GpuBackend<G, F, I>>
+    for Autodiff<GpuBackend<G, wgsl::Compiler<F, I>>>
 {
 }
 
