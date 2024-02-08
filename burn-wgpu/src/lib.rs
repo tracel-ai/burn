@@ -64,7 +64,7 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = burn_fusion::Fusion<WgpuB
 ///
 /// # Notes
 ///
-/// This version of the [wgpu] backend doesn't uses [burn_fusion] to compile and optimize streams of tensor
+/// This version of the [wgpu] backend doesn't use [burn_fusion] to compile and optimize streams of tensor
 /// operations.
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
