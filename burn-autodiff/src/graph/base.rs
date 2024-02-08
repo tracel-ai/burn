@@ -1,10 +1,7 @@
 use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{
-    checkpoint::base::{Checkpointer, RetroForward},
-    grads::Gradients,
-};
+use crate::{checkpoint::base::Checkpointer, grads::Gradients};
 
 use super::{NodeID, NodeRef};
 
@@ -109,28 +106,6 @@ impl Graph {
         })
     }
 
-    pub fn checkpoint_register<T: Clone + Send + Sync + 'static>(
-        &self,
-        node_ref: NodeRef,
-        output: T,
-        n_required: usize,
-    ) {
-        self.checkpointer
-            .lock()
-            .checkpoint_compute(node_ref, output, n_required);
-    }
-
-    pub fn retro_register(
-        &self,
-        node_ref: NodeRef,
-        retro_forward: Box<dyn RetroForward>,
-        n_required: usize,
-    ) {
-        self.checkpointer
-            .lock()
-            .register_retro_forward(node_ref, retro_forward, n_required)
-    }
-
     /// # Notes
     ///
     /// This is a owned method, so the current checkpointer will be freed.
@@ -166,5 +141,11 @@ impl Graph {
 
     pub fn print_checkpoint(&self) {
         self.checkpointer.lock().print();
+    }
+
+    pub(crate) fn merge_checkpointer(self, checkpointer: Checkpointer) -> Self {
+        self.execute_mut_checkpointer(|checkpointer1| {
+            checkpointer1.extend(checkpointer);
+        })
     }
 }

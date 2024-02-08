@@ -4,7 +4,7 @@ use super::{Ops, OpsPrep};
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{Graph, NodeRef, Requirement},
+    graph::{ComputingProperties, Graph, NodeRef, Requirement},
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
@@ -39,7 +39,14 @@ where
         graphs: [Graph; N],
     ) -> OpsPrep<Self, B, Self::State, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
-        OpsPrep::new(nodes, graphs, requirement, self, None, None)
+        OpsPrep::new(
+            nodes,
+            graphs,
+            requirement,
+            self,
+            ComputingProperties::Ambiguous, // If not specified we start with ambiguous
+            None,
+        )
     }
 }
 

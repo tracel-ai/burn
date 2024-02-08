@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::graph::{NodeID, NodeRef};
 use std::fmt::Debug;
@@ -15,7 +15,7 @@ pub trait RetroForward: Debug + Send + Sync + 'static {
 #[derive(new, Default, Debug)]
 /// Links [NodeID]s to their corresponding [RetroForward]
 pub(crate) struct RetroForwards {
-    map: HashMap<NodeID, Box<dyn RetroForward>>,
+    map: HashMap<NodeID, Arc<dyn RetroForward>>,
 }
 
 impl RetroForwards {
@@ -41,7 +41,7 @@ impl RetroForwards {
     pub(crate) fn insert_retro_forward(
         &mut self,
         node_id: NodeID,
-        retro_forward: Box<dyn RetroForward>,
+        retro_forward: Arc<dyn RetroForward>,
     ) {
         self.map.insert(node_id, retro_forward);
     }
@@ -103,24 +103,24 @@ impl Checkpointer {
     }
 
     /// Insert a [State::Precomputed] at [NodeID]
-    pub fn checkpoint_compute<T>(&mut self, node_ref: NodeRef, saved_output: T)
+    pub fn checkpoint_compute<T>(&mut self, node_ref: NodeRef, saved_output: T) -> NodeID
     where
         T: Clone + Send + Sync + 'static,
     {
         let node_id = node_ref.id.clone();
-        if let Some(state) = self.backward_states.get_mut(&node_id){
+        if let Some(state) = self.backward_states.get_mut(&node_id) {
             state.increment();
-            return;
+        } else {
+            self.node_tree.insert_node(node_id.clone(), node_ref);
+            self.backward_states.insert_state(
+                node_id.clone(),
+                State::Computed {
+                    state_content: Box::new(saved_output),
+                    n_required: 1,
+                },
+            );
         }
-
-        self.node_tree.insert_node(node_id.clone(), node_ref);
-        self.backward_states.insert_state(
-            node_id,
-            State::Computed {
-                state_content: Box::new(saved_output),
-                n_required: 1,
-            },
-        );
+        node_id
     }
 
     /// Sorts the ancestors of NodeID in a way such that all parents come before their children
@@ -157,18 +157,22 @@ impl Checkpointer {
         self.backward_states.len() + self.retro_forwards.len()
     }
 
-    pub fn register_retro_forward(
+    pub fn checkpoint_lazy(
         &mut self,
         node_ref: NodeRef,
-        retro_forward: Box<dyn RetroForward>,
-        n_required: usize,
-    ) {
+        retro_forward: Arc<dyn RetroForward>,
+    ) -> NodeID {
         let node_id = node_ref.id.clone();
-        self.node_tree.insert_node(node_id.clone(), node_ref);
-        self.retro_forwards
-            .insert_retro_forward(node_id.clone(), retro_forward);
-        self.backward_states
-            .insert_state(node_id, State::Recompute { n_required })
+        if let Some(state) = self.backward_states.get_mut(&node_id) {
+            state.increment();
+        } else {
+            self.node_tree.insert_node(node_id.clone(), node_ref);
+            self.retro_forwards
+                .insert_retro_forward(node_id.clone(), retro_forward);
+            self.backward_states
+                .insert_state(node_id.clone(), State::Recompute { n_required: 1 });
+        }
+        node_id
     }
 
     // TODO TMP

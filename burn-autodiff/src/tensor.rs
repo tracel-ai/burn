@@ -1,10 +1,9 @@
 use burn_tensor::backend::Backend;
 
 use crate::{
-    checkpoint::{self, base::Checkpointer},
+    checkpoint::base::Checkpointer,
     grads::Gradients,
     graph::{ComputingProperties, Graph, Node, NodeID, NodeRef, Requirement, Step},
-    ops::CheckpointStrategy,
 };
 
 #[derive(Debug, Clone)]
@@ -38,12 +37,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             0,
             id,
             Requirement::None,
-            crate::graph::ComputingProperties::Ambiguous,
+            ComputingProperties::Ambiguous,
         )
         .into();
 
         let graph = Graph::new();
-        graph.checkpoint_register(node.clone(), primitive.clone(), 99); // TODO n_required too large
 
         Self {
             primitive,
@@ -89,16 +87,18 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,
-        compute_properties: ComputingProperties, // checkpoint_strategy: CheckpointStrategy,
+        compute_properties: ComputingProperties,
         checkpointer: Option<Checkpointer>,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
 
-        if let Some(checkpointer) = checkpointer {
-            graph.merge_checkpointer(checkpointer);
-        }
+        let graph = if let Some(checkpointer) = checkpointer {
+            graph.merge_checkpointer(checkpointer)
+        } else {
+            graph
+        };
 
         let order = parent_nodes
             .iter()
@@ -116,16 +116,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         )
         .into();
 
-        // match checkpoint_strategy {
-        //     CheckpointStrategy::Computed => {
-        //         graph.checkpoint_register(node.clone(), output.clone(), 99)
-        //         // TODO n_required too large
-        //     }
-        //     CheckpointStrategy::Recompute { retro_forward } => {
-        //         graph.retro_register(node.clone(), retro_forward, 99)
-        //     }
-        // }
-
+        // TODO rm
         graph.print_checkpoint();
 
         Self {

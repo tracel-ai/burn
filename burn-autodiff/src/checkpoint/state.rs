@@ -57,6 +57,16 @@ impl State {
             } => *n_required,
         }
     }
+
+    pub(crate) fn increment(&mut self) {
+        match self {
+            State::Recompute { n_required } => *n_required += 1,
+            State::Computed {
+                state_content: _,
+                n_required,
+            } => *n_required += 1,
+        }
+    }
 }
 
 #[derive(new, Default, Debug)]
@@ -139,5 +149,9 @@ impl BackwardStates {
 
     pub(crate) fn len(&self) -> usize {
         self.map.len()
+    }
+
+    pub(crate) fn get_mut(&mut self, node_id: &NodeID) -> Option<&mut State> {
+        self.map.get_mut(node_id)
     }
 }
