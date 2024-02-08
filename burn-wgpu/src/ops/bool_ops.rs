@@ -3,14 +3,14 @@ use crate::{
     element::{FloatElement, IntElement},
     kernel,
     tensor::WgpuTensor,
-    GraphicsApi, Wgpu,
+    GraphicsApi, WgpuBackend,
 };
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
-impl<G, F, I> BoolTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
+impl<G, F, I> BoolTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -118,7 +118,7 @@ where
         mut tensor: BoolTensor<Self, D>,
         dim1: usize,
         dim2: usize,
-    ) -> <Wgpu<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    ) -> <WgpuBackend<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
         tensor.strides.swap(dim1, dim2);
         tensor.shape.dims.swap(dim1, dim2);
 

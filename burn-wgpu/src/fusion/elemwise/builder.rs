@@ -6,7 +6,7 @@ use crate::{
     },
     element::WgpuElement,
     fusion::WgpuOptimization,
-    FloatElement, GraphicsApi, IntElement, Wgpu,
+    FloatElement, GraphicsApi, IntElement, WgpuBackend,
 };
 use burn_fusion::{
     stream::{
@@ -36,7 +36,7 @@ where
     pub(crate) operators: Vec<Operation>,
     pub(crate) current_output_shape: Vec<usize>,
     pub(crate) status: OptimizationStatus,
-    pub(crate) device: Device<Wgpu<G, F, I>>,
+    pub(crate) device: Device<WgpuBackend<G, F, I>>,
 }
 
 impl<G, F, I> OptimizationBuilder<WgpuOptimization<G, F, I>> for ElementWiseBuilder<G, F, I>
@@ -148,7 +148,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub fn new(device: Device<Wgpu<G, F, I>>) -> Self {
+    pub fn new(device: Device<WgpuBackend<G, F, I>>) -> Self {
         Self {
             inputs: Vec::new(),
             locals: HashMap::new(),

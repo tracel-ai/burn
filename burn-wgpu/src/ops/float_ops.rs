@@ -14,7 +14,7 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
 use crate::WgpuDevice;
-use crate::{unary, FloatElement, GraphicsApi, IntElement, Wgpu};
+use crate::{unary, FloatElement, GraphicsApi, IntElement, WgpuBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
@@ -22,7 +22,7 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<G, F, I> FloatTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
+impl<G, F, I> FloatTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -523,8 +523,8 @@ where
     }
 
     fn float_recip<const D: usize>(
-        tensor: FloatTensor<Wgpu<G, F, I>, D>,
-    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        tensor: FloatTensor<WgpuBackend<G, F, I>, D>,
+    ) -> FloatTensor<WgpuBackend<G, F, I>, D> {
         unary!(
             operation: |elem: Elem| Operation::Recip(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
@@ -545,9 +545,9 @@ where
     }
 
     fn float_powf<const D: usize>(
-        lhs: FloatTensor<Wgpu<G, F, I>, D>,
-        rhs: FloatTensor<Wgpu<G, F, I>, D>,
-    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        lhs: FloatTensor<WgpuBackend<G, F, I>, D>,
+        rhs: FloatTensor<WgpuBackend<G, F, I>, D>,
+    ) -> FloatTensor<WgpuBackend<G, F, I>, D> {
         numeric::pow::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 }
