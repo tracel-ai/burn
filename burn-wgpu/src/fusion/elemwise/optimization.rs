@@ -140,14 +140,14 @@ impl<B: JitGpuBackend> ElementWise<B, CompilationPhase> {
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set::<B::Compiler>(
+        let kernel_set_1 = build_kernel_set::<B>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set::<B::Compiler>(
+        let kernel_set_2 = build_kernel_set::<B>(
             &inputs,
             &outputs,
             &self.operators,
@@ -276,7 +276,7 @@ impl<B: JitGpuBackend> ElementWise<B, ExecutionPhase<B>> {
         &[]
     }
 
-    pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
+    pub(crate) fn from_state(device: &B::Device, state: ElementWiseState) -> Self {
         // We don't save the compiled kernel structs since it's quick to compile and the output is
         // very large.
         //
@@ -312,7 +312,7 @@ fn build_kernel_set<B: JitGpuBackend>(
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet<B> {
-    let scalar = ScalarElementWise::<B::Compiler>::new(
+    let scalar = ScalarElementWise::<B>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -336,7 +336,7 @@ fn build_kernel_set<B: JitGpuBackend>(
         outputs.len(),
     );
 
-    let vec2 = VecElementWise::<B::Compiler>::new(
+    let vec2 = VecElementWise::<B>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -362,7 +362,7 @@ fn build_kernel_set<B: JitGpuBackend>(
         outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::<B::Compiler>::new(
+    let vec4 = VecElementWise::<B>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()

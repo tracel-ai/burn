@@ -56,7 +56,7 @@ impl<B: JitGpuBackend> FusionKernel<B> for VecElementWise<B> {
         inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
-        let is_unavailable_input = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
+        let is_unavailable_input = |handle: &WgpuFusionHandle<B>, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.

@@ -78,7 +78,7 @@ mod tests {
         codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
         tests::{TestCompiler, TestJitGpuBackend},
-        WgpuDevice,
+        JitGpuBackend, WgpuDevice,
     };
 
     #[test]

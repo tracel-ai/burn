@@ -1,4 +1,4 @@
-use crate::{codegen::Compiler, tensor::WgpuTensor, WgpuDevice};
+use crate::{codegen::Compiler, compute::WgpuAutotuneKey, tensor::WgpuTensor, WgpuDevice};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 use burn_fusion::FusionDevice;
 use burn_tensor::backend::Backend;
@@ -36,7 +36,10 @@ pub trait JitGpuBackend: Send + Sync + 'static {
         Device = Self::Device,
     >;
     type Compiler: Compiler;
-    type Server: ComputeServer;
+    type Server: ComputeServer<
+        Kernel = Box<dyn crate::compute::Kernel>,
+        AutotuneKey = WgpuAutotuneKey,
+    >;
     type Channel: ComputeChannel<Self::Server>;
     type Device: FusionDevice
         + Default

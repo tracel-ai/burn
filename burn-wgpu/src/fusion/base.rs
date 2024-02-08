@@ -125,7 +125,6 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     strides
 }
 
-#[derive(new, Debug)]
 /// Handle to be used when fusing operations.
 pub struct WgpuFusionHandle<B: JitGpuBackend> {
     /// Compute client for wgpu.
@@ -135,6 +134,12 @@ pub struct WgpuFusionHandle<B: JitGpuBackend> {
     /// The device of the current tensor.
     pub device: B::Device,
     pub(crate) strides: Vec<usize>,
+}
+
+impl<B: JitGpuBackend> core::fmt::Debug for WgpuFusionHandle<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }
 
 impl<B: JitGpuBackend> Clone for WgpuFusionHandle<B> {
