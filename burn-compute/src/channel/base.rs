@@ -4,7 +4,7 @@ use burn_common::reader::Reader;
 
 /// The ComputeChannel trait links the ComputeClient to the ComputeServer
 /// while ensuring thread-safety
-pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug {
+pub trait ComputeChannel<Server: ComputeServer>: Clone + core::fmt::Debug + Send + Sync {
     /// Given a handle, returns owned resource as bytes
     fn read(&self, handle: &Handle<Server>) -> Reader<Vec<u8>>;
 

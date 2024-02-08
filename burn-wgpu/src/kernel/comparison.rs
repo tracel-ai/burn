@@ -6,7 +6,7 @@ use crate::{
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
     tensor::WgpuTensor,
-    unary,
+    unary, JitGpuBackend,
 };
 use std::mem;
 
@@ -34,170 +34,170 @@ macro_rules! comparison {
     }};
 }
 
-pub fn equal<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D> {
+pub fn equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D> {
+pub fn greater<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_equal<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D> {
+pub fn greater_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D> {
+pub fn lower<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_equal<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D> {
+pub fn lower_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
+pub fn equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
     rhs: E,
-) -> WgpuTensor<u32, D> {
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_elem<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
+pub fn greater_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
     rhs: E,
-) -> WgpuTensor<u32, D> {
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_elem<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
+pub fn lower_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
     rhs: E,
-) -> WgpuTensor<u32, D> {
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
+pub fn greater_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
     rhs: E,
-) -> WgpuTensor<u32, D> {
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_equal_elem<C: Compiler, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
+pub fn lower_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
     rhs: E,
-) -> WgpuTensor<u32, D> {
+) -> WgpuTensor<B, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         input: lhs; rhs,
         elem: E
     )
 }
 
-fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, E, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<u32, D>
+fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitGpuBackend, E, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplaceLhs: StaticKernelSource,
@@ -213,10 +213,10 @@ where
     WgpuTensor::new(output.client, output.device, output.shape, output.handle)
 }
 
-fn launch_unary<Kernel, KernelInplace, E, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+fn launch_unary<Kernel, KernelInplace, E, B: JitGpuBackend, const D: usize>(
+    tensor: WgpuTensor<B, E, D>,
     scalars: E,
-) -> WgpuTensor<u32, D>
+) -> WgpuTensor<B, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,

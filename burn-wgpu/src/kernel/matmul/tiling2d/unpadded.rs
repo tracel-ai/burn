@@ -5,6 +5,7 @@ use crate::{
     element::WgpuElement,
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 use std::marker::PhantomData;
 
@@ -44,11 +45,11 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d_unpadded<E: WgpuElement + Element, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    out: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn matmul_tiling_2d_unpadded<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    out: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     let lhs = match lhs.batch_swapped_with_row_col() {
         true => into_contiguous(lhs),
         false => lhs,

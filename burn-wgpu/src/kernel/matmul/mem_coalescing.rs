@@ -10,6 +10,7 @@ use crate::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(
@@ -39,22 +40,22 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
 }
 
 /// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
-pub fn matmul_mem_coalescing_default<E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    out: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn matmul_mem_coalescing_default<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    out: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     matmul_mem_coalescing::<E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub fn matmul_mem_coalescing<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
     let lhs = into_contiguous(lhs);

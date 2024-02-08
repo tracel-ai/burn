@@ -1,5 +1,9 @@
+use std::marker::PhantomData;
+
 use super::WgpuServer;
-use crate::{compute::WgpuStorage, GraphicsApi, WgpuDevice};
+use crate::{
+    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, JitGpuBackend, WgpuDevice,
+};
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
 use burn_compute::{
@@ -17,20 +21,39 @@ pub type Server = WgpuServer<MemoryManagement>;
 type Channel = MutexComputeChannel<Server>;
 
 /// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
-pub type WgpuComputeClient = ComputeClient<Server, Channel>;
+type WgpuComputeClient = ComputeClient<Server, Channel>;
 /// Wgpu [server handle](burn_compute::server::Handle).
-pub type WgpuHandle = burn_compute::server::Handle<Server>;
+type WgpuHandle = burn_compute::server::Handle<Server>;
 
 /// Compute handle for the wgpu backend.
 static COMPUTE: Compute<WgpuDevice, WgpuServer<MemoryManagement>, Channel> = Compute::new();
 
 /// Get the [compute client](ComputeClient) for the given [device](WgpuDevice).
-pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
+fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
     let device = Arc::new(device);
 
     COMPUTE.client(&device, move || {
         pollster::block_on(create_client::<G>(&device))
     })
+}
+
+pub struct WgpuJitGpuBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
+    _g: PhantomData<G>,
+    _f: PhantomData<F>,
+    _i: PhantomData<I>,
+}
+
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> JitGpuBackend for WgpuJitGpuBackend<G, F, I> {
+    type FullPrecisionBackend = WgpuJitGpuBackend<G, f32, i32>;
+    type Compiler = wgsl::Compiler<F, I>;
+    type Server = Server;
+
+    type Channel = Channel;
+    type Device = WgpuDevice;
+
+    fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
+        compute_client::<G>(device)
+    }
 }
 
 /// Init the client async, necessary for wasm.

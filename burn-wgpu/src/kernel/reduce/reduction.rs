@@ -7,6 +7,7 @@ use crate::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 use burn_tensor::Shape;
 
@@ -57,7 +58,9 @@ impl StaticKernelSource for ArgsMin {
 }
 
 /// Sum all elements in the input buffer.
-pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTensor<E, 1> {
+pub fn sum<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, 1> {
     let mut input_handle = input.handle;
     let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP_DEFAULT);
 
@@ -85,28 +88,28 @@ pub fn sum<E: WgpuElement, const D: usize>(input: WgpuTensor<E, D>) -> WgpuTenso
 }
 
 /// Execute the sum dim kernel.
-pub fn sum_dim<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub fn sum_dim<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     reduction_dim::<SumDim, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
-pub fn mean_dim<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub fn mean_dim<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     reduction_dim::<MeanDim, E, D>(input, output, dim)
 }
 
-fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+fn reduction_dim<K: StaticKernelSource, B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     let kernel =
         StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
             elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT),
@@ -125,25 +128,31 @@ fn reduction_dim<K: StaticKernelSource, E: WgpuElement, const D: usize>(
 }
 
 /// Execute the argmax kernel.
-pub fn argmax<E: WgpuElement, I: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
+pub fn argmax<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<I, D> {
+) -> WgpuTensor<B, I, D> {
     reduction_args_dim::<ArgsMax, E, I, D>(input, dim)
 }
 
 /// Execute the argmin kernel.
-pub fn argmin<E: WgpuElement, I: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
+pub fn argmin<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<I, D> {
-    reduction_args_dim::<ArgsMin, E, I, D>(input, dim)
+) -> WgpuTensor<B, I, D> {
+    reduction_args_dim::<ArgsMin, B, E, I, D>(input, dim)
 }
 
-fn reduction_args_dim<K: StaticKernelSource, E: WgpuElement, I: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
+fn reduction_args_dim<
+    K: StaticKernelSource,
+    B: JitGpuBackend,
+    E: WgpuElement,
+    I: WgpuElement,
+    const D: usize,
+>(
+    input: WgpuTensor<B, E, D>,
     dim: usize,
-) -> WgpuTensor<I, D> {
+) -> WgpuTensor<B, I, D> {
     let mut shape_out = input.shape.clone();
     shape_out.dims[dim] = 1;
     let num_elems = shape_out.num_elements();

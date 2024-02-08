@@ -5,16 +5,17 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(MaskFill, "../../template/mask/fill.wgsl");
 kernel_wgsl!(MaskFillInplace, "../../template/mask/fill_inplace.wgsl");
 
-pub fn mask_fill<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    mask: WgpuTensor<u32, D>,
+pub fn mask_fill<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    mask: WgpuTensor<B, u32, D>,
     value: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -44,11 +45,11 @@ pub fn mask_fill<E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_fill_inplace<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    mask: WgpuTensor<u32, D>,
+pub fn mask_fill_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    mask: WgpuTensor<B, u32, D>,
     value: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     let num_elems = input.shape.num_elements();
     let value_handle = input.client.create(E::as_bytes(&[value]));
     let kernel = StaticKernel::<

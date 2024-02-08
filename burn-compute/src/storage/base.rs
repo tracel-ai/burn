@@ -32,10 +32,10 @@ impl StorageHandle {
 }
 
 /// Storage types are responsible for allocating and deallocating memory.
-pub trait ComputeStorage: Send {
+pub trait ComputeStorage: Send + Sync {
     /// The resource associated type determines the way data is implemented and how
     /// it can be accessed by kernels.
-    type Resource: Send;
+    type Resource: Send + Sync;
 
     /// Returns the underlying resource for a specified storage handle
     fn get(&mut self, handle: &StorageHandle) -> Self::Resource;

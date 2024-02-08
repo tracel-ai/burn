@@ -4,6 +4,7 @@ use crate::{
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul/naive.wgsl");
@@ -21,25 +22,26 @@ impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernelS
 }
 
 /// Matrix multiplication using naive algorithm with workgroups of size 16
-pub fn matmul_naive_default<E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
-    matmul_naive::<E, D, 16, 16>(lhs, rhs, output)
+pub fn matmul_naive_default<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
+    matmul_naive::<B, E, D, 16, 16>(lhs, rhs, output)
 }
 
 /// Matrix multiplication using naive algorithm with custom workgroup sizes
 pub fn matmul_naive<
+    B: JitGpuBackend,
     E: WgpuElement,
     const D: usize,
     const WORKGROUP_SIZE_X: usize,
     const WORKGROUP_SIZE_Y: usize,
 >(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
     let lhs = into_contiguous(lhs);

@@ -5,16 +5,17 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(MaskWhere, "../../template/mask/where.wgsl");
 kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
 
-pub fn mask_where<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    mask: WgpuTensor<u32, D>,
-    value: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn mask_where<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    mask: WgpuTensor<B, u32, D>,
+    value: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -43,12 +44,12 @@ pub fn mask_where<E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_where_inplace<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    mask: WgpuTensor<u32, D>,
-    value: WgpuTensor<E, D>,
+pub fn mask_where_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
+    mask: WgpuTensor<B, u32, D>,
+    value: WgpuTensor<B, E, D>,
     reverse: bool,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     let kernel = StaticKernel::<
         KernelSettings<MaskWhereInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(

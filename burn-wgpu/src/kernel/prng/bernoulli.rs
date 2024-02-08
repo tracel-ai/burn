@@ -1,5 +1,5 @@
 use crate::{
-    compute::{compute_client, StaticKernel},
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
@@ -7,7 +7,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    JitGpuBackend, WgpuDevice,
 };
 use burn_tensor::Shape;
 
@@ -28,14 +28,14 @@ impl StaticKernelSource for BernoulliPrng {
 }
 
 /// Pseudo-random generator for bernoulli
-pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
+pub fn random_bernoulli<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
     prob: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
-    let client = compute_client::<G>(device);
+    let client = B::client(device);
     let output = empty_device(client.clone(), device.clone(), shape.clone());
     let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
     let args_handle = make_args_buffer(client.clone(), &[prob]);

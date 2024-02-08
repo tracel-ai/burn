@@ -1,7 +1,8 @@
+use burn_compute::client::ComputeClient;
 use burn_tensor::Shape;
 
 use crate::{
-    compute::{compute_client, StaticKernel, WgpuComputeClient},
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
@@ -9,7 +10,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    GraphicsApi, JitGpuBackend, WgpuDevice,
 };
 
 use super::base::Prng;
@@ -26,23 +27,23 @@ impl StaticKernelSource for UniformPrng {
 }
 
 /// Pseudo-random generator for uniform distribution
-pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
+pub fn random_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    device: &WgpuDevice,
+    device: &B::Device,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
-    let client = compute_client::<G>(device);
+) -> WgpuTensor<B, E, D> {
+    let client = B::client(device);
     uniform_kernel(client, device, &shape, low, high)
 }
 
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor's client, device and shape
-pub fn random_like_uniform<E: WgpuElement, const D: usize>(
-    tensor: &WgpuTensor<E, D>,
+pub fn random_like_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    tensor: &WgpuTensor<B, E, D>,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     uniform_kernel(
         tensor.client.clone(),
         &tensor.device,
@@ -52,13 +53,13 @@ pub fn random_like_uniform<E: WgpuElement, const D: usize>(
     )
 }
 
-fn uniform_kernel<E: WgpuElement, const D: usize>(
-    client: WgpuComputeClient,
-    device: &WgpuDevice,
+fn uniform_kernel<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    client: ComputeClient<B::Server, B::Channel>,
+    device: &B::Device,
     shape: &Shape<D>,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
     let output = empty_device(client.clone(), device.clone(), shape.clone());

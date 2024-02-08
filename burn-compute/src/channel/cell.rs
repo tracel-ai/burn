@@ -64,3 +64,6 @@ where
         self.server.borrow_mut().sync()
     }
 }
+
+unsafe impl<Server: ComputeServer> Send for RefCellComputeChannel<Server> {}
+unsafe impl<Server: ComputeServer> Sync for RefCellComputeChannel<Server> {}

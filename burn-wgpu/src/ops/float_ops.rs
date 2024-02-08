@@ -13,8 +13,8 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
-use crate::WgpuDevice;
-use crate::{unary, GpuBackend, GraphicsApi};
+use crate::JitGpuBackend;
+use crate::{unary, GpuBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
@@ -22,16 +22,12 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<G, C> FloatTensorOps<GpuBackend<G, C>> for GpuBackend<G, C>
-where
-    G: GraphicsApi + 'static,
-    C: Compiler,
-{
+impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::from_data::<G, C::Float, D>(data, device)
+        super::from_data::<B, _, D>(data, device)
     }
 
     fn float_random<const D: usize>(
@@ -40,17 +36,15 @@ where
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
-            Distribution::Default => {
-                random_uniform::<G, C::Float, D>(shape, device, 0.elem(), 1.elem())
-            }
+            Distribution::Default => random_uniform::<B, _, D>(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform::<G, C::Float, D>(shape, device, low.elem(), high.elem())
+                random_uniform::<B, _, D>(shape, device, low.elem(), high.elem())
             }
             Distribution::Bernoulli(prob) => {
-                random_bernoulli::<G, C::Float, D>(shape, device, prob.elem())
+                random_bernoulli::<B, _, D>(shape, device, prob.elem())
             }
             Distribution::Normal(mean, std) => {
-                random_normal::<G, C::Float, D>(shape, device, mean.elem(), std.elem())
+                random_normal::<B, _, D>(shape, device, mean.elem(), std.elem())
             }
         }
     }
@@ -73,83 +67,83 @@ where
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::to_device::<G, C::Float, D>(tensor, device)
+        super::to_device::<B, _, D>(tensor, device)
     }
 
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        super::empty::<G, C::Float, D>(shape, device)
+        super::empty::<B, _, D>(shape, device)
     }
 
     fn float_add<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::add::<C, _, D>(lhs, rhs)
+        numeric::add::<B, _, D>(lhs, rhs)
     }
 
     fn float_add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::add_scalar::<C, _, D>(lhs, rhs)
+        numeric::add_scalar::<B, _, D>(lhs, rhs)
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::zeros::<C, G, C::Float, D>(shape, device)
+        numeric::zeros::<B, _, D>(shape, device)
     }
 
     fn float_full<const D: usize>(
         shape: Shape<D>,
         fill_value: FloatElem<Self>,
-        device: &WgpuDevice,
+        device: &B::Device,
     ) -> FloatTensor<Self, D> {
-        numeric::full::<C, G, C::Float, D>(shape, device, fill_value)
+        numeric::full::<B, _, D>(shape, device, fill_value)
     }
 
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::ones::<C, G, C::Float, D>(shape, device)
+        numeric::ones::<B, _, D>(shape, device)
     }
 
     fn float_sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::sub::<C, _, D>(lhs, rhs)
+        numeric::sub::<B, _, D>(lhs, rhs)
     }
 
     fn float_sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::sub_scalar::<C, _, D>(lhs, rhs)
+        numeric::sub_scalar::<B, _, D>(lhs, rhs)
     }
 
     fn float_mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::mul::<C, _, D>(lhs, rhs)
+        numeric::mul::<B, _, D>(lhs, rhs)
     }
 
     fn float_mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::mul_scalar::<C, _, D>(lhs, rhs)
+        numeric::mul_scalar::<B, _, D>(lhs, rhs)
     }
 
     fn float_div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::div::<C, _, D>(lhs, rhs)
+        numeric::div::<B, _, D>(lhs, rhs)
     }
 
     fn float_div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::div_scalar::<C, _, D>(lhs, rhs)
+        numeric::div_scalar::<B, _, D>(lhs, rhs)
     }
 
     fn float_matmul<const D: usize>(
@@ -197,7 +191,7 @@ where
         indices: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::scatter::<C, _, _, D>(dim, tensor, indices, value)
+        kernel::scatter::<B, _, _, D>(dim, tensor, indices, value)
     }
 
     fn float_select<const D: usize>(
@@ -214,7 +208,7 @@ where
         indices: IntTensor<Self, 1>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::select_assign::<C, _, _, D>(tensor, dim, indices, value)
+        kernel::select_assign::<B, _, _, D>(tensor, dim, indices, value)
     }
 
     fn float_slice<const D1: usize, const D2: usize>(
@@ -229,7 +223,7 @@ where
         ranges: [Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        kernel::slice_assign::<C, _, D1, D2>(tensor, ranges, value)
+        kernel::slice_assign::<B, _, D1, D2>(tensor, ranges, value)
     }
 
     fn float_mask_where<const D: usize>(
@@ -252,70 +246,70 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<C, _, D>(lhs, rhs)
+        kernel::equal::<B, _, D>(lhs, rhs)
     }
 
     fn float_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<C, _, D>(lhs, rhs)
+        kernel::equal_elem::<B, _, D>(lhs, rhs)
     }
 
     fn float_greater<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<C, _, D>(lhs, rhs)
+        kernel::greater::<B, _, D>(lhs, rhs)
     }
 
     fn float_greater_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_elem::<C, _, D>(lhs, rhs)
+        kernel::greater_elem::<B, _, D>(lhs, rhs)
     }
 
     fn float_greater_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<C, _, D>(lhs, rhs)
+        kernel::greater_equal::<B, _, D>(lhs, rhs)
     }
 
     fn float_greater_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal_elem::<C, _, D>(lhs, rhs)
+        kernel::greater_equal_elem::<B, _, D>(lhs, rhs)
     }
 
     fn float_lower<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<C, _, D>(lhs, rhs)
+        kernel::lower::<B, _, D>(lhs, rhs)
     }
 
     fn float_lower_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_elem::<C, _, D>(lhs, rhs)
+        kernel::lower_elem::<B, _, D>(lhs, rhs)
     }
 
     fn float_lower_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<C, _, D>(lhs, rhs)
+        kernel::lower_equal::<B, _, D>(lhs, rhs)
     }
 
     fn float_lower_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal_elem::<C, _, D>(lhs, rhs)
+        kernel::lower_equal_elem::<B, _, D>(lhs, rhs)
     }
 
     fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
@@ -372,9 +366,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -384,9 +378,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -396,9 +390,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -412,9 +406,9 @@ where
                 rhs: Variable::Scalar(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: lhs; rhs.elem(),
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -424,9 +418,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -436,9 +430,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -448,9 +442,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -460,9 +454,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -472,9 +466,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -484,9 +478,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -520,7 +514,7 @@ where
         min: FloatElem<Self>,
         max: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        kernel::clamp::<C, _, D>(tensor, min, max)
+        kernel::clamp::<B, _, D>(tensor, min, max)
     }
 
     fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -529,9 +523,9 @@ where
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: tensor,
-            elem: C::Float
+            elem: FloatElem<Self>
         )
     }
 
@@ -547,6 +541,6 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::pow::<C, _, D>(lhs, rhs)
+        numeric::pow::<B, _, D>(lhs, rhs)
     }
 }

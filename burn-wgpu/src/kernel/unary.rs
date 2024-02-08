@@ -3,6 +3,7 @@ use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 /// Creates a unary kernel.
@@ -173,11 +174,11 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, E, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+pub fn unary<Kernel, KernelInplace, B: JitGpuBackend, E, const D: usize>(
+    tensor: WgpuTensor<B, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-) -> WgpuTensor<E, D>
+) -> WgpuTensor<B, E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,

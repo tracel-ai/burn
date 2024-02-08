@@ -1,10 +1,10 @@
-use crate::{element::WgpuElement, tensor::WgpuTensor};
+use crate::{element::WgpuElement, tensor::WgpuTensor, JitGpuBackend};
 
 /// Creates an empty output tensor with reduce output shape
-pub fn init_reduce_output<E: WgpuElement, const D: usize>(
-    input: &WgpuTensor<E, D>,
+pub fn init_reduce_output<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: &WgpuTensor<B, E, D>,
     reduce_dim: usize,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     let mut shape_out = input.shape.clone();
     shape_out.dims[reduce_dim] = 1;
 

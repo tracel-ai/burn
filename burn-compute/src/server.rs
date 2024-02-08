@@ -12,12 +12,12 @@ use burn_common::reader::Reader;
 ///
 /// Everything in the server is mutable, therefore it should be solely accessed through the
 /// [compute channel](crate::channel::ComputeChannel) for thread safety.
-pub trait ComputeServer: Send + core::fmt::Debug
+pub trait ComputeServer: Sync + Send + core::fmt::Debug
 where
     Self: Sized,
 {
     /// The kernel type defines the computation algorithms.
-    type Kernel: Send;
+    type Kernel: Sync + Send;
     /// The [storage](ComputeStorage) type defines how data is stored and accessed.
     type Storage: ComputeStorage;
     /// The [memory management](MemoryManagement) type defines strategies for allocation in the [storage](ComputeStorage) type.

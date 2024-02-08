@@ -1,27 +1,27 @@
 use crate::{
-    codegen::Compiler,
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 
-pub(crate) fn scatter<C: Compiler, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn scatter<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
-    tensor: WgpuTensor<E, D>,
-    indices: WgpuTensor<I, D>,
-    value: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+    tensor: WgpuTensor<B, E, D>,
+    indices: WgpuTensor<B, I, D>,
+    value: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     let indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
 
     let tensor = match tensor.can_mut() {
         true => tensor,
-        false => tensor.copy::<C>(),
+        false => tensor.copy(),
     };
 
     let mut info = build_info(&[&tensor, &value]);

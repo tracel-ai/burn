@@ -17,6 +17,8 @@ impl core::fmt::Debug for BytesStorage {
 /// Can send to other threads.
 unsafe impl Send for BytesStorage {}
 unsafe impl Send for BytesResource {}
+unsafe impl Sync for BytesStorage {}
+unsafe impl Sync for BytesResource {}
 
 /// This struct is a pointer to a memory chunk or slice.
 pub struct BytesResource {

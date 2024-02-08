@@ -1,11 +1,14 @@
+use burn_compute::client::ComputeClient;
+
 use crate::codegen::dialect::gpu::{
     Binding, Body, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
     ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Vectorization, Visibility,
     WorkgroupSize,
 };
-use crate::compute::{StaticKernel, WgpuComputeClient, WgpuHandle};
+use crate::compute::StaticKernel;
 use crate::element::WgpuElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
+use crate::JitGpuBackend;
 use std::marker::PhantomData;
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
@@ -337,8 +340,8 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
 }
 
 #[derive(new)]
-pub struct StaticHandle<'a> {
-    handle: &'a WgpuHandle,
+pub struct StaticHandle<'a, B: JitGpuBackend> {
+    handle: &'a burn_compute::server::Handle<B::Server>,
     strides: &'a [usize],
     shape: &'a [usize],
 }
@@ -354,12 +357,12 @@ pub enum WorkgroupLaunch {
 ///
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
-pub fn execute_static<K, E: WgpuElement>(
-    inputs: &[StaticHandle],
-    outputs: &[StaticHandle],
+pub fn execute_static<B: JitGpuBackend, K, E: WgpuElement>(
+    inputs: &[StaticHandle<B>],
+    outputs: &[StaticHandle<B>],
     scalar_elems: Option<&[E]>,
     launch: WorkgroupLaunch,
-    client: WgpuComputeClient,
+    client: ComputeClient<B::Server, B::Channel>,
 ) where
     K: StaticKernelSource + 'static,
 {

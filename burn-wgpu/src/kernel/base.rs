@@ -1,9 +1,12 @@
+use burn_compute::{client::ComputeClient, server::Handle};
+
 use super::SourceTemplate;
 use crate::{
-    compute::{StaticKernel, WgpuComputeClient, WgpuHandle, WorkGroup},
+    compute::{StaticKernel, WorkGroup},
     element::WgpuElement,
     kernel,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 use std::marker::PhantomData;
 
@@ -48,9 +51,9 @@ macro_rules! kernel_wgsl {
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
 /// Make a wgpu tensor contiguous.
-pub fn into_contiguous<E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn into_contiguous<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<B, E, D>,
+) -> WgpuTensor<B, E, D> {
     if tensor.is_contiguous() {
         return tensor;
     }
@@ -78,15 +81,15 @@ pub fn into_contiguous<E: WgpuElement, const D: usize>(
 }
 
 /// Similar to [into contiguous](into_contiguous) but with dynamic rank.
-pub fn into_contiguous_dyn<E: WgpuElement>(
-    client: WgpuComputeClient,
-    input: WgpuHandle,
+pub fn into_contiguous_dyn<B: JitGpuBackend, E: WgpuElement>(
+    client: ComputeClient<B::Server, B::Channel>,
+    input: Handle<B::Server>,
     input_shape: &[usize],
     input_strides: &[usize],
     output_shape: &[usize],
     output_strides: &[usize],
     num_elems: usize,
-) -> WgpuHandle {
+) -> Handle<B::Server> {
     let handle = client.empty(num_elems * core::mem::size_of::<E>());
     let info = kernel::build_info_dyn::<E>(
         &[input_shape, output_shape],
@@ -192,7 +195,9 @@ impl<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> DynamicKernelSource
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<E: WgpuElement, const D: usize>(tensors: &[&WgpuTensor<E, D>]) -> Vec<u32> {
+pub fn build_info<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    tensors: &[&WgpuTensor<B, E, D>],
+) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
     info[0] = D as u32;
 

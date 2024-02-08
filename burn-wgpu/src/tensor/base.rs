@@ -1,36 +1,61 @@
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::Compiler;
 use crate::element::WgpuElement;
-use crate::{
-    compute::{WgpuComputeClient, WgpuHandle},
-    unary, WgpuDevice,
-};
+use crate::JitGpuBackend;
+use crate::{unary, WgpuDevice};
+use burn_compute::client::ComputeClient;
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
-#[derive(Debug, Clone)]
-pub struct WgpuTensor<E: WgpuElement, const D: usize> {
+pub struct WgpuTensor<B, E, const D: usize>
+where
+    B: JitGpuBackend,
+    E: WgpuElement,
+{
     /// Compute client for wgpu.
-    pub client: WgpuComputeClient,
+    pub client: ComputeClient<B::Server, B::Channel>,
     /// The buffer where the data are stored.
-    pub handle: WgpuHandle,
+    pub handle: Handle<B::Server>,
     /// The shape of the current tensor.
     pub shape: Shape<D>,
     /// The device of the current tensor.
-    pub device: WgpuDevice,
+    pub device: B::Device,
     /// The strides of the current tensor.
     pub strides: [usize; D],
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
+unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Send for WgpuTensor<B, E, D> {}
+unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Sync for WgpuTensor<B, E, D> {}
+
+impl<B: JitGpuBackend, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<B, E, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E, D> {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            handle: self.handle.clone(),
+            shape: self.shape.clone(),
+            device: self.device.clone(),
+            strides: self.strides.clone(),
+            elem: PhantomData,
+        }
+    }
+}
+
+impl<B: JitGpuBackend, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
     /// Create a new tensor.
     pub fn new(
-        client: WgpuComputeClient,
-        device: WgpuDevice,
+        client: ComputeClient<B::Server, B::Channel>,
+        device: B::Device,
         shape: Shape<D>,
-        handle: WgpuHandle,
+        handle: Handle<B::Server>,
     ) -> Self {
         let mut strides = [0; D];
 
@@ -56,7 +81,11 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&self, client: WgpuComputeClient, device: WgpuDevice) -> Self {
+    pub fn to_client(
+        &self,
+        client: ComputeClient<B::Server, B::Channel>,
+        device: WgpuDevice,
+    ) -> Self {
         let bytes = self
             .client
             .read(&self.handle)
@@ -74,7 +103,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub(crate) fn can_mut_broadcast(&self, rhs: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
         if !self.handle.can_mut() {
             return false;
         }
@@ -93,7 +122,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     /// Copy the current tensor.
-    pub fn copy<C: Compiler>(&self) -> Self {
+    pub fn copy(&self) -> Self {
         // Seems like using the copy buffer from the `wgpu` API leads to race condition when they
         // are used inplace afterward.
         //
@@ -106,7 +135,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: C,
+            compiler: B::Compiler,
             input: self.clone(),
             elem: E
         )

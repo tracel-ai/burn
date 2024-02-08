@@ -1,12 +1,14 @@
 use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
     codegen::Compiler,
-    compute::{DynamicKernel, WgpuHandle, WorkGroup},
+    compute::{DynamicKernel, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
     ops::numeric::empty_device,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 
 pub(crate) const B_M: usize = 64;
@@ -25,39 +27,39 @@ pub(super) fn make_workgroup<const D: usize>(output_shape: &Shape<D>) -> WorkGro
     WorkGroup::new(num_blocks_x, num_blocks_y, num_blocks_z as u32)
 }
 
-pub(super) fn make_info_handle<E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<E, D>,
-    rhs: &WgpuTensor<E, D>,
-    output: &WgpuTensor<E, D>,
-) -> WgpuHandle {
+pub(super) fn make_info_handle<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    lhs: &WgpuTensor<B, E, D>,
+    rhs: &WgpuTensor<B, E, D>,
+    output: &WgpuTensor<B, E, D>,
+) -> Handle<B::Server> {
     let info = build_info(&[lhs, rhs, output]);
     rhs.client.create(bytemuck::cast_slice(&info))
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<
-    C: Compiler,
+    B: JitGpuBackend,
     E: WgpuElement,
     const D: usize,
     K: DynamicKernelSource + 'static,
 >(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+    lhs: WgpuTensor<B, E, D>,
+    rhs: WgpuTensor<B, E, D>,
+    output: WgpuTensor<B, E, D>,
     kernel: K,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     // A tensor may need to be padded, in which case it will implicitly become contiguous
     // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying
     // kernel handles it without needing to turn it into contiguous.
-    let round_lhs = pad_round::<C, E, D>(lhs, B_M, B_K);
+    let round_lhs = pad_round::<B, E, D>(lhs, B_M, B_K);
     let lhs = match round_lhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)
         }
         _ => round_lhs.into_tensor(),
     };
-    let round_rhs = pad_round::<C, E, D>(rhs, B_K, B_N);
+    let round_rhs = pad_round::<B, E, D>(rhs, B_K, B_N);
     let rhs = match round_rhs {
         PaddingOutput::Unchanged(tensor) if tensor.batch_swapped_with_row_col() => {
             into_contiguous(tensor)

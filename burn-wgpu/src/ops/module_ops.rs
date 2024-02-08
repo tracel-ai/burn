@@ -1,16 +1,10 @@
+use crate::{kernel, GpuBackend, JitGpuBackend};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
-
-use crate::{codegen::Compiler, kernel, GpuBackend, GraphicsApi};
-
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<G, C> ModuleOps<Self> for GpuBackend<G, C>
-where
-    G: GraphicsApi + 'static,
-    C: Compiler,
-{
+impl<B: JitGpuBackend> ModuleOps<Self> for GpuBackend<B> {
     fn conv2d(
         x: FloatTensor<Self, 4>,
         weight: FloatTensor<Self, 4>,

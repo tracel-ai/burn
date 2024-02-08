@@ -1,7 +1,7 @@
 use burn_tensor::Shape;
 
 use crate::{
-    compute::{compute_client, StaticKernel},
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
@@ -9,7 +9,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    GraphicsApi, JitGpuBackend, WgpuDevice,
 };
 
 use super::base::Prng;
@@ -31,15 +31,15 @@ impl StaticKernelSource for NormalPrng {
 }
 
 /// Pseudo-random generator for normal distribution
-pub fn random_normal<G: GraphicsApi, E: WgpuElement, const D: usize>(
+pub fn random_normal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &WgpuDevice,
     mean: E,
     std: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     const N_VALUES_PER_THREAD: usize = 128; // must be even
 
-    let client = compute_client::<G>(device);
+    let client = B::client(device);
     let output = empty_device(client.clone(), device.clone(), shape.clone());
     let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
     let args_handle = make_args_buffer(client.clone(), &[mean, std]);

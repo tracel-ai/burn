@@ -1,11 +1,13 @@
 use crate::{
-    compute::{StaticKernel, WgpuHandle},
+    compute::StaticKernel,
     element::WgpuElement,
     kernel::{elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 
 kernel_wgsl!(
@@ -17,10 +19,10 @@ kernel_wgsl!(
     "../../template/pool/adaptive_avg_pool2d_backward.wgsl"
 );
 
-pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
-    x: WgpuTensor<E, 4>,
+pub(crate) fn adaptive_avg_pool2d<B: JitGpuBackend, E: WgpuElement>(
+    x: WgpuTensor<B, E, 4>,
     output_size: [usize; 2],
-) -> WgpuTensor<E, 4> {
+) -> WgpuTensor<B, E, 4> {
     let [batch_size, channels, _, _] = x.shape.dims;
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
@@ -40,10 +42,10 @@ pub(crate) fn adaptive_avg_pool2d<E: WgpuElement>(
     output
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<E: WgpuElement>(
-    x: WgpuTensor<E, 4>,
-    out_grad: WgpuTensor<E, 4>,
-) -> WgpuTensor<E, 4> {
+pub(crate) fn adaptive_avg_pool2d_backward<B: JitGpuBackend, E: WgpuElement>(
+    x: WgpuTensor<B, E, 4>,
+    out_grad: WgpuTensor<B, E, 4>,
+) -> WgpuTensor<B, E, 4> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
@@ -71,7 +73,10 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: WgpuElement>(
     output
 }
 
-fn build_info<E: WgpuElement>(x: &WgpuTensor<E, 4>, output: &WgpuTensor<E, 4>) -> WgpuHandle {
+fn build_info<B: JitGpuBackend, E: WgpuElement>(
+    x: &WgpuTensor<B, E, 4>,
+    output: &WgpuTensor<B, E, 4>,
+) -> Handle<B::Server> {
     let mut info: [u32; 16] = [0; 16];
     info[0] = x.strides[0] as u32;
     info[1] = x.strides[1] as u32;

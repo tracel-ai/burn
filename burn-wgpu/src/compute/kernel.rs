@@ -76,10 +76,9 @@ mod tests {
     use crate::{
         binary,
         codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
-        compute::compute_client,
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
-        tests::TestCompiler,
-        AutoGraphicsApi, WgpuDevice,
+        tests::{TestCompiler, TestJitGpuBackend},
+        WgpuDevice,
     };
 
     #[test]
@@ -95,7 +94,7 @@ mod tests {
             elem_out: f32
         );
 
-        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
+        let client = TestJitGpuBackend::client(&WgpuDevice::default());
 
         let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];

@@ -1,6 +1,6 @@
-use crate::{
-    codegen::Compiler, compute::compute_client, tensor::WgpuTensor, GraphicsApi, WgpuDevice,
-};
+use crate::{codegen::Compiler, tensor::WgpuTensor, WgpuDevice};
+use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
+use burn_fusion::FusionDevice;
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
@@ -8,31 +8,62 @@ use std::{marker::PhantomData, sync::Mutex};
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
-#[derive(Debug, Default, Clone)]
-pub struct GpuBackend<G, C>
-where
-    G: GraphicsApi,
-    C: Compiler,
-{
-    _g: PhantomData<G>,
-    _c: PhantomData<C>,
+pub struct GpuBackend<B: JitGpuBackend> {
+    _b: PhantomData<B>,
 }
 
-impl<G, C> Backend for GpuBackend<G, C>
-where
-    G: GraphicsApi + 'static,
-    C: Compiler,
-{
-    type Device = WgpuDevice;
-    type FullPrecisionBackend = GpuBackend<G, C::FullPrecisionCompiler>;
+impl<B: JitGpuBackend> core::fmt::Debug for GpuBackend<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl<B: JitGpuBackend> Clone for GpuBackend<B> {
+    fn clone(&self) -> Self {
+        todo!()
+    }
+}
+
+impl<B: JitGpuBackend> Default for GpuBackend<B> {
+    fn default() -> Self {
+        todo!()
+    }
+}
+
+pub trait JitGpuBackend: Send + Sync + 'static {
+    type FullPrecisionBackend: JitGpuBackend<
+        Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
+        Device = Self::Device,
+    >;
+    type Compiler: Compiler;
+    type Server: ComputeServer;
+    type Channel: ComputeChannel<Self::Server>;
+    type Device: FusionDevice
+        + Default
+        + core::hash::Hash
+        + PartialEq
+        + Eq
+        + Clone
+        + core::fmt::Debug
+        + Sync
+        + Send;
+
+    fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
+        todo!();
+    }
+}
+
+impl<B: JitGpuBackend> Backend for GpuBackend<B> {
+    type Device = B::Device;
+    type FullPrecisionBackend = GpuBackend<B::FullPrecisionBackend>;
 
     type FullPrecisionElem = f32;
-    type FloatElem = C::Float;
-    type IntElem = C::Int;
+    type FloatElem = <B::Compiler as Compiler>::Float;
+    type IntElem = <B::Compiler as Compiler>::Int;
 
-    type FloatTensorPrimitive<const D: usize> = WgpuTensor<C::Float, D>;
-    type IntTensorPrimitive<const D: usize> = WgpuTensor<C::Int, D>;
-    type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
+    type FloatTensorPrimitive<const D: usize> = WgpuTensor<B, Self::FloatElem, D>;
+    type IntTensorPrimitive<const D: usize> = WgpuTensor<B, Self::IntElem, D>;
+    type BoolTensorPrimitive<const D: usize> = WgpuTensor<B, u32, D>;
 
     fn name() -> String {
         String::from("wgpu")
@@ -49,7 +80,7 @@ where
     }
 
     fn sync(device: &Self::Device) {
-        let client = compute_client::<G>(device);
+        let client = B::client(device);
         client.sync();
     }
 }

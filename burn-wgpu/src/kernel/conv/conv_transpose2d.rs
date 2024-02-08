@@ -5,17 +5,18 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
 
 kernel_wgsl!(ConvTranspose2d, "../../template/conv/conv_transpose2d.wgsl");
 
-pub(crate) fn conv_transpose2d<E: WgpuElement + Element>(
-    input: WgpuTensor<E, 4>,
-    weight: WgpuTensor<E, 4>,
-    bias: Option<WgpuTensor<E, 1>>,
+pub(crate) fn conv_transpose2d<B: JitGpuBackend, E: WgpuElement + Element>(
+    input: WgpuTensor<B, E, 4>,
+    weight: WgpuTensor<B, E, 4>,
+    bias: Option<WgpuTensor<B, E, 1>>,
     options: ConvTransposeOptions<2>,
-) -> WgpuTensor<E, 4> {
+) -> WgpuTensor<B, E, 4> {
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;

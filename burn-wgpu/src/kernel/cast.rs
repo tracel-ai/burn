@@ -1,7 +1,7 @@
 use super::{KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::WgpuTensor, JitGpuBackend,
 };
 use std::{any::TypeId, marker::PhantomData};
 
@@ -23,9 +23,9 @@ impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
 }
 
 /// Cast a tensor to the given element type.
-pub fn cast<InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<InputElem, D>,
-) -> WgpuTensor<OutputElem, D> {
+pub fn cast<B: JitGpuBackend, InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<B, InputElem, D>,
+) -> WgpuTensor<B, OutputElem, D> {
     if TypeId::of::<InputElem>() == TypeId::of::<OutputElem>() {
         return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
     }

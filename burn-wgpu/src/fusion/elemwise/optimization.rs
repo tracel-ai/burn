@@ -8,27 +8,23 @@ use crate::{
     codegen::{
         compiler::Compiler, ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy,
     },
-    compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
+    compute::WgpuAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    GpuBackend, GraphicsApi, WgpuDevice,
+    GpuBackend, JitGpuBackend, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
+use burn_compute::client::ComputeClient;
 use burn_fusion::{stream::Context, TensorDescription};
-use burn_tensor::Device;
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<G, C, Phase = ExecutionPhase>
-where
-    G: GraphicsApi,
-    C: Compiler,
-{
+pub struct ElementWise<B: JitGpuBackend, Phase = ExecutionPhase<B>> {
     pub(super) inputs: Vec<(TensorDescription, Elem)>,
     pub(super) outputs: Vec<(TensorDescription, Elem)>,
     pub(super) locals: Vec<u16>,
     pub(super) scalars: Scalars,
     pub(super) operators: Vec<Operation>,
-    pub(super) device: Device<GpuBackend<G, C>>,
+    pub(super) device: B::Device,
     pub(super) phase: Phase,
 }
 
@@ -42,9 +38,9 @@ pub struct Scalars {
 pub struct CompilationPhase;
 
 #[derive(new)]
-pub struct ExecutionPhase {
-    pub(super) kernel_set_1: FusionKernelSet,
-    pub(super) kernel_set_2: FusionKernelSet,
+pub struct ExecutionPhase<B: JitGpuBackend> {
+    pub(super) kernel_set_1: FusionKernelSet<B>,
+    pub(super) kernel_set_2: FusionKernelSet<B>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,12 +52,8 @@ pub struct ElementWiseState {
     locals: Vec<u16>,
 }
 
-impl<G, C> ElementWise<G, C, CompilationPhase>
-where
-    G: GraphicsApi,
-    C: Compiler,
-{
-    pub(crate) fn compile(self) -> ElementWise<G, C, ExecutionPhase> {
+impl<B: JitGpuBackend> ElementWise<B, CompilationPhase> {
+    pub(crate) fn compile(self) -> ElementWise<B, ExecutionPhase<B>> {
         let mut inputs = self
             .inputs
             .iter()
@@ -148,14 +140,14 @@ where
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set::<C>(
+        let kernel_set_1 = build_kernel_set::<B::Compiler>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set::<C>(
+        let kernel_set_2 = build_kernel_set::<B::Compiler>(
             &inputs,
             &outputs,
             &self.operators,
@@ -175,13 +167,9 @@ where
     }
 }
 
-impl<G, C> ElementWise<G, C, ExecutionPhase>
-where
-    G: GraphicsApi,
-    C: Compiler,
-{
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<G, C>>) {
-        let client = compute_client::<G>(&self.device);
+impl<B: JitGpuBackend> ElementWise<B, ExecutionPhase<B>> {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<B>>) {
+        let client = B::client(&self.device);
 
         let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.operators.len(),
@@ -197,8 +185,8 @@ where
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, GpuBackend<G, C>>,
-        client: WgpuComputeClient,
+        context: &mut Context<'_, GpuBackend<B>>,
+        client: ComputeClient<B::Server, B::Channel>,
         fastest_set_index: usize,
     ) {
         let kernel_set = match fastest_set_index {
@@ -223,8 +211,8 @@ where
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, GpuBackend<G, C>>,
-        client: WgpuComputeClient,
+        context: &mut Context<'_, GpuBackend<B>>,
+        client: ComputeClient<B::Server, B::Channel>,
         key: WgpuAutotuneKey,
     ) {
         let kernel_1 = self.phase.kernel_set_1.select(
@@ -273,7 +261,7 @@ where
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, GpuBackend<G, C>>,
+        context: &mut Context<'a, GpuBackend<B>>,
     ) -> &'a [usize] {
         if let Some(tensor) = self.outputs.first() {
             let tensor = context.tensors.get(&tensor.0.id).unwrap();
@@ -317,17 +305,14 @@ where
     }
 }
 
-fn build_kernel_set<C>(
+fn build_kernel_set<B: JitGpuBackend>(
     inputs: &[Input],
     outputs: &[Output],
     operators: &[Operation],
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet
-where
-    C: Compiler,
-{
-    let scalar = ScalarElementWise::<C>::new(
+) -> FusionKernelSet<B> {
+    let scalar = ScalarElementWise::<B::Compiler>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -351,7 +336,7 @@ where
         outputs.len(),
     );
 
-    let vec2 = VecElementWise::<C>::new(
+    let vec2 = VecElementWise::<B::Compiler>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -377,7 +362,7 @@ where
         outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::<C>::new(
+    let vec4 = VecElementWise::<B::Compiler>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -409,8 +394,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::codegen::dialect::wgsl;
-    use crate::{AutoGraphicsApi, GpuBackend};
+    use crate::tests::TestJitGpuBackend;
+    use crate::GpuBackend;
 
     use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
@@ -419,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior() {
-        type Backend = GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>;
+        type Backend = GpuBackend<TestJitGpuBackend>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -482,7 +467,7 @@ mod tests {
             z.into_data().convert()
         }
 
-        type Backend = GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>;
+        type Backend = GpuBackend<TestJitGpuBackend>;
         type FusedBackend = Fusion<Backend>;
 
         let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
@@ -493,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior_different_variant() {
-        type Backend = GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>;
+        type Backend = GpuBackend<TestJitGpuBackend>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -531,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_end_condition_scalar_ops() {
-        type Backend = Fusion<GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>>;
+        type Backend = GpuBackend<TestJitGpuBackend>;
         let device = Default::default();
         let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
         let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);

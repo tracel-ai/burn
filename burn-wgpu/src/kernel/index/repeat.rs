@@ -4,15 +4,16 @@ use crate::{
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
+    JitGpuBackend,
 };
 
 kernel_wgsl!(RepeatRaw, "../../template/index/repeat.wgsl");
 
-pub(crate) fn repeat<E: WgpuElement, const D1: usize>(
-    input: WgpuTensor<E, D1>,
+pub(crate) fn repeat<B: JitGpuBackend, E: WgpuElement, const D1: usize>(
+    input: WgpuTensor<B, E, D1>,
     dim: usize,
     times: usize,
-) -> WgpuTensor<E, D1> {
+) -> WgpuTensor<B, E, D1> {
     let mut shape = input.shape.clone();
     if shape.dims[dim] != 1 {
         panic!("Can only repeat dimension with dim=1");

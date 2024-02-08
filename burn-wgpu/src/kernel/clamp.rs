@@ -6,14 +6,14 @@ use crate::{
     },
     element::WgpuElement,
     tensor::WgpuTensor,
-    unary,
+    unary, JitGpuBackend,
 };
 
-pub(crate) fn clamp<C: Compiler, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
+pub(crate) fn clamp<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<B, E, D>,
     min_value: E,
     max_value: E,
-) -> WgpuTensor<E, D> {
+) -> WgpuTensor<B, E, D> {
     unary!(
         operation: |elem| Operation::Clamp(ClampOperation {
             input: Variable::Input(0, Item::Scalar(elem)),
@@ -21,11 +21,15 @@ pub(crate) fn clamp<C: Compiler, E: WgpuElement, const D: usize>(
             max_value: Variable::Scalar(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: C,
+        compiler: B::Compiler,
         scalar 2
     );
 
-    unary::<Ops<C, E>, OpsInplace<C, E>, E, D>(input, Some(&[min_value, max_value]), true)
+    unary::<Ops<B::Compiler, E>, OpsInplace<B::Compiler, E>, E, D>(
+        input,
+        Some(&[min_value, max_value]),
+        true,
+    )
 }
 
 #[cfg(test)]
