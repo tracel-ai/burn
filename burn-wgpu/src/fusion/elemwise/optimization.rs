@@ -415,7 +415,6 @@ where
 mod tests {
     use crate::WgpuBackend;
 
-    use super::*;
     use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Int;
