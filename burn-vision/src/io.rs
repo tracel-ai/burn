@@ -8,6 +8,8 @@ use burn_core::serde::de::value;
 use burn_core::tensor::{backend::Backend, Tensor, Data, Shape};
 use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
 use image::ColorType::Rgba8;
+use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
+use image::ColorType::Rgba8;
 
 #[derive(Debug)]
 pub enum ImageReaderError {
@@ -91,6 +93,8 @@ impl<B: Backend> ImageReader<B> {
             }
         }
 
+        let mut file = File::create(path).map_err(ImageReaderError::Io)?;
+        img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
         let mut file = File::create(path).map_err(ImageReaderError::Io)?;
         img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
         Ok(())
