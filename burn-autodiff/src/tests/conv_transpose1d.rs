@@ -241,7 +241,7 @@ mod tests {
             ]);
             let device = Default::default();
             let weight = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_weight.num_elements(), &device)
+                TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
@@ -249,14 +249,14 @@ mod tests {
             )
             .require_grad();
             let bias = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..self.channels[1], &device)
+                TestTensorInt::arange(0..self.channels[1] as i64, &device)
                     .into_data()
                     .convert(),
                 &device,
             )
             .require_grad();
             let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements(), &device)
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

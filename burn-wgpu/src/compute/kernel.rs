@@ -75,20 +75,22 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::{Elem, Item, Operator, Variable},
+        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         compute::compute_client,
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
+        tests::TestCompiler,
         AutoGraphicsApi, WgpuDevice,
     };
 
     #[test]
     fn can_run_kernel() {
         binary!(
-            operator: |elem: Elem| Operator::Add {
+            operation: |elem: Elem| Operation::Add(BinaryOperation {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Input(1, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
+            compiler: TestCompiler,
             elem_in: f32,
             elem_out: f32
         );
@@ -104,8 +106,14 @@ mod tests {
         let out = client.empty(core::mem::size_of::<f32>() * 8);
         let info = client.create(bytemuck::cast_slice(&info));
 
-        type Kernel =
-            KernelSettings<Ops<f32, f32>, f32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>;
+        type Kernel = KernelSettings<
+            Ops<TestCompiler, f32, f32>,
+            f32,
+            i32,
+            WORKGROUP_DEFAULT,
+            WORKGROUP_DEFAULT,
+            1,
+        >;
         let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);
