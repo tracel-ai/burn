@@ -51,6 +51,7 @@ accelerate = ["burn-core/accelerate"]
 openblas = ["burn-core/openblas"]
 openblas-system = ["burn-core/openblas-system"]
 blas-netlib = ["burn-core/blas-netlib"]
+autotune = ["burn-core/autotune"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]

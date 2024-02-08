@@ -16,7 +16,6 @@ default = [
     "burn-candle?/default",
     "burn-common/default",
     "burn-dataset?/default",
-    "burn-fusion?/default",
     "burn-ndarray?/default",
     "burn-tch?/default",
     "burn-tensor/default",
@@ -26,7 +25,6 @@ std = [
     "bincode/std",
     "burn-candle?/std",
     "burn-common/std",
-    "burn-fusion?/std",
     "burn-ndarray?/std",
     "burn-tensor/std",
     "burn-wgpu?/std",
@@ -53,7 +51,6 @@ doc = [
     "burn-candle/doc",
     "burn-common/doc",
     "burn-dataset/doc",
-    "burn-fusion/doc",
     "burn-ndarray/doc",
     "burn-tch/doc",
     "burn-tensor/doc",
@@ -68,7 +65,7 @@ wasm-sync = ["burn-tensor/wasm-sync", "burn-common/wasm-sync"]
 
 # Backend
 autodiff = ["burn-autodiff"]
-fusion = ["burn-fusion", "burn-wgpu?/fusion"]
+fusion = ["burn-wgpu?/fusion"]
 
 ## Backend features
 cuda = ["burn-candle?/cuda"]
@@ -77,6 +74,7 @@ accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
+autotune = ["burn-wgpu?/autotune"]
 
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -103,9 +101,8 @@ burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = 
 
 # Backends
 burn-ndarray = { path = "../burn-ndarray", version = "0.13.0", optional = true, default-features = false }
-burn-wgpu = { path = "../burn-wgpu", version = "0.13.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.13.0", optional = true, default-features = false }
 burn-autodiff = { path = "../burn-autodiff", version = "0.13.0", optional = true }
-burn-fusion = { path = "../burn-fusion", version = "0.13.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.13.0", optional = true }
 burn-candle = { path = "../burn-candle", version = "0.13.0", optional = true }
 

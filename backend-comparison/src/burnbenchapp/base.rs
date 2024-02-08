@@ -71,7 +71,7 @@ pub(crate) enum BackendValues {
 pub(crate) enum BenchmarkValues {
     #[strum(to_string = "binary")]
     Binary,
-    #[strum(to_string = "custom-gelu")]
+    #[strum(to_string = "custom_gelu")]
     CustomGelu,
     #[strum(to_string = "data")]
     Data,

@@ -347,6 +347,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 }
 
 impl ElemWiseKernelCodegen<CompilationPhase> {
+    #[cfg(any(feature = "fusion", test))] // Only used for fusion for now.
     pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
         self.workgroup_size = workgroup_size;
         self
