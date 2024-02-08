@@ -68,7 +68,7 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 }
 
 fn main() {
-    type MyBackend = burn::backend::wgpu::WgpuBackend;
+    type MyBackend = burn::backend::wgpu::GpuBackend;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
     let device = Default::default();
     inference::<MyBackend>(&device);

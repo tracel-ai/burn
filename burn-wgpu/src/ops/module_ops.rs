@@ -4,12 +4,12 @@ use burn_tensor::ops::{
 
 use crate::{
     element::{FloatElement, IntElement},
-    kernel, GraphicsApi, WgpuBackend,
+    kernel, GpuBackend, GraphicsApi,
 };
 
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<G, F, I> ModuleOps<Self> for WgpuBackend<G, F, I>
+impl<G, F, I> ModuleOps<Self> for GpuBackend<G, F, I>
 where
     G: GraphicsApi + 'static,
     F: FloatElement,
@@ -70,7 +70,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<WgpuBackend<G, F, I>> {
+    ) -> MaxPool2dWithIndices<GpuBackend<G, F, I>> {
         let (output, indices) =
             kernel::pool::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
@@ -85,7 +85,7 @@ where
         dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<WgpuBackend<G, F, I>> {
+    ) -> MaxPool2dBackward<GpuBackend<G, F, I>> {
         MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward(
             x,
             output_grad,

@@ -19,6 +19,7 @@ pub(crate) mod codegen;
 pub(crate) mod tune;
 
 mod element;
+use codegen::dialect::wgsl;
 pub use element::{FloatElement, IntElement};
 
 mod device;
@@ -50,7 +51,8 @@ mod fusion;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = burn_fusion::Fusion<WgpuBackend<G, F, I>>;
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
+    burn_fusion::Fusion<GpuBackend<G, wgsl::Compiler<F, I>>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -69,16 +71,16 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = burn_fusion::Fusion<WgpuB
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = WgpuBackend<G, F, I>;
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = GpuBackend<G, wgsl::Compiler<F, I>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    pub type TestBackend = WgpuBackend;
+    pub type TestCompiler = wgsl::Compiler<f32, i32>;
+    pub type TestBackend = GpuBackend<AutoGraphicsApi, TestCompiler>;
     pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
-    pub type TestCompiler = crate::codegen::dialect::wgsl::Compiler<f32, i32>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

@@ -1,10 +1,11 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
+    codegen::Compiler,
     compute::{WgpuComputeClient, WgpuHandle},
     element::WgpuElement,
     fusion::ElementWiseBuilder,
     tensor::WgpuTensor,
-    FloatElement, GraphicsApi, IntElement, WgpuBackend, WgpuDevice,
+    FloatElement, GpuBackend, GraphicsApi, IntElement, WgpuDevice,
 };
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
@@ -14,9 +15,9 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for WGPU.
 ///
 /// More optimization variants should be added here.
-pub enum WgpuOptimization<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub enum WgpuOptimization<G: GraphicsApi, C: Compiler> {
     /// Element wise optimization.
-    ElementWise(ElementWise<G, F, I>),
+    ElementWise(ElementWise<G, C>),
 }
 
 /// Fusion optimization state type for WGPU.
@@ -28,10 +29,10 @@ pub enum WgpuOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<WgpuBackend<G, F, I>>
-    for WgpuOptimization<G, F, I>
+impl<G: GraphicsApi, C: Compiler> burn_fusion::Optimization<GpuBackend<G, C>>
+    for WgpuOptimization<G, C>
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, WgpuBackend<G, F, I>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, GpuBackend<G, C>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -70,14 +71,13 @@ impl FusionDevice for WgpuDevice {
     }
 }
 
-impl<G, F, I> FusionBackend for WgpuBackend<G, F, I>
+impl<G, C> FusionBackend for GpuBackend<G, C>
 where
     G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
+    C: Compiler,
 {
     type OptimizationState = WgpuOptimizationState;
-    type Optimization = WgpuOptimization<G, F, I>;
+    type Optimization = WgpuOptimization<G, C>;
     type FusionDevice = WgpuDevice;
     type Handle = WgpuFusionHandle;
     type FusionClient = MutexFusionClient<Self>;
@@ -176,9 +176,11 @@ impl<E: WgpuElement, const D: usize> From<WgpuTensor<E, D>> for WgpuFusionHandle
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::codegen::dialect::wgsl;
+    use crate::graphics::AutoGraphicsApi;
     use burn_fusion::Fusion;
 
-    pub type TestBackend = Fusion<WgpuBackend>;
+    pub type TestBackend = Fusion<GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

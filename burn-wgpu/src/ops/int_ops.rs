@@ -1,22 +1,19 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::dialect::wgsl;
+use crate::codegen::Compiler;
 use crate::kernel::reduce::{self, init_reduce_output};
-use crate::{
-    element::{FloatElement, IntElement},
-    kernel, unary, GraphicsApi, WgpuBackend,
-};
+use crate::{kernel, unary, GpuBackend, GraphicsApi};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<G, F, I> IntTensorOps<WgpuBackend<G, F, I>> for WgpuBackend<G, F, I>
+impl<G, C> IntTensorOps<GpuBackend<G, C>> for GpuBackend<G, C>
 where
     G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
+    C: Compiler,
 {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::empty::<G, I, D>(shape, device)

@@ -1,8 +1,9 @@
 use crate::{
+    codegen::Compiler,
     compute::compute_client,
     element::{FloatElement, IntElement},
     tensor::WgpuTensor,
-    AutoGraphicsApi, GraphicsApi, WgpuDevice,
+    GraphicsApi, WgpuDevice,
 };
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
@@ -12,27 +13,31 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
 #[derive(Debug, Default, Clone)]
-pub struct WgpuBackend<G = AutoGraphicsApi, F = f32, I = i32>
+pub struct GpuBackend<G, C>
 where
     G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
+    C: Compiler,
 {
     _g: PhantomData<G>,
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
+    _c: PhantomData<C>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
+impl<G, C> Backend for GpuBackend<G, C>
+where
+    G: GraphicsApi + 'static,
+    C: Compiler,
+    C::Float: FloatElement,
+    C::Int: IntElement,
+{
     type Device = WgpuDevice;
-    type FullPrecisionBackend = WgpuBackend<G, f32, i32>;
+    type FullPrecisionBackend = GpuBackend<G, C>;
 
     type FullPrecisionElem = f32;
-    type FloatElem = F;
-    type IntElem = I;
+    type FloatElem = C::Float;
+    type IntElem = C::Int;
 
-    type FloatTensorPrimitive<const D: usize> = WgpuTensor<F, D>;
-    type IntTensorPrimitive<const D: usize> = WgpuTensor<I, D>;
+    type FloatTensorPrimitive<const D: usize> = WgpuTensor<C::Float, D>;
+    type IntTensorPrimitive<const D: usize> = WgpuTensor<C::Int, D>;
     type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
 
     fn name() -> String {

@@ -15,6 +15,8 @@ pub struct Compiler<F: WgpuElement, I: WgpuElement> {
 
 impl<F: WgpuElement, I: WgpuElement> compiler::Compiler for Compiler<F, I> {
     type Representation = ComputeShader;
+    type Float = F;
+    type Int = I;
 
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {
         Self::compile_shader(shader)

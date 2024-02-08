@@ -1,7 +1,8 @@
+use crate::codegen::Compiler;
 use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
-use crate::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
+use crate::{GpuBackend, GraphicsApi};
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -117,14 +118,14 @@ pub trait FusionKernel: Send + Sync {
 impl FusionKernelSet {
     /// Select the best kernel based on the given information.
     #[allow(clippy::too_many_arguments)]
-    pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
+    pub fn select<G: GraphicsApi, C: Compiler>(
         &self,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
         scalars_f32: usize,
         scalars_i32: usize,
-        context: &mut Context<'_, WgpuBackend<G, F, I>>,
-        device: Device<WgpuBackend<G, F, I>>,
+        context: &mut Context<'_, GpuBackend<G, C>>,
+        device: Device<GpuBackend<G, C>>,
         client: WgpuComputeClient,
         stateful: bool,
     ) -> ExecutableKernel {
@@ -260,10 +261,10 @@ fn register_info_tensor(
     }
 }
 
-fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
+fn process_inputs_outputs<'a, G: GraphicsApi, C: Compiler>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, WgpuBackend<G, F, I>>,
+    context: &'a mut Context<'_, GpuBackend<G, C>>,
     stateful: bool,
 ) -> (
     Vec<WgpuFusionHandle>,
