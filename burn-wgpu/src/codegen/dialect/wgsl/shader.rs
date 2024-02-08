@@ -1,61 +1,21 @@
-use super::{Body, Function};
-use crate::kernel::WORKGROUP_DEFAULT;
-use serde::{Deserialize, Serialize};
+use super::{Body, Extension, Item};
+use crate::codegen::dialect::gpu::WorkgroupSize;
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Location {
     Storage,
     #[allow(dead_code)]
     Workgroup,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Visibility {
     Read,
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
-pub enum Elem {
-    F32,
-    I32,
-    U32,
-    Bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
-pub enum Item {
-    Vec4(Elem),
-    Vec3(Elem),
-    Vec2(Elem),
-    Scalar(Elem),
-}
-
-impl Item {
-    pub fn elem(&self) -> Elem {
-        match self {
-            Self::Vec4(elem) => *elem,
-            Self::Vec3(elem) => *elem,
-            Self::Vec2(elem) => *elem,
-            Self::Scalar(elem) => *elem,
-        }
-    }
-}
-
-impl Elem {
-    /// Returns the size of the elem type in bytes.
-    pub fn size(&self) -> usize {
-        match self {
-            Elem::F32 => core::mem::size_of::<f32>(),
-            Elem::I32 => core::mem::size_of::<i32>(),
-            Elem::U32 => core::mem::size_of::<u32>(),
-            Elem::Bool => core::mem::size_of::<bool>(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
@@ -63,24 +23,7 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub struct WorkgroupSize {
-    pub x: u32,
-    pub y: u32,
-    pub z: u32,
-}
-
-impl Default for WorkgroupSize {
-    fn default() -> Self {
-        Self {
-            x: WORKGROUP_DEFAULT as u32,
-            y: WORKGROUP_DEFAULT as u32,
-            z: 1,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
@@ -89,7 +32,7 @@ pub struct ComputeShader {
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
     pub body: Body,
-    pub functions: Vec<Function>,
+    pub extensions: Vec<Extension>,
 }
 
 impl Display for ComputeShader {
@@ -137,8 +80,8 @@ fn main(
             self.body
         ))?;
 
-        for function in self.functions.iter() {
-            f.write_fmt(format_args!("{function}\n\n"))?;
+        for extension in self.extensions.iter() {
+            f.write_fmt(format_args!("{extension}\n\n"))?;
         }
 
         Ok(())
@@ -196,33 +139,11 @@ impl Display for Location {
     }
 }
 
-impl Display for Elem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Elem::F32 => f.write_str("f32"),
-            Elem::I32 => f.write_str("i32"),
-            Elem::U32 => f.write_str("u32"),
-            Elem::Bool => f.write_str("bool"),
-        }
-    }
-}
-
 impl Display for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Visibility::Read => f.write_str("read"),
             Visibility::ReadWrite => f.write_str("read_write"),
-        }
-    }
-}
-
-impl Display for Item {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Item::Vec4(elem) => f.write_fmt(format_args!("vec4<{elem}>")),
-            Item::Vec3(elem) => f.write_fmt(format_args!("vec3<{elem}>")),
-            Item::Vec2(elem) => f.write_fmt(format_args!("vec2<{elem}>")),
-            Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
 }

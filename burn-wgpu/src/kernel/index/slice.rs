@@ -1,4 +1,5 @@
 use crate::{
+    codegen::Compiler,
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
@@ -57,14 +58,14 @@ pub(crate) fn slice_on_output<E: WgpuElement, const D1: usize, const D2: usize>(
     output
 }
 
-pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice_assign<C: Compiler, E: WgpuElement, const D1: usize, const D2: usize>(
     tensor: WgpuTensor<E, D1>,
     indices: [Range<usize>; D2],
     value: WgpuTensor<E, D1>,
 ) -> WgpuTensor<E, D1> {
     let tensor = match tensor.can_mut() {
         true => tensor,
-        false => tensor.copy(),
+        false => tensor.copy::<C>(),
     };
     let num_elems = tensor.shape.num_elements();
     let mut info = build_info(&[&tensor, &value]);
@@ -91,7 +92,7 @@ pub(crate) fn slice_assign<E: WgpuElement, const D1: usize, const D2: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -123,7 +124,7 @@ mod tests {
         let value_ref =
             Tensor::<ReferenceBackend, 2>::from_data(value.to_data(), &Default::default());
 
-        let actual = slice_assign(
+        let actual = slice_assign::<TestCompiler, _, 2, 2>(
             tensor.into_primitive(),
             indices.clone(),
             value.into_primitive(),

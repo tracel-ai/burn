@@ -1,6 +1,6 @@
 use super::numeric;
-
-use crate::codegen::{Elem, Item, Operator, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::wgsl;
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{
     element::{FloatElement, IntElement},
@@ -67,7 +67,7 @@ where
         ranges: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        kernel::slice_assign(tensor, ranges, value)
+        kernel::slice_assign::<wgsl::Compiler<F, I>, _, D1, D2>(tensor, ranges, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -100,7 +100,7 @@ where
         indices: IntTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter::<wgsl::Compiler<F, I>, _, _, D>(dim, tensor, indices, value)
     }
 
     fn int_select<const D: usize>(
@@ -117,7 +117,7 @@ where
         indices: IntTensor<Self, 1>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::select_assign(tensor, dim, indices, value)
+        kernel::select_assign::<wgsl::Compiler<F, I>, _, _, D>(tensor, dim, indices, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
@@ -128,134 +128,134 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<I, D>(lhs, rhs)
+        kernel::equal::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<I, D>(lhs, rhs)
+        kernel::equal_elem::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<I, D>(lhs, rhs)
+        kernel::greater::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_elem::<I, D>(lhs, rhs)
+        kernel::greater_elem::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<I, D>(lhs, rhs)
+        kernel::greater_equal::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_greater_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal_elem::<I, D>(lhs, rhs)
+        kernel::greater_equal_elem::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<I, D>(lhs, rhs)
+        kernel::lower::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_elem::<I, D>(lhs, rhs)
+        kernel::lower_elem::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<I, D>(lhs, rhs)
+        kernel::lower_equal::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_lower_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal_elem::<I, D>(lhs, rhs)
+        kernel::lower_equal_elem::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_add<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::add::<I, D>(lhs, rhs)
+        numeric::add::<wgsl::Compiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::add_scalar(lhs, rhs)
+        numeric::add_scalar::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::sub(lhs, rhs)
+        numeric::sub::<wgsl::Compiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::sub_scalar(lhs, rhs)
+        numeric::sub_scalar::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_mul<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::mul(lhs, rhs)
+        numeric::mul::<wgsl::Compiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::mul_scalar(lhs, rhs)
+        numeric::mul_scalar::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn int_div<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::div(lhs, rhs)
+        numeric::div::<wgsl::Compiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::div_scalar(lhs, rhs)
+        numeric::div_scalar::<wgsl::Compiler<F, I>, I, D>(lhs, rhs)
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::zeros::<G, I, D>(shape, device)
+        numeric::zeros::<wgsl::Compiler<F, I>, G, I, D>(shape, device)
     }
 
     fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::ones::<G, I, D>(shape, device)
+        numeric::ones::<wgsl::Compiler<F, I>, G, I, D>(shape, device)
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
@@ -285,15 +285,16 @@ where
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        kernel::clamp(tensor, min, max)
+        kernel::clamp::<wgsl::Compiler<F, I>, _, D>(tensor, min, max)
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Abs {
+            operation: |elem: Elem| Operation::Abs(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
+            compiler: wgsl::Compiler<F, I>,
             input: tensor,
             elem: I
         )

@@ -1,11 +1,10 @@
-use super::{variable::Variable, Item, Vectorization};
-use serde::{Deserialize, Serialize};
+use super::base::{Item, Variable};
 use std::fmt::Display;
 
-/// All operators that can be fused in a WGSL compute shader.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// All operations that can be used in a WGSL compute shader.
+#[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants might not be used with different flags
-pub enum Operator {
+pub enum Operation {
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -127,164 +126,25 @@ pub enum Operator {
     },
 }
 
-impl Operator {
-    pub fn vectorize(&self, vectorize: Vectorization) -> Self {
-        match self {
-            Operator::Add { lhs, rhs, out } => Operator::Add {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Sub { lhs, rhs, out } => Operator::Sub {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Mul { lhs, rhs, out } => Operator::Mul {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Div { lhs, rhs, out } => Operator::Div {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Abs { input, out } => Operator::Abs {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Tanh { input, out } => Operator::Tanh {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Sin { input, out } => Operator::Sin {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Cos { input, out } => Operator::Cos {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Log1p { input, out } => Operator::Log1p {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Log { input, out } => Operator::Log {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Exp { input, out } => Operator::Exp {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Sqrt { input, out } => Operator::Sqrt {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Erf { input, out } => Operator::Erf {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Powf { lhs, rhs, out } => Operator::Powf {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Equal { lhs, rhs, out } => Operator::Equal {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Lower { lhs, rhs, out } => Operator::Lower {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Greater { lhs, rhs, out } => Operator::Greater {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::LowerEqual { lhs, rhs, out } => Operator::LowerEqual {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::GreaterEqual { lhs, rhs, out } => Operator::GreaterEqual {
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Recip { input, out } => Operator::Recip {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::AssignGlobal { input, out } => Operator::AssignGlobal {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::AssignLocal { input, out } => Operator::AssignLocal {
-                input: input.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::Clamp {
-                input,
-                min_value,
-                max_value,
-                out,
-            } => Operator::Clamp {
-                input: input.vectorize(vectorize),
-                min_value: min_value.vectorize(vectorize),
-                max_value: max_value.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::ConditionalAssign {
-                cond,
-                lhs,
-                rhs,
-                out,
-            } => Operator::ConditionalAssign {
-                cond: cond.vectorize(vectorize),
-                lhs: lhs.vectorize(vectorize),
-                rhs: rhs.vectorize(vectorize),
-                out: out.vectorize(vectorize),
-            },
-            Operator::ReadGlobal { variable } => Operator::ReadGlobal {
-                variable: variable.vectorize(vectorize),
-            },
-            Operator::ReadGlobalWithLayout {
-                variable,
-                tensor_read_pos,
-                tensor_layout_pos,
-            } => Operator::ReadGlobalWithLayout {
-                variable: variable.vectorize(vectorize),
-                tensor_read_pos: *tensor_read_pos,
-                tensor_layout_pos: *tensor_layout_pos,
-            },
-        }
-    }
-}
-
-impl Display for Operator {
+impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operator::Add { lhs, rhs, out } => {
+            Operation::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} + {rhs};"))
             }
-            Operator::Sub { lhs, rhs, out } => {
+            Operation::Sub { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
             }
-            Operator::Mul { lhs, rhs, out } => {
+            Operation::Mul { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} * {rhs};"))
             }
-            Operator::Div { lhs, rhs, out } => {
+            Operation::Div { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = {lhs} / {rhs};"))
             }
-            Operator::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
-            Operator::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
-            Operator::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
-            Operator::Clamp {
+            Operation::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
+            Operation::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
+            Operation::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
+            Operation::Clamp {
                 input,
                 min_value,
                 max_value,
@@ -292,18 +152,18 @@ impl Display for Operator {
             } => f.write_fmt(format_args!(
                 "let {out} = clamp({input}, {min_value}, {max_value});"
             )),
-            Operator::Powf { lhs, rhs, out } => {
+            Operation::Powf { lhs, rhs, out } => {
                 f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
             }
-            Operator::Sqrt { input, out } => {
+            Operation::Sqrt { input, out } => {
                 f.write_fmt(format_args!("let {out} = sqrt({input});"))
             }
-            Operator::Log1p { input, out } => {
+            Operation::Log1p { input, out } => {
                 f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
             }
-            Operator::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
-            Operator::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
-            Operator::Tanh { input, out } => {
+            Operation::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
+            Operation::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
+            Operation::Tanh { input, out } => {
                 #[cfg(target_os = "macos")]
                 let result = f.write_fmt(format_args!("let {out} = safe_tanh({input});"));
                 #[cfg(not(target_os = "macos"))]
@@ -311,16 +171,16 @@ impl Display for Operator {
 
                 result
             }
-            Operator::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
-            Operator::Recip { input, out } => {
+            Operation::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
+            Operation::Recip { input, out } => {
                 f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
             }
-            Operator::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
-            Operator::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
-            Operator::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
-            Operator::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
-            Operator::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
-            Operator::AssignGlobal { input, out } => {
+            Operation::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
+            Operation::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
+            Operation::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
+            Operation::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
+            Operation::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Operation::AssignGlobal { input, out } => {
                 let elem_out = out.item();
                 let elem_in = input.item();
 
@@ -358,11 +218,11 @@ impl Display for Operator {
                     f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});"))
                 }
             }
-            Operator::AssignLocal { input, out } => {
+            Operation::AssignLocal { input, out } => {
                 let elem = out.item();
                 f.write_fmt(format_args!("let {out} = {elem}({input});"))
             }
-            Operator::ReadGlobal { variable } => match variable {
+            Operation::ReadGlobal { variable } => match variable {
                 Variable::Input(number, _elem) => f.write_fmt(format_args!(
                     "let input_{number} = input_{number}_global[id];"
                 )),
@@ -370,10 +230,10 @@ impl Display for Operator {
                 Variable::Output(number, _elem) => f.write_fmt(format_args!(
                     "let output_{number} = output_{number}_global[id];"
                 )),
-                Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
                 Variable::Constant(_, _) => panic!("Can't read global constant variable."),
             },
-            Operator::ReadGlobalWithLayout {
+            Operation::ReadGlobalWithLayout {
                 variable,
                 tensor_read_pos: position,
                 tensor_layout_pos: position_out,
@@ -390,15 +250,15 @@ impl Display for Operator {
                         format!("output_{number}"),
                         elem,
                     ),
-                    Variable::Scalar(_, _) => panic!("Can't read global scalar variable."),
+                    Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
                     Variable::Constant(_, _) => panic!("Can't read global constant variable."),
                 };
 
                 let offset = match elem {
-                    super::Item::Vec4(_) => 4,
-                    super::Item::Vec3(_) => 3,
-                    super::Item::Vec2(_) => 2,
-                    super::Item::Scalar(_) => 1,
+                    Item::Vec4(_) => 4,
+                    Item::Vec3(_) => 3,
+                    Item::Vec2(_) => 2,
+                    Item::Scalar(_) => 1,
                 };
 
                 f.write_fmt(format_args!(
@@ -420,7 +280,7 @@ let {local} = {elem}({global}[index_{local} /  {offset}u]);
 "
                 ))
             }
-            Operator::ConditionalAssign {
+            Operation::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,

@@ -1,4 +1,5 @@
 use crate::{
+    codegen::dialect::wgsl,
     element::{FloatElement, IntElement},
     kernel,
     tensor::WgpuTensor,
@@ -88,7 +89,7 @@ where
         ranges: [Range<usize>; D2],
         value: BoolTensor<Self, D1>,
     ) -> BoolTensor<Self, D1> {
-        kernel::slice_assign(tensor, ranges, value)
+        kernel::slice_assign::<wgsl::Compiler<F, I>, _, D1, D2>(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(
@@ -102,11 +103,11 @@ where
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal(lhs, rhs)
+        kernel::equal::<wgsl::Compiler<F, I>, _, D>(lhs, rhs)
     }
 
     fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
-        kernel::equal_elem(tensor, 0)
+        kernel::equal_elem::<wgsl::Compiler<F, I>, _, D>(tensor, 0)
     }
 
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {

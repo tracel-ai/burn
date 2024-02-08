@@ -78,6 +78,7 @@ mod tests {
     pub type TestBackend = WgpuBackend;
     pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
+    pub type TestCompiler = crate::codegen::dialect::wgsl::Compiler<f32, i32>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

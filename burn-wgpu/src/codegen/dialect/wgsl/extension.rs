@@ -1,10 +1,9 @@
-use super::Item;
-use serde::{Deserialize, Serialize};
+use super::base::Item;
 use std::fmt::Display;
 
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum Function {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Extension {
     PowfScalar(Item),
     Powf(Item),
     Erf(Item),
@@ -12,14 +11,14 @@ pub enum Function {
     SafeTanh(Item),
 }
 
-impl Display for Function {
+impl Display for Extension {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Function::PowfScalar(elem) => format_powf_scalar(f, elem),
-            Function::Powf(elem) => format_powf(f, elem),
-            Function::Erf(elem) => format_erf(f, elem),
+            Extension::PowfScalar(elem) => format_powf_scalar(f, elem),
+            Extension::Powf(elem) => format_powf(f, elem),
+            Extension::Erf(elem) => format_erf(f, elem),
             #[cfg(target_os = "macos")]
-            Function::SafeTanh(elem) => format_safe_tanh(f, elem),
+            Extension::SafeTanh(elem) => format_safe_tanh(f, elem),
         }
     }
 }

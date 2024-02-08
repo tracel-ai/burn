@@ -1,20 +1,29 @@
-use std::sync::Arc;
-
 use crate::{
-    codegen::ComputeShader,
+    codegen::{compiler::Compiler, dialect::gpu},
     kernel::{DynamicKernelSource, SourceTemplate},
 };
-use serde::{Deserialize, Serialize};
+use std::{marker::PhantomData, sync::Arc};
 
-#[derive(new, Clone, Serialize, Deserialize)]
-pub struct DynKernelSource {
+pub struct GpuKernelSource<C: Compiler> {
     pub(crate) id: String,
-    pub(crate) shader: ComputeShader,
+    pub(crate) shader: gpu::ComputeShader,
+    _compiler: PhantomData<C>,
 }
 
-impl DynamicKernelSource for Arc<DynKernelSource> {
+impl<C: Compiler> GpuKernelSource<C> {
+    pub fn new(id: String, shader: gpu::ComputeShader) -> Self {
+        Self {
+            id,
+            shader,
+            _compiler: PhantomData,
+        }
+    }
+}
+
+impl<C: Compiler> DynamicKernelSource for Arc<GpuKernelSource<C>> {
     fn source(&self) -> SourceTemplate {
-        SourceTemplate::new(self.shader.to_string())
+        let compiled = C::compile(self.shader.clone());
+        SourceTemplate::new(compiled.to_string())
     }
 
     fn id(&self) -> String {
