@@ -61,7 +61,7 @@ mod tests {
     fn test_should_mean_last_dim_int() {
         let tensor = TestTensorInt::from([[0, 1, 2], [3, 4, 5]]);
 
-        let data_actual = tensor.mean_dim(1).to_data();
+        let data_actual = tensor.int_mean_dim(1).to_data();
 
         assert_eq!(data_actual, Data::from([[1], [4]]));
     }

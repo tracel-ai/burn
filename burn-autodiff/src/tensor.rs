@@ -35,14 +35,14 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive<D>) -> Self {
         let id = NodeID::new();
-        let node = Node::new(vec![], 0, id, Requirement::None);
+        let node: NodeRef = Node::new(vec![], 0, id, Requirement::None).into();
 
         let graph = Graph::new();
-        graph.checkpoint_register(node.id.clone(), primitive.clone(), 99); // TODO n_required too large
+        graph.checkpoint_register(node.clone(), primitive.clone(), 99); // TODO n_required too large
 
         Self {
             primitive,
-            node: node.into(),
+            node,
             graph,
         }
     }
@@ -90,25 +90,29 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             .unwrap_or(0)
             + 1;
 
-        let node = Node::new(
+        let node: NodeRef = Node::new(
             parent_nodes.iter().map(|node| node.id.clone()).collect(),
             order,
             NodeID::new(),
             requirement,
-        );
+        )
+        .into();
 
         match checkpoint_strategy {
             CheckpointStrategy::Computed => {
-                graph.checkpoint_register(node.id.clone(), output.clone(), 99) // TODO n_required too large
+                graph.checkpoint_register(node.clone(), output.clone(), 99)
+                // TODO n_required too large
             }
             CheckpointStrategy::Recompute { retro_forward } => {
-                graph.retro_register(node.id.clone(), retro_forward)
+                graph.retro_register(node.clone(), retro_forward, 99)
             }
         }
 
+        graph.print_checkpoint();
+
         Self {
             primitive: output,
-            node: node.into(),
+            node,
             graph,
         }
     }

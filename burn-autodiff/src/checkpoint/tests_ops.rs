@@ -164,6 +164,7 @@ fn should_diff_mul_div_tree() {
 
 // TODO
 // - Creating a tensor should put a state in the checkpointer
+//     - Problem is actually probably the fact that node tree is always empty
 // - n_required: should be the number of children of a node.
 //     - The parent cannot know in advance how many
 //     - If children are stateful they don't increment it
@@ -178,3 +179,4 @@ fn should_diff_mul_div_tree() {
 // - Check if all works fine
 //     - Make several test trees, with many variations, including sharing a parent node
 //     - Check if the checkpointer extend is well done and there's only one
+// - Is node_tree redundant?

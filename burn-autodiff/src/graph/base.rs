@@ -111,19 +111,24 @@ impl Graph {
 
     pub fn checkpoint_register<T: Clone + Send + Sync + 'static>(
         &self,
-        node_id: NodeID,
+        node_ref: NodeRef,
         output: T,
         n_required: usize,
     ) {
         self.checkpointer
             .lock()
-            .checkpoint(node_id, output, n_required);
+            .checkpoint(node_ref, output, n_required);
     }
 
-    pub fn retro_register(&self, node_id: NodeID, retro_forward: Box<dyn RetroForward>) {
+    pub fn retro_register(
+        &self,
+        node_ref: NodeRef,
+        retro_forward: Box<dyn RetroForward>,
+        n_required: usize,
+    ) {
         self.checkpointer
             .lock()
-            .register_retro_forward(node_id, retro_forward)
+            .register_retro_forward(node_ref, retro_forward, n_required)
     }
 
     /// # Notes
@@ -157,5 +162,9 @@ impl Graph {
         let mut guard = self.checkpointer.lock();
         let owned: Checkpointer = std::mem::replace(&mut *guard, Checkpointer::default());
         owned
+    }
+
+    pub fn print_checkpoint(&self) {
+        self.checkpointer.lock().print();
     }
 }

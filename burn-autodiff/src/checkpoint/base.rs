@@ -103,10 +103,12 @@ impl Checkpointer {
     }
 
     /// Insert a [State::Precomputed] at [NodeID]
-    pub fn checkpoint<T>(&mut self, node_id: NodeID, saved_output: T, n_required: usize)
+    pub fn checkpoint<T>(&mut self, node_ref: NodeRef, saved_output: T, n_required: usize)
     where
         T: Clone + Send + Sync + 'static,
     {
+        let node_id = node_ref.id.clone();
+        self.node_tree.insert_node(node_id.clone(), node_ref);
         self.backward_states.insert_state(
             node_id,
             State::Computed {
@@ -120,15 +122,11 @@ impl Checkpointer {
     /// Useful to avoid recursivity later when mutating the states
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
         match self.backward_states.get_state_ref(&node_id) {
-            Some(state) =>
-            {
-                match state {
-                State::Recompute {
-                    n_required: _,
-                } => {
+            Some(state) => match state {
+                State::Recompute { n_required: _ } => {
                     let mut sorted = Vec::new();
                     for parent_node in self.node_tree.parents(&node_id) {
-                        if !sorted.contains(&parent_node){
+                        if !sorted.contains(&parent_node) {
                             sorted.extend(self.topological_sort(parent_node));
                         }
                     }
@@ -139,8 +137,8 @@ impl Checkpointer {
                     state_content: _,
                     n_required: _,
                 } => vec![node_id],
-            }}
-            None => panic!("Node is not in the map. You may have tried to access it more times than n_required allowed.")
+            },
+            None => panic!("Node {:?} is not in the backward_states. ", node_id),
         }
     }
 
@@ -156,10 +154,23 @@ impl Checkpointer {
 
     pub fn register_retro_forward(
         &mut self,
-        node_id: NodeID,
+        node_ref: NodeRef,
         retro_forward: Box<dyn RetroForward>,
+        n_required: usize,
     ) {
+        let node_id = node_ref.id.clone();
+        self.node_tree.insert_node(node_id.clone(), node_ref);
         self.retro_forwards
-            .insert_retro_forward(node_id, retro_forward)
+            .insert_retro_forward(node_id.clone(), retro_forward);
+        self.backward_states
+            .insert_state(node_id, State::Recompute { n_required })
+    }
+
+    // TODO TMP
+    pub fn print(&self) {
+        println!("\n\nCheckpointer");
+        println!("\n{:?}", self.node_tree);
+        println!("\n{:?}", self.backward_states);
+        println!("\n{:?}", self.retro_forwards);
     }
 }
