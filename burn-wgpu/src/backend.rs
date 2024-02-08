@@ -1,9 +1,5 @@
 use crate::{
-    codegen::Compiler,
-    compute::compute_client,
-    element::{FloatElement, IntElement},
-    tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    codegen::Compiler, compute::compute_client, tensor::WgpuTensor, GraphicsApi, WgpuDevice,
 };
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
@@ -26,8 +22,6 @@ impl<G, C> Backend for GpuBackend<G, C>
 where
     G: GraphicsApi + 'static,
     C: Compiler,
-    C::Float: FloatElement,
-    C::Int: IntElement,
 {
     type Device = WgpuDevice;
     type FullPrecisionBackend = GpuBackend<G, C::FullPrecisionCompiler>;
