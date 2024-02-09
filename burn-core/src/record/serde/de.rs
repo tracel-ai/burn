@@ -602,9 +602,9 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
         V: Visitor<'de>,
     {
         panic!(
-            "Cannot deserialize {} struct with default values orinated from '{}' field",
-            name,
-            self.originator_field_name.unwrap_or("UNKNOWN".to_string())
+            "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
+            self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
+             name,
         );
     }
 

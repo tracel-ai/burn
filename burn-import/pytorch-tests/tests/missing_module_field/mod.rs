@@ -16,7 +16,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Cannot deserialize Conv2dRecordItem struct with default values orinated from 'do_not_exist_in_pt' field"
+        expected = "Missing source values for the 'do_not_exist_in_pt' field of type 'Conv2dRecordItem'. Please verify the source data and ensure the field name is correct"
     )]
     fn should_fail_if_struct_field_is_missing() {
         let device = Default::default();
