@@ -7,7 +7,7 @@ use burn::backend::autodiff::{
     Autodiff,
 };
 use burn::backend::wgpu::compute::WgpuRuntime;
-use burn::backend::wgpu::{FloatElement, JitBackend, GraphicsApi, IntElement};
+use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend};
 use burn::tensor::Shape;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend

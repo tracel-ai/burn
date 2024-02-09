@@ -71,12 +71,7 @@ pub fn mean_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
     reduction_dim_shared_memory::<MeanDimSharedMemory, R, E, D>(input, output, dim)
 }
 
-fn reduction_dim_shared_memory<
-    K: StaticKernelSource,
-    R: Runtime,
-    E: JitElement,
-    const D: usize,
->(
+fn reduction_dim_shared_memory<K: StaticKernelSource, R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     reduce_dim: usize,

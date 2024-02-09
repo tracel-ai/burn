@@ -20,11 +20,6 @@ type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
 pub type Server = WgpuServer<MemoryManagement>;
 type Channel = MutexComputeChannel<Server>;
 
-/// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
-type WgpuComputeClient = ComputeClient<Server, Channel>;
-/// Wgpu [server handle](burn_compute::server::Handle).
-type WgpuHandle = burn_compute::server::Handle<Server>;
-
 /// Compute handle for the wgpu backend.
 static COMPUTE: Compute<WgpuDevice, WgpuServer<MemoryManagement>, Channel> = Compute::new();
 

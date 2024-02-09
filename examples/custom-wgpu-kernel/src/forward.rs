@@ -8,7 +8,7 @@ use burn::backend::wgpu::{
     },
     kernel_wgsl,
     tensor::JitTensor,
-    FloatElement, JitBackend, GraphicsApi, IntElement,
+    FloatElement, GraphicsApi, IntElement, JitBackend,
 };
 use burn::tensor::Shape;
 use derive_new::new;
@@ -43,9 +43,7 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend
-    for JitBackend<WgpuRuntime<G, F, I>>
-{
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime<G, F, I>> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,

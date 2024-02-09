@@ -212,13 +212,11 @@ mod tests {
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val =
-            Tensor::<TestBackend, 2>::from_primitive(
-                reduction_dim::<SumDim, TestRuntime, f32, 2>(
-                    tensor.into_primitive(),
-                    output,
-                    reduce_dim,
-                ),
-            );
+            Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<SumDim, TestRuntime, f32, 2>(
+                tensor.into_primitive(),
+                output,
+                reduce_dim,
+            ));
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);

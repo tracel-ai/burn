@@ -82,12 +82,11 @@ mod tests {
     fn mask_where_should_work_with_multiple_invocations() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestRuntime, f32, 3>(
-                tensor.into_primitive(),
-                mask.into_primitive(),
-                value.into_primitive(),
-            ));
+        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestRuntime, f32, 3>(
+            tensor.into_primitive(),
+            mask.into_primitive(),
+            value.into_primitive(),
+        ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected
