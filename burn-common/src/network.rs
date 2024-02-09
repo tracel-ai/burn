@@ -2,7 +2,7 @@
 pub mod downloader {
     use indicatif::{ProgressBar, ProgressState, ProgressStyle};
     use reqwest::Client;
-    use std::cmp::min;
+    #[cfg(feature = "std")]
     use std::io::Write;
 
     /// Download the file at the specified url.
@@ -46,7 +46,7 @@ pub mod downloader {
         let mut bytes: Vec<u8> = Vec::with_capacity(total_size as usize);
         while let Some(chunk) = response.chunk().await.unwrap() {
             let num_bytes = bytes.write(&chunk).unwrap();
-            let new = min(downloaded + (num_bytes as u64), total_size);
+            let new = std::cmp::min(downloaded + (num_bytes as u64), total_size);
             downloaded = new;
             pb.set_position(new);
         }
