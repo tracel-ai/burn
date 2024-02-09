@@ -2,7 +2,7 @@ use flate2::read::GzDecoder;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
-use burn::data::dataset::vision::ImageFolderDataset;
+use burn::data::{dataset::vision::ImageFolderDataset, network::downloader};
 
 /// CIFAR-10 mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L44).
 /// Licensed under the [Appache License](https://github.com/fastai/fastai/blob/master/LICENSE).
@@ -44,7 +44,7 @@ fn download() -> PathBuf {
     let labels_file = cifar_dir.join("labels.txt");
     if !labels_file.exists() {
         // Download gzip file
-        let bytes = super::downloader::download_file_as_bytes(URL, "cifar10.tgz");
+        let bytes = downloader::download_file_as_bytes(URL, "cifar10.tgz");
 
         // Decode gzip file content and unpack archive
         let gz_buffer = GzDecoder::new(&bytes[..]);
