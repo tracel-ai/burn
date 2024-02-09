@@ -1,9 +1,6 @@
 use super::unary;
 use crate::{
-    codegen::{
-        dialect::gpu::{ClampOperation, Item, Operation, Variable},
-        Compiler,
-    },
+    codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
     unary, JitGpuBackend,
@@ -25,7 +22,7 @@ pub(crate) fn clamp<B: JitGpuBackend, E: WgpuElement, const D: usize>(
         scalar 2
     );
 
-    unary::<Ops<B::Compiler, E>, OpsInplace<B::Compiler, E>, E, D>(
+    unary::<Ops<B::Compiler, E>, OpsInplace<B::Compiler, E>, B, E, D>(
         input,
         Some(&[min_value, max_value]),
         true,

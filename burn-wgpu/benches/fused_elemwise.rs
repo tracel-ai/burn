@@ -1,7 +1,8 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::{Wgpu, WgpuDevice};
+use burn_wgpu::compute::WgpuJitGpuBackend;
+use burn_wgpu::{AutoGraphicsApi, GpuBackend, Wgpu, WgpuDevice};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -55,7 +56,8 @@ impl<B: Backend> Benchmark for ElemWiseBenchmark<B> {
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
-    let result = run_benchmark(ElemWiseBenchmark::<Wgpu>::new(
+    type Backend = GpuBackend<WgpuJitGpuBackend<AutoGraphicsApi, f32, i32>>;
+    let result = run_benchmark(ElemWiseBenchmark::<Backend>::new(
         Shape::new([256, 256, 1024]),
         device.clone(),
         10,

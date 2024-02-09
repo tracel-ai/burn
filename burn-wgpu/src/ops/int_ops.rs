@@ -286,7 +286,7 @@ impl<B: JitGpuBackend> IntTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: IntElem<Self>
         )

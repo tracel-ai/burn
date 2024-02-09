@@ -70,18 +70,19 @@ pub fn mask_fill_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
     use burn_tensor::{Bool, Distribution, Tensor};
 
     #[test]
     fn mask_fill_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill::<f32, 3>(
-            tensor.into_primitive(),
-            mask.into_primitive(),
-            4.0,
-        ));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(mask_fill::<TestJitGpuBackend, f32, 3>(
+                tensor.into_primitive(),
+                mask.into_primitive(),
+                4.0,
+            ));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected
@@ -93,11 +94,14 @@ mod tests {
     fn mask_fill_inplace_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill_inplace::<f32, 3>(
-            tensor.into_primitive(),
-            mask.into_primitive(),
-            4.0,
-        ));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(
+                mask_fill_inplace::<TestJitGpuBackend, f32, 3>(
+                    tensor.into_primitive(),
+                    mask.into_primitive(),
+                    4.0,
+                ),
+            );
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected

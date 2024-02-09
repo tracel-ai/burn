@@ -13,6 +13,7 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
+use crate::tensor::WgpuTensor;
 use crate::JitGpuBackend;
 use crate::{unary, GpuBackend};
 use burn_tensor::ops::{
@@ -351,13 +352,17 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
     fn float_to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        kernel::cast(tensor.clone())
+        let tensor = kernel::cast::<B, FloatElem<Self>, f32, D>(tensor.clone());
+        // The line bellow does the backend type cast.
+        WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::cast(tensor)
+        let tensor = kernel::cast::<B::FullPrecisionBackend, f32, FloatElem<Self>, D>(tensor);
+        // The line bellow does the backend type cast.
+        WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -366,7 +371,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -378,7 +383,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -390,7 +395,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -406,7 +411,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 rhs: Variable::Scalar(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: lhs; rhs.elem(),
             elem: FloatElem<Self>
         )
@@ -418,7 +423,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -430,7 +435,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -442,7 +447,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -454,7 +459,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -466,7 +471,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -478,7 +483,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -523,7 +528,7 @@ impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: tensor,
             elem: FloatElem<Self>
         )

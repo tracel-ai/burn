@@ -50,27 +50,27 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
         );
 
         vec![
-            Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
+            Box::new(MemoryCoalescingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
+            Box::new(MemoryCoalescingMatmulW16x16::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulDefault::<E, D>::new(
+            Box::new(Vec4TilingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulUnpaddedDefault::<E, D>::new(
+            Box::new(Vec4TilingMatmulUnpaddedDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
+            Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
@@ -80,19 +80,17 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         match fastest_index {
-            0 => Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
+            0 => Box::new(MemoryCoalescingMatmulDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
-            1 => Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
+            1 => Box::new(MemoryCoalescingMatmulW16x16::new(
                 self.lhs, self.rhs, self.out,
             )),
-            2 => Box::new(Vec4TilingMatmulDefault::<E, D>::new(
+            2 => Box::new(Vec4TilingMatmulDefault::new(self.lhs, self.rhs, self.out)),
+            3 => Box::new(Vec4TilingMatmulUnpaddedDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
-            3 => Box::new(Vec4TilingMatmulUnpaddedDefault::<E, D>::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            4 => Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
+            4 => Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
             _ => panic!("Fastest index is out of bound"),
@@ -109,11 +107,7 @@ pub fn matmul_autotune<B: JitGpuBackend, E: WgpuElement + Element, const D: usiz
 
     let output = init_matmul_output(&lhs, &rhs);
 
-    let operation_set = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
-        lhs,
-        rhs,
-        output.clone(),
-    ));
+    let operation_set = Box::new(MatmulAutotuneOperationSet::new(lhs, rhs, output.clone()));
 
     client.autotune_execute(operation_set);
 

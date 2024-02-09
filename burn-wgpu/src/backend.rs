@@ -31,10 +31,6 @@ impl<B: JitGpuBackend> Default for GpuBackend<B> {
 }
 
 pub trait JitGpuBackend: Send + Sync + 'static {
-    type FullPrecisionBackend: JitGpuBackend<
-        Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
-        Device = Self::Device,
-    >;
     type Compiler: Compiler;
     type Server: ComputeServer<
         Kernel = Box<dyn crate::compute::Kernel>,
@@ -51,9 +47,14 @@ pub trait JitGpuBackend: Send + Sync + 'static {
         + Sync
         + Send;
 
-    fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
-        todo!();
-    }
+    type FullPrecisionBackend: JitGpuBackend<
+        Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
+        Device = Self::Device,
+        Server = Self::Server,
+        Channel = Self::Channel,
+    >;
+
+    fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
 }
 
 impl<B: JitGpuBackend> Backend for GpuBackend<B> {

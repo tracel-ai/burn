@@ -93,7 +93,7 @@ pub fn sum_dim<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     output: WgpuTensor<B, E, D>,
     dim: usize,
 ) -> WgpuTensor<B, E, D> {
-    reduction_dim::<SumDim, E, D>(input, output, dim)
+    reduction_dim::<SumDim, B, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
@@ -102,7 +102,7 @@ pub fn mean_dim<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     output: WgpuTensor<B, E, D>,
     dim: usize,
 ) -> WgpuTensor<B, E, D> {
-    reduction_dim::<MeanDim, E, D>(input, output, dim)
+    reduction_dim::<MeanDim, B, E, D>(input, output, dim)
 }
 
 fn reduction_dim<K: StaticKernelSource, B: JitGpuBackend, E: WgpuElement, const D: usize>(
@@ -132,7 +132,7 @@ pub fn argmax<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     dim: usize,
 ) -> WgpuTensor<B, I, D> {
-    reduction_args_dim::<ArgsMax, E, I, D>(input, dim)
+    reduction_args_dim::<ArgsMax, B, E, I, D>(input, dim)
 }
 
 /// Execute the argmin kernel.
@@ -185,7 +185,7 @@ mod tests {
     use super::*;
     use crate::{
         kernel::reduce::init_reduce_output,
-        tests::{ReferenceBackend, TestBackend},
+        tests::{ReferenceBackend, TestBackend, TestJitGpuBackend},
     };
     use burn_tensor::{Distribution, Int, Tensor};
 
@@ -211,11 +211,15 @@ mod tests {
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<SumDim, f32, 2>(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<
+                SumDim,
+                TestJitGpuBackend,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);

@@ -63,8 +63,8 @@ fn uniform_kernel<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     const N_VALUES_PER_THREAD: usize = 128;
 
     let output = empty_device(client.clone(), device.clone(), shape.clone());
-    let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
-    let args_handle = make_args_buffer(client.clone(), &[low, high]);
+    let info_handle = make_info_buffer::<B>(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer::<B, E>(client.clone(), &[low, high]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
     let kernel = StaticKernel::<
         KernelSettings<UniformPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,

@@ -75,18 +75,19 @@ pub fn mask_where_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor};
 
     #[test]
     fn mask_where_should_work_with_multiple_invocations() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where::<f32, 3>(
-            tensor.into_primitive(),
-            mask.into_primitive(),
-            value.into_primitive(),
-        ));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestJitGpuBackend, f32, 3>(
+                tensor.into_primitive(),
+                mask.into_primitive(),
+                value.into_primitive(),
+            ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected
@@ -97,12 +98,15 @@ mod tests {
     fn mask_where_inplace_direction_1_should_work_with_multiple_invocations() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<f32, 3>(
-            tensor.into_primitive(),
-            mask.into_primitive(),
-            value.into_primitive(),
-            false,
-        ));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(
+                mask_where_inplace::<TestJitGpuBackend, f32, 3>(
+                    tensor.into_primitive(),
+                    mask.into_primitive(),
+                    value.into_primitive(),
+                    false,
+                ),
+            );
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected
@@ -114,12 +118,15 @@ mod tests {
     fn mask_where_inplace_direction_0_should_work_with_multiple_invocation() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<f32, 3>(
-            value.into_primitive(),
-            mask.into_primitive(),
-            tensor.into_primitive(),
-            true,
-        ));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(
+                mask_where_inplace::<TestJitGpuBackend, f32, 3>(
+                    value.into_primitive(),
+                    mask.into_primitive(),
+                    tensor.into_primitive(),
+                    true,
+                ),
+            );
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected

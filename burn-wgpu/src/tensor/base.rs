@@ -84,7 +84,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
     pub fn to_client(
         &self,
         client: ComputeClient<B::Server, B::Channel>,
-        device: WgpuDevice,
+        device: B::Device,
     ) -> Self {
         let bytes = self
             .client
@@ -135,7 +135,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            compiler: B::Compiler,
+            backend: B,
             input: self.clone(),
             elem: E
         )

@@ -98,7 +98,7 @@ pub(crate) fn slice_assign<B: JitGpuBackend, E: WgpuElement, const D1: usize, co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -130,7 +130,7 @@ mod tests {
         let value_ref =
             Tensor::<ReferenceBackend, 2>::from_data(value.to_data(), &Default::default());
 
-        let actual = slice_assign::<TestCompiler, _, 2, 2>(
+        let actual = slice_assign::<TestJitGpuBackend, _, 2, 2>(
             tensor.into_primitive(),
             indices.clone(),
             value.into_primitive(),

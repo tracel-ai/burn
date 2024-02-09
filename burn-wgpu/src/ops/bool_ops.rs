@@ -35,7 +35,7 @@ impl<B: JitGpuBackend> BoolTensorOps<Self> for GpuBackend<B> {
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
-        if std::mem::size_of::<IntElem<B>>() == std::mem::size_of::<u32>() {
+        if std::mem::size_of::<IntElem<Self>>() == std::mem::size_of::<u32>() {
             return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
         }
 

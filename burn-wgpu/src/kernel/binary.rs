@@ -11,15 +11,20 @@ use burn_tensor::Shape;
 macro_rules! binary {
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        backend: $backend:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, elem_in: $elem, elem_out: $elem);
 
-        $crate::kernel::binary::<Ops<$compiler, $elem, $elem>, OpsInplaceLhs<$compiler, $elem, $elem>, OpsInplaceRhs<$compiler, $elem, $elem>, $elem, D>(
-            $lhs, $rhs, true
-        )
+        $crate::kernel::binary::<
+            Ops<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
+            OpsInplaceLhs<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
+            OpsInplaceRhs<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
+            $backend,
+            $elem,
+            D
+        >($lhs, $rhs, true)
     }};
 
     (
@@ -162,7 +167,7 @@ where
     E: WgpuElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<KernelInplaceLhs, E>(
+        execute_static::<B, KernelInplaceLhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -175,7 +180,7 @@ where
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<KernelInplaceRhs, E>(
+        execute_static::<B, KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -203,7 +208,7 @@ where
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
         let out = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        execute_static::<Kernel, E>(
+        execute_static::<B, Kernel, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),

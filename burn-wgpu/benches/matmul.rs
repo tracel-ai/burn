@@ -1,6 +1,7 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
+use burn_wgpu::compute::WgpuJitGpuBackend;
 use burn_wgpu::kernel::matmul::init_matmul_output;
 use burn_wgpu::kernel::matmul::unpadded::matmul_tiling_2d_unpadded;
 use burn_wgpu::kernel::matmul::vec4::matmul_tiling_2d_vec4;
@@ -12,12 +13,11 @@ use std::marker::PhantomData;
 
 use burn_wgpu::{
     kernel::matmul::{matmul_mem_coalescing_default, matmul_naive_default},
-    wgsl::Compiler,
     GraphicsApi,
 };
 
-type WBackend<G> = GpuBackend<G, Compiler<f32, i32>>;
-type WTensor<G, const D: usize> = Tensor<GpuBackend<G, Compiler<f32, i32>>, D>;
+type WBackend<G> = GpuBackend<WgpuJitGpuBackend<G, f32, i32>>;
+type WTensor<G, const D: usize> = Tensor<WBackend<G>, D>;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, F, const D: usize> {

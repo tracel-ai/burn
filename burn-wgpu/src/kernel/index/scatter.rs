@@ -68,7 +68,7 @@ pub(crate) fn scatter<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -127,12 +127,13 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
 
-        let actual = Tensor::<TestBackend, D>::from_primitive(scatter::<TestCompiler, _, _, D>(
-            dim,
-            tensor.into_primitive(),
-            indices.into_primitive(),
-            value.into_primitive(),
-        ));
+        let actual =
+            Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitGpuBackend, _, _, D>(
+                dim,
+                tensor.into_primitive(),
+                indices.into_primitive(),
+                value.into_primitive(),
+            ));
         let expected = tensor_ref.scatter(dim, indices_ref, value_ref);
 
         expected

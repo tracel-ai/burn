@@ -30,7 +30,7 @@ pub fn full_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: empty; value,
         elem: E
     )
@@ -90,7 +90,7 @@ pub fn add<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -106,7 +106,7 @@ pub fn add_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -122,7 +122,7 @@ pub fn sub<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -138,7 +138,7 @@ pub fn sub_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -154,7 +154,7 @@ pub fn mul<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -170,7 +170,7 @@ pub fn mul_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -186,7 +186,7 @@ pub fn div<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -202,7 +202,7 @@ pub fn div_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )
@@ -218,7 +218,7 @@ pub fn pow<B: JitGpuBackend, E: WgpuElement, const D: usize>(
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        compiler: B::Compiler,
+        backend: B,
         input: lhs; rhs,
         elem: E
     )

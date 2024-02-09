@@ -58,12 +58,12 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
         );
 
         vec![
-            Box::new(MeanDimAutotune::<E, D>::new(
+            Box::new(MeanDimAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(MeanDimSharedMemoryAutotune::<E, D>::new(
+            Box::new(MeanDimSharedMemoryAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
@@ -75,12 +75,12 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
         // Warning: since AutotuneOperationSet shares his key with SumDimAutotuneOperationSet
         // we must make sure the order here is correlated with SumDim
         match fastest_index {
-            0 => Box::new(MeanDimAutotune::<E, D>::new(
+            0 => Box::new(MeanDimAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
             )),
-            1 => Box::new(MeanDimSharedMemoryAutotune::<E, D>::new(
+            1 => Box::new(MeanDimSharedMemoryAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
@@ -99,7 +99,7 @@ pub fn mean_dim_autotune<B: JitGpuBackend, E: WgpuElement + Element, const D: us
 
     let output = init_reduce_output(&input, reduce_dim);
 
-    let operation_set = Box::new(MeanDimAutotuneOperationSet::<E, D>::new(
+    let operation_set = Box::new(MeanDimAutotuneOperationSet::new(
         input,
         output.clone(),
         reduce_dim,

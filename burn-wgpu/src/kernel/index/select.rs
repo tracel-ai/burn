@@ -101,7 +101,7 @@ pub(crate) fn select_assign<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -176,7 +176,7 @@ mod tests {
         );
 
         let actual =
-            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestCompiler, _, _, D>(
+            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestJitGpuBackend, _, _, D>(
                 tensor.into_primitive(),
                 dim,
                 indices.into_primitive(),

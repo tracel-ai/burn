@@ -11,23 +11,35 @@ use crate::{
 macro_rules! unary {
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        backend: $backend:ty,
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler);
+        unary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, None, true)
+        $crate::kernel::unary::<
+            Ops<<$backend as JitGpuBackend>::Compiler, $elem>,
+            OpsInplace<<$backend as JitGpuBackend>::Compiler, $elem>,
+            $backend,
+            $elem,
+            D
+        >($input, None, true)
     }};
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        backend: $backend:ty,
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, scalar 1);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, Some(&[$scalar]), true)
+        $crate::kernel::unary::<
+            Ops<<$backend as JitGpuBackend>::Compiler, $elem>,
+            OpsInplace<<$backend as JitGpuBackend>::Compiler, $elem>,
+            $backend,
+            $elem,
+            D
+        >($input, Some(&[$scalar]), true)
     }};
 
     (
@@ -185,7 +197,7 @@ where
     E: WgpuElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        execute_static::<KernelInplace, E>(
+        execute_static::<B, KernelInplace, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -208,7 +220,7 @@ where
             buffer,
         );
 
-        execute_static::<Kernel, E>(
+        execute_static::<B, Kernel, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -232,7 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
@@ -250,11 +262,13 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual = unary::<
+            Ops<TestCompiler, f32>,
+            OpsInplace<TestCompiler, f32>,
+            TestJitGpuBackend,
+            f32,
+            2,
+        >(tensor.into_primitive(), None, true);
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(
@@ -270,11 +284,13 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual = unary::<
+            Ops<TestCompiler, f32>,
+            OpsInplace<TestCompiler, f32>,
+            TestJitGpuBackend,
+            f32,
+            2,
+        >(tensor.into_primitive(), None, true);
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(

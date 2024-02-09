@@ -94,7 +94,7 @@ pub(super) fn crop<B: JitGpuBackend, E: WgpuElement, const D: usize>(
         .collect::<Vec<Range<usize>>>()
         .try_into()
         .unwrap();
-    slice_on_output::<E, D, D>(tensor, output, ranges)
+    slice_on_output::<B, E, D, D>(tensor, output, ranges)
 }
 
 #[cfg(test)]
@@ -116,9 +116,7 @@ mod tests {
         );
         let expected_shape = [row, col].into();
 
-        let padded =
-            pad_round::<TestCompiler, _, 2>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
 
         assert!(padded.shape == expected_shape);
     }
@@ -135,11 +133,7 @@ mod tests {
             &Default::default(),
         );
 
-        let padded = pad_round::<TestCompiler, _, 2>(
-            tensor.clone().into_primitive(),
-            row_divisor,
-            col_divisor,
-        );
+        let padded = pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor);
 
         let padded = TestTensor::from_primitive(padded.into_tensor());
         padded.into_data().assert_approx_eq(&tensor.into_data(), 3);
@@ -158,9 +152,7 @@ mod tests {
         );
         let expected_shape = [12, 15].into();
 
-        let padded =
-            pad_round::<TestCompiler, _, 2>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
 
         assert!(padded.shape == expected_shape);
     }
@@ -177,12 +169,8 @@ mod tests {
             &Default::default(),
         );
 
-        let padded = pad_round::<TestCompiler, _, 2>(
-            tensor.clone().into_primitive(),
-            row_divisor,
-            col_divisor,
-        )
-        .into_tensor();
+        let padded =
+            pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor).into_tensor();
 
         let padded = TestTensor::from_primitive(padded).to_data();
         let tensor = tensor.into_data();
@@ -205,9 +193,7 @@ mod tests {
             &Default::default(),
         );
 
-        let padded =
-            pad_round::<TestCompiler, _, 2>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
         let padded = TestTensor::from_primitive(padded).to_data();
 
         // check right of matrix
@@ -237,9 +223,7 @@ mod tests {
         );
         let expected_shape = [2, 3, 12, 15].into();
 
-        let padded =
-            pad_round::<TestCompiler, _, 4>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
 
         assert!(padded.shape == expected_shape);
     }
@@ -257,9 +241,7 @@ mod tests {
         );
         let expected_shape = [row_divisor, 2 * col_divisor].into();
 
-        let padded =
-            pad_round::<TestCompiler, _, 2>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
 
         assert!(padded.shape == expected_shape);
     }
@@ -277,9 +259,7 @@ mod tests {
         );
         let expected_shape = [32, 64].into();
 
-        let padded =
-            pad_round::<TestCompiler, _, 2>(tensor.into_primitive(), row_divisor, col_divisor)
-                .into_tensor();
+        let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
 
         assert!(padded.shape == expected_shape);
     }

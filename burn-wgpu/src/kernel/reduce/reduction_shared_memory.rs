@@ -57,7 +57,7 @@ pub fn sum_dim_shared_memory<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     output: WgpuTensor<B, E, D>,
     dim: usize,
 ) -> WgpuTensor<B, E, D> {
-    reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, output, dim)
+    reduction_dim_shared_memory::<SumDimSharedMemory, B, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel leveraging shared memory
