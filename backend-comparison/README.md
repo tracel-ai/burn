@@ -16,6 +16,10 @@ The end of options argument `--` is used to pass arguments to the `burnbench`
 application. For instance `cargo run --bin burnbench -- list` passes the `list`
 argument to `burnbench` effectively calling `burnbench list`.
 
+### Commands
+
+#### List benches and backends
+
 To list all the available benches and backends use the `list` command:
 
 ```sh
@@ -43,7 +47,9 @@ Available Benchmarks:
 - unary
 ```
 
-To execute a given benchmark against a specific backend we use the `run` command
+#### Run benchmarks
+
+To run a given benchmark against a specific backend we use the `run` command
 with the arguments `--benches` and `--backends` respectively. In the following
 example we execute the `unary` benchmark against the `wgpu-fusion` backend:
 
@@ -72,9 +78,35 @@ Executing the following benchmark and backend combinations (Total: 4):
 Running benchmarks...
 ```
 
+#### Authentication and benchmarks sharing
+
+Burnbench can upload benchmark results to our servers so that users can share
+their results with the community and we can use these information to drive the
+development of Burn.
+
+Sharing results is opt-in and it is enabled with the `--share` arguments passed
+to the `run` command:
+
+```sh
+> cargo run --bin burnbench -- run --share --benches unary --backends wgpu-fusion
+```
+
+To be able to upload results you must be authenticated. We only support GitHub
+authentication. To authenticate run the `auth` command, then follow the URL
+to enter your device code and authorize the Burnbench application:
+
+```sh
+> cargo run --bin burnbench -- run auth
+```
+
+If everything is fine you should get a confirmation in the terminal that your
+token has been saved to the burn cache directory.
+
+You can now use the `--share` argument to upload and share your benchmarks!
+
 ### Terminal UI
 
-This is a work in progress.
+This is a work in progress and is not usable for now.
 
 ## Execute benchmarks with cargo
 

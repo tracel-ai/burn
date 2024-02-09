@@ -1,4 +1,6 @@
+mod auth;
 mod base;
+
 pub use base::*;
 
 #[cfg(feature = "tui")]

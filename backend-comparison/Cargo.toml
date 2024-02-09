@@ -26,12 +26,14 @@ wgpu = ["burn/wgpu", "burn/autotune"]
 wgpu-fusion = ["wgpu", "burn/fusion"]
 
 [dependencies]
+arboard = { workspace = true }
 burn = { path = "../burn", default-features = false }
 burn-common = { path = "../burn-common", version = "0.13.0" }
 clap = { workspace = true }
 crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
+github-device-flow  = { workspace = true }
 rand = { workspace = true }
 ratatui = { workspace = true, optional = true }
 serde_json = { workspace = true }
@@ -39,7 +41,7 @@ strum = { workspace = true }
 strum_macros = { workspace = true }
 
 [dev-dependencies]
-
+serial_test = { workspace = true }
 
 [[bench]]
 name = "unary"

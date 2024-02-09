@@ -1,9 +1,19 @@
+use arboard::Clipboard;
 use clap::{Parser, Subcommand, ValueEnum};
-use std::process::{Command, Stdio};
+use github_device_flow::{self, DeviceFlow};
+use std::{
+    process::{Command, Stdio},
+    thread, time,
+};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-use super::App;
+use super::{
+    auth::{save_token, CLIENT_ID},
+    App,
+};
+
+const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
 
 /// Base trait to define an application
 pub(crate) trait Application {
@@ -24,6 +34,8 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Authenticate using GitHub
+    Auth,
     /// List all available benchmarks and backends
     List,
     /// Runs benchmarks
@@ -32,11 +44,11 @@ enum Commands {
 
 #[derive(Parser, Debug)]
 struct RunArgs {
-    /// Comma-separated list of backends to include
+    /// Comma-separated command_list of backends to include
     #[clap(short = 'B', long = "backends", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     backends: Vec<BackendValues>,
 
-    /// Comma-separated list of benches to run
+    /// Comma-separated command_list of benches to run
     #[clap(short = 'b', long = "benches", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     benches: Vec<BenchmarkValues>,
 }
@@ -81,46 +93,77 @@ pub(crate) enum BenchmarkValues {
     Unary,
 }
 
-pub fn run() {
+pub fn execute() {
     let args = Args::parse();
-
     match args.command {
-        Commands::List => {
-            println!("Available Backends:");
-            for backend in BackendValues::iter() {
-                println!("- {}", backend);
-            }
+        Commands::Auth => command_auth(),
+        Commands::List => command_list(),
+        Commands::Run(run_args) => command_run(run_args),
+    }
+}
 
-            println!("\nAvailable Benchmarks:");
-            for bench in BenchmarkValues::iter() {
-                println!("- {}", bench);
-            }
+/// Create an access token from GitHub Burnbench application and store it
+/// to be used with the user benchmark backend.
+fn command_auth() {
+    let mut flow = match DeviceFlow::start(&CLIENT_ID, None) {
+        Ok(flow) => flow,
+        Err(e) => {
+            eprintln!("Error authenticating: {}", e);
+            return;
         }
-        Commands::Run(run_args) => {
-            if run_args.backends.is_empty() || run_args.benches.is_empty() {
-                println!("No backends or benchmarks specified. Please select at least one backend and one benchmark.");
-                return;
-            }
+    };
+    println!("🌐 Please visit for following URL in your browser (CTRL+click if your terminal supports it):");
+    println!("\n    {}\n", flow.verification_uri.clone().unwrap());
+    let user_code = flow.user_code.clone().unwrap();
+    println!("👉 And enter code: {}", &user_code);
+    match Clipboard::new() {
+        Ok(mut clipboard) => match clipboard.set_text(user_code) {
+            Ok(_) => println!("📋 Code has been successfully copied to clipboard."),
+            Err(_) => (),
+        },
+        Err(_) => (),
+    };
+    thread::sleep(FIVE_SECONDS);
+    match flow.poll(20) {
+        Ok(creds) => {
+            save_token(&creds.token);
+        }
+        Err(e) => eprint!("Authentication error: {}", e),
+    };
+}
 
-            let total_combinations = run_args.backends.len() * run_args.benches.len();
-            println!(
-                "Executing the following benchmark and backend combinations (Total: {}):",
-                total_combinations
-            );
-            for backend in &run_args.backends {
-                for bench in &run_args.benches {
-                    println!("- Benchmark: {}, Backend: {}", bench, backend);
-                }
-            }
+fn command_list() {
+    println!("Available Backends:");
+    for backend in BackendValues::iter() {
+        println!("- {}", backend);
+    }
+    println!("\nAvailable Benchmarks:");
+    for bench in BenchmarkValues::iter() {
+        println!("- {}", bench);
+    }
+}
 
-            let mut app = App::new();
-            app.init();
-            println!("Running benchmarks...");
-            app.run(&run_args.benches, &run_args.backends);
-            app.cleanup();
-            println!("Cleanup completed. Benchmark run(s) finished.");
+fn command_run(run_args: RunArgs) {
+    if run_args.backends.is_empty() || run_args.benches.is_empty() {
+        println!("No backends or benchmarks specified. Please select at least one backend and one benchmark.");
+        return;
+    }
+    let total_combinations = run_args.backends.len() * run_args.benches.len();
+    println!(
+        "Executing the following benchmark and backend combinations (Total: {}):",
+        total_combinations
+    );
+    for backend in &run_args.backends {
+        for bench in &run_args.benches {
+            println!("- Benchmark: {}, Backend: {}", bench, backend);
         }
     }
+    let mut app = App::new();
+    app.init();
+    println!("Running benchmarks...");
+    app.run(&run_args.benches, &run_args.backends);
+    app.cleanup();
+    println!("Cleanup completed. Benchmark run(s) finished.");
 }
 
 #[allow(unused)] // for tui as this is WIP
