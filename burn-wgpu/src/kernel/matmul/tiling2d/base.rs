@@ -5,7 +5,7 @@ use crate::{
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
@@ -26,7 +26,7 @@ pub(super) fn make_workgroup<const D: usize>(output_shape: &Shape<D>) -> WorkGro
     WorkGroup::new(num_blocks_x, num_blocks_y, num_blocks_z as u32)
 }
 
-pub(super) fn make_info_handle<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub(super) fn make_info_handle<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<B, E, D>,
     rhs: &WgpuTensor<B, E, D>,
     output: &WgpuTensor<B, E, D>,
@@ -37,7 +37,7 @@ pub(super) fn make_info_handle<B: JitGpuBackend, E: WgpuElement, const D: usize>
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<
-    B: JitGpuBackend,
+    B: JitRuntime,
     E: WgpuElement,
     const D: usize,
     K: DynamicKernelSource + 'static,

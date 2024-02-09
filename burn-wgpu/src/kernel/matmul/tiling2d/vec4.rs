@@ -4,7 +4,7 @@ use crate::{
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
 };
-use crate::{kernel_wgsl, JitGpuBackend};
+use crate::{kernel_wgsl, JitRuntime};
 use std::marker::PhantomData;
 
 kernel_wgsl!(
@@ -39,7 +39,7 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs
-pub fn matmul_tiling_2d_vec4<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn matmul_tiling_2d_vec4<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     out: WgpuTensor<B, E, D>,

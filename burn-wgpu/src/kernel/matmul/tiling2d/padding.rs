@@ -7,16 +7,16 @@ use crate::{
     kernel::{slice_assign, slice_on_output},
     ops::numeric::zeros_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
-pub(super) enum PaddingOutput<B: JitGpuBackend, E: WgpuElement, const D: usize> {
+pub(super) enum PaddingOutput<B: JitRuntime, E: WgpuElement, const D: usize> {
     Padded(WgpuTensor<B, E, D>),
     Unchanged(WgpuTensor<B, E, D>),
 }
 
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> PaddingOutput<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> PaddingOutput<B, E, D> {
     pub fn into_tensor(self) -> WgpuTensor<B, E, D> {
         match self {
             PaddingOutput::Padded(tensor) => tensor,
@@ -29,7 +29,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> PaddingOutput<B, E, D> {
 /// divisible by some quantity.
 /// For instance tensor of shape [1000, 1000] with divisors 64 and 64
 /// will be padded to [1024, 1024] with the last 24 elements being zeros
-pub(super) fn pad_round<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub(super) fn pad_round<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     row_divisor: usize,
     col_divisor: usize,
@@ -62,7 +62,7 @@ pub(super) fn pad_round<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 }
 
 /// Pads tensor by adding zeros when padded dim is larger than tensor dim
-fn padding<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>(
+fn padding<B: JitRuntime, E: WgpuElement + Element, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     padded_shape: Shape<D>,
 ) -> WgpuTensor<B, E, D> {
@@ -82,7 +82,7 @@ fn padding<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>(
 }
 
 /// Crops tensor by deleting values when cropped dim is smaller than tensor dim
-pub(super) fn crop<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub(super) fn crop<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {

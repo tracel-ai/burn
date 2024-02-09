@@ -4,14 +4,14 @@ use crate::{
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 use super::WORKGROUP_DEFAULT;
 
 kernel_wgsl!(Cat, "../template/cat.wgsl");
 
-pub fn cat<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn cat<B: JitRuntime, E: WgpuElement, const D: usize>(
     inputs: Vec<WgpuTensor<B, E, D>>,
     dim: usize,
 ) -> WgpuTensor<B, E, D> {

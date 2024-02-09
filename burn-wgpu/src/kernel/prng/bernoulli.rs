@@ -7,7 +7,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_tensor::Shape;
 
@@ -28,7 +28,7 @@ impl StaticKernelSource for BernoulliPrng {
 }
 
 /// Pseudo-random generator for bernoulli
-pub fn random_bernoulli<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn random_bernoulli<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
     prob: E,

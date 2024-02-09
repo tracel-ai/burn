@@ -1,8 +1,6 @@
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
-use crate::codegen::Compiler;
 use crate::element::WgpuElement;
-use crate::unary;
-use crate::JitGpuBackend;
+use crate::{unary, JitRuntime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
@@ -11,7 +9,7 @@ use std::marker::PhantomData;
 /// The basic tensor primitive struct.
 pub struct WgpuTensor<B, E, const D: usize>
 where
-    B: JitGpuBackend,
+    B: JitRuntime,
     E: WgpuElement,
 {
     /// Compute client for wgpu.
@@ -27,16 +25,16 @@ where
     pub(crate) elem: PhantomData<E>,
 }
 
-unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Send for WgpuTensor<B, E, D> {}
-unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Sync for WgpuTensor<B, E, D> {}
+unsafe impl<B: JitRuntime, E: WgpuElement, const D: usize> Send for WgpuTensor<B, E, D> {}
+unsafe impl<B: JitRuntime, E: WgpuElement, const D: usize> Sync for WgpuTensor<B, E, D> {}
 
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<B, E, D> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E, D> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -49,7 +47,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E
     }
 }
 
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
     /// Create a new tensor.
     pub fn new(
         client: ComputeClient<B::Server, B::Channel>,

@@ -5,13 +5,13 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, ElementConversion, Shape};
 
 kernel_wgsl!(ConvTranspose2d, "../../template/conv/conv_transpose2d.wgsl");
 
-pub(crate) fn conv_transpose2d<B: JitGpuBackend, E: WgpuElement + Element>(
+pub(crate) fn conv_transpose2d<B: JitRuntime, E: WgpuElement + Element>(
     input: WgpuTensor<B, E, 4>,
     weight: WgpuTensor<B, E, 4>,
     bias: Option<WgpuTensor<B, E, 1>>,

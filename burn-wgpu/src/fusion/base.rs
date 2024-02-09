@@ -1,7 +1,7 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
     element::WgpuElement, fusion::ElementWiseBuilder, tensor::WgpuTensor, GpuBackend,
-    JitGpuBackend, WgpuDevice,
+    JitRuntime, WgpuDevice,
 };
 use burn_compute::client::ComputeClient;
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for WGPU.
 ///
 /// More optimization variants should be added here.
-pub enum WgpuOptimization<B: JitGpuBackend> {
+pub enum WgpuOptimization<B: JitRuntime> {
     /// Element wise optimization.
     ElementWise(ElementWise<B>),
 }
@@ -26,7 +26,7 @@ pub enum WgpuOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<B: JitGpuBackend> burn_fusion::Optimization<GpuBackend<B>> for WgpuOptimization<B> {
+impl<B: JitRuntime> burn_fusion::Optimization<GpuBackend<B>> for WgpuOptimization<B> {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, GpuBackend<B>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
@@ -66,7 +66,7 @@ impl FusionDevice for WgpuDevice {
     }
 }
 
-impl<B: JitGpuBackend> FusionBackend for GpuBackend<B> {
+impl<B: JitRuntime> FusionBackend for GpuBackend<B> {
     type OptimizationState = WgpuOptimizationState;
     type Optimization = WgpuOptimization<B>;
     type FusionDevice = B::Device;
@@ -126,7 +126,7 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 }
 
 /// Handle to be used when fusing operations.
-pub struct WgpuFusionHandle<B: JitGpuBackend> {
+pub struct WgpuFusionHandle<B: JitRuntime> {
     /// Compute client for wgpu.
     pub client: ComputeClient<B::Server, B::Channel>,
     /// The buffer where the data are stored.
@@ -136,13 +136,13 @@ pub struct WgpuFusionHandle<B: JitGpuBackend> {
     pub(crate) strides: Vec<usize>,
 }
 
-impl<B: JitGpuBackend> core::fmt::Debug for WgpuFusionHandle<B> {
+impl<B: JitRuntime> core::fmt::Debug for WgpuFusionHandle<B> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
-impl<B: JitGpuBackend> Clone for WgpuFusionHandle<B> {
+impl<B: JitRuntime> Clone for WgpuFusionHandle<B> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -153,10 +153,10 @@ impl<B: JitGpuBackend> Clone for WgpuFusionHandle<B> {
     }
 }
 
-unsafe impl<B: JitGpuBackend> Send for WgpuFusionHandle<B> {}
-unsafe impl<B: JitGpuBackend> Sync for WgpuFusionHandle<B> {}
+unsafe impl<B: JitRuntime> Send for WgpuFusionHandle<B> {}
+unsafe impl<B: JitRuntime> Sync for WgpuFusionHandle<B> {}
 
-impl<B: JitGpuBackend> WgpuFusionHandle<B> {
+impl<B: JitRuntime> WgpuFusionHandle<B> {
     pub(crate) fn into_tensor<const D: usize, E: WgpuElement>(
         self,
         shape: Shape<D>,
@@ -172,7 +172,7 @@ impl<B: JitGpuBackend> WgpuFusionHandle<B> {
     }
 }
 
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> From<WgpuTensor<B, E, D>>
+impl<B: JitRuntime, E: WgpuElement, const D: usize> From<WgpuTensor<B, E, D>>
     for WgpuFusionHandle<B>
 {
     fn from(value: WgpuTensor<B, E, D>) -> Self {
@@ -188,10 +188,10 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> From<WgpuTensor<B, E, D>>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::TestJitGpuBackend;
+    use crate::tests::TestJitRuntime;
     use burn_fusion::Fusion;
 
-    pub type TestBackend = Fusion<GpuBackend<TestJitGpuBackend>>;
+    pub type TestBackend = Fusion<GpuBackend<TestJitRuntime>>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

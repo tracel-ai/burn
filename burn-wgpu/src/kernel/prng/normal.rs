@@ -9,7 +9,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 use super::base::Prng;
@@ -30,8 +30,8 @@ impl StaticKernelSource for NormalPrng {
     }
 }
 
-/// Pseudo-random generator for normal distribution
-pub fn random_normal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+/// Pseudo-random generaJitBackendl distribution
+pub fn random_normal<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
     mean: E,

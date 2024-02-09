@@ -4,12 +4,12 @@ use crate::{
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 
-pub(crate) fn scatter<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn scatter<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     tensor: WgpuTensor<B, E, D>,
     indices: WgpuTensor<B, I, D>,
@@ -68,7 +68,7 @@ pub(crate) fn scatter<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -128,7 +128,7 @@ mod tests {
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
 
         let actual =
-            Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitGpuBackend, _, _, D>(
+            Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitRuntime, _, _, D>(
                 dim,
                 tensor.into_primitive(),
                 indices.into_primitive(),

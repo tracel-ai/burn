@@ -2,14 +2,14 @@ use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::Compiler;
 use crate::kernel::reduce::{self, init_reduce_output};
-use crate::{kernel, unary, GpuBackend, JitGpuBackend};
+use crate::{kernel, unary, GpuBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<B: JitGpuBackend> IntTensorOps<Self> for GpuBackend<B> {
+impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::empty::<B, _, D>(shape, device)
     }

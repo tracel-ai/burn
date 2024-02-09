@@ -5,12 +5,12 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(Gather, "../../template/index/gather.wgsl");
 
-pub(crate) fn gather<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn gather<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     tensor: WgpuTensor<B, E, D>,
     indices: WgpuTensor<B, I, D>,

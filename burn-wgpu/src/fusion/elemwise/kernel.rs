@@ -7,20 +7,20 @@ use crate::{
         WgpuFusionHandle,
     },
     kernel::elemwise_workgroup,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-pub struct ScalarElementWise<B: JitGpuBackend> {
+pub struct ScalarElementWise<B: JitRuntime> {
     source: ElementWiseSource<B>,
 }
 
-pub struct VecElementWise<B: JitGpuBackend> {
+pub struct VecElementWise<B: JitRuntime> {
     source: ElementWiseSource<B>,
 }
 
-impl<B: JitGpuBackend> FusionKernel<B> for ScalarElementWise<B> {
+impl<B: JitRuntime> FusionKernel<B> for ScalarElementWise<B> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle<B>],
@@ -40,7 +40,7 @@ impl<B: JitGpuBackend> FusionKernel<B> for ScalarElementWise<B> {
     }
 }
 
-impl<B: JitGpuBackend> FusionKernel<B> for VecElementWise<B> {
+impl<B: JitRuntime> FusionKernel<B> for VecElementWise<B> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle<B>],
@@ -93,7 +93,7 @@ impl<B: JitGpuBackend> FusionKernel<B> for VecElementWise<B> {
     }
 }
 
-impl<B: JitGpuBackend> ElementWiseSource<B> {
+impl<B: JitRuntime> ElementWiseSource<B> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle<B>],
@@ -153,7 +153,7 @@ impl<B: JitGpuBackend> ElementWiseSource<B> {
     }
 }
 
-struct ElementWiseSource<B: JitGpuBackend> {
+struct ElementWiseSource<B: JitRuntime> {
     source_normal: Arc<GpuKernelSource<B::Compiler>>,
     source_inplace: Arc<GpuKernelSource<B::Compiler>>,
     mappings: Vec<InplaceMapping>,
@@ -161,7 +161,7 @@ struct ElementWiseSource<B: JitGpuBackend> {
     factor: usize,
 }
 
-impl<B: JitGpuBackend> ElementWiseSource<B> {
+impl<B: JitRuntime> ElementWiseSource<B> {
     pub fn new(
         normal: GpuKernelSource<B::Compiler>,
         inplace: GpuKernelSource<B::Compiler>,
@@ -185,7 +185,7 @@ impl<B: JitGpuBackend> ElementWiseSource<B> {
     }
 }
 
-impl<B: JitGpuBackend> ScalarElementWise<B> {
+impl<B: JitRuntime> ScalarElementWise<B> {
     pub fn new(
         normal: GpuKernelSource<B::Compiler>,
         inplace: GpuKernelSource<B::Compiler>,
@@ -198,7 +198,7 @@ impl<B: JitGpuBackend> ScalarElementWise<B> {
     }
 }
 
-impl<B: JitGpuBackend> VecElementWise<B> {
+impl<B: JitRuntime> VecElementWise<B> {
     pub fn new(
         normal: GpuKernelSource<B::Compiler>,
         inplace: GpuKernelSource<B::Compiler>,
@@ -212,7 +212,7 @@ impl<B: JitGpuBackend> VecElementWise<B> {
     }
 }
 
-fn inplace_available<B: JitGpuBackend>(
+fn inplace_available<B: JitRuntime>(
     mappings: &[InplaceMapping],
     handles_inputs: &[WgpuFusionHandle<B>],
 ) -> bool {

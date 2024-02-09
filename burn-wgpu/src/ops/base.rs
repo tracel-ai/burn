@@ -1,7 +1,7 @@
-use crate::{element::WgpuElement, kernel, tensor::WgpuTensor, JitGpuBackend};
+use crate::{element::WgpuElement, kernel, tensor::WgpuTensor, JitRuntime};
 use burn_tensor::{Data, Reader, Shape};
 
-pub fn from_data<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn from_data<B: JitRuntime, E: WgpuElement, const D: usize>(
     data: Data<E, D>,
     device: &B::Device,
 ) -> WgpuTensor<B, E, D> {
@@ -11,7 +11,7 @@ pub fn from_data<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), data.shape, buffer)
 }
 
-pub fn into_data<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn into_data<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
 ) -> Reader<Data<E, D>> {
     let tensor = kernel::into_contiguous(tensor);
@@ -22,7 +22,7 @@ pub fn into_data<B: JitGpuBackend, E: WgpuElement, const D: usize>(
         .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
 }
 
-pub fn bool_into_data<B: JitGpuBackend, const D: usize>(
+pub fn bool_into_data<B: JitRuntime, const D: usize>(
     tensor: WgpuTensor<B, u32, D>,
 ) -> Reader<Data<bool, D>> {
     let tensor = kernel::into_contiguous(tensor);
@@ -35,7 +35,7 @@ pub fn bool_into_data<B: JitGpuBackend, const D: usize>(
     })
 }
 
-pub fn to_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn to_device<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     device: &B::Device,
 ) -> WgpuTensor<B, E, D> {
@@ -47,7 +47,7 @@ pub fn to_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     tensor.to_client(client, device.clone())
 }
 
-pub fn empty<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn empty<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
 ) -> WgpuTensor<B, E, D> {
@@ -57,7 +57,7 @@ pub fn empty<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device.clone(), shape, buffer)
 }
 
-pub fn swap_dims<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn swap_dims<B: JitRuntime, E: WgpuElement, const D: usize>(
     mut tensor: WgpuTensor<B, E, D>,
     dim1: usize,
     dim2: usize,
@@ -68,7 +68,7 @@ pub fn swap_dims<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     tensor
 }
 
-pub fn reshape<B: JitGpuBackend, E: WgpuElement, const D1: usize, const D2: usize>(
+pub fn reshape<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: usize>(
     tensor: WgpuTensor<B, E, D1>,
     shape: Shape<D2>,
 ) -> WgpuTensor<B, E, D2> {

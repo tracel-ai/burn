@@ -1,7 +1,7 @@
-use crate::{element::WgpuElement, tensor::WgpuTensor, JitGpuBackend};
+use crate::{element::WgpuElement, tensor::WgpuTensor, JitRuntime};
 
 /// Execute the mask fill kernel.
-pub fn mask_fill<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: E,
@@ -14,7 +14,7 @@ pub fn mask_fill<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 }
 
 /// Execute the mask where kernel.
-pub fn mask_where<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_where<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: WgpuTensor<B, E, D>,

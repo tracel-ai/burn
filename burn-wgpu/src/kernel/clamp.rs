@@ -3,10 +3,10 @@ use crate::{
     codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
     element::WgpuElement,
     tensor::WgpuTensor,
-    unary, JitGpuBackend,
+    unary, JitRuntime,
 };
 
-pub(crate) fn clamp<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub(crate) fn clamp<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     min_value: E,
     max_value: E,

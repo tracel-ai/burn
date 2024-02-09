@@ -6,12 +6,12 @@ use burn::backend::autodiff::{
     ops::{broadcast_shape, Backward, Ops, OpsKind},
     Autodiff,
 };
-use burn::backend::wgpu::compute::WgpuJitGpuBackend;
+use burn::backend::wgpu::compute::WgpuJitBackend;
 use burn::backend::wgpu::{FloatElement, GpuBackend, GraphicsApi, IntElement};
 use burn::tensor::Shape;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<GpuBackend<WgpuJitGpuBackend<G, F, I>>>
+    for Autodiff<GpuBackend<WgpuJitBackend<G, F, I>>>
 {
 }
 

@@ -9,7 +9,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(AvgPool2dRaw, "../../template/pool/avg_pool2d.wgsl");
@@ -33,7 +33,7 @@ impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLU
     }
 }
 
-pub(crate) fn avg_pool2d<B: JitGpuBackend, E: WgpuElement>(
+pub(crate) fn avg_pool2d<B: JitRuntime, E: WgpuElement>(
     x: WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -59,7 +59,7 @@ pub(crate) fn avg_pool2d<B: JitGpuBackend, E: WgpuElement>(
     output
 }
 
-pub(crate) fn avg_pool2d_backward<B: JitGpuBackend, E: WgpuElement>(
+pub(crate) fn avg_pool2d_backward<B: JitRuntime, E: WgpuElement>(
     x: WgpuTensor<B, E, 4>,
     grad: WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],

@@ -10,7 +10,7 @@ use crate::{
     },
     compute::WgpuAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    GpuBackend, JitGpuBackend,
+    GpuBackend, JitRuntime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
@@ -18,7 +18,7 @@ use burn_fusion::{stream::Context, TensorDescription};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<B: JitGpuBackend, Phase = ExecutionPhase<B>> {
+pub struct ElementWise<B: JitRuntime, Phase = ExecutionPhase<B>> {
     pub(super) inputs: Vec<(TensorDescription, Elem)>,
     pub(super) outputs: Vec<(TensorDescription, Elem)>,
     pub(super) locals: Vec<u16>,
@@ -38,7 +38,7 @@ pub struct Scalars {
 pub struct CompilationPhase;
 
 #[derive(new)]
-pub struct ExecutionPhase<B: JitGpuBackend> {
+pub struct ExecutionPhase<B: JitRuntime> {
     pub(super) kernel_set_1: FusionKernelSet<B>,
     pub(super) kernel_set_2: FusionKernelSet<B>,
 }
@@ -52,7 +52,7 @@ pub struct ElementWiseState {
     locals: Vec<u16>,
 }
 
-impl<B: JitGpuBackend> ElementWise<B, CompilationPhase> {
+impl<B: JitRuntime> ElementWise<B, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<B, ExecutionPhase<B>> {
         let mut inputs = self
             .inputs
@@ -167,7 +167,7 @@ impl<B: JitGpuBackend> ElementWise<B, CompilationPhase> {
     }
 }
 
-impl<B: JitGpuBackend> ElementWise<B, ExecutionPhase<B>> {
+impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
     pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<B>>) {
         let client = B::client(&self.device);
 
@@ -305,7 +305,7 @@ impl<B: JitGpuBackend> ElementWise<B, ExecutionPhase<B>> {
     }
 }
 
-fn build_kernel_set<B: JitGpuBackend>(
+fn build_kernel_set<B: JitRuntime>(
     inputs: &[Input],
     outputs: &[Output],
     operators: &[Operation],
@@ -394,7 +394,7 @@ fn build_kernel_set<B: JitGpuBackend>(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::TestJitGpuBackend;
+    use crate::tests::TestJitRuntime;
     use crate::GpuBackend;
 
     use burn_fusion::stream::Operation;
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior() {
-        type Backend = GpuBackend<TestJitGpuBackend>;
+        type Backend = GpuBackend<TestJitRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -467,7 +467,7 @@ mod tests {
             z.into_data().convert()
         }
 
-        type Backend = GpuBackend<TestJitGpuBackend>;
+        type Backend = GpuBackend<TestJitRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior_different_variant() {
-        type Backend = GpuBackend<TestJitGpuBackend>;
+        type Backend = GpuBackend<TestJitRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_end_condition_scalar_ops() {
-        type Backend = GpuBackend<TestJitGpuBackend>;
+        type Backend = GpuBackend<TestJitRuntime>;
         let device = Default::default();
         let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
         let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);

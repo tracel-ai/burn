@@ -2,7 +2,7 @@ use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_tensor::Shape;
 
@@ -15,12 +15,12 @@ macro_rules! binary {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, elem_in: $elem, elem_out: $elem);
 
         $crate::kernel::binary::<
-            Ops<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
-            OpsInplaceLhs<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
-            OpsInplaceRhs<<$backend as JitGpuBackend>::Compiler, $elem, $elem>,
+            Ops<<$backend as JitRuntime>::Compiler, $elem, $elem>,
+            OpsInplaceLhs<<$backend as JitRuntime>::Compiler, $elem, $elem>,
+            OpsInplaceRhs<<$backend as JitRuntime>::Compiler, $elem, $elem>,
             $backend,
             $elem,
             D
@@ -155,7 +155,7 @@ macro_rules! binary {
 }
 
 /// Launch an binary operation.
-pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitGpuBackend, E, const D: usize>(
+pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitRuntime, E, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     inplace_enabled: bool,

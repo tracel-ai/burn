@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_tensor::Shape;
 use std::ops::Range;
@@ -16,7 +16,7 @@ kernel_wgsl!(
     "../../template/index/slice_assign_inplace.wgsl"
 );
 
-pub(crate) fn slice<B: JitGpuBackend, E: WgpuElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: usize>(
     tensor: WgpuTensor<B, E, D1>,
     indices: [Range<usize>; D2],
 ) -> WgpuTensor<B, E, D1> {
@@ -30,7 +30,7 @@ pub(crate) fn slice<B: JitGpuBackend, E: WgpuElement, const D1: usize, const D2:
 }
 
 pub(crate) fn slice_on_output<
-    B: JitGpuBackend,
+    B: JitRuntime,
     E: WgpuElement,
     const D1: usize,
     const D2: usize,
@@ -63,7 +63,7 @@ pub(crate) fn slice_on_output<
     output
 }
 
-pub(crate) fn slice_assign<B: JitGpuBackend, E: WgpuElement, const D1: usize, const D2: usize>(
+pub(crate) fn slice_assign<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: usize>(
     tensor: WgpuTensor<B, E, D1>,
     indices: [Range<usize>; D2],
     value: WgpuTensor<B, E, D1>,
@@ -97,7 +97,7 @@ pub(crate) fn slice_assign<B: JitGpuBackend, E: WgpuElement, const D1: usize, co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -129,7 +129,7 @@ mod tests {
         let value_ref =
             Tensor::<ReferenceBackend, 2>::from_data(value.to_data(), &Default::default());
 
-        let actual = slice_assign::<TestJitGpuBackend, _, 2, 2>(
+        let actual = slice_assign::<TestJitRuntime, _, 2, 2>(
             tensor.into_primitive(),
             indices.clone(),
             value.into_primitive(),

@@ -10,7 +10,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 use super::base::Prng;
@@ -26,8 +26,8 @@ impl StaticKernelSource for UniformPrng {
     }
 }
 
-/// Pseudo-random generator for uniform distribution
-pub fn random_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+/// Pseudo-random generatJitBackendm distribution
+pub fn random_uniform<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
     low: E,
@@ -38,8 +38,8 @@ pub fn random_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 }
 
 /// Pseudo-random generator for uniform distribution, based on
-/// another tensor's client, device and shape
-pub fn random_like_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+/// another tensor's client, dJitBackendpe
+pub fn random_like_uniform<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: &WgpuTensor<B, E, D>,
     low: E,
     high: E,
@@ -53,7 +53,7 @@ pub fn random_like_uniform<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-fn uniform_kernel<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+fn uniform_kernel<B: JitRuntime, E: WgpuElement, const D: usize>(
     client: ComputeClient<B::Server, B::Channel>,
     device: &B::Device,
     shape: &Shape<D>,

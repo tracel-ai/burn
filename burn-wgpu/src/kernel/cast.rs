@@ -1,7 +1,7 @@
 use super::{KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
     compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
-    tensor::WgpuTensor, JitGpuBackend,
+    tensor::WgpuTensor, JitRuntime,
 };
 use std::{any::TypeId, marker::PhantomData};
 
@@ -23,7 +23,7 @@ impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
 }
 
 /// Cast a tensor to the given element type.
-pub fn cast<B: JitGpuBackend, InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
+pub fn cast<B: JitRuntime, InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, InputElem, D>,
 ) -> WgpuTensor<B, OutputElem, D> {
     if TypeId::of::<InputElem>() == TypeId::of::<OutputElem>() {
@@ -62,7 +62,7 @@ pub fn cast<B: JitGpuBackend, InputElem: WgpuElement, OutputElem: WgpuElement, c
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{TestBackend, TestJitGpuBackend};
+    use crate::tests::{TestBackend, TestJitRuntime};
     use burn_tensor::{Int, Tensor};
 
     #[test]
@@ -72,7 +72,7 @@ mod tests {
 
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(START as i64..END as i64, &device);
-        let tensor_float = cast::<TestJitGpuBackend, i32, f32, 1>(tensor.clone().into_primitive());
+        let tensor_float = cast::<TestJitRuntime, i32, f32, 1>(tensor.clone().into_primitive());
 
         let data_int = tensor.into_data();
         let data_float = Tensor::<TestBackend, 1>::from_primitive(tensor_float).into_data();

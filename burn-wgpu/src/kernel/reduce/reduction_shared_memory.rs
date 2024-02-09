@@ -4,7 +4,7 @@ use crate::{
     kernel::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(
@@ -52,7 +52,7 @@ impl StaticKernelSource for MeanDimSharedMemory {
 /// Execute the sum dim kernel leveraging shared memory
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
-pub fn sum_dim_shared_memory<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn sum_dim_shared_memory<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
     dim: usize,
@@ -63,7 +63,7 @@ pub fn sum_dim_shared_memory<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 /// Execute the mean dim kernel leveraging shared memory
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
-pub fn mean_dim_shared_memory<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mean_dim_shared_memory<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
     dim: usize,
@@ -73,7 +73,7 @@ pub fn mean_dim_shared_memory<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 
 fn reduction_dim_shared_memory<
     K: StaticKernelSource,
-    B: JitGpuBackend,
+    B: JitRuntime,
     E: WgpuElement,
     const D: usize,
 >(

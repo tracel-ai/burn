@@ -14,7 +14,7 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
 use crate::tensor::WgpuTensor;
-use crate::JitGpuBackend;
+use crate::JitRuntime;
 use crate::{unary, GpuBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
@@ -23,7 +23,7 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<B: JitGpuBackend> FloatTensorOps<Self> for GpuBackend<B> {
+impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,

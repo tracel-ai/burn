@@ -9,7 +9,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(MaxPool2d, "../../template/pool/max_pool2d.wgsl");
@@ -22,7 +22,7 @@ kernel_wgsl!(
     "../../template/pool/max_pool2d_with_indices.wgsl"
 );
 
-pub(crate) fn max_pool2d<B: JitGpuBackend, E: WgpuElement>(
+pub(crate) fn max_pool2d<B: JitRuntime, E: WgpuElement>(
     x: WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -44,7 +44,7 @@ pub(crate) fn max_pool2d<B: JitGpuBackend, E: WgpuElement>(
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<B: JitGpuBackend, E: WgpuElement, I: WgpuElement>(
+pub(crate) fn max_pool2d_with_indices<B: JitRuntime, E: WgpuElement, I: WgpuElement>(
     x: WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -70,7 +70,7 @@ pub(crate) fn max_pool2d_with_indices<B: JitGpuBackend, E: WgpuElement, I: WgpuE
     (output, indices)
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<B: JitGpuBackend, E: WgpuElement, I: WgpuElement>(
+pub(crate) fn max_pool2d_with_indices_backward<B: JitRuntime, E: WgpuElement, I: WgpuElement>(
     x: WgpuTensor<B, E, 4>,
     grad: WgpuTensor<B, E, 4>,
     indices: WgpuTensor<B, I, 4>,

@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
@@ -14,7 +14,7 @@ use burn_tensor::{
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
-pub(crate) fn conv2d<B: JitGpuBackend, E: WgpuElement + Element>(
+pub(crate) fn conv2d<B: JitRuntime, E: WgpuElement + Element>(
     input: WgpuTensor<B, E, 4>,
     weight: WgpuTensor<B, E, 4>,
     bias: Option<WgpuTensor<B, E, 1>>,

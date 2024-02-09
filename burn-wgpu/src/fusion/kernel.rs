@@ -2,7 +2,7 @@ use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
 use crate::GpuBackend;
-use crate::JitGpuBackend;
+use crate::JitRuntime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 use burn_compute::tune::AutotuneOperation;
@@ -15,13 +15,13 @@ use std::sync::Arc;
 ///
 /// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
-pub struct FusionKernelSet<B: JitGpuBackend> {
+pub struct FusionKernelSet<B: JitRuntime> {
     kernels: Vec<Box<dyn FusionKernel<B>>>,
 }
 
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
-pub struct ExecutableKernel<B: JitGpuBackend> {
+pub struct ExecutableKernel<B: JitRuntime> {
     kernel: Box<dyn Kernel>,
     handles: Vec<Handle<B::Server>>,
     client: ComputeClient<B::Server, B::Channel>,
@@ -34,7 +34,7 @@ pub struct ExecutableKernel<B: JitGpuBackend> {
 ///
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
-pub struct AutotunableKernel<B: JitGpuBackend> {
+pub struct AutotunableKernel<B: JitRuntime> {
     kernel: Arc<dyn Kernel>,
     handles: Vec<Handle<B::Server>>,
     client: ComputeClient<B::Server, B::Channel>,
@@ -65,7 +65,7 @@ pub enum OutputInfo {
     Array { size: usize },
 }
 
-impl<B: JitGpuBackend> ExecutableKernel<B> {
+impl<B: JitRuntime> ExecutableKernel<B> {
     /// Execute the kernel.
     pub fn execute(self) {
         self.client
@@ -73,7 +73,7 @@ impl<B: JitGpuBackend> ExecutableKernel<B> {
     }
 }
 
-impl<B: JitGpuBackend> AutotuneOperation for AutotunableKernel<B> {
+impl<B: JitRuntime> AutotuneOperation for AutotunableKernel<B> {
     fn execute(self: Box<Self>) {
         self.client.execute(
             Box::new(self.kernel),
@@ -90,7 +90,7 @@ impl<B: JitGpuBackend> AutotuneOperation for AutotunableKernel<B> {
     }
 }
 
-impl<B: JitGpuBackend> From<ExecutableKernel<B>> for AutotunableKernel<B> {
+impl<B: JitRuntime> From<ExecutableKernel<B>> for AutotunableKernel<B> {
     fn from(value: ExecutableKernel<B>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
@@ -100,7 +100,7 @@ impl<B: JitGpuBackend> From<ExecutableKernel<B>> for AutotunableKernel<B> {
     }
 }
 
-pub trait FusionKernel<B: JitGpuBackend>: Send + Sync {
+pub trait FusionKernel<B: JitRuntime>: Send + Sync {
     /// Returns the priority of this kernel based on the input and output information.
     fn priority(
         &self,
@@ -117,7 +117,7 @@ pub trait FusionKernel<B: JitGpuBackend>: Send + Sync {
     ) -> SelectedKernel;
 }
 
-impl<B: JitGpuBackend> FusionKernelSet<B> {
+impl<B: JitRuntime> FusionKernelSet<B> {
     /// Select the best kernel based on the given information.
     #[allow(clippy::too_many_arguments)]
     pub fn select(
@@ -246,7 +246,7 @@ impl<B: JitGpuBackend> FusionKernelSet<B> {
     }
 }
 
-fn register_info_tensor<B: JitGpuBackend>(
+fn register_info_tensor<B: JitRuntime>(
     info: &mut Vec<u32>,
     tensor: &TensorDescription,
     handle: &WgpuFusionHandle<B>,
@@ -263,7 +263,7 @@ fn register_info_tensor<B: JitGpuBackend>(
     }
 }
 
-fn process_inputs_outputs<'a, B: JitGpuBackend>(
+fn process_inputs_outputs<'a, B: JitRuntime>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
     context: &'a mut Context<'_, GpuBackend<B>>,

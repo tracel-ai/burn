@@ -2,12 +2,12 @@ use crate::codegen::dialect::gpu::{
     BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
 };
 use crate::codegen::Compiler;
-use crate::{binary, JitGpuBackend};
+use crate::{binary, JitRuntime};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
 use burn_compute::client::ComputeClient;
 use burn_tensor::{ElementConversion, Shape};
 
-pub fn full<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn full<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
     value: E,
@@ -17,7 +17,7 @@ pub fn full<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     full_device::<B, E, D>(client, shape, device.clone(), value)
 }
 
-pub fn full_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn full_device<B: JitRuntime, E: WgpuElement, const D: usize>(
     client: ComputeClient<B::Server, B::Channel>,
     shape: Shape<D>,
     device: B::Device,
@@ -36,7 +36,7 @@ pub fn full_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn zeros<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn zeros<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
 ) -> WgpuTensor<B, E, D> {
@@ -45,7 +45,7 @@ pub fn zeros<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     zeros_device::<B, E, D>(client, device.clone(), shape)
 }
 
-pub fn zeros_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn zeros_device<B: JitRuntime, E: WgpuElement, const D: usize>(
     client: ComputeClient<B::Server, B::Channel>,
     device: B::Device,
     shape: Shape<D>,
@@ -53,7 +53,7 @@ pub fn zeros_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     full_device::<B, E, D>(client, shape, device, 0.elem())
 }
 
-pub fn ones<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn ones<B: JitRuntime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
     device: &B::Device,
 ) -> WgpuTensor<B, E, D> {
@@ -62,7 +62,7 @@ pub fn ones<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     ones_device::<B, E, D>(client, device.clone(), shape)
 }
 
-pub fn ones_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn ones_device<B: JitRuntime, E: WgpuElement, const D: usize>(
     client: ComputeClient<B::Server, B::Channel>,
     device: B::Device,
     shape: Shape<D>,
@@ -70,7 +70,7 @@ pub fn ones_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     full_device::<B, E, D>(client, shape, device, 1.elem())
 }
 
-pub fn empty_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn empty_device<B: JitRuntime, E: WgpuElement, const D: usize>(
     client: ComputeClient<B::Server, B::Channel>,
     device: B::Device,
     shape: Shape<D>,
@@ -80,7 +80,7 @@ pub fn empty_device<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     WgpuTensor::new(client, device, shape, buffer)
 }
 
-pub fn add<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn add<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
@@ -96,7 +96,7 @@ pub fn add<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn add_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn add_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, E, D> {
@@ -112,7 +112,7 @@ pub fn add_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn sub<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn sub<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
@@ -128,7 +128,7 @@ pub fn sub<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn sub_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn sub_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, E, D> {
@@ -144,7 +144,7 @@ pub fn sub_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn mul<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mul<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
@@ -160,7 +160,7 @@ pub fn mul<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn mul_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mul_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, E, D> {
@@ -176,7 +176,7 @@ pub fn mul_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn div<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn div<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
@@ -192,7 +192,7 @@ pub fn div<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn div_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn div_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, E, D> {
@@ -208,7 +208,7 @@ pub fn div_scalar<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn pow<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn pow<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {

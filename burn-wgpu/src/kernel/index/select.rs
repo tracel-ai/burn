@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(IndexSelect, "../../template/index/select.wgsl");
@@ -14,7 +14,7 @@ kernel_wgsl!(
     "../../template/index/select_assign_inplace.wgsl"
 );
 
-pub(crate) fn select<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn select<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     dim: usize,
     indices: WgpuTensor<B, I, 1>,
@@ -46,7 +46,7 @@ pub(crate) fn select<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: 
     output
 }
 
-pub(crate) fn select_assign<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn select_assign<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     dim: usize,
     indices: WgpuTensor<B, I, 1>,
@@ -101,7 +101,7 @@ pub(crate) fn select_assign<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -176,7 +176,7 @@ mod tests {
         );
 
         let actual =
-            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestJitGpuBackend, _, _, D>(
+            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestJitRuntime, _, _, D>(
                 tensor.into_primitive(),
                 dim,
                 indices.into_primitive(),

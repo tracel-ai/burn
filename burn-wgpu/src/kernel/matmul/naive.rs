@@ -4,7 +4,7 @@ use crate::{
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul/naive.wgsl");
@@ -22,7 +22,7 @@ impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernelS
 }
 
 /// Matrix multiplication using naive algorithm with workgroups of size 16
-pub fn matmul_naive_default<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn matmul_naive_default<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
@@ -32,7 +32,7 @@ pub fn matmul_naive_default<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 
 /// Matrix multiplication using naive algorithm with custom workgroup sizes
 pub fn matmul_naive<
-    B: JitGpuBackend,
+    B: JitRuntime,
     E: WgpuElement,
     const D: usize,
     const WORKGROUP_SIZE_X: usize,
@@ -87,7 +87,7 @@ mod tests {
     use super::*;
     use crate::{
         kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
-        tests::TestJitGpuBackend,
+        tests::TestJitRuntime,
     };
 
     #[test]
@@ -142,7 +142,7 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = matmul_naive::<TestJitGpuBackend, f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>;
+        let func = matmul_naive::<TestJitRuntime, f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>;
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
-        let matmul_func = matmul_naive::<TestJitGpuBackend, f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestJitRuntime, f32, 4, 2, 2>;
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
-        let matmul_func = matmul_naive::<TestJitGpuBackend, f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestJitRuntime, f32, 4, 2, 2>;
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
-        let matmul_func = matmul_naive::<TestJitGpuBackend, f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestJitRuntime, f32, 4, 2, 2>;
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

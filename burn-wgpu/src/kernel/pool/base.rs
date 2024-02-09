@@ -1,9 +1,9 @@
-use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, JitGpuBackend};
+use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, JitRuntime};
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
 
 /// Build basic info to launch pool 2d kernels.
-pub fn build_output_and_info_pool2d<B: JitGpuBackend, E: WgpuElement>(
+pub fn build_output_and_info_pool2d<B: JitRuntime, E: WgpuElement>(
     x: &WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -30,7 +30,7 @@ pub fn build_output_and_info_pool2d<B: JitGpuBackend, E: WgpuElement>(
     (info_buffer, output)
 }
 
-pub fn build_pool2d_info<B: JitGpuBackend, E: WgpuElement>(
+pub fn build_pool2d_info<B: JitRuntime, E: WgpuElement>(
     input: &WgpuTensor<B, E, 4>,
     output: &WgpuTensor<B, E, 4>,
     kernel_size: [usize; 2],

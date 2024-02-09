@@ -2,7 +2,7 @@ use crate::FloatTensor;
 
 use super::Backend;
 use burn::backend::wgpu::{
-    compute::{DynamicKernel, WgpuJitGpuBackend, WorkGroup},
+    compute::{DynamicKernel, WgpuJitBackend, WorkGroup},
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
     },
@@ -44,7 +44,7 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend
-    for GpuBackend<WgpuJitGpuBackend<G, F, I>>
+    for GpuBackend<WgpuJitBackend<G, F, I>>
 {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,

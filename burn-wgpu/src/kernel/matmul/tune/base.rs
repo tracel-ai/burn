@@ -7,20 +7,20 @@ use crate::{
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 use super::key::MatmulAutotuneKey;
 
 /// Set of matmul implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of m, k and n
-pub struct MatmulAutotuneOperationSet<B: JitGpuBackend, E: WgpuElement, const D: usize> {
+pub struct MatmulAutotuneOperationSet<B: JitRuntime, E: WgpuElement, const D: usize> {
     key: WgpuAutotuneKey,
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     out: WgpuTensor<B, E, D>,
 }
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<B, E, D> {
     fn new(lhs: WgpuTensor<B, E, D>, rhs: WgpuTensor<B, E, D>, out: WgpuTensor<B, E, D>) -> Self {
         Self {
             key: WgpuAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
@@ -31,7 +31,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> MatmulAutotuneOperationSe
     }
 }
 
-impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
+impl<B: JitRuntime, E: WgpuElement + Element, const D: usize>
     AutotuneOperationSet<WgpuAutotuneKey> for MatmulAutotuneOperationSet<B, E, D>
 {
     fn key(&self) -> WgpuAutotuneKey {
@@ -99,7 +99,7 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>(
+pub fn matmul_autotune<B: JitRuntime, E: WgpuElement + Element, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
@@ -117,13 +117,13 @@ pub fn matmul_autotune<B: JitGpuBackend, E: WgpuElement + Element, const D: usiz
 macro_rules! matmul_tune_ops {
     ($name:ident, $func:expr) => {
         #[derive(new)]
-        pub(crate) struct $name<B: JitGpuBackend, E: WgpuElement, const D: usize> {
+        pub(crate) struct $name<B: JitRuntime, E: WgpuElement, const D: usize> {
             lhs: WgpuTensor<B, E, D>,
             rhs: WgpuTensor<B, E, D>,
             out: WgpuTensor<B, E, D>,
         }
 
-        impl<B: JitGpuBackend, E: WgpuElement, const D: usize> AutotuneOperation
+        impl<B: JitRuntime, E: WgpuElement, const D: usize> AutotuneOperation
             for $name<B, E, D>
         {
             fn execute(self: Box<Self>) {

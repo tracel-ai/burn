@@ -5,13 +5,13 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(MaskFill, "../../template/mask/fill.wgsl");
 kernel_wgsl!(MaskFillInplace, "../../template/mask/fill_inplace.wgsl");
 
-pub fn mask_fill<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: E,
@@ -45,7 +45,7 @@ pub fn mask_fill<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_fill_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_fill_inplace<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: E,
@@ -70,7 +70,7 @@ pub fn mask_fill_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
     use burn_tensor::{Bool, Distribution, Tensor};
 
     #[test]
@@ -78,7 +78,7 @@ mod tests {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_fill::<TestJitGpuBackend, f32, 3>(
+            Tensor::<TestBackend, 3>::from_primitive(mask_fill::<TestJitRuntime, f32, 3>(
                 tensor.into_primitive(),
                 mask.into_primitive(),
                 4.0,
@@ -96,7 +96,7 @@ mod tests {
 
         let actual =
             Tensor::<TestBackend, 3>::from_primitive(
-                mask_fill_inplace::<TestJitGpuBackend, f32, 3>(
+                mask_fill_inplace::<TestJitRuntime, f32, 3>(
                     tensor.into_primitive(),
                     mask.into_primitive(),
                     4.0,

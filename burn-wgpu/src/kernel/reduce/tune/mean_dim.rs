@@ -11,7 +11,7 @@ use crate::{
     ops::numeric::empty_device,
     reduce_tune_ops,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 use super::ReduceAutotuneKey;
@@ -19,13 +19,13 @@ use super::ReduceAutotuneKey;
 /// Set of mean_dim implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of
 /// dim to reduce, and product of others
-pub struct MeanDimAutotuneOperationSet<B: JitGpuBackend, E: WgpuElement, const D: usize> {
+pub struct MeanDimAutotuneOperationSet<B: JitRuntime, E: WgpuElement, const D: usize> {
     key: WgpuAutotuneKey,
     input: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
     reduce_dim: usize,
 }
-impl<B: JitGpuBackend, E: WgpuElement, const D: usize> MeanDimAutotuneOperationSet<B, E, D> {
+impl<B: JitRuntime, E: WgpuElement, const D: usize> MeanDimAutotuneOperationSet<B, E, D> {
     fn new(input: WgpuTensor<B, E, D>, output: WgpuTensor<B, E, D>, reduce_dim: usize) -> Self {
         Self {
             key: WgpuAutotuneKey::MeanDim(ReduceAutotuneKey::new(
@@ -40,7 +40,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> MeanDimAutotuneOperationS
     }
 }
 
-impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
+impl<B: JitRuntime, E: WgpuElement + Element, const D: usize>
     AutotuneOperationSet<WgpuAutotuneKey> for MeanDimAutotuneOperationSet<B, E, D>
 {
     fn key(&self) -> WgpuAutotuneKey {
@@ -91,7 +91,7 @@ impl<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>
 }
 
 /// Executes autotune on mean_dim operation
-pub fn mean_dim_autotune<B: JitGpuBackend, E: WgpuElement + Element, const D: usize>(
+pub fn mean_dim_autotune<B: JitRuntime, E: WgpuElement + Element, const D: usize>(
     input: WgpuTensor<B, E, D>,
     reduce_dim: usize,
 ) -> WgpuTensor<B, E, D> {

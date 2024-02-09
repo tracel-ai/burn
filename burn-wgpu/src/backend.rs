@@ -8,29 +8,30 @@ use std::{marker::PhantomData, sync::Mutex};
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
-pub struct GpuBackend<B: JitGpuBackend> {
+pub struct GpuBackend<B: JitRuntime> {
     _b: PhantomData<B>,
 }
 
-impl<B: JitGpuBackend> core::fmt::Debug for GpuBackend<B> {
+impl<B: JitRuntime> core::fmt::Debug for GpuBackend<B> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
-impl<B: JitGpuBackend> Clone for GpuBackend<B> {
+impl<B: JitRuntime> Clone for GpuBackend<B> {
     fn clone(&self) -> Self {
         todo!()
     }
 }
 
-impl<B: JitGpuBackend> Default for GpuBackend<B> {
+impl<B: JitRuntime> Default for GpuBackend<B> {
     fn default() -> Self {
         todo!()
     }
 }
 
-pub trait JitGpuBackend: Send + Sync + 'static {
+/// Trait that defines a backend with a Just-In-Time compiler.
+pub trait JitRuntime: Send + Sync + 'static {
     type Compiler: Compiler;
     type Server: ComputeServer<
         Kernel = Box<dyn crate::compute::Kernel>,
@@ -47,7 +48,7 @@ pub trait JitGpuBackend: Send + Sync + 'static {
         + Sync
         + Send;
 
-    type FullPrecisionBackend: JitGpuBackend<
+    type FullPrecisionBackend: JitRuntime<
         Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
         Device = Self::Device,
         Server = Self::Server,
@@ -57,7 +58,7 @@ pub trait JitGpuBackend: Send + Sync + 'static {
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
 }
 
-impl<B: JitGpuBackend> Backend for GpuBackend<B> {
+impl<B: JitRuntime> Backend for GpuBackend<B> {
     type Device = B::Device;
     type FullPrecisionBackend = GpuBackend<B::FullPrecisionBackend>;
 

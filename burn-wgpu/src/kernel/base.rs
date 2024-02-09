@@ -6,7 +6,7 @@ use crate::{
     element::WgpuElement,
     kernel,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 use std::marker::PhantomData;
 
@@ -51,7 +51,7 @@ macro_rules! kernel_wgsl {
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
 /// Make a wgpu tensor contiguous.
-pub fn into_contiguous<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn into_contiguous<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
     if tensor.is_contiguous() {
@@ -81,7 +81,7 @@ pub fn into_contiguous<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 }
 
 /// Similar to [into contiguous](into_contiguous) but with dynamic rank.
-pub fn into_contiguous_dyn<B: JitGpuBackend, E: WgpuElement>(
+pub fn into_contiguous_dyn<B: JitRuntime, E: WgpuElement>(
     client: ComputeClient<B::Server, B::Channel>,
     input: Handle<B::Server>,
     input_shape: &[usize],
@@ -195,7 +195,7 @@ impl<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> DynamicKernelSource
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn build_info<B: JitRuntime, E: WgpuElement, const D: usize>(
     tensors: &[&WgpuTensor<B, E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];

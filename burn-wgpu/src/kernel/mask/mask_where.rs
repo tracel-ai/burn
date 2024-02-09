@@ -5,13 +5,13 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(MaskWhere, "../../template/mask/where.wgsl");
 kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
 
-pub fn mask_where<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_where<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: WgpuTensor<B, E, D>,
@@ -44,7 +44,7 @@ pub fn mask_where<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_where_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn mask_where_inplace<B: JitRuntime, E: WgpuElement, const D: usize>(
     input: WgpuTensor<B, E, D>,
     mask: WgpuTensor<B, u32, D>,
     value: WgpuTensor<B, E, D>,
@@ -75,7 +75,7 @@ pub fn mask_where_inplace<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor};
 
     #[test]
@@ -83,7 +83,7 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestJitGpuBackend, f32, 3>(
+            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestJitRuntime, f32, 3>(
                 tensor.into_primitive(),
                 mask.into_primitive(),
                 value.into_primitive(),
@@ -100,7 +100,7 @@ mod tests {
 
         let actual =
             Tensor::<TestBackend, 3>::from_primitive(
-                mask_where_inplace::<TestJitGpuBackend, f32, 3>(
+                mask_where_inplace::<TestJitRuntime, f32, 3>(
                     tensor.into_primitive(),
                     mask.into_primitive(),
                     value.into_primitive(),
@@ -120,7 +120,7 @@ mod tests {
 
         let actual =
             Tensor::<TestBackend, 3>::from_primitive(
-                mask_where_inplace::<TestJitGpuBackend, f32, 3>(
+                mask_where_inplace::<TestJitRuntime, f32, 3>(
                     value.into_primitive(),
                     mask.into_primitive(),
                     tensor.into_primitive(),

@@ -3,7 +3,7 @@ use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 /// Creates a unary kernel.
@@ -15,11 +15,11 @@ macro_rules! unary {
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler);
+        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler);
 
         $crate::kernel::unary::<
-            Ops<<$backend as JitGpuBackend>::Compiler, $elem>,
-            OpsInplace<<$backend as JitGpuBackend>::Compiler, $elem>,
+            Ops<<$backend as JitRuntime>::Compiler, $elem>,
+            OpsInplace<<$backend as JitRuntime>::Compiler, $elem>,
             $backend,
             $elem,
             D
@@ -31,11 +31,11 @@ macro_rules! unary {
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, scalar 1);
 
         $crate::kernel::unary::<
-            Ops<<$backend as JitGpuBackend>::Compiler, $elem>,
-            OpsInplace<<$backend as JitGpuBackend>::Compiler, $elem>,
+            Ops<<$backend as JitRuntime>::Compiler, $elem>,
+            OpsInplace<<$backend as JitRuntime>::Compiler, $elem>,
             $backend,
             $elem,
             D
@@ -186,7 +186,7 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, B: JitGpuBackend, E, const D: usize>(
+pub fn unary<Kernel, KernelInplace, B: JitRuntime, E, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
@@ -244,7 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
@@ -265,7 +265,7 @@ mod tests {
         let actual = unary::<
             Ops<TestCompiler, f32>,
             OpsInplace<TestCompiler, f32>,
-            TestJitGpuBackend,
+            TestJitRuntime,
             f32,
             2,
         >(tensor.into_primitive(), None, true);
@@ -287,7 +287,7 @@ mod tests {
         let actual = unary::<
             Ops<TestCompiler, f32>,
             OpsInplace<TestCompiler, f32>,
-            TestJitGpuBackend,
+            TestJitRuntime,
             f32,
             2,
         >(tensor.into_primitive(), None, true);

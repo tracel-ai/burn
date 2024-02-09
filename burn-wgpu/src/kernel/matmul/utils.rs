@@ -1,15 +1,15 @@
-use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, JitGpuBackend};
+use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, JitRuntime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn init_matmul_output<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<B, E, D>,
     rhs: &WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, E, D> {
     empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub(crate) fn shape_out<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: &WgpuTensor<B, E, D>,
     rhs: &WgpuTensor<B, E, D>,
 ) -> Shape<D> {
@@ -30,12 +30,12 @@ pub(crate) fn shape_out<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::tensor::WgpuTensor;
-    use crate::tests::{ReferenceTensor, TestJitGpuBackend, TestTensor};
+    use crate::tests::{ReferenceTensor, TestJitRuntime, TestTensor};
     use burn_tensor::Shape;
 
     use super::init_matmul_output;
 
-    type TB = TestJitGpuBackend;
+    type TB = TestJitRuntime;
 
     pub(crate) fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
     where

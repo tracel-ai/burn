@@ -9,7 +9,7 @@ use crate::{
     },
     element::WgpuElement,
     fusion::WgpuOptimization,
-    GpuBackend, JitGpuBackend,
+    GpuBackend, JitRuntime,
 };
 use burn_fusion::{
     stream::{
@@ -26,7 +26,7 @@ use burn_tensor::{
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<B: JitGpuBackend> {
+pub(crate) struct ElementWiseBuilder<B: JitRuntime> {
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
@@ -40,7 +40,7 @@ pub(crate) struct ElementWiseBuilder<B: JitGpuBackend> {
     pub(crate) device: B::Device,
 }
 
-impl<B: JitGpuBackend> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuilder<B> {
+impl<B: JitRuntime> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuilder<B> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -138,7 +138,7 @@ impl<B: JitGpuBackend> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseB
     }
 }
 
-impl<B: JitGpuBackend> ElementWiseBuilder<B> {
+impl<B: JitRuntime> ElementWiseBuilder<B> {
     pub fn new(device: Device<GpuBackend<B>>) -> Self {
         Self {
             inputs: Vec::new(),

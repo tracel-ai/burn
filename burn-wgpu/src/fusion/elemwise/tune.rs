@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
 use crate::{
-    compute::WgpuAutotuneKey, fusion::kernel::AutotunableKernel, tune::anchor, JitGpuBackend,
+    compute::WgpuAutotuneKey, fusion::kernel::AutotunableKernel, tune::anchor, JitRuntime,
 };
 use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWiseAutotuneOperationSet<B: JitGpuBackend> {
+pub struct ElementWiseAutotuneOperationSet<B: JitRuntime> {
     key: WgpuAutotuneKey,
     kernel_1: AutotunableKernel<B>,
     kernel_2: AutotunableKernel<B>,
@@ -33,7 +33,7 @@ impl Display for FusionElemWiseAutotuneKey {
     }
 }
 
-impl<B: JitGpuBackend> AutotuneOperationSet<WgpuAutotuneKey>
+impl<B: JitRuntime> AutotuneOperationSet<WgpuAutotuneKey>
     for ElementWiseAutotuneOperationSet<B>
 {
     fn key(&self) -> WgpuAutotuneKey {

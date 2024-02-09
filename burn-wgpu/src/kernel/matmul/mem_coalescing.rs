@@ -10,7 +10,7 @@ use crate::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(
@@ -40,7 +40,7 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
 }
 
 /// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
-pub fn matmul_mem_coalescing_default<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn matmul_mem_coalescing_default<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     out: WgpuTensor<B, E, D>,
@@ -49,7 +49,7 @@ pub fn matmul_mem_coalescing_default<B: JitGpuBackend, E: WgpuElement, const D: 
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn matmul_mem_coalescing<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
     output: WgpuTensor<B, E, D>,
@@ -112,7 +112,7 @@ mod tests {
     use super::*;
     use crate::{
         kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
-        tests::TestJitGpuBackend,
+        tests::TestJitRuntime,
     };
 
     #[test]
@@ -168,7 +168,7 @@ mod tests {
         batch_2: usize,
     ) {
         let func = |lhs, rhs, out| {
-            matmul_mem_coalescing::<TestJitGpuBackend, f32, 4>(
+            matmul_mem_coalescing::<TestJitRuntime, f32, 4>(
                 lhs,
                 rhs,
                 out,
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitGpuBackend, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitGpuBackend, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitGpuBackend, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use super::WgpuServer;
 use crate::{
-    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, JitGpuBackend, WgpuDevice,
+    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, JitRuntime, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -37,14 +37,14 @@ fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, 
     })
 }
 
-pub struct WgpuJitGpuBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct WgpuJitBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> JitGpuBackend for WgpuJitGpuBackend<G, F, I> {
-    type FullPrecisionBackend = WgpuJitGpuBackend<G, f32, i32>;
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> JitRuntime for WgpuJitBackend<G, F, I> {
+    type FullPrecisionBackend = WgpuJitBackend<G, f32, i32>;
     type Compiler = wgsl::Compiler<F, I>;
     type Server = Server;
 

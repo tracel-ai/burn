@@ -1,4 +1,4 @@
-use crate::{element::WgpuElement, kernel_wgsl, JitGpuBackend, SEED};
+use crate::{element::WgpuElement, kernel_wgsl, JitRuntime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_compute::{client::ComputeClient, server::Handle};
 use rand::Rng;
@@ -19,7 +19,7 @@ pub(crate) fn get_seeds() -> Vec<u32> {
     seeds
 }
 
-pub(crate) fn make_info_buffer<B: JitGpuBackend>(
+pub(crate) fn make_info_buffer<B: JitRuntime>(
     client: ComputeClient<B::Server, B::Channel>,
     n_values_per_thread: usize,
 ) -> Handle<B::Server> {
@@ -28,7 +28,7 @@ pub(crate) fn make_info_buffer<B: JitGpuBackend>(
     client.create(bytemuck::cast_slice(&info))
 }
 
-pub(crate) fn make_args_buffer<B: JitGpuBackend, E: WgpuElement>(
+pub(crate) fn make_args_buffer<B: JitRuntime, E: WgpuElement>(
     client: ComputeClient<B::Server, B::Channel>,
     args: &[E],
 ) -> Handle<B::Server> {

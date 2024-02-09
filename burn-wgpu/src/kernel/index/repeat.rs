@@ -4,12 +4,12 @@ use crate::{
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitGpuBackend,
+    JitRuntime,
 };
 
 kernel_wgsl!(RepeatRaw, "../../template/index/repeat.wgsl");
 
-pub(crate) fn repeat<B: JitGpuBackend, E: WgpuElement, const D1: usize>(
+pub(crate) fn repeat<B: JitRuntime, E: WgpuElement, const D1: usize>(
     input: WgpuTensor<B, E, D1>,
     dim: usize,
     times: usize,

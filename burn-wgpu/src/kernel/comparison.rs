@@ -5,7 +5,7 @@ use crate::{
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
     tensor::WgpuTensor,
-    unary, JitGpuBackend,
+    unary, JitRuntime,
 };
 use std::mem;
 
@@ -16,12 +16,12 @@ macro_rules! comparison {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, elem_in: $elem, elem_out: $elem);
 
         launch_binary::<
-            Ops<<$backend as JitGpuBackend>::Compiler, E, u32>,
-            OpsInplaceLhs<<$backend as JitGpuBackend>::Compiler, E, u32>,
-            OpsInplaceRhs<<$backend as JitGpuBackend>::Compiler, E, u32>,
+            Ops<<$backend as JitRuntime>::Compiler, E, u32>,
+            OpsInplaceLhs<<$backend as JitRuntime>::Compiler, E, u32>,
+            OpsInplaceRhs<<$backend as JitRuntime>::Compiler, E, u32>,
             $backend,
             E,
             D
@@ -34,11 +34,11 @@ macro_rules! comparison {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitGpuBackend>::Compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, scalar 1);
 
         launch_unary::<
-            Ops<<$backend as JitGpuBackend>::Compiler, E>,
-            OpsInplace<<$backend as JitGpuBackend>::Compiler, E>,
+            Ops<<$backend as JitRuntime>::Compiler, E>,
+            OpsInplace<<$backend as JitRuntime>::Compiler, E>,
             $backend,
             E,
             D
@@ -46,7 +46,7 @@ macro_rules! comparison {
     }};
 }
 
-pub fn equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn equal<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D> {
@@ -62,7 +62,7 @@ pub fn equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn greater<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D> {
@@ -78,7 +78,7 @@ pub fn greater<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn greater_equal<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D> {
@@ -94,7 +94,7 @@ pub fn greater_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn lower<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D> {
@@ -110,7 +110,7 @@ pub fn lower<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn lower_equal<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D> {
@@ -126,7 +126,7 @@ pub fn lower_equal<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, u32, D> {
@@ -142,7 +142,7 @@ pub fn equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn greater_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, u32, D> {
@@ -158,7 +158,7 @@ pub fn greater_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn lower_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, u32, D> {
@@ -174,7 +174,7 @@ pub fn lower_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn greater_equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, u32, D> {
@@ -190,7 +190,7 @@ pub fn greater_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
+pub fn lower_equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: E,
 ) -> WgpuTensor<B, u32, D> {
@@ -206,7 +206,7 @@ pub fn lower_equal_elem<B: JitGpuBackend, E: WgpuElement, const D: usize>(
     )
 }
 
-fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitGpuBackend, E, const D: usize>(
+fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitRuntime, E, const D: usize>(
     lhs: WgpuTensor<B, E, D>,
     rhs: WgpuTensor<B, E, D>,
 ) -> WgpuTensor<B, u32, D>
@@ -228,7 +228,7 @@ where
     WgpuTensor::new(output.client, output.device, output.shape, output.handle)
 }
 
-fn launch_unary<Kernel, KernelInplace, B: JitGpuBackend, E, const D: usize>(
+fn launch_unary<Kernel, KernelInplace, B: JitRuntime, E, const D: usize>(
     tensor: WgpuTensor<B, E, D>,
     scalars: E,
 ) -> WgpuTensor<B, u32, D>
