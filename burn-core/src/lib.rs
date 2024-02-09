@@ -51,10 +51,10 @@ pub type TestBackend = burn_ndarray::NdArray<f32>;
 pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu", not(target_os = "macos")))]
-pub type TestBackend = burn_wgpu::GpuBackend<burn_wgpu::Vulkan, f32, i32>;
+pub type TestBackend = burn_wgpu::JitBackend<burn_wgpu::Vulkan, f32, i32>;
 
 #[cfg(all(test, feature = "test-wgpu", target_os = "macos"))]
-pub type TestBackend = burn_wgpu::GpuBackend<burn_wgpu::Metal, f32, i32>;
+pub type TestBackend = burn_wgpu::JitBackend<burn_wgpu::Metal, f32, i32>;
 
 #[cfg(feature = "std")]
 #[cfg(test)]

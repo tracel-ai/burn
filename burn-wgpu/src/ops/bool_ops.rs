@@ -1,10 +1,10 @@
-use crate::{kernel, tensor::WgpuTensor, GpuBackend, Runtime};
+use crate::{kernel, tensor::JitTensor, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
-impl<R: Runtime> BoolTensorOps<Self> for GpuBackend<R> {
+impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::empty(shape, device)
     }
@@ -36,7 +36,7 @@ impl<R: Runtime> BoolTensorOps<Self> for GpuBackend<R> {
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
         if std::mem::size_of::<IntElem<Self>>() == std::mem::size_of::<u32>() {
-            return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+            return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
         }
 
         let device = Self::bool_device(&tensor);

@@ -3,13 +3,13 @@ use std::marker::PhantomData;
 
 use crate::{
     compute::{DynamicKernel, Kernel, WorkGroup},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
         WORKGROUP_DEFAULT,
     },
     kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -19,13 +19,13 @@ kernel_wgsl!(
 );
 
 #[derive(new, Debug)]
-struct MatmulMemCoalescing<E: WgpuElement> {
+struct MatmulMemCoalescing<E: JitElement> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
+impl<E: JitElement> DynamicKernelSource for MatmulMemCoalescing<E> {
     fn source(&self) -> SourceTemplate {
         MatmulMemCoalescingRaw::source()
             .register("workgroup_size_x", self.workgroup_size_x.to_string())
@@ -40,22 +40,22 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulMemCoalescing<E> {
 }
 
 /// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
-pub fn matmul_mem_coalescing_default<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-    out: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    out: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     matmul_mem_coalescing::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-    output: WgpuTensor<R, E, D>,
+pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
     let lhs = into_contiguous(lhs);
@@ -81,7 +81,7 @@ pub fn matmul_mem_coalescing<R: Runtime, E: WgpuElement, const D: usize>(
     output
 }
 
-fn matmul_mem_coalescing_kernel<E: WgpuElement, const D: usize>(
+fn matmul_mem_coalescing_kernel<E: JitElement, const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     output_shape: &Shape<D>,
@@ -112,7 +112,7 @@ mod tests {
     use super::*;
     use crate::{
         kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
-        tests::TestJitRuntime,
+        tests::TestRuntime,
     };
 
     #[test]
@@ -168,7 +168,7 @@ mod tests {
         batch_2: usize,
     ) {
         let func = |lhs, rhs, out| {
-            matmul_mem_coalescing::<TestJitRuntime, f32, 4>(
+            matmul_mem_coalescing::<TestRuntime, f32, 4>(
                 lhs,
                 rhs,
                 out,
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
         let matmul_func =
-            |lhs, rhs, out| matmul_mem_coalescing::<TestJitRuntime, f32, 4>(lhs, rhs, out, 2, 2);
+            |lhs, rhs, out| matmul_mem_coalescing::<TestRuntime, f32, 4>(lhs, rhs, out, 2, 2);
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

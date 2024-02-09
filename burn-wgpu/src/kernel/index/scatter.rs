@@ -1,20 +1,20 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
 kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 
-pub(crate) fn scatter<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     dim: usize,
-    tensor: WgpuTensor<R, E, D>,
-    indices: WgpuTensor<R, I, D>,
-    value: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+    tensor: JitTensor<R, E, D>,
+    indices: JitTensor<R, I, D>,
+    value: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -68,7 +68,7 @@ pub(crate) fn scatter<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
+    use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
 
-        let actual = Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitRuntime, _, _, D>(
+        let actual = Tensor::<TestBackend, D>::from_primitive(scatter::<TestRuntime, _, _, D>(
             dim,
             tensor.into_primitive(),
             indices.into_primitive(),

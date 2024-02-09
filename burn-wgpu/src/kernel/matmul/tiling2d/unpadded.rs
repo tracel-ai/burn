@@ -2,9 +2,9 @@ use burn_tensor::Element;
 
 use crate::{
     compute::DynamicKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource},
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 use std::marker::PhantomData;
@@ -19,11 +19,11 @@ kernel_wgsl!(
 );
 
 #[derive(new, Debug)]
-struct MatmulTiling2DUnpadded<E: WgpuElement> {
+struct MatmulTiling2DUnpadded<E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
+impl<E: JitElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
     fn source(&self) -> SourceTemplate {
         MatmulTiling2DUnpaddedRaw::source()
             .register("b_m", B_M.to_string())
@@ -45,11 +45,11 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d_unpadded<R: Runtime, E: WgpuElement + Element, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-    out: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+pub fn matmul_tiling_2d_unpadded<R: Runtime, E: JitElement + Element, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    out: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let lhs = match lhs.batch_swapped_with_row_col() {
         true => into_contiguous(lhs),
         false => lhs,

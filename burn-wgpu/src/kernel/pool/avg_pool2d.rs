@@ -1,6 +1,6 @@
 use crate::{
     compute::{Kernel, StaticKernel},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
@@ -8,7 +8,7 @@ use crate::{
     },
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -33,13 +33,13 @@ impl<const COUNT_INCLUDE_PAD: bool> StaticKernelSource for AvgPool2d<COUNT_INCLU
     }
 }
 
-pub(crate) fn avg_pool2d<R: Runtime, E: WgpuElement>(
-    x: WgpuTensor<R, E, 4>,
+pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
+    x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> WgpuTensor<R, E, 4> {
+) -> JitTensor<R, E, 4> {
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, [1, 1]);
 
@@ -59,14 +59,14 @@ pub(crate) fn avg_pool2d<R: Runtime, E: WgpuElement>(
     output
 }
 
-pub(crate) fn avg_pool2d_backward<R: Runtime, E: WgpuElement>(
-    x: WgpuTensor<R, E, 4>,
-    grad: WgpuTensor<R, E, 4>,
+pub(crate) fn avg_pool2d_backward<R: Runtime, E: JitElement>(
+    x: JitTensor<R, E, 4>,
+    grad: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> WgpuTensor<R, E, 4> {
+) -> JitTensor<R, E, 4> {
     let grad = kernel::into_contiguous(grad);
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, [1, 1]);

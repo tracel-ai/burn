@@ -2,7 +2,7 @@ use crate::codegen::dialect::{gpu, wgsl};
 use burn_tensor::Element;
 
 /// The base element trait for the wgou backend.
-pub trait WgpuElement:
+pub trait JitElement:
     burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
 where
     Self: Sized,
@@ -15,12 +15,12 @@ where
 }
 
 /// The float element type for the wgpu backend.
-pub trait FloatElement: WgpuElement + Element {}
+pub trait FloatElement: JitElement + Element {}
 
 /// The int element type for the wgpu backend.
-pub trait IntElement: WgpuElement + Element {}
+pub trait IntElement: JitElement + Element {}
 
-impl WgpuElement for u32 {
+impl JitElement for u32 {
     fn type_name() -> &'static str {
         "u32"
     }
@@ -38,7 +38,7 @@ impl WgpuElement for u32 {
     }
 }
 
-impl WgpuElement for i32 {
+impl JitElement for i32 {
     fn type_name() -> &'static str {
         "i32"
     }
@@ -56,7 +56,7 @@ impl WgpuElement for i32 {
     }
 }
 
-impl WgpuElement for f32 {
+impl JitElement for f32 {
     fn type_name() -> &'static str {
         "f32"
     }

@@ -37,14 +37,14 @@ fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, 
     })
 }
 
-pub struct WgpuJitBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
+pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _g: PhantomData<G>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuJitBackend<G, F, I> {
-    type FullPrecisionBackend = WgpuJitBackend<G, f32, i32>;
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
+    type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
     type Compiler = wgsl::Compiler<F, I>;
     type Server = Server;
 

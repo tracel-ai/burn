@@ -3,13 +3,13 @@ use burn_tensor::Shape;
 
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -27,23 +27,23 @@ impl StaticKernelSource for UniformPrng {
 }
 
 /// Pseudo-random generatJitBackendm distribution
-pub fn random_uniform<R: Runtime, E: WgpuElement, const D: usize>(
+pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     low: E,
     high: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     let client = R::client(device);
     uniform_kernel(client, device, &shape, low, high)
 }
 
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor's client, dJitBackendpe
-pub fn random_like_uniform<R: Runtime, E: WgpuElement, const D: usize>(
-    tensor: &WgpuTensor<R, E, D>,
+pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(
+    tensor: &JitTensor<R, E, D>,
     low: E,
     high: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     uniform_kernel(
         tensor.client.clone(),
         &tensor.device,
@@ -53,13 +53,13 @@ pub fn random_like_uniform<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-fn uniform_kernel<R: Runtime, E: WgpuElement, const D: usize>(
+fn uniform_kernel<R: Runtime, E: JitElement, const D: usize>(
     client: ComputeClient<R::Server, R::Channel>,
     device: &R::Device,
     shape: &Shape<D>,
     low: E,
     high: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
     let output = empty_device(client.clone(), device.clone(), shape.clone());

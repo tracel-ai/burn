@@ -1,15 +1,15 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::compute::WgpuJitBackend;
+use burn_wgpu::compute::WgpuRuntime;
 use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory};
 use burn_wgpu::GraphicsApi;
 use burn_wgpu::WgpuDevice;
-use burn_wgpu::{AutoGraphicsApi, GpuBackend};
+use burn_wgpu::{AutoGraphicsApi, JitBackend};
 use derive_new::new;
 use std::marker::PhantomData;
 
-type WBackend<G> = GpuBackend<WgpuJitBackend<G, f32, i32>>;
+type WBackend<G> = JitBackend<WgpuRuntime<G, f32, i32>>;
 type WTensor<G, const D: usize> = Tensor<WBackend<G>, D>;
 
 #[derive(new)]

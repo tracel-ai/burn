@@ -2,13 +2,13 @@ use crate::FloatTensor;
 
 use super::Backend;
 use burn::backend::wgpu::{
-    compute::{DynamicKernel, WgpuJitBackend, WorkGroup},
+    compute::{DynamicKernel, WgpuRuntime, WorkGroup},
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
     },
     kernel_wgsl,
-    tensor::WgpuTensor,
-    FloatElement, GpuBackend, GraphicsApi, IntElement,
+    tensor::JitTensor,
+    FloatElement, JitBackend, GraphicsApi, IntElement,
 };
 use burn::tensor::Shape;
 use derive_new::new;
@@ -44,7 +44,7 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend
-    for GpuBackend<WgpuJitBackend<G, F, I>>
+    for JitBackend<WgpuRuntime<G, F, I>>
 {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
@@ -84,7 +84,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = WgpuTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(workgroup_size_x, workgroup_size_y);

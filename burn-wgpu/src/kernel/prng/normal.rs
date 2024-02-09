@@ -2,13 +2,13 @@ use burn_tensor::Shape;
 
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -31,12 +31,12 @@ impl StaticKernelSource for NormalPrng {
 }
 
 /// Pseudo-random generaJitBackendl distribution
-pub fn random_normal<R: Runtime, E: WgpuElement, const D: usize>(
+pub fn random_normal<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     mean: E,
     std: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128; // must be even
 
     let client = R::client(device);

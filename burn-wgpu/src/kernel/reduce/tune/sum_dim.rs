@@ -2,15 +2,15 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::WgpuAutotuneKey,
-    element::WgpuElement,
+    compute::JitAutotuneKey,
+    element::JitElement,
     kernel::{
         prng::random_like_uniform,
         reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory},
     },
     ops::numeric::empty_device,
     reduce_tune_ops,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -19,16 +19,16 @@ use super::ReduceAutotuneKey;
 /// Set of sum_dim implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of
 /// dim to reduce, and product of others
-pub struct SumDimAutotuneOperationSet<R: Runtime, E: WgpuElement, const D: usize> {
-    key: WgpuAutotuneKey,
-    input: WgpuTensor<R, E, D>,
-    output: WgpuTensor<R, E, D>,
+pub struct SumDimAutotuneOperationSet<R: Runtime, E: JitElement, const D: usize> {
+    key: JitAutotuneKey,
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     reduce_dim: usize,
 }
-impl<R: Runtime, E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<R, E, D> {
-    fn new(input: WgpuTensor<R, E, D>, output: WgpuTensor<R, E, D>, reduce_dim: usize) -> Self {
+impl<R: Runtime, E: JitElement, const D: usize> SumDimAutotuneOperationSet<R, E, D> {
+    fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::SumDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,
@@ -40,10 +40,10 @@ impl<R: Runtime, E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<R, E
     }
 }
 
-impl<R: Runtime, E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
+impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<JitAutotuneKey>
     for SumDimAutotuneOperationSet<R, E, D>
 {
-    fn key(&self) -> WgpuAutotuneKey {
+    fn key(&self) -> JitAutotuneKey {
         self.key.clone()
     }
 
@@ -91,10 +91,10 @@ impl<R: Runtime, E: WgpuElement + Element, const D: usize> AutotuneOperationSet<
 }
 
 /// Executes autotune on sum_dim operation
-pub fn sum_dim_autotune<R: Runtime, E: WgpuElement + Element, const D: usize>(
-    input: WgpuTensor<R, E, D>,
+pub fn sum_dim_autotune<R: Runtime, E: JitElement + Element, const D: usize>(
+    input: JitTensor<R, E, D>,
     reduce_dim: usize,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     let client = input.client.clone();
 
     let output = init_reduce_output(&input, reduce_dim);

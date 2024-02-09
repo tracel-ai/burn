@@ -77,7 +77,7 @@ mod tests {
         binary,
         codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
-        tests::{TestCompiler, TestJitRuntime},
+        tests::{TestCompiler, TestRuntime},
         Runtime, WgpuDevice,
     };
 
@@ -94,7 +94,7 @@ mod tests {
             elem_out: f32
         );
 
-        let client = TestJitRuntime::client(&WgpuDevice::default());
+        let client = TestRuntime::client(&WgpuDevice::default());
 
         let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];

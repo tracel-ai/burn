@@ -13,9 +13,9 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
-use crate::tensor::WgpuTensor;
+use crate::tensor::JitTensor;
 use crate::Runtime;
-use crate::{unary, GpuBackend};
+use crate::{unary, JitBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
@@ -23,7 +23,7 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<R: Runtime> FloatTensorOps<Self> for GpuBackend<R> {
+impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
@@ -352,15 +352,15 @@ impl<R: Runtime> FloatTensorOps<Self> for GpuBackend<R> {
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
         let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());
         // The line bellow does the backend type cast.
-        WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
+        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        let tensor = kernel::cast::<R::FullPrecisionBackend, f32, FloatElem<Self>, D>(tensor);
+        let tensor = kernel::cast::<R::FullPrecisionRuntime, f32, FloatElem<Self>, D>(tensor);
         // The line bellow does the backend type cast.
-        WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
+        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {

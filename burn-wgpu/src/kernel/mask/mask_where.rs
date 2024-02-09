@@ -1,21 +1,21 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
 kernel_wgsl!(MaskWhere, "../../template/mask/where.wgsl");
 kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
 
-pub fn mask_where<R: Runtime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<R, E, D>,
-    mask: WgpuTensor<R, u32, D>,
-    value: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    mask: JitTensor<R, u32, D>,
+    value: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -26,7 +26,7 @@ pub fn mask_where<R: Runtime, E: WgpuElement, const D: usize>(
     let kernel = StaticKernel::<
         KernelSettings<MaskWhere, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
+    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let info = build_info(&[&input, &value, &mask, &output]);
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
@@ -44,19 +44,19 @@ pub fn mask_where<R: Runtime, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_where_inplace<R: Runtime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<R, E, D>,
-    mask: WgpuTensor<R, u32, D>,
-    value: WgpuTensor<R, E, D>,
+pub fn mask_where_inplace<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    mask: JitTensor<R, u32, D>,
+    value: JitTensor<R, E, D>,
     reverse: bool,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     let kernel = StaticKernel::<
         KernelSettings<MaskWhereInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(
         input.shape.num_elements(),
         WORKGROUP_DEFAULT,
     ));
-    let mask = WgpuTensor::new(mask.client, mask.device, mask.shape, mask.handle);
+    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
     let mut info = build_info(&[&input, &value, &mask]);
     info.push(match reverse {
         true => 1,
@@ -75,7 +75,7 @@ pub fn mask_where_inplace<R: Runtime, E: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
+    use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor};
 
     #[test]
@@ -83,7 +83,7 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestJitRuntime, f32, 3>(
+            Tensor::<TestBackend, 3>::from_primitive(mask_where::<TestRuntime, f32, 3>(
                 tensor.into_primitive(),
                 mask.into_primitive(),
                 value.into_primitive(),
@@ -99,7 +99,7 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestJitRuntime, f32, 3>(
+            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestRuntime, f32, 3>(
                 tensor.into_primitive(),
                 mask.into_primitive(),
                 value.into_primitive(),
@@ -117,7 +117,7 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestJitRuntime, f32, 3>(
+            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestRuntime, f32, 3>(
                 value.into_primitive(),
                 mask.into_primitive(),
                 tensor.into_primitive(),

@@ -3,21 +3,21 @@ use std::ops::Range;
 use burn_tensor::{Element, Shape};
 
 use crate::{
-    element::WgpuElement,
+    element::JitElement,
     kernel::{slice_assign, slice_on_output},
     ops::numeric::zeros_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
-pub(super) enum PaddingOutput<R: Runtime, E: WgpuElement, const D: usize> {
-    Padded(WgpuTensor<R, E, D>),
-    Unchanged(WgpuTensor<R, E, D>),
+pub(super) enum PaddingOutput<R: Runtime, E: JitElement, const D: usize> {
+    Padded(JitTensor<R, E, D>),
+    Unchanged(JitTensor<R, E, D>),
 }
 
-impl<R: Runtime, E: WgpuElement, const D: usize> PaddingOutput<R, E, D> {
-    pub fn into_tensor(self) -> WgpuTensor<R, E, D> {
+impl<R: Runtime, E: JitElement, const D: usize> PaddingOutput<R, E, D> {
+    pub fn into_tensor(self) -> JitTensor<R, E, D> {
         match self {
             PaddingOutput::Padded(tensor) => tensor,
             PaddingOutput::Unchanged(tensor) => tensor,
@@ -29,8 +29,8 @@ impl<R: Runtime, E: WgpuElement, const D: usize> PaddingOutput<R, E, D> {
 /// divisible by some quantity.
 /// For instance tensor of shape [1000, 1000] with divisors 64 and 64
 /// will be padded to [1024, 1024] with the last 24 elements being zeros
-pub(super) fn pad_round<R: Runtime, E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
+pub(super) fn pad_round<R: Runtime, E: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     row_divisor: usize,
     col_divisor: usize,
 ) -> PaddingOutput<R, E, D> {
@@ -62,10 +62,10 @@ pub(super) fn pad_round<R: Runtime, E: WgpuElement, const D: usize>(
 }
 
 /// Pads tensor by adding zeros when padded dim is larger than tensor dim
-fn padding<R: Runtime, E: WgpuElement + Element, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
+fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     padded_shape: Shape<D>,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     let ranges = padded_shape
         .dims
         .iter()
@@ -82,10 +82,10 @@ fn padding<R: Runtime, E: WgpuElement + Element, const D: usize>(
 }
 
 /// Crops tensor by deleting values when cropped dim is smaller than tensor dim
-pub(super) fn crop<R: Runtime, E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
-    output: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+pub(super) fn crop<R: Runtime, E: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let ranges = output
         .shape
         .dims

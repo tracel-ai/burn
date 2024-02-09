@@ -1,8 +1,8 @@
 use super::StaticKernelSource;
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -59,7 +59,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -84,7 +84,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -124,7 +124,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -155,7 +155,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -187,14 +187,14 @@ macro_rules! unary {
 
 /// Launch an unary operation.
 pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
+    tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-) -> WgpuTensor<R, E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
         execute_static::<R, KernelInplace, E>(
@@ -213,7 +213,7 @@ where
     } else {
         let num_elems = tensor.shape.num_elements();
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(
+        let output = JitTensor::new(
             tensor.client.clone(),
             tensor.device,
             tensor.shape.clone(),
@@ -244,7 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitRuntime};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
@@ -263,7 +263,7 @@ mod tests {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
         let actual =
-            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestJitRuntime, f32, 2>(
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
                 tensor.into_primitive(),
                 None,
                 true,
@@ -284,7 +284,7 @@ mod tests {
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
         let actual =
-            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestJitRuntime, f32, 2>(
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
                 tensor.into_primitive(),
                 None,
                 true,

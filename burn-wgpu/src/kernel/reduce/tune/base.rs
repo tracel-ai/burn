@@ -3,13 +3,13 @@
 macro_rules! reduce_tune_ops {
     ($name:ident, $func:expr) => {
         #[derive(new)]
-        pub(crate) struct $name<R: Runtime, E: WgpuElement, const D: usize> {
-            input: WgpuTensor<R, E, D>,
-            output: WgpuTensor<R, E, D>,
+        pub(crate) struct $name<R: Runtime, E: JitElement, const D: usize> {
+            input: JitTensor<R, E, D>,
+            output: JitTensor<R, E, D>,
             reduce_dim: usize,
         }
 
-        impl<R: Runtime, E: WgpuElement, const D: usize> AutotuneOperation for $name<R, E, D> {
+        impl<R: Runtime, E: JitElement, const D: usize> AutotuneOperation for $name<R, E, D> {
             fn execute(self: Box<Self>) {
                 #[allow(clippy::redundant_closure_call)]
                 $func(self.input, self.output, self.reduce_dim);

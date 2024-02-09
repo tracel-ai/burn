@@ -3,9 +3,9 @@ use burn_compute::{client::ComputeClient, server::Handle};
 use super::SourceTemplate;
 use crate::{
     compute::{StaticKernel, WorkGroup},
-    element::WgpuElement,
+    element::JitElement,
     kernel,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 use std::marker::PhantomData;
@@ -51,16 +51,16 @@ macro_rules! kernel_wgsl {
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
 /// Make a wgpu tensor contiguous.
-pub fn into_contiguous<R: Runtime, E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, E, D> {
+pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     if tensor.is_contiguous() {
         return tensor;
     }
 
     let num_elems = tensor.shape.num_elements();
     let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(
+    let output = JitTensor::new(
         tensor.client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),
@@ -81,7 +81,7 @@ pub fn into_contiguous<R: Runtime, E: WgpuElement, const D: usize>(
 }
 
 /// Similar to [into contiguous](into_contiguous) but with dynamic rank.
-pub fn into_contiguous_dyn<R: Runtime, E: WgpuElement>(
+pub fn into_contiguous_dyn<R: Runtime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     input: Handle<R::Server>,
     input_shape: &[usize],
@@ -110,8 +110,8 @@ pub fn into_contiguous_dyn<R: Runtime, E: WgpuElement>(
 /// Generates kernel source code by replacing some information using templating.
 pub struct KernelSettings<
     K: StaticKernelSource,
-    E: WgpuElement,
-    I: WgpuElement,
+    E: JitElement,
+    I: JitElement,
     const WORKGROUP_X_SIZE: usize,
     const WORKGROUP_Y_SIZE: usize,
     const WORKGROUP_Z_SIZE: usize,
@@ -123,8 +123,8 @@ pub struct KernelSettings<
 
 impl<
         K: StaticKernelSource,
-        E: WgpuElement,
-        I: WgpuElement,
+        E: JitElement,
+        I: JitElement,
         const WORKGROUP_X_SIZE: usize,
         const WORKGROUP_Y_SIZE: usize,
         const WORKGROUP_Z_SIZE: usize,
@@ -147,7 +147,7 @@ impl<
 
 /// Generate kernel source code by replacing some information using templating.
 #[derive(new)]
-pub struct DynamicKernelSettings<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> {
+pub struct DynamicKernelSettings<K: StaticKernelSource, E: JitElement, I: JitElement> {
     workgroup_x_size: usize,
     workgroup_y_size: usize,
     workgroup_z_size: usize,
@@ -156,7 +156,7 @@ pub struct DynamicKernelSettings<K: StaticKernelSource, E: WgpuElement, I: WgpuE
     _i: PhantomData<I>,
 }
 
-impl<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> DynamicKernelSource
+impl<K: StaticKernelSource, E: JitElement, I: JitElement> DynamicKernelSource
     for DynamicKernelSettings<K, E, I>
 {
     fn source(&self) -> SourceTemplate {
@@ -195,8 +195,8 @@ impl<K: StaticKernelSource, E: WgpuElement, I: WgpuElement> DynamicKernelSource
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: Runtime, E: WgpuElement, const D: usize>(
-    tensors: &[&WgpuTensor<R, E, D>],
+pub fn build_info<R: Runtime, E: JitElement, const D: usize>(
+    tensors: &[&JitTensor<R, E, D>],
 ) -> Vec<u32> {
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
     info[0] = D as u32;
@@ -218,7 +218,7 @@ pub fn build_info<R: Runtime, E: WgpuElement, const D: usize>(
 }
 
 /// Similar to [build info](build_info) but with dynamic rank.
-pub fn build_info_dyn<E: WgpuElement>(shapes: &[&[usize]], strides: &[&[usize]]) -> Vec<u32> {
+pub fn build_info_dyn<E: JitElement>(shapes: &[&[usize]], strides: &[&[usize]]) -> Vec<u32> {
     let rank = shapes.first().unwrap().len();
     let mut info: Vec<u32> = vec![0; shapes.len() * 2 * rank + 1];
     info[0] = rank as u32;

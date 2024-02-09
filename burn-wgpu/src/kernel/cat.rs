@@ -1,9 +1,9 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings},
     kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -11,10 +11,10 @@ use super::WORKGROUP_DEFAULT;
 
 kernel_wgsl!(Cat, "../template/cat.wgsl");
 
-pub fn cat<R: Runtime, E: WgpuElement, const D: usize>(
-    inputs: Vec<WgpuTensor<R, E, D>>,
+pub fn cat<R: Runtime, E: JitElement, const D: usize>(
+    inputs: Vec<JitTensor<R, E, D>>,
     dim: usize,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     let first_input = inputs.first().unwrap();
     let client = &first_input.client;
     let mut shape_output = first_input.shape.clone();
@@ -24,7 +24,7 @@ pub fn cat<R: Runtime, E: WgpuElement, const D: usize>(
         .client
         .empty(shape_output.num_elements() * std::mem::size_of::<E>());
 
-    let output = WgpuTensor::new(
+    let output = JitTensor::new(
         client.clone(),
         first_input.device.clone(),
         shape_output,

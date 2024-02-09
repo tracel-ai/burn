@@ -1,16 +1,16 @@
 use super::unary;
 use crate::{
     codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
     unary, Runtime,
 };
 
-pub(crate) fn clamp<R: Runtime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<R, E, D>,
+pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
     min_value: E,
     max_value: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     unary!(
         operation: |elem| Operation::Clamp(ClampOperation {
             input: Variable::Input(0, Item::Scalar(elem)),

@@ -1,6 +1,6 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
-    element::WgpuElement, fusion::ElementWiseBuilder, tensor::WgpuTensor, GpuBackend, Runtime,
+    element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, JitBackend, Runtime,
     WgpuDevice,
 };
 use burn_compute::client::ComputeClient;
@@ -26,8 +26,8 @@ pub enum WgpuOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<R: Runtime> burn_fusion::Optimization<GpuBackend<R>> for WgpuOptimization<R> {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, GpuBackend<R>>) {
+impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for WgpuOptimization<R> {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -66,7 +66,7 @@ impl FusionDevice for WgpuDevice {
     }
 }
 
-impl<R: Runtime> FusionBackend for GpuBackend<R> {
+impl<R: Runtime> FusionBackend for JitBackend<R> {
     type OptimizationState = WgpuOptimizationState;
     type Optimization = WgpuOptimization<R>;
     type FusionDevice = R::Device;
@@ -157,11 +157,11 @@ unsafe impl<R: Runtime> Send for WgpuFusionHandle<R> {}
 unsafe impl<R: Runtime> Sync for WgpuFusionHandle<R> {}
 
 impl<R: Runtime> WgpuFusionHandle<R> {
-    pub(crate) fn into_tensor<const D: usize, E: WgpuElement>(
+    pub(crate) fn into_tensor<const D: usize, E: JitElement>(
         self,
         shape: Shape<D>,
-    ) -> WgpuTensor<R, E, D> {
-        WgpuTensor {
+    ) -> JitTensor<R, E, D> {
+        JitTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
@@ -172,8 +172,8 @@ impl<R: Runtime> WgpuFusionHandle<R> {
     }
 }
 
-impl<R: Runtime, E: WgpuElement, const D: usize> From<WgpuTensor<R, E, D>> for WgpuFusionHandle<R> {
-    fn from(value: WgpuTensor<R, E, D>) -> Self {
+impl<R: Runtime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for WgpuFusionHandle<R> {
+    fn from(value: JitTensor<R, E, D>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,
@@ -186,10 +186,10 @@ impl<R: Runtime, E: WgpuElement, const D: usize> From<WgpuTensor<R, E, D>> for W
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::TestJitRuntime;
+    use crate::tests::TestRuntime;
     use burn_fusion::Fusion;
 
-    pub type TestBackend = Fusion<GpuBackend<TestJitRuntime>>;
+    pub type TestBackend = Fusion<JitBackend<TestRuntime>>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

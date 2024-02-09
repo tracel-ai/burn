@@ -1,10 +1,10 @@
 use crate::{
     binary,
     codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
-    element::WgpuElement,
+    element::JitElement,
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     unary, Runtime,
 };
 use std::mem;
@@ -46,10 +46,10 @@ macro_rules! comparison {
     }};
 }
 
-pub fn equal<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D> {
+pub fn equal<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -62,10 +62,10 @@ pub fn equal<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D> {
+pub fn greater<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -78,10 +78,10 @@ pub fn greater<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_equal<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D> {
+pub fn greater_equal<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -94,10 +94,10 @@ pub fn greater_equal<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D> {
+pub fn lower<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -110,10 +110,10 @@ pub fn lower<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_equal<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D> {
+pub fn lower_equal<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -126,10 +126,10 @@ pub fn lower_equal<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
+pub fn equal_elem<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<R, u32, D> {
+) -> JitTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -142,10 +142,10 @@ pub fn equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_elem<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
+pub fn greater_elem<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<R, u32, D> {
+) -> JitTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -158,10 +158,10 @@ pub fn greater_elem<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_elem<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
+pub fn lower_elem<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<R, u32, D> {
+) -> JitTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -174,10 +174,10 @@ pub fn lower_elem<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn greater_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
+pub fn greater_equal_elem<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<R, u32, D> {
+) -> JitTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -190,10 +190,10 @@ pub fn greater_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
     )
 }
 
-pub fn lower_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
+pub fn lower_equal_elem<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<R, u32, D> {
+) -> JitTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
@@ -207,14 +207,14 @@ pub fn lower_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
 }
 
 fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-) -> WgpuTensor<R, u32, D>
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplaceLhs: StaticKernelSource,
     KernelInplaceRhs: StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
@@ -225,17 +225,17 @@ where
     );
 
     // We recast the tensor type.
-    WgpuTensor::new(output.client, output.device, output.shape, output.handle)
+    JitTensor::new(output.client, output.device, output.shape, output.handle)
 }
 
 fn launch_unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
-    tensor: WgpuTensor<R, E, D>,
+    tensor: JitTensor<R, E, D>,
     scalars: E,
-) -> WgpuTensor<R, u32, D>
+) -> JitTensor<R, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
@@ -243,5 +243,5 @@ where
         unary::<Kernel, KernelInplace, R, E, D>(tensor, Some(&[scalars]), can_be_used_as_bool);
 
     // We recast the tensor type.
-    WgpuTensor::new(output.client, output.device, output.shape, output.handle)
+    JitTensor::new(output.client, output.device, output.shape, output.handle)
 }

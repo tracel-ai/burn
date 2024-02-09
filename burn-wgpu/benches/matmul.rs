@@ -1,13 +1,13 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
-use burn_wgpu::compute::WgpuJitBackend;
+use burn_wgpu::compute::WgpuRuntime;
 use burn_wgpu::kernel::matmul::init_matmul_output;
 use burn_wgpu::kernel::matmul::unpadded::matmul_tiling_2d_unpadded;
 use burn_wgpu::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use burn_wgpu::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs;
 use burn_wgpu::WgpuDevice;
-use burn_wgpu::{AutoGraphicsApi, GpuBackend};
+use burn_wgpu::{AutoGraphicsApi, JitBackend};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -16,7 +16,7 @@ use burn_wgpu::{
     GraphicsApi,
 };
 
-type WBackend<G> = GpuBackend<WgpuJitBackend<G, f32, i32>>;
+type WBackend<G> = JitBackend<WgpuRuntime<G, f32, i32>>;
 type WTensor<G, const D: usize> = Tensor<WBackend<G>, D>;
 
 #[derive(new)]

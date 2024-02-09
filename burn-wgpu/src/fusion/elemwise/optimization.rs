@@ -8,9 +8,9 @@ use crate::{
     codegen::{
         compiler::Compiler, ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy,
     },
-    compute::WgpuAutotuneKey,
+    compute::JitAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    GpuBackend, Runtime,
+    JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
@@ -168,10 +168,10 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
 }
 
 impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<R>>) {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitBackend<R>>) {
         let client = R::client(&self.device);
 
-        let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
+        let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.operators.len(),
             self.autotune_shape(context),
         ));
@@ -185,7 +185,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, GpuBackend<R>>,
+        context: &mut Context<'_, JitBackend<R>>,
         client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
@@ -211,9 +211,9 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, GpuBackend<R>>,
+        context: &mut Context<'_, JitBackend<R>>,
         client: ComputeClient<R::Server, R::Channel>,
-        key: WgpuAutotuneKey,
+        key: JitAutotuneKey,
     ) {
         let kernel_1 = self.phase.kernel_set_1.select(
             &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
@@ -261,7 +261,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, GpuBackend<R>>,
+        context: &mut Context<'a, JitBackend<R>>,
     ) -> &'a [usize] {
         if let Some(tensor) = self.outputs.first() {
             let tensor = context.tensors.get(&tensor.0.id).unwrap();
@@ -394,8 +394,8 @@ fn build_kernel_set<R: Runtime>(
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::TestJitRuntime;
-    use crate::GpuBackend;
+    use crate::tests::TestRuntime;
+    use crate::JitBackend;
 
     use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior() {
-        type Backend = GpuBackend<TestJitRuntime>;
+        type Backend = JitBackend<TestRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -467,7 +467,7 @@ mod tests {
             z.into_data().convert()
         }
 
-        type Backend = GpuBackend<TestJitRuntime>;
+        type Backend = JitBackend<TestRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior_different_variant() {
-        type Backend = GpuBackend<TestJitRuntime>;
+        type Backend = JitBackend<TestRuntime>;
         type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_end_condition_scalar_ops() {
-        type Backend = GpuBackend<TestJitRuntime>;
+        type Backend = JitBackend<TestRuntime>;
         let device = Default::default();
         let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
         let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);

@@ -1,12 +1,12 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 use burn_tensor::Shape;
@@ -28,11 +28,11 @@ impl StaticKernelSource for BernoulliPrng {
 }
 
 /// Pseudo-random generator for bernoulli
-pub fn random_bernoulli<R: Runtime, E: WgpuElement, const D: usize>(
+pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     prob: E,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
     let client = R::client(device);

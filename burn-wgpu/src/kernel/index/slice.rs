@@ -1,10 +1,10 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 use burn_tensor::Shape;
@@ -16,10 +16,10 @@ kernel_wgsl!(
     "../../template/index/slice_assign_inplace.wgsl"
 );
 
-pub(crate) fn slice<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
-    tensor: WgpuTensor<R, E, D1>,
+pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+    tensor: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-) -> WgpuTensor<R, E, D1> {
+) -> JitTensor<R, E, D1> {
     let mut dims = tensor.shape.dims;
     for i in 0..D2 {
         dims[i] = indices[i].end - indices[i].start;
@@ -29,11 +29,11 @@ pub(crate) fn slice<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize
     slice_on_output(tensor, output, indices)
 }
 
-pub(crate) fn slice_on_output<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
-    tensor: WgpuTensor<R, E, D1>,
-    output: WgpuTensor<R, E, D1>,
+pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+    tensor: JitTensor<R, E, D1>,
+    output: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-) -> WgpuTensor<R, E, D1> {
+) -> JitTensor<R, E, D1> {
     let mut info = build_info(&[&tensor, &output]);
 
     for i in 0..D1 {
@@ -58,11 +58,11 @@ pub(crate) fn slice_on_output<R: Runtime, E: WgpuElement, const D1: usize, const
     output
 }
 
-pub(crate) fn slice_assign<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
-    tensor: WgpuTensor<R, E, D1>,
+pub(crate) fn slice_assign<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+    tensor: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-    value: WgpuTensor<R, E, D1>,
-) -> WgpuTensor<R, E, D1> {
+    value: JitTensor<R, E, D1>,
+) -> JitTensor<R, E, D1> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -92,7 +92,7 @@ pub(crate) fn slice_assign<R: Runtime, E: WgpuElement, const D1: usize, const D2
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestJitRuntime};
+    use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -124,7 +124,7 @@ mod tests {
         let value_ref =
             Tensor::<ReferenceBackend, 2>::from_data(value.to_data(), &Default::default());
 
-        let actual = slice_assign::<TestJitRuntime, _, 2, 2>(
+        let actual = slice_assign::<TestRuntime, _, 2, 2>(
             tensor.into_primitive(),
             indices.clone(),
             value.into_primitive(),

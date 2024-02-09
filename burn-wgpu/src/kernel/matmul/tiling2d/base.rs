@@ -1,10 +1,10 @@
 use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
     compute::{DynamicKernel, WorkGroup},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 use burn_compute::server::Handle;
@@ -26,10 +26,10 @@ pub(super) fn make_workgroup<const D: usize>(output_shape: &Shape<D>) -> WorkGro
     WorkGroup::new(num_blocks_x, num_blocks_y, num_blocks_z as u32)
 }
 
-pub(super) fn make_info_handle<R: Runtime, E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<R, E, D>,
-    rhs: &WgpuTensor<R, E, D>,
-    output: &WgpuTensor<R, E, D>,
+pub(super) fn make_info_handle<R: Runtime, E: JitElement, const D: usize>(
+    lhs: &JitTensor<R, E, D>,
+    rhs: &JitTensor<R, E, D>,
+    output: &JitTensor<R, E, D>,
 ) -> Handle<R::Server> {
     let info = build_info(&[lhs, rhs, output]);
     rhs.client.create(bytemuck::cast_slice(&info))
@@ -38,15 +38,15 @@ pub(super) fn make_info_handle<R: Runtime, E: WgpuElement, const D: usize>(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn matmul_tiling_2d_launch<
     R: Runtime,
-    E: WgpuElement,
+    E: JitElement,
     const D: usize,
     K: DynamicKernelSource + 'static,
 >(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
-    output: WgpuTensor<R, E, D>,
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     kernel: K,
-) -> WgpuTensor<R, E, D> {
+) -> JitTensor<R, E, D> {
     // A tensor may need to be padded, in which case it will implicitly become contiguous
     // If not needed, it is only turned into contiguous if some batch dim has been swapped with row or col dim.
     // If batches were swapped among themselves, or if the last two dims are transposed, the underlying

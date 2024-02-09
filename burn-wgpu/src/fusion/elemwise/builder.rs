@@ -7,9 +7,9 @@ use crate::{
         },
         Compiler,
     },
-    element::WgpuElement,
+    element::JitElement,
     fusion::WgpuOptimization,
-    GpuBackend, Runtime,
+    JitBackend, Runtime,
 };
 use burn_fusion::{
     stream::{
@@ -48,31 +48,31 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
 
         match ops {
             OperationDescription::BaseFloat(ops) => {
-                if !self.register_base::<FloatElem<GpuBackend<R>>>(ops) {
+                if !self.register_base::<FloatElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::BaseInt(ops) => {
-                if !self.register_base::<IntElem<GpuBackend<R>>>(ops) {
+                if !self.register_base::<IntElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::Float(ops) => {
-                if !self.register_float::<FloatElem<GpuBackend<R>>>(ops) {
+                if !self.register_float::<FloatElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericFloat(ops) => {
-                if !self.register_numeric::<FloatElem<GpuBackend<R>>, _>(ops) {
+                if !self.register_numeric::<FloatElem<JitBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericInt(ops) => {
-                if !self.register_numeric::<IntElem<GpuBackend<R>>, _>(ops) {
+                if !self.register_numeric::<IntElem<JitBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -139,7 +139,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
 }
 
 impl<R: Runtime> ElementWiseBuilder<R> {
-    pub fn new(device: Device<GpuBackend<R>>) -> Self {
+    pub fn new(device: Device<JitBackend<R>>) -> Self {
         Self {
             inputs: Vec::new(),
             locals: HashMap::new(),
@@ -398,7 +398,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
         Variable::Local(local_index, Item::Scalar(elem))
     }
 
-    fn register_base<E: WgpuElement>(&mut self, ops: &BaseOperationDescription) -> bool {
+    fn register_base<E: JitElement>(&mut self, ops: &BaseOperationDescription) -> bool {
         match ops {
             BaseOperationDescription::Equal(desc) => self.register_binary_ops(
                 desc,
@@ -409,7 +409,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
         }
     }
 
-    fn register_float<E: WgpuElement>(&mut self, ops: &FloatOperationDescription) -> bool {
+    fn register_float<E: JitElement>(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
             FloatOperationDescription::Exp(desc) => {
                 self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
@@ -460,7 +460,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
         }
     }
 
-    fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
+    fn register_numeric<E: JitElement, EDesc: JitElement>(
         &mut self,
         ops: &NumericOperationDescription<EDesc>,
     ) -> bool {

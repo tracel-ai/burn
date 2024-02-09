@@ -1,18 +1,18 @@
 use super::{KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::{
-    compute::StaticKernel, element::WgpuElement, kernel::elemwise_workgroup, kernel_wgsl,
-    tensor::WgpuTensor, Runtime,
+    compute::StaticKernel, element::JitElement, kernel::elemwise_workgroup, kernel_wgsl,
+    tensor::JitTensor, Runtime,
 };
 use std::{any::TypeId, marker::PhantomData};
 
 kernel_wgsl!(CastRaw, "../template/cast.wgsl");
 
-struct Cast<InputElem: WgpuElement, OutputElem: WgpuElement> {
+struct Cast<InputElem: JitElement, OutputElem: JitElement> {
     _i: PhantomData<InputElem>,
     _o: PhantomData<OutputElem>,
 }
 
-impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
+impl<InputElem: JitElement, OutputElem: JitElement> StaticKernelSource
     for Cast<InputElem, OutputElem>
 {
     fn source() -> SourceTemplate {
@@ -23,11 +23,11 @@ impl<InputElem: WgpuElement, OutputElem: WgpuElement> StaticKernelSource
 }
 
 /// Cast a tensor to the given element type.
-pub fn cast<R: Runtime, InputElem: WgpuElement, OutputElem: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<R, InputElem, D>,
-) -> WgpuTensor<R, OutputElem, D> {
+pub fn cast<R: Runtime, InputElem: JitElement, OutputElem: JitElement, const D: usize>(
+    tensor: JitTensor<R, InputElem, D>,
+) -> JitTensor<R, OutputElem, D> {
     if TypeId::of::<InputElem>() == TypeId::of::<OutputElem>() {
-        return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+        return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
     }
 
     let num_elems = tensor.shape.num_elements();
@@ -45,7 +45,7 @@ pub fn cast<R: Runtime, InputElem: WgpuElement, OutputElem: WgpuElement, const D
     let handle = tensor
         .client
         .empty(num_elems * core::mem::size_of::<OutputElem>());
-    let output = WgpuTensor::new(
+    let output = JitTensor::new(
         tensor.client.clone(),
         tensor.device,
         tensor.shape.clone(),
@@ -62,7 +62,7 @@ pub fn cast<R: Runtime, InputElem: WgpuElement, OutputElem: WgpuElement, const D
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{TestBackend, TestJitRuntime};
+    use crate::tests::{TestBackend, TestRuntime};
     use burn_tensor::{Int, Tensor};
 
     #[test]
@@ -72,7 +72,7 @@ mod tests {
 
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(START as i64..END as i64, &device);
-        let tensor_float = cast::<TestJitRuntime, i32, f32, 1>(tensor.clone().into_primitive());
+        let tensor_float = cast::<TestRuntime, i32, f32, 1>(tensor.clone().into_primitive());
 
         let data_int = tensor.into_data();
         let data_float = Tensor::<TestBackend, 1>::from_primitive(tensor_float).into_data();

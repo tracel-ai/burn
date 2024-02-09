@@ -20,7 +20,7 @@ pub(crate) mod tune;
 
 mod element;
 pub use codegen::dialect::wgsl;
-use compute::WgpuJitBackend;
+use compute::WgpuRuntime;
 pub use element::{FloatElement, IntElement};
 
 mod device;
@@ -28,6 +28,8 @@ pub use device::*;
 
 mod backend;
 pub use backend::*;
+mod runtime;
+pub use runtime::*;
 
 mod graphics;
 pub use graphics::*;
@@ -53,7 +55,7 @@ mod fusion;
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
 pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
-    burn_fusion::Fusion<GpuBackend<WgpuJitBackend<G, F, I>>>;
+    burn_fusion::Fusion<JitBackend<WgpuRuntime<G, F, I>>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -72,16 +74,16 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = GpuBackend<WgpuJitBackend<G, F, I>>;
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::WgpuJitBackend;
+    use crate::compute::WgpuRuntime;
 
     pub type TestCompiler = wgsl::Compiler<f32, i32>;
-    pub type TestJitRuntime = WgpuJitBackend<AutoGraphicsApi, f32, i32>;
-    pub type TestBackend = GpuBackend<TestJitRuntime>;
+    pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
+    pub type TestBackend = JitBackend<TestRuntime>;
     pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

@@ -1,7 +1,7 @@
 use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
-use crate::GpuBackend;
+use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
@@ -126,8 +126,8 @@ impl<R: Runtime> FusionKernelSet<R> {
         outputs: &[&TensorDescription],
         scalars_f32: usize,
         scalars_i32: usize,
-        context: &mut Context<'_, GpuBackend<R>>,
-        device: Device<GpuBackend<R>>,
+        context: &mut Context<'_, JitBackend<R>>,
+        device: Device<JitBackend<R>>,
         client: ComputeClient<R::Server, R::Channel>,
         stateful: bool,
     ) -> ExecutableKernel<R> {
@@ -266,7 +266,7 @@ fn register_info_tensor<R: Runtime>(
 fn process_inputs_outputs<'a, R: Runtime>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, GpuBackend<R>>,
+    context: &'a mut Context<'_, JitBackend<R>>,
     stateful: bool,
 ) -> (
     Vec<WgpuFusionHandle<R>>,

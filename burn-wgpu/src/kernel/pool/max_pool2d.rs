@@ -1,6 +1,6 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{
         self, elemwise_workgroup,
         pool::{build_output_and_info_pool2d, build_pool2d_info},
@@ -8,7 +8,7 @@ use crate::{
     },
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -22,13 +22,13 @@ kernel_wgsl!(
     "../../template/pool/max_pool2d_with_indices.wgsl"
 );
 
-pub(crate) fn max_pool2d<R: Runtime, E: WgpuElement>(
-    x: WgpuTensor<R, E, 4>,
+pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
+    x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> WgpuTensor<R, E, 4> {
+) -> JitTensor<R, E, 4> {
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let kernel = StaticKernel::<
@@ -44,13 +44,13 @@ pub(crate) fn max_pool2d<R: Runtime, E: WgpuElement>(
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<R: Runtime, E: WgpuElement, I: WgpuElement>(
-    x: WgpuTensor<R, E, 4>,
+pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
+    x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (WgpuTensor<R, E, 4>, WgpuTensor<R, I, 4>) {
+) -> (JitTensor<R, E, 4>, JitTensor<R, I, 4>) {
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let indices = empty_device(x.client.clone(), x.device, output.shape.clone());
@@ -70,21 +70,21 @@ pub(crate) fn max_pool2d_with_indices<R: Runtime, E: WgpuElement, I: WgpuElement
     (output, indices)
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: WgpuElement, I: WgpuElement>(
-    x: WgpuTensor<R, E, 4>,
-    grad: WgpuTensor<R, E, 4>,
-    indices: WgpuTensor<R, I, 4>,
+pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: JitElement, I: JitElement>(
+    x: JitTensor<R, E, 4>,
+    grad: JitTensor<R, E, 4>,
+    indices: JitTensor<R, I, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> WgpuTensor<R, E, 4> {
+) -> JitTensor<R, E, 4> {
     let grad = kernel::into_contiguous(grad);
     let indices = kernel::into_contiguous(indices);
 
     let num_elems = x.shape.num_elements();
     let buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = WgpuTensor::new(x.client.clone(), x.device.clone(), x.shape.clone(), buffer);
+    let output = JitTensor::new(x.client.clone(), x.device.clone(), x.shape.clone(), buffer);
 
     let info_handle = build_pool2d_info(&x, &grad, kernel_size, stride, padding, dilation);
 

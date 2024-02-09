@@ -1,7 +1,7 @@
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
     Runtime,
 };
 use burn_tensor::Shape;
@@ -53,8 +53,8 @@ macro_rules! binary {
         impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -87,8 +87,8 @@ macro_rules! binary {
             for OpsInplaceLhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -122,8 +122,8 @@ macro_rules! binary {
             for OpsInplaceRhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -156,15 +156,15 @@ macro_rules! binary {
 
 /// Launch an binary operation.
 pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
-    lhs: WgpuTensor<R, E, D>,
-    rhs: WgpuTensor<R, E, D>,
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
     inplace_enabled: bool,
-) -> WgpuTensor<R, E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: crate::kernel::StaticKernelSource,
     KernelInplaceLhs: crate::kernel::StaticKernelSource,
     KernelInplaceRhs: crate::kernel::StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         execute_static::<R, KernelInplaceLhs, E>(
@@ -206,7 +206,7 @@ where
         let shape_out = Shape::new(shape_out);
         let num_elems = shape_out.num_elements();
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let out = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
         execute_static::<R, Kernel, E>(
             &[

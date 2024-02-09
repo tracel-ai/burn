@@ -6,7 +6,7 @@ use crate::codegen::dialect::gpu::{
     WorkgroupSize,
 };
 use crate::compute::StaticKernel;
-use crate::element::WgpuElement;
+use crate::element::JitElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use std::marker::PhantomData;
@@ -357,7 +357,7 @@ pub enum WorkgroupLaunch {
 ///
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
-pub fn execute_static<R: Runtime, K, E: WgpuElement>(
+pub fn execute_static<R: Runtime, K, E: JitElement>(
     inputs: &[StaticHandle<R>],
     outputs: &[StaticHandle<R>],
     scalar_elems: Option<&[E]>,
