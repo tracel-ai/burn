@@ -1,4 +1,7 @@
+use reqwest;
+use std::error::Error;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{
     fs::{self, File},
@@ -6,6 +9,8 @@ use std::{
 };
 
 pub(crate) static CLIENT_ID: &'static str = "Iv1.84002254a02791f3";
+static GITHUB_API_VERSION_HEADER: &'static str = "X-GitHub-Api-Version";
+static GITHUB_API_VERSION: &'static str = "2022-11-28";
 
 /// Return the file path for the auth cache on disk
 pub fn get_auth_cache_file_path() -> PathBuf {
@@ -15,6 +20,34 @@ pub fn get_auth_cache_file_path() -> PathBuf {
     let path_dir = path_dir.join("test");
     let path = Path::new(&path_dir);
     path.join("token.txt")
+}
+
+/// Return true if the token is still valid
+pub(crate) fn is_token_valid(token: &str) -> bool {
+    get_username_from_token(token).is_ok()
+}
+
+/// Retrieve the user name from the access token
+fn get_username_from_token(token: &str) -> Result<String, Box<dyn Error>> {
+    let client = reqwest::blocking::Client::new();
+    // User-Agent is important otherwise GitHub rejects the request with a 403
+    // See: https://github.com/seanmonstar/reqwest/issues/918#issuecomment-632906966
+    let response = client
+        .get("https://api.github.com/user")
+        .header(reqwest::header::USER_AGENT, "burnbench")
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
+        .send()?;
+    let response = response.json::<serde_json::Value>()?;
+    let username = response["login"].as_str().map(|s| s.to_string());
+    // Return an error if the login field is not found
+    username.ok_or_else(|| {
+        From::from(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Username not found in the response",
+        ))
+    })
 }
 
 /// Save token in Burn cache directory and adjust file permissions
@@ -33,7 +66,7 @@ pub(crate) fn save_token(token: &str) {
 }
 
 /// Return the token saved in the cache file
-fn get_token_from_cache() -> Option<String> {
+pub(crate) fn get_token_from_cache() -> Option<String> {
     let path = get_auth_cache_file_path();
     match fs::read_to_string(&path) {
         Ok(contents) => contents.lines().next().map(str::to_string),

@@ -81,7 +81,7 @@ Running benchmarks...
 #### Authentication and benchmarks sharing
 
 Burnbench can upload benchmark results to our servers so that users can share
-their results with the community and we can use these information to drive the
+their results with the community and we can use this information to drive the
 development of Burn.
 
 Sharing results is opt-in and it is enabled with the `--share` arguments passed

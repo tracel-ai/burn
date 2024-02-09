@@ -8,6 +8,8 @@ use std::{
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
+use crate::burnbenchapp::auth::{get_token_from_cache, is_token_valid};
+
 use super::{
     auth::{save_token, CLIENT_ID},
     App,
@@ -44,6 +46,10 @@ enum Commands {
 
 #[derive(Parser, Debug)]
 struct RunArgs {
+    /// Share the benchmark results by uploading them to Burn servers
+    #[clap(short = 's', long = "share")]
+    share: bool,
+
     /// Comma-separated command_list of backends to include
     #[clap(short = 'B', long = "backends", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     backends: Vec<BackendValues>,
@@ -144,6 +150,22 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
+    if run_args.share {
+        // Verify if a token is saved
+        let token = get_token_from_cache();
+        if let None = token {
+            eprintln!("You need to be authenticated to be able to share benchmark results.");
+            eprintln!("Run the command 'burnbench auth' to authenticate.");
+            return;
+        }
+        // TODO refresh the token when it is expired
+        // Check for the validity of the saved token
+        if !is_token_valid(&token.unwrap()) {
+            eprintln!("Your access token is no longer valid.");
+            eprintln!("Run the command 'burnbench auth' again to get a new token.");
+            return;
+        }
+    }
     if run_args.backends.is_empty() || run_args.benches.is_empty() {
         println!("No backends or benchmarks specified. Please select at least one backend and one benchmark.");
         return;
@@ -164,6 +186,10 @@ fn command_run(run_args: RunArgs) {
     app.run(&run_args.benches, &run_args.backends);
     app.cleanup();
     println!("Cleanup completed. Benchmark run(s) finished.");
+    if run_args.share {
+        println!("Sharing results...");
+        // TODO Post the results once backend can verify the GitHub access token
+    }
 }
 
 #[allow(unused)] // for tui as this is WIP

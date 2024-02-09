@@ -206,6 +206,7 @@ dependencies = [
  "github-device-flow",
  "rand",
  "ratatui",
+ "reqwest",
  "serde_json",
  "serial_test",
  "strum",
