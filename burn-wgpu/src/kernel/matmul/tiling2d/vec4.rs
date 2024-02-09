@@ -1,6 +1,5 @@
 use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
 use crate::{
-    codegen::dialect::wgsl,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,

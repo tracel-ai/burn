@@ -53,7 +53,7 @@ mod fusion;
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
 pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
-    burn_fusion::Fusion<WgpuJitGpuBackend<G, F, I>>;
+    burn_fusion::Fusion<GpuBackend<WgpuJitGpuBackend<G, F, I>>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.

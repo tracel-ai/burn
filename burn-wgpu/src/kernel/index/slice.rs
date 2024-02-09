@@ -1,5 +1,4 @@
 use crate::{
-    codegen::Compiler,
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
@@ -98,7 +97,7 @@ pub(crate) fn slice_assign<B: JitGpuBackend, E: WgpuElement, const D1: usize, co
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]

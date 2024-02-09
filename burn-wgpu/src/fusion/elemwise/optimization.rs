@@ -10,7 +10,7 @@ use crate::{
     },
     compute::WgpuAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    GpuBackend, JitGpuBackend, WgpuDevice,
+    GpuBackend, JitGpuBackend,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;

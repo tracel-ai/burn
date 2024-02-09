@@ -137,7 +137,7 @@ pub struct WgpuFusionHandle<B: JitGpuBackend> {
 }
 
 impl<B: JitGpuBackend> core::fmt::Debug for WgpuFusionHandle<B> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

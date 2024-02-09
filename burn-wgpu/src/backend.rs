@@ -1,4 +1,4 @@
-use crate::{codegen::Compiler, compute::WgpuAutotuneKey, tensor::WgpuTensor, WgpuDevice};
+use crate::{codegen::Compiler, compute::WgpuAutotuneKey, tensor::WgpuTensor};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 use burn_fusion::FusionDevice;
 use burn_tensor::backend::Backend;
@@ -13,7 +13,7 @@ pub struct GpuBackend<B: JitGpuBackend> {
 }
 
 impl<B: JitGpuBackend> core::fmt::Debug for GpuBackend<B> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

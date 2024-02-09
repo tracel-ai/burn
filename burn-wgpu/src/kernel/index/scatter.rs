@@ -68,7 +68,7 @@ pub(crate) fn scatter<B: JitGpuBackend, E: WgpuElement, I: WgpuElement, const D:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestJitGpuBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestJitGpuBackend};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]

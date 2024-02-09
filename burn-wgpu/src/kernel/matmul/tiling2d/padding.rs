@@ -101,7 +101,7 @@ pub(super) fn crop<B: JitGpuBackend, E: WgpuElement, const D: usize>(
 mod tests {
 
     use super::*;
-    use crate::tests::{TestCompiler, TestTensor};
+    use crate::tests::TestTensor;
 
     #[test]
     fn padding_already_round_should_have_same_shape() {

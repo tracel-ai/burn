@@ -7,7 +7,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitGpuBackend, WgpuDevice,
+    JitGpuBackend,
 };
 use burn_tensor::Shape;
 

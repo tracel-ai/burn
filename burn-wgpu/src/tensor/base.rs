@@ -1,8 +1,8 @@
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::Compiler;
 use crate::element::WgpuElement;
+use crate::unary;
 use crate::JitGpuBackend;
-use crate::{unary, WgpuDevice};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
@@ -31,7 +31,7 @@ unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Send for WgpuTenso
 unsafe impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Sync for WgpuTensor<B, E, D> {}
 
 impl<B: JitGpuBackend, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<B, E, D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
@@ -43,7 +43,7 @@ impl<B: JitGpuBackend, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E
             handle: self.handle.clone(),
             shape: self.shape.clone(),
             device: self.device.clone(),
-            strides: self.strides.clone(),
+            strides: self.strides,
             elem: PhantomData,
         }
     }

@@ -1,7 +1,6 @@
 use burn_tensor::Element;
 
 use crate::{
-    codegen::dialect::wgsl,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,

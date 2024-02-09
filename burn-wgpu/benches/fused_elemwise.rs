@@ -2,7 +2,7 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::compute::WgpuJitGpuBackend;
-use burn_wgpu::{AutoGraphicsApi, GpuBackend, Wgpu, WgpuDevice};
+use burn_wgpu::{AutoGraphicsApi, GpuBackend, WgpuDevice};
 use derive_new::new;
 use std::marker::PhantomData;
 

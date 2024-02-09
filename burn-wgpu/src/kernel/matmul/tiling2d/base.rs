@@ -1,6 +1,5 @@
 use super::padding::{crop, pad_round, PaddingOutput};
 use crate::{
-    codegen::Compiler,
     compute::{DynamicKernel, WorkGroup},
     element::WgpuElement,
     kernel::{build_info, into_contiguous, matmul::utils::shape_out, DynamicKernelSource},

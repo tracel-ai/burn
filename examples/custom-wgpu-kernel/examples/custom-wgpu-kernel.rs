@@ -1,5 +1,5 @@
 use burn::{
-    backend::wgpu::{wgsl, AutoGraphicsApi},
+    backend::wgpu::{compute::WgpuJitGpuBackend, wgsl, AutoGraphicsApi},
     tensor::{Distribution, Tensor},
 };
 use custom_wgpu_kernel::{
@@ -71,7 +71,7 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 }
 
 fn main() {
-    type MyBackend = burn::backend::wgpu::GpuBackend<AutoGraphicsApi, wgsl::Compiler<f32, i32>>;
+    type MyBackend = burn::backend::wgpu::GpuBackend<WgpuJitGpuBackend<AutoGraphicsApi, f32, i32>>;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
     let device = Default::default();
     inference::<MyBackend>(&device);

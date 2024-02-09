@@ -2,13 +2,13 @@ use crate::FloatTensor;
 
 use super::Backend;
 use burn::backend::wgpu::{
-    compute::{DynamicKernel, WorkGroup},
+    compute::{DynamicKernel, WgpuJitGpuBackend, WorkGroup},
     kernel::{
         build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
     },
     kernel_wgsl,
     tensor::WgpuTensor,
-    wgsl, FloatElement, GpuBackend, GraphicsApi, IntElement,
+    FloatElement, GpuBackend, GraphicsApi, IntElement,
 };
 use burn::tensor::Shape;
 use derive_new::new;
@@ -44,13 +44,13 @@ impl<E: FloatElement> DynamicKernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend
-    for GpuBackend<G, wgsl::Compiler<F, I>>
+    for GpuBackend<WgpuJitGpuBackend<G, F, I>>
 {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
         bias: FloatTensor<Self, D>,
-    ) -> WgpuTensor<F, D> {
+    ) -> FloatTensor<Self, D> {
         // Define workgroup size, hardcoded for simplicity.
         let workgroup_size_x = 16;
         let workgroup_size_y = 16;

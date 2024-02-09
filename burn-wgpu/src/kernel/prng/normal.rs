@@ -9,7 +9,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    GraphicsApi, JitGpuBackend, WgpuDevice,
+    JitGpuBackend,
 };
 
 use super::base::Prng;

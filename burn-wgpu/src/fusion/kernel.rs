@@ -1,9 +1,8 @@
-use crate::codegen::Compiler;
 use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
+use crate::GpuBackend;
 use crate::JitGpuBackend;
-use crate::{GpuBackend, GraphicsApi};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 use burn_compute::tune::AutotuneOperation;
