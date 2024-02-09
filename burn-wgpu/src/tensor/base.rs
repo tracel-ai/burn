@@ -1,40 +1,40 @@
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::element::WgpuElement;
-use crate::{unary, JitRuntime};
+use crate::{unary, Runtime};
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
-pub struct WgpuTensor<B, E, const D: usize>
+pub struct WgpuTensor<R, E, const D: usize>
 where
-    B: JitRuntime,
+    R: Runtime,
     E: WgpuElement,
 {
     /// Compute client for wgpu.
-    pub client: ComputeClient<B::Server, B::Channel>,
+    pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: Handle<B::Server>,
+    pub handle: Handle<R::Server>,
     /// The shape of the current tensor.
     pub shape: Shape<D>,
     /// The device of the current tensor.
-    pub device: B::Device,
+    pub device: R::Device,
     /// The strides of the current tensor.
     pub strides: [usize; D],
     pub(crate) elem: PhantomData<E>,
 }
 
-unsafe impl<B: JitRuntime, E: WgpuElement, const D: usize> Send for WgpuTensor<B, E, D> {}
-unsafe impl<B: JitRuntime, E: WgpuElement, const D: usize> Sync for WgpuTensor<B, E, D> {}
+unsafe impl<R: Runtime, E: WgpuElement, const D: usize> Send for WgpuTensor<R, E, D> {}
+unsafe impl<R: Runtime, E: WgpuElement, const D: usize> Sync for WgpuTensor<R, E, D> {}
 
-impl<B: JitRuntime, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<B, E, D> {
+impl<R: Runtime, E: WgpuElement, const D: usize> core::fmt::Debug for WgpuTensor<R, E, D> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
-impl<B: JitRuntime, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E, D> {
+impl<R: Runtime, E: WgpuElement, const D: usize> Clone for WgpuTensor<R, E, D> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -47,13 +47,13 @@ impl<B: JitRuntime, E: WgpuElement, const D: usize> Clone for WgpuTensor<B, E, D
     }
 }
 
-impl<B: JitRuntime, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
+impl<R: Runtime, E: WgpuElement, const D: usize> WgpuTensor<R, E, D> {
     /// Create a new tensor.
     pub fn new(
-        client: ComputeClient<B::Server, B::Channel>,
-        device: B::Device,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
         shape: Shape<D>,
-        handle: Handle<B::Server>,
+        handle: Handle<R::Server>,
     ) -> Self {
         let mut strides = [0; D];
 
@@ -81,8 +81,8 @@ impl<B: JitRuntime, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(
         &self,
-        client: ComputeClient<B::Server, B::Channel>,
-        device: B::Device,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
     ) -> Self {
         let bytes = self
             .client
@@ -133,7 +133,7 @@ impl<B: JitRuntime, E: WgpuElement, const D: usize> WgpuTensor<B, E, D> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: self.clone(),
             elem: E
         )

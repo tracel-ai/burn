@@ -2,27 +2,27 @@ use crate::codegen::dialect::gpu::{
     BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
 };
 use crate::codegen::Compiler;
-use crate::{binary, JitRuntime};
+use crate::{binary, Runtime};
 use crate::{element::WgpuElement, tensor::WgpuTensor, unary};
 use burn_compute::client::ComputeClient;
 use burn_tensor::{ElementConversion, Shape};
 
-pub fn full<B: JitRuntime, E: WgpuElement, const D: usize>(
+pub fn full<R: Runtime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    device: &B::Device,
+    device: &R::Device,
     value: E,
-) -> WgpuTensor<B, E, D> {
-    let client = B::client(device);
+) -> WgpuTensor<R, E, D> {
+    let client = R::client(device);
 
-    full_device::<B, E, D>(client, shape, device.clone(), value)
+    full_device::<R, E, D>(client, shape, device.clone(), value)
 }
 
-pub fn full_device<B: JitRuntime, E: WgpuElement, const D: usize>(
-    client: ComputeClient<B::Server, B::Channel>,
+pub fn full_device<R: Runtime, E: WgpuElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
     shape: Shape<D>,
-    device: B::Device,
+    device: R::Device,
     value: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let empty = empty_device(client, device, shape);
 
     unary!(
@@ -30,195 +30,195 @@ pub fn full_device<B: JitRuntime, E: WgpuElement, const D: usize>(
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: empty; value,
         elem: E
     )
 }
 
-pub fn zeros<B: JitRuntime, E: WgpuElement, const D: usize>(
+pub fn zeros<R: Runtime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    device: &B::Device,
-) -> WgpuTensor<B, E, D> {
-    let client = B::client(device);
+    device: &R::Device,
+) -> WgpuTensor<R, E, D> {
+    let client = R::client(device);
 
-    zeros_device::<B, E, D>(client, device.clone(), shape)
+    zeros_device(client, device.clone(), shape)
 }
 
-pub fn zeros_device<B: JitRuntime, E: WgpuElement, const D: usize>(
-    client: ComputeClient<B::Server, B::Channel>,
-    device: B::Device,
+pub fn zeros_device<R: Runtime, E: WgpuElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
     shape: Shape<D>,
-) -> WgpuTensor<B, E, D> {
-    full_device::<B, E, D>(client, shape, device, 0.elem())
+) -> WgpuTensor<R, E, D> {
+    full_device::<R, E, D>(client, shape, device, 0.elem())
 }
 
-pub fn ones<B: JitRuntime, E: WgpuElement, const D: usize>(
+pub fn ones<R: Runtime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    device: &B::Device,
-) -> WgpuTensor<B, E, D> {
-    let client = B::client(device);
+    device: &R::Device,
+) -> WgpuTensor<R, E, D> {
+    let client = R::client(device);
 
-    ones_device::<B, E, D>(client, device.clone(), shape)
+    ones_device::<R, E, D>(client, device.clone(), shape)
 }
 
-pub fn ones_device<B: JitRuntime, E: WgpuElement, const D: usize>(
-    client: ComputeClient<B::Server, B::Channel>,
-    device: B::Device,
+pub fn ones_device<R: Runtime, E: WgpuElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
     shape: Shape<D>,
-) -> WgpuTensor<B, E, D> {
-    full_device::<B, E, D>(client, shape, device, 1.elem())
+) -> WgpuTensor<R, E, D> {
+    full_device::<R, E, D>(client, shape, device, 1.elem())
 }
 
-pub fn empty_device<B: JitRuntime, E: WgpuElement, const D: usize>(
-    client: ComputeClient<B::Server, B::Channel>,
-    device: B::Device,
+pub fn empty_device<R: Runtime, E: WgpuElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
     shape: Shape<D>,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
     WgpuTensor::new(client, device, shape, buffer)
 }
 
-pub fn add<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn add<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     binary!(
         operation: |elem: Elem| Operation::Add(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn add_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn add_scalar<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     unary!(
         operation: |elem: Elem| Operation::Add(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn sub<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn sub<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     binary!(
         operation: |elem: Elem| Operation::Sub(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn sub_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn sub_scalar<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     unary!(
         operation: |elem: Elem| Operation::Sub(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn mul<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn mul<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     binary!(
         operation: |elem: Elem| Operation::Mul(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn mul_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn mul_scalar<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     unary!(
         operation: |elem: Elem| Operation::Mul(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn div<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn div<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     binary!(
         operation: |elem: Elem| Operation::Div(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn div_scalar<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn div_scalar<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     unary!(
         operation: |elem: Elem| Operation::Div(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn pow<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn pow<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     binary!(
         operation: |elem: Elem| Operation::Powf(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )

@@ -1,12 +1,12 @@
-use crate::{kernel, tensor::WgpuTensor, GpuBackend, JitRuntime};
+use crate::{kernel, tensor::WgpuTensor, GpuBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
-impl<B: JitRuntime> BoolTensorOps<Self> for GpuBackend<B> {
+impl<R: Runtime> BoolTensorOps<Self> for GpuBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
-        super::empty::<B, u32, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
@@ -31,7 +31,7 @@ impl<B: JitRuntime> BoolTensorOps<Self> for GpuBackend<B> {
                 .collect(),
             data.shape,
         );
-        super::from_data::<B, u32, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
@@ -56,7 +56,7 @@ impl<B: JitRuntime> BoolTensorOps<Self> for GpuBackend<B> {
         tensor: BoolTensor<Self, D>,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        super::to_device::<B, u32, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
@@ -78,7 +78,7 @@ impl<B: JitRuntime> BoolTensorOps<Self> for GpuBackend<B> {
         ranges: [Range<usize>; D2],
         value: BoolTensor<Self, D1>,
     ) -> BoolTensor<Self, D1> {
-        kernel::slice_assign::<B, _, D1, D2>(tensor, ranges, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn bool_cat<const D: usize>(
@@ -92,11 +92,11 @@ impl<B: JitRuntime> BoolTensorOps<Self> for GpuBackend<B> {
         lhs: BoolTensor<Self, D>,
         rhs: BoolTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<B, _, D>(lhs, rhs)
+        kernel::equal(lhs, rhs)
     }
 
     fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<B, _, D>(tensor, 0)
+        kernel::equal_elem(tensor, 0)
     }
 
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {

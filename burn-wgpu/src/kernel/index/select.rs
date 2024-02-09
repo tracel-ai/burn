@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(IndexSelect, "../../template/index/select.wgsl");
@@ -14,11 +14,11 @@ kernel_wgsl!(
     "../../template/index/select_assign_inplace.wgsl"
 );
 
-pub(crate) fn select<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
+pub(crate) fn select<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
     dim: usize,
-    indices: WgpuTensor<B, I, 1>,
-) -> WgpuTensor<B, E, D> {
+    indices: WgpuTensor<R, I, 1>,
+) -> WgpuTensor<R, E, D> {
     let mut output_shape = tensor.shape.clone();
     output_shape.dims[dim] = indices.shape.dims[0];
 
@@ -46,12 +46,12 @@ pub(crate) fn select<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usi
     output
 }
 
-pub(crate) fn select_assign<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
+pub(crate) fn select_assign<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
     dim: usize,
-    indices: WgpuTensor<B, I, 1>,
-    value: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+    indices: WgpuTensor<R, I, 1>,
+    value: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),

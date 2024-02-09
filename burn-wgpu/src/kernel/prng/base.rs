@@ -1,4 +1,4 @@
-use crate::{element::WgpuElement, kernel_wgsl, JitRuntime, SEED};
+use crate::{element::WgpuElement, kernel_wgsl, Runtime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_compute::{client::ComputeClient, server::Handle};
 use rand::Rng;
@@ -19,19 +19,19 @@ pub(crate) fn get_seeds() -> Vec<u32> {
     seeds
 }
 
-pub(crate) fn make_info_buffer<B: JitRuntime>(
-    client: ComputeClient<B::Server, B::Channel>,
+pub(crate) fn make_info_buffer<R: Runtime>(
+    client: ComputeClient<R::Server, R::Channel>,
     n_values_per_thread: usize,
-) -> Handle<B::Server> {
+) -> Handle<R::Server> {
     let mut info = get_seeds();
     info.insert(0, n_values_per_thread as u32);
     client.create(bytemuck::cast_slice(&info))
 }
 
-pub(crate) fn make_args_buffer<B: JitRuntime, E: WgpuElement>(
-    client: ComputeClient<B::Server, B::Channel>,
+pub(crate) fn make_args_buffer<R: Runtime, E: WgpuElement>(
+    client: ComputeClient<R::Server, R::Channel>,
     args: &[E],
-) -> Handle<B::Server> {
+) -> Handle<R::Server> {
     client.create(E::as_bytes(args))
 }
 

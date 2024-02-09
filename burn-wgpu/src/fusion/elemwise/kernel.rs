@@ -7,23 +7,23 @@ use crate::{
         WgpuFusionHandle,
     },
     kernel::elemwise_workgroup,
-    JitRuntime,
+    Runtime,
 };
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-pub struct ScalarElementWise<B: JitRuntime> {
-    source: ElementWiseSource<B>,
+pub struct ScalarElementWise<R: Runtime> {
+    source: ElementWiseSource<R>,
 }
 
-pub struct VecElementWise<B: JitRuntime> {
-    source: ElementWiseSource<B>,
+pub struct VecElementWise<R: Runtime> {
+    source: ElementWiseSource<R>,
 }
 
-impl<B: JitRuntime> FusionKernel<B> for ScalarElementWise<B> {
+impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<B>],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -32,7 +32,7 @@ impl<B: JitRuntime> FusionKernel<B> for ScalarElementWise<B> {
 
     fn priority(
         &self,
-        _handles_inputs: &[WgpuFusionHandle<B>],
+        _handles_inputs: &[WgpuFusionHandle<R>],
         _inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
@@ -40,10 +40,10 @@ impl<B: JitRuntime> FusionKernel<B> for ScalarElementWise<B> {
     }
 }
 
-impl<B: JitRuntime> FusionKernel<B> for VecElementWise<B> {
+impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<B>],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -52,11 +52,11 @@ impl<B: JitRuntime> FusionKernel<B> for VecElementWise<B> {
 
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle<B>],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
-        let is_unavailable_input = |handle: &WgpuFusionHandle<B>, desc: &TensorDescription| {
+        let is_unavailable_input = |handle: &WgpuFusionHandle<R>, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -93,10 +93,10 @@ impl<B: JitRuntime> FusionKernel<B> for VecElementWise<B> {
     }
 }
 
-impl<B: JitRuntime> ElementWiseSource<B> {
+impl<R: Runtime> ElementWiseSource<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<B>],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -128,7 +128,7 @@ impl<B: JitRuntime> ElementWiseSource<B> {
                                 let elem =
                                     self.source_normal.shader.outputs[output_pos].item.elem();
                                 let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
-                                    * <B::Compiler as Compiler>::elem_size(elem);
+                                    * <R::Compiler as Compiler>::elem_size(elem);
                                 OutputInfo::Array { size }
                             }
                         });
@@ -143,7 +143,7 @@ impl<B: JitRuntime> ElementWiseSource<B> {
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let elem = self.source_normal.shader.outputs[pos].item.elem();
                     let size = calculate_num_elems_dyn_rank(&tensor.shape)
-                        * <B::Compiler as Compiler>::elem_size(elem);
+                        * <R::Compiler as Compiler>::elem_size(elem);
                     OutputInfo::Array { size }
                 });
 
@@ -153,18 +153,18 @@ impl<B: JitRuntime> ElementWiseSource<B> {
     }
 }
 
-struct ElementWiseSource<B: JitRuntime> {
-    source_normal: Arc<GpuKernelSource<B::Compiler>>,
-    source_inplace: Arc<GpuKernelSource<B::Compiler>>,
+struct ElementWiseSource<R: Runtime> {
+    source_normal: Arc<GpuKernelSource<R::Compiler>>,
+    source_inplace: Arc<GpuKernelSource<R::Compiler>>,
     mappings: Vec<InplaceMapping>,
     inplace_output2input: Vec<Option<usize>>,
     factor: usize,
 }
 
-impl<B: JitRuntime> ElementWiseSource<B> {
+impl<R: Runtime> ElementWiseSource<R> {
     pub fn new(
-        normal: GpuKernelSource<B::Compiler>,
-        inplace: GpuKernelSource<B::Compiler>,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -185,10 +185,10 @@ impl<B: JitRuntime> ElementWiseSource<B> {
     }
 }
 
-impl<B: JitRuntime> ScalarElementWise<B> {
+impl<R: Runtime> ScalarElementWise<R> {
     pub fn new(
-        normal: GpuKernelSource<B::Compiler>,
-        inplace: GpuKernelSource<B::Compiler>,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
     ) -> Self {
@@ -198,10 +198,10 @@ impl<B: JitRuntime> ScalarElementWise<B> {
     }
 }
 
-impl<B: JitRuntime> VecElementWise<B> {
+impl<R: Runtime> VecElementWise<R> {
     pub fn new(
-        normal: GpuKernelSource<B::Compiler>,
-        inplace: GpuKernelSource<B::Compiler>,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -212,9 +212,9 @@ impl<B: JitRuntime> VecElementWise<B> {
     }
 }
 
-fn inplace_available<B: JitRuntime>(
+fn inplace_available<R: Runtime>(
     mappings: &[InplaceMapping],
-    handles_inputs: &[WgpuFusionHandle<B>],
+    handles_inputs: &[WgpuFusionHandle<R>],
 ) -> bool {
     if mappings.is_empty() {
         return false;

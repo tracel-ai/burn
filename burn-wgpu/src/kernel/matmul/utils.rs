@@ -1,17 +1,17 @@
-use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, JitRuntime};
+use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor, Runtime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<B, E, D>,
-    rhs: &WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn init_matmul_output<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: &WgpuTensor<R, E, D>,
+    rhs: &WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<B, E, D>,
-    rhs: &WgpuTensor<B, E, D>,
+pub(crate) fn shape_out<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: &WgpuTensor<R, E, D>,
+    rhs: &WgpuTensor<R, E, D>,
 ) -> Shape<D> {
     let mut shape_out = [0; D];
     lhs.shape

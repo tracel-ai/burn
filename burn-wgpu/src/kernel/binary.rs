@@ -2,7 +2,7 @@ use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 use burn_tensor::Shape;
 
@@ -11,17 +11,17 @@ use burn_tensor::Shape;
 macro_rules! binary {
     (
         operation: $ops:expr,
-        backend: $backend:ty,
+        runtime: $runtime:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
 
         $crate::kernel::binary::<
-            Ops<<$backend as JitRuntime>::Compiler, $elem, $elem>,
-            OpsInplaceLhs<<$backend as JitRuntime>::Compiler, $elem, $elem>,
-            OpsInplaceRhs<<$backend as JitRuntime>::Compiler, $elem, $elem>,
-            $backend,
+            Ops<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceLhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceRhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            $runtime,
             $elem,
             D
         >($lhs, $rhs, true)
@@ -155,11 +155,11 @@ macro_rules! binary {
 }
 
 /// Launch an binary operation.
-pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitRuntime, E, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
+pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
     inplace_enabled: bool,
-) -> WgpuTensor<B, E, D>
+) -> WgpuTensor<R, E, D>
 where
     Kernel: crate::kernel::StaticKernelSource,
     KernelInplaceLhs: crate::kernel::StaticKernelSource,
@@ -167,7 +167,7 @@ where
     E: WgpuElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<B, KernelInplaceLhs, E>(
+        execute_static::<R, KernelInplaceLhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -180,7 +180,7 @@ where
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<B, KernelInplaceRhs, E>(
+        execute_static::<R, KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -208,7 +208,7 @@ where
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
         let out = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        execute_static::<B, Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),

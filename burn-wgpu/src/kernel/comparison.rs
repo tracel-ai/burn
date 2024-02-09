@@ -5,24 +5,24 @@ use crate::{
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
     tensor::WgpuTensor,
-    unary, JitRuntime,
+    unary, Runtime,
 };
 use std::mem;
 
 macro_rules! comparison {
     (
         binary: $ops:expr,
-        backend: $backend:ty,
+        runtime: $runtime:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
 
         launch_binary::<
-            Ops<<$backend as JitRuntime>::Compiler, E, u32>,
-            OpsInplaceLhs<<$backend as JitRuntime>::Compiler, E, u32>,
-            OpsInplaceRhs<<$backend as JitRuntime>::Compiler, E, u32>,
-            $backend,
+            Ops<<$runtime as Runtime>::Compiler, E, u32>,
+            OpsInplaceLhs<<$runtime as Runtime>::Compiler, E, u32>,
+            OpsInplaceRhs<<$runtime as Runtime>::Compiler, E, u32>,
+            $runtime,
             E,
             D
         >($lhs, $rhs)
@@ -30,186 +30,186 @@ macro_rules! comparison {
 
     (
         unary: $ops:expr,
-        backend: $backend:ty,
+        runtime: $runtime:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, scalar 1);
 
         launch_unary::<
-            Ops<<$backend as JitRuntime>::Compiler, E>,
-            OpsInplace<<$backend as JitRuntime>::Compiler, E>,
-            $backend,
+            Ops<<$runtime as Runtime>::Compiler, E>,
+            OpsInplace<<$runtime as Runtime>::Compiler, E>,
+            $runtime,
             E,
             D
         >($lhs, $rhs)
     }};
 }
 
-pub fn equal<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D> {
+pub fn equal<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D> {
+pub fn greater<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_equal<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D> {
+pub fn greater_equal<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D> {
+pub fn lower<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_equal<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D> {
+pub fn lower_equal<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         binary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, u32, D> {
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Equal(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn greater_elem<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, u32, D> {
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Greater(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn lower_elem<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, u32, D> {
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::Lower(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn greater_equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn greater_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, u32, D> {
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-pub fn lower_equal_elem<B: JitRuntime, E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
+pub fn lower_equal_elem<R: Runtime, E: WgpuElement, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
     rhs: E,
-) -> WgpuTensor<B, u32, D> {
+) -> WgpuTensor<R, u32, D> {
     comparison!(
         unary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(Elem::Bool)),
         }),
-        backend: B,
+        runtime: R,
         input: lhs; rhs,
         elem: E
     )
 }
 
-fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, B: JitRuntime, E, const D: usize>(
-    lhs: WgpuTensor<B, E, D>,
-    rhs: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, u32, D>
+fn launch_binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
+    lhs: WgpuTensor<R, E, D>,
+    rhs: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplaceLhs: StaticKernelSource,
@@ -218,7 +218,7 @@ where
 {
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
-    let output = binary::<Kernel, KernelInplaceLhs, KernelInplaceRhs, B, E, D>(
+    let output = binary::<Kernel, KernelInplaceLhs, KernelInplaceRhs, R, E, D>(
         lhs,
         rhs,
         can_be_used_as_bool,
@@ -228,10 +228,10 @@ where
     WgpuTensor::new(output.client, output.device, output.shape, output.handle)
 }
 
-fn launch_unary<Kernel, KernelInplace, B: JitRuntime, E, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
+fn launch_unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
     scalars: E,
-) -> WgpuTensor<B, u32, D>
+) -> WgpuTensor<R, u32, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
@@ -240,7 +240,7 @@ where
     let can_be_used_as_bool = mem::size_of::<E>() == mem::size_of::<u32>();
 
     let output =
-        unary::<Kernel, KernelInplace, B, E, D>(tensor, Some(&[scalars]), can_be_used_as_bool);
+        unary::<Kernel, KernelInplace, R, E, D>(tensor, Some(&[scalars]), can_be_used_as_bool);
 
     // We recast the tensor type.
     WgpuTensor::new(output.client, output.device, output.shape, output.handle)

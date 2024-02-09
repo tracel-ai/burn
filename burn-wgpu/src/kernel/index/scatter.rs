@@ -4,17 +4,17 @@ use crate::{
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 
-pub(crate) fn scatter<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn scatter<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
-    tensor: WgpuTensor<B, E, D>,
-    indices: WgpuTensor<B, I, D>,
-    value: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+    tensor: WgpuTensor<R, E, D>,
+    indices: WgpuTensor<R, I, D>,
+    value: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     let indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -127,13 +127,12 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
 
-        let actual =
-            Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitRuntime, _, _, D>(
-                dim,
-                tensor.into_primitive(),
-                indices.into_primitive(),
-                value.into_primitive(),
-            ));
+        let actual = Tensor::<TestBackend, D>::from_primitive(scatter::<TestJitRuntime, _, _, D>(
+            dim,
+            tensor.into_primitive(),
+            indices.into_primitive(),
+            value.into_primitive(),
+        ));
         let expected = tensor_ref.scatter(dim, indices_ref, value_ref);
 
         expected

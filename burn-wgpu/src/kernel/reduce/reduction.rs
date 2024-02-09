@@ -7,7 +7,7 @@ use crate::{
     },
     kernel_wgsl,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 use burn_tensor::Shape;
 
@@ -58,9 +58,9 @@ impl StaticKernelSource for ArgsMin {
 }
 
 /// Sum all elements in the input buffer.
-pub fn sum<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, 1> {
+pub fn sum<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, 1> {
     let mut input_handle = input.handle;
     let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP_DEFAULT);
 
@@ -88,28 +88,28 @@ pub fn sum<B: JitRuntime, E: WgpuElement, const D: usize>(
 }
 
 /// Execute the sum dim kernel.
-pub fn sum_dim<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    output: WgpuTensor<B, E, D>,
+pub fn sum_dim<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    output: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, E, D> {
-    reduction_dim::<SumDim, B, E, D>(input, output, dim)
+) -> WgpuTensor<R, E, D> {
+    reduction_dim::<SumDim, R, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
-pub fn mean_dim<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    output: WgpuTensor<B, E, D>,
+pub fn mean_dim<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    output: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, E, D> {
-    reduction_dim::<MeanDim, B, E, D>(input, output, dim)
+) -> WgpuTensor<R, E, D> {
+    reduction_dim::<MeanDim, R, E, D>(input, output, dim)
 }
 
-fn reduction_dim<K: StaticKernelSource, B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    output: WgpuTensor<B, E, D>,
+fn reduction_dim<K: StaticKernelSource, R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    output: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let kernel =
         StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
             elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT),
@@ -128,31 +128,31 @@ fn reduction_dim<K: StaticKernelSource, B: JitRuntime, E: WgpuElement, const D: 
 }
 
 /// Execute the argmax kernel.
-pub fn argmax<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
+pub fn argmax<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, I, D> {
-    reduction_args_dim::<ArgsMax, B, E, I, D>(input, dim)
+) -> WgpuTensor<R, I, D> {
+    reduction_args_dim::<ArgsMax, R, E, I, D>(input, dim)
 }
 
 /// Execute the argmin kernel.
-pub fn argmin<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
+pub fn argmin<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, I, D> {
-    reduction_args_dim::<ArgsMin, B, E, I, D>(input, dim)
+) -> WgpuTensor<R, I, D> {
+    reduction_args_dim::<ArgsMin, R, E, I, D>(input, dim)
 }
 
 fn reduction_args_dim<
     K: StaticKernelSource,
-    B: JitRuntime,
+    R: Runtime,
     E: WgpuElement,
     I: WgpuElement,
     const D: usize,
 >(
-    input: WgpuTensor<B, E, D>,
+    input: WgpuTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<B, I, D> {
+) -> WgpuTensor<R, I, D> {
     let mut shape_out = input.shape.clone();
     shape_out.dims[dim] = 1;
     let num_elems = shape_out.num_elements();
@@ -212,14 +212,13 @@ mod tests {
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val =
-            Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<
-                SumDim,
-                TestJitRuntime,
-                f32,
-                2,
-            >(
-                tensor.into_primitive(), output, reduce_dim
-            ));
+            Tensor::<TestBackend, 2>::from_primitive(
+                reduction_dim::<SumDim, TestJitRuntime, f32, 2>(
+                    tensor.into_primitive(),
+                    output,
+                    reduce_dim,
+                ),
+            );
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);

@@ -5,16 +5,16 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(Gather, "../../template/index/gather.wgsl");
 
-pub(crate) fn gather<B: JitRuntime, E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn gather<R: Runtime, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
-    tensor: WgpuTensor<B, E, D>,
-    indices: WgpuTensor<B, I, D>,
-) -> WgpuTensor<B, E, D> {
+    tensor: WgpuTensor<R, E, D>,
+    indices: WgpuTensor<R, I, D>,
+) -> WgpuTensor<R, E, D> {
     let shape_output = indices.shape.clone();
     let num_elems = shape_output.num_elements();
     let indices = kernel::into_contiguous(indices);

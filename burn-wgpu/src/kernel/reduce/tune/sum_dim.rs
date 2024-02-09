@@ -11,7 +11,7 @@ use crate::{
     ops::numeric::empty_device,
     reduce_tune_ops,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 use super::ReduceAutotuneKey;
@@ -19,14 +19,14 @@ use super::ReduceAutotuneKey;
 /// Set of sum_dim implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of
 /// dim to reduce, and product of others
-pub struct SumDimAutotuneOperationSet<B: JitRuntime, E: WgpuElement, const D: usize> {
+pub struct SumDimAutotuneOperationSet<R: Runtime, E: WgpuElement, const D: usize> {
     key: WgpuAutotuneKey,
-    input: WgpuTensor<B, E, D>,
-    output: WgpuTensor<B, E, D>,
+    input: WgpuTensor<R, E, D>,
+    output: WgpuTensor<R, E, D>,
     reduce_dim: usize,
 }
-impl<B: JitRuntime, E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<B, E, D> {
-    fn new(input: WgpuTensor<B, E, D>, output: WgpuTensor<B, E, D>, reduce_dim: usize) -> Self {
+impl<R: Runtime, E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<R, E, D> {
+    fn new(input: WgpuTensor<R, E, D>, output: WgpuTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
             key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(
                 &input.shape,
@@ -40,8 +40,8 @@ impl<B: JitRuntime, E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<B
     }
 }
 
-impl<B: JitRuntime, E: WgpuElement + Element, const D: usize>
-    AutotuneOperationSet<WgpuAutotuneKey> for SumDimAutotuneOperationSet<B, E, D>
+impl<R: Runtime, E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
+    for SumDimAutotuneOperationSet<R, E, D>
 {
     fn key(&self) -> WgpuAutotuneKey {
         self.key.clone()
@@ -91,10 +91,10 @@ impl<B: JitRuntime, E: WgpuElement + Element, const D: usize>
 }
 
 /// Executes autotune on sum_dim operation
-pub fn sum_dim_autotune<B: JitRuntime, E: WgpuElement + Element, const D: usize>(
-    input: WgpuTensor<B, E, D>,
+pub fn sum_dim_autotune<R: Runtime, E: WgpuElement + Element, const D: usize>(
+    input: WgpuTensor<R, E, D>,
     reduce_dim: usize,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let client = input.client.clone();
 
     let output = init_reduce_output(&input, reduce_dim);

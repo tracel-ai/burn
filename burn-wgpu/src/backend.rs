@@ -8,30 +8,30 @@ use std::{marker::PhantomData, sync::Mutex};
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
-pub struct GpuBackend<B: JitRuntime> {
-    _b: PhantomData<B>,
+pub struct GpuBackend<R: Runtime> {
+    _b: PhantomData<R>,
 }
 
-impl<B: JitRuntime> core::fmt::Debug for GpuBackend<B> {
+impl<R: Runtime> core::fmt::Debug for GpuBackend<R> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
 
-impl<B: JitRuntime> Clone for GpuBackend<B> {
+impl<R: Runtime> Clone for GpuBackend<R> {
     fn clone(&self) -> Self {
         todo!()
     }
 }
 
-impl<B: JitRuntime> Default for GpuBackend<B> {
+impl<R: Runtime> Default for GpuBackend<R> {
     fn default() -> Self {
         todo!()
     }
 }
 
 /// Trait that defines a backend with a Just-In-Time compiler.
-pub trait JitRuntime: Send + Sync + 'static {
+pub trait Runtime: Send + Sync + 'static {
     type Compiler: Compiler;
     type Server: ComputeServer<
         Kernel = Box<dyn crate::compute::Kernel>,
@@ -48,7 +48,7 @@ pub trait JitRuntime: Send + Sync + 'static {
         + Sync
         + Send;
 
-    type FullPrecisionBackend: JitRuntime<
+    type FullPrecisionBackend: Runtime<
         Compiler = <Self::Compiler as Compiler>::FullPrecisionCompiler,
         Device = Self::Device,
         Server = Self::Server,
@@ -58,17 +58,17 @@ pub trait JitRuntime: Send + Sync + 'static {
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
 }
 
-impl<B: JitRuntime> Backend for GpuBackend<B> {
-    type Device = B::Device;
-    type FullPrecisionBackend = GpuBackend<B::FullPrecisionBackend>;
+impl<R: Runtime> Backend for GpuBackend<R> {
+    type Device = R::Device;
+    type FullPrecisionBackend = GpuBackend<R::FullPrecisionBackend>;
 
     type FullPrecisionElem = f32;
-    type FloatElem = <B::Compiler as Compiler>::Float;
-    type IntElem = <B::Compiler as Compiler>::Int;
+    type FloatElem = <R::Compiler as Compiler>::Float;
+    type IntElem = <R::Compiler as Compiler>::Int;
 
-    type FloatTensorPrimitive<const D: usize> = WgpuTensor<B, Self::FloatElem, D>;
-    type IntTensorPrimitive<const D: usize> = WgpuTensor<B, Self::IntElem, D>;
-    type BoolTensorPrimitive<const D: usize> = WgpuTensor<B, u32, D>;
+    type FloatTensorPrimitive<const D: usize> = WgpuTensor<R, Self::FloatElem, D>;
+    type IntTensorPrimitive<const D: usize> = WgpuTensor<R, Self::IntElem, D>;
+    type BoolTensorPrimitive<const D: usize> = WgpuTensor<R, u32, D>;
 
     fn name() -> String {
         String::from("wgpu")
@@ -85,7 +85,7 @@ impl<B: JitRuntime> Backend for GpuBackend<B> {
     }
 
     fn sync(device: &Self::Device) {
-        let client = B::client(device);
+        let client = R::client(device);
         client.sync();
     }
 }

@@ -3,7 +3,7 @@ use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
     element::WgpuElement,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 /// Creates a unary kernel.
@@ -11,32 +11,32 @@ use crate::{
 macro_rules! unary {
     (
         operation: $ops:expr,
-        backend: $backend:ty,
+        runtime: $runtime:ty,
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler);
 
         $crate::kernel::unary::<
-            Ops<<$backend as JitRuntime>::Compiler, $elem>,
-            OpsInplace<<$backend as JitRuntime>::Compiler, $elem>,
-            $backend,
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
             $elem,
             D
         >($input, None, true)
     }};
     (
         operation: $ops:expr,
-        backend: $backend:ty,
+        runtime: $runtime:ty,
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: <$backend as JitRuntime>::Compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, scalar 1);
 
         $crate::kernel::unary::<
-            Ops<<$backend as JitRuntime>::Compiler, $elem>,
-            OpsInplace<<$backend as JitRuntime>::Compiler, $elem>,
-            $backend,
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
             $elem,
             D
         >($input, Some(&[$scalar]), true)
@@ -186,18 +186,18 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, B: JitRuntime, E, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
+pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-) -> WgpuTensor<B, E, D>
+) -> WgpuTensor<R, E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
     E: WgpuElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        execute_static::<B, KernelInplace, E>(
+        execute_static::<R, KernelInplace, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -220,7 +220,7 @@ where
             buffer,
         );
 
-        execute_static::<B, Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -262,13 +262,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<
-            Ops<TestCompiler, f32>,
-            OpsInplace<TestCompiler, f32>,
-            TestJitRuntime,
-            f32,
-            2,
-        >(tensor.into_primitive(), None, true);
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestJitRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(
@@ -284,13 +283,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<
-            Ops<TestCompiler, f32>,
-            OpsInplace<TestCompiler, f32>,
-            TestJitRuntime,
-            f32,
-            2,
-        >(tensor.into_primitive(), None, true);
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestJitRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(

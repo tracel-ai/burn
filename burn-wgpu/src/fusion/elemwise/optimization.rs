@@ -10,7 +10,7 @@ use crate::{
     },
     compute::WgpuAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    GpuBackend, JitRuntime,
+    GpuBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
@@ -18,13 +18,13 @@ use burn_fusion::{stream::Context, TensorDescription};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<B: JitRuntime, Phase = ExecutionPhase<B>> {
+pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
     pub(super) inputs: Vec<(TensorDescription, Elem)>,
     pub(super) outputs: Vec<(TensorDescription, Elem)>,
     pub(super) locals: Vec<u16>,
     pub(super) scalars: Scalars,
     pub(super) operators: Vec<Operation>,
-    pub(super) device: B::Device,
+    pub(super) device: R::Device,
     pub(super) phase: Phase,
 }
 
@@ -38,9 +38,9 @@ pub struct Scalars {
 pub struct CompilationPhase;
 
 #[derive(new)]
-pub struct ExecutionPhase<B: JitRuntime> {
-    pub(super) kernel_set_1: FusionKernelSet<B>,
-    pub(super) kernel_set_2: FusionKernelSet<B>,
+pub struct ExecutionPhase<R: Runtime> {
+    pub(super) kernel_set_1: FusionKernelSet<R>,
+    pub(super) kernel_set_2: FusionKernelSet<R>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -52,8 +52,8 @@ pub struct ElementWiseState {
     locals: Vec<u16>,
 }
 
-impl<B: JitRuntime> ElementWise<B, CompilationPhase> {
-    pub(crate) fn compile(self) -> ElementWise<B, ExecutionPhase<B>> {
+impl<R: Runtime> ElementWise<R, CompilationPhase> {
+    pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
         let mut inputs = self
             .inputs
             .iter()
@@ -140,14 +140,14 @@ impl<B: JitRuntime> ElementWise<B, CompilationPhase> {
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set::<B>(
+        let kernel_set_1 = build_kernel_set::<R>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set::<B>(
+        let kernel_set_2 = build_kernel_set::<R>(
             &inputs,
             &outputs,
             &self.operators,
@@ -167,9 +167,9 @@ impl<B: JitRuntime> ElementWise<B, CompilationPhase> {
     }
 }
 
-impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<B>>) {
-        let client = B::client(&self.device);
+impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, GpuBackend<R>>) {
+        let client = R::client(&self.device);
 
         let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
             self.operators.len(),
@@ -185,8 +185,8 @@ impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, GpuBackend<B>>,
-        client: ComputeClient<B::Server, B::Channel>,
+        context: &mut Context<'_, GpuBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
         let kernel_set = match fastest_set_index {
@@ -211,8 +211,8 @@ impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, GpuBackend<B>>,
-        client: ComputeClient<B::Server, B::Channel>,
+        context: &mut Context<'_, GpuBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
         key: WgpuAutotuneKey,
     ) {
         let kernel_1 = self.phase.kernel_set_1.select(
@@ -261,7 +261,7 @@ impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, GpuBackend<B>>,
+        context: &mut Context<'a, GpuBackend<R>>,
     ) -> &'a [usize] {
         if let Some(tensor) = self.outputs.first() {
             let tensor = context.tensors.get(&tensor.0.id).unwrap();
@@ -276,7 +276,7 @@ impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
         &[]
     }
 
-    pub(crate) fn from_state(device: &B::Device, state: ElementWiseState) -> Self {
+    pub(crate) fn from_state(device: &R::Device, state: ElementWiseState) -> Self {
         // We don't save the compiled kernel structs since it's quick to compile and the output is
         // very large.
         //
@@ -305,14 +305,14 @@ impl<B: JitRuntime> ElementWise<B, ExecutionPhase<B>> {
     }
 }
 
-fn build_kernel_set<B: JitRuntime>(
+fn build_kernel_set<R: Runtime>(
     inputs: &[Input],
     outputs: &[Output],
     operators: &[Operation],
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet<B> {
-    let scalar = ScalarElementWise::<B>::new(
+) -> FusionKernelSet<R> {
+    let scalar = ScalarElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -336,7 +336,7 @@ fn build_kernel_set<B: JitRuntime>(
         outputs.len(),
     );
 
-    let vec2 = VecElementWise::<B>::new(
+    let vec2 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
@@ -362,7 +362,7 @@ fn build_kernel_set<B: JitRuntime>(
         outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::<B>::new(
+    let vec4 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()

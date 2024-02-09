@@ -9,7 +9,7 @@ use crate::{
     },
     element::WgpuElement,
     fusion::WgpuOptimization,
-    GpuBackend, JitRuntime,
+    GpuBackend, Runtime,
 };
 use burn_fusion::{
     stream::{
@@ -26,7 +26,7 @@ use burn_tensor::{
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<B: JitRuntime> {
+pub(crate) struct ElementWiseBuilder<R: Runtime> {
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
@@ -37,10 +37,10 @@ pub(crate) struct ElementWiseBuilder<B: JitRuntime> {
     pub(crate) operators: Vec<Operation>,
     pub(crate) current_output_shape: Vec<usize>,
     pub(crate) status: OptimizationStatus,
-    pub(crate) device: B::Device,
+    pub(crate) device: R::Device,
 }
 
-impl<B: JitRuntime> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuilder<B> {
+impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -48,31 +48,31 @@ impl<B: JitRuntime> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuil
 
         match ops {
             OperationDescription::BaseFloat(ops) => {
-                if !self.register_base::<FloatElem<GpuBackend<B>>>(ops) {
+                if !self.register_base::<FloatElem<GpuBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::BaseInt(ops) => {
-                if !self.register_base::<IntElem<GpuBackend<B>>>(ops) {
+                if !self.register_base::<IntElem<GpuBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::Float(ops) => {
-                if !self.register_float::<FloatElem<GpuBackend<B>>>(ops) {
+                if !self.register_float::<FloatElem<GpuBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericFloat(ops) => {
-                if !self.register_numeric::<FloatElem<GpuBackend<B>>, _>(ops) {
+                if !self.register_numeric::<FloatElem<GpuBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericInt(ops) => {
-                if !self.register_numeric::<IntElem<GpuBackend<B>>, _>(ops) {
+                if !self.register_numeric::<IntElem<GpuBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -86,7 +86,7 @@ impl<B: JitRuntime> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuil
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self) -> WgpuOptimization<B> {
+    fn build(&self) -> WgpuOptimization<R> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -138,8 +138,8 @@ impl<B: JitRuntime> OptimizationBuilder<WgpuOptimization<B>> for ElementWiseBuil
     }
 }
 
-impl<B: JitRuntime> ElementWiseBuilder<B> {
-    pub fn new(device: Device<GpuBackend<B>>) -> Self {
+impl<R: Runtime> ElementWiseBuilder<R> {
+    pub fn new(device: Device<GpuBackend<R>>) -> Self {
         Self {
             inputs: Vec::new(),
             locals: HashMap::new(),

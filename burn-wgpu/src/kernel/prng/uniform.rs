@@ -10,7 +10,7 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 use super::base::Prng;
@@ -27,23 +27,23 @@ impl StaticKernelSource for UniformPrng {
 }
 
 /// Pseudo-random generatJitBackendm distribution
-pub fn random_uniform<B: JitRuntime, E: WgpuElement, const D: usize>(
+pub fn random_uniform<R: Runtime, E: WgpuElement, const D: usize>(
     shape: Shape<D>,
-    device: &B::Device,
+    device: &R::Device,
     low: E,
     high: E,
-) -> WgpuTensor<B, E, D> {
-    let client = B::client(device);
+) -> WgpuTensor<R, E, D> {
+    let client = R::client(device);
     uniform_kernel(client, device, &shape, low, high)
 }
 
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor's client, dJitBackendpe
-pub fn random_like_uniform<B: JitRuntime, E: WgpuElement, const D: usize>(
-    tensor: &WgpuTensor<B, E, D>,
+pub fn random_like_uniform<R: Runtime, E: WgpuElement, const D: usize>(
+    tensor: &WgpuTensor<R, E, D>,
     low: E,
     high: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     uniform_kernel(
         tensor.client.clone(),
         &tensor.device,
@@ -53,18 +53,18 @@ pub fn random_like_uniform<B: JitRuntime, E: WgpuElement, const D: usize>(
     )
 }
 
-fn uniform_kernel<B: JitRuntime, E: WgpuElement, const D: usize>(
-    client: ComputeClient<B::Server, B::Channel>,
-    device: &B::Device,
+fn uniform_kernel<R: Runtime, E: WgpuElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: &R::Device,
     shape: &Shape<D>,
     low: E,
     high: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
     let output = empty_device(client.clone(), device.clone(), shape.clone());
-    let info_handle = make_info_buffer::<B>(client.clone(), N_VALUES_PER_THREAD);
-    let args_handle = make_args_buffer::<B, E>(client.clone(), &[low, high]);
+    let info_handle = make_info_buffer::<R>(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer::<R, E>(client.clone(), &[low, high]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
     let kernel = StaticKernel::<
         KernelSettings<UniformPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,

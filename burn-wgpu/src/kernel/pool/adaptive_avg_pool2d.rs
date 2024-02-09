@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 use burn_compute::server::Handle;
 use burn_tensor::Shape;
@@ -19,10 +19,10 @@ kernel_wgsl!(
     "../../template/pool/adaptive_avg_pool2d_backward.wgsl"
 );
 
-pub(crate) fn adaptive_avg_pool2d<B: JitRuntime, E: WgpuElement>(
-    x: WgpuTensor<B, E, 4>,
+pub(crate) fn adaptive_avg_pool2d<R: Runtime, E: WgpuElement>(
+    x: WgpuTensor<R, E, 4>,
     output_size: [usize; 2],
-) -> WgpuTensor<B, E, 4> {
+) -> WgpuTensor<R, E, 4> {
     let [batch_size, channels, _, _] = x.shape.dims;
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
@@ -42,10 +42,10 @@ pub(crate) fn adaptive_avg_pool2d<B: JitRuntime, E: WgpuElement>(
     output
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<B: JitRuntime, E: WgpuElement>(
-    x: WgpuTensor<B, E, 4>,
-    out_grad: WgpuTensor<B, E, 4>,
-) -> WgpuTensor<B, E, 4> {
+pub(crate) fn adaptive_avg_pool2d_backward<R: Runtime, E: WgpuElement>(
+    x: WgpuTensor<R, E, 4>,
+    out_grad: WgpuTensor<R, E, 4>,
+) -> WgpuTensor<R, E, 4> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
@@ -73,10 +73,10 @@ pub(crate) fn adaptive_avg_pool2d_backward<B: JitRuntime, E: WgpuElement>(
     output
 }
 
-fn build_info<B: JitRuntime, E: WgpuElement>(
-    x: &WgpuTensor<B, E, 4>,
-    output: &WgpuTensor<B, E, 4>,
-) -> Handle<B::Server> {
+fn build_info<R: Runtime, E: WgpuElement>(
+    x: &WgpuTensor<R, E, 4>,
+    output: &WgpuTensor<R, E, 4>,
+) -> Handle<R::Server> {
     let mut info: [u32; 16] = [0; 16];
     info[0] = x.strides[0] as u32;
     info[1] = x.strides[1] as u32;

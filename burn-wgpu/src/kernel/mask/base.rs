@@ -1,11 +1,11 @@
-use crate::{element::WgpuElement, tensor::WgpuTensor, JitRuntime};
+use crate::{element::WgpuElement, tensor::WgpuTensor, Runtime};
 
 /// Execute the mask fill kernel.
-pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
+pub fn mask_fill<R: Runtime, E: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
     value: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     if tensor.can_mut() {
         return super::mask_fill::mask_fill_inplace(tensor, mask, value);
     }
@@ -14,11 +14,11 @@ pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
 }
 
 /// Execute the mask where kernel.
-pub fn mask_where<B: JitRuntime, E: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
-    value: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn mask_where<R: Runtime, E: WgpuElement, const D: usize>(
+    tensor: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
+    value: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     if tensor.can_mut_broadcast(&value) {
         return super::mask_where::mask_where_inplace(tensor, mask, value, false);
     }

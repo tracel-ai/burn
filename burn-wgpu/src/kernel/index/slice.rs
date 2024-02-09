@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 use burn_tensor::Shape;
 use std::ops::Range;
@@ -16,10 +16,10 @@ kernel_wgsl!(
     "../../template/index/slice_assign_inplace.wgsl"
 );
 
-pub(crate) fn slice<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: usize>(
-    tensor: WgpuTensor<B, E, D1>,
+pub(crate) fn slice<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
+    tensor: WgpuTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-) -> WgpuTensor<B, E, D1> {
+) -> WgpuTensor<R, E, D1> {
     let mut dims = tensor.shape.dims;
     for i in 0..D2 {
         dims[i] = indices[i].end - indices[i].start;
@@ -29,16 +29,11 @@ pub(crate) fn slice<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: us
     slice_on_output(tensor, output, indices)
 }
 
-pub(crate) fn slice_on_output<
-    B: JitRuntime,
-    E: WgpuElement,
-    const D1: usize,
-    const D2: usize,
->(
-    tensor: WgpuTensor<B, E, D1>,
-    output: WgpuTensor<B, E, D1>,
+pub(crate) fn slice_on_output<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
+    tensor: WgpuTensor<R, E, D1>,
+    output: WgpuTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-) -> WgpuTensor<B, E, D1> {
+) -> WgpuTensor<R, E, D1> {
     let mut info = build_info(&[&tensor, &output]);
 
     for i in 0..D1 {
@@ -63,11 +58,11 @@ pub(crate) fn slice_on_output<
     output
 }
 
-pub(crate) fn slice_assign<B: JitRuntime, E: WgpuElement, const D1: usize, const D2: usize>(
-    tensor: WgpuTensor<B, E, D1>,
+pub(crate) fn slice_assign<R: Runtime, E: WgpuElement, const D1: usize, const D2: usize>(
+    tensor: WgpuTensor<R, E, D1>,
     indices: [Range<usize>; D2],
-    value: WgpuTensor<B, E, D1>,
-) -> WgpuTensor<B, E, D1> {
+    value: WgpuTensor<R, E, D1>,
+) -> WgpuTensor<R, E, D1> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),

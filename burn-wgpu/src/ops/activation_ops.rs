@@ -1,4 +1,4 @@
-use crate::{GpuBackend, JitRuntime};
+use crate::{GpuBackend, Runtime};
 use burn_tensor::ops::ActivationOps;
 
-impl<B: JitRuntime> ActivationOps<Self> for GpuBackend<B> {}
+impl<R: Runtime> ActivationOps<Self> for GpuBackend<R> {}

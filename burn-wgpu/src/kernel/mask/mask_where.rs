@@ -5,17 +5,17 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(MaskWhere, "../../template/mask/where.wgsl");
 kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
 
-pub fn mask_where<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
-    value: WgpuTensor<B, E, D>,
-) -> WgpuTensor<B, E, D> {
+pub fn mask_where<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
+    value: WgpuTensor<R, E, D>,
+) -> WgpuTensor<R, E, D> {
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -44,12 +44,12 @@ pub fn mask_where<B: JitRuntime, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_where_inplace<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
-    value: WgpuTensor<B, E, D>,
+pub fn mask_where_inplace<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
+    value: WgpuTensor<R, E, D>,
     reverse: bool,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let kernel = StaticKernel::<
         KernelSettings<MaskWhereInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(elemwise_workgroup(
@@ -99,14 +99,12 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(
-                mask_where_inplace::<TestJitRuntime, f32, 3>(
-                    tensor.into_primitive(),
-                    mask.into_primitive(),
-                    value.into_primitive(),
-                    false,
-                ),
-            );
+            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestJitRuntime, f32, 3>(
+                tensor.into_primitive(),
+                mask.into_primitive(),
+                value.into_primitive(),
+                false,
+            ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected
@@ -119,14 +117,12 @@ mod tests {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(
-                mask_where_inplace::<TestJitRuntime, f32, 3>(
-                    value.into_primitive(),
-                    mask.into_primitive(),
-                    tensor.into_primitive(),
-                    true,
-                ),
-            );
+            Tensor::<TestBackend, 3>::from_primitive(mask_where_inplace::<TestJitRuntime, f32, 3>(
+                value.into_primitive(),
+                mask.into_primitive(),
+                tensor.into_primitive(),
+                true,
+            ));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected

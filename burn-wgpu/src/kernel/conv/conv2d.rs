@@ -5,7 +5,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
@@ -14,12 +14,12 @@ use burn_tensor::{
 
 kernel_wgsl!(Conv2d, "../../template/conv/conv2d.wgsl");
 
-pub(crate) fn conv2d<B: JitRuntime, E: WgpuElement + Element>(
-    input: WgpuTensor<B, E, 4>,
-    weight: WgpuTensor<B, E, 4>,
-    bias: Option<WgpuTensor<B, E, 1>>,
+pub(crate) fn conv2d<R: Runtime, E: WgpuElement + Element>(
+    input: WgpuTensor<R, E, 4>,
+    weight: WgpuTensor<R, E, 4>,
+    bias: Option<WgpuTensor<R, E, 1>>,
     options: ConvOptions<2>,
-) -> WgpuTensor<B, E, 4> {
+) -> WgpuTensor<R, E, 4> {
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;

@@ -14,7 +14,7 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
 use crate::tensor::WgpuTensor;
-use crate::JitRuntime;
+use crate::Runtime;
 use crate::{unary, GpuBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
@@ -23,12 +23,12 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
+impl<R: Runtime> FloatTensorOps<Self> for GpuBackend<R> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::from_data::<B, _, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn float_random<const D: usize>(
@@ -37,15 +37,13 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
-            Distribution::Default => random_uniform::<B, _, D>(shape, device, 0.elem(), 1.elem()),
+            Distribution::Default => random_uniform(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform::<B, _, D>(shape, device, low.elem(), high.elem())
+                random_uniform(shape, device, low.elem(), high.elem())
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli::<B, _, D>(shape, device, prob.elem())
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem()),
             Distribution::Normal(mean, std) => {
-                random_normal::<B, _, D>(shape, device, mean.elem(), std.elem())
+                random_normal(shape, device, mean.elem(), std.elem())
             }
         }
     }
@@ -68,83 +66,83 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::to_device::<B, _, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        super::empty::<B, _, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn float_add<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::add::<B, _, D>(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn float_add_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::add_scalar::<B, _, D>(lhs, rhs)
+        numeric::add_scalar(lhs, rhs)
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::zeros::<B, _, D>(shape, device)
+        numeric::zeros(shape, device)
     }
 
     fn float_full<const D: usize>(
         shape: Shape<D>,
         fill_value: FloatElem<Self>,
-        device: &B::Device,
+        device: &R::Device,
     ) -> FloatTensor<Self, D> {
-        numeric::full::<B, _, D>(shape, device, fill_value)
+        numeric::full(shape, device, fill_value)
     }
 
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::ones::<B, _, D>(shape, device)
+        numeric::ones(shape, device)
     }
 
     fn float_sub<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::sub::<B, _, D>(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn float_sub_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::sub_scalar::<B, _, D>(lhs, rhs)
+        numeric::sub_scalar(lhs, rhs)
     }
 
     fn float_mul<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::mul::<B, _, D>(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn float_mul_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::mul_scalar::<B, _, D>(lhs, rhs)
+        numeric::mul_scalar(lhs, rhs)
     }
 
     fn float_div<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::div::<B, _, D>(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn float_div_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        numeric::div_scalar::<B, _, D>(lhs, rhs)
+        numeric::div_scalar(lhs, rhs)
     }
 
     fn float_matmul<const D: usize>(
@@ -192,7 +190,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         indices: IntTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::scatter::<B, _, _, D>(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn float_select<const D: usize>(
@@ -209,7 +207,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         indices: IntTensor<Self, 1>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::select_assign::<B, _, _, D>(tensor, dim, indices, value)
+        kernel::select_assign(tensor, dim, indices, value)
     }
 
     fn float_slice<const D1: usize, const D2: usize>(
@@ -224,7 +222,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         ranges: [Range<usize>; D2],
         value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
-        kernel::slice_assign::<B, _, D1, D2>(tensor, ranges, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn float_mask_where<const D: usize>(
@@ -247,70 +245,70 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<B, _, D>(lhs, rhs)
+        kernel::equal(lhs, rhs)
     }
 
     fn float_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<B, _, D>(lhs, rhs)
+        kernel::equal_elem(lhs, rhs)
     }
 
     fn float_greater<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<B, _, D>(lhs, rhs)
+        kernel::greater(lhs, rhs)
     }
 
     fn float_greater_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_elem::<B, _, D>(lhs, rhs)
+        kernel::greater_elem(lhs, rhs)
     }
 
     fn float_greater_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<B, _, D>(lhs, rhs)
+        kernel::greater_equal(lhs, rhs)
     }
 
     fn float_greater_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal_elem::<B, _, D>(lhs, rhs)
+        kernel::greater_equal_elem(lhs, rhs)
     }
 
     fn float_lower<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<B, _, D>(lhs, rhs)
+        kernel::lower(lhs, rhs)
     }
 
     fn float_lower_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_elem::<B, _, D>(lhs, rhs)
+        kernel::lower_elem(lhs, rhs)
     }
 
     fn float_lower_equal<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<B, _, D>(lhs, rhs)
+        kernel::lower_equal(lhs, rhs)
     }
 
     fn float_lower_equal_elem<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal_elem::<B, _, D>(lhs, rhs)
+        kernel::lower_equal_elem(lhs, rhs)
     }
 
     fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
@@ -352,7 +350,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
     fn float_to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        let tensor = kernel::cast::<B, FloatElem<Self>, f32, D>(tensor.clone());
+        let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());
         // The line bellow does the backend type cast.
         WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
@@ -360,7 +358,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        let tensor = kernel::cast::<B::FullPrecisionBackend, f32, FloatElem<Self>, D>(tensor);
+        let tensor = kernel::cast::<R::FullPrecisionBackend, f32, FloatElem<Self>, D>(tensor);
         // The line bellow does the backend type cast.
         WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
@@ -371,7 +369,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -383,7 +381,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -395,7 +393,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -411,7 +409,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 rhs: Variable::Scalar(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: lhs; rhs.elem(),
             elem: FloatElem<Self>
         )
@@ -423,7 +421,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -435,7 +433,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -447,7 +445,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -459,7 +457,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -471,7 +469,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -483,7 +481,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -519,7 +517,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         min: FloatElem<Self>,
         max: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        kernel::clamp::<B, _, D>(tensor, min, max)
+        kernel::clamp(tensor, min, max)
     }
 
     fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -528,7 +526,7 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: FloatElem<Self>
         )
@@ -546,6 +544,6 @@ impl<B: JitRuntime> FloatTensorOps<Self> for GpuBackend<B> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        numeric::pow::<B, _, D>(lhs, rhs)
+        numeric::pow(lhs, rhs)
     }
 }

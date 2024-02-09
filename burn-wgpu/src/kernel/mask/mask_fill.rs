@@ -5,17 +5,17 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(MaskFill, "../../template/mask/fill.wgsl");
 kernel_wgsl!(MaskFillInplace, "../../template/mask/fill_inplace.wgsl");
 
-pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
+pub fn mask_fill<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
     value: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let num_elems = input.shape.num_elements();
     let output = empty_device(
         input.client.clone(),
@@ -45,11 +45,11 @@ pub fn mask_fill<B: JitRuntime, E: WgpuElement, const D: usize>(
     output
 }
 
-pub fn mask_fill_inplace<B: JitRuntime, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<B, E, D>,
-    mask: WgpuTensor<B, u32, D>,
+pub fn mask_fill_inplace<R: Runtime, E: WgpuElement, const D: usize>(
+    input: WgpuTensor<R, E, D>,
+    mask: WgpuTensor<R, u32, D>,
     value: E,
-) -> WgpuTensor<B, E, D> {
+) -> WgpuTensor<R, E, D> {
     let num_elems = input.shape.num_elements();
     let value_handle = input.client.create(E::as_bytes(&[value]));
     let kernel = StaticKernel::<
@@ -77,12 +77,11 @@ mod tests {
     fn mask_fill_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual =
-            Tensor::<TestBackend, 3>::from_primitive(mask_fill::<TestJitRuntime, f32, 3>(
-                tensor.into_primitive(),
-                mask.into_primitive(),
-                4.0,
-            ));
+        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill::<TestJitRuntime, f32, 3>(
+            tensor.into_primitive(),
+            mask.into_primitive(),
+            4.0,
+        ));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected
@@ -95,13 +94,11 @@ mod tests {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual =
-            Tensor::<TestBackend, 3>::from_primitive(
-                mask_fill_inplace::<TestJitRuntime, f32, 3>(
-                    tensor.into_primitive(),
-                    mask.into_primitive(),
-                    4.0,
-                ),
-            );
+            Tensor::<TestBackend, 3>::from_primitive(mask_fill_inplace::<TestJitRuntime, f32, 3>(
+                tensor.into_primitive(),
+                mask.into_primitive(),
+                4.0,
+            ));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected

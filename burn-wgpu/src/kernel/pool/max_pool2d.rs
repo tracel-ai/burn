@@ -9,7 +9,7 @@ use crate::{
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::WgpuTensor,
-    JitRuntime,
+    Runtime,
 };
 
 kernel_wgsl!(MaxPool2d, "../../template/pool/max_pool2d.wgsl");
@@ -22,13 +22,13 @@ kernel_wgsl!(
     "../../template/pool/max_pool2d_with_indices.wgsl"
 );
 
-pub(crate) fn max_pool2d<B: JitRuntime, E: WgpuElement>(
-    x: WgpuTensor<B, E, 4>,
+pub(crate) fn max_pool2d<R: Runtime, E: WgpuElement>(
+    x: WgpuTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> WgpuTensor<B, E, 4> {
+) -> WgpuTensor<R, E, 4> {
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let kernel = StaticKernel::<
@@ -44,13 +44,13 @@ pub(crate) fn max_pool2d<B: JitRuntime, E: WgpuElement>(
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<B: JitRuntime, E: WgpuElement, I: WgpuElement>(
-    x: WgpuTensor<B, E, 4>,
+pub(crate) fn max_pool2d_with_indices<R: Runtime, E: WgpuElement, I: WgpuElement>(
+    x: WgpuTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (WgpuTensor<B, E, 4>, WgpuTensor<B, I, 4>) {
+) -> (WgpuTensor<R, E, 4>, WgpuTensor<R, I, 4>) {
     let (info_handle, output) =
         build_output_and_info_pool2d(&x, kernel_size, stride, padding, dilation);
     let indices = empty_device(x.client.clone(), x.device, output.shape.clone());
@@ -70,15 +70,15 @@ pub(crate) fn max_pool2d_with_indices<B: JitRuntime, E: WgpuElement, I: WgpuElem
     (output, indices)
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<B: JitRuntime, E: WgpuElement, I: WgpuElement>(
-    x: WgpuTensor<B, E, 4>,
-    grad: WgpuTensor<B, E, 4>,
-    indices: WgpuTensor<B, I, 4>,
+pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: WgpuElement, I: WgpuElement>(
+    x: WgpuTensor<R, E, 4>,
+    grad: WgpuTensor<R, E, 4>,
+    indices: WgpuTensor<R, I, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> WgpuTensor<B, E, 4> {
+) -> WgpuTensor<R, E, 4> {
     let grad = kernel::into_contiguous(grad);
     let indices = kernel::into_contiguous(indices);
 

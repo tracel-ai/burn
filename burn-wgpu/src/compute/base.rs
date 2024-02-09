@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use super::WgpuServer;
 use crate::{
-    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, JitRuntime, WgpuDevice,
+    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, Runtime, WgpuDevice,
 };
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
@@ -43,7 +43,7 @@ pub struct WgpuJitBackend<G: GraphicsApi, F: FloatElement, I: IntElement> {
     _i: PhantomData<I>,
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> JitRuntime for WgpuJitBackend<G, F, I> {
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuJitBackend<G, F, I> {
     type FullPrecisionBackend = WgpuJitBackend<G, f32, i32>;
     type Compiler = wgsl::Compiler<F, I>;
     type Server = Server;

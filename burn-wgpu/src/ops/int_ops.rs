@@ -2,16 +2,16 @@ use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
 use crate::codegen::Compiler;
 use crate::kernel::reduce::{self, init_reduce_output};
-use crate::{kernel, unary, GpuBackend, JitRuntime};
+use crate::{kernel, unary, GpuBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
+impl<R: Runtime> IntTensorOps<Self> for GpuBackend<R> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        super::empty::<B, _, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
@@ -26,7 +26,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         data: Data<IntElem<Self>, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        super::from_data::<B, _, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -37,7 +37,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         tensor: IntTensor<Self, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        super::to_device::<B, _, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
@@ -59,7 +59,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         ranges: [Range<usize>; D2],
         value: IntTensor<Self, D1>,
     ) -> IntTensor<Self, D1> {
-        kernel::slice_assign::<B, _, D1, D2>(tensor, ranges, value)
+        kernel::slice_assign(tensor, ranges, value)
     }
 
     fn int_mask_where<const D: usize>(
@@ -92,7 +92,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         indices: IntTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::scatter::<B, _, _, D>(dim, tensor, indices, value)
+        kernel::scatter(dim, tensor, indices, value)
     }
 
     fn int_select<const D: usize>(
@@ -109,7 +109,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         indices: IntTensor<Self, 1>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::select_assign::<B, _, _, D>(tensor, dim, indices, value)
+        kernel::select_assign(tensor, dim, indices, value)
     }
 
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
@@ -120,134 +120,134 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<B, _, D>(lhs, rhs)
+        kernel::equal(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<B, _, D>(lhs, rhs)
+        kernel::equal_elem(lhs, rhs)
     }
 
     fn int_greater<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<B, _, D>(lhs, rhs)
+        kernel::greater(lhs, rhs)
     }
 
     fn int_greater_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_elem::<B, _, D>(lhs, rhs)
+        kernel::greater_elem(lhs, rhs)
     }
 
     fn int_greater_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<B, _, D>(lhs, rhs)
+        kernel::greater_equal(lhs, rhs)
     }
 
     fn int_greater_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal_elem::<B, _, D>(lhs, rhs)
+        kernel::greater_equal_elem(lhs, rhs)
     }
 
     fn int_lower<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<B, _, D>(lhs, rhs)
+        kernel::lower(lhs, rhs)
     }
 
     fn int_lower_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_elem::<B, _, D>(lhs, rhs)
+        kernel::lower_elem(lhs, rhs)
     }
 
     fn int_lower_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<B, _, D>(lhs, rhs)
+        kernel::lower_equal(lhs, rhs)
     }
 
     fn int_lower_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal_elem::<B, _, D>(lhs, rhs)
+        kernel::lower_equal_elem(lhs, rhs)
     }
 
     fn int_add<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::add::<B, _, D>(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::add_scalar::<B, _, D>(lhs, rhs)
+        numeric::add_scalar(lhs, rhs)
     }
 
     fn int_sub<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::sub::<B, _, D>(lhs, rhs)
+        numeric::sub(lhs, rhs)
     }
 
     fn int_sub_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::sub_scalar::<B, _, D>(lhs, rhs)
+        numeric::sub_scalar(lhs, rhs)
     }
 
     fn int_mul<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::mul::<B, _, D>(lhs, rhs)
+        numeric::mul(lhs, rhs)
     }
 
     fn int_mul_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::mul_scalar::<B, _, D>(lhs, rhs)
+        numeric::mul_scalar(lhs, rhs)
     }
 
     fn int_div<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::div::<B, _, D>(lhs, rhs)
+        numeric::div(lhs, rhs)
     }
 
     fn int_div_scalar<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        numeric::div_scalar::<B, _, D>(lhs, rhs)
+        numeric::div_scalar(lhs, rhs)
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::zeros::<B, _, D>(shape, device)
+        numeric::zeros(shape, device)
     }
 
     fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::ones::<B, _, D>(shape, device)
+        numeric::ones(shape, device)
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
@@ -277,7 +277,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        kernel::clamp::<B, _, D>(tensor, min, max)
+        kernel::clamp(tensor, min, max)
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
@@ -286,7 +286,7 @@ impl<B: JitRuntime> IntTensorOps<Self> for GpuBackend<B> {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
             }),
-            backend: B,
+            runtime: R,
             input: tensor,
             elem: IntElem<Self>
         )
