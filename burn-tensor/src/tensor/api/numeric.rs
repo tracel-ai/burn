@@ -470,8 +470,8 @@ where
         let height = shape.dims[D - 2];
         let width = shape.dims[D - 1];
 
-        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height, &self.device());
-        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width, &self.device());
+        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, &self.device());
+        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width as i64, &self.device());
 
         let mut row_shape = [1; D];
         row_shape[D - 2] = height;
@@ -582,7 +582,7 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn diagonal(size: usize, device: &B::Device) -> Self {
-        let indices = Tensor::<B, 1, Int>::arange(0..size, device).unsqueeze();
+        let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
         Self::new(K::scatter(0, zeros, indices, ones))

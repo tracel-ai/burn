@@ -1,4 +1,5 @@
 use crate::{
+    codegen::Compiler,
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
@@ -8,7 +9,7 @@ use crate::{
 
 kernel_wgsl!(Scatter, "../../template/index/scatter.wgsl");
 
-pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn scatter<C: Compiler, E: WgpuElement, I: WgpuElement, const D: usize>(
     dim: usize,
     tensor: WgpuTensor<E, D>,
     indices: WgpuTensor<I, D>,
@@ -20,7 +21,7 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
 
     let tensor = match tensor.can_mut() {
         true => tensor,
-        false => tensor.copy(),
+        false => tensor.copy::<C>(),
     };
 
     let mut info = build_info(&[&tensor, &value]);
@@ -67,7 +68,7 @@ pub(crate) fn scatter<E: WgpuElement, I: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -126,7 +127,7 @@ mod tests {
         let indices_ref =
             Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data().convert(), &ref_device);
 
-        let actual = Tensor::<TestBackend, D>::from_primitive(scatter(
+        let actual = Tensor::<TestBackend, D>::from_primitive(scatter::<TestCompiler, _, _, D>(
             dim,
             tensor.into_primitive(),
             indices.into_primitive(),
