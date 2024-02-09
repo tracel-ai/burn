@@ -111,7 +111,7 @@ pub fn execute() {
 /// Create an access token from GitHub Burnbench application and store it
 /// to be used with the user benchmark backend.
 fn command_auth() {
-    let mut flow = match DeviceFlow::start(&CLIENT_ID, None) {
+    let mut flow = match DeviceFlow::start(CLIENT_ID, None) {
         Ok(flow) => flow,
         Err(e) => {
             eprintln!("Error authenticating: {}", e);
@@ -122,12 +122,10 @@ fn command_auth() {
     println!("\n    {}\n", flow.verification_uri.clone().unwrap());
     let user_code = flow.user_code.clone().unwrap();
     println!("👉 And enter code: {}", &user_code);
-    match Clipboard::new() {
-        Ok(mut clipboard) => match clipboard.set_text(user_code) {
-            Ok(_) => println!("📋 Code has been successfully copied to clipboard."),
-            Err(_) => (),
-        },
-        Err(_) => (),
+    if let Ok(mut clipboard) = Clipboard::new() {
+        if clipboard.set_text(user_code).is_ok() {
+            println!("📋 Code has been successfully copied to clipboard.")
+        };
     };
     thread::sleep(FIVE_SECONDS);
     match flow.poll(20) {
@@ -153,7 +151,7 @@ fn command_run(run_args: RunArgs) {
     if run_args.share {
         // Verify if a token is saved
         let token = get_token_from_cache();
-        if let None = token {
+        if token.is_none() {
             eprintln!("You need to be authenticated to be able to share benchmark results.");
             eprintln!("Run the command 'burnbench auth' to authenticate.");
             return;

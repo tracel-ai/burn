@@ -8,9 +8,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) static CLIENT_ID: &'static str = "Iv1.84002254a02791f3";
-static GITHUB_API_VERSION_HEADER: &'static str = "X-GitHub-Api-Version";
-static GITHUB_API_VERSION: &'static str = "2022-11-28";
+pub(crate) static CLIENT_ID: &str = "Iv1.84002254a02791f3";
+static GITHUB_API_VERSION_HEADER: &str = "X-GitHub-Api-Version";
+static GITHUB_API_VERSION: &str = "2022-11-28";
 
 /// Return the file path for the auth cache on disk
 pub fn get_auth_cache_file_path() -> PathBuf {
@@ -68,7 +68,7 @@ pub(crate) fn save_token(token: &str) {
 /// Return the token saved in the cache file
 pub(crate) fn get_token_from_cache() -> Option<String> {
     let path = get_auth_cache_file_path();
-    match fs::read_to_string(&path) {
+    match fs::read_to_string(path) {
         Ok(contents) => contents.lines().next().map(str::to_string),
         _ => None,
     }
