@@ -50,7 +50,7 @@ Therefore, creating the tape only requires a simple and efficient graph traversa
 
 ## Cuda
 
-To run with CUDA set `TORCH_CUDA_VERSION=cu113`.
+To run with CUDA set `TORCH_CUDA_VERSION=cu121`.
 
 ## Notes
 
