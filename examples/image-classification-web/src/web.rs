@@ -151,14 +151,14 @@ impl<B: Backend> Model<B> {
         let output = self.model.forward(input);
 
         // Convert the model output into probability distribution using softmax formula
-        let probabilies = softmax(output, 1);
+        let probabilities = softmax(output, 1);
 
         #[cfg(not(target_family = "wasm"))]
-        let result = probabilies.into_data().convert::<f32>().value;
+        let result = probabilities.into_data().convert::<f32>().value;
 
         // Forces the result to be computed
         #[cfg(target_family = "wasm")]
-        let result = probabilies.into_data().await.convert::<f32>().value;
+        let result = probabilities.into_data().await.convert::<f32>().value;
 
         result
     }
@@ -173,18 +173,18 @@ pub struct InferenceResult {
 }
 
 /// Returns the top 5 classes and convert them into a JsValue
-fn top_5_classes(probabilies: Vec<f32>) -> Result<JsValue, JsValue> {
+fn top_5_classes(probabilities: Vec<f32>) -> Result<JsValue, JsValue> {
     // Convert the probabilities into a vector of (index, probability)
-    let mut probabilies: Vec<_> = probabilies.iter().enumerate().collect();
+    let mut probabilities: Vec<_> = probabilities.iter().enumerate().collect();
 
     // Sort the probabilities in descending order
-    probabilies.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+    probabilities.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
 
     // Take the top 5 probabilities
-    probabilies.truncate(5);
+    probabilities.truncate(5);
 
     // Convert the probabilities into InferenceResult
-    let result: Vec<InferenceResult> = probabilies
+    let result: Vec<InferenceResult> = probabilities
         .into_iter()
         .map(|(index, probability)| InferenceResult {
             index,
