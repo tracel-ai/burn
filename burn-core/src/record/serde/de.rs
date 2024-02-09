@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use super::adapter::DefaultAdapter;
 use super::data::NestedValue;
 use super::{adapter::BurnModuleAdapter, error::Error};
 
@@ -78,7 +77,8 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
                 let map = if self.default_for_missing_fields {
                     let mut map = map;
                     for field in fields.iter().map(|s| s.to_string()) {
-                        map.entry(field).or_insert(NestedValue::Default);
+                        map.entry(field.clone())
+                            .or_insert(NestedValue::Default(Some(field)));
                     }
                     map
                 } else {
@@ -420,11 +420,13 @@ where
         T: DeserializeSeed<'de>,
     {
         match self.next_value.take() {
-            Some(NestedValue::Default) => seed.deserialize(DefaultDeserializer),
+            Some(NestedValue::Default(originator)) => {
+                seed.deserialize(DefaultDeserializer::new(originator))
+            }
             Some(v) => seed.deserialize(
                 NestedValueWrapper::new(v, self.default_for_missing_fields).into_deserializer(),
             ),
-            None => seed.deserialize(DefaultDeserializer),
+            None => seed.deserialize(DefaultDeserializer::new(None)),
         }
     }
 }
@@ -455,7 +457,18 @@ impl<A: BurnModuleAdapter> IntoDeserializer<'_, Error> for NestedValueWrapper<A>
 }
 
 /// A default deserializer that always returns the default value.
-struct DefaultDeserializer;
+struct DefaultDeserializer {
+    /// The originator field name (the top level missing field name)
+    originator_field_name: Option<String>,
+}
+
+impl DefaultDeserializer {
+    fn new(originator_field_name: Option<String>) -> Self {
+        Self {
+            originator_field_name,
+        }
+    }
+}
 
 impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     type Error = Error;
@@ -581,20 +594,18 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
 
     fn deserialize_struct<V>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _fields: &'static [&'static str],
-        visitor: V,
+        _visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        let mut map: HashMap<String, NestedValue> = HashMap::new();
-
-        for field in _fields.iter().map(|s| s.to_string()) {
-            map.insert(field, NestedValue::Default);
-        }
-
-        visitor.visit_map(HashMapAccess::<DefaultAdapter>::new(map, true))
+        panic!(
+            "Cannot deserialize {} struct with default values orinated from '{}' field",
+            name,
+            self.originator_field_name.unwrap_or("UNKNOWN".to_string())
+        );
     }
 
     fn deserialize_tuple_struct<V>(
@@ -654,7 +665,14 @@ impl<'de> SeqAccess<'de> for DefaultSeqAccess {
     where
         T: DeserializeSeed<'de>,
     {
-        seed.deserialize(DefaultDeserializer).map(Some)
+        match self.size {
+            Some(0) => Ok(None),
+            Some(ref mut size) => {
+                *size -= 1;
+                seed.deserialize(DefaultDeserializer::new(None)).map(Some)
+            }
+            None => Ok(None),
+        }
     }
 
     fn size_hint(&self) -> Option<usize> {

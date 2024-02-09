@@ -16,8 +16,9 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub enum NestedValue {
     /// The default value, which actually does not hold any value and it is used to indicate that
-    /// the value should be populated with the default value.
-    Default,
+    /// the value should be populated with the default value. It contains an optional string with
+    /// the orinator field name.
+    Default(Option<String>),
 
     /// A boolean value.
     Bool(bool),
