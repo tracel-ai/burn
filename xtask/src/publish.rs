@@ -4,20 +4,11 @@
 //!
 //! cargo xtask publish INPUT_CRATE
 
-use std::{
-    collections::HashMap,
-    env,
-    process::Command,
-    str,
-};
+use std::{collections::HashMap, env, process::Command, str};
 
 use crate::{
-    endgroup,
-    group,
-    utils::{
-        cargo::run_cargo,
-        Params,
-    },
+    endgroup, group,
+    utils::{cargo::run_cargo, Params},
 };
 
 // Crates.io API token
@@ -72,16 +63,33 @@ fn publish(crate_name: String) {
     // Perform dry-run to ensure everything is good for publishing
     let dry_run_params = Params::from(["publish", "-p", &crate_name, "--dry-run"]);
 
-    run_cargo("publish", dry_run_params, HashMap::new(), "Failed to run cargo publish --dry-run");
+    run_cargo(
+        "publish",
+        dry_run_params,
+        HashMap::new(),
+        "Failed to run cargo publish --dry-run",
+    );
+
+    
+    let crates_io_token =
+        env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
+    let envs = HashMap::from([("CRATES_IO_API_TOKEN", crates_io_token.clone())]);
+    let publish_params = Params::from(vec![
+        "publish",
+        "-p",
+        &crate_name,
+        "--token",
+        &crates_io_token,
+    ]);
 
     // Actually publish the crate
-    let crates_io_token = env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
-    let publish_params = Params::from(vec!["publish", "-p", &crate_name, "--token", &crates_io_token]);
-    let envs = HashMap::from([("CRATES_IO_API_TOKEN", crates_io_token.clone())]);
-
-    run_cargo("publish", publish_params, envs, "Failed to publish the crate");
+    run_cargo(
+        "publish",
+        publish_params,
+        envs,
+        "Failed to publish the crate",
+    );
 }
-
 
 pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
     group!("Publishing {}...\n", crate_name);
@@ -100,7 +108,7 @@ pub(crate) fn run(crate_name: String) -> anyhow::Result<()> {
                 info!("Remote version {remote_version} is up to date, skipping deployment");
                 return Ok(());
             }
-        },
+        }
         None => info!("\nFirst time publishing {crate_name} on crates.io!\n"),
     }
 
