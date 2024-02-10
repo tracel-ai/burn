@@ -5,9 +5,7 @@ use super::{
 };
 use crate::{
     codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
-    codegen::{
-        compiler::Compiler, ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy,
-    },
+    codegen::{ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy},
     compute::JitAutotuneKey,
     fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
     JitBackend, Runtime,

@@ -1,11 +1,8 @@
 use super::{optimization::ElementWise, CompilationPhase, Scalars};
 use crate::{
-    codegen::{
-        dialect::gpu::{
-            BinaryOperation, ConditionalAssignOperation, Elem, Item, Operation, UnaryOperation,
-            Variable,
-        },
-        Compiler,
+    codegen::dialect::gpu::{
+        BinaryOperation, ConditionalAssignOperation, Elem, Item, Operation, UnaryOperation,
+        Variable,
     },
     element::JitElement,
     fusion::WgpuOptimization,

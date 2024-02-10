@@ -2,7 +2,6 @@ use super::numeric;
 use crate::codegen::dialect::gpu::{
     BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
 };
-use crate::codegen::Compiler;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]

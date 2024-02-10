@@ -1,7 +1,6 @@
 use crate::codegen::dialect::gpu::{
     BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
 };
-use crate::codegen::Compiler;
 use crate::{binary, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;

@@ -1,6 +1,5 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
-use crate::codegen::Compiler;
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
