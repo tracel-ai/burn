@@ -26,7 +26,7 @@ impl StaticKernelSource for UniformPrng {
     }
 }
 
-/// Pseudo-random generatJitBackendm distribution
+/// Pseudo-random generator for the uniform distribution.
 pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
@@ -38,7 +38,7 @@ pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
 }
 
 /// Pseudo-random generator for uniform distribution, based on
-/// another tensor's client, dJitBackendpe
+/// another tensor.
 pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(
     tensor: &JitTensor<R, E, D>,
     low: E,
