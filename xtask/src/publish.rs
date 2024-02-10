@@ -70,7 +70,6 @@ fn publish(crate_name: String) {
         "Failed to run cargo publish --dry-run",
     );
 
-    
     let crates_io_token =
         env::var(CRATES_IO_API_TOKEN).expect("Failed to retrieve the crates.io API token");
     let envs = HashMap::from([("CRATES_IO_API_TOKEN", crates_io_token.clone())]);
