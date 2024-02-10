@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use super::{Ops, OpsPrep};
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{ComputingProperties, Graph, NodeRef, Requirement},
+    graph::{ComputingProperty, Graph, NodeRef, Requirement},
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
@@ -44,8 +42,8 @@ where
             graphs,
             requirement,
             self,
-            ComputingProperties::Ambiguous, // If not specified we start with ambiguous
-            None,
+            ComputingProperty::Ambiguous, // If not specified we start with ambiguous
+            Vec::new(),
         )
     }
 }

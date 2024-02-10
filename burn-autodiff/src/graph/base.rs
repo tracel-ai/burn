@@ -1,7 +1,7 @@
 use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{checkpoint::base::Checkpointer, grads::Gradients};
+use crate::{checkpoint::base::Checkpointer, grads::Gradients, ops::CheckpointingAction};
 
 use super::{NodeID, NodeRef};
 
@@ -22,7 +22,7 @@ pub type NodeSteps = HashMap<NodeID, StepBoxed>;
 #[derive(Default, Clone, Debug)]
 pub struct Graph {
     steps: Arc<Mutex<NodeSteps>>,
-    checkpointer: Arc<Mutex<Checkpointer>>,
+    checkpointing_actions: Arc<Mutex<Vec<CheckpointingAction>>>,
 }
 
 impl Graph {
@@ -82,7 +82,7 @@ impl Graph {
 
     fn merge_different(self, other: Self) -> Self {
         let mut map2 = other.clone().steps();
-        let mut checkpointer2 = other.checkpointer_own();
+        let mut actions2 = other.checkpointing_actions_own();
 
         self.execute_mut_steps(|map1| {
             if map1.len() > map2.len() {
@@ -94,14 +94,14 @@ impl Graph {
                 std::mem::swap(map1, &mut map2);
             }
         })
-        .execute_mut_checkpointer(|checkpointer1| {
-            if checkpointer1.len() > checkpointer2.len() {
-                checkpointer1.extend(checkpointer2);
+        .execute_mut_checkpointing_actions(|actions1| {
+            if actions1.len() > actions2.len() {
+                actions1.extend(actions2);
             } else {
-                let mut checkpointer_drain = Checkpointer::default();
-                std::mem::swap(checkpointer1, &mut checkpointer_drain);
-                checkpointer2.extend(checkpointer_drain);
-                std::mem::swap(checkpointer1, &mut checkpointer2);
+                let mut checkpointing_drain = Vec::default();
+                std::mem::swap(actions1, &mut checkpointing_drain);
+                actions2.extend(checkpointing_drain);
+                std::mem::swap(actions1, &mut actions2);
             }
         })
     }
@@ -109,43 +109,63 @@ impl Graph {
     /// # Notes
     ///
     /// This is a owned method, so the current checkpointer will be freed.
-    pub fn checkpointer_own(self) -> Checkpointer {
-        let mut checkpointer_drain = Checkpointer::default();
-        self.execute_mut_checkpointer(|checkpointer| {
-            std::mem::swap(&mut *checkpointer, &mut checkpointer_drain);
+    pub fn checkpointing_actions_own(self) -> Vec<CheckpointingAction> {
+        let mut actions = Vec::default();
+        self.execute_mut_checkpointing_actions(|checkpointing_actions| {
+            std::mem::swap(&mut *checkpointing_actions, &mut actions);
         });
-        checkpointer_drain
+        actions
     }
 
-    fn execute_mut_checkpointer<F: FnOnce(&mut Checkpointer)>(mut self, func: F) -> Self {
-        match Arc::get_mut(&mut self.checkpointer) {
+    fn execute_mut_checkpointing_actions<F: FnOnce(&mut Vec<CheckpointingAction>)>(
+        mut self,
+        func: F,
+    ) -> Self {
+        match Arc::get_mut(&mut self.checkpointing_actions) {
             Some(mutex) => {
                 let map = mutex.get_mut();
                 func(map);
             }
             None => {
                 // Only lock when there are multiple references to the graph.
-                let mut checkpointer = self.checkpointer.lock();
-                func(&mut checkpointer);
+                let mut actions = self.checkpointing_actions.lock();
+                func(&mut actions);
             }
         };
 
         self
     }
 
-    pub fn take_checkpointer(&self) -> Checkpointer {
-        let mut guard = self.checkpointer.lock();
-        let owned: Checkpointer = std::mem::replace(&mut *guard, Checkpointer::default());
-        owned
+    // pub fn take_checkpointing_actions(&self) -> Vec<CheckpointingAction> {
+    //     let mut guard = self.checkpointing_actions.lock();
+    //     let owned: Vec<CheckpointingAction> = std::mem::replace(&mut *guard, Vec::default());
+    //     owned
+    // }
+
+    pub(crate) fn build_checkpointer(&self) -> Checkpointer {
+        let mut guard = self.checkpointing_actions.lock();
+        let owned: Vec<CheckpointingAction> = std::mem::replace(&mut *guard, Vec::default());
+        Checkpointer::build(owned)
     }
 
-    pub fn print_checkpoint(&self) {
-        self.checkpointer.lock().print();
+    // pub fn print_checkpoint(&self) {
+    //     self.checkpointer.lock().print();
+    // }
+
+    // pub(crate) fn merge_checkpointer(self, checkpointer: Checkpointer) -> Self {
+    //     // TODO add again the if for slarget one
+    //     self.execute_mut_checkpointer(|checkpointer1| {
+    //         checkpointer1.extend(checkpointer);
+    //     })
+    // }
+
+    pub(crate) fn extend_checkpointing_actions(
+        &self,
+        checkpointing_actions: Vec<CheckpointingAction>,
+    ) {
+        self.checkpointing_actions
+            .lock()
+            .extend(checkpointing_actions)
     }
 
-    pub(crate) fn merge_checkpointer(self, checkpointer: Checkpointer) -> Self {
-        self.execute_mut_checkpointer(|checkpointer1| {
-            checkpointer1.extend(checkpointer);
-        })
-    }
 }

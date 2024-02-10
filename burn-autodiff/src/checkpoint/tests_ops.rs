@@ -122,8 +122,42 @@ fn should_diff_mul_tree() {
     assert_eq!(grad_b, expected_b);
     assert_eq!(grad_c, expected_c);
     assert_eq!(grad_d, expected_d);
+    // assert!(false)
+}
 
-    // FAILS because the leaves are not put in the checkpointer
+#[test]
+fn should_diff_div_tree() {
+    // (a/b)/(c/d)
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+    let data_d = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
+    let tensor_d = TestAutodiffTensor::from_data(data_d, &device).require_grad();
+
+    let tensor_e = tensor_a.clone().div(tensor_b.clone());
+    let tensor_f = tensor_c.clone().div(tensor_d.clone());
+    let tensor_g = tensor_e.div(tensor_f);
+
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+    let grad_d = tensor_d.grad(&grads).unwrap().to_data();
+
+    let expected_a = Data::from([0.6667, 0.1429]);
+    let expected_b = Data::from([-0.3333, -0.1429]);
+    let expected_c = Data::from([-0.2222, -0.1429]);
+    let expected_d = Data::from([0.1667, 0.1429]);
+
+    grad_a.assert_approx_eq(&expected_a, 3);
+    grad_b.assert_approx_eq(&expected_b, 3);
+    grad_c.assert_approx_eq(&expected_c, 3);
+    grad_d.assert_approx_eq(&expected_d, 3);
 }
 
 #[test]
@@ -165,7 +199,7 @@ fn should_diff_mul_div_tree() {
 #[test]
 fn should_diff_mul_div_tree_with_reuse() {
     // For this test please put div checkpointed/stateful and mul lazy
-    // (a/b)(b/c)
+    // (a/b)(b/c) .  a=0, b=1, c=2 , a/b=3 , b/c=4
     let data_a = Data::from([1.0, 7.0]);
     let data_b = Data::from([2.0, 7.0]);
     let data_c = Data::from([3.0, 7.0]);
@@ -194,24 +228,43 @@ fn should_diff_mul_div_tree_with_reuse() {
 }
 
 // TODO
-// - n_required: should be the number of children of a node.
-//     - The parent cannot know in advance how many
-//     - If children are stateful they don't increment it -> not true, stateful means they are able to compute their own backward, but they might do retroforward for others
-//          - If children are CHECKPOINTED they don't increment it?? -> but if they are state_lazy?
-//     - Then the condition for not incrementing is that they are BOTH STATEFUL AND CHECKPOINTED (they won't ask for it neither for themselves nor their children)
-//          - Sadly, the state of the previous cannot be prevented from being copied as we learn too late it's useless
-//          - But both stateful and checkpointed is probably not so common
-//     - If incremented, by how much?
-//          - How many decrementations will there be?
-//     - If n_required is always zero, would be nice if not copied
-// - If parents are not tracked they should not be put in the state as Some()
-//     - Maybe something related to n_required?
 // - Cleanup
-//     - The Options in ops prep are not nice
-//     - The match at the beginning of backward
-//     - The Box needed in .recompute()
-//     - Both get states and retrieve outputs are called within an ops. confusing
+// .    - Maybe create retro forward instance before prepare to save a clone
 // - Check if all works fine
 //     - Make several test trees, with many variations, including sharing a parent node
+//          - Test for untracked parents
 //     - Check if the checkpointer extend is well done and there's only one
 // - Is node_tree redundant?
+//
+
+#[test]
+fn complicated_computation() {
+    // Add: MemoryBound, Eager [\]
+    // Powf: ComputeBound, Eager (\)
+    // Mul_scalar: (Unary) Memory bound, Eager [X]
+    // Mul: MemoryBound, Lazy [X]
+    // Div: ComputeBound, Lazy (X)
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([2.0, 7.0]);
+    let data_3 = Data::from([3.0, 7.0]);
+    let data_4 = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+
+    let tensor_5 = tensor_0.powf(tensor_1);
+    let tensor_6 = tensor_2.div(tensor_3.clone());
+    let tensor_7 = tensor_3.add(tensor_4);
+    let tensor_8 = tensor_6.div(tensor_7.clone());
+    let tensor_9 = tensor_7.mul_scalar(11);
+    let tensor_10 = tensor_5.mul(tensor_8.clone());
+    let tensor_11 = tensor_8.mul(tensor_9);
+    let tensor_12 = tensor_10.div(tensor_11.clone());
+
+    let grads = tensor_12.backward();
+}

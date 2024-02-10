@@ -6,7 +6,8 @@ use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
 pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
-    let checkpointer = root.graph.take_checkpointer();
+    let checkpointer = root.graph.build_checkpointer();
+    checkpointer.print();
     let tape = build_tape(root.node, root.graph);
 
     execute_steps(tape, grads, checkpointer)

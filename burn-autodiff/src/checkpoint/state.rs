@@ -67,6 +67,28 @@ impl State {
             } => *n_required += 1,
         }
     }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        match other {
+            State::Recompute { n_required: n } => match self {
+                State::Recompute { n_required } => *n_required += n,
+                State::Computed {
+                    state_content,
+                    n_required,
+                } => panic!("Not supposed to happen"),
+            },
+            State::Computed {
+                state_content,
+                n_required: n,
+            } => match self {
+                State::Recompute { n_required } => panic!("Not supposed to happen"),
+                State::Computed {
+                    state_content,
+                    n_required,
+                } => *n_required += n,
+            },
+        }
+    }
 }
 
 #[derive(new, Default, Debug)]
@@ -90,6 +112,7 @@ impl BackwardStates {
         // Downcast the state to whatever it is supposed to be
         // If still needed after giving ownership, we copy it back to the hashmap
         if remaining_n_required > 0 {
+            println!("reinserting node {:?}", node_id);
             let new_stored_state = match state {
                 State::Recompute { n_required: _ } => State::Recompute {
                     n_required: remaining_n_required,
@@ -113,6 +136,7 @@ impl BackwardStates {
 
             downcasted
         } else {
+            println!("NOT reinserting node {:?}", node_id);
             let downcasted = state.into_state_content().downcast::<T>().unwrap();
             *downcasted
         }
@@ -144,7 +168,30 @@ impl BackwardStates {
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        self.map.extend(other.map);
+        // println!("extending");
+        // println!("..");
+        // println!("{:?}", self.map.keys());
+        // println!("{:?}", self.map.values());
+        // println!("..");
+        // println!("{:?}", other.map.keys());
+        // println!("{:?}", other.map.values());
+        // println!("..");
+        for (node_id, state) in other.map.into_iter() {
+            // println!("{:?}", node_id);
+            match self.map.remove(&node_id) {
+                Some(mut s) => {
+                    // println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                    s.merge(state);
+                    self.map.insert(node_id, s);
+                }
+                None => {
+                    self.map.insert(node_id, state);
+                }
+            }
+        }
+        // println!("-> {:?}", self.map.keys());
+        // println!("-> {:?}", self.map.values());
+        // println!("\n\n")
     }
 
     pub(crate) fn len(&self) -> usize {

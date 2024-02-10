@@ -1,6 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{any::Any, collections::HashMap, sync::Arc};
 
-use crate::graph::{NodeID, NodeRef};
+use crate::{
+    graph::{Graph, NodeID, NodeRef},
+    ops::CheckpointingAction,
+};
 use std::fmt::Debug;
 
 use super::state::{BackwardStates, State};
@@ -75,6 +78,10 @@ impl NodeTree {
     pub(crate) fn extend(&mut self, other: Self) {
         self.map.extend(other.map);
     }
+
+    pub(crate) fn print(&self) {
+        println!("{:?}", self.map.keys())
+    }
 }
 
 #[derive(new, Debug, Default)]
@@ -92,6 +99,7 @@ impl Checkpointer {
     where
         T: Clone + Send + Sync + 'static,
     {
+        println!("retrieve {:?}", node_id);
         self.topological_sort(node_id.clone())
             .into_iter()
             .for_each(|node| {
@@ -103,19 +111,21 @@ impl Checkpointer {
     }
 
     /// Insert a [State::Precomputed] at [NodeID]
-    pub fn checkpoint_compute<T>(&mut self, node_ref: NodeRef, saved_output: T) -> NodeID
-    where
-        T: Clone + Send + Sync + 'static,
-    {
+    pub fn checkpoint_compute(
+        &mut self,
+        node_ref: NodeRef,
+        saved_output: Box<dyn Any + Send + Sync>,
+    ) -> NodeID {
         let node_id = node_ref.id.clone();
         if let Some(state) = self.backward_states.get_mut(&node_id) {
+            // TODO make it recursive
             state.increment();
         } else {
             self.node_tree.insert_node(node_id.clone(), node_ref);
             self.backward_states.insert_state(
                 node_id.clone(),
                 State::Computed {
-                    state_content: Box::new(saved_output),
+                    state_content: saved_output,
                     n_required: 1,
                 },
             );
@@ -164,7 +174,9 @@ impl Checkpointer {
     ) -> NodeID {
         let node_id = node_ref.id.clone();
         if let Some(state) = self.backward_states.get_mut(&node_id) {
+            println!("{:?}", state.n_required());
             state.increment();
+            println!("{:?}", state.n_required());
         } else {
             self.node_tree.insert_node(node_id.clone(), node_ref);
             self.retro_forwards
@@ -175,11 +187,39 @@ impl Checkpointer {
         node_id
     }
 
-    // TODO TMP
+    // // TODO TMP
     pub fn print(&self) {
         println!("\n\nCheckpointer");
-        println!("\n{:?}", self.node_tree);
+        println!("\n");
+        self.node_tree.print();
         println!("\n{:?}", self.backward_states);
         println!("\n{:?}", self.retro_forwards);
+    }
+
+    pub fn build(checkpointing_actions: Vec<CheckpointingAction>) -> Self {
+        let mut checkpointer = Self::default();
+        for action in checkpointing_actions {
+            match action {
+                CheckpointingAction::Compute {
+                    node_ref,
+                    state_content,
+                } => println!("{:?}C", node_ref.id),
+                CheckpointingAction::Recompute {
+                    node_ref,
+                    retro_forward,
+                } => println!("{:?}R", node_ref.id),
+            }
+            //     match action {
+            //         CheckpointingAction::Compute {
+            //             node_ref,
+            //             state_content,
+            //         } => checkpointer.checkpoint_compute(node_ref, state_content),
+            //         CheckpointingAction::Recompute {
+            //             node_ref,
+            //             retro_forward,
+            //         } => checkpointer.checkpoint_lazy(node_ref, retro_forward),
+            //     };
+        }
+        checkpointer
     }
 }

@@ -6,7 +6,7 @@ use crate::checkpoint::base::RetroForward;
 use super::Requirement;
 
 #[derive(Debug, Clone)]
-pub enum ComputingProperties {
+pub enum ComputingProperty {
     ComputeBound,
     MemoryBound {
         retro_forward: Arc<dyn RetroForward>,
@@ -21,7 +21,7 @@ pub struct Node {
     pub order: usize,
     pub id: NodeID,
     pub requirement: Requirement,
-    pub properties: ComputingProperties,
+    pub properties: ComputingProperty,
 }
 pub type NodeRef = Arc<Node>;
 

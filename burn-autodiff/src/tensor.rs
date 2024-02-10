@@ -3,7 +3,8 @@ use burn_tensor::backend::Backend;
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{ComputingProperties, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    ops::CheckpointingAction,
 };
 
 #[derive(Debug, Clone)]
@@ -37,16 +38,14 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             0,
             id,
             Requirement::None,
-            ComputingProperties::Ambiguous,
+            ComputingProperty::Ambiguous,
         )
         .into();
-
-        let graph = Graph::new();
 
         Self {
             primitive,
             node,
-            graph,
+            graph: Graph::new(),
         }
     }
 
@@ -83,22 +82,18 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
 
     /// Create a tensor from parent infos.
     pub fn from_parents<I: Iterator<Item = Graph>>(
-        output: B::FloatTensorPrimitive<D>,
+        primitive: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,
-        compute_properties: ComputingProperties,
-        checkpointer: Option<Checkpointer>,
+        computing_properties: ComputingProperty,
+        checkpointing_actions: Vec<CheckpointingAction>,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
 
-        let graph = if let Some(checkpointer) = checkpointer {
-            graph.merge_checkpointer(checkpointer)
-        } else {
-            graph
-        };
+        graph.extend_checkpointing_actions(checkpointing_actions);
 
         let order = parent_nodes
             .iter()
@@ -112,15 +107,12 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             order,
             NodeID::new(),
             requirement,
-            compute_properties,
+            computing_properties,
         )
         .into();
 
-        // TODO rm
-        graph.print_checkpoint();
-
         Self {
-            primitive: output,
+            primitive,
             node,
             graph,
         }
