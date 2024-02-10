@@ -1,14 +1,13 @@
-use super::Operator;
-use serde::{Deserialize, Serialize};
+use super::Operation;
 use std::fmt::Display;
 
-/// A body is composed of a list of [operators](Operator).
+/// A body is composed of a list of [operations](Operation).
 ///
 /// Note that the body assumes that the kernel will run on a 2D grid defined by the workgroup size
 /// X and Y, but with Z=1.
-#[derive(Debug, Clone, Serialize, Deserialize, new)]
+#[derive(Debug, Clone)]
 pub struct Body {
-    operators: Vec<Operator>,
+    pub operators: Vec<Operation>,
 }
 
 impl Display for Body {

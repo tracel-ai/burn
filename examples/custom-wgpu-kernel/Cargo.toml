@@ -7,7 +7,7 @@ publish = false
 version.workspace = true
 
 [dependencies]
-burn = {path = "../../burn", features=["autodiff", "wgpu"]}
+burn = {path = "../../burn", default-features = false, features=["autodiff", "wgpu", "autotune"]}
 
 # Serialization
 log = {workspace = true}

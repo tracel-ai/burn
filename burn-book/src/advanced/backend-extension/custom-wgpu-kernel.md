@@ -194,10 +194,12 @@ impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
 ```
 
 Subsequently, we'll go into implementing our custom backend trait for the WGPU backend.
+Note that we won't go into supporting the `fusion` feature flag in this tutorial, so 
+we implement the trait for the raw `WgpuBackend` type.
 
 ```rust, ignore
-/// Implement our custom backend trait for the existing backend `Wgpu`.
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for Wgpu<G, F, I> {
+/// Implement our custom backend trait for the existing backend `WgpuBackend`.
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
     fn fused_matmul_add_relu<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
@@ -419,7 +421,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>>
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<WgpuBackend<G, F, I>>
 {
 }
 ```

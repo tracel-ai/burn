@@ -1,9 +1,9 @@
 use crate::{
-    codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
+    codegen::{calculate_num_elems_dyn_rank, Compiler, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
         kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
-        source::DynKernelSource,
+        source::GpuKernelSource,
         WgpuFusionHandle,
     },
     kernel::elemwise_workgroup,
@@ -11,15 +11,15 @@ use crate::{
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-pub struct ScalarElementWise {
-    source: ElementWiseSource,
+pub struct ScalarElementWise<C: Compiler> {
+    source: ElementWiseSource<C>,
 }
 
-pub struct VecElementWise {
-    source: ElementWiseSource,
+pub struct VecElementWise<C: Compiler> {
+    source: ElementWiseSource<C>,
 }
 
-impl FusionKernel for ScalarElementWise {
+impl<C: Compiler> FusionKernel for ScalarElementWise<C> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -39,7 +39,7 @@ impl FusionKernel for ScalarElementWise {
     }
 }
 
-impl FusionKernel for VecElementWise {
+impl<C: Compiler> FusionKernel for VecElementWise<C> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -92,7 +92,7 @@ impl FusionKernel for VecElementWise {
     }
 }
 
-impl ElementWiseSource {
+impl<C: Compiler> ElementWiseSource<C> {
     fn kernel(
         &self,
         handles_inputs: &[WgpuFusionHandle],
@@ -127,7 +127,7 @@ impl ElementWiseSource {
                                 let elem =
                                     self.source_normal.shader.outputs[output_pos].item.elem();
                                 let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
-                                    * elem.size();
+                                    * C::elem_size(elem);
                                 OutputInfo::Array { size }
                             }
                         });
@@ -141,7 +141,7 @@ impl ElementWiseSource {
                 let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let elem = self.source_normal.shader.outputs[pos].item.elem();
-                    let size = calculate_num_elems_dyn_rank(&tensor.shape) * elem.size();
+                    let size = calculate_num_elems_dyn_rank(&tensor.shape) * C::elem_size(elem);
                     OutputInfo::Array { size }
                 });
 
@@ -151,18 +151,18 @@ impl ElementWiseSource {
     }
 }
 
-struct ElementWiseSource {
-    source_normal: Arc<DynKernelSource>,
-    source_inplace: Arc<DynKernelSource>,
+struct ElementWiseSource<C: Compiler> {
+    source_normal: Arc<GpuKernelSource<C>>,
+    source_inplace: Arc<GpuKernelSource<C>>,
     mappings: Vec<InplaceMapping>,
     inplace_output2input: Vec<Option<usize>>,
     factor: usize,
 }
 
-impl ElementWiseSource {
+impl<C: Compiler> ElementWiseSource<C> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<C>,
+        inplace: GpuKernelSource<C>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -183,10 +183,10 @@ impl ElementWiseSource {
     }
 }
 
-impl ScalarElementWise {
+impl<C: Compiler> ScalarElementWise<C> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<C>,
+        inplace: GpuKernelSource<C>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
     ) -> Self {
@@ -196,10 +196,10 @@ impl ScalarElementWise {
     }
 }
 
-impl VecElementWise {
+impl<C: Compiler> VecElementWise<C> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<C>,
+        inplace: GpuKernelSource<C>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
