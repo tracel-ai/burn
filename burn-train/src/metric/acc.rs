@@ -119,8 +119,7 @@ impl<B: Backend> Metric for ImageAccuracyMetric<B> {
         let outputs = input.outputs.clone().to_device(&input.outputs.device());
         let targets = input.targets.clone().to_device(&input.outputs.device());
 
-        let difference = outputs.sub(targets).abs(); 
-        
+        let difference = outputs.sub(targets).abs();
         // --- Matches For True ---
         let mask_correct = difference.clone().lower_equal_elem(self.threshold);
         let matches_correct = difference.clone().int().mask_fill(mask_correct, 1);
@@ -129,7 +128,8 @@ impl<B: Backend> Metric for ImageAccuracyMetric<B> {
         let matches_wrong = difference.int().mask_fill(mask_wrong, 0);
 
         let correct = matches_correct.add(matches_wrong);
-        let accuracy = correct.sum().into_scalar().elem::<f64>() / (num_pixels*batch_size ) as f64;
+
+        let accuracy = correct.sum().into_scalar().elem::<f64>() / (num_pixels * batch_size) as f64;
 
         self.state.update(
             100.0 * accuracy,
@@ -197,7 +197,7 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value());
     }
-    
+
     //? Need tests for ImageAccuracyMetric
     #[test]
     fn test_image_accuracy() {
@@ -209,9 +209,9 @@ mod tests {
                     [0.1, 0.2, 0.0], // 1 on 3 ( |outputs - targets| <= threshold )
                     [0.1, 0.3, 0.1], // 2 on 3
                     [0.5, 0.2, 0.0], // 1 on 3
-                    [0.0, 0.0, 0.0], // 2 on 3 >> 6 correct on 12 total 
+                    [0.0, 0.0, 0.0], // 2 on 3 >> 6 correct on 12 total
                 ],
-                &device
+                &device,
             ),
             Tensor::from_data(
                 [
@@ -219,7 +219,8 @@ mod tests {
                     [0.1, 0.0, 0.1],
                     [0.4, 0.2, 0.6],
                     [0.0, 0.1, 0.0],
-                ], &device
+                ],
+                &device,
             ),
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
