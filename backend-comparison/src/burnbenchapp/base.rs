@@ -50,11 +50,11 @@ struct RunArgs {
     #[clap(short = 's', long = "share")]
     share: bool,
 
-    /// Comma-separated command_list of backends to include
+    /// Space separated list of backends to include
     #[clap(short = 'B', long = "backends", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     backends: Vec<BackendValues>,
 
-    /// Comma-separated command_list of benches to run
+    /// Space separated list of benches to run
     #[clap(short = 'b', long = "benches", value_name = "BACKEND,BACKEND,...", num_args(0..))]
     benches: Vec<BenchmarkValues>,
 }
