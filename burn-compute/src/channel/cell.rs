@@ -65,5 +65,7 @@ where
     }
 }
 
+/// This is unsafe, since no concurency is supported by the `RefCell` channel.
+/// However using this channel should only be done in single threaded environments such as `no-std`.
 unsafe impl<Server: ComputeServer> Send for RefCellComputeChannel<Server> {}
 unsafe impl<Server: ComputeServer> Sync for RefCellComputeChannel<Server> {}

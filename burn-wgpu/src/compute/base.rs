@@ -25,11 +25,8 @@ pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
-static COMPUTE: Compute<
-    WgpuDevice,
-    WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
-    MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
-> = Compute::new();
+static COMPUTE: Compute<WgpuDevice, Server, MutexComputeChannel<Server>> = Compute::new();
+type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
     type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
@@ -40,8 +37,8 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, 
     type Device = WgpuDevice;
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
-        COMPUTE.client(&device, move || {
-            pollster::block_on(create_client::<G>(&device))
+        COMPUTE.client(device, move || {
+            pollster::block_on(create_client::<G>(device))
         })
     }
 }

@@ -1,6 +1,5 @@
 use crate::{codegen::Compiler, compute::JitAutotuneKey};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
-use burn_fusion::FusionDevice;
 
 /// Runtime for the [just-in-time backend](crate::JitBackend).
 pub trait Runtime: Send + Sync + 'static {
@@ -16,8 +15,19 @@ pub trait Runtime: Send + Sync + 'static {
     /// The channel used to communicate with the compute server.
     type Channel: ComputeChannel<Self::Server>;
     /// The device used to retrieve the compute client.
-    type Device: FusionDevice
+    #[cfg(feature = "fusion")]
+    type Device: burn_fusion::FusionDevice
         + Default
+        + core::hash::Hash
+        + PartialEq
+        + Eq
+        + Clone
+        + core::fmt::Debug
+        + Sync
+        + Send;
+    /// The device used to retrieve the compute client.
+    #[cfg(not(feature = "fusion"))]
+    type Device: Default
         + core::hash::Hash
         + PartialEq
         + Eq
@@ -39,4 +49,9 @@ pub trait Runtime: Send + Sync + 'static {
 
     /// Retrieve the compute client from the runtime device.
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
+
+    /// The runtime name.
+    fn name() -> &'static str {
+        core::any::type_name::<Self>()
+    }
 }

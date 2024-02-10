@@ -12,29 +12,41 @@ where
     R: Runtime,
     E: JitElement,
 {
-    /// Compute client for wgpu.
+    /// Compute client for the [runtime](Runtime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
     pub handle: Handle<R::Server>,
-    /// The shape of the current tensor.
+    /// The shape of the ctensor.
     pub shape: Shape<D>,
-    /// The device of the current tensor.
+    /// The device of the tensor.
     pub device: R::Device,
-    /// The strides of the current tensor.
+    /// The strides of the tensor.
     pub strides: [usize; D],
     pub(crate) elem: PhantomData<E>,
 }
 
-unsafe impl<R: Runtime, E: JitElement, const D: usize> Send for JitTensor<R, E, D> {}
-unsafe impl<R: Runtime, E: JitElement, const D: usize> Sync for JitTensor<R, E, D> {}
-
-impl<R: Runtime, E: JitElement, const D: usize> core::fmt::Debug for JitTensor<R, E, D> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "JitTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
+            self.shape,
+            self.device,
+            self.strides,
+            E::type_name(),
+            R::name(),
+        ))
     }
 }
 
-impl<R: Runtime, E: JitElement, const D: usize> Clone for JitTensor<R, E, D> {
+impl<R, E, const D: usize> Clone for JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -47,8 +59,12 @@ impl<R: Runtime, E: JitElement, const D: usize> Clone for JitTensor<R, E, D> {
     }
 }
 
-impl<R: Runtime, E: JitElement, const D: usize> JitTensor<R, E, D> {
-    /// Create a new tensor.
+impl<R, E, const D: usize> JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    /// Create a new tensor with a contiguous memory layout.
     pub fn new(
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
