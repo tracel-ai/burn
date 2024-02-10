@@ -3,9 +3,7 @@ use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::Compu
 
 /// Runtime for the [just-in-time backend](crate::JitBackend).
 pub trait Runtime: Send + Sync + 'static {
-    /// The compiler used to compile the
-    /// [inner representation](crate::codegen::dialect::gpu::ComputeShader).
-    /// into tokens.
+    /// The compiler used to compile the inner representation into tokens.
     type Compiler: Compiler;
     /// The compute server used to run kernels and perform autotuning.
     type Server: ComputeServer<
@@ -15,7 +13,7 @@ pub trait Runtime: Send + Sync + 'static {
     /// The channel used to communicate with the compute server.
     type Channel: ComputeChannel<Self::Server>;
     /// The device used to retrieve the compute client.
-    #[cfg(feature = "fusion")]
+    #[cfg(any(feature = "fusion", test))]
     type Device: burn_fusion::FusionDevice
         + Default
         + core::hash::Hash
@@ -26,7 +24,7 @@ pub trait Runtime: Send + Sync + 'static {
         + Sync
         + Send;
     /// The device used to retrieve the compute client.
-    #[cfg(not(feature = "fusion"))]
+    #[cfg(not(any(feature = "fusion", test)))]
     type Device: Default
         + core::hash::Hash
         + PartialEq
@@ -51,7 +49,5 @@ pub trait Runtime: Send + Sync + 'static {
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel>;
 
     /// The runtime name.
-    fn name() -> &'static str {
-        core::any::type_name::<Self>()
-    }
+    fn name() -> &'static str;
 }

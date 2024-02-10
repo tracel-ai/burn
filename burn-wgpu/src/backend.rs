@@ -6,26 +6,9 @@ use std::{marker::PhantomData, sync::Mutex};
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+#[derive(new)]
 pub struct JitBackend<R: Runtime> {
-    _b: PhantomData<R>,
-}
-
-impl<R: Runtime> core::fmt::Debug for JitBackend<R> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl<R: Runtime> Clone for JitBackend<R> {
-    fn clone(&self) -> Self {
-        todo!()
-    }
-}
-
-impl<R: Runtime> Default for JitBackend<R> {
-    fn default() -> Self {
-        todo!()
-    }
+    _runtime: PhantomData<R>,
 }
 
 impl<R: Runtime> Backend for JitBackend<R> {
@@ -41,7 +24,7 @@ impl<R: Runtime> Backend for JitBackend<R> {
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
 
     fn name() -> String {
-        String::from("wgpu")
+        format!("jit<{}>", R::name())
     }
 
     fn seed(seed: u64) {
@@ -57,5 +40,23 @@ impl<R: Runtime> Backend for JitBackend<R> {
     fn sync(device: &Self::Device) {
         let client = R::client(device);
         client.sync();
+    }
+}
+
+impl<R: Runtime> core::fmt::Debug for JitBackend<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
+    }
+}
+
+impl<R: Runtime> Clone for JitBackend<R> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl<R: Runtime> Default for JitBackend<R> {
+    fn default() -> Self {
+        Self::new()
     }
 }

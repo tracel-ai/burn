@@ -41,6 +41,10 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, 
             pollster::block_on(create_client::<G>(device))
         })
     }
+
+    fn name() -> &'static str {
+        "wgpu"
+    }
 }
 
 /// Init the client async, necessary for wasm.
