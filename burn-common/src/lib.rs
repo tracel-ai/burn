@@ -26,3 +26,7 @@ pub mod benchmark;
 pub mod reader;
 
 extern crate alloc;
+
+/// Network utilities.
+#[cfg(feature = "network")]
+pub mod network;

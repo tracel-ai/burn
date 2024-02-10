@@ -1,4 +1,3 @@
-mod downloader;
 mod image_folder;
 mod mnist;
 

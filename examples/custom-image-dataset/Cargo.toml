@@ -13,7 +13,7 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../burn", features = ["train", "vision"]}
+burn = { path = "../../burn", features = ["train", "vision", "network"] }
 
 # File download
 flate2 = { workspace = true }

@@ -340,9 +340,12 @@ dependencies = [
  "dashmap",
  "derive-new",
  "getrandom",
+ "indicatif",
  "rand",
+ "reqwest",
  "serde",
  "spin",
+ "tokio",
  "uuid",
  "web-time",
 ]
@@ -399,6 +402,7 @@ dependencies = [
 name = "burn-dataset"
 version = "0.13.0"
 dependencies = [
+ "burn-common",
  "csv",
  "derive-new",
  "dirs 5.0.1",
@@ -408,12 +412,10 @@ dependencies = [
  "globwalk",
  "hound",
  "image",
- "indicatif",
  "r2d2",
  "r2d2_sqlite",
  "rand",
  "rayon",
- "reqwest",
  "rmp-serde",
  "rstest",
  "rusqlite",
@@ -425,7 +427,6 @@ dependencies = [
  "strum_macros",
  "tempfile",
  "thiserror",
- "tokio",
 ]
 
 [[package]]

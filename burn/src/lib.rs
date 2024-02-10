@@ -80,6 +80,7 @@
 //!   - `autodiff`: Makes available the Autodiff backend
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
 pub use burn_core::*;
