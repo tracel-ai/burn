@@ -9,7 +9,7 @@ use burn_compute::{
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
-    Compute,
+    ComputeRuntime,
 };
 use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
@@ -25,7 +25,8 @@ pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
 }
 
 /// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
-static COMPUTE: Compute<WgpuDevice, Server, MutexComputeChannel<Server>> = Compute::new();
+static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> =
+    ComputeRuntime::new();
 type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
@@ -37,7 +38,7 @@ impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, 
     type Device = WgpuDevice;
 
     fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
-        COMPUTE.client(device, move || {
+        RUNTIME.client(device, move || {
             pollster::block_on(create_client::<G>(device))
         })
     }
@@ -52,7 +53,7 @@ pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice) {
     let device = Arc::new(device);
     let client = create_client::<G>(&device).await;
 
-    COMPUTE.register(&device, client)
+    RUNTIME.register(&device, client)
 }
 
 async fn create_client<G: GraphicsApi>(
