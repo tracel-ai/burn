@@ -1,4 +1,4 @@
-use crate::metric::{Adaptor, LossInput};
+use crate::metric::{Adaptor, ImageAccuracyInput, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Tensor;
 
@@ -13,6 +13,12 @@ pub struct RegressionOutput<B: Backend> {
 
     /// The targets.
     pub targets: Tensor<B, 2>,
+}
+
+impl<B: Backend> Adaptor<ImageAccuracyInput<B>> for RegressionOutput<B> {
+    fn adapt(&self) -> ImageAccuracyInput<B> {
+        ImageAccuracyInput::new(self.output.clone(), self.targets.clone())
+    }
 }
 
 impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {

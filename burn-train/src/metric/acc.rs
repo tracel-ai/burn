@@ -85,6 +85,69 @@ impl<B: Backend> Numeric for AccuracyMetric<B> {
     }
 }
 
+/// The Image accuracy metric.
+#[derive(Default)]
+pub struct ImageAccuracyMetric<B: Backend> {
+    state: NumericMetricState,
+    threshold: f64,
+    _b: B,
+}
+/// The [image accuracy metric](ImageAccuracyMetric) input type.
+#[derive(new)]
+pub struct ImageAccuracyInput<B: Backend> {
+    outputs: Tensor<B, 2>,
+    targets: Tensor<B, 2>,
+}
+
+impl<B: Backend> ImageAccuracyMetric<B> {
+    /// Creates the metric with threshold ex. 0.001
+    pub fn new(threshold: f64) -> Self {
+        Self {
+            state: NumericMetricState::default(),
+            threshold,
+            _b: B::default(),
+        }
+    }
+}
+impl<B: Backend> Metric for ImageAccuracyMetric<B> {
+    const NAME: &'static str = "ImageAccuracy";
+    type Input = ImageAccuracyInput<B>;
+
+    fn update(&mut self, input: &ImageAccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+        let [batch_size, num_pixels] = input.outputs.dims();
+
+        let outputs = input.outputs.clone().to_device(&input.outputs.device());
+        let targets = input.targets.clone().to_device(&input.outputs.device());
+
+        let difference = outputs.sub(targets).abs(); 
+        
+        // --- Matches For True ---
+        let mask_correct = difference.clone().lower_equal_elem(self.threshold);
+        let matches_correct = difference.clone().int().mask_fill(mask_correct, 1);
+
+        let mask_wrong = difference.clone().greater_elem(self.threshold);
+        let matches_wrong = difference.int().mask_fill(mask_wrong, 0);
+
+        let correct = matches_correct.add(matches_wrong);
+        let accuracy = correct.sum().into_scalar().elem::<f64>() / (num_pixels*batch_size ) as f64;
+
+        self.state.update(
+            100.0 * accuracy,
+            batch_size,
+            FormatOptions::new(Self::NAME).unit("%").precision(2),
+        )
+    }
+
+    fn clear(&mut self) {
+        self.state.reset()
+    }
+}
+impl<B: Backend> Numeric for ImageAccuracyMetric<B> {
+    fn value(&self) -> f64 {
+        self.state.value()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +194,34 @@ mod tests {
             Tensor::from_data([2, 2, 1, 1, 3, 3, 3], &device),
         );
 
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_eq!(50.0, metric.value());
+    }
+    
+    //? Need tests for ImageAccuracyMetric
+    #[test]
+    fn test_image_accuracy() {
+        let device = Default::default();
+        let mut metric = ImageAccuracyMetric::<TestBackend>::new(0.01);
+        let input = ImageAccuracyInput::new(
+            Tensor::from_data(
+                [
+                    [0.1, 0.2, 0.0], // 1 on 3 ( |outputs - targets| <= threshold )
+                    [0.1, 0.3, 0.1], // 2 on 3
+                    [0.5, 0.2, 0.0], // 1 on 3
+                    [0.0, 0.0, 0.0], // 2 on 3 >> 6 correct on 12 total 
+                ],
+                &device
+            ),
+            Tensor::from_data(
+                [
+                    [0.1, 0.6, 0.1],
+                    [0.1, 0.0, 0.1],
+                    [0.4, 0.2, 0.6],
+                    [0.0, 0.1, 0.0],
+                ], &device
+            ),
+        );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value());
     }
