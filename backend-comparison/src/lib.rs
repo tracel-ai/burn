@@ -68,5 +68,14 @@ macro_rules! bench_on_backend {
             let device = CandleDevice::Cuda(0);
             bench::<Candle>(&device);
         }
+
+        #[cfg(feature = "candle-metal")]
+        {
+            use burn::backend::candle::CandleDevice;
+            use burn::backend::Candle;
+
+            let device = CandleDevice::Metal(0);
+            bench::<Candle>(&device);
+        }
     };
 }

@@ -106,28 +106,13 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::zeros(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones_devauto<S: Into<Shape<D>>>(shape: S) -> Self {
-        Self::ones(shape, &B::Device::default())
-    }
-
-    /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::ones(shape.into(), device))
-    }
-
-    /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full_devauto<S: Into<Shape<D>>, E: ElementConversion>(shape: S, fill_value: E) -> Self {
-        Self::full(shape, fill_value, &B::Device::default())
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -335,7 +320,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -380,7 +366,8 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let tensor = Tensor::<B, 3>::ones_devauto(Shape::new([2, 3, 3]));
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -508,11 +495,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///    let tensor = tensor.triu(1);
     ///    println!("{}", tensor);
     ///    // Tensor { data: [
@@ -535,11 +526,15 @@ where
     /// use burn_tensor::{Int, Tensor};
     ///
     /// fn example<B: Backend>() {
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints_devauto([
-    ///      [1, 2, 3],
-    ///      [4, 5, 6],
-    ///      [7, 8, 9]
-    ///    ]);
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
+    ///        [
+    ///          [1, 2, 3],
+    ///          [4, 5, 6],
+    ///          [7, 8, 9]
+    ///        ],
+    ///        &device
+    ///    );
     ///
     ///    let tensor = tensor.tril(-1);
     ///    println!("{}", tensor);

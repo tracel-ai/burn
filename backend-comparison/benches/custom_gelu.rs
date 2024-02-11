@@ -45,6 +45,10 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     fn sync(&self) {
         B::sync(&self.device)
     }
+
+    fn num_samples(&self) -> usize {
+        50
+    }
 }
 
 fn gelu_custom<B, const D: usize, Erf>(x: Tensor<B, D>, erf: Erf) -> Tensor<B, D>
@@ -87,7 +91,7 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 fn bench<B: Backend>(device: &B::Device) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
-    let num_repeats = 10;
+    let num_repeats = 1;
 
     let reference_gelu = CustomGeluBenchmark::<B, D>::new(
         shape.clone(),

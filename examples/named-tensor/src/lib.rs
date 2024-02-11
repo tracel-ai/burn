@@ -5,19 +5,21 @@ NamedDim!(Batch);
 NamedDim!(SeqLength);
 NamedDim!(DModel);
 
-pub fn run<B: Backend>() {
+pub fn run<B: Backend>(device: &B::Device) {
     let batch_size = 32;
     let seq_length = 48;
     let d_model = 24;
 
-    let weights = NamedTensor::<B, (Batch, DModel, DModel)>::random_devauto(
+    let weights = NamedTensor::<B, (Batch, DModel, DModel)>::random(
         [1, d_model, d_model],
         Distribution::Default,
+        device,
     );
 
-    let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random_devauto(
+    let input = NamedTensor::<B, (Batch, SeqLength, DModel)>::random(
         [batch_size, seq_length, d_model],
         Distribution::Default,
+        device,
     );
 
     // Doesn't compile

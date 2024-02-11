@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::{cmp::min, fmt::Display};
 
 use burn_tensor::Shape;
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
     reduce_dim_length: usize,

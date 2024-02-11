@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 use burn_compute::tune::AutotuneKey;
 
 use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Key for all autotune-enabled operations
 pub enum WgpuAutotuneKey {
     /// Key for matmul operation

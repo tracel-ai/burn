@@ -3,10 +3,10 @@ use custom_wgpu_kernel::{
     matmul_add_relu_custom, matmul_add_relu_reference, AutodiffBackend, Backend,
 };
 
-fn inference<B: Backend>() {
-    let lhs = Tensor::<B, 3>::random_devauto([1, 32, 32], Distribution::Default);
-    let rhs = Tensor::random_devauto([32, 32, 32], Distribution::Default);
-    let bias = Tensor::random_devauto([32, 32, 32], Distribution::Default);
+fn inference<B: Backend>(device: &B::Device) {
+    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default, device);
+    let rhs = Tensor::random([32, 32, 32], Distribution::Default, device);
+    let bias = Tensor::random([32, 32, 32], Distribution::Default, device);
 
     let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone())
         .into_data()
@@ -20,10 +20,10 @@ fn inference<B: Backend>() {
     println!("Both reference and the custom fused kernel have the same output");
 }
 
-fn autodiff<B: AutodiffBackend>() {
-    let lhs = Tensor::<B, 3>::random_devauto([1, 32, 32], Distribution::Default).require_grad();
-    let rhs = Tensor::random_devauto([32, 32, 32], Distribution::Default).require_grad();
-    let bias = Tensor::random_devauto([32, 32, 32], Distribution::Default).require_grad();
+fn autodiff<B: AutodiffBackend>(device: &B::Device) {
+    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default, device).require_grad();
+    let rhs = Tensor::random([32, 32, 32], Distribution::Default, device).require_grad();
+    let bias = Tensor::random([32, 32, 32], Distribution::Default, device).require_grad();
 
     let reference = matmul_add_relu_reference(lhs.clone(), rhs.clone(), bias.clone());
 
@@ -70,7 +70,7 @@ fn autodiff<B: AutodiffBackend>() {
 fn main() {
     type MyBackend = burn::backend::Wgpu;
     type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
-
-    inference::<MyBackend>();
-    autodiff::<MyAutodiffBackend>();
+    let device = Default::default();
+    inference::<MyBackend>(&device);
+    autodiff::<MyAutodiffBackend>(&device);
 }

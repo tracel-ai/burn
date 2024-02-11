@@ -5,7 +5,8 @@ mod tests {
 
     #[test]
     fn test_max_dim_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output_actual = tensor.max_dim(1);
 
@@ -15,7 +16,8 @@ mod tests {
 
     #[test]
     fn test_max_dim_with_indices_2d_with_dim_0th() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output_actual, index_actual) = tensor.max_dim_with_indices(0);
 
@@ -28,7 +30,8 @@ mod tests {
 
     #[test]
     fn test_max_dim_with_indices_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output_actual, index_actual) = tensor.max_dim_with_indices(1);
 
@@ -41,7 +44,8 @@ mod tests {
 
     #[test]
     fn test_min_dim_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output_actual = tensor.min_dim(1);
 
@@ -51,7 +55,8 @@ mod tests {
 
     #[test]
     fn test_min_dim_with_indices_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output_actual, index_actual) = tensor.min_dim_with_indices(1);
 
@@ -64,7 +69,8 @@ mod tests {
 
     #[test]
     fn test_sum_dim_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output_actual = tensor.clone().sum_dim(1);
 
@@ -79,7 +85,8 @@ mod tests {
 
     #[test]
     fn test_mean_dim_2d() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output_actual = tensor.clone().mean_dim(1);
 
@@ -94,7 +101,8 @@ mod tests {
 
     #[test]
     fn test_min_dim_2d_with_0th_dim() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
         let output_actual = tensor.min_dim(0);
 
         let output_expected = Data::from([[0., 1., 2.]]);
@@ -103,7 +111,8 @@ mod tests {
 
     #[test]
     fn test_max_dim_2d_with_0th_dim() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let output_actual = tensor.max_dim(0);
 
@@ -113,7 +122,8 @@ mod tests {
 
     #[test]
     fn test_min_dim_with_indices_2d_with_0th_dim() {
-        let tensor = TestTensor::from_floats_devauto([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor =
+            TestTensor::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
         let (output_actual, index_actual) = tensor.min_dim_with_indices(0);
 

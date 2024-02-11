@@ -85,7 +85,7 @@ impl<B: Backend> TextGenerationModel<B> {
 
         let loss = CrossEntropyLossConfig::new()
             .with_pad_tokens(Some(vec![self.pad_token]))
-            .init();
+            .init(&output_flatten.device());
         let loss = loss.forward(output_flatten.clone(), targets_flatten.clone());
 
         ClassificationOutput {

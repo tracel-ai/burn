@@ -10,11 +10,14 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestAutodiffTensor::from_floats_devauto([[[
-            0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221,
-        ]]])
+        let device = Default::default();
+        let x = TestAutodiffTensor::from_floats(
+            [[[0.9861, 0.5474, 0.4477, 0.0732, 0.3548, 0.8221]]],
+            &device,
+        )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats_devauto([[[1., 1., 0., 0., 0., 1.]]]);
+        let x_grad_expected =
+            TestAutodiffTensor::from_floats([[[1., 1., 0., 0., 0., 1.]]], &device);
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
         let grads = output.backward();
@@ -33,16 +36,23 @@ mod tests {
         let stride = 1;
         let dilation = 2;
 
-        let x = TestAutodiffTensor::from_floats_devauto([[[
-            0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518, 0.2073,
-            0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609, 0.3391, 0.2230,
-            0.4610, 0.5365, 0.6880,
-        ]]])
+        let device = Default::default();
+        let x = TestAutodiffTensor::from_floats(
+            [[[
+                0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518,
+                0.2073, 0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609,
+                0.3391, 0.2230, 0.4610, 0.5365, 0.6880,
+            ]]],
+            &device,
+        )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats_devauto([[[
-            0., 0., 1., 0., 0., 3., 0., 1., 2., 1., 0., 0., 2., 0., 0., 0., 4., 4., 0., 0., 0., 0.,
-            0., 0., 1.,
-        ]]]);
+        let x_grad_expected = TestAutodiffTensor::from_floats(
+            [[[
+                0., 0., 1., 0., 0., 3., 0., 1., 2., 1., 0., 0., 2., 0., 0., 0., 4., 4., 0., 0., 0.,
+                0., 0., 0., 1.,
+            ]]],
+            &device,
+        );
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
         let grads = output.backward();
@@ -61,16 +71,23 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestAutodiffTensor::from_floats_devauto([[[
-            0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518, 0.2073,
-            0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609, 0.3391, 0.2230,
-            0.4610, 0.5365, 0.6880,
-        ]]])
+        let device = Default::default();
+        let x = TestAutodiffTensor::from_floats(
+            [[[
+                0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518,
+                0.2073, 0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609,
+                0.3391, 0.2230, 0.4610, 0.5365, 0.6880,
+            ]]],
+            &device,
+        )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats_devauto([[[
-            0., 0., 0., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0., 0.,
-            1., 1., 1.,
-        ]]]);
+        let x_grad_expected = TestAutodiffTensor::from_floats(
+            [[[
+                0., 0., 0., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0.,
+                0., 1., 1., 1.,
+            ]]],
+            &device,
+        );
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
         let grads = output.backward();
@@ -89,16 +106,23 @@ mod tests {
         let stride = 1;
         let dilation = 1;
 
-        let x = TestAutodiffTensor::from_floats_devauto([[[
-            0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518, 0.2073,
-            0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609, 0.3391, 0.2230,
-            0.4610, 0.5365, 0.6880,
-        ]]])
+        let device = Default::default();
+        let x = TestAutodiffTensor::from_floats(
+            [[[
+                0.5388, 0.0676, 0.7122, 0.8316, 0.0653, 0.9154, 0.1536, 0.9089, 0.8016, 0.7518,
+                0.2073, 0.0501, 0.8811, 0.5604, 0.5075, 0.4384, 0.9963, 0.9698, 0.4988, 0.2609,
+                0.3391, 0.2230, 0.4610, 0.5365, 0.6880,
+            ]]],
+            &device,
+        )
         .require_grad();
-        let x_grad_expected = TestAutodiffTensor::from_floats_devauto([[[
-            1., 0., 1., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0., 0.,
-            1., 1., 3.,
-        ]]]);
+        let x_grad_expected = TestAutodiffTensor::from_floats(
+            [[[
+                1., 0., 1., 2., 0., 4., 0., 2., 1., 0., 0., 0., 4., 0., 0., 0., 4., 1., 1., 0., 0.,
+                0., 1., 1., 3.,
+            ]]],
+            &device,
+        );
 
         let output = max_pool1d(x.clone(), kernel_size, stride, padding, dilation);
         let grads = output.backward();

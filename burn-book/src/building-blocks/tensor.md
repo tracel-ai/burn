@@ -38,7 +38,6 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 | Burn                                     | PyTorch Equivalent                   |
 | ---------------------------------------- | ------------------------------------ |
-| `Tensor::empty_devauto(shape)`           | `torch.empty(shape)`                 |
 | `Tensor::empty(shape, device)`           | `torch.empty(shape, device=device)`  |
 | `tensor.dims()`                          | `tensor.size()`                      |
 | `tensor.shape()`                         | `tensor.shape`                       |
@@ -58,7 +57,6 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::cat(tensors, dim)`              | `torch.cat(tensors, dim)`            |
 | `tensor.into_data()`                     | N/A                                  |
 | `tensor.to_data()`                       | N/A                                  |
-| `Tensor::from_data_devauto(data)`        | N/A                                  |
 | `Tensor::from_data(data, device)`        | N/A                                  |
 | `tensor.into_primitive()`                | N/A                                  |
 | `Tensor::from_primitive(primitive)`      | N/A                                  |
@@ -82,9 +80,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `-tensor` or `tensor.neg()`                      | `-tensor`                                      |
 | `Tensor::zeros(shape)`                           | `torch.zeros(shape)`                           |
 | `Tensor::zeros(shape, device)`                   | `torch.zeros(shape, device=device)`            |
-| `Tensor::ones_devauto(shape)`                    | `torch.ones(shape)`                            |
 | `Tensor::ones(shape, device)`                    | `torch.ones(shape, device=device)`             |
-| `Tensor::full_devauto(shape, fill_value)`        | `torch.full(shape, fill_value)`                |
 | `Tensor::full(shape, fill_value, device)`        | `torch.full(shape, fill_value, device=device)` |
 | `tensor.mean()`                                  | `tensor.mean()`                                |
 | `tensor.sum()`                                   | `tensor.sum()`                                 |
@@ -136,13 +132,12 @@ Those operations are only available for `Float` tensors.
 | `tensor.cos()`                                      | `tensor.cos()`                     |
 | `tensor.sin()`                                      | `tensor.sin()`                     |
 | `tensor.tanh()`                                     | `tensor.tanh()`                    |
-| `tensor.from_floats_devauto(floats)`                | N/A                                |
 | `tensor.from_floats(floats, device)`                | N/A                                |
 | `tensor.int()`                                      | Similar to `tensor.to(torch.long)` |
 | `tensor.zeros_like()`                               | `torch.zeros_like(tensor)`         |
 | `tensor.ones_like()`                                | `torch.ones_like(tensor)`          |
 | `tensor.random_like(distribution)`                  | `torch.rand_like()` only uniform   |
-| `tensor.one_hot(index, num_classes)`                | N/A                                |
+| `tensor.one_hot(index, num_classes, device)`        | N/A                                |
 | `tensor.transpose()`                                | `tensor.T`                         |
 | `tensor.swap_dims(dim1, dim2)`                      | `tensor.transpose(dim1, dim2)`     |
 | `tensor.matmul(other)`                              | `tensor.matmul(other)`             |
@@ -150,7 +145,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_bias(dim)`                              | N/A                                |
 | `tensor.var_mean(dim)`                              | N/A                                |
 | `tensor.var_mean_bias(dim)`                         | N/A                                |
-| `tensor.random_devauto(shape, distribution)`        | N/A                                |
 | `tensor.random(shape, distribution, device)`        | N/A                                |
 | `tensor.to_full_precision()`                        | `tensor.to(torch.float)`           |
 | `tensor.from_full_precision(tensor)`                | N/A                                |
@@ -163,9 +157,7 @@ Those operations are only available for `Int` tensors.
 | --------------------------------------------- | ------------------------------------------------------- |
 | `tensor.from_ints(ints)`                      | N/A                                                     |
 | `tensor.float()`                              | Similar to `tensor.to(torch.float)`                     |
-| `tensor.arange_devauto(5..10)`                | `tensor.arange(start=5, end=10)`                        |
 | `tensor.arange(5..10, device)       `         | `tensor.arange(start=5, end=10, device=device)`         |
-| `tensor.arange_step_devauto(5..10, 2)`        | `tensor.arange(start=5, end=10, step=2)`                |
 | `tensor.arange_step(5..10, 2, device)`        | `tensor.arange(start=5, end=10, step=2, device=device)` |
 
 # Bool Operations

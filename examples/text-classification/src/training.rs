@@ -73,11 +73,11 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 50_000));
     let dataloader_test = DataLoaderBuilder::new(batcher_test)
         .batch_size(config.batch_size)
-        .num_workers(4)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 5_000));
 
     // Initialize optimizer

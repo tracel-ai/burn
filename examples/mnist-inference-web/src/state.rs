@@ -1,6 +1,4 @@
 use crate::model::Model;
-#[cfg(feature = "wgpu")]
-use burn::backend::wgpu::WgpuDevice;
 use burn::module::Module;
 use burn::record::BinBytesRecorder;
 use burn::record::FullPrecisionSettings;
@@ -12,7 +10,7 @@ use burn::backend::wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice
 #[cfg(feature = "wgpu")]
 pub type Backend = Wgpu<AutoGraphicsApi, f32, i32>;
 
-#[cfg(feature = "ndarray")]
+#[cfg(all(feature = "ndarray", not(feature = "wgpu")))]
 pub type Backend = burn::backend::ndarray::NdArray<f32>;
 
 static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");

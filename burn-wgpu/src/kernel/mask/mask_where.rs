@@ -136,14 +136,17 @@ mod tests {
         Tensor<ReferenceBackend, 3, Bool>,
     ) {
         TestBackend::seed(0);
-        let tensor = Tensor::<TestBackend, 3>::random_devauto([2, 6, 256], Distribution::Default);
-        let value = Tensor::<TestBackend, 3>::random_devauto([2, 6, 256], Distribution::Default);
+        let device = Default::default();
+        let tensor = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default, &device);
+        let value = Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Default, &device);
         let mask =
-            Tensor::<TestBackend, 3>::random_devauto([2, 6, 256], Distribution::Uniform(0., 1.))
+            Tensor::<TestBackend, 3>::random([2, 6, 256], Distribution::Uniform(0., 1.), &device)
                 .lower_equal_elem(0.5);
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(tensor.to_data());
-        let value_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(value.to_data());
-        let mask_ref = Tensor::<ReferenceBackend, 3, Bool>::from_data_devauto(mask.to_data());
+
+        let device_ref = Default::default();
+        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &device_ref);
+        let value_ref = Tensor::<ReferenceBackend, 3>::from_data(value.to_data(), &device_ref);
+        let mask_ref = Tensor::<ReferenceBackend, 3, Bool>::from_data(mask.to_data(), &device_ref);
         assert_eq!(mask.to_data(), mask_ref.to_data());
 
         (tensor, value, mask, tensor_ref, value_ref, mask_ref)

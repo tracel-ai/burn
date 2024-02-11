@@ -55,10 +55,12 @@ mod tests {
 
     #[test]
     fn repeat_dim_0_few_times() {
-        let tensor = Tensor::<TestBackend, 3>::random_devauto([1, 6, 6], Distribution::Default);
+        let tensor =
+            Tensor::<TestBackend, 3>::random([1, 6, 6], Distribution::Default, &Default::default());
         let dim = 0;
         let times = 4;
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(tensor.to_data());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
         let actual = repeat(tensor.into_primitive(), dim, times);
         let expected = tensor_ref.repeat(dim, times);
@@ -71,10 +73,12 @@ mod tests {
 
     #[test]
     fn repeat_dim_1_few_times() {
-        let tensor = Tensor::<TestBackend, 3>::random_devauto([6, 1, 6], Distribution::Default);
+        let tensor =
+            Tensor::<TestBackend, 3>::random([6, 1, 6], Distribution::Default, &Default::default());
         let dim = 1;
         let times = 4;
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(tensor.to_data());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
         let actual = repeat(tensor.into_primitive(), dim, times);
         let expected = tensor_ref.repeat(dim, times);
@@ -87,10 +91,12 @@ mod tests {
 
     #[test]
     fn repeat_dim_2_few_times() {
-        let tensor = Tensor::<TestBackend, 3>::random_devauto([6, 6, 1], Distribution::Default);
+        let tensor =
+            Tensor::<TestBackend, 3>::random([6, 6, 1], Distribution::Default, &Default::default());
         let dim = 2;
         let times = 4;
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(tensor.to_data());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
         let actual = repeat(tensor.into_primitive(), dim, times);
         let expected = tensor_ref.repeat(dim, times);
@@ -103,10 +109,15 @@ mod tests {
 
     #[test]
     fn repeat_dim_2_many_times() {
-        let tensor = Tensor::<TestBackend, 3>::random_devauto([10, 10, 1], Distribution::Default);
+        let tensor = Tensor::<TestBackend, 3>::random(
+            [10, 10, 1],
+            Distribution::Default,
+            &Default::default(),
+        );
         let dim = 2;
         let times = 200;
-        let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data_devauto(tensor.to_data());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
 
         let actual = repeat(tensor.into_primitive(), dim, times);
         let expected = tensor_ref.repeat(dim, times);

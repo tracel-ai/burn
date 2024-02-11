@@ -37,8 +37,9 @@ mod tests {
     where
         F: Fn(TestAutodiffTensor<3>, TestAutodiffTensor<3>) -> TestAutodiffTensor<3>,
     {
-        let w = TestAutodiffTensor::zeros_devauto([16, 5, 5]).require_grad();
-        let x = TestAutodiffTensor::zeros_devauto([4, 5, 5]).require_grad();
+        let device = Default::default();
+        let w = TestAutodiffTensor::zeros([16, 5, 5], &device).require_grad();
+        let x = TestAutodiffTensor::zeros([4, 5, 5], &device).require_grad();
 
         // Slice isn't a broadcastable operation, so it will fail when the previous backward pass
         // of an operation that support broadcast doesn't support it during the backward pass.

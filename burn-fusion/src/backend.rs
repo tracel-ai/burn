@@ -4,6 +4,7 @@ use crate::{
     FusionClientLocator, FusionTensor,
 };
 use burn_tensor::{backend::Backend, Device, Shape};
+use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
@@ -84,7 +85,7 @@ pub trait OptimizationBuilder<B: FusionBackend>: Send {
     /// Register a new [tensor operation](TensorOpsDescription).
     fn register(&mut self, ops: &TensorOpsDescription);
     /// Finish the optimization and create a fusion operation.
-    fn build(&self) -> Box<dyn Optimization<B>>;
+    fn build(&self) -> B::Optimization;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](OptimizationStatus).
@@ -103,15 +104,17 @@ pub trait Optimization<B: FusionBackend>: Send {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// Returns the state that can be serialized.
+    fn to_state(&self) -> B::OptimizationState;
+    /// Create the optimization from the state.
+    fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
 }
 
 // We implement the OptimizationFactory for all boxed optimization to be used with the Optimization
 // Cache. The factory is only used to simplify types and allows better testing. It isn't a public
 // crate.
-impl<B: FusionBackend> OptimizationFactory<Box<dyn Optimization<B>>>
-    for Box<dyn OptimizationBuilder<B>>
-{
-    fn create(&self) -> Box<dyn Optimization<B>> {
+impl<B: FusionBackend> OptimizationFactory<B::Optimization> for Box<dyn OptimizationBuilder<B>> {
+    fn create(&self) -> B::Optimization {
         OptimizationBuilder::build(self.as_ref())
     }
 }
@@ -134,6 +137,11 @@ pub trait FusionDevice: Clone + Send + Sync + PartialEq {
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend: Backend {
+    /// The state that can be serialized for an optimization.
+    type OptimizationState: Serialize + DeserializeOwned;
+    /// Optimization type for the backend.
+    type Optimization: Optimization<Self>;
+
     /// The device type that can return an ID.
     ///
     /// It can be the same as (Backend::Device), but must implement (FusionDevice).

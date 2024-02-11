@@ -130,19 +130,20 @@ mod tests {
                 self.kernel_size_1,
                 self.kernel_size_2,
             ]);
+            let device = Default::default();
             let weight = TestTensor::from(
-                TestTensorInt::arange_devauto(0..shape_weight.num_elements())
+                TestTensorInt::arange(0..shape_weight.num_elements(), &device)
                     .reshape(shape_weight)
                     .into_data()
                     .convert(),
             );
             let bias = TestTensor::from(
-                TestTensorInt::arange_devauto(0..self.channels_out)
+                TestTensorInt::arange(0..self.channels_out, &device)
                     .into_data()
                     .convert(),
             );
             let x = TestTensor::from(
-                TestTensorInt::arange_devauto(0..shape_x.num_elements())
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

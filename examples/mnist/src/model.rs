@@ -1,7 +1,7 @@
 use crate::data::MNISTBatch;
 use burn::{
     module::Module,
-    nn::{self, loss::CrossEntropyLoss, BatchNorm, PaddingConfig2d},
+    nn::{self, loss::CrossEntropyLossConfig, BatchNorm, PaddingConfig2d},
     tensor::{
         backend::{AutodiffBackend, Backend},
         Tensor,
@@ -76,8 +76,9 @@ impl<B: Backend> Model<B> {
     pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
         let targets = item.targets;
         let output = self.forward(item.images);
-        let loss = CrossEntropyLoss::default();
-        let loss = loss.forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), targets.clone());
 
         ClassificationOutput {
             loss,

@@ -9,7 +9,7 @@ use burn_compute::{
     Compute,
 };
 use spin::Mutex;
-use wgpu::DeviceDescriptor;
+use wgpu::{AdapterInfo, DeviceDescriptor};
 
 type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
 /// Wgpu [compute server](WgpuServer)
@@ -68,7 +68,8 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
     let channel = Channel::new(server);
 
-    ComputeClient::new(channel, Arc::new(Mutex::new(Tuner::new())))
+    let tuner_device_id = tuner_device_id(info);
+    ComputeClient::new(channel, Arc::new(Mutex::new(Tuner::new(&tuner_device_id))))
 }
 
 /// Select the wgpu device and queue based on the provided [device](WgpuDevice).
@@ -103,6 +104,10 @@ pub async fn select_device<G: GraphicsApi>(
         .unwrap();
 
     (device, queue, adapter.get_info())
+}
+
+fn tuner_device_id(info: AdapterInfo) -> String {
+    format!("wgpu-{}-{}", info.device, info.backend.to_str())
 }
 
 #[cfg(target_family = "wasm")]

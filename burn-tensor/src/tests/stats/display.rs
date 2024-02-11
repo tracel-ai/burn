@@ -11,7 +11,7 @@ mod tests {
     fn test_display_2d_int_tensor() {
         let int_data = Data::from([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
         let tensor_int: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Int> =
-            Tensor::from_data_devauto(int_data);
+            Tensor::from_data(int_data, &Default::default());
 
         let output = format!("{}", tensor_int);
         let expected = format!(
@@ -37,7 +37,7 @@ mod tests {
     fn test_display_2d_float_tensor() {
         let float_data = Data::from([[1.1, 2.2, 3.3], [4.4, 5.5, 6.6], [7.7, 8.8, 9.9]]);
         let tensor_float: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Float> =
-            Tensor::from_data_devauto(float_data);
+            Tensor::from_data(float_data, &Default::default());
 
         let output = format!("{}", tensor_float);
         let expected = format!(
@@ -67,7 +67,7 @@ mod tests {
             [false, true, true],
         ]);
         let tensor_bool: burn_tensor::Tensor<TestBackend, 2, burn_tensor::Bool> =
-            Tensor::from_data_devauto(bool_data);
+            Tensor::from_data(bool_data, &Default::default());
 
         let output = format!("{}", tensor_bool);
         let expected = format!(
@@ -95,7 +95,7 @@ mod tests {
             [[13, 14, 15, 16], [17, 18, 19, 20], [21, 22, 23, 24]],
         ]);
         let tensor: burn_tensor::Tensor<TestBackend, 3, burn_tensor::Int> =
-            Tensor::from_data_devauto(data);
+            Tensor::from_data(data, &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(
@@ -128,7 +128,7 @@ mod tests {
         ]);
 
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Int> =
-            Tensor::from_data_devauto(data);
+            Tensor::from_data(data, &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(
@@ -158,7 +158,7 @@ mod tests {
     #[test]
     fn test_display_tensor_summarize_1() {
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Float> =
-            Tensor::zeros_devauto(Shape::new([2, 2, 2, 1000]));
+            Tensor::zeros(Shape::new([2, 2, 2, 1000]), &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_display_tensor_summarize_2() {
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Float> =
-            Tensor::zeros_devauto(Shape::new([2, 2, 20, 100]));
+            Tensor::zeros(Shape::new([2, 2, 20, 100]), &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_display_tensor_summarize_3() {
         let tensor: burn_tensor::Tensor<TestBackend, 4, burn_tensor::Float> =
-            Tensor::zeros_devauto(Shape::new([2, 2, 200, 6]));
+            Tensor::zeros(Shape::new([2, 2, 200, 6]), &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(

@@ -73,11 +73,14 @@ https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image
    use onnx_inference::mnist::Model;
 
    fn main() {
+       // Get a default device for the models's backend
+       let device = Default::default();
+
        // Create a new model and load the state
-       let model: Model<Backend> = Model::new().load_state();
+       let model: Model<Backend> = Model::new(&device).load_state();
 
        // Create a new input tensor (all zeros for demonstration purposes)
-       let input = tensor::Tensor::<NdArray<f32>, 4>::zeros_devauto([1, 1, 28, 28]);
+       let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 1, 28, 28], &device);
 
        // Run the model
        let output = model.forward(input);

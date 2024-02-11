@@ -46,12 +46,6 @@ impl EmbeddingConfig {
         }
     }
 
-    /// Initialize a new [embedding](Embedding) module on an automatically selected device.
-    pub fn init_devauto<B: Backend>(&self) -> Embedding<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
     /// Initialize a new [embedding](Embedding) module with a [record](EmbeddingRecord).
     pub fn init_with<B: Backend>(&self, record: EmbeddingRecord<B>) -> Embedding<B> {
         Embedding {
@@ -83,7 +77,7 @@ mod tests {
         TestBackend::seed(0);
 
         let config = EmbeddingConfig::new(100, 10);
-        let embed = config.init_devauto::<TestBackend>();
+        let embed = config.init::<TestBackend>(&Default::default());
         let weights = embed.weight.val().reshape([1000]);
         let (var_act, mean_act) = weights.var_mean(0);
 

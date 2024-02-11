@@ -1,5 +1,9 @@
+#[cfg(feature = "autotune-persistent-cache")]
+use rand::{distributions::Alphanumeric, Rng};
 use std::sync::Arc;
 
+#[cfg(feature = "autotune-persistent-cache")]
+use burn_compute::tune::compute_checksum;
 use burn_compute::{
     server::Handle,
     tune::{AutotuneOperation, AutotuneOperationSet},
@@ -21,6 +25,7 @@ pub struct AdditionAutotuneOperationSet {
 }
 
 impl AdditionAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
@@ -70,6 +75,7 @@ pub struct MultiplicationAutotuneOperationSet {
 }
 
 impl MultiplicationAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
@@ -115,9 +121,11 @@ pub struct CacheTestAutotuneOperationSet {
     key: String,
     shapes: Vec<Vec<usize>>,
     handles: Vec<Handle<DummyServer>>,
+    pub generate_random_checksum: bool,
 }
 
 impl CacheTestAutotuneOperationSet {
+    #[allow(dead_code)]
     pub fn new(
         client: DummyClient,
         shapes: Vec<Vec<usize>>,
@@ -128,9 +136,11 @@ impl CacheTestAutotuneOperationSet {
             key: format!("{}-{}", "cache_test", log_shape_input_key(&shapes)),
             shapes,
             handles,
+            generate_random_checksum: false,
         }
     }
 }
+
 impl AutotuneOperationSet<String> for CacheTestAutotuneOperationSet {
     fn key(&self) -> String {
         self.key.clone()
@@ -155,6 +165,20 @@ impl AutotuneOperationSet<String> for CacheTestAutotuneOperationSet {
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         self.autotunables()[fastest_index].clone()
+    }
+
+    #[cfg(feature = "std")]
+    fn compute_checksum(&self) -> String {
+        if self.generate_random_checksum {
+            let rand_string: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(16)
+                .map(char::from)
+                .collect();
+            rand_string
+        } else {
+            compute_checksum(&self.autotunables())
+        }
     }
 }
 

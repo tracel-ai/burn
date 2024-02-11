@@ -29,6 +29,7 @@ rand = { workspace = true }
 spin = { workspace = true }       # using in place of use std::sync::Mutex;          
 uuid = { workspace = true }
 derive-new = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

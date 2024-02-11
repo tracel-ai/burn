@@ -57,12 +57,6 @@ where
         Self::from_tensor(Tensor::random(shape, distribution, device))
     }
 
-    /// Create a random named tensor of the given shape where each element is sampled from
-    /// the given distribution. Tensor will be placed on the default device of the backend.
-    pub fn random_devauto<S: Into<Shape<D>>>(shape: S, distribution: Distribution) -> Self {
-        Self::from_tensor(Tensor::random_devauto(shape, distribution))
-    }
-
     /// Returns the shape of the current tensor.
     pub fn shape(&self) -> Shape<D> {
         self.tensor.shape()

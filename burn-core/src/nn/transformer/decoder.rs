@@ -61,12 +61,6 @@ pub struct TransformerDecoder<B: Backend> {
 
 impl TransformerDecoderConfig {
     /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
-    pub fn init_devauto<B: Backend>(&self) -> TransformerDecoder<B> {
-        let device = B::Device::default();
-        self.init(&device)
-    }
-
-    /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerDecoder<B> {
         let layers = (0..self.n_layers)
             .map(|_| TransformerDecoderLayer::new(self, device))
@@ -402,15 +396,6 @@ mod tests {
     use super::*;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
     use burn_tensor::Distribution;
-
-    #[test]
-    fn test_initialization_on_default_device() {
-        let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        TestBackend::seed(0);
-        let _module = TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers)
-            .with_norm_first(false)
-            .init_devauto::<TestBackend>();
-    }
 
     #[test]
     fn test_autoregressive_norm_last() {

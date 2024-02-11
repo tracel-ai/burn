@@ -20,14 +20,17 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[[
-            [0.1111, 0.2222, 0.3333, 0.3333, 0.2222, 0.1111],
-            [0.2222, 0.4444, 0.6667, 0.6667, 0.4444, 0.2222],
-            [0.3333, 0.6667, 1.0000, 1.0000, 0.6667, 0.3333],
-            [0.3333, 0.6667, 1.0000, 1.0000, 0.6667, 0.3333],
-            [0.2222, 0.4444, 0.6667, 0.6667, 0.4444, 0.2222],
-            [0.1111, 0.2222, 0.3333, 0.3333, 0.2222, 0.1111],
-        ]]]));
+        test.assert_output(TestTensor::from_floats(
+            [[[
+                [0.1111, 0.2222, 0.3333, 0.3333, 0.2222, 0.1111],
+                [0.2222, 0.4444, 0.6667, 0.6667, 0.4444, 0.2222],
+                [0.3333, 0.6667, 1.0000, 1.0000, 0.6667, 0.3333],
+                [0.3333, 0.6667, 1.0000, 1.0000, 0.6667, 0.3333],
+                [0.2222, 0.4444, 0.6667, 0.6667, 0.4444, 0.2222],
+                [0.1111, 0.2222, 0.3333, 0.3333, 0.2222, 0.1111],
+            ]]],
+            &Default::default(),
+        ));
     }
 
     #[test]
@@ -46,12 +49,15 @@ mod tests {
             count_include_pad: true,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[[
-            [0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333],
-            [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
-            [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
-            [0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333],
-        ]]]));
+        test.assert_output(TestTensor::from_floats(
+            [[[
+                [0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333],
+                [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
+                [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
+                [0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333],
+            ]]],
+            &Default::default(),
+        ));
     }
 
     #[test]
@@ -70,12 +76,15 @@ mod tests {
             count_include_pad: false,
         };
 
-        test.assert_output(TestTensor::from_floats_devauto([[[
-            [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
-            [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
-            [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
-            [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
-        ]]]));
+        test.assert_output(TestTensor::from_floats(
+            [[[
+                [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
+                [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
+                [0.8750, 0.8750, 0.5833, 0.5833, 0.8750, 0.8750],
+                [0.6250, 0.6250, 0.4167, 0.4167, 0.6250, 0.6250],
+            ]]],
+            &Default::default(),
+        ));
     }
 
     struct AvgPool2dTestCase {
@@ -95,11 +104,13 @@ mod tests {
     impl AvgPool2dTestCase {
         fn assert_output(self, x_grad: TestTensor<4>) {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-            let x = TestAutodiffTensor::from_data_devauto(
-                TestTensorInt::arange_devauto(0..shape_x.num_elements())
+            let device = Default::default();
+            let x = TestAutodiffTensor::from_data(
+                TestTensorInt::arange(0..shape_x.num_elements(), &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),
+                &device,
             )
             .require_grad();
             let output = avg_pool2d(

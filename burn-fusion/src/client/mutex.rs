@@ -101,14 +101,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_graph();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_float::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_float::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }
@@ -119,14 +119,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_graph();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_int::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_int::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }
@@ -138,14 +138,14 @@ where
     ) -> FusionTensor<Self> {
         let device = client.device.clone().into();
 
-        let mut other_server = client.server.lock();
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_graph();
 
-        let id = self
-            .server
-            .lock()
-            .change_server_bool::<D>(&tensor, &device, &mut other_server);
+        let id = server_current.change_server_bool::<D>(&tensor, &device, &mut server_other);
 
-        core::mem::drop(other_server);
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
 
         FusionTensor::new(id, tensor.shape, client)
     }

@@ -86,7 +86,7 @@ pub fn slice_assign<E: CandleElement, const D1: usize, const D2: usize>(
     ranges: [std::ops::Range<usize>; D2],
     value: CandleTensor<E, D1>,
 ) -> CandleTensor<E, D1> {
-    panic!("slice_assign not supported by Candle")
+    CandleTensor::new(tensor.tensor.slice_assign(&ranges, &value.tensor).unwrap())
 }
 
 pub fn narrow<E: CandleElement, const D: usize>(
