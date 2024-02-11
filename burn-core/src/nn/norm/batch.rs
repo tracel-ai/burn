@@ -106,6 +106,7 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
     }
 
     fn forward_train<const DI: usize>(&self, input: Tensor<B, DI>) -> Tensor<B, DI> {
+        let device = input.device();
         let dims = input.dims();
         let batch_size = dims[0];
         let channels = dims[1];
@@ -134,8 +135,8 @@ impl<const D: usize, B: Backend> BatchNorm<B, D> {
             .mean_dim(1)
             .reshape(shape_unsqueeze);
 
-        let running_mean = self.running_mean.value_sync().to_device(&mean.device());
-        let running_var = self.running_var.value_sync().to_device(&var.device());
+        let running_mean = self.running_mean.value_sync().to_device(&device);
+        let running_var = self.running_var.value_sync().to_device(&device);
 
         let running_mean = running_mean.mul_scalar(1.0 - self.momentum).add(
             mean.clone()

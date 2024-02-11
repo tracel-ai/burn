@@ -74,11 +74,13 @@
 //!   - `openblas`: If supported, Openblas will be use
 //!   - `openblas-system`: If supported, Openblas installed on the system will be use
 //!   - `wasm-sync`: When targeting wasm, but want a sync API (won't work with WGPU)
+//!   - `autotune`: Enable running benchmarks to select the best kernel in backends that support it.
+//!   - `fusion`: Enable operation fusion in backends that support it.
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
-//!   - `fusion`: Makes available the Fusion backend
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
+//!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
 pub use burn_core::*;

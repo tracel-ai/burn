@@ -71,7 +71,7 @@ mod tests {
         const END: usize = 100;
 
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(START..END, &device);
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(START as i64..END as i64, &device);
         let tensor_float = cast::<i32, f32, 1>(tensor.clone().into_primitive());
 
         let data_int = tensor.into_data();

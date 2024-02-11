@@ -10,6 +10,8 @@ use crate::{
     Dataset, InMemDataset,
 };
 
+use burn_common::network::downloader::download_file_as_bytes;
+
 // CVDF mirror of http://yann.lecun.com/exdb/mnist/
 const URL: &str = "https://storage.googleapis.com/cvdf-datasets/mnist/";
 const TRAIN_IMAGES: &str = "train-images-idx3-ubyte";
@@ -151,7 +153,7 @@ impl MNISTDataset {
 
         if !file_name.exists() {
             // Download gzip file
-            let bytes = super::downloader::download_file_as_bytes(&format!("{URL}{name}.gz"), name);
+            let bytes = download_file_as_bytes(&format!("{URL}{name}.gz"), name);
 
             // Create file to write the downloaded content to
             let mut output_file = File::create(&file_name).unwrap();

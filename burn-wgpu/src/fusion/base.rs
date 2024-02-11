@@ -4,7 +4,7 @@ use crate::{
     element::WgpuElement,
     fusion::ElementWiseBuilder,
     tensor::WgpuTensor,
-    FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
+    FloatElement, GraphicsApi, IntElement, WgpuBackend, WgpuDevice,
 };
 use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
 use burn_tensor::Shape;
@@ -28,10 +28,10 @@ pub enum WgpuOptimizationState {
     ElementWise(ElementWiseState),
 }
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<Wgpu<G, F, I>>
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> burn_fusion::Optimization<WgpuBackend<G, F, I>>
     for WgpuOptimization<G, F, I>
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, Wgpu<G, F, I>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, WgpuBackend<G, F, I>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
         }
@@ -70,7 +70,7 @@ impl FusionDevice for WgpuDevice {
     }
 }
 
-impl<G, F, I> FusionBackend for Wgpu<G, F, I>
+impl<G, F, I> FusionBackend for WgpuBackend<G, F, I>
 where
     G: GraphicsApi,
     F: FloatElement,
@@ -178,7 +178,7 @@ mod tests {
     use super::*;
     use burn_fusion::Fusion;
 
-    pub type TestBackend = Fusion<Wgpu>;
+    pub type TestBackend = Fusion<WgpuBackend>;
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> =

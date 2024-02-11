@@ -1,7 +1,7 @@
 use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
-use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
+use crate::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -123,8 +123,8 @@ impl FusionKernelSet {
         outputs: &[&TensorDescription],
         scalars_f32: usize,
         scalars_i32: usize,
-        context: &mut Context<'_, Wgpu<G, F, I>>,
-        device: Device<Wgpu<G, F, I>>,
+        context: &mut Context<'_, WgpuBackend<G, F, I>>,
+        device: Device<WgpuBackend<G, F, I>>,
         client: WgpuComputeClient,
         stateful: bool,
     ) -> ExecutableKernel {
@@ -263,7 +263,7 @@ fn register_info_tensor(
 fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, Wgpu<G, F, I>>,
+    context: &'a mut Context<'_, WgpuBackend<G, F, I>>,
     stateful: bool,
 ) -> (
     Vec<WgpuFusionHandle>,

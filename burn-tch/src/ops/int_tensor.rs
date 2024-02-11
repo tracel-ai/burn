@@ -38,7 +38,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         tensor: TchTensor<i64, D>,
         device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
-        TchTensor::new(tensor.tensor.to((*device).into()))
+        TchOps::to_device(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
@@ -417,5 +417,16 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         dim: usize,
     ) -> Vec<TchTensor<i64, D>> {
         TchOps::chunk(tensor, chunks, dim)
+    }
+
+    fn int_arange(range: Range<i64>, device: &LibTorchDevice) -> TchTensor<i64, 1> {
+        let device: tch::Device = (*device).into();
+        let mut tensor = tch::Tensor::arange(range.end - range.start, (tch::Kind::Int64, device));
+
+        if range.start != 0 {
+            tensor = tensor.f_add_scalar_(range.start).unwrap();
+        }
+
+        TchTensor::new(tensor)
     }
 }

@@ -13,23 +13,27 @@ version.workspace = true
 [features]
 default = ["std"]
 std = []
+doc = ["default"]
 cuda = ["candle-core/cuda"]
 metal = ["candle-core/metal"]
 accelerate = ["candle-core/accelerate"]
 
+
 [dependencies]
 derive-new = { workspace = true }
-burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false }
 half = { workspace = true }
 candle-core = { workspace = true }
 
-
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.12.0", default-features = false, features = [
+burn-autodiff = { path = "../burn-autodiff", version = "0.13.0", default-features = false, features = [
     "export_tests",
 ] }
-burn-tch = { path = "../burn-tch", version = "0.12.0", default-features = false, features = [
+burn-tch = { path = "../burn-tch", version = "0.13.0", default-features = false, features = [
 ] }
-burn-tensor = { path = "../burn-tensor", version = "0.12.0", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false, features = [
     "export_tests",
 ] }
+
+[package.metadata.docs.rs]
+features = ["doc"]

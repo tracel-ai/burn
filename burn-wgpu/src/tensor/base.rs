@@ -1,4 +1,5 @@
-use crate::codegen::{Elem, Item, Operator, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::Compiler;
 use crate::element::WgpuElement;
 use crate::{
     compute::{WgpuComputeClient, WgpuHandle},
@@ -92,7 +93,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     /// Copy the current tensor.
-    pub fn copy(&self) -> Self {
+    pub fn copy<C: Compiler>(&self) -> Self {
         // Seems like using the copy buffer from the `wgpu` API leads to race condition when they
         // are used inplace afterward.
         //
@@ -101,10 +102,11 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operator: |elem: Elem| Operator::AssignLocal {
+            operation: |elem: Elem| Operation::AssignLocal(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
+            compiler: C,
             input: self.clone(),
             elem: E
         )

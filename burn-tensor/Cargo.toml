@@ -12,14 +12,15 @@ version.workspace = true
 
 [features]
 default = ["std"]
+doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen"]
 std = ["rand/std", "half/std"]
 wasm-sync = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.12.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.12.0", optional = true }
+burn-common = { path = "../burn-common", version = "0.13.0", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.0", optional = true }
 
 derive-new = { workspace = true }
 half = { workspace = true }
@@ -36,3 +37,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
+
+[package.metadata.docs.rs]
+features = ["doc"]

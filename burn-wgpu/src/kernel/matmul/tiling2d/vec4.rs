@@ -1,15 +1,12 @@
-use burn_tensor::Element;
-
+use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
+use crate::kernel_wgsl;
 use crate::{
+    codegen::dialect::wgsl,
     element::WgpuElement,
     kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
     tensor::WgpuTensor,
 };
 use std::marker::PhantomData;
-
-use crate::kernel_wgsl;
-
-use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
 
 kernel_wgsl!(
     MatmulTiling2Dvec4Raw,
@@ -43,13 +40,14 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs
-pub fn matmul_tiling_2d_vec4<E: WgpuElement + Element, const D: usize>(
+pub fn matmul_tiling_2d_vec4<E: WgpuElement, const D: usize>(
     lhs: WgpuTensor<E, D>,
     rhs: WgpuTensor<E, D>,
     out: WgpuTensor<E, D>,
 ) -> WgpuTensor<E, D> {
     let kernel = MatmulTiling2Dvec4::<E>::new();
-    matmul_tiling_2d_launch(lhs, rhs, out, kernel)
+    // TODO: don't hardcode the compiler.
+    matmul_tiling_2d_launch::<wgsl::Compiler<f32, i32>, _, D, _>(lhs, rhs, out, kernel)
 }
 
 #[cfg(test)]
