@@ -1,4 +1,9 @@
-use std::{collections::HashSet, iter::Peekable, slice::IterMut};
+use std::{
+    cell::{RefCell, RefMut},
+    collections::HashSet,
+    iter::Peekable,
+    slice::IterMut,
+};
 
 use super::ir::{AttributeValue, Node, NodeType};
 use crate::onnx::ir::{ArgType, Data, TensorType};
@@ -150,12 +155,11 @@ fn convert_matmul_to_linear(
 }
 
 pub(crate) fn convert_matmul_to_linear2(
-    node_vec: &mut Vec<Node>,
+    node_vec: &Vec<RefCell<Node>>,
     node_index: usize,
     nodes_to_remove: &mut HashSet<usize>,
 ) {
-    let mut iter_mut = node_vec.iter_mut().peekable();
-    let node = iter_mut.nth(node_index).unwrap();
+    let mut node = node_vec[node_index].borrow_mut();
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
     }
@@ -177,9 +181,10 @@ pub(crate) fn convert_matmul_to_linear2(
 
     // Check the next node for potential conversion
 
-    if let Some(next_node) = iter_mut.peek() {
-        if is_add_node_with_bias(&next_node, node) {
-            convert_node2(next_node, nodes_to_remove, node);
+    if node_index + 1 < node_vec.len() {
+        let next_node = node_vec[node_index + 1].borrow();
+        if is_add_node_with_bias(&next_node, &node) {
+            convert_node2(&next_node, node);
             nodes_to_remove.insert(node_index + 1);
         }
     }
@@ -217,11 +222,7 @@ fn convert_and_remove_add_node(
 }
 
 /// Helper function to convert and remove the Add node
-pub(crate) fn convert_node2(
-    bias_node: &Node,
-    nodes_to_remove: &mut HashSet<usize>,
-    current_node: &mut Node,
-) {
+pub(crate) fn convert_node2<'parser>(bias_node: &Node, mut current_node: RefMut<'parser, Node>) {
     let bias_input = if bias_node.inputs[0].value.is_some() {
         bias_node.inputs[0].clone()
     } else {

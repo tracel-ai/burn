@@ -1,4 +1,6 @@
 use std::{
+    borrow::BorrowMut,
+    cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     fs::File,
     path::Path,
@@ -13,6 +15,7 @@ use super::{
     coalesce::convert_gemm_to_linear,
     protos::{ModelProto, TensorProto},
 };
+
 use super::{
     coalesce::convert_matmul_to_linear2,
     ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor},
@@ -21,7 +24,7 @@ use super::{dim_inference::dim_inference, protos::ValueInfoProto};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 6] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
@@ -42,12 +45,12 @@ pub(crate) struct ONNXGraphBuilder {
     output_of: HashMap<String, usize>,
     //nodes to remove
     nodes_to_remove: HashSet<usize>,
+    constants_map: HashMap<String, usize>,
     //constants to lift
-    constants: HashMap<String, Node>,
     postprocess_for_constants: Vec<usize>,
     constants_types: HashSet<NodeType>,
     //identity_nodes
-    identity_nodes: Vec<String>,
+    identity_idx: Vec<usize>,
     //matmul nodes
     matmul_nodes: Vec<usize>,
 }
@@ -69,7 +72,7 @@ impl ONNXGraphBuilder {
             .iter()
             .map(|x| (x.name.clone(), x.clone()))
             .collect::<HashMap<String, ValueInfoProto>>();
-
+        let mut nodes = Vec::with_capacity(model_proto.graph.node.len());
         for (i, node_proto) in model_proto.graph.node.iter().enumerate() {
             let mut node = convert_node_proto(node_proto);
             for node_input in node.inputs.iter_mut() {
@@ -87,26 +90,35 @@ impl ONNXGraphBuilder {
             }
 
             let node_type = node.node_type.clone();
-            if self.handle_identity(&node_type, &node, i)
-                || self.check_constants(&node, &node_type, i)
-            {
-                self.constants.insert(node.name.clone(), node);
-            } else {
+            _ = self.handle_identity(&node_type, &node, i);
+            self.check_constants(&node, &node_type, i);
+
+            self.handle_unsqueeze(&node_type, &node, i);
+            //NOTE: still not done with this one
+
+            self.handle_coalesce(&node_type, &mut node, i);
+            if !self.nodes_to_remove.contains(&i) {
                 //name stuff
                 self.handle_node_renaming(&node_type, &mut node);
-
-                self.handle_unsqueeze(&node_type, &node, i);
-                //NOTE: still not done with this one
-
-                self.handle_coalesce(node_type, &mut node, i);
-
-                self.nodes.push(node);
             }
+
+            nodes.push(RefCell::new(node));
         }
-        self.postprocess_unsqueeze(inputs, model_proto.graph.output.clone());
-        self.postprocess_identity();
-        self.postprocess_constants();
-        self.postprocess_coalesce();
+        self.postprocess_unsqueeze(&nodes, inputs, model_proto.graph.output.clone());
+        self.postprocess_identity(&nodes);
+        self.postprocess_constants(&nodes);
+        self.postprocess_coalesce(&mut nodes);
+        self.nodes = nodes
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, x)| {
+                if !self.nodes_to_remove.contains(&i) {
+                    Some(x.into_inner())
+                } else {
+                    None
+                }
+            })
+            .collect();
     }
 
     fn handle_node_renaming(&mut self, node_type: &NodeType, node: &mut Node) {
@@ -122,7 +134,11 @@ impl ONNXGraphBuilder {
         self.old_node_names.insert(old_name, new_name);
     }
 
-    fn postprocess_rename_inputs(&mut self, inputs: &mut Vec<Argument>) {
+    fn postprocess_rename_inputs(
+        &mut self,
+        //nodes: &mut Vec<RefCell<Node>>,
+        inputs: &mut Vec<Argument>,
+    ) {
         for input in inputs.iter_mut() {
             if let Some(new_name) = self.old_node_names.get(&input.name) {
                 input.name = new_name.clone();
@@ -130,21 +146,20 @@ impl ONNXGraphBuilder {
         }
     }
 
-    fn check_constants(&mut self, node: &Node, node_type: &NodeType, i: usize) -> bool {
-        if node_type == &NodeType::Constant {
-            return true;
-        } else if self.constants_types.contains(node_type) {
+    fn check_constants(&mut self, node: &Node, node_type: &NodeType, i: usize) {
+        if node_type == &NodeType::Constant || self.constants_types.contains(node_type) {
             self.postprocess_for_constants.push(i);
+            self.nodes_to_remove.insert(i);
         }
-        false
     }
 
-    fn postprocess_constants(&mut self) {
+    fn postprocess_constants(&mut self, nodes: &Vec<RefCell<Node>>) {
         for i in self.postprocess_for_constants.iter() {
-            let mut node = &mut self.nodes[*i];
+            let mut node = nodes[*i].borrow_mut();
 
             for input in node.inputs.iter_mut().skip(1) {
-                if let Some(constant) = self.constants.get(&input.name) {
+                if let Some(idx) = self.constants_map.get(&input.name) {
+                    let constant = nodes[*idx].borrow();
                     if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
                         input.value = constant.outputs[0].value.clone();
                         input.ty = constant.outputs[0].ty.clone();
@@ -168,16 +183,18 @@ impl ONNXGraphBuilder {
 
     fn postprocess_unsqueeze(
         &mut self,
+        nodes: &Vec<RefCell<Node>>,
         node_inputs: HashMap<String, ValueInfoProto>,
         graph_outputs: Vec<ValueInfoProto>,
     ) {
         for (output_name, i) in self.outputs_to_move.iter() {
-            let node = &mut self.nodes[*i];
             if let Some(val_proto) = node_inputs.get(output_name) {
+                let node = nodes[*i].borrow_mut();
                 move_output_shape(node, val_proto);
             } else {
                 for output in graph_outputs.iter() {
                     if output.name == *output_name {
+                        let node = nodes[*i].borrow_mut();
                         move_output_shape(node, output);
                     }
                 }
@@ -187,27 +204,24 @@ impl ONNXGraphBuilder {
 
     fn handle_identity(&mut self, node_type: &NodeType, node: &Node, i: usize) -> bool {
         if node_type == &NodeType::Identity && node.inputs[0].value.is_none() {
-            self.identity_nodes.push(node.name.clone());
-            // self.nodes_to_remove.insert(i);
+            self.identity_idx.push(i);
+            self.nodes_to_remove.insert(i);
             return true;
         }
         false
     }
 
-    fn postprocess_identity(&mut self) {
-        for identity in self.identity_nodes.iter() {
-            let identity_node = self
-                .constants
-                .get(identity)
-                .expect(&format!("Identity node {} not found", identity));
+    fn postprocess_identity(&mut self, nodes: &Vec<RefCell<Node>>) {
+        for identity_idx in self.identity_idx.iter() {
+            let identity_node = nodes[*identity_idx].borrow();
 
             let input_name = &identity_node.inputs[0].name;
             let identity_output = &identity_node.outputs[0].name;
 
             // Replace the identity node's output with its input in the connected nodes.
-            if let Some(node_index) = self.input_of.get(identity_output) {
-                for node_index in node_index {
-                    let node = &mut self.nodes[*node_index];
+            if let Some(indices) = self.input_of.get(identity_output) {
+                for node_index in indices {
+                    let mut node = nodes[*node_index].borrow_mut();
                     if let Some(matched_input) =
                         node.inputs.iter_mut().find(|x| x.name == *identity_output)
                     {
@@ -218,7 +232,7 @@ impl ONNXGraphBuilder {
         }
     }
 
-    fn handle_coalesce(&mut self, node_type: NodeType, node: &mut Node, i: usize) {
+    fn handle_coalesce(&mut self, node_type: &NodeType, node: &mut Node, i: usize) {
         match node_type {
             NodeType::Gemm => convert_gemm_to_linear(node),
             NodeType::MatMul => {
@@ -228,9 +242,9 @@ impl ONNXGraphBuilder {
         }
     }
 
-    fn postprocess_coalesce(&mut self) {
+    fn postprocess_coalesce(&mut self, nodes: &mut Vec<RefCell<Node>>) {
         for matmul_index in self.matmul_nodes.clone() {
-            convert_matmul_to_linear2(&mut self.nodes, matmul_index, &mut self.nodes_to_remove);
+            convert_matmul_to_linear2(nodes, matmul_index, &mut self.nodes_to_remove);
         }
     }
 }
@@ -273,9 +287,9 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     let ONNXGraphBuilder {
         mut nodes,
         old_node_names,
-        nodes_to_remove,
         ..
     } = builder;
+    println!("nodes: {:#?}", nodes);
     // Convert the nodes
     // let mut nodes: Vec<Node> = vec![];
     // println!("onnx_model.graph.node: {:#?}", onnx_model.graph.node);
@@ -333,12 +347,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     //     .iter()
     //     .map(|x| Argument::try_from(x.clone()).unwrap())
     //     .collect();
-    let mut i = 0;
-    nodes.retain(|node| {
-        let res = !nodes_to_remove.contains(&i);
-        i += 1;
-        res
-    });
+
     let mut inputs = onnx_model
         .graph
         .input
@@ -467,7 +476,7 @@ fn move_output_for_unsqueeze(
     }
 }
 
-fn move_output_shape(node: &mut Node, output_tensor: &ValueInfoProto) {
+fn move_output_shape<'parser>(mut node: RefMut<'parser, Node>, output_tensor: &ValueInfoProto) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
             if let Some(shape) = output_tensor
@@ -634,7 +643,9 @@ fn rename_inputs(
     outputs: &mut Vec<Argument>,
 ) -> HashMap<String, String> {
     let mut old_names = HashMap::new();
-
+    println!("inputs: {:#?}", inputs);
+    println!("outputs: {:#?}", outputs);
+    println!("nodes: {:#?}", nodes);
     // rename all graph input names to follow input1, input2, input3, etc.
     // (assumes the input names are already unique)
     let mut counter = 1;
@@ -648,6 +659,7 @@ fn rename_inputs(
 
     for node in nodes.iter_mut() {
         let mut counter = 1;
+        println!("node: {:#?}", node);
 
         // loop through node outputs and rename them and store the new name <-> old name mapping
         for output in node.outputs.iter_mut() {
