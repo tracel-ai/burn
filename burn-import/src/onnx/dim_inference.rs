@@ -100,7 +100,7 @@ pub fn dim_inference(
             NodeType::Sub => same_as_input(node),
             NodeType::Tanh => same_as_input(node),
             NodeType::Transpose => same_as_input(node),
-            NodeType::Unsqueeze => unsqueeze_update_outputs(node),
+            NodeType::Unsqueeze => unsqueeze_update_output_or_node(node),
             NodeType::Pow => same_as_input(node),
             // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
             _ => temporary_pass_through_stub(node),
@@ -287,12 +287,9 @@ fn mean_update_outputs(node: &mut Node) {
 }
 
 //fn __unsqueeze_shape
-/// Infers the shape of a Unsqueeze node and replaces the shape of the output tensor.
-///
-/// # Remarks
-///
-///
-fn unsqueeze_update_outputs(node: &mut Node) {
+/// Either it Infers the shape of the output of an Unsqueeze node, or it remaps the node to a reshape if the output is static
+/// providing an arg and inferring the dimensions at runtime isn't currently supported.
+fn unsqueeze_update_output_or_node(node: &mut Node) {
     if node.inputs.len() != 2 {
         panic!("Unsqueeze: wrong number of inputs");
     }
@@ -384,13 +381,14 @@ fn unsqueeze_update_outputs(node: &mut Node) {
     //need to move out of the match to avoid borrowing issues
     if remap_node {
         let mut new_node = node.clone();
+        let rhs_name = node.inputs[1].name.clone();
         new_node.node_type = NodeType::Reshape;
         let rhs_arg = Argument {
-            name: "shape".to_string(),
+            name: rhs_name, //need name to remain the same
             ty: ArgType::Tensor(TensorType {
                 elem_type: ElementType::Int64,
                 dim: 1,
-                shape: Some(vec![tensor.dim]),
+                shape: Some(vec![output_shape.clone().unwrap().len()]),
             }),
             value: Some(Data::Int64s(
                 output_shape

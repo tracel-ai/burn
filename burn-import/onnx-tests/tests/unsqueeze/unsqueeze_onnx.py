@@ -456,14 +456,8 @@ if __name__ == "__main__":
     )
     data.add_node("Unsqueeze", {"y": "y", "axis": axis}, {"z": z})
 
-    # print(data.inputs)
-    # print(data.output)
-
-    # graph = data.make_onnx_graph()
     # data.model_to_txt()
-    data.save_model()
     result = data.validate_model()
-    # print(result[0].shape)
-    # print(data.output["output"])
+
     assert np.allclose(result[0], data.get_expected_outputs()[0])
-    # print("Test passed")
+    print("Test passed")

@@ -24,9 +24,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
         let shape_values = &self.axes.to_tokens();
+        let new_dims = self.output.dim.to_tokens();
 
         quote! {
-            let #output = #input.unsqueeze_dims(&#shape_values);
+            let #output: Tensor<B, #new_dims> = #input.unsqueeze_dims(&#shape_values);
         }
     }
 
