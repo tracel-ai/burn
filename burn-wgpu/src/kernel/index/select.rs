@@ -1,4 +1,5 @@
 use crate::{
+    codegen::Compiler,
     compute::StaticKernel,
     element::WgpuElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
@@ -45,7 +46,7 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     output
 }
 
-pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
+pub(crate) fn select_assign<C: Compiler, E: WgpuElement, I: WgpuElement, const D: usize>(
     tensor: WgpuTensor<E, D>,
     dim: usize,
     indices: WgpuTensor<I, 1>,
@@ -53,7 +54,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 ) -> WgpuTensor<E, D> {
     let tensor = match tensor.can_mut() {
         true => tensor,
-        false => tensor.copy(),
+        false => tensor.copy::<C>(),
     };
 
     let mut info = build_info(&[&tensor, &value]);
@@ -100,7 +101,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -174,12 +175,13 @@ mod tests {
             &Default::default(),
         );
 
-        let actual = Tensor::<TestBackend, D>::from_primitive(select_assign(
-            tensor.into_primitive(),
-            dim,
-            indices.into_primitive(),
-            value.into_primitive(),
-        ));
+        let actual =
+            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestCompiler, _, _, D>(
+                tensor.into_primitive(),
+                dim,
+                indices.into_primitive(),
+                value.into_primitive(),
+            ));
         let expected = tensor_ref.select_assign(dim, indices_ref, value_ref);
 
         expected

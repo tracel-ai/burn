@@ -7,6 +7,14 @@ on:
     tags:
       - 'v*.*.*' # Run when a new version is being published
 
+env:
+  #
+  # Dependency versioning
+  #
+
+  # careful version
+  CAREFUL_VERSION: "0.4.0"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -35,7 +43,6 @@ jobs:
     - name: Install cargo-careful
       env:
         CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
-        CAREFUL_VERSION: 0.4.0
       run: |
         curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
         --output $HOME/.cargo/bin/cargo-careful

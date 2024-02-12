@@ -106,7 +106,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
             let device = Default::default();
             let x = TestAutodiffTensor::from_data(
-                TestTensorInt::arange(0..shape_x.num_elements(), &device)
+                TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
                     .into_data()
                     .convert(),

@@ -4,13 +4,14 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
+    codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
     codegen::{
-        Elem, ElemWiseKernelCodegen, InplaceMapping, Input, Item, Operator, Output,
-        ReadingStrategy, Vectorization, Visibility, WorkgroupSize,
+        compiler::Compiler, dialect::wgsl, ElemWiseKernelCodegen, InplaceMapping, Input, Output,
+        ReadingStrategy,
     },
     compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
-    fusion::{kernel::FusionKernelSet, source::DynKernelSource},
-    FloatElement, GraphicsApi, IntElement, Wgpu, WgpuDevice,
+    fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
+    FloatElement, GraphicsApi, IntElement, WgpuBackend, WgpuDevice,
 };
 use burn_common::id::IdGenerator;
 use burn_fusion::{stream::Context, TensorDescription};
@@ -28,8 +29,8 @@ where
     pub(super) outputs: Vec<(TensorDescription, Elem)>,
     pub(super) locals: Vec<u16>,
     pub(super) scalars: Scalars,
-    pub(super) operators: Vec<Operator>,
-    pub(super) device: Device<Wgpu<G, F, I>>,
+    pub(super) operators: Vec<Operation>,
+    pub(super) device: Device<WgpuBackend<G, F, I>>,
     pub(super) phase: Phase,
 }
 
@@ -53,7 +54,7 @@ pub struct ElementWiseState {
     inputs: Vec<(TensorDescription, Elem)>,
     outputs: Vec<(TensorDescription, Elem)>,
     scalars: Scalars,
-    operators: Vec<Operator>,
+    operators: Vec<Operation>,
     locals: Vec<u16>,
 }
 
@@ -86,21 +87,21 @@ where
 
         if self.scalars.num_f32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::F32,
+                elem: Elem::Float,
                 size: self.scalars.num_f32,
             })
         }
 
         if self.scalars.num_u32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::U32,
+                elem: Elem::UInt,
                 size: self.scalars.num_u32,
             })
         }
 
         if self.scalars.num_i32 > 0 {
             inputs.push(Input::Scalar {
-                elem: Elem::I32,
+                elem: Elem::Int,
                 size: self.scalars.num_i32,
             })
         }
@@ -150,14 +151,14 @@ where
             })
             .collect::<Vec<_>>();
 
-        let kernel_set_1 = build_kernel_set(
+        let kernel_set_1 = build_kernel_set::<wgsl::Compiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
             &mappings,
             WorkgroupSize::default(),
         );
-        let kernel_set_2 = build_kernel_set(
+        let kernel_set_2 = build_kernel_set::<wgsl::Compiler<F, I>>(
             &inputs,
             &outputs,
             &self.operators,
@@ -183,7 +184,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, Wgpu<G, F, I>>) {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, WgpuBackend<G, F, I>>) {
         let client = compute_client::<G>(&self.device);
 
         let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
@@ -200,7 +201,7 @@ where
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, Wgpu<G, F, I>>,
+        context: &mut Context<'_, WgpuBackend<G, F, I>>,
         client: WgpuComputeClient,
         fastest_set_index: usize,
     ) {
@@ -226,7 +227,7 @@ where
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, Wgpu<G, F, I>>,
+        context: &mut Context<'_, WgpuBackend<G, F, I>>,
         client: WgpuComputeClient,
         key: WgpuAutotuneKey,
     ) {
@@ -276,7 +277,7 @@ where
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, Wgpu<G, F, I>>,
+        context: &mut Context<'a, WgpuBackend<G, F, I>>,
     ) -> &'a [usize] {
         if let Some(tensor) = self.outputs.first() {
             let tensor = context.tensors.get(&tensor.0.id).unwrap();
@@ -320,15 +321,18 @@ where
     }
 }
 
-fn build_kernel_set(
+fn build_kernel_set<C>(
     inputs: &[Input],
     outputs: &[Output],
-    operators: &[Operator],
+    operators: &[Operation],
     mappings: &[InplaceMapping],
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet {
-    let scalar = ScalarElementWise::new(
-        DynKernelSource::new(
+) -> FusionKernelSet
+where
+    C: Compiler,
+{
+    let scalar = ScalarElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inputs(inputs)
@@ -337,7 +341,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .inplace(mappings)
@@ -351,8 +355,8 @@ fn build_kernel_set(
         outputs.len(),
     );
 
-    let vec2 = VecElementWise::new(
-        DynKernelSource::new(
+    let vec2 = VecElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -362,7 +366,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
@@ -377,8 +381,8 @@ fn build_kernel_set(
         outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::new(
-        DynKernelSource::new(
+    let vec4 = VecElementWise::<C>::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
@@ -388,7 +392,7 @@ fn build_kernel_set(
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        DynKernelSource::new(
+        GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
@@ -409,7 +413,8 @@ fn build_kernel_set(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::WgpuBackend;
+
     use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
     use burn_tensor::Int;
@@ -417,8 +422,8 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior() {
-        type Backend = Wgpu;
-        type FusedBackend = Fusion<Wgpu>;
+        type Backend = WgpuBackend;
+        type FusedBackend = Fusion<WgpuBackend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
             [1, 32],
@@ -480,8 +485,8 @@ mod tests {
             z.into_data().convert()
         }
 
-        type Backend = Wgpu;
-        type FusedBackend = Fusion<Wgpu>;
+        type Backend = WgpuBackend;
+        type FusedBackend = Fusion<WgpuBackend>;
 
         let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
         let result_ref = func::<Backend>(data_1.clone(), data_2.clone());
@@ -491,8 +496,8 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior_different_variant() {
-        type Backend = Wgpu;
-        type FusedBackend = Fusion<Wgpu>;
+        type Backend = WgpuBackend;
+        type FusedBackend = Fusion<WgpuBackend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
             [1, 32],
@@ -529,7 +534,7 @@ mod tests {
 
     #[test]
     fn test_end_condition_scalar_ops() {
-        type Backend = Fusion<Wgpu>;
+        type Backend = Fusion<WgpuBackend>;
         let device = Default::default();
         let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
         let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);
