@@ -23,6 +23,7 @@ pub fn get_auth_cache_file_path() -> PathBuf {
 }
 
 /// Return true if the token is still valid
+#[inline]
 pub(crate) fn is_token_valid(token: &str) -> bool {
     get_username_from_token(token).is_ok()
 }
@@ -66,12 +67,12 @@ pub(crate) fn save_token(token: &str) {
 }
 
 /// Return the token saved in the cache file
+#[inline]
 pub(crate) fn get_token_from_cache() -> Option<String> {
     let path = get_auth_cache_file_path();
-    match fs::read_to_string(path) {
-        Ok(contents) => contents.lines().next().map(str::to_string),
-        _ => None,
-    }
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| contents.lines().next().map(str::to_string))
 }
 
 #[cfg(test)]
