@@ -51,11 +51,11 @@ struct RunArgs {
     share: bool,
 
     /// Space separated list of backends to include
-    #[clap(short = 'B', long = "backends", value_name = "BACKEND,BACKEND,...", num_args(0..))]
+    #[clap(short = 'B', long = "backends", value_name = "BACKEND BACKEND ...", num_args(1..), required = true)]
     backends: Vec<BackendValues>,
 
     /// Space separated list of benches to run
-    #[clap(short = 'b', long = "benches", value_name = "BACKEND,BACKEND,...", num_args(0..))]
+    #[clap(short = 'b', long = "benches", value_name = "BENCH BENCH ...", num_args(1..), required = true)]
     benches: Vec<BenchmarkValues>,
 }
 
@@ -165,10 +165,6 @@ fn command_run(run_args: RunArgs) {
             eprintln!("Run the command 'burnbench auth' again to get a new token.");
             return;
         }
-    }
-    if run_args.backends.is_empty() || run_args.benches.is_empty() {
-        println!("No backends or benchmarks specified. Please select at least one backend and one benchmark.");
-        return;
     }
     let total_combinations = run_args.backends.len() * run_args.benches.len();
     println!(
