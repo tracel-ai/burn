@@ -1,7 +1,7 @@
 use burn_compute::client::ComputeClient;
 
 use crate::codegen::dialect::gpu::{
-    Binding, Body, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
+    Binding, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
     ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Vectorization, Visibility,
     WorkgroupSize,
 };
@@ -10,6 +10,8 @@ use crate::element::JitElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use std::marker::PhantomData;
+
+use super::dialect::gpu::Scope;
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
@@ -42,7 +44,7 @@ pub struct InplaceMapping {
 ///   4. [Compilation Phase](CompilationPhase)
 ///     Now that all other phases are completed, we can actually compile the kernel.
 pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
-    operations: Vec<Operation>,
+    scope: Scope,
     input_bindings: Vec<Binding>,
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
@@ -80,7 +82,7 @@ pub enum Output {
 impl Default for ElemWiseKernelCodegen<InputPhase> {
     fn default() -> Self {
         Self {
-            operations: Vec::new(),
+            scope: Scope::new("default".into()),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
@@ -111,7 +113,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
     /// Register the inputs used by the kernel.
     pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<BodyPhase> {
-        let mut index: u16 = 0;
+        let mut index = 0;
 
         for input in inputs {
             match input {
@@ -131,7 +133,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
                     match strategy {
                         ReadingStrategy::OutputLayout => {
-                            self.operations.push(Operation::ReadGlobalWithLayout(
+                            self.scope.register(Operation::ReadGlobalWithLayout(
                                 ReadGlobalWithLayoutOperation {
                                     variable: Variable::Input(index, item),
                                     tensor_read_pos: index as usize,
@@ -141,13 +143,12 @@ impl ElemWiseKernelCodegen<InputPhase> {
                             ));
                         }
                         ReadingStrategy::Plain => {
-                            self.operations
-                                .push(Operation::ReadGlobal(ReadGlobalOperation {
+                            self.scope
+                                .register(Operation::ReadGlobal(ReadGlobalOperation {
                                     variable: Variable::Input(index, item),
                                 }));
                         }
                     }
-
                     index += 1;
                 }
                 Input::Scalar { elem, size } => {
@@ -167,7 +168,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
         }
 
         ElemWiseKernelCodegen {
-            operations: self.operations,
+            scope: self.scope,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
@@ -183,11 +184,11 @@ impl ElemWiseKernelCodegen<BodyPhase> {
     /// Register the [operators](Operator) that the kernel must execute in the order provided.
     pub fn body(mut self, operators: &[Operation]) -> ElemWiseKernelCodegen<OutputPhase> {
         for ops in operators.iter() {
-            self.operations.push(ops.vectorize(self.vectorization));
+            self.scope.register(ops.vectorize(self.vectorization));
         }
 
         ElemWiseKernelCodegen {
-            operations: self.operations,
+            scope: self.scope,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
@@ -247,11 +248,10 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         location: Location::Storage,
                         size: None,
                     });
-                    self.operations
-                        .push(Operation::AssignGlobal(UnaryOperation {
-                            input: Variable::Local(*local, item),
-                            out: Variable::Output(index, elem_adapted),
-                        }));
+                    self.scope.register(Operation::AssignGlobal(UnaryOperation {
+                        input: Variable::Local(*local, item),
+                        out: Variable::Output(index, elem_adapted),
+                    }));
                     index += 1;
 
                     if index == 1 {
@@ -262,11 +262,10 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                 Output::Input { item, input, local } => {
                     let item = item.vectorize(self.vectorization);
 
-                    self.operations
-                        .push(Operation::AssignGlobal(UnaryOperation {
-                            input: Variable::Local(*local, item),
-                            out: Variable::Input(*input, bool_item(item)),
-                        }));
+                    self.scope.register(Operation::AssignGlobal(UnaryOperation {
+                        input: Variable::Local(*local, item),
+                        out: Variable::Input(*input, bool_item(item)),
+                    }));
                     position_out = *input as usize; // Input number when we use inplace operation.
                 }
             }
@@ -278,7 +277,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                 variable: _,
                 tensor_read_pos: _,
                 tensor_layout_pos,
-            })) = self.operations.get_mut(i)
+            })) = self.scope.operations.get_mut(i)
             {
                 {
                     *tensor_layout_pos = position_out;
@@ -287,7 +286,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
         }
 
         ElemWiseKernelCodegen {
-            operations: self.operations,
+            scope: self.scope,
             input_bindings: self.input_bindings,
             output_bindings: self.output_bindings,
             named_bindings: self.named_bindings,
@@ -332,7 +331,7 @@ impl ElemWiseKernelCodegen<CompilationPhase> {
             outputs,
             named,
             workgroup_size: self.workgroup_size,
-            body: Body::new(self.operations),
+            body: self.scope,
             num_workgroups: true,
             global_invocation_id: true,
         }

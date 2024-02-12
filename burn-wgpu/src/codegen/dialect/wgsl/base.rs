@@ -1,13 +1,17 @@
 use crate::codegen::dialect::gpu;
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub enum Variable {
     Input(u16, Item),
     Scalar(u16, Item, gpu::Elem),
-    Local(u16, Item),
     Output(u16, Item),
     Constant(f64, Item),
+    Local {
+        prefix: Rc<String>,
+        index: u16,
+        item: Item,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -44,9 +48,13 @@ impl Variable {
         match self {
             Self::Input(_, e) => e,
             Self::Scalar(_, e, _) => e,
-            Self::Local(_, e) => e,
             Self::Output(_, e) => e,
             Self::Constant(_, e) => e,
+            Self::Local {
+                prefix: _,
+                index: _,
+                item,
+            } => item,
         }
     }
 }
@@ -99,7 +107,11 @@ impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Variable::Input(number, _) => f.write_fmt(format_args!("input_{number}")),
-            Variable::Local(number, _) => f.write_fmt(format_args!("local_{number}")),
+            Variable::Local {
+                prefix,
+                index,
+                item: _,
+            } => f.write_fmt(format_args!("{prefix}_local_{index}")),
             Variable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
             Variable::Scalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))

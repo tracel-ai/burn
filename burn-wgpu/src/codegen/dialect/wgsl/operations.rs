@@ -226,7 +226,11 @@ impl Display for Operation {
                 Variable::Input(number, _elem) => f.write_fmt(format_args!(
                     "let input_{number} = input_{number}_global[id];"
                 )),
-                Variable::Local(_, _) => panic!("can't read global local variable."),
+                Variable::Local {
+                    prefix: _,
+                    index: _,
+                    item: _,
+                } => panic!("can't read global local variable."),
                 Variable::Output(number, _elem) => f.write_fmt(format_args!(
                     "let output_{number} = output_{number}_global[id];"
                 )),
@@ -244,7 +248,11 @@ impl Display for Operation {
                         format!("input_{number}"),
                         elem,
                     ),
-                    Variable::Local(_, _) => panic!("can't read global local variable."),
+                    Variable::Local {
+                        prefix: _,
+                        index: _,
+                        item: _,
+                    } => panic!("can't read global local variable."),
                     Variable::Output(number, elem) => (
                         format!("output_{number}_global"),
                         format!("output_{number}"),

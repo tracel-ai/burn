@@ -9,3 +9,15 @@ pub enum Variable {
     Output(u16, Item),
     Constant(f64, Item),
 }
+
+impl Variable {
+    pub fn index(&self) -> Option<u16> {
+        match self {
+            Variable::Input(idx, _) => Some(*idx),
+            Variable::Scalar(idx, _) => Some(*idx),
+            Variable::Local(idx, _) => Some(*idx),
+            Variable::Output(idx, _) => Some(*idx),
+            Variable::Constant(_, _) => None,
+        }
+    }
+}
