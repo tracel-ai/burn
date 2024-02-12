@@ -1,10 +1,10 @@
-use std::fmt;
-use std::{fmt::Display, io};
-use std::path::Path;
-use std::fs::File;
 use std::error::Error;
+use std::fmt;
+use std::fs::File;
+use std::path::Path;
+use std::{fmt::Display, io};
 
-use burn_core::tensor::{backend::Backend, Tensor, Data, Shape};
+use burn_core::tensor::{backend::Backend, Data, Shape, Tensor};
 use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
 
 #[derive(Debug)]
@@ -33,7 +33,6 @@ impl Error for ImageReaderError {
         }
     }
 }
-
 
 pub struct ImageReader<B: Backend> {
     device: B::Device,
@@ -92,7 +91,8 @@ impl<B: Backend> ImageReader<B> {
         // slice the data into the three channels
         let red = data.value[0..(width * height) as usize].to_vec();
         let green = data.value[(width * height) as usize..(2 * width * height) as usize].to_vec();
-        let blue = data.value[(2 * width * height) as usize..(3 * width * height) as usize].to_vec();
+        let blue =
+            data.value[(2 * width * height) as usize..(3 * width * height) as usize].to_vec();
 
         for y in 0..height {
             for x in 0..width {
@@ -102,7 +102,7 @@ impl<B: Backend> ImageReader<B> {
                 img.put_pixel(x as u32, y as u32, Rgba([r, g, b, 255]));
             }
         }
-        
+
         Ok(img)
     }
 
@@ -111,11 +111,16 @@ impl<B: Backend> ImageReader<B> {
         self.image_to_tensor(img)
     }
 
-    pub fn write_image<P: AsRef<Path>>(&self, tensor: &Tensor<B, 3>, path: P) -> Result<(), ImageReaderError> {
+    pub fn write_image<P: AsRef<Path>>(
+        &self,
+        tensor: &Tensor<B, 3>,
+        path: P,
+    ) -> Result<(), ImageReaderError> {
         let img = Self::tensor_to_image(tensor)?;
 
         let mut file = File::create(path).map_err(ImageReaderError::Io)?;
-        img.write_to(&mut file, image::ImageOutputFormat::Png).map_err(ImageReaderError::Image)?;
+        img.write_to(&mut file, image::ImageOutputFormat::Png)
+            .map_err(ImageReaderError::Image)?;
         Ok(())
     }
 }
@@ -123,9 +128,9 @@ impl<B: Backend> ImageReader<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::backend::wgpu::{WgpuDevice, Wgpu};
-    use std::path::PathBuf;
+    use burn_core::backend::wgpu::{Wgpu, WgpuDevice};
     use std::env;
+    use std::path::PathBuf;
 
     // Test reading and writing an image using the ImageReader.
     #[test]
@@ -165,14 +170,20 @@ mod tests {
         let tensor = reader.image_to_tensor(img).unwrap();
         let red_slice = tensor.clone().slice([0..1, 0..10, 0..10]);
         let red_check = Tensor::<Wgpu, 3>::ones(Shape::new([1, 10, 10]), &device).mul_scalar(0);
-        red_check.to_data().assert_approx_eq(&red_slice.to_data(), 3);
+        red_check
+            .to_data()
+            .assert_approx_eq(&red_slice.to_data(), 3);
 
         let green_slice = tensor.clone().slice([1..2, 0..10, 0..10]);
         let green_check = Tensor::<Wgpu, 3>::ones(Shape::new([1, 10, 10]), &device);
-        green_check.to_data().assert_approx_eq(&green_slice.to_data(), 3);
+        green_check
+            .to_data()
+            .assert_approx_eq(&green_slice.to_data(), 3);
 
         let blue_slice = tensor.clone().slice([2..3, 0..10, 0..10]);
         let blue_check = Tensor::<Wgpu, 3>::ones(Shape::new([1, 10, 10]), &device).mul_scalar(2);
-        blue_check.to_data().assert_approx_eq(&blue_slice.to_data(), 3);
+        blue_check
+            .to_data()
+            .assert_approx_eq(&blue_slice.to_data(), 3);
     }
 }
