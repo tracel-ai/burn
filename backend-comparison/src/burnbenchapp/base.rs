@@ -127,6 +127,8 @@ fn command_auth() {
             println!("📋 Code has been successfully copied to clipboard.")
         };
     };
+    // Wait for the minimum allowed interval to poll for authentication update
+    // see: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#step-3-app-polls-github-to-check-if-the-user-authorized-the-device
     thread::sleep(FIVE_SECONDS);
     match flow.poll(20) {
         Ok(creds) => {
