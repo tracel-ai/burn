@@ -4,33 +4,27 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
-    codegen::{ElemWiseKernelCodegen, InplaceMapping, Input, Output, ReadingStrategy},
+    codegen::dialect::gpu::{Vectorization, WorkgroupSize},
+    codegen::ElemWiseKernelCodegen,
     compute::JitAutotuneKey,
-    fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
+    fusion::{
+        kernel::FusionKernelSet,
+        source::GpuKernelSource,
+        tracing::{CompilingInfo, Trace},
+    },
     JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
 use burn_compute::client::ComputeClient;
-use burn_fusion::{stream::Context, TensorDescription};
+use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
-    pub(super) inputs: Vec<(TensorDescription, Elem)>,
-    pub(super) outputs: Vec<(TensorDescription, Elem)>,
-    pub(super) locals: Vec<u16>,
-    pub(super) scalars: Scalars,
-    pub(super) operators: Vec<Operation>,
+    pub(super) trace: Trace,
+    pub(super) num_operations: usize,
     pub(super) device: R::Device,
     pub(super) phase: Phase,
-}
-
-#[derive(new, Clone, Serialize, Deserialize)]
-pub struct Scalars {
-    pub(super) num_f32: usize,
-    pub(super) num_u32: usize,
-    pub(super) num_i32: usize,
 }
 
 pub struct CompilationPhase;
@@ -41,126 +35,24 @@ pub struct ExecutionPhase<R: Runtime> {
     pub(super) kernel_set_2: FusionKernelSet<R>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(new, Serialize, Deserialize)]
 pub struct ElementWiseState {
-    inputs: Vec<(TensorDescription, Elem)>,
-    outputs: Vec<(TensorDescription, Elem)>,
-    scalars: Scalars,
-    operators: Vec<Operation>,
-    locals: Vec<u16>,
+    trace: Trace,
+    num_operations: usize,
 }
 
 impl<R: Runtime> ElementWise<R, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
-        let mut inputs = self
-            .inputs
-            .iter()
-            .map(|(_tensor, elem)| Input::Array {
-                item: Item::Scalar(*elem),
-                visibility: Visibility::Read,
-                strategy: ReadingStrategy::OutputLayout,
-            })
-            .collect::<Vec<_>>();
+        let info = self.trace.compiling();
 
-        let outputs = self
-            .outputs
-            .iter()
-            .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| Output::Array {
-                item: Item::Scalar(*elem),
-                local: *local,
-            })
-            .collect::<Vec<_>>();
-
-        if self.scalars.num_f32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::Float,
-                size: self.scalars.num_f32,
-            })
-        }
-
-        if self.scalars.num_u32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::UInt,
-                size: self.scalars.num_u32,
-            })
-        }
-
-        if self.scalars.num_i32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::Int,
-                size: self.scalars.num_i32,
-            })
-        }
-
-        let mut potential_inplace = self
-            .inputs
-            .iter()
-            .zip(inputs.iter())
-            .enumerate()
-            .filter(|(_pos, ((desc, _elem), _input))| match desc.status {
-                burn_fusion::TensorStatus::ReadOnly => false,
-                burn_fusion::TensorStatus::ReadWrite => true,
-                burn_fusion::TensorStatus::NotInit => false,
-            })
-            .map(|(pos, ((desc, elem), input))| (pos, desc, elem, input))
-            .collect::<Vec<_>>();
-
-        let mappings = self
-            .outputs
-            .iter()
-            .zip(outputs.iter())
-            .enumerate()
-            .filter_map(|(pos, ((desc, elem), _output))| {
-                if potential_inplace.is_empty() {
-                    return None;
-                }
-
-                let mut chosen = None;
-                for (index, (_pos_input, desc_input, elem_input, _input)) in
-                    potential_inplace.iter().enumerate()
-                {
-                    if chosen.is_some() {
-                        break;
-                    }
-                    if desc.shape == desc_input.shape && *elem_input == elem {
-                        chosen = Some(index);
-                    }
-                }
-
-                match chosen {
-                    Some(index) => {
-                        let input = potential_inplace.remove(index);
-                        Some(InplaceMapping::new(input.0, pos))
-                    }
-                    None => None,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let kernel_set_1 = build_kernel_set::<R>(
-            &inputs,
-            &outputs,
-            &self.operators,
-            &mappings,
-            WorkgroupSize::default(),
-        );
-        let kernel_set_2 = build_kernel_set::<R>(
-            &inputs,
-            &outputs,
-            &self.operators,
-            &mappings,
-            WorkgroupSize::new(16, 16, 1),
-        );
+        let kernel_set_1 = build_kernel_set::<R>(&info, WorkgroupSize::default());
+        let kernel_set_2 = build_kernel_set::<R>(&info, WorkgroupSize::new(16, 16, 1));
 
         ElementWise {
-            inputs: self.inputs,
-            outputs: self.outputs,
-            scalars: self.scalars,
+            trace: self.trace,
             device: self.device,
-            operators: self.operators,
-            locals: self.locals,
             phase: ExecutionPhase::new(kernel_set_1, kernel_set_2),
+            num_operations: self.num_operations,
         }
     }
 }
@@ -170,7 +62,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         let client = R::client(&self.device);
 
         let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
-            self.operators.len(),
+            self.num_operations,
             self.autotune_shape(context),
         ));
 
@@ -187,22 +79,14 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
+        let info = self.trace.running();
         let kernel_set = match fastest_set_index {
             0 => &self.phase.kernel_set_1,
             1 => &self.phase.kernel_set_2,
             _ => panic!("Should be 0 or 1, got {fastest_set_index}"),
         };
 
-        let kernel = kernel_set.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
-            context,
-            self.device.clone(),
-            client,
-            true,
-        );
+        let kernel = kernel_set.select(&info, context, self.device.clone(), client, true);
 
         kernel.execute();
     }
@@ -213,31 +97,24 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         client: ComputeClient<R::Server, R::Channel>,
         key: JitAutotuneKey,
     ) {
+        let info = self.trace.running();
+
         let kernel_1 = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
             false, // Should not mutate the context.
         );
         let kernel_2 = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
             false, // Should not mutate the context.
         );
         let kernel_default = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
@@ -253,7 +130,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.operators.len()
+        self.num_operations
     }
 
     /// The first output is chosen when possible, otherwise the first input is chosen.
@@ -261,13 +138,15 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         &self,
         context: &mut Context<'a, JitBackend<R>>,
     ) -> &'a [usize] {
-        if let Some(tensor) = self.outputs.first() {
-            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+        let info = self.trace.running();
+
+        if let Some(tensor) = info.outputs.first() {
+            let tensor = context.tensors.get(&tensor.id).unwrap();
             return &tensor.shape;
         }
 
-        if let Some(tensor) = self.inputs.first() {
-            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+        if let Some(tensor) = info.inputs.first() {
+            let tensor = context.tensors.get(&tensor.id).unwrap();
             return &tensor.shape;
         }
 
@@ -281,57 +160,48 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
         // It is still unclear if the deserialization would be that much faster than
         // simply recompiling it.
         ElementWise {
-            inputs: state.inputs,
-            outputs: state.outputs,
-            scalars: state.scalars,
+            trace: state.trace,
             device: device.clone(),
-            locals: state.locals,
-            operators: state.operators,
             phase: CompilationPhase,
+            num_operations: state.num_operations,
         }
         .compile()
     }
 
     pub(crate) fn to_state(&self) -> ElementWiseState {
         ElementWiseState {
-            inputs: self.inputs.clone(),
-            outputs: self.outputs.clone(),
-            scalars: self.scalars.clone(),
-            operators: self.operators.clone(),
-            locals: self.locals.clone(),
+            trace: self.trace.clone(),
+            num_operations: self.num_operations,
         }
     }
 }
 
 fn build_kernel_set<R: Runtime>(
-    inputs: &[Input],
-    outputs: &[Output],
-    operators: &[Operation],
-    mappings: &[InplaceMapping],
+    info: &CompilingInfo,
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet<R> {
     let scalar = ScalarElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inplace(&info.mappings)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
     );
 
     let vec2 = VecElementWise::<R>::new(
@@ -339,9 +209,9 @@ fn build_kernel_set<R: Runtime>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
@@ -349,15 +219,15 @@ fn build_kernel_set<R: Runtime>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec2)
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inplace(&info.mappings)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
         2,
     );
     let vec4 = VecElementWise::<R>::new(
@@ -365,9 +235,9 @@ fn build_kernel_set<R: Runtime>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
@@ -375,15 +245,15 @@ fn build_kernel_set<R: Runtime>(
             IdGenerator::generate(),
             ElemWiseKernelCodegen::new()
                 .vectorize(Vectorization::Vec4)
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
+                .inplace(&info.mappings)
+                .inputs(&info.inputs)
+                .body(&info.scope.operations)
+                .outputs(&info.outputs)
                 .workgroup_size(workgroup_size)
                 .compile(),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
         4,
     );
 
