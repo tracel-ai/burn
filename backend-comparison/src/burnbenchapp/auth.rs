@@ -1,5 +1,4 @@
 use reqwest;
-use std::error::Error;
 use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -13,7 +12,7 @@ static GITHUB_API_VERSION_HEADER: &str = "X-GitHub-Api-Version";
 static GITHUB_API_VERSION: &str = "2022-11-28";
 
 /// Return the file path for the auth cache on disk
-pub fn get_auth_cache_file_path() -> PathBuf {
+pub(crate) fn get_auth_cache_file_path() -> PathBuf {
     let home_dir = dirs::home_dir().expect("an home directory should exist");
     let path_dir = home_dir.join(".cache").join("burn").join("burnbench");
     #[cfg(test)]
@@ -22,33 +21,20 @@ pub fn get_auth_cache_file_path() -> PathBuf {
     path.join("token.txt")
 }
 
-/// Return true if the token is still valid
-#[inline]
-pub(crate) fn is_token_valid(token: &str) -> bool {
-    get_username_from_token(token).is_ok()
-}
-
-/// Retrieve the user name from the access token
-fn get_username_from_token(token: &str) -> Result<String, Box<dyn Error>> {
+/// Returns true if the token is still valid
+pub(crate) fn verify_token(token: &str) -> bool {
     let client = reqwest::blocking::Client::new();
-    // User-Agent is important otherwise GitHub rejects the request with a 403
-    // See: https://github.com/seanmonstar/reqwest/issues/918#issuecomment-632906966
     let response = client
         .get("https://api.github.com/user")
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
         .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token))
         .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
-        .send()?;
-    let response = response.json::<serde_json::Value>()?;
-    let username = response["login"].as_str().map(|s| s.to_string());
-    // Return an error if the login field is not found
-    username.ok_or_else(|| {
-        From::from(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Username not found in the response",
-        ))
-    })
+        .send();
+    match response {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
 }
 
 /// Save token in Burn cache directory and adjust file permissions

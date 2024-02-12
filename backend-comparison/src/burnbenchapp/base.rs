@@ -8,7 +8,7 @@ use std::{
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 
-use crate::burnbenchapp::auth::{get_token_from_cache, is_token_valid};
+use crate::burnbenchapp::auth::{get_token_from_cache, verify_token};
 
 use super::{
     auth::{save_token, CLIENT_ID},
@@ -160,7 +160,7 @@ fn command_run(run_args: RunArgs) {
         }
         // TODO refresh the token when it is expired
         // Check for the validity of the saved token
-        if !is_token_valid(&token.unwrap()) {
+        if !verify_token(&token.unwrap()) {
             eprintln!("Your access token is no longer valid.");
             eprintln!("Run the command 'burnbench auth' again to get a new token.");
             return;
