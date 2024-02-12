@@ -55,7 +55,7 @@ getrandom = { version = "0.2.11", default-features = false }
 gix-tempfile = { version = "11.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.14.2"
-indicatif = "0.17.7"
+indicatif = "0.17.8"
 js-sys = "0.3.68"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.20" }
