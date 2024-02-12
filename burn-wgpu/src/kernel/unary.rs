@@ -1,8 +1,9 @@
 use super::StaticKernelSource;
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
+    Runtime,
 };
 
 /// Creates a unary kernel.
@@ -10,23 +11,35 @@ use crate::{
 macro_rules! unary {
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        runtime: $runtime:ty,
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, None, true)
+        $crate::kernel::unary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($input, None, true)
     }};
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        runtime: $runtime:ty,
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, scalar 1);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, Some(&[$scalar]), true)
+        $crate::kernel::unary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($input, Some(&[$scalar]), true)
     }};
 
     (
@@ -46,7 +59,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -71,7 +84,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -111,7 +124,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -142,7 +155,7 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -173,18 +186,18 @@ macro_rules! unary {
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, E, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-) -> WgpuTensor<E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        execute_static::<KernelInplace, E>(
+        execute_static::<R, KernelInplace, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -200,14 +213,14 @@ where
     } else {
         let num_elems = tensor.shape.num_elements();
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(
+        let output = JitTensor::new(
             tensor.client.clone(),
             tensor.device,
             tensor.shape.clone(),
             buffer,
         );
 
-        execute_static::<Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -231,7 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
@@ -249,11 +262,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(
@@ -269,11 +283,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(

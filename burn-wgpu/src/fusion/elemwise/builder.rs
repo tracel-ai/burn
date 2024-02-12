@@ -4,9 +4,9 @@ use crate::{
         BinaryOperation, ConditionalAssignOperation, Elem, Item, Operation, UnaryOperation,
         Variable,
     },
-    element::WgpuElement,
+    element::JitElement,
     fusion::WgpuOptimization,
-    FloatElement, GraphicsApi, IntElement, WgpuBackend,
+    JitBackend, Runtime,
 };
 use burn_fusion::{
     stream::{
@@ -16,16 +16,14 @@ use burn_fusion::{
     },
     OptimizationBuilder, OptimizationProperties, OptimizationStatus, TensorDescription, TensorId,
 };
-use burn_tensor::{Device, Element};
+use burn_tensor::{
+    ops::{FloatElem, IntElem},
+    Device, Element,
+};
 use hashbrown::HashMap;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<G, F, I>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
+pub(crate) struct ElementWiseBuilder<R: Runtime> {
     pub(crate) inputs: Vec<TensorDescription>,
     pub(crate) locals: HashMap<TensorId, u16>,
     pub(crate) tensors: HashMap<TensorId, (TensorDescription, Elem)>,
@@ -36,15 +34,10 @@ where
     pub(crate) operators: Vec<Operation>,
     pub(crate) current_output_shape: Vec<usize>,
     pub(crate) status: OptimizationStatus,
-    pub(crate) device: Device<WgpuBackend<G, F, I>>,
+    pub(crate) device: R::Device,
 }
 
-impl<G, F, I> OptimizationBuilder<WgpuOptimization<G, F, I>> for ElementWiseBuilder<G, F, I>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
+impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -52,31 +45,31 @@ where
 
         match ops {
             OperationDescription::BaseFloat(ops) => {
-                if !self.register_base::<F>(ops) {
+                if !self.register_base::<FloatElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::BaseInt(ops) => {
-                if !self.register_base::<I>(ops) {
+                if !self.register_base::<IntElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::Float(ops) => {
-                if !self.register_float::<F>(ops) {
+                if !self.register_float::<FloatElem<JitBackend<R>>>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericFloat(ops) => {
-                if !self.register_numeric::<F, _>(ops) {
+                if !self.register_numeric::<FloatElem<JitBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
             OperationDescription::NumericInt(ops) => {
-                if !self.register_numeric::<I, _>(ops) {
+                if !self.register_numeric::<IntElem<JitBackend<R>>, _>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
@@ -90,7 +83,7 @@ where
         self.status = OptimizationStatus::Open;
     }
 
-    fn build(&self) -> WgpuOptimization<G, F, I> {
+    fn build(&self) -> WgpuOptimization<R> {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
         let locals = outputs
@@ -142,13 +135,8 @@ where
     }
 }
 
-impl<G, F, I> ElementWiseBuilder<G, F, I>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
-    pub fn new(device: Device<WgpuBackend<G, F, I>>) -> Self {
+impl<R: Runtime> ElementWiseBuilder<R> {
+    pub fn new(device: Device<JitBackend<R>>) -> Self {
         Self {
             inputs: Vec::new(),
             locals: HashMap::new(),
@@ -407,7 +395,7 @@ where
         Variable::Local(local_index, Item::Scalar(elem))
     }
 
-    fn register_base<E: WgpuElement>(&mut self, ops: &BaseOperationDescription) -> bool {
+    fn register_base<E: JitElement>(&mut self, ops: &BaseOperationDescription) -> bool {
         match ops {
             BaseOperationDescription::Equal(desc) => self.register_binary_ops(
                 desc,
@@ -418,7 +406,7 @@ where
         }
     }
 
-    fn register_float<E: WgpuElement>(&mut self, ops: &FloatOperationDescription) -> bool {
+    fn register_float<E: JitElement>(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
             FloatOperationDescription::Exp(desc) => {
                 self.register_unary_ops(desc, (E::gpu_elem(), E::gpu_elem()), |input, out| {
@@ -469,7 +457,7 @@ where
         }
     }
 
-    fn register_numeric<E: WgpuElement, EDesc: WgpuElement>(
+    fn register_numeric<E: JitElement, EDesc: JitElement>(
         &mut self,
         ops: &NumericOperationDescription<EDesc>,
     ) -> bool {

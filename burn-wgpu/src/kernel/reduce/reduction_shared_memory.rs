@@ -1,9 +1,10 @@
 use crate::{
     compute::{StaticKernel, WorkGroup},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT},
     kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 
 kernel_wgsl!(
@@ -51,30 +52,30 @@ impl StaticKernelSource for MeanDimSharedMemory {
 /// Execute the sum dim kernel leveraging shared memory
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
-pub fn sum_dim_shared_memory<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub fn sum_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<E, D> {
-    reduction_dim_shared_memory::<SumDimSharedMemory, E, D>(input, output, dim)
+) -> JitTensor<R, E, D> {
+    reduction_dim_shared_memory::<SumDimSharedMemory, R, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel leveraging shared memory
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
-pub fn mean_dim_shared_memory<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub fn mean_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<E, D> {
-    reduction_dim_shared_memory::<MeanDimSharedMemory, E, D>(input, output, dim)
+) -> JitTensor<R, E, D> {
+    reduction_dim_shared_memory::<MeanDimSharedMemory, R, E, D>(input, output, dim)
 }
 
-fn reduction_dim_shared_memory<K: StaticKernelSource, E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+fn reduction_dim_shared_memory<K: StaticKernelSource, R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     reduce_dim: usize,
-) -> WgpuTensor<E, D> {
+) -> JitTensor<R, E, D> {
     let num_elems_output = output.shape.num_elements();
     let n_workgroups_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let n_workgroups_y = f32::ceil(num_elems_output as f32 / n_workgroups_x);

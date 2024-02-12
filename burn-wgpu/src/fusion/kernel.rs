@@ -1,7 +1,10 @@
-use crate::compute::{Kernel, WgpuComputeClient, WgpuHandle};
+use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
-use crate::{FloatElement, GraphicsApi, IntElement, WgpuBackend};
+use crate::JitBackend;
+use crate::Runtime;
+use burn_compute::client::ComputeClient;
+use burn_compute::server::Handle;
 use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
@@ -12,16 +15,16 @@ use std::sync::Arc;
 ///
 /// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
-pub struct FusionKernelSet {
-    kernels: Vec<Box<dyn FusionKernel>>,
+pub struct FusionKernelSet<R: Runtime> {
+    kernels: Vec<Box<dyn FusionKernel<R>>>,
 }
 
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
-pub struct ExecutableKernel {
+pub struct ExecutableKernel<R: Runtime> {
     kernel: Box<dyn Kernel>,
-    handles: Vec<WgpuHandle>,
-    client: WgpuComputeClient,
+    handles: Vec<Handle<R::Server>>,
+    client: ComputeClient<R::Server, R::Channel>,
 }
 
 /// An instantiation of a [kernel](Kernel) that can be autotuned.
@@ -31,10 +34,10 @@ pub struct ExecutableKernel {
 ///
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
-pub struct AutotunableKernel {
+pub struct AutotunableKernel<R: Runtime> {
     kernel: Arc<dyn Kernel>,
-    handles: Vec<WgpuHandle>,
-    client: WgpuComputeClient,
+    handles: Vec<Handle<R::Server>>,
+    client: ComputeClient<R::Server, R::Channel>,
 }
 
 /// A selected kernel encapsulates a kernel that should be executed with the provided
@@ -62,7 +65,7 @@ pub enum OutputInfo {
     Array { size: usize },
 }
 
-impl ExecutableKernel {
+impl<R: Runtime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
         self.client
@@ -70,7 +73,7 @@ impl ExecutableKernel {
     }
 }
 
-impl AutotuneOperation for AutotunableKernel {
+impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
     fn execute(self: Box<Self>) {
         self.client.execute(
             Box::new(self.kernel),
@@ -87,8 +90,8 @@ impl AutotuneOperation for AutotunableKernel {
     }
 }
 
-impl From<ExecutableKernel> for AutotunableKernel {
-    fn from(value: ExecutableKernel) -> Self {
+impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
+    fn from(value: ExecutableKernel<R>) -> Self {
         Self {
             kernel: Arc::new(value.kernel),
             handles: value.handles,
@@ -97,37 +100,37 @@ impl From<ExecutableKernel> for AutotunableKernel {
     }
 }
 
-pub trait FusionKernel: Send + Sync {
+pub trait FusionKernel<R: Runtime>: Send + Sync {
     /// Returns the priority of this kernel based on the input and output information.
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> Priority;
     /// Returns a [selected kernel](SelectedKernel) that can be executed by the compute server.
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel;
 }
 
-impl FusionKernelSet {
+impl<R: Runtime> FusionKernelSet<R> {
     /// Select the best kernel based on the given information.
     #[allow(clippy::too_many_arguments)]
-    pub fn select<G: GraphicsApi, F: FloatElement, I: IntElement>(
+    pub fn select(
         &self,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
         scalars_f32: usize,
         scalars_i32: usize,
-        context: &mut Context<'_, WgpuBackend<G, F, I>>,
-        device: Device<WgpuBackend<G, F, I>>,
-        client: WgpuComputeClient,
+        context: &mut Context<'_, JitBackend<R>>,
+        device: Device<JitBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
         stateful: bool,
-    ) -> ExecutableKernel {
+    ) -> ExecutableKernel<R> {
         let (handles_input, inputs_description_updated, outputs_description_updated) =
             process_inputs_outputs(inputs, outputs, context, stateful);
 
@@ -219,7 +222,7 @@ impl FusionKernelSet {
 
     fn select_kernel(
         &self,
-        handles_input: &[WgpuFusionHandle],
+        handles_input: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -243,10 +246,10 @@ impl FusionKernelSet {
     }
 }
 
-fn register_info_tensor(
+fn register_info_tensor<R: Runtime>(
     info: &mut Vec<u32>,
     tensor: &TensorDescription,
-    handle: &WgpuFusionHandle,
+    handle: &WgpuFusionHandle<R>,
 ) {
     if info.is_empty() {
         info.push(handle.strides.len() as u32);
@@ -260,13 +263,13 @@ fn register_info_tensor(
     }
 }
 
-fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
+fn process_inputs_outputs<'a, R: Runtime>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, WgpuBackend<G, F, I>>,
+    context: &'a mut Context<'_, JitBackend<R>>,
     stateful: bool,
 ) -> (
-    Vec<WgpuFusionHandle>,
+    Vec<WgpuFusionHandle<R>>,
     Vec<&'a TensorDescription>,
     Vec<&'a TensorDescription>,
 ) {

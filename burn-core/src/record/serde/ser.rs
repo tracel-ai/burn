@@ -111,7 +111,7 @@ impl SerializerTrait for Serializer {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Ok(NestedValue::Default)
+        Ok(NestedValue::Default(None))
     }
     fn serialize_u32(self, _v: u32) -> Result<Self::Ok, Self::Error> {
         unimplemented!()
