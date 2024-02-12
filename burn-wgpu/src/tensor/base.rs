@@ -16,7 +16,7 @@ where
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
     pub handle: Handle<R::Server>,
-    /// The shape of the ctensor.
+    /// The shape of the tensor.
     pub shape: Shape<D>,
     /// The device of the tensor.
     pub device: R::Device,
