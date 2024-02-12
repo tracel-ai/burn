@@ -1,7 +1,8 @@
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
+    Runtime,
 };
 use burn_tensor::Shape;
 
@@ -10,15 +11,20 @@ use burn_tensor::Shape;
 macro_rules! binary {
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        runtime: $runtime:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: $compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
 
-        $crate::kernel::binary::<Ops<$compiler, $elem, $elem>, OpsInplaceLhs<$compiler, $elem, $elem>, OpsInplaceRhs<$compiler, $elem, $elem>, $elem, D>(
-            $lhs, $rhs, true
-        )
+        $crate::kernel::binary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceLhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceRhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($lhs, $rhs, true)
     }};
 
     (
@@ -47,8 +53,8 @@ macro_rules! binary {
         impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -81,8 +87,8 @@ macro_rules! binary {
             for OpsInplaceLhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -116,8 +122,8 @@ macro_rules! binary {
             for OpsInplaceRhs<C, I, O>
         where
             C: $crate::codegen::Compiler,
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
@@ -149,19 +155,19 @@ macro_rules! binary {
 }
 
 /// Launch an binary operation.
-pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, E, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
+pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
     inplace_enabled: bool,
-) -> WgpuTensor<E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: crate::kernel::StaticKernelSource,
     KernelInplaceLhs: crate::kernel::StaticKernelSource,
     KernelInplaceRhs: crate::kernel::StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<KernelInplaceLhs, E>(
+        execute_static::<R, KernelInplaceLhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -174,7 +180,7 @@ where
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<KernelInplaceRhs, E>(
+        execute_static::<R, KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -200,9 +206,9 @@ where
         let shape_out = Shape::new(shape_out);
         let num_elems = shape_out.num_elements();
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let out = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        execute_static::<Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
