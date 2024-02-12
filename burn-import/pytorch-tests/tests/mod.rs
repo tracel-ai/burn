@@ -18,5 +18,6 @@ cfg_if::cfg_if! {
         mod layer_norm;
         mod linear;
         mod missing_module_field;
+        mod top_level_key;
     }
 }

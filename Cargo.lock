@@ -649,9 +649,8 @@ dependencies = [
 
 [[package]]
 name = "candle-core"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db8659ea87ee8197d2fc627348916cce0561330ee7ae3874e771691d3cecb2f"
+version = "0.4.0"
+source = "git+https://github.com/huggingface/candle.git#13c67226e68de216b731707067f7e68af0438821"
 dependencies = [
  "accelerate-src",
  "byteorder",
@@ -676,18 +675,16 @@ dependencies = [
 
 [[package]]
 name = "candle-kernels"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d80cdd5f1cc60d30ba61353cdba5accd0fbc4d4ef2fe707fcb5179a9821adbea"
+version = "0.4.0"
+source = "git+https://github.com/huggingface/candle.git#13c67226e68de216b731707067f7e68af0438821"
 dependencies = [
  "bindgen_cuda",
 ]
 
 [[package]]
 name = "candle-metal-kernels"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52567e7a314ae0c59db5fbd4874ce461d99fa22adb22ddf7cf296b4d97035b40"
+version = "0.4.0"
+source = "git+https://github.com/huggingface/candle.git#13c67226e68de216b731707067f7e68af0438821"
 dependencies = [
  "metal",
  "once_cell",
