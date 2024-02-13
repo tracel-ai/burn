@@ -1,9 +1,8 @@
 use burn_compute::client::ComputeClient;
 
 use crate::codegen::dialect::gpu::{
-    Binding, ComputeShader, Elem, Item, Location, Operation, ReadGlobalOperation,
-    ReadGlobalWithLayoutOperation, UnaryOperation, Variable, Vectorization, Visibility,
-    WorkgroupSize,
+    Binding, ComputeShader, Elem, Item, Location, ReadGlobalOperator, ReadGlobalWithLayoutOperator,
+    UnaryOperator, Variable, Vectorization, Visibility, WorkgroupSize,
 };
 use crate::compute::StaticKernel;
 use crate::element::JitElement;
@@ -11,7 +10,7 @@ use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use std::marker::PhantomData;
 
-use super::dialect::gpu::Scope;
+use super::dialect::gpu::{Operation, Operator, Scope};
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
@@ -82,7 +81,7 @@ pub enum Output {
 impl Default for ElemWiseKernelCodegen<InputPhase> {
     fn default() -> Self {
         Self {
-            scope: Scope::new("default".into()),
+            scope: Scope::empty("default".into()),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
@@ -133,8 +132,8 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
                     match strategy {
                         ReadingStrategy::OutputLayout => {
-                            self.scope.register(Operation::ReadGlobalWithLayout(
-                                ReadGlobalWithLayoutOperation {
+                            self.scope.register(Operator::ReadGlobalWithLayout(
+                                ReadGlobalWithLayoutOperator {
                                     variable: Variable::Input(index, item),
                                     tensor_read_pos: index as usize,
                                     tensor_layout_pos: 0, // Will set the right value during the output
@@ -144,7 +143,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
                         }
                         ReadingStrategy::Plain => {
                             self.scope
-                                .register(Operation::ReadGlobal(ReadGlobalOperation {
+                                .register(Operator::ReadGlobal(ReadGlobalOperator {
                                     variable: Variable::Input(index, item),
                                 }));
                         }
@@ -182,9 +181,9 @@ impl ElemWiseKernelCodegen<InputPhase> {
 
 impl ElemWiseKernelCodegen<BodyPhase> {
     /// Register the [operators](Operator) that the kernel must execute in the order provided.
-    pub fn body(mut self, operators: &[Operation]) -> ElemWiseKernelCodegen<OutputPhase> {
-        for ops in operators.iter() {
-            self.scope.register(ops.vectorize(self.vectorization));
+    pub fn body(mut self, operations: &[Operation]) -> ElemWiseKernelCodegen<OutputPhase> {
+        for op in operations.iter() {
+            self.scope.register(op.vectorize(self.vectorization));
         }
 
         ElemWiseKernelCodegen {
@@ -248,7 +247,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         location: Location::Storage,
                         size: None,
                     });
-                    self.scope.register(Operation::AssignGlobal(UnaryOperation {
+                    self.scope.register(Operator::AssignGlobal(UnaryOperator {
                         input: Variable::Local(*local, item),
                         out: Variable::Output(index, elem_adapted),
                     }));
@@ -262,7 +261,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                 Output::Input { item, input, local } => {
                     let item = item.vectorize(self.vectorization);
 
-                    self.scope.register(Operation::AssignGlobal(UnaryOperation {
+                    self.scope.register(Operator::AssignGlobal(UnaryOperator {
                         input: Variable::Local(*local, item),
                         out: Variable::Input(*input, bool_item(item)),
                     }));
@@ -273,11 +272,13 @@ impl ElemWiseKernelCodegen<OutputPhase> {
 
         // We set the output number that will be used for the stride definition.
         for i in 0..self.input_bindings.len() {
-            if let Some(Operation::ReadGlobalWithLayout(ReadGlobalWithLayoutOperation {
-                variable: _,
-                tensor_read_pos: _,
-                tensor_layout_pos,
-            })) = self.scope.operations.get_mut(i)
+            if let Some(Operation::Operator(Operator::ReadGlobalWithLayout(
+                ReadGlobalWithLayoutOperator {
+                    variable: _,
+                    tensor_read_pos: _,
+                    tensor_layout_pos,
+                },
+            ))) = self.scope.operations.get_mut(i)
             {
                 {
                     *tensor_layout_pos = position_out;

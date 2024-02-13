@@ -70,7 +70,7 @@ macro_rules! binary {
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
-                    .body(&[$ops(I::gpu_elem())])
+                    .body(&[$ops(I::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                         local: 0,
@@ -104,7 +104,7 @@ macro_rules! binary {
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
-                    .body(&[$ops(I::gpu_elem())])
+                    .body(&[$ops(I::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                         input: 0,
@@ -139,7 +139,7 @@ macro_rules! binary {
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                     ])
-                    .body(&[$ops(I::gpu_elem())])
+                    .body(&[$ops(I::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                         input: 1,

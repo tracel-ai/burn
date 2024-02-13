@@ -1,6 +1,6 @@
 use super::unary;
 use crate::{
-    codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
+    codegen::dialect::gpu::{ClampOperator, Item, Operator, Variable},
     element::JitElement,
     tensor::JitTensor,
     unary, Runtime,
@@ -12,7 +12,7 @@ pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
     max_value: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem| Operation::Clamp(ClampOperation {
+        operation: |elem| Operator::Clamp(ClampOperator {
             input: Variable::Input(0, Item::Scalar(elem)),
             min_value: Variable::Scalar(0, Item::Scalar(elem)),
             max_value: Variable::Scalar(1, Item::Scalar(elem)),

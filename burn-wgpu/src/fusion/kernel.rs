@@ -1,6 +1,6 @@
 use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
-use crate::fusion::WgpuFusionHandle;
+use crate::fusion::JitFusionHandle;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -106,14 +106,14 @@ pub trait FusionKernel<R: Runtime>: Send + Sync {
     /// Returns the priority of this kernel based on the input and output information.
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> Priority;
     /// Returns a [selected kernel](SelectedKernel) that can be executed by the compute server.
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel;
@@ -186,7 +186,7 @@ impl<R: Runtime> FusionKernelSet<R> {
                 // Use the input inplace for this output.
                 OutputInfo::Inplace { input_index } => {
                     let handle = handles.get(*input_index).unwrap().clone();
-                    let handle_fusion = WgpuFusionHandle {
+                    let handle_fusion = JitFusionHandle {
                         client: client.clone(),
                         device: device.clone(),
                         strides: strides_dyn_rank(&tensor.shape),
@@ -196,7 +196,7 @@ impl<R: Runtime> FusionKernelSet<R> {
                 }
                 // Create a new buffer for this output.
                 OutputInfo::Array { size } => {
-                    let handle_fusion = WgpuFusionHandle {
+                    let handle_fusion = JitFusionHandle {
                         client: client.clone(),
                         device: device.clone(),
                         strides: strides_dyn_rank(&tensor.shape),
@@ -236,7 +236,7 @@ impl<R: Runtime> FusionKernelSet<R> {
 
     fn select_kernel(
         &self,
-        handles_input: &[WgpuFusionHandle<R>],
+        handles_input: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -263,7 +263,7 @@ impl<R: Runtime> FusionKernelSet<R> {
 fn register_info_tensor<R: Runtime>(
     info: &mut Vec<u32>,
     tensor: &TensorDescription,
-    handle: &WgpuFusionHandle<R>,
+    handle: &JitFusionHandle<R>,
 ) {
     if info.is_empty() {
         info.push(handle.strides.len() as u32);
@@ -283,7 +283,7 @@ fn process_inputs_outputs<'a, R: Runtime>(
     context: &'a mut Context<'_, JitBackend<R>>,
     stateful: bool,
 ) -> (
-    Vec<WgpuFusionHandle<R>>,
+    Vec<JitFusionHandle<R>>,
     Vec<&'a TensorDescription>,
     Vec<&'a TensorDescription>,
 ) {

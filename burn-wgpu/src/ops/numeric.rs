@@ -1,6 +1,4 @@
-use crate::codegen::dialect::gpu::{
-    BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
-};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Item, Operator, UnaryOperator, Variable};
 use crate::{binary, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;
@@ -25,7 +23,7 @@ pub fn full_device<R: Runtime, E: JitElement, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     unary!(
-        operation: |elem: Elem| Operation::AssignLocal(UnaryOperation {
+        operation: |elem: Elem| Operator::AssignLocal(UnaryOperator {
             input: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),
@@ -84,7 +82,7 @@ pub fn add<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Add(BinaryOperation {
+        operation: |elem: Elem| Operator::Add(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -100,7 +98,7 @@ pub fn add_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Add(BinaryOperation {
+        operation: |elem: Elem| Operator::Add(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -116,7 +114,7 @@ pub fn sub<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Sub(BinaryOperation {
+        operation: |elem: Elem| Operator::Sub(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -132,7 +130,7 @@ pub fn sub_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Sub(BinaryOperation {
+        operation: |elem: Elem| Operator::Sub(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -148,7 +146,7 @@ pub fn mul<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Mul(BinaryOperation {
+        operation: |elem: Elem| Operator::Mul(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -164,7 +162,7 @@ pub fn mul_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Mul(BinaryOperation {
+        operation: |elem: Elem| Operator::Mul(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -180,7 +178,7 @@ pub fn div<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Div(BinaryOperation {
+        operation: |elem: Elem| Operator::Div(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -196,7 +194,7 @@ pub fn div_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Div(BinaryOperation {
+        operation: |elem: Elem| Operator::Div(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
@@ -212,7 +210,7 @@ pub fn pow<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Powf(BinaryOperation {
+        operation: |elem: Elem| Operator::Powf(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),

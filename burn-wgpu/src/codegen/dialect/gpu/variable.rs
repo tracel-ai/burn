@@ -1,4 +1,4 @@
-use super::Item;
+use super::{Elem, Item};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,6 +8,8 @@ pub enum Variable {
     Local(u16, Item),
     Output(u16, Item),
     Constant(f64, Item),
+    Id,
+    Rank,
 }
 
 impl Variable {
@@ -18,6 +20,19 @@ impl Variable {
             Variable::Local(idx, _) => Some(*idx),
             Variable::Output(idx, _) => Some(*idx),
             Variable::Constant(_, _) => None,
+            Variable::Id => None,
+            Variable::Rank => None,
+        }
+    }
+    pub fn item(&self) -> Item {
+        match self {
+            Variable::Input(_, item) => *item,
+            Variable::Scalar(_, item) => *item,
+            Variable::Local(_, item) => *item,
+            Variable::Output(_, item) => *item,
+            Variable::Constant(_, item) => *item,
+            Variable::Id => Item::Scalar(Elem::UInt),
+            Variable::Rank => Item::Scalar(Elem::UInt),
         }
     }
 }

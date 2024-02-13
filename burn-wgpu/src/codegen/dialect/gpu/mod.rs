@@ -1,3 +1,5 @@
+pub(crate) mod algorithm;
+
 mod operation;
 mod scope;
 mod shader;

@@ -12,6 +12,8 @@ pub enum Variable {
         index: u16,
         item: Item,
     },
+    Id,
+    Rank,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -55,6 +57,8 @@ impl Variable {
                 index: _,
                 item,
             } => item,
+            Self::Id => &Item::Scalar(Elem::U32),
+            Self::Rank => &Item::Scalar(Elem::U32),
         }
     }
 }
@@ -143,6 +147,8 @@ vec2(
                 )),
                 Item::Scalar(elem) => f.write_fmt(format_args!("{elem}({number})")),
             },
+            Variable::Id => f.write_str("id"),
+            Variable::Rank => f.write_str("rank"),
         }
     }
 }

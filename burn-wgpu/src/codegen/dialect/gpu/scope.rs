@@ -9,7 +9,7 @@ pub struct Scope {
 }
 
 impl Scope {
-    pub fn new(prefix: String) -> Self {
+    pub fn empty(prefix: String) -> Self {
         Self {
             prefix,
             operations: Vec::new(),
@@ -23,7 +23,11 @@ impl Scope {
         Variable::Local(index, item)
     }
 
-    pub fn register(&mut self, operation: Operation) {
-        self.operations.push(operation)
+    pub fn register<T: Into<Operation>>(&mut self, operation: T) {
+        self.operations.push(operation.into())
+    }
+
+    pub fn child(&self, prefix: &str) -> Self {
+        Scope::empty(self.prefix.to_string() + prefix)
     }
 }

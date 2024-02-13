@@ -68,7 +68,7 @@ macro_rules! unary {
                         visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
-                    .body(&[$ops(E::gpu_elem())])
+                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         local: 0,
@@ -93,7 +93,7 @@ macro_rules! unary {
                         visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
-                    .body(&[$ops(E::gpu_elem())])
+                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
@@ -139,7 +139,7 @@ macro_rules! unary {
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::gpu_elem())])
+                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         local: 0,
@@ -170,7 +170,7 @@ macro_rules! unary {
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::gpu_elem())])
+                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
@@ -243,12 +243,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
+    use crate::codegen::dialect::gpu::{Item, Operator, UnaryOperator, Variable};
     use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
-        operation: |elem| Operation::Tanh(UnaryOperation {
+        operation: |elem| Operator::Tanh(UnaryOperator {
             input: Variable::Input(0, Item::Scalar(elem)),
             out: Variable::Local(0, Item::Scalar(elem)),
         }),

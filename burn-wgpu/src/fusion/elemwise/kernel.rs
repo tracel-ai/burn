@@ -4,7 +4,7 @@ use crate::{
     fusion::{
         kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
         source::GpuKernelSource,
-        WgpuFusionHandle,
+        JitFusionHandle,
     },
     kernel::elemwise_workgroup,
     Runtime,
@@ -23,7 +23,7 @@ pub struct VecElementWise<R: Runtime> {
 impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -32,7 +32,7 @@ impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
 
     fn priority(
         &self,
-        _handles_inputs: &[WgpuFusionHandle<R>],
+        _handles_inputs: &[JitFusionHandle<R>],
         _inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
@@ -43,7 +43,7 @@ impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
 impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -52,11 +52,11 @@ impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
 
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
-        let is_unavailable_input = |handle: &WgpuFusionHandle<R>, desc: &TensorDescription| {
+        let is_unavailable_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -96,7 +96,7 @@ impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
 impl<R: Runtime> ElementWiseSource<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle<R>],
+        handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -214,7 +214,7 @@ impl<R: Runtime> VecElementWise<R> {
 
 fn inplace_available<R: Runtime>(
     mappings: &[InplaceMapping],
-    handles_inputs: &[WgpuFusionHandle<R>],
+    handles_inputs: &[JitFusionHandle<R>],
 ) -> bool {
     if mappings.is_empty() {
         return false;
