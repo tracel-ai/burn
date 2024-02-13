@@ -142,7 +142,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .devices(vec![device])
         .num_epochs(config.num_epochs)
         .build(
-            config.model.init::<B>(),
+            config.model.init::<B>(&device),
             config.optimizer.init(),
             config.learning_rate,
         );
