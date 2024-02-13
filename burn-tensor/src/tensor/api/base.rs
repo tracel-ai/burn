@@ -315,25 +315,24 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<B, 3>::ones(Shape::new([3, 4,5]), &device);
-    ///     let tensor: Tensor<B, 5> = tensor.unsqueeze_dims(&[0, 4]);
+    ///     let tensor: Tensor<B, 5> = tensor.unsqueeze_dims(&[0, -1]);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [1, 3, 4, 5, 1] }
     /// }
     /// ```
     pub fn unsqueeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
         let mut new_dims = [1; D2];
-        let dim_indices = dims.to_vec();
         let shape = self.shape();
         //for checking if the dimension is in the acceptable range
         let output_rank = (D + dims.len()) as isize;
 
-        //part 1:
-        let mut dim_indices = dim_indices
+        //part 1: convert the negative indices to positive
+        let mut dim_indices = dims
             .into_iter()
             .map(|d| {
                 // check if the dimension is in the acceptable range
-                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(d));
-                (if d < 0 { d + output_rank } else { d }) as usize
+                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
+                (if *d < 0 { d + output_rank } else { *d }) as usize
             })
             .collect::<Vec<usize>>();
 
