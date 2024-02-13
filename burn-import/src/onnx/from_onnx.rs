@@ -181,8 +181,8 @@ fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
     }
 }
 
-//this is an extremely hacky temporary solution while I figure out how to properly handle this
-//situation
+/// Stores the output shape in the unsqueeze node for the situation where
+/// the axes value isn't constant.
 fn move_output_for_unsqueeze(
     node: &mut Node,
     outputs: Vec<ValueInfoProto>,
