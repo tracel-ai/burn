@@ -31,10 +31,7 @@ pub(crate) fn verify_token(token: &str) -> bool {
         .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token))
         .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
         .send();
-    match response {
-        Ok(resp) => resp.status().is_success(),
-        Err(_) => false,
-    }
+    response.map_or(false, |resp| resp.status().is_success())
 }
 
 /// Save token in Burn cache directory and adjust file permissions
