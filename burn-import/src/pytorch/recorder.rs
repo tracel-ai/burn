@@ -89,8 +89,8 @@ pub struct LoadArgs {
     /// A list of key remappings.
     pub key_remap: Vec<(Regex, String)>,
 
-    /// Top level key to load state_dict from the file.
-    /// Sometimes the state_dict is nested under a top level key in a dict.
+    /// Top-level key to load state_dict from the file.
+    /// Sometimes the state_dict is nested under a top-level key in a dict.
     pub top_level_key: Option<String>,
 }
 
@@ -125,12 +125,12 @@ impl LoadArgs {
         self
     }
 
-    /// Set top level key to load state_dict from the file.
-    /// Sometimes the state_dict is nested under a top level key in a dict.
+    /// Set top-level key to load state_dict from the file.
+    /// Sometimes the state_dict is nested under a top-level key in a dict.
     ///
     /// # Arguments
     ///
-    /// * `key` - The top level key to load state_dict from the file.
+    /// * `key` - The top-level key to load state_dict from the file.
     pub fn with_top_level_key(mut self, key: &str) -> Self {
         self.top_level_key = Some(key.into());
         self

@@ -30,7 +30,7 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// * `path` - A string slice that holds the path of the file to read.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-/// * `top_level_key` - An optional top level key to load state_dict from a dictionary.
+/// * `top_level_key` - An optional top-level key to load state_dict from a dictionary.
 pub fn from_file<PS, D, B>(
     path: &Path,
     key_remap: Vec<(Regex, String)>,

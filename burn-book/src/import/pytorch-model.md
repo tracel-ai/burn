@@ -208,13 +208,13 @@ let model = Net::<Backend>::new_with(record);
 with both an encoder and a decoder, it's possible to load only the encoder weights. This is done by
 defining the encoder in Burn, allowing the loading of its weights while excluding the decoder's.
 
-### Specifying the top-level-key for state_dict
+### Specifying the top-level key for state_dict
 
 Sometimes the [`state_dict`](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict)
-is nested under a top-level-key along with other metadata as in a
+is nested under a top-level key along with other metadata as in a
 [general checkpoint](https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training).
 For example, the `state_dict` of the whisper model is nested under `model_state_dict` key.
-In this case, you can specify the top-level-key in `LoadArgs`:
+In this case, you can specify the top-level key in `LoadArgs`:
 
 ```rust
 let device = Default::default();
