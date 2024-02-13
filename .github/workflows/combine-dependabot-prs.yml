@@ -20,4 +20,4 @@ jobs:
         id: combine-prs
         uses: github/combine-prs@v5.0.0 # where X.X.X is the latest version
         with:
-          labels: dependencies
+          labels: dependencies,automated
