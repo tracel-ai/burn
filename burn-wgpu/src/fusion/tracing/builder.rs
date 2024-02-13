@@ -18,13 +18,13 @@ pub struct TraceBuilder {
 }
 
 impl TraceBuilder {
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new() -> Self {
         Self {
             inputs: Vec::new(),
             locals: HashMap::new(),
             tensors: HashMap::new(),
             scalars: Scalars::default(),
-            scope: gpu::Scope::empty(name.into()),
+            scope: gpu::Scope::root(),
         }
     }
 
@@ -44,7 +44,9 @@ impl TraceBuilder {
             }
             true => match self.locals.get(&tensor.id) {
                 // Is a local variable.
-                Some(local_index) => gpu::Variable::Local(*local_index, gpu::Item::Scalar(elem)),
+                Some(local_index) => {
+                    gpu::Variable::Local(*local_index, gpu::Item::Scalar(elem), self.scope.depth)
+                }
                 // Isn't a local variable, so must be an existing input.
                 None => {
                     let input = self
@@ -71,7 +73,7 @@ impl TraceBuilder {
 
         // Output already registered as a local variable.
         if let Some(index) = self.locals.get(&tensor.id) {
-            return gpu::Variable::Local(*index, gpu::Item::Scalar(elem));
+            return gpu::Variable::Local(*index, gpu::Item::Scalar(elem), self.scope.depth);
         }
 
         let variable = self.scope.create_local(gpu::Item::Scalar(elem));
@@ -143,7 +145,7 @@ impl TraceBuilder {
         //
         // Only local variables can become outputs.
         let mark = |var: &gpu::Variable, list: &mut Vec<TensorId>| {
-            if let gpu::Variable::Local(index, _) = var {
+            if let gpu::Variable::Local(index, _, _) = var {
                 if let Some((id, _)) = self
                     .locals
                     .iter()

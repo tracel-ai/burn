@@ -143,7 +143,9 @@ impl Variable {
     pub fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
             Variable::Input(index, item) => Variable::Input(*index, item.vectorize(vectorize)),
-            Variable::Local(index, item) => Variable::Local(*index, item.vectorize(vectorize)),
+            Variable::Local(index, item, name) => {
+                Variable::Local(*index, item.vectorize(vectorize), name.clone())
+            }
             Variable::Output(index, item) => Variable::Output(*index, item.vectorize(vectorize)),
             Variable::Constant(index, item) => {
                 Variable::Constant(*index, item.vectorize(vectorize))

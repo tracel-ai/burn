@@ -283,7 +283,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Abs(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,

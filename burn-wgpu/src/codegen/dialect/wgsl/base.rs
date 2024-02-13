@@ -1,5 +1,5 @@
 use crate::codegen::dialect::gpu;
-use std::{fmt::Display, rc::Rc};
+use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub enum Variable {
@@ -8,9 +8,9 @@ pub enum Variable {
     Output(u16, Item),
     Constant(f64, Item),
     Local {
-        prefix: Rc<String>,
         index: u16,
         item: Item,
+        scope_depth: u8,
     },
     Id,
     Rank,
@@ -53,9 +53,9 @@ impl Variable {
             Self::Output(_, e) => e,
             Self::Constant(_, e) => e,
             Self::Local {
-                prefix: _,
                 index: _,
                 item,
+                scope_depth: _,
             } => item,
             Self::Id => &Item::Scalar(Elem::U32),
             Self::Rank => &Item::Scalar(Elem::U32),
@@ -112,10 +112,10 @@ impl Display for Variable {
         match self {
             Variable::Input(number, _) => f.write_fmt(format_args!("input_{number}")),
             Variable::Local {
-                prefix,
                 index,
                 item: _,
-            } => f.write_fmt(format_args!("{prefix}_local_{index}")),
+                scope_depth,
+            } => f.write_fmt(format_args!("local_{scope_depth}_{index}")),
             Variable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
             Variable::Scalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))

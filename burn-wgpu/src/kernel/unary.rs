@@ -250,7 +250,7 @@ mod tests {
     unary!(
         operation: |elem| Operator::Tanh(UnaryOperator {
             input: Variable::Input(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(elem), 0),
         }),
         compiler: TestCompiler
     );

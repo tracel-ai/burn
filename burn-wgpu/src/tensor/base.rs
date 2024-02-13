@@ -147,7 +147,7 @@ where
         unary!(
             operation: |elem: Elem| Operator::AssignLocal(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: self.clone(),

@@ -87,7 +87,7 @@ mod tests {
             operation: |elem: Elem| Operator::Add(BinaryOperator {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Input(1, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             compiler: TestCompiler,
             elem_in: f32,

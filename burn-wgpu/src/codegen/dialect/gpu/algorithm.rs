@@ -1,34 +1,15 @@
 use super::{
-    Elem, Item, Loop, Metadata, Operation, Operator, RangeLoop, Scope, UnaryOperator, Variable,
+    Elem, Item, Metadata, Operator, RangeLoop, ReadGlobalWithLayoutAlgo, Scope, UnaryOperator,
+    Variable,
 };
 use crate::codegen::dialect::gpu::BinaryOperator;
 
-pub struct ReadGlobalWithLayoutAlgo {
-    pub operations_begin: Vec<Operation>,
-    pub inner_loop: Loop,
-    pub operations_end: Vec<Operation>,
-}
+pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithLayoutAlgo) {
+    assert!(
+        scope.operations.is_empty(),
+        "Scope must have empty operation"
+    );
 
-pub struct ReadGlobalWithLayoutOperator {
-    pub variable: Variable,
-    pub layout: Variable,
-}
-
-pub struct AlgoGeneration {
-    pub num_local_variables: u16,
-    pub operations: Vec<Operation>,
-}
-
-pub fn generate_read_global_with_layout(
-    prefix: String,
-    num_local_variables: u16,
-    algo: ReadGlobalWithLayoutOperator,
-) -> AlgoGeneration {
-    let mut scope = Scope {
-        prefix,
-        num_local_variables,
-        operations: Vec::new(),
-    };
     let index_type = Item::Scalar(Elem::UInt);
     let index_local = scope.create_local(index_type);
     let start = Variable::Constant(0.0, index_type);
@@ -46,7 +27,7 @@ pub fn generate_read_global_with_layout(
     };
     let offset = Variable::Constant(offset, index_type);
 
-    RangeLoop::new(&mut scope, start, Variable::Rank, |i, scope| {
+    RangeLoop::new(scope, start, Variable::Rank, |i, scope| {
         let stride = scope.create_local(index_type);
         let stride_layout = scope.create_local(index_type);
         let shape = scope.create_local(index_type);
@@ -96,9 +77,4 @@ pub fn generate_read_global_with_layout(
             out: index_local.clone(),
         }));
     });
-
-    AlgoGeneration {
-        num_local_variables: scope.num_local_variables,
-        operations: scope.operations,
-    }
 }

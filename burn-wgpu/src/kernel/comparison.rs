@@ -54,7 +54,7 @@ pub fn equal<R: Runtime, E: JitElement, const D: usize>(
         binary: |elem: Elem| Operator::Equal(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -70,7 +70,7 @@ pub fn greater<R: Runtime, E: JitElement, const D: usize>(
         binary: |elem: Elem| Operator::Greater(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -86,7 +86,7 @@ pub fn greater_equal<R: Runtime, E: JitElement, const D: usize>(
         binary: |elem: Elem| Operator::GreaterEqual(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -102,7 +102,7 @@ pub fn lower<R: Runtime, E: JitElement, const D: usize>(
         binary: |elem: Elem| Operator::Lower(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -118,7 +118,7 @@ pub fn lower_equal<R: Runtime, E: JitElement, const D: usize>(
         binary: |elem: Elem| Operator::LowerEqual(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -134,7 +134,7 @@ pub fn equal_elem<R: Runtime, E: JitElement, const D: usize>(
         unary: |elem: Elem| Operator::Equal(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -150,7 +150,7 @@ pub fn greater_elem<R: Runtime, E: JitElement, const D: usize>(
         unary: |elem: Elem| Operator::Greater(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -166,7 +166,7 @@ pub fn lower_elem<R: Runtime, E: JitElement, const D: usize>(
         unary: |elem: Elem| Operator::Lower(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -182,7 +182,7 @@ pub fn greater_equal_elem<R: Runtime, E: JitElement, const D: usize>(
         unary: |elem: Elem| Operator::GreaterEqual(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -198,7 +198,7 @@ pub fn lower_equal_elem<R: Runtime, E: JitElement, const D: usize>(
         unary: |elem: Elem| Operator::LowerEqual(BinaryOperator {
             lhs: Variable::Input(0, Item::Scalar(elem)),
             rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+            out: Variable::Local(0, Item::Scalar(Elem::Bool), 0),
         }),
         runtime: R,
         input: lhs; rhs,

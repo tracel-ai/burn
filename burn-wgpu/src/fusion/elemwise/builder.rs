@@ -92,7 +92,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
     }
 
     fn reset(&mut self) {
-        self.tracer = TraceBuilder::new("elem_wise");
+        self.tracer = TraceBuilder::new();
         self.num_added = 0;
         self.status = OptimizationStatus::Open;
         self.current_output_shape.clear();
@@ -115,7 +115,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
 impl<R: Runtime> ElementWiseBuilder<R> {
     pub fn new(device: Device<JitBackend<R>>) -> Self {
         Self {
-            tracer: TraceBuilder::new("elem_wise"),
+            tracer: TraceBuilder::new(),
             num_added: 0,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,

@@ -16,7 +16,7 @@ pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
             input: Variable::Input(0, Item::Scalar(elem)),
             min_value: Variable::Scalar(0, Item::Scalar(elem)),
             max_value: Variable::Scalar(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(elem), 0),
         }),
         compiler: R::Compiler,
         scalar 2

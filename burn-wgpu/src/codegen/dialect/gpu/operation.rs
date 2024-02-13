@@ -45,7 +45,15 @@ pub enum Operator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Algorithm {}
+pub enum Algorithm {
+    ReadGlobalWithLayout(ReadGlobalWithLayoutAlgo),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadGlobalWithLayoutAlgo {
+    pub variable: Variable,
+    pub layout: Variable,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Loop {
@@ -84,7 +92,7 @@ impl RangeLoop {
         end: Variable,
         func: F,
     ) -> Self {
-        let mut scope = Scope::empty(parent_scope.prefix.clone() + "_loop");
+        let mut scope = parent_scope.child();
         let index_ty = Item::Scalar(Elem::UInt);
         let i = scope.create_local(index_ty);
 

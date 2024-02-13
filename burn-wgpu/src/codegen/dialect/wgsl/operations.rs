@@ -266,9 +266,9 @@ impl Display for Instruction {
                     "var input_{number} = input_{number}_global[id];"
                 )),
                 Variable::Local {
-                    prefix: _,
                     index: _,
                     item: _,
+                    scope_depth: _,
                 } => panic!("can't read global local variable."),
                 Variable::Output(number, _elem) => f.write_fmt(format_args!(
                     "var output_{number} = output_{number}_global[id];"
@@ -290,9 +290,9 @@ impl Display for Instruction {
                         elem,
                     ),
                     Variable::Local {
-                        prefix: _,
                         index: _,
                         item: _,
+                        scope_depth: _,
                     } => panic!("can't read global local variable."),
                     Variable::Output(number, elem) => (
                         format!("output_{number}_global"),

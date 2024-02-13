@@ -81,7 +81,7 @@ pub enum Output {
 impl Default for ElemWiseKernelCodegen<InputPhase> {
     fn default() -> Self {
         Self {
-            scope: Scope::empty("default".into()),
+            scope: Scope::root(),
             input_bindings: Vec::new(),
             output_bindings: Vec::new(),
             named_bindings: Vec::new(),
@@ -248,7 +248,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         size: None,
                     });
                     self.scope.register(Operator::AssignGlobal(UnaryOperator {
-                        input: Variable::Local(*local, item),
+                        input: Variable::Local(*local, item, self.scope.depth),
                         out: Variable::Output(index, elem_adapted),
                     }));
                     index += 1;
@@ -262,7 +262,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                     let item = item.vectorize(self.vectorization);
 
                     self.scope.register(Operator::AssignGlobal(UnaryOperator {
-                        input: Variable::Local(*local, item),
+                        input: Variable::Local(*local, item, self.scope.depth),
                         out: Variable::Input(*input, bool_item(item)),
                     }));
                     position_out = *input as usize; // Input number when we use inplace operation.

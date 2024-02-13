@@ -364,7 +364,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Exp(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -376,7 +376,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Log(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -388,7 +388,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Log1p(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -404,7 +404,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
             operation: |elem: Elem| Operator::Powf(BinaryOperator {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Scalar(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: lhs; rhs.elem(),
@@ -416,7 +416,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Sqrt(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -428,7 +428,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Abs(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -440,7 +440,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Cos(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -452,7 +452,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Sin(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -464,7 +464,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Tanh(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -476,7 +476,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Erf(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
@@ -521,7 +521,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         unary!(
             operation: |elem: Elem| Operator::Recip(UnaryOperator {
                 input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+                out: Variable::Local(0, Item::Scalar(elem), 0),
             }),
             runtime: R,
             input: tensor,
