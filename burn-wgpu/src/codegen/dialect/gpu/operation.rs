@@ -94,7 +94,7 @@ impl RangeLoop {
     ) -> Self {
         let mut scope = parent_scope.child();
         let index_ty = Item::Scalar(Elem::UInt);
-        let i = scope.create_local(index_ty);
+        let i = scope.create_local_undeclare(index_ty);
 
         func(&i, &mut scope);
 

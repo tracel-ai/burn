@@ -62,7 +62,7 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::Read,
@@ -87,7 +87,7 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
@@ -127,7 +127,7 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
@@ -158,7 +158,7 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),

@@ -2,13 +2,14 @@ use super::{
     Elem, Item, Metadata, Operator, RangeLoop, ReadGlobalWithLayoutAlgo, Scope, UnaryOperator,
     Variable,
 };
-use crate::codegen::dialect::gpu::BinaryOperator;
+use crate::codegen::dialect::gpu::{BinaryOperator, Loop};
 
 pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithLayoutAlgo) {
     assert!(
         scope.operations.is_empty(),
         "Scope must have empty operation"
     );
+    println!("Generate global layout {:?}", algo);
 
     let index_type = Item::Scalar(Elem::UInt);
     let index_local = scope.create_local(index_type);
@@ -27,7 +28,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
     };
     let offset = Variable::Constant(offset, index_type);
 
-    RangeLoop::new(scope, start, Variable::Rank, |i, scope| {
+    let op = RangeLoop::new(scope, start, Variable::Rank, |i, scope| {
         let stride = scope.create_local(index_type);
         let stride_layout = scope.create_local(index_type);
         let shape = scope.create_local(index_type);
@@ -77,4 +78,12 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
             out: index_local.clone(),
         }));
     });
+
+    scope.register(Loop::Range(op));
+    // scope.register(Operator::AssignLocal(UnaryOperator {
+    //     input: todo!(), // TODO: Indexation with the input.
+    //     out: algo.variable,
+    // }));
+
+    // {local} = {elem}({global}[index_{local} /  {offset}u]);
 }

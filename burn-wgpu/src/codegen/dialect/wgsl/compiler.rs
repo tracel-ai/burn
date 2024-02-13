@@ -131,9 +131,13 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_scope(&self, value: &mut gpu::Scope) -> wgsl::Scope {
         let mut operations = Vec::new();
-        let mut operations_gpu = Vec::new();
+        let (operations_gpu, variables) = value.process();
 
-        core::mem::swap(&mut value.operations, &mut operations_gpu);
+        for var in variables {
+            operations.push(wgsl::Instruction::DeclareVariable {
+                var: Self::compile_variable(var),
+            });
+        }
 
         operations_gpu
             .into_iter()
@@ -164,10 +168,13 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         algo: gpu::Algorithm,
         scope: &mut gpu::Scope,
     ) {
+        println!("Compile algo");
         match algo {
             gpu::Algorithm::ReadGlobalWithLayout(algo) => {
                 generate_read_global_with_layout(scope, algo);
-                instructions.extend(self.compile_scope(scope).operators);
+                let compiled = self.compile_scope(scope).operators;
+
+                instructions.extend(compiled);
             }
         }
     }
@@ -182,19 +189,13 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 // i is from the loop scope.
                 let i = Self::compile_variable(range_loop.i);
 
-                let mut operations = Vec::new();
-                let mut operations_gpu = Vec::new();
-                core::mem::swap(&mut range_loop.scope.operations, &mut operations_gpu);
-
-                operations_gpu.into_iter().for_each(|op| {
-                    self.compile_operation(&mut operations, op, &mut range_loop.scope)
-                });
+                let instructions = self.compile_scope(&mut range_loop.scope).operators;
 
                 wgsl::Instruction::RangeLoop {
                     i,
                     start,
                     end,
-                    instructions: operations,
+                    instructions,
                 }
             }
         }
@@ -209,7 +210,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
                     gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
-                    _ => panic!("Only Input and Output have a stride."),
+                    _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 wgsl::Instruction::Stride {
                     dim: Self::compile_variable(dim),

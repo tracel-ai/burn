@@ -183,7 +183,7 @@ fn build_kernel_set<R: Runtime>(
     let scalar = ScalarElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .inputs(&info.inputs)
                 .body(&info.scope.operations)
                 .outputs(&info.outputs)
@@ -192,7 +192,7 @@ fn build_kernel_set<R: Runtime>(
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .inplace(&info.mappings)
                 .inputs(&info.inputs)
                 .body(&info.scope.operations)
@@ -207,7 +207,7 @@ fn build_kernel_set<R: Runtime>(
     let vec2 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .vectorize(Vectorization::Vec2)
                 .inputs(&info.inputs)
                 .body(&info.scope.operations)
@@ -217,7 +217,7 @@ fn build_kernel_set<R: Runtime>(
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .vectorize(Vectorization::Vec2)
                 .inplace(&info.mappings)
                 .inputs(&info.inputs)
@@ -233,7 +233,7 @@ fn build_kernel_set<R: Runtime>(
     let vec4 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .vectorize(Vectorization::Vec4)
                 .inputs(&info.inputs)
                 .body(&info.scope.operations)
@@ -243,7 +243,7 @@ fn build_kernel_set<R: Runtime>(
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
+            ElemWiseKernelCodegen::new(info.scope.fork())
                 .vectorize(Vectorization::Vec4)
                 .inplace(&info.mappings)
                 .inputs(&info.inputs)

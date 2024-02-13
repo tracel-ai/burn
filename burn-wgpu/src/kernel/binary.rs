@@ -57,7 +57,7 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
@@ -91,7 +91,7 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
@@ -126,7 +126,7 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
+                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),

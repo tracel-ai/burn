@@ -5,6 +5,9 @@ use std::fmt::Display;
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Instruction {
+    DeclareVariable {
+        var: Variable,
+    },
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -153,66 +156,58 @@ pub enum Instruction {
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Instruction::DeclareVariable { var } => {
+                let item = var.item();
+                f.write_fmt(format_args!("var {var}: {item};\n"))
+            }
             Instruction::Add { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = {lhs} + {rhs};"))
+                f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
             Instruction::Modulo { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = {lhs} % {rhs};"))
+                f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
             Instruction::Sub { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = {lhs} - {rhs};"))
+                f.write_fmt(format_args!("{out} = {lhs} - {rhs};\n"))
             }
             Instruction::Mul { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = {lhs} * {rhs};"))
+                f.write_fmt(format_args!("{out} = {lhs} * {rhs};\n"))
             }
             Instruction::Div { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = {lhs} / {rhs};"))
+                f.write_fmt(format_args!("{out} = {lhs} / {rhs};\n"))
             }
-            Instruction::Abs { input, out } => {
-                f.write_fmt(format_args!("var {out} = abs({input});"))
-            }
-            Instruction::Exp { input, out } => {
-                f.write_fmt(format_args!("var {out} = exp({input});"))
-            }
-            Instruction::Log { input, out } => {
-                f.write_fmt(format_args!("var {out} = log({input});"))
-            }
+            Instruction::Abs { input, out } => f.write_fmt(format_args!("{out} = abs({input});\n")),
+            Instruction::Exp { input, out } => f.write_fmt(format_args!("{out} = exp({input});\n")),
+            Instruction::Log { input, out } => f.write_fmt(format_args!("{out} = log({input});\n")),
             Instruction::Clamp {
                 input,
                 min_value,
                 max_value,
                 out,
             } => f.write_fmt(format_args!(
-                "var {out} = clamp({input}, {min_value}, {max_value});"
+                "{out} = clamp({input}, {min_value}, {max_value});\n"
             )),
             Instruction::Powf { lhs, rhs, out } => {
-                f.write_fmt(format_args!("var {out} = powf({lhs}, {rhs});"))
+                f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
             }
             Instruction::Sqrt { input, out } => {
-                f.write_fmt(format_args!("var {out} = sqrt({input});"))
+                f.write_fmt(format_args!("{out} = sqrt({input});\n"))
             }
             Instruction::Log1p { input, out } => {
-                f.write_fmt(format_args!("var {out} = log({input} + 1.0);"))
+                f.write_fmt(format_args!("{out} = log({input} + 1.0);\n"))
             }
-            Instruction::Cos { input, out } => {
-                f.write_fmt(format_args!("var {out} = cos({input});"))
-            }
-            Instruction::Sin { input, out } => {
-                f.write_fmt(format_args!("var {out} = sin({input});"))
-            }
+            Instruction::Cos { input, out } => f.write_fmt(format_args!("{out} = cos({input});\n")),
+            Instruction::Sin { input, out } => f.write_fmt(format_args!("{out} = sin({input});\n")),
             Instruction::Tanh { input, out } => {
                 #[cfg(target_os = "macos")]
-                let result = f.write_fmt(format_args!("var {out} = safe_tanh({input});"));
+                let result = f.write_fmt(format_args!("{out} = safe_tanh({input});\n"));
                 #[cfg(not(target_os = "macos"))]
-                let result = f.write_fmt(format_args!("var {out} = tanh({input});"));
+                let result = f.write_fmt(format_args!("{out} = tanh({input});\n"));
 
                 result
             }
-            Instruction::Erf { input, out } => {
-                f.write_fmt(format_args!("var {out} = erf({input});"))
-            }
+            Instruction::Erf { input, out } => f.write_fmt(format_args!("{out} = erf({input});\n")),
             Instruction::Recip { input, out } => {
-                f.write_fmt(format_args!("var {out} = 1.0 / {input};"))
+                f.write_fmt(format_args!("{out} = 1.0 / {input};"))
             }
             Instruction::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
             Instruction::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
@@ -250,16 +245,16 @@ impl Display for Instruction {
 );"
                         )),
                         Item::Scalar(elem) => {
-                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
+                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});\n"))
                         }
                     }
                 } else {
-                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});"))
+                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});\n"))
                 }
             }
             Instruction::AssignLocal { input, out } => {
                 let elem = out.item();
-                f.write_fmt(format_args!("var {out} = {elem}({input});"))
+                f.write_fmt(format_args!("{out} = {elem}({input});\n"))
             }
             Instruction::ReadGlobal { variable } => match variable {
                 Variable::Input(number, _elem) => f.write_fmt(format_args!(
@@ -327,7 +322,7 @@ for (var i: u32 = 1u; i <= rank; i++) {{
     index_{local} += (id * {offset}u) / stride_out % shape * stride;
 }}
 
-var {local} = {elem}({global}[index_{local} /  {offset}u]);
+{local} = {elem}({global}[index_{local} /  {offset}u]);
 "
                 ))
             }
@@ -439,12 +434,12 @@ if {cond} {{
                     )),
                 }
             }
-            Instruction::Rank { out } => f.write_fmt(format_args!("var {out} = info[0];")),
+            Instruction::Rank { out } => f.write_fmt(format_args!("{out} = info[0];\n")),
             Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
-                "var {out} = info[{position}u * (2u * rank) + 1u + {dim}]"
+                "{out} = info[{position}u * (2u * rank) + 1u + {dim}];\n"
             )),
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
-                "var {out} = info[{position}u * rank + 1u + {dim}]"
+                "{out} = info[{position}u * rank + 1u + {dim}];\n"
             )),
             Instruction::RangeLoop {
                 i,
@@ -461,7 +456,7 @@ for (var {i}: u32 = {start}; {i} <= {end}; {i}++) {{
                     f.write_fmt(format_args!("{instruction}"))?;
                 }
 
-                f.write_str("}")
+                f.write_str("\n}")
             }
         }
     }
@@ -487,7 +482,7 @@ fn comparison(
 
             f.write_fmt(format_args!(
                 "
-var {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
+{out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
 "
             ))
         }
@@ -501,7 +496,7 @@ var {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lh
 
             f.write_fmt(format_args!(
                 "
-var {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
+{out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
 "
             ))
         }
@@ -513,12 +508,12 @@ var {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
 
             f.write_fmt(format_args!(
                 "
-var {out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
+{out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
 "
             ))
         }
         Item::Scalar(_) => match rhs.item() {
-            Item::Scalar(_) => f.write_fmt(format_args!("var {out} = {lhs} {op} {rhs};")),
+            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};")),
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }
