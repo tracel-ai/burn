@@ -541,11 +541,6 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
 //Note this function should only execute if the second input is a constant
 //if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
 pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
-    // if node.inputs.len() != 2 || node.inputs[1].value.is_none() {
-    //     println!("{:?}", node.inputs);
-    //     panic!("Reshape: shape tensor must be present");
-    // }
-    println!("{:?}", node.inputs);
     let input_value = &node.inputs[1];
 
     match &node.inputs[1].ty {

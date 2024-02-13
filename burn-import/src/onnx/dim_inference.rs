@@ -313,7 +313,6 @@ fn unsqueeze_update_output_or_node(node: &mut Node) {
         _ => panic!("Unsqueeze: invalid output types"),
     };
     let mut remap_node = false;
-    println!("{:?}", node);
     match (&axes, tensor.shape) {
         //case 1: axes is constant -> output shape is input shape with 1s inserted at the axes
         (Some(dim_indices), _) => {

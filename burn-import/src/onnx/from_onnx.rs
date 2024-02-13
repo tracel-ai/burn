@@ -60,7 +60,6 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     // Convert the nodes
     let mut nodes: Vec<Node> = vec![];
-    println!("onnx_model.graph.node: {:#?}", onnx_model.graph.node);
     for onnx_node in onnx_model.graph.node.iter() {
         let mut node = convert_node_proto(onnx_node);
         if onnx_node.op_type == "Unsqueeze" {
@@ -387,7 +386,6 @@ fn rename_inputs(
 
     for node in nodes.iter_mut() {
         let mut counter = 1;
-        println!("node: {:#?}", node);
         // loop through node outputs and rename them and store the new name <-> old name mapping
         for output in node.outputs.iter_mut() {
             let old_name = output.name.clone();
