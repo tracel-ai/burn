@@ -10,7 +10,7 @@ use crate::{
     fusion::{
         kernel::FusionKernelSet,
         source::GpuKernelSource,
-        tracing::{CompilingInfo, Trace},
+        tracing::{Compilation, CompilationSettings, CompilingInfo, Trace},
     },
     JitBackend, Runtime,
 };
@@ -183,20 +183,16 @@ fn build_kernel_set<R: Runtime>(
     let scalar = ScalarElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone())
+                .compile(CompilationSettings::default().workgroup_size(workgroup_size)),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .inplace(&info.mappings)
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         info.mappings.to_vec(),
         info.outputs.len(),
@@ -205,22 +201,20 @@ fn build_kernel_set<R: Runtime>(
     let vec2 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .vectorize(Vectorization::Vec2)
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .vectorize(Vectorization::Vec2)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .vectorize(Vectorization::Vec2)
-                .inplace(&info.mappings)
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .vectorize(Vectorization::Vec2)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         info.mappings.to_vec(),
         info.outputs.len(),
@@ -229,22 +223,20 @@ fn build_kernel_set<R: Runtime>(
     let vec4 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .vectorize(Vectorization::Vec4)
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .vectorize(Vectorization::Vec4)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new(info.scope.clone())
-                .vectorize(Vectorization::Vec4)
-                .inplace(&info.mappings)
-                .inputs(&info.inputs)
-                .outputs(&info.outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .vectorize(Vectorization::Vec4)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         info.mappings.to_vec(),
         info.outputs.len(),

@@ -5,7 +5,7 @@ use super::{
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
     Vec4,
@@ -14,6 +14,7 @@ pub enum Vectorization {
     /// Use vec2 for vectorization.
     Vec2,
     /// Don't vectorize.
+    #[default]
     Scalar,
 }
 

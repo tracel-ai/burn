@@ -1,8 +1,8 @@
+use super::Scalars;
 use crate::codegen::{dialect::gpu, InplaceMapping, Input, Output};
 use burn_fusion::TensorDescription;
 
-use super::Scalars;
-
+#[derive(Clone)]
 pub struct CompilingInfo {
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,

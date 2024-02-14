@@ -5,6 +5,7 @@ use crate::codegen::dialect::gpu::{
 };
 use crate::compute::StaticKernel;
 use crate::element::JitElement;
+use crate::fusion::tracing::CompilingInfo;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -49,6 +50,7 @@ pub struct ElemWiseKernelCodegen<Phase = InputPhase> {
     _phase: PhantomData<Phase>,
 }
 
+#[derive(Clone)]
 pub enum Input {
     Array {
         item: Item,
@@ -61,6 +63,7 @@ pub enum Input {
     },
 }
 
+#[derive(Clone)]
 pub enum ReadingStrategy {
     /// Each element will be read in a way to be compatible with the output layout.
     OutputLayout,
