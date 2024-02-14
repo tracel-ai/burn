@@ -202,57 +202,56 @@ fn build_kernel_set<R: Runtime>(
         info.outputs.len(),
     );
 
-    // let vec2 = VecElementWise::<R>::new(
-    //     GpuKernelSource::new(
-    //         IdGenerator::generate(),
-    //         ElemWiseKernelCodegen::new(info.scope.clone())
-    //             .vectorize(Vectorization::Vec2)
-    //             .inputs(&info.inputs)
-    //             .outputs(&info.outputs)
-    //             .workgroup_size(workgroup_size)
-    //             .compile(),
-    //     ),
-    //     GpuKernelSource::new(
-    //         IdGenerator::generate(),
-    //         ElemWiseKernelCodegen::new(info.scope.clone())
-    //             .vectorize(Vectorization::Vec2)
-    //             .inplace(&info.mappings)
-    //             .inputs(&info.inputs)
-    //             .outputs(&info.outputs)
-    //             .workgroup_size(workgroup_size)
-    //             .compile(),
-    //     ),
-    //     info.mappings.to_vec(),
-    //     info.outputs.len(),
-    //     2,
-    // );
-    // let vec4 = VecElementWise::<R>::new(
-    //     GpuKernelSource::new(
-    //         IdGenerator::generate(),
-    //         ElemWiseKernelCodegen::new(info.scope.clone())
-    //             .vectorize(Vectorization::Vec4)
-    //             .inputs(&info.inputs)
-    //             .outputs(&info.outputs)
-    //             .workgroup_size(workgroup_size)
-    //             .compile(),
-    //     ),
-    //     GpuKernelSource::new(
-    //         IdGenerator::generate(),
-    //         ElemWiseKernelCodegen::new(info.scope.clone())
-    //             .vectorize(Vectorization::Vec4)
-    //             .inplace(&info.mappings)
-    //             .inputs(&info.inputs)
-    //             .outputs(&info.outputs)
-    //             .workgroup_size(workgroup_size)
-    //             .compile(),
-    //     ),
-    //     info.mappings.to_vec(),
-    //     info.outputs.len(),
-    //     4,
-    // );
+    let vec2 = VecElementWise::<R>::new(
+        GpuKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new(info.scope.clone())
+                .vectorize(Vectorization::Vec2)
+                .inputs(&info.inputs)
+                .outputs(&info.outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        GpuKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new(info.scope.clone())
+                .vectorize(Vectorization::Vec2)
+                .inplace(&info.mappings)
+                .inputs(&info.inputs)
+                .outputs(&info.outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        info.mappings.to_vec(),
+        info.outputs.len(),
+        2,
+    );
+    let vec4 = VecElementWise::<R>::new(
+        GpuKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new(info.scope.clone())
+                .vectorize(Vectorization::Vec4)
+                .inputs(&info.inputs)
+                .outputs(&info.outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        GpuKernelSource::new(
+            IdGenerator::generate(),
+            ElemWiseKernelCodegen::new(info.scope.clone())
+                .vectorize(Vectorization::Vec4)
+                .inplace(&info.mappings)
+                .inputs(&info.inputs)
+                .outputs(&info.outputs)
+                .workgroup_size(workgroup_size)
+                .compile(),
+        ),
+        info.mappings.to_vec(),
+        info.outputs.len(),
+        4,
+    );
 
-    // FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)])
-    FusionKernelSet::new(vec![Box::new(scalar)])
+    FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)])
 }
 
 #[cfg(test)]
