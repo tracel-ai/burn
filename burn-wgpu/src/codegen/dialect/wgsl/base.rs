@@ -115,7 +115,7 @@ impl Display for Variable {
                 index,
                 item: _,
                 scope_depth,
-            } => f.write_fmt(format_args!("local_{scope_depth}_{index}")),
+            } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
             Variable::Output(number, _) => f.write_fmt(format_args!("output_{number}")),
             Variable::Scalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))

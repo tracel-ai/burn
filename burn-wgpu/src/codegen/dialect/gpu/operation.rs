@@ -152,26 +152,26 @@ pub struct ReadGlobalWithLayoutOperator {
     pub tensor_layout_pos: usize,
 }
 
-impl Into<Operation> for Operator {
-    fn into(self) -> Operation {
-        Operation::Operator(self)
+impl From<Operator> for Operation {
+    fn from(val: Operator) -> Self {
+        Operation::Operator(val)
     }
 }
 
-impl Into<Operation> for Metadata {
-    fn into(self) -> Operation {
-        Operation::Metadata(self)
+impl From<Metadata> for Operation {
+    fn from(val: Metadata) -> Self {
+        Operation::Metadata(val)
     }
 }
 
-impl Into<Operation> for Algorithm {
-    fn into(self) -> Operation {
-        Operation::Algorithm(self)
+impl From<Algorithm> for Operation {
+    fn from(val: Algorithm) -> Self {
+        Operation::Algorithm(val)
     }
 }
 
-impl Into<Operation> for Loop {
-    fn into(self) -> Operation {
-        Operation::Loop(self)
+impl From<Loop> for Operation {
+    fn from(val: Loop) -> Self {
+        Operation::Loop(val)
     }
 }

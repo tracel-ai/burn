@@ -171,19 +171,19 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         algo: gpu::Algorithm,
         scope: &mut gpu::Scope,
     ) {
-        println!("Compile algo");
+        let mut compile = |scope: &mut gpu::Scope| {
+            let compiled = self.compile_scope(scope).operators;
+            instructions.extend(compiled);
+        };
+
         match algo {
             gpu::Algorithm::ReadGlobalWithLayout(algo) => {
                 generate_read_global_with_layout(scope, algo);
-                let compiled = self.compile_scope(scope).operators;
-
-                instructions.extend(compiled);
+                compile(scope);
             }
             gpu::Algorithm::ReadGlobal(algo) => {
                 generate_read_global(scope, algo);
-                let compiled = self.compile_scope(scope).operators;
-
-                instructions.extend(compiled);
+                compile(scope);
             }
         }
     }

@@ -153,7 +153,7 @@ impl Variable {
         match self {
             Variable::Input(index, item) => Variable::Input(*index, item.vectorize(vectorize)),
             Variable::Local(index, item, name) => {
-                Variable::Local(*index, item.vectorize(vectorize), name.clone())
+                Variable::Local(*index, item.vectorize(vectorize), *name)
             }
             Variable::Output(index, item) => Variable::Output(*index, item.vectorize(vectorize)),
             Variable::Constant(index, item) => {

@@ -5,11 +5,6 @@ use super::{
 use crate::codegen::dialect::gpu::{BinaryOperator, Loop};
 
 pub fn generate_read_global(scope: &mut Scope, algo: ReadGlobalAlgo) {
-    assert!(
-        scope.operations.is_empty(),
-        "Scope must have empty operation"
-    );
-
     scope.register(Operator::Index(BinaryOperator {
         lhs: algo.global,
         rhs: Variable::Id,
@@ -18,12 +13,6 @@ pub fn generate_read_global(scope: &mut Scope, algo: ReadGlobalAlgo) {
 }
 
 pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithLayoutAlgo) {
-    assert!(
-        scope.operations.is_empty(),
-        "Scope must have empty operation"
-    );
-    println!("Generate global layout {:?}", algo);
-
     let index_type = Item::Scalar(Elem::UInt);
     let index_local = scope.create_local(index_type);
     let start = Variable::Constant(0.0, index_type);

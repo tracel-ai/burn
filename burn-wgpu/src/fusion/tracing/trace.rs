@@ -13,7 +13,7 @@ pub struct Trace {
 }
 
 impl Trace {
-    pub fn running<'a>(&'a self) -> RunningInfo<'a> {
+    pub fn running(&self) -> RunningInfo<'_> {
         RunningInfo {
             inputs: self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             outputs: self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),

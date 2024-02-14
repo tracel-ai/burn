@@ -25,9 +25,9 @@ pub enum Elem {
     Bool,
 }
 
-impl Into<Item> for Elem {
-    fn into(self) -> Item {
-        Item::Scalar(self)
+impl From<Elem> for Item {
+    fn from(val: Elem) -> Self {
+        Item::Scalar(val)
     }
 }
 
