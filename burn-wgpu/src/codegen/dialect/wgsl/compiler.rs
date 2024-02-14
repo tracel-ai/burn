@@ -57,9 +57,23 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     fn compile_shader(&mut self, value: gpu::ComputeShader) -> wgsl::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
+        let mut inputs = value
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(i, val)| wgsl::Instruction::DeclareVariable {
+                var: wgsl::Variable::Input(i as u16, Self::compile_item(val.item)),
+            })
+            .collect::<Vec<_>>();
+
         let mut scope = value.body;
 
-        let body = self.compile_scope(&mut scope);
+        let mut body = self.compile_scope(&mut scope);
+        let mut temp = Vec::new();
+        core::mem::swap(&mut temp, &mut body.operators);
+        inputs.extend(temp);
+        body.operators = inputs;
+
         let extensions = register_extensions(&body);
 
         wgsl::ComputeShader {
@@ -209,9 +223,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Metadata::Stride { dim, var, out } => {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
+                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize - 1,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
+                println!("Stride position {position}");
                 wgsl::Instruction::Stride {
                     dim: Self::compile_variable(dim),
                     position,
@@ -221,7 +236,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Metadata::Shape { dim, var, out } => {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
+                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize - 1,
                     _ => panic!("Only Input and Output have a shape."),
                 };
                 wgsl::Instruction::Shape {
@@ -236,6 +251,11 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     fn compile_instruction(&self, value: gpu::Operator) -> wgsl::Instruction {
         match value {
             gpu::Operator::Add(op) => wgsl::Instruction::Add {
+                lhs: Self::compile_variable(op.lhs),
+                rhs: Self::compile_variable(op.rhs),
+                out: Self::compile_variable(op.out),
+            },
+            gpu::Operator::Index(op) => wgsl::Instruction::Index {
                 lhs: Self::compile_variable(op.lhs),
                 rhs: Self::compile_variable(op.rhs),
                 out: Self::compile_variable(op.out),

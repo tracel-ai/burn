@@ -42,6 +42,7 @@ pub enum Operator {
     ReadGlobal(ReadGlobalOperator),
     ReadGlobalWithLayout(ReadGlobalWithLayoutOperator),
     Modulo(BinaryOperator),
+    Index(BinaryOperator),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

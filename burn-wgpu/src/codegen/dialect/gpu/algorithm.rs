@@ -13,7 +13,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
 
     let index_type = Item::Scalar(Elem::UInt);
     let index_local = scope.create_local(index_type);
-    let start = Variable::Constant(0.0, index_type);
+    let start = Variable::Constant(1.0, index_type);
 
     scope.register(Operator::AssignLocal(UnaryOperator {
         input: Variable::Constant(0.0, index_type),
@@ -56,16 +56,17 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
             rhs: offset.clone(),
             out: numerator.clone(),
         }));
-        scope.register(Operator::Modulo(BinaryOperator {
-            lhs: stride_layout,
-            rhs: shape,
-            out: denominator.clone(),
-        }));
         scope.register(Operator::Mul(BinaryOperator {
-            lhs: denominator.clone(),
+            lhs: shape,
             rhs: stride,
             out: denominator.clone(),
         }));
+        scope.register(Operator::Modulo(BinaryOperator {
+            lhs: stride_layout,
+            rhs: denominator.clone(),
+            out: denominator.clone(),
+        }));
+
         scope.register(Operator::Div(BinaryOperator {
             lhs: numerator.clone(),
             rhs: denominator.clone(),
@@ -80,10 +81,15 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
     });
 
     scope.register(Loop::Range(op));
-    // scope.register(Operator::AssignLocal(UnaryOperator {
-    //     input: todo!(), // TODO: Indexation with the input.
-    //     out: algo.variable,
-    // }));
-
-    // {local} = {elem}({global}[index_{local} /  {offset}u]);
+    let tmp = scope.create_local(index_type);
+    scope.register(Operator::Div(BinaryOperator {
+        lhs: index_local,
+        rhs: offset,
+        out: tmp.clone(),
+    }));
+    scope.register(Operator::Index(BinaryOperator {
+        lhs: algo.variable.clone(),
+        rhs: tmp,
+        out: algo.variable,
+    }));
 }

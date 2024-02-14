@@ -13,6 +13,11 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Index {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Modulo {
         lhs: Variable,
         rhs: Variable,
@@ -163,6 +168,14 @@ impl Display for Instruction {
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
+            Instruction::Index { lhs, rhs, out } => {
+                let lhs = match lhs {
+                    Variable::Input(index, _) => format!("input_{index}_global"),
+                    Variable::Output(index, _) => format!("output_{index}_global"),
+                    _ => format!("{lhs}"),
+                };
+                f.write_fmt(format_args!("{out} = {lhs}[{rhs}];\n"))
+            }
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
@@ -253,8 +266,7 @@ impl Display for Instruction {
                 }
             }
             Instruction::AssignLocal { input, out } => {
-                let elem = out.item();
-                f.write_fmt(format_args!("{out} = {elem}({input});\n"))
+                f.write_fmt(format_args!("{out} = {input};\n"))
             }
             Instruction::ReadGlobal { variable } => match variable {
                 Variable::Input(number, _elem) => f.write_fmt(format_args!(
@@ -436,10 +448,10 @@ if {cond} {{
             }
             Instruction::Rank { out } => f.write_fmt(format_args!("{out} = info[0];\n")),
             Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[{position}u * (2u * rank) + 1u + {dim}];\n"
+                "{out} = info[({position}u * (2u * rank)) + {dim}];\n"
             )),
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[{position}u * rank + 1u + {dim}];\n"
+                "{out} = info[({position}u * (2u * rank))  + rank + {dim}];\n"
             )),
             Instruction::RangeLoop {
                 i,
@@ -456,7 +468,7 @@ for (var {i}: u32 = {start}; {i} <= {end}; {i}++) {{
                     f.write_fmt(format_args!("{instruction}"))?;
                 }
 
-                f.write_str("\n}")
+                f.write_str("}\n")
             }
         }
     }

@@ -19,7 +19,6 @@ impl Display for Scope {
 
         for ops in self.operators.iter() {
             f.write_fmt(format_args!("{ops}"))?;
-            f.write_str("\n")?;
         }
 
         Ok(())
