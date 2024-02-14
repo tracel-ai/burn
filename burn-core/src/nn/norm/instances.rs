@@ -23,7 +23,7 @@ pub struct InstanceNormConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct InstanceNorm<B: Backend, const D: usize> {
+pub struct InstanceNorm<B: Backend> {
     num_features: usize,
     epsilon: f64,
     momentum: f64,
@@ -33,7 +33,7 @@ pub struct InstanceNorm<B: Backend, const D: usize> {
 }
 
 impl InstanceNormConfig {
-    pub fn init<B: Backend, const D: usize>(&self, device: &B::Device) -> InstanceNorm<B, D> {
+    pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
         let (gamma, beta) = if self.affine {
             let gamma = Tensor::ones([self.num_features], device).into();
             let beta = Tensor::zeros([self.num_features], device).into();
@@ -52,10 +52,7 @@ impl InstanceNormConfig {
         }
     }
 
-    pub fn init_with<B: Backend, const D: usize>(
-        &self,
-        record: InstanceNormRecord<B, D>,
-    ) -> InstanceNorm<B, D> {
+    pub fn init_with<B: Backend>(&self, record: InstanceNormRecord<B>) -> InstanceNorm<B> {
         InstanceNorm {
             num_features: self.num_features,
             epsilon: self.epsilon,
@@ -64,5 +61,20 @@ impl InstanceNormConfig {
             gamma: record.gamma,
             beta: record.beta,
         }
+    }
+}
+
+impl<B: Backend> InstanceNorm<B> {
+    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+        let mean = input.mean(&[-1], true);
+        let variance = input.var(&[-1], true);
+        let mut output = (input - mean) / variance.sqrt();
+        if let Some(gamma) = &self.gamma {
+            output *= gamma.value();
+        }
+        if let Some(beta) = &self.beta {
+            output += beta.value();
+        }
+        output
     }
 }
