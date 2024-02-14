@@ -145,7 +145,7 @@ impl Graph {
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {
         let mut guard = self.checkpointing_actions.lock();
         let owned: Vec<CheckpointingAction> = std::mem::replace(&mut *guard, Vec::default());
-        Checkpointer::build(owned)
+        Checkpointer::build(owned, &self.steps.lock())
     }
 
     // pub fn print_checkpoint(&self) {
@@ -167,5 +167,4 @@ impl Graph {
             .lock()
             .extend(checkpointing_actions)
     }
-
 }

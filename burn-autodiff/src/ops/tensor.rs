@@ -149,20 +149,30 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Add
-            .prepare([lhs.node.clone(), rhs.node.clone()], [lhs.graph, rhs.graph])
+            .prepare(
+                [lhs.node.clone(), rhs.node.clone()],
+                [lhs.graph.clone(), rhs.graph.clone()],
+            )
             .memory_bound(RetroAdd::<B, D>::new(
                 lhs.node.id.clone(),
                 rhs.node.id.clone(),
             ))
             .stateful()
         {
-            OpsKind::Tracked(preps) => preps.finish(
-                (
-                    B::float_shape(&lhs.primitive),
-                    B::float_shape(&rhs.primitive),
-                ),
-                B::float_add(lhs.primitive, rhs.primitive),
-            ),
+            OpsKind::Tracked(mut preps) => {
+                // TODO FIND MORE ELEGANT WAY
+                // This operation is eager therefore does not need checkpoint for itself, but needs to checkpoint what is used in memory bound
+                preps.checkpoint(&lhs);
+                preps.checkpoint(&rhs);
+
+                preps.finish(
+                    (
+                        B::float_shape(&lhs.primitive),
+                        B::float_shape(&rhs.primitive),
+                    ),
+                    B::float_add(lhs.primitive, rhs.primitive),
+                )
+            }
             OpsKind::UnTracked(preps) => preps.finish(B::float_add(lhs.primitive, rhs.primitive)),
         }
     }
@@ -276,7 +286,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,
             ) {
-                let (lhs_node, rhs_node, broadcast) = ops.state;
+                let (rhs_node, lhs_node, broadcast) = ops.state;
                 let lhs = lhs_node.map(|node| checkpointer.retrieve_output(node));
                 let rhs = rhs_node.map(|node| checkpointer.retrieve_output(node));
 

@@ -267,4 +267,5 @@ fn complicated_computation() {
     let tensor_12 = tensor_10.div(tensor_11.clone());
 
     let grads = tensor_12.backward();
+    assert!(false)
 }
