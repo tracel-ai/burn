@@ -1,21 +1,17 @@
-use burn_compute::client::ComputeClient;
-
+use super::dialect::gpu::Scope;
 use crate::codegen::dialect::gpu::{
-    Binding, ComputeShader, Elem, Item, Location, ReadGlobalOperator, UnaryOperator, Variable,
-    Vectorization, Visibility, WorkgroupSize,
+    Binding, ComputeShader, Elem, Item, Location, Variable, Vectorization, Visibility,
+    WorkgroupSize,
 };
 use crate::compute::StaticKernel;
 use crate::element::JitElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
+use burn_compute::client::ComputeClient;
 use std::marker::PhantomData;
-
-use super::dialect::gpu::{Algorithm, Operation, Operator, ReadGlobalWithLayoutAlgo, Scope};
 
 /// Kernel creation input phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct InputPhase;
-/// Kernel creation body phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
-pub struct BodyPhase;
 /// Kernel creation output phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
 pub struct OutputPhase;
 /// Kernel compilation phase, see [kernel codegen](ElemWiseKernelCodegen) for more details.
@@ -79,10 +75,6 @@ pub enum Output {
 }
 
 impl ElemWiseKernelCodegen<InputPhase> {
-    pub fn root() -> Self {
-        Self::new(Scope::root())
-    }
-
     pub fn new(scope: Scope) -> Self {
         Self {
             scope,
@@ -99,6 +91,7 @@ impl ElemWiseKernelCodegen<InputPhase> {
     #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
         self.vectorization = vectorization;
+        self.scope.vectorize(self.vectorization);
         self
     }
 
@@ -109,15 +102,13 @@ impl ElemWiseKernelCodegen<InputPhase> {
     }
 
     /// Register the inputs used by the kernel.
-    pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<BodyPhase> {
-        let mut index = 0;
-
+    pub fn inputs(mut self, inputs: &[Input]) -> ElemWiseKernelCodegen<OutputPhase> {
         for input in inputs {
             match input {
                 Input::Array {
                     item,
                     visibility,
-                    strategy,
+                    strategy: _,
                 } => {
                     let item = item.vectorize(self.vectorization);
 
@@ -127,25 +118,6 @@ impl ElemWiseKernelCodegen<InputPhase> {
                         location: Location::Storage,
                         size: None,
                     });
-
-                    match strategy {
-                        ReadingStrategy::OutputLayout => {
-                            self.scope.register(Algorithm::ReadGlobalWithLayout(
-                                ReadGlobalWithLayoutAlgo {
-                                    variable: Variable::Input(index, item),
-                                    layout: Variable::Id, // Will set the right value during the output
-                                                          // phase.
-                                },
-                            ));
-                        }
-                        ReadingStrategy::Plain => {
-                            self.scope
-                                .register(Operator::ReadGlobal(ReadGlobalOperator {
-                                    variable: Variable::Input(index, item),
-                                }));
-                        }
-                    }
-                    index += 1;
                 }
                 Input::Scalar { elem, size } => {
                     let elem = bool_elem(*elem);
@@ -176,27 +148,6 @@ impl ElemWiseKernelCodegen<InputPhase> {
     }
 }
 
-impl ElemWiseKernelCodegen<BodyPhase> {
-    /// Register the [operators](Operator) that the kernel must execute in the order provided.
-    pub fn body(mut self, operations: &[Operation]) -> ElemWiseKernelCodegen<OutputPhase> {
-        // TODO: Registered two times.
-        for op in operations.iter() {
-            self.scope.register(op.vectorize(self.vectorization));
-        }
-
-        ElemWiseKernelCodegen {
-            scope: self.scope,
-            input_bindings: self.input_bindings,
-            output_bindings: self.output_bindings,
-            named_bindings: self.named_bindings,
-            vectorization: self.vectorization,
-            mappings_inplace: self.mappings_inplace,
-            workgroup_size: self.workgroup_size,
-            _phase: PhantomData,
-        }
-    }
-}
-
 impl ElemWiseKernelCodegen<OutputPhase> {
     /// Register the outputs with their local variable index.
     ///
@@ -204,9 +155,7 @@ impl ElemWiseKernelCodegen<OutputPhase> {
     /// [body phase](BodyPhase).
     /// So the 4th operator registered creates the local variable 3 (N-1, since the 1th index is 0).
     pub fn outputs(mut self, outputs: &[Output]) -> ElemWiseKernelCodegen<CompilationPhase> {
-        println!("Outputs");
         let mut index = 0;
-        let mut layout_output = Variable::Id;
 
         let mut outputs = outputs.to_vec();
 
@@ -246,43 +195,21 @@ impl ElemWiseKernelCodegen<OutputPhase> {
                         location: Location::Storage,
                         size: None,
                     });
-                    self.scope.register(Operator::AssignGlobal(UnaryOperator {
-                        input: Variable::Local(*local, item, self.scope.depth),
-                        out: Variable::Output(index, elem_adapted),
-                    }));
+                    self.scope.write_global(
+                        Variable::Local(*local, item, self.scope.depth),
+                        Variable::Output(index, elem_adapted),
+                    );
                     index += 1;
-
-                    if index == 1 {
-                        println!("Set layout Output");
-                        layout_output = Variable::Output(index, elem_adapted); // First output when we have a
-                                                                               // new array for the output.
-                    }
                 }
                 Output::Input { item, input, local } => {
                     let item = item.vectorize(self.vectorization);
 
-                    self.scope.register(Operator::AssignGlobal(UnaryOperator {
-                        input: Variable::Local(*local, item, self.scope.depth),
-                        out: Variable::Input(*input, bool_item(item)),
-                    }));
-                    println!("Set layout Input ");
-                    layout_output = Variable::Input(*input, bool_item(item)); // First output when we have a
+                    self.scope.write_global(
+                        Variable::Local(*local, item, self.scope.depth),
+                        Variable::Input(*input, bool_item(item)),
+                    );
                 }
             }
-        }
-
-        // We set the output number that will be used for the stride definition.
-        for i in 0..self.input_bindings.len() {
-            if let Some(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
-                ReadGlobalWithLayoutAlgo {
-                    variable: _,
-                    layout,
-                },
-            ))) = self.scope.operations.get_mut(i)
-            {
-                *layout = layout_output.clone();
-                println!("Set layout to {:?}", layout);
-            };
         }
 
         ElemWiseKernelCodegen {

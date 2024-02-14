@@ -62,16 +62,19 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
+                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+                let op = $ops(&mut scope, E::gpu_elem());
+                scope.register(op);
+                let local = scope.last_local_index();
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                         strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                     }])
-                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        local: 0,
+                        local,
                     }])
                     .compile();
 
@@ -87,17 +90,20 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
+                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+                let op = $ops(&mut scope, E::gpu_elem());
+                scope.register(op);
+                let local = scope.last_local_index();
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
                     .inputs(&[$crate::codegen::Input::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                         strategy: $crate::codegen::ReadingStrategy::Plain,
                     }])
-                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
-                        local: 0,
+                        local,
                     }])
                     .compile();
 
@@ -127,7 +133,11 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
+                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+                let op = $ops(&mut scope, E::gpu_elem());
+                scope.register(op);
+                let local = scope.last_local_index();
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
@@ -139,10 +149,9 @@ macro_rules! unary {
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Array {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        local: 0,
+                        local,
                     }])
                     .compile();
 
@@ -158,7 +167,11 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::root()
+                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+                let op = $ops(&mut scope, E::gpu_elem());
+                scope.register(op);
+                let local = scope.last_local_index();
+                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
                     .inputs(&[
                         $crate::codegen::Input::Array {
                             item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
@@ -170,11 +183,10 @@ macro_rules! unary {
                             size: $num,
                         },
                     ])
-                    .body(&[$ops(E::gpu_elem()).into()])
                     .outputs(&[$crate::codegen::Output::Input {
                         item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                         input: 0,
-                        local: 0,
+                        local,
                     }])
                     .compile();
 
@@ -243,14 +255,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::dialect::gpu::{Item, Operator, UnaryOperator, Variable};
+    use crate::codegen::dialect::gpu::{Operator, Scope, UnaryOperator};
     use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
-        operation: |elem| Operator::Tanh(UnaryOperator {
-            input: Variable::Input(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem), 0),
+        operation: |scope: &mut Scope, elem| Operator::Tanh(UnaryOperator {
+            input: scope.read_global(0, elem),
+            out: scope.create_local(elem),
         }),
         compiler: TestCompiler
     );

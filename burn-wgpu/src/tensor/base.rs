@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{Elem, Item, Operator, UnaryOperator, Variable};
+use crate::codegen::dialect::gpu::{Elem, Operator, Scope, UnaryOperator};
 use crate::element::JitElement;
 use crate::{unary, Runtime};
 use burn_compute::client::ComputeClient;
@@ -145,9 +145,9 @@ where
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operation: |elem: Elem| Operator::AssignLocal(UnaryOperator {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem), 0),
+            operation: |scope: &mut Scope, elem: Elem| Operator::AssignLocal(UnaryOperator {
+                input: scope.read_global(0, elem),
+                out: scope.create_local(elem),
             }),
             runtime: R,
             input: self.clone(),

@@ -25,6 +25,12 @@ pub enum Elem {
     Bool,
 }
 
+impl Into<Item> for Elem {
+    fn into(self) -> Item {
+        Item::Scalar(self)
+    }
+}
+
 impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

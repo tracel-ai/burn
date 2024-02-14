@@ -128,15 +128,6 @@ pub enum Instruction {
         input: Variable,
         out: Variable,
     },
-    ReadGlobal {
-        variable: Variable,
-    },
-    /// Read the tensor in a way to be compatible with another tensor layout.
-    ReadGlobalWithLayout {
-        variable: Variable,
-        tensor_read_pos: usize,
-        tensor_layout_pos: usize,
-    },
     Rank {
         out: Variable,
     },
@@ -268,76 +259,6 @@ impl Display for Instruction {
             Instruction::AssignLocal { input, out } => {
                 f.write_fmt(format_args!("{out} = {input};\n"))
             }
-            Instruction::ReadGlobal { variable } => match variable {
-                Variable::Input(number, _elem) => f.write_fmt(format_args!(
-                    "var input_{number} = input_{number}_global[id];"
-                )),
-                Variable::Local {
-                    index: _,
-                    item: _,
-                    scope_depth: _,
-                } => panic!("can't read global local variable."),
-                Variable::Output(number, _elem) => f.write_fmt(format_args!(
-                    "var output_{number} = output_{number}_global[id];"
-                )),
-                Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                Variable::Constant(_, _) => panic!("Can't read global constant variable."),
-                Variable::Id => panic!("Can't read global id variable."),
-                Variable::Rank => panic!("Can't read global rank variable."),
-            },
-            Instruction::ReadGlobalWithLayout {
-                variable,
-                tensor_read_pos: position,
-                tensor_layout_pos: position_out,
-            } => {
-                let (global, local, elem) = match variable {
-                    Variable::Input(number, elem) => (
-                        format!("input_{number}_global"),
-                        format!("input_{number}"),
-                        elem,
-                    ),
-                    Variable::Local {
-                        index: _,
-                        item: _,
-                        scope_depth: _,
-                    } => panic!("can't read global local variable."),
-                    Variable::Output(number, elem) => (
-                        format!("output_{number}_global"),
-                        format!("output_{number}"),
-                        elem,
-                    ),
-                    Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                    Variable::Constant(_, _) => panic!("Can't read global constant variable."),
-                    Variable::Id => panic!("Can't read global id variable."),
-                    Variable::Rank => panic!("Can't read global rank variable."),
-                };
-
-                let offset = match elem {
-                    Item::Vec4(_) => 4,
-                    Item::Vec3(_) => 3,
-                    Item::Vec2(_) => 2,
-                    Item::Scalar(_) => 1,
-                };
-
-                f.write_fmt(format_args!(
-                    "
-var index_{local}: u32 = 0u;
-
-for (var i: u32 = 1u; i <= rank; i++) {{
-    var position = {position}u * (2u * rank);
-    var position_out = {position_out}u * (2u * rank);
-
-    var stride = info[position + i];
-    var stride_out = info[position_out + i];
-    var shape = info[position + rank + i];
-
-    index_{local} += (id * {offset}u) / stride_out % shape * stride;
-}}
-
-{local} = {elem}({global}[index_{local} /  {offset}u]);
-"
-                ))
-            }
             Instruction::ConditionalAssign {
                 cond,
                 lhs,
@@ -359,7 +280,6 @@ for (var i: u32 = 1u; i <= rank; i++) {{
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -393,7 +313,6 @@ if {cond}[3] {{
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -420,7 +339,6 @@ if {cond}[2] {{
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -436,7 +354,6 @@ if {cond}[1] {{
                     }
                     Item::Scalar(_) => f.write_fmt(format_args!(
                         "
-var {out}: {elem};
 if {cond} {{
     {out} = {lhs};
 }} else {{

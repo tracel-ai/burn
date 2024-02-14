@@ -1,8 +1,21 @@
 use super::{
-    Elem, Item, Metadata, Operator, RangeLoop, ReadGlobalWithLayoutAlgo, Scope, UnaryOperator,
-    Variable,
+    Elem, Item, Metadata, Operator, RangeLoop, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Scope,
+    UnaryOperator, Variable,
 };
 use crate::codegen::dialect::gpu::{BinaryOperator, Loop};
+
+pub fn generate_read_global(scope: &mut Scope, algo: ReadGlobalAlgo) {
+    assert!(
+        scope.operations.is_empty(),
+        "Scope must have empty operation"
+    );
+
+    scope.register(Operator::Index(BinaryOperator {
+        lhs: algo.global,
+        rhs: Variable::Id,
+        out: algo.out,
+    }));
+}
 
 pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithLayoutAlgo) {
     assert!(
@@ -20,7 +33,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         out: index_local.clone(),
     }));
 
-    let offset = match algo.variable.item() {
+    let offset = match algo.global.item() {
         Item::Vec4(_) => 4.0,
         Item::Vec3(_) => 3.0,
         Item::Vec2(_) => 2.0,
@@ -36,7 +49,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
 
         scope.register(Metadata::Stride {
             dim: i.clone(),
-            var: algo.variable.clone(),
+            var: algo.global.clone(),
             out: stride.clone(),
         });
         scope.register(Metadata::Stride {
@@ -46,7 +59,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         });
         scope.register(Metadata::Shape {
             dim: i.clone(),
-            var: algo.variable.clone(),
+            var: algo.global.clone(),
             out: shape.clone(),
         });
 
@@ -87,8 +100,8 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         out: tmp.clone(),
     }));
     scope.register(Operator::Index(BinaryOperator {
-        lhs: algo.variable.clone(),
+        lhs: algo.global.clone(),
         rhs: tmp,
-        out: algo.variable,
+        out: algo.out,
     }));
 }

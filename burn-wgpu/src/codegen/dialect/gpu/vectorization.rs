@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, Operation, Operator,
-    ReadGlobalOperator, ReadGlobalWithLayoutOperator, UnaryOperator, Variable,
+    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, Operation, Operator,
+    ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
 };
 
 /// Define a vectorization scheme.
@@ -21,9 +21,43 @@ impl Operation {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
-            Operation::Algorithm(op) => Operation::Algorithm(op.clone()),
-            Operation::Metadata(op) => Operation::Metadata(op.clone()),
-            Operation::Loop(op) => Operation::Loop(op.clone()),
+            Operation::Algorithm(op) => Operation::Algorithm(op.vectorize(vectorization)),
+            Operation::Metadata(_) => panic!(
+                "Metadata can't be vectorize, they should only be generated after vectorization."
+            ),
+            Operation::Loop(_) => panic!(
+                "Loops can't be vectorize, they should only be generated after vectorization."
+            ),
+        }
+    }
+}
+
+impl Algorithm {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            Algorithm::ReadGlobalWithLayout(op) => {
+                Algorithm::ReadGlobalWithLayout(op.vectorize(vectorization))
+            }
+            Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
+        }
+    }
+}
+
+impl ReadGlobalWithLayoutAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            global: self.global.vectorize(vectorization),
+            layout: self.layout.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
+    }
+}
+
+impl ReadGlobalAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            global: self.global.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
         }
     }
 }
@@ -58,10 +92,6 @@ impl Operator {
             }
             Operator::AssignGlobal(op) => Operator::AssignGlobal(op.vectorize(vectorization)),
             Operator::AssignLocal(op) => Operator::AssignLocal(op.vectorize(vectorization)),
-            Operator::ReadGlobal(op) => Operator::ReadGlobal(op.vectorize(vectorization)),
-            Operator::ReadGlobalWithLayout(op) => {
-                Operator::ReadGlobalWithLayout(op.vectorize(vectorization))
-            }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
         }
     }
@@ -114,28 +144,6 @@ impl ConditionalAssignOperator {
             lhs,
             rhs,
             out,
-        }
-    }
-}
-
-impl ReadGlobalOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let variable = self.variable.vectorize(vectorization);
-
-        Self { variable }
-    }
-}
-
-impl ReadGlobalWithLayoutOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let variable = self.variable.vectorize(vectorization);
-        let tensor_read_pos = self.tensor_read_pos;
-        let tensor_layout_pos = self.tensor_layout_pos;
-
-        Self {
-            variable,
-            tensor_read_pos,
-            tensor_layout_pos,
         }
     }
 }

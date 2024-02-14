@@ -1,5 +1,5 @@
 use super::{trace::Trace, Scalars};
-use crate::codegen::dialect::gpu::{self, Operation};
+use crate::codegen::dialect::gpu::{self, Operation, Variable};
 use burn_fusion::{TensorDescription, TensorId};
 use burn_tensor::Element;
 use hashbrown::HashMap;
@@ -10,8 +10,8 @@ use hashbrown::HashMap;
 /// and the lower level [gpu dialect](gpu).
 #[derive(Clone)]
 pub struct TraceBuilder {
-    inputs: Vec<TensorDescription>,
-    locals: HashMap<TensorId, u16>,
+    inputs: Vec<(TensorDescription, Variable)>,
+    operations_output: HashMap<TensorId, u16>,
     tensors: HashMap<TensorId, (TensorDescription, gpu::Elem)>,
     scalars: Scalars,
     scope: gpu::Scope,
@@ -21,7 +21,7 @@ impl TraceBuilder {
     pub fn new() -> Self {
         Self {
             inputs: Vec::new(),
-            locals: HashMap::new(),
+            operations_output: HashMap::new(),
             tensors: HashMap::new(),
             scalars: Scalars::default(),
             scope: gpu::Scope::root(),
@@ -38,26 +38,27 @@ impl TraceBuilder {
         let variable = match already_exists {
             false => {
                 // New input
-                let var = gpu::Variable::Input(self.inputs.len() as u16, gpu::Item::Scalar(elem));
-                self.inputs.push(tensor.clone());
-                var
+                let index = self.inputs.len() as u16;
+                let item = gpu::Item::Scalar(elem);
+
+                let local = self.scope.read_global(index, item);
+                self.inputs.push((tensor.clone(), local.clone()));
+                // self.locals
+                //     .insert(tensor.id.clone(), local.index().unwrap());
+                local
             }
-            true => match self.locals.get(&tensor.id) {
+            true => match self.operations_output.get(&tensor.id) {
                 // Is a local variable.
                 Some(local_index) => {
                     gpu::Variable::Local(*local_index, gpu::Item::Scalar(elem), self.scope.depth)
                 }
-                // Isn't a local variable, so must be an existing input.
-                None => {
-                    let input = self
-                        .inputs
-                        .iter()
-                        .enumerate()
-                        .find(|(_, input)| input.id == tensor.id)
-                        .unwrap();
-                    let input_index = input.0;
-                    gpu::Variable::Input(input_index as u16, gpu::Item::Scalar(elem))
-                }
+                // Isn't an operation output variable, so must be an existing input.
+                None => self
+                    .inputs
+                    .iter()
+                    .find(|(input, _local)| input.id == tensor.id)
+                    .map(|(_, local)| local.clone())
+                    .unwrap(),
             },
         };
 
@@ -72,13 +73,13 @@ impl TraceBuilder {
         self.tensors.insert(tensor.id, (tensor.clone(), elem));
 
         // Output already registered as a local variable.
-        if let Some(index) = self.locals.get(&tensor.id) {
+        if let Some(index) = self.operations_output.get(&tensor.id) {
             return gpu::Variable::Local(*index, gpu::Item::Scalar(elem), self.scope.depth);
         }
 
         let variable = self.scope.create_local(gpu::Item::Scalar(elem));
         let local_index = variable.index().unwrap();
-        self.locals.insert(tensor.id, local_index);
+        self.operations_output.insert(tensor.id, local_index);
         variable
     }
 
@@ -118,9 +119,10 @@ impl TraceBuilder {
     pub fn build(self) -> Trace {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
+        println!("Outputs {:?}", outputs);
         let locals = outputs
             .iter()
-            .map(|out| *self.locals.get(&out.0.id).unwrap())
+            .map(|out| *self.operations_output.get(&out.0.id).unwrap())
             .collect::<Vec<_>>();
 
         Trace::new(inputs, outputs, locals, self.scalars, self.scope)
@@ -129,7 +131,7 @@ impl TraceBuilder {
     fn input_descriptions(&self) -> Vec<(TensorDescription, gpu::Elem)> {
         self.inputs
             .iter()
-            .map(|input| {
+            .map(|(input, _local)| {
                 let updated_tensor = self.tensors.get(&input.id).unwrap();
                 updated_tensor.clone()
             })
@@ -147,7 +149,7 @@ impl TraceBuilder {
         let mark = |var: &gpu::Variable, list: &mut Vec<TensorId>| {
             if let gpu::Variable::Local(index, _, _) = var {
                 if let Some((id, _)) = self
-                    .locals
+                    .operations_output
                     .iter()
                     .find(|(_id, position)| *position == index)
                 {
@@ -179,12 +181,6 @@ impl TraceBuilder {
                         }
                         gpu::Operator::AssignLocal(op) => {
                             mark(&op.out, &mut local_tensor_ids_output);
-                        }
-                        gpu::Operator::ReadGlobalWithLayout(_) => {
-                            // Nothing to do here.
-                        }
-                        gpu::Operator::ReadGlobal(_) => {
-                            // Nothing to do here.
                         }
                         gpu::Operator::Add(op) => mark_binary(
                             op,
@@ -308,7 +304,16 @@ impl TraceBuilder {
                         ),
                     }
                 }
-                Operation::Algorithm(_) => {}
+                Operation::Algorithm(algo) => {
+                    match algo {
+                        gpu::Algorithm::ReadGlobalWithLayout(_) => {
+                            // Nothing to do here.
+                        }
+                        gpu::Algorithm::ReadGlobal(_) => {
+                            // Nothing to do here.
+                        }
+                    }
+                }
                 Operation::Metadata(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
@@ -333,7 +338,7 @@ impl TraceBuilder {
         for entry in self.tensors.values() {
             let (tensor, _) = &entry;
             if let burn_fusion::TensorStatus::ReadOnly = tensor.status {
-                if self.locals.contains_key(&tensor.id) {
+                if self.operations_output.contains_key(&tensor.id) {
                     outputs.push(entry.clone());
                 }
             }

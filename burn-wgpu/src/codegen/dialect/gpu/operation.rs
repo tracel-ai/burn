@@ -39,8 +39,6 @@ pub enum Operator {
     ConditionalAssign(ConditionalAssignOperator),
     AssignGlobal(UnaryOperator),
     AssignLocal(UnaryOperator),
-    ReadGlobal(ReadGlobalOperator),
-    ReadGlobalWithLayout(ReadGlobalWithLayoutOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
 }
@@ -48,12 +46,20 @@ pub enum Operator {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Algorithm {
     ReadGlobalWithLayout(ReadGlobalWithLayoutAlgo),
+    ReadGlobal(ReadGlobalAlgo),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalWithLayoutAlgo {
-    pub variable: Variable,
+    pub global: Variable,
     pub layout: Variable,
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadGlobalAlgo {
+    pub global: Variable,
+    pub out: Variable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

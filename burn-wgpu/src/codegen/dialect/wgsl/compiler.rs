@@ -3,7 +3,10 @@ use crate::{
     codegen::{
         compiler,
         dialect::{
-            gpu::{self, algorithm::generate_read_global_with_layout},
+            gpu::{
+                self,
+                algorithm::{generate_read_global, generate_read_global_with_layout},
+            },
             wgsl,
         },
     },
@@ -145,15 +148,16 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_scope(&self, value: &mut gpu::Scope) -> wgsl::Scope {
         let mut operations = Vec::new();
-        let (operations_gpu, variables) = value.process();
+        let processing = value.process();
 
-        for var in variables {
+        for var in processing.variables {
             operations.push(wgsl::Instruction::DeclareVariable {
                 var: Self::compile_variable(var),
             });
         }
 
-        operations_gpu
+        processing
+            .operations
             .into_iter()
             .for_each(|op| self.compile_operation(&mut operations, op, value));
 
@@ -186,6 +190,12 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         match algo {
             gpu::Algorithm::ReadGlobalWithLayout(algo) => {
                 generate_read_global_with_layout(scope, algo);
+                let compiled = self.compile_scope(scope).operators;
+
+                instructions.extend(compiled);
+            }
+            gpu::Algorithm::ReadGlobal(algo) => {
+                generate_read_global(scope, algo);
                 let compiled = self.compile_scope(scope).operators;
 
                 instructions.extend(compiled);
@@ -223,7 +233,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Metadata::Stride { dim, var, out } => {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize - 1,
+                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 println!("Stride position {position}");
@@ -236,7 +246,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Metadata::Shape { dim, var, out } => {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize - 1,
+                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a shape."),
                 };
                 wgsl::Instruction::Shape {
@@ -369,14 +379,6 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Operator::AssignLocal(op) => wgsl::Instruction::AssignLocal {
                 input: Self::compile_variable(op.input),
                 out: Self::compile_variable(op.out),
-            },
-            gpu::Operator::ReadGlobal(op) => wgsl::Instruction::ReadGlobal {
-                variable: Self::compile_variable(op.variable),
-            },
-            gpu::Operator::ReadGlobalWithLayout(op) => wgsl::Instruction::ReadGlobalWithLayout {
-                variable: Self::compile_variable(op.variable),
-                tensor_read_pos: op.tensor_read_pos,
-                tensor_layout_pos: op.tensor_layout_pos,
             },
         }
     }
