@@ -6,9 +6,9 @@ use crate::tensor::Tensor;
 
 /// Applies the Gaussian Error Linear Units function element-wise.
 #[derive(Module, Clone, Debug, Default)]
-pub struct GELU {}
+pub struct Gelu {}
 
-impl GELU {
+impl Gelu {
     /// Create the module.
     pub fn new() -> Self {
         Self {}
