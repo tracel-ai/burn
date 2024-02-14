@@ -59,7 +59,6 @@ impl Scope {
 
     pub fn write_global(&mut self, input: Variable, output: Variable) {
         if self.output_ref.is_none() {
-            println!("Write {output:?} = {input:?}");
             self.output_ref = Some(output.clone());
         }
         self.writes_global.push((input, output));
@@ -129,7 +128,6 @@ impl Scope {
                     let output = self.output_ref.clone().expect(
                         "Output should be set when processing an input with output layout.",
                     );
-                    println!("Layout {output:?}");
                     operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
                         ReadGlobalWithLayoutAlgo {
                             global: input,

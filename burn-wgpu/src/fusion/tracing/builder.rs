@@ -119,7 +119,6 @@ impl TraceBuilder {
     pub fn build(self) -> Trace {
         let inputs = self.input_descriptions();
         let outputs = self.output_descriptions();
-        println!("Outputs {:?}", outputs);
         let locals = outputs
             .iter()
             .map(|out| *self.operations_output.get(&out.0.id).unwrap())
