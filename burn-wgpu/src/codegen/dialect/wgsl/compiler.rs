@@ -57,26 +57,11 @@ impl<F: FloatElement, I: IntElement> compiler::Compiler for Compiler<F, I> {
 }
 
 impl<F: FloatElement, I: IntElement> Compiler<F, I> {
-    fn compile_shader(&mut self, value: gpu::ComputeShader) -> wgsl::ComputeShader {
+    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
-        let mut inputs = value
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(i, val)| wgsl::Instruction::DeclareVariable {
-                var: wgsl::Variable::Input(i as u16, Self::compile_item(val.item)),
-            })
-            .collect::<Vec<_>>();
 
-        let mut scope = value.body;
-
-        let mut body = self.compile_scope(&mut scope);
-        let mut temp = Vec::new();
-        core::mem::swap(&mut temp, &mut body.operators);
-        inputs.extend(temp);
-        body.operators = inputs;
-
+        let body = self.compile_scope(&mut value.body);
         let extensions = register_extensions(&body);
 
         wgsl::ComputeShader {
@@ -227,16 +212,12 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_metadata(&self, metadata: gpu::Metadata) -> wgsl::Instruction {
         match metadata {
-            gpu::Metadata::Rank { out } => wgsl::Instruction::Rank {
-                out: Self::compile_variable(out),
-            },
             gpu::Metadata::Stride { dim, var, out } => {
                 let position = match var {
                     gpu::Variable::Input(idx, _) => idx as usize,
                     gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
-                println!("Stride position {position}");
                 wgsl::Instruction::Stride {
                     dim: Self::compile_variable(dim),
                     position,

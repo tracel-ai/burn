@@ -26,7 +26,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
 
     let index_type = Item::Scalar(Elem::UInt);
     let index_local = scope.create_local(index_type);
-    let start = Variable::Constant(1.0, index_type);
+    let start = Variable::Constant(0.0, index_type);
 
     scope.register(Operator::AssignLocal(UnaryOperator {
         input: Variable::Constant(0.0, index_type),
@@ -80,11 +80,9 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         }));
         scope.register(Operator::Mul(BinaryOperator {
             lhs: tmp.clone(),
-            rhs: stride_layout.clone(),
+            rhs: stride.clone(),
             out: tmp.clone(),
         }));
-
-        // +=
         scope.register(Operator::Add(BinaryOperator {
             lhs: index_local.clone(),
             rhs: tmp.clone(),

@@ -69,9 +69,6 @@ pub enum Loop {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
-    Rank {
-        out: Variable,
-    },
     Stride {
         dim: Variable,
         var: Variable,

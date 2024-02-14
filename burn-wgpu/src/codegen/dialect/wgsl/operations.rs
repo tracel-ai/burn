@@ -160,12 +160,13 @@ impl Display for Instruction {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
             Instruction::Index { lhs, rhs, out } => {
+                let item = out.item();
                 let lhs = match lhs {
                     Variable::Input(index, _) => format!("input_{index}_global"),
                     Variable::Output(index, _) => format!("output_{index}_global"),
                     _ => format!("{lhs}"),
                 };
-                f.write_fmt(format_args!("{out} = {lhs}[{rhs}];\n"))
+                f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
             }
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
@@ -257,7 +258,8 @@ impl Display for Instruction {
                 }
             }
             Instruction::AssignLocal { input, out } => {
-                f.write_fmt(format_args!("{out} = {input};\n"))
+                let item = out.item();
+                f.write_fmt(format_args!("{out} = {item}({input});\n"))
             }
             Instruction::ConditionalAssign {
                 cond,
@@ -365,10 +367,10 @@ if {cond} {{
             }
             Instruction::Rank { out } => f.write_fmt(format_args!("{out} = info[0];\n")),
             Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[({position}u * (2u * rank)) + {dim}];\n"
+                "{out} = info[({position}u * (2u * rank)) + {dim} + 1u];\n"
             )),
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[({position}u * (2u * rank))  + rank + {dim}];\n"
+                "{out} = info[({position}u * (2u * rank)) + rank + {dim} + 1u];\n"
             )),
             Instruction::RangeLoop {
                 i,
@@ -378,7 +380,7 @@ if {cond} {{
             } => {
                 f.write_fmt(format_args!(
                     "
-for (var {i}: u32 = {start}; {i} <= {end}; {i}++) {{
+for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
 "
                 ))?;
                 for instruction in instructions {
