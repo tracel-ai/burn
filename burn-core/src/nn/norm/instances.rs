@@ -66,15 +66,40 @@ impl InstanceNormConfig {
 
 impl<B: Backend> InstanceNorm<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let mean = input.mean(&[-1], true);
-        let variance = input.var(&[-1], true);
-        let mut output = (input - mean) / variance.sqrt();
-        if let Some(gamma) = &self.gamma {
-            output *= gamma.value();
+        let shape = input.shape();
+        let rank = shape.num_elements();
+        if D < 1 {
+            panic!("D of InstanceNorm should be at least 1, but got {}", rank);
         }
-        if let Some(beta) = &self.beta {
-            output += beta.value();
+        if !(rank == D + 1 || rank == D + 2) {
+            panic!(
+                "input rank for InstanceNorm should be either D+1 or D+2, but got {}",
+                rank
+            );
         }
-        output
+
+        let batch_size = shape.dims[0];
+        let num_channels = shape.dims[1];
+
+        let hidden_size = shape.dims[2..].iter().product::<usize>();
+        let input = input.reshape([batch_size, num_channels, hidden_size]);
+
+        let mean = input.clone().sum_dim(2) / hidden_size as f64;
+        let input = input.sub(mean);
+
+        let var = input.clone().powf_scalar(2.).sum_dim(2) / hidden_size as f64;
+        let input_normalized = input.div(var.sqrt().add_scalar(self.epsilon));
+
+        if self.affine {
+            let mut affine_shape = [1; D];
+            affine_shape[1] = num_channels;
+
+            input_normalized
+                .reshape(shape)
+                .mul(self.gamma.clone().unwrap().val().reshape(affine_shape))
+                .add(self.beta.clone().unwrap().val().reshape(affine_shape))
+        } else {
+            input_normalized.reshape(shape)
+        }
     }
 }
