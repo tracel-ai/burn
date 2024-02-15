@@ -19,6 +19,10 @@ pub mod transform;
 #[cfg(feature = "audio")]
 pub mod audio;
 
+/// Vision datasets.
+#[cfg(feature = "vision")]
+pub mod vision;
+
 mod dataset;
 pub use dataset::*;
 #[cfg(any(feature = "sqlite", feature = "sqlite-bundled"))]

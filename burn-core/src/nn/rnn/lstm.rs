@@ -224,7 +224,10 @@ impl<B: Backend> Lstm<B> {
 mod tests {
     use super::*;
     use crate::{module::Param, nn::LinearRecord, TestBackend};
-    use burn_tensor::{Data, Distribution};
+    use burn_tensor::{Data, Distribution, Shape};
+
+    #[cfg(feature = "std")]
+    use crate::TestAutodiffBackend;
 
     #[test]
     fn test_with_uniform_initializer() {
@@ -352,5 +355,29 @@ mod tests {
 
         assert_eq!(cell_state.shape().dims, [8, 10, 1024]);
         assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_batched_backward_pass() {
+        let device = Default::default();
+        let lstm = LstmConfig::new(64, 32, true).init(&device);
+        let shape: Shape<3> = [8, 10, 64].into();
+        let batched_input =
+            Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
+
+        let (cell_state, hidden_state) = lstm.forward(batched_input.clone(), None);
+        let fake_loss = cell_state + hidden_state;
+        let grads = fake_loss.backward();
+
+        let some_gradient = lstm
+            .output_gate
+            .hidden_transform
+            .weight
+            .grad(&grads)
+            .unwrap();
+
+        // Asserts the gradients exist and are non zero
+        assert!(*some_gradient.abs().sum().into_data().value.first().unwrap() > 0.);
     }
 }

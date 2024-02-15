@@ -1,7 +1,8 @@
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
+    Runtime,
 };
 use burn_tensor::Shape;
 
@@ -9,148 +10,164 @@ use burn_tensor::Shape;
 #[macro_export]
 macro_rules! binary {
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
+        runtime: $runtime:ty,
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operator: $ops, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
 
-        $crate::kernel::binary::<Ops<$elem, $elem>, OpsInplaceLhs<$elem, $elem>, OpsInplaceRhs<$elem, $elem>, $elem, D>(
-            $lhs, $rhs, true
-        )
+        $crate::kernel::binary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceLhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            OpsInplaceRhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($lhs, $rhs, true)
     }};
 
     (
-        operator: $ops:expr,
+        operation: $ops:expr,
+        compiler: $compiler:ty,
         elem_in: $elem_in:ty,
         elem_out: $elem_out:ty
     ) => {
-        pub struct Ops<I, O> {
+        pub struct Ops<C, I, O> {
+            _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
         }
-        pub struct OpsInplaceLhs<I, O> {
+        pub struct OpsInplaceLhs<C, I, O> {
+            _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
         }
-        pub struct OpsInplaceRhs<I, O> {
+        pub struct OpsInplaceRhs<C, I, O> {
+            _c: core::marker::PhantomData<C>,
             _i: core::marker::PhantomData<I>,
             _o: core::marker::PhantomData<O>,
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<I, O> $crate::kernel::StaticKernelSource for Ops<I, O>
+        impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
         where
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            C: $crate::codegen::Compiler,
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
-                    .body(&[$ops(I::elem_type())])
+                    .body(&[$ops(I::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::Item::Scalar(O::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                         local: 0,
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = C::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<I, O> $crate::kernel::StaticKernelSource
-            for OpsInplaceLhs<I, O>
+        impl<C, I, O> $crate::kernel::StaticKernelSource
+            for OpsInplaceLhs<C, I, O>
         where
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            C: $crate::codegen::Compiler,
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::ReadWrite,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                     ])
-                    .body(&[$ops(I::elem_type())])
+                    .body(&[$ops(I::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::Item::Scalar(I::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                         input: 0,
                         local: 0,
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = C::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
 
         #[allow(clippy::redundant_closure_call)]
-        impl<I, O> $crate::kernel::StaticKernelSource
-            for OpsInplaceRhs<I, O>
+        impl<C, I, O> $crate::kernel::StaticKernelSource
+            for OpsInplaceRhs<C, I, O>
         where
-            I: $crate::element::WgpuElement,
-            O: $crate::element::WgpuElement
+            C: $crate::codegen::Compiler,
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let shader = $crate::codegen::ElemWiseKernelCodegen::new()
                     .inputs(&[
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::Read,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
                             strategy: $crate::codegen::ReadingStrategy::OutputLayout,
                         },
                         $crate::codegen::Input::Array {
-                            item: $crate::codegen::Item::Scalar(I::elem_type()),
-                            visibility: $crate::codegen::Visibility::ReadWrite,
+                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
                             strategy: $crate::codegen::ReadingStrategy::Plain,
                         },
                     ])
-                    .body(&[$ops(I::elem_type())])
+                    .body(&[$ops(I::gpu_elem())])
                     .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::Item::Scalar(I::elem_type()),
+                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                         input: 1,
                         local: 0,
                     }])
                     .compile();
 
-                $crate::kernel::SourceTemplate::new(shader.to_string())
+                let compiled = C::compile(shader);
+                $crate::kernel::SourceTemplate::new(compiled.to_string())
             }
         }
     };
 }
 
 /// Launch an binary operation.
-pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, E, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
+pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
     inplace_enabled: bool,
-) -> WgpuTensor<E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: crate::kernel::StaticKernelSource,
     KernelInplaceLhs: crate::kernel::StaticKernelSource,
     KernelInplaceRhs: crate::kernel::StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<KernelInplaceLhs, E>(
+        execute_static::<R, KernelInplaceLhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -163,7 +180,7 @@ where
 
         lhs
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<KernelInplaceRhs, E>(
+        execute_static::<R, KernelInplaceRhs, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -189,9 +206,9 @@ where
         let shape_out = Shape::new(shape_out);
         let num_elems = shape_out.num_elements();
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let out = WgpuTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
 
-        execute_static::<Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[
                 StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
                 StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),

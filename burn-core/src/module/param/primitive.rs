@@ -197,3 +197,73 @@ where
         self.map(|module| module.valid())
     }
 }
+
+/// A macro for generating implementations for tuple modules of different sizes.
+/// For example: `impl_module_tuple!([L0, L1][0, 1])`.
+/// Would generate an implementation for a tuple of size 2.
+/// For this macro to work properly, please adhear to the convention:
+/// `impl_module_tuple!([L0, L1, ..., Ln][0, 1, ..., n])`.
+macro_rules! impl_module_tuple {
+    // `$l` represents the generic modules.
+    // `$i` represents the indices of the modules in the tuple.
+    ([$($l:ident),*][$($i:tt),*]) => {
+        impl<B, $($l,)*> Module<B> for ($($l,)*)
+        where
+            B: Backend,
+            $($l: Module<B> + Debug + Send + Sync + Clone,)*
+        {
+            type Record = ($($l::Record),*);
+
+            fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+                $(devices = self.$i.collect_devices(devices);)*
+                devices
+            }
+
+            fn fork(self, device: &<B as Backend>::Device) -> Self {
+                ($(self.$i.fork(device),)*)
+            }
+
+            fn to_device(self, device: &<B as Backend>::Device) -> Self {
+                ($(self.$i.to_device(device),)*)
+            }
+
+            fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+                $(self.$i.visit(visitor);)*
+            }
+
+            fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+                ($(self.$i.map(mapper),)*)
+            }
+
+            fn load_record(self, record: Self::Record) -> Self {
+                ($(self.$i.load_record(record.$i),)*)
+            }
+
+            fn into_record(self) -> Self::Record {
+                ($(self.$i.into_record(),)*)
+            }
+        }
+
+        impl<B, $($l,)*> AutodiffModule<B> for ($($l,)*)
+        where
+            B: AutodiffBackend,
+            $($l: AutodiffModule<B> + Debug + Send + Sync + Clone,)*
+        {
+            type InnerModule = ($($l::InnerModule,)*);
+
+            fn valid(&self) -> Self::InnerModule {
+                ($(self.$i.valid(),)*)
+            }
+        }
+    };
+}
+
+impl_module_tuple!([L0, L1][0, 1]);
+impl_module_tuple!([L0, L1, L2][0, 1, 2]);
+impl_module_tuple!([L0, L1, L2, L3][0, 1, 2, 3]);
+impl_module_tuple!([L0, L1, L2, L3, L4][0, 1, 2, 3, 4]);
+impl_module_tuple!([L0, L1, L2, L3, L4, L5][0, 1, 2, 3, 4, 5]);
+impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6][0, 1, 2, 3, 4, 5, 6]);
+impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7][0, 1, 2, 3, 4, 5, 6, 7]);
+impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
+impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8, L9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);

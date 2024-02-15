@@ -81,7 +81,7 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
 
     fn bool_into_float<const D: usize>(
         tensor: BoolTensor<B, D>,
-    ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
         AutodiffTensor::new(B::bool_into_float(tensor))
     }
 

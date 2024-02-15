@@ -10,7 +10,7 @@ use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
 use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
     config::Config,
-    data::{dataloader::DataLoaderBuilder, dataset::source::huggingface::MNISTDataset},
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MNISTDataset},
     tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, LossMetric},

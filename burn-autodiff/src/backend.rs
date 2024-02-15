@@ -17,7 +17,7 @@ impl<B: Backend> Backend for Autodiff<B> {
     type FullPrecisionElem = B::FullPrecisionElem;
     type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
 
-    type TensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
+    type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
     type FloatElem = B::FloatElem;
 
     type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
@@ -53,28 +53,28 @@ impl<B: Backend> AutodiffBackend for Autodiff<B> {
     fn grad<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
         grads: &Gradients,
-    ) -> Option<B::TensorPrimitive<D>> {
+    ) -> Option<B::FloatTensorPrimitive<D>> {
         grads.get(tensor)
     }
 
     fn grad_remove<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
         grads: &mut Gradients,
-    ) -> Option<B::TensorPrimitive<D>> {
+    ) -> Option<B::FloatTensorPrimitive<D>> {
         grads.remove(tensor)
     }
-    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::TensorPrimitive<D> {
+    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::FloatTensorPrimitive<D> {
         tensor.primitive
     }
 
-    fn from_inner<const D: usize>(tensor: B::TensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    fn from_inner<const D: usize>(tensor: B::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
         AutodiffTensor::new(tensor)
     }
 
     fn grad_replace<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
         grads: &mut Self::Gradients,
-        grad: B::TensorPrimitive<D>,
+        grad: B::FloatTensorPrimitive<D>,
     ) {
         grads.remove(tensor);
         grads.register::<B, D>(tensor.node.clone(), grad);

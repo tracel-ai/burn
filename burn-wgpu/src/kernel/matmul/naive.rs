@@ -1,9 +1,10 @@
 use crate::{
     compute::{StaticKernel, WorkGroup},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, into_contiguous, KernelSettings, SourceTemplate, StaticKernelSource},
     kernel_wgsl,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 
 kernel_wgsl!(MatmulNaiveRaw, "../../template/matmul/naive.wgsl");
@@ -21,25 +22,26 @@ impl<const WORKGROUP_SIZE_X: usize, const WORKGROUP_SIZE_Y: usize> StaticKernelS
 }
 
 /// Matrix multiplication using naive algorithm with workgroups of size 16
-pub fn matmul_naive_default<E: WgpuElement, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
-    matmul_naive::<E, D, 16, 16>(lhs, rhs, output)
+pub fn matmul_naive_default<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
+    matmul_naive::<R, E, D, 16, 16>(lhs, rhs, output)
 }
 
 /// Matrix multiplication using naive algorithm with custom workgroup sizes
 pub fn matmul_naive<
-    E: WgpuElement,
+    R: Runtime,
+    E: JitElement,
     const D: usize,
     const WORKGROUP_SIZE_X: usize,
     const WORKGROUP_SIZE_Y: usize,
 >(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     lhs.assert_is_on_same_device(&rhs);
 
     let lhs = into_contiguous(lhs);
@@ -83,7 +85,10 @@ pub fn matmul_naive<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims};
+    use crate::{
+        kernel::matmul::utils::tests::{same_as_reference, same_as_reference_swapped_dims},
+        tests::TestRuntime,
+    };
 
     #[test]
     pub fn test_matmul_naive_straightforward() {
@@ -137,7 +142,7 @@ mod tests {
         batch_1: usize,
         batch_2: usize,
     ) {
-        let func = matmul_naive::<f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>;
+        let func = matmul_naive::<TestRuntime, f32, 4, WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y>;
         let shape_lhs = [batch_1, batch_2, m, k];
         let shape_rhs = [batch_1, batch_2, k, n];
         same_as_reference(func, shape_lhs, shape_rhs);
@@ -145,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_batches_no_padding() {
-        let matmul_func = matmul_naive::<f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestRuntime, f32, 4, 2, 2>;
         let swap = [0, 1];
         let shape_lhs = [3, 2, 4, 4];
         let shape_rhs = [3, 2, 4, 4];
@@ -154,7 +159,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_col_no_padding() {
-        let matmul_func = matmul_naive::<f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestRuntime, f32, 4, 2, 2>;
         let swap_lhs = [0, 0];
         let swap_rhs = [2, 3];
         let shape_lhs = [3, 2, 4, 4];
@@ -164,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_matmul_naive_swapped_row_with_batch_no_padding() {
-        let matmul_func = matmul_naive::<f32, 4, 2, 2>;
+        let matmul_func = matmul_naive::<TestRuntime, f32, 4, 2, 2>;
         let swap_lhs = [0, 3];
         let swap_rhs = [0, 2];
         let shape_lhs = [4, 4, 4, 4];

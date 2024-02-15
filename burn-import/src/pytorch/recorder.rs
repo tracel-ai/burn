@@ -110,7 +110,7 @@ impl LoadArgs {
     /// [Replacement](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) for the
     /// replacement syntax.
     pub fn with_key_remap(mut self, pattern: &str, replacement: &str) -> Self {
-        let regex = Regex::new(&format!("^{}$", pattern)).unwrap();
+        let regex = Regex::new(pattern).expect("Valid regex");
 
         self.key_remap.push((regex, replacement.into()));
         self

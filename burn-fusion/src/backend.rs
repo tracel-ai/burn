@@ -26,7 +26,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type FullPrecisionBackend = Self;
     type FullPrecisionElem = B::FloatElem;
 
-    type TensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
     type FloatElem = B::FloatElem;
 
@@ -152,11 +152,11 @@ pub trait FusionBackend: Backend {
     fn optimizations(device: Device<Self>)
         -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
 
-    /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::TensorPrimitive).
+    /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
     fn float_tensor<const D: usize>(
         handle: Self::Handle,
         shape: Shape<D>,
-    ) -> Self::TensorPrimitive<D>;
+    ) -> Self::FloatTensorPrimitive<D>;
     /// Convert a [handle](FusionBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
     fn int_tensor<const D: usize>(
         handle: Self::Handle,
@@ -168,8 +168,8 @@ pub trait FusionBackend: Backend {
         shape: Shape<D>,
     ) -> Self::BoolTensorPrimitive<D>;
 
-    /// Convert a [float tensor](Backend::TensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn float_tensor_handle<const D: usize>(tensor: Self::TensorPrimitive<D>) -> Self::Handle;
+    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](FusionBackend::Handle).
+    fn float_tensor_handle<const D: usize>(tensor: Self::FloatTensorPrimitive<D>) -> Self::Handle;
     /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](FusionBackend::Handle).
     fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](FusionBackend::Handle).

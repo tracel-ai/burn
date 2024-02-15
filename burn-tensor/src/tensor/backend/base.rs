@@ -50,7 +50,7 @@ use crate::tensor::Element;
 /// Most of the documentation for each function can be found on the user API [tensor struct](crate::Tensor).
 /// For modules, public functions are often created, which can be used by `burn-core` modules.
 pub trait Backend:
-    TensorOps<Self>
+    FloatTensorOps<Self>
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
     + ModuleOps<Self>
@@ -72,7 +72,7 @@ pub trait Backend:
     type FullPrecisionElem: Element;
 
     /// Tensor primitive to be used for all float operations.
-    type TensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 

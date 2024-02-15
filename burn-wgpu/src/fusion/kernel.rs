@@ -1,18 +1,54 @@
-use crate::compute::{compute_client, Kernel};
+use crate::compute::Kernel;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::WgpuFusionHandle;
-use crate::{FloatElement, GraphicsApi, IntElement, Wgpu};
+use crate::JitBackend;
+use crate::Runtime;
+use burn_compute::client::ComputeClient;
+use burn_compute::server::Handle;
+use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
-use burn_fusion::TensorDescription;
+use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
+use std::sync::Arc;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
 ///
-/// This type makes it easy to group those potential kernels and execute the best one depending on
-/// the context.
+/// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
-pub struct FusionKernelSet {
-    kernels: Vec<Box<dyn FusionKernel>>,
+pub struct FusionKernelSet<R: Runtime> {
+    kernels: Vec<Box<dyn FusionKernel<R>>>,
+}
+
+/// An instantiation of a [kernel](Kernel) that can be executed.
+#[derive(new)]
+pub struct ExecutableKernel<R: Runtime> {
+    kernel: Box<dyn Kernel>,
+    handles: Vec<Handle<R::Server>>,
+    client: ComputeClient<R::Server, R::Channel>,
+}
+
+/// An instantiation of a [kernel](Kernel) that can be autotuned.
+///
+/// The main difference with an [executable kernel](ExecutableKernel) is that this kernel can be
+/// cloned and executed multiple times to properly collect benchmarks.
+///
+/// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
+#[derive(new)]
+pub struct AutotunableKernel<R: Runtime> {
+    kernel: Arc<dyn Kernel>,
+    handles: Vec<Handle<R::Server>>,
+    client: ComputeClient<R::Server, R::Channel>,
+}
+
+/// A selected kernel encapsulates a kernel that should be executed with the provided
+/// [output info](OutputInfo).
+///
+/// It isn't ready for execution yet but should provide all information necessary to
+/// a [kernel set](FusionKernelSet) to create an [executable kernel](ExecutableKernel).
+#[derive(new)]
+pub struct SelectedKernel {
+    kernel: Box<dyn Kernel>,
+    info: Vec<OutputInfo>,
 }
 
 /// The priority of a kernel.
@@ -23,50 +59,80 @@ pub enum Priority {
     Unavailable,
 }
 
-#[derive(new)]
-pub struct SelectedKernel {
-    kernel: Box<dyn Kernel>,
-    info: Vec<OutputInfo>,
-}
-
 // Information related to the output of this kernel.
 pub enum OutputInfo {
     Inplace { input_index: usize },
     Array { size: usize },
 }
 
-pub trait FusionKernel: Send + Sync {
+impl<R: Runtime> ExecutableKernel<R> {
+    /// Execute the kernel.
+    pub fn execute(self) {
+        self.client
+            .execute(self.kernel, &self.handles.iter().collect::<Vec<_>>())
+    }
+}
+
+impl<R: Runtime> AutotuneOperation for AutotunableKernel<R> {
+    fn execute(self: Box<Self>) {
+        self.client.execute(
+            Box::new(self.kernel),
+            &self.handles.iter().collect::<Vec<_>>(),
+        )
+    }
+
+    fn clone(&self) -> Box<dyn AutotuneOperation> {
+        Box::new(Self {
+            kernel: self.kernel.clone(),
+            handles: self.handles.iter().map(Clone::clone).collect(),
+            client: self.client.clone(),
+        })
+    }
+}
+
+impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
+    fn from(value: ExecutableKernel<R>) -> Self {
+        Self {
+            kernel: Arc::new(value.kernel),
+            handles: value.handles,
+            client: value.client,
+        }
+    }
+}
+
+pub trait FusionKernel<R: Runtime>: Send + Sync {
     /// Returns the priority of this kernel based on the input and output information.
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> Priority;
     /// Returns a [selected kernel](SelectedKernel) that can be executed by the compute server.
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel;
 }
 
-impl FusionKernelSet {
-    /// Execute the best kernel based on the given information.
-    pub fn execute<G: GraphicsApi, F: FloatElement, I: IntElement>(
+impl<R: Runtime> FusionKernelSet<R> {
+    /// Select the best kernel based on the given information.
+    #[allow(clippy::too_many_arguments)]
+    pub fn select(
         &self,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
         scalars_f32: usize,
         scalars_i32: usize,
-        context: &mut Context<'_, Wgpu<G, F, I>>,
-        device: Device<Wgpu<G, F, I>>,
-    ) {
-        let client = compute_client::<G>(&device);
-
+        context: &mut Context<'_, JitBackend<R>>,
+        device: Device<JitBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
+        stateful: bool,
+    ) -> ExecutableKernel<R> {
         let (handles_input, inputs_description_updated, outputs_description_updated) =
-            process_inputs_outputs(inputs, outputs, context);
+            process_inputs_outputs(inputs, outputs, context, stateful);
 
         let selected = self.select_kernel(
             &handles_input,
@@ -151,13 +217,12 @@ impl FusionKernelSet {
             context.handles.register_handle(id, handle);
         }
 
-        // Execute the kernel.
-        client.execute(selected.kernel, &handles.iter().collect::<Vec<_>>());
+        ExecutableKernel::new(selected.kernel, handles, client)
     }
 
     fn select_kernel(
         &self,
-        handles_input: &[WgpuFusionHandle],
+        handles_input: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -181,10 +246,10 @@ impl FusionKernelSet {
     }
 }
 
-fn register_info_tensor(
+fn register_info_tensor<R: Runtime>(
     info: &mut Vec<u32>,
     tensor: &TensorDescription,
-    handle: &WgpuFusionHandle,
+    handle: &WgpuFusionHandle<R>,
 ) {
     if info.is_empty() {
         info.push(handle.strides.len() as u32);
@@ -198,12 +263,13 @@ fn register_info_tensor(
     }
 }
 
-pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement>(
+fn process_inputs_outputs<'a, R: Runtime>(
     inputs: &[&TensorDescription],
     outputs: &[&TensorDescription],
-    context: &'a mut Context<'_, Wgpu<G, F, I>>,
+    context: &'a mut Context<'_, JitBackend<R>>,
+    stateful: bool,
 ) -> (
-    Vec<WgpuFusionHandle>,
+    Vec<WgpuFusionHandle<R>>,
     Vec<&'a TensorDescription>,
     Vec<&'a TensorDescription>,
 ) {
@@ -212,9 +278,14 @@ pub fn process_inputs_outputs<'a, G: GraphicsApi, F: FloatElement, I: IntElement
     let mut handles_input = Vec::new();
 
     for tensor in inputs.iter() {
-        let status = &tensor.status; // Important to take the status of the relative graph and not
-                                     // the global graph, since the status of the global graph
-                                     // might be of a later operation on the same tensor id.
+        let status = if stateful {
+            &tensor.status // Important to take the status of the relative graph and not
+                           // the global graph, since the status of the global graph
+                           // might be of a later operation on the same tensor id.
+        } else {
+            &TensorStatus::ReadOnly
+        };
+
         let tensor = context.tensors.get(&tensor.id).unwrap();
         let handle = context.handles.get_handle(&tensor.id, status);
 

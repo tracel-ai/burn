@@ -3,7 +3,7 @@ use std::env::args;
 use burn::backend::ndarray::NdArray;
 use burn::tensor::Tensor;
 
-use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::vision::MNISTDataset;
 use burn::data::dataset::Dataset;
 
 use onnx_inference::mnist::Model;
@@ -49,7 +49,7 @@ fn main() {
     let output = model.forward(input);
 
     // Get the index of the maximum value
-    let arg_max = output.argmax(1).into_scalar() as usize;
+    let arg_max = output.argmax(1).into_scalar() as u8;
 
     // Check if the index matches the label
     assert!(arg_max == item.label);

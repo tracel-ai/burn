@@ -51,7 +51,16 @@ pub trait AutotuneOperation {
 #[cfg(feature = "autotune-persistent-cache")]
 /// Trait alias with support for persistent caching
 pub trait AutotuneKey:
-    Clone + Debug + PartialEq + Eq + Hash + Display + serde::Serialize + serde::de::DeserializeOwned
+    Clone
+    + Debug
+    + PartialEq
+    + Eq
+    + Hash
+    + Display
+    + serde::Serialize
+    + serde::de::DeserializeOwned
+    + Send
+    + Sync
 {
 }
 #[cfg(not(feature = "autotune-persistent-cache"))]

@@ -6,10 +6,14 @@ use burn::backend::autodiff::{
     ops::{broadcast_shape, Backward, Ops, OpsKind},
     Autodiff,
 };
-use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, Wgpu};
+use burn::backend::wgpu::compute::WgpuRuntime;
+use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend};
 use burn::tensor::Shape;
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<Wgpu<G, F, I>> {}
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
+    for Autodiff<JitBackend<WgpuRuntime<G, F, I>>>
+{
+}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //
@@ -51,8 +55,8 @@ impl<B: Backend> Backend for Autodiff<B> {
                 let (lhs, rhs, output, shape_bias) = ops.state;
 
                 // Fetch shapes of our tensor to support broadcasting.
-                let shape_lhs = B::shape(&lhs);
-                let shape_rhs = B::shape(&rhs);
+                let shape_lhs = B::float_shape(&lhs);
+                let shape_rhs = B::float_shape(&rhs);
 
                 // Compute the gradient of the output using the already existing `relu_backward`
                 // function in the basic Burn backend trait.
@@ -61,13 +65,13 @@ impl<B: Backend> Backend for Autodiff<B> {
                 // Compute the lhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
                 let grad_lhs = broadcast_shape::<B, D>(
-                    B::matmul(grad_output.clone(), B::transpose(rhs)),
+                    B::float_matmul(grad_output.clone(), B::float_transpose(rhs)),
                     &shape_lhs,
                 );
                 // Compute the rhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
                 let grad_rhs = broadcast_shape::<B, D>(
-                    B::matmul(B::transpose(lhs), grad_output.clone()),
+                    B::float_matmul(B::float_transpose(lhs), grad_output.clone()),
                     &shape_rhs,
                 );
                 // The add derivative is only 1, so we just need to support broadcasting to
@@ -101,7 +105,7 @@ impl<B: Backend> Backend for Autodiff<B> {
             OpsKind::Tracked(prep) => {
                 // When at least one node is tracked, we should register our backward step.
                 // We compute the output and the state before finishing the preparation.
-                let bias_shape = B::shape(&bias.primitive);
+                let bias_shape = B::float_shape(&bias.primitive);
                 let output = B::fused_matmul_add_relu(
                     lhs.primitive.clone(),
                     rhs.primitive.clone(),

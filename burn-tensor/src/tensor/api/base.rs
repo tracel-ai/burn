@@ -304,6 +304,77 @@ where
         self.reshape(shape)
     }
 
+    /// Creates a new tensor with added dimensions of size one inserted at the specified indices.
+    /// The indices can be negative, in which case they are counted from the last to the first dimension.
+    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index is the number of duplicates.
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([3, 4, 5]), &device);
+    ///     let tensor: Tensor<B, 6> = tensor.unsqueeze_dims(&[0, -1, -1]);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 3, 4, 5, 1, 1] }
+    /// }
+    /// ```
+    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[isize]) -> Tensor<B, D2, K> {
+        let mut new_dims = [1; D2];
+        let old_dims = self.shape().dims;
+        //for checking if the dimension is in the acceptable range
+
+        //part 1: convert the negative indices to positive
+        let mut dim_indices = axes
+            .iter()
+            .map(|d| {
+                // check if the dimension is in the acceptable range
+                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
+                (if *d < 0 { d + D2 as isize } else { *d }) as usize
+            })
+            .collect::<Vec<usize>>();
+
+        //sort the indices
+        dim_indices.sort_unstable();
+
+        //Now use this to copy the chunks of the dims
+        let mut prev_idx: usize = 0;
+        let mut current_left_b: usize = 0;
+        let mut current_right_b: usize = 0;
+        let mut offset: usize = 0;
+        dim_indices.iter().for_each(|d| {
+            //check if there is space for at least one dimension
+            if prev_idx < *d {
+                current_right_b = *d - offset;
+                //copy the chunks of the dims
+                if current_right_b < D {
+                    new_dims[prev_idx..*d]
+                        .copy_from_slice(&old_dims[current_left_b..current_right_b]);
+                } else {
+                    new_dims[prev_idx..*d].copy_from_slice(&old_dims[current_left_b..]);
+                }
+                prev_idx = *d + 1;
+                //offset is equal to the number of extracted elements from the original shape
+                offset += current_right_b - current_left_b;
+                current_left_b = current_right_b;
+            } else {
+                //it's sorted so the only reason this would happen
+                //is if multiple indices are the same
+                prev_idx += 1;
+            }
+        });
+        //copy over anything past the index of the last new dimension
+        if current_left_b < D {
+            new_dims[prev_idx..].copy_from_slice(&old_dims[current_left_b..]);
+        }
+
+        //lastly, create the shape and reshape
+        let shape = Shape::new(new_dims);
+        self.reshape(shape)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics
@@ -1139,21 +1210,21 @@ impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
     fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
-        B::empty(shape, device)
+        B::float_empty(shape, device)
     }
     fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
-        B::shape(tensor)
+        B::float_shape(tensor)
     }
 
     fn reshape<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         shape: Shape<D2>,
     ) -> Self::Primitive<D2> {
-        B::reshape(tensor, shape)
+        B::float_reshape(tensor, shape)
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        B::transpose(tensor)
+        B::float_transpose(tensor)
     }
 
     fn swap_dims<const D: usize>(
@@ -1162,14 +1233,14 @@ impl<B: Backend> BasicOps<B> for Float {
         dim2: usize,
     ) -> Self::Primitive<D> {
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        B::swap_dims(tensor, dim1, dim2)
+        B::float_swap_dims(tensor, dim1, dim2)
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        B::slice(tensor, ranges)
+        B::float_slice(tensor, ranges)
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -1177,29 +1248,29 @@ impl<B: Backend> BasicOps<B> for Float {
         ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        B::slice_assign(tensor, ranges, value)
+        B::float_slice_assign(tensor, ranges, value)
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
-        B::device(tensor)
+        B::float_device(tensor)
     }
 
     fn to_device<const D: usize>(
         tensor: Self::Primitive<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::to_device(tensor, device)
+        B::float_to_device(tensor, device)
     }
 
     fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::into_data(tensor)
+        B::float_into_data(tensor)
     }
 
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
-        B::from_data(data, device)
+        B::float_from_data(data, device)
     }
 
     fn repeat<const D: usize>(
@@ -1207,18 +1278,18 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        B::repeat(tensor, dim, times)
+        B::float_repeat(tensor, dim, times)
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        B::cat(vectors, dim)
+        B::float_cat(vectors, dim)
     }
 
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::equal(lhs, rhs))
+        Tensor::new(B::float_equal(lhs, rhs))
     }
 }
 

@@ -44,8 +44,8 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
     func_rhs: FRhs,
 ) where
     B: Backend,
-    FLhs: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_LHS>,
-    FRhs: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_RHS>,
+    FLhs: FnOnce(B::FloatTensorPrimitive<D_OUT>) -> B::FloatTensorPrimitive<D_LHS>,
+    FRhs: FnOnce(B::FloatTensorPrimitive<D_OUT>) -> B::FloatTensorPrimitive<D_RHS>,
 {
     let [grad_4lhs, grad_4rhs] = duplicate(&parents, Some(grads.consume::<B, D_OUT>(&node)));
     let [node_lhs, node_rhs] = parents;
@@ -69,7 +69,7 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
     func: F,
 ) where
     B: Backend,
-    F: FnOnce(B::TensorPrimitive<D_OUT>) -> B::TensorPrimitive<D_IN>,
+    F: FnOnce(B::FloatTensorPrimitive<D_OUT>) -> B::FloatTensorPrimitive<D_IN>,
 {
     let [parent_node] = parents;
     let grad = grads.consume::<B, D_OUT>(&node);
@@ -90,7 +90,7 @@ pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize,
 ) where
     BIn: Backend,
     BOut: Backend,
-    F: FnOnce(BOut::TensorPrimitive<D_OUT>) -> BIn::TensorPrimitive<D_IN>,
+    F: FnOnce(BOut::FloatTensorPrimitive<D_OUT>) -> BIn::FloatTensorPrimitive<D_IN>,
 {
     let [parent_node] = parents;
     let grad = grads.consume::<BOut, D_OUT>(&node);

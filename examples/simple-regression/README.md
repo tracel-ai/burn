@@ -7,6 +7,11 @@ from HuggingFace hub. The dataset is also available as part of toy regression da
 - Create a data pipeline from a raw dataset to a batched fast DataLoader with min-max feature scaling.
 - Define a Simple NN model for regression using Burn Modules.
 
+> **Note**  
+> This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)
+> library to download the datasets. Make sure you have [Python](https://www.python.org/downloads/)
+> installed on your computer.
+
 The example can be run like so:
 
 ```bash
@@ -18,7 +23,7 @@ cargo run --example regression --release --features ndarray                # CPU
 cargo run --example regression --release --features ndarray-blas-openblas  # CPU NdArray Backend - f32 - blas with openblas
 cargo run --example regression --release --features ndarray-blas-netlib    # CPU NdArray Backend - f32 - blas with netlib
 echo "Using tch backend"
-export TORCH_CUDA_VERSION=cu113                                       # Set the cuda version
+export TORCH_CUDA_VERSION=cu121                                            # Set the cuda version
 cargo run --example regression --release --features tch-gpu                # GPU Tch Backend - f32
 cargo run --example regression --release --features tch-cpu                # CPU Tch Backend - f32
 echo "Using wgpu backend"

@@ -16,8 +16,9 @@ use serde::Deserialize;
 #[derive(Debug, Clone)]
 pub enum NestedValue {
     /// The default value, which actually does not hold any value and it is used to indicate that
-    /// the value should be populated with the default value.
-    Default,
+    /// the value should be populated with the default value. It contains an optional string with
+    /// the originator field name.
+    Default(Option<String>),
 
     /// A boolean value.
     Bool(bool),
@@ -175,9 +176,10 @@ pub fn remap<T>(
     for (name, tensor) in tensors.drain() {
         let mut new_name = name.clone();
         for (pattern, replacement) in &key_remap {
-            if pattern.is_match(&name) {
-                new_name = pattern.replace_all(&name, replacement.as_str()).to_string();
-                break;
+            if pattern.is_match(&new_name) {
+                new_name = pattern
+                    .replace_all(&new_name, replacement.as_str())
+                    .to_string();
             }
         }
         remapped.insert(new_name, tensor);

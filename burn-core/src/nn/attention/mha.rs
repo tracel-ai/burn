@@ -13,7 +13,7 @@ use libm::sqrtf;
 /// Configuration to create a [Multi Head Attention](MultiHeadAttention) layer.
 #[derive(Config)]
 pub struct MultiHeadAttentionConfig {
-    /// The size of the each linear layer.
+    /// The size of each linear layer.
     d_model: usize,
     /// The number of heads.
     n_heads: usize,
@@ -55,7 +55,7 @@ pub struct MultiHeadAttention<B: Backend> {
     value: nn::Linear<B>,
     output: nn::Linear<B>,
     dropout: nn::Dropout,
-    activation: nn::GELU,
+    activation: nn::Gelu,
     n_heads: usize,
     d_k: usize,
     min_float: f64,
@@ -87,7 +87,7 @@ impl MultiHeadAttentionConfig {
             value: linear(self),
             output: linear(self),
             dropout: nn::DropoutConfig::new(self.dropout).init(),
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
             n_heads: self.n_heads,
             d_k: self.d_model / self.n_heads,
             min_float: self.min_float,
@@ -111,7 +111,7 @@ impl MultiHeadAttentionConfig {
             value: linear(self, record.value),
             output: linear(self, record.output),
             dropout: nn::DropoutConfig::new(self.dropout).init(),
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
             n_heads: self.n_heads,
             d_k: self.d_model / self.n_heads,
             min_float: self.min_float,
@@ -160,7 +160,7 @@ impl<B: Backend> MhaInput<B> {
 /// [Multihead attention](MultiHeadAttention) outputs.
 #[derive(Debug, Clone)]
 pub struct MhaOutput<B: Backend> {
-    /// The attention weights [batch_size, seq_length_1, seq_length_2].
+    /// The attention weights [batch_size, n_heads, seq_length_1, seq_length_2].
     pub weights: Tensor<B, 4>,
     /// The context tensor [batch_size, seq_length_1, d_model].
     pub context: Tensor<B, 3>,

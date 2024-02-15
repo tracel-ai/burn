@@ -1,15 +1,16 @@
+use burn_compute::client::ComputeClient;
 use burn_tensor::Shape;
 
 use crate::{
-    compute::{compute_client, StaticKernel, WgpuComputeClient},
-    element::WgpuElement,
+    compute::StaticKernel,
+    element::JitElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    tensor::JitTensor,
+    Runtime,
 };
 
 use super::base::Prng;
@@ -25,24 +26,24 @@ impl StaticKernelSource for UniformPrng {
     }
 }
 
-/// Pseudo-random generator for uniform distribution
-pub fn random_uniform<G: GraphicsApi, E: WgpuElement, const D: usize>(
+/// Pseudo-random generator for the uniform distribution.
+pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
-    device: &WgpuDevice,
+    device: &R::Device,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
-    let client = compute_client::<G>(device);
+) -> JitTensor<R, E, D> {
+    let client = R::client(device);
     uniform_kernel(client, device, &shape, low, high)
 }
 
 /// Pseudo-random generator for uniform distribution, based on
-/// another tensor's client, device and shape
-pub fn random_like_uniform<E: WgpuElement, const D: usize>(
-    tensor: &WgpuTensor<E, D>,
+/// another tensor.
+pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(
+    tensor: &JitTensor<R, E, D>,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
+) -> JitTensor<R, E, D> {
     uniform_kernel(
         tensor.client.clone(),
         &tensor.device,
@@ -52,18 +53,18 @@ pub fn random_like_uniform<E: WgpuElement, const D: usize>(
     )
 }
 
-fn uniform_kernel<E: WgpuElement, const D: usize>(
-    client: WgpuComputeClient,
-    device: &WgpuDevice,
+fn uniform_kernel<R: Runtime, E: JitElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: &R::Device,
     shape: &Shape<D>,
     low: E,
     high: E,
-) -> WgpuTensor<E, D> {
+) -> JitTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
     let output = empty_device(client.clone(), device.clone(), shape.clone());
-    let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
-    let args_handle = make_args_buffer(client.clone(), &[low, high]);
+    let info_handle = make_info_buffer::<R>(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer::<R, E>(client.clone(), &[low, high]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
     let kernel = StaticKernel::<
         KernelSettings<UniformPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,

@@ -305,7 +305,7 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     }
     fn int_into_float<const D: usize>(
         tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
-    ) -> <Autodiff<B> as Backend>::TensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
         AutodiffTensor::new(B::int_into_float(tensor))
     }
 
@@ -332,5 +332,9 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
         dim: usize,
     ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
         B::int_chunk(tensor, chunks, dim)
+    }
+
+    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
+        B::int_arange(range, device)
     }
 }

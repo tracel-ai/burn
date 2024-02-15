@@ -10,7 +10,7 @@ version.workspace = true
 default = ["burn/default"]
 
 [dependencies]
-burn = {path = "../../burn", features = ["wgpu", "train"]}
+burn = {path = "../../burn", features = ["wgpu", "train", "vision"]}
 
 # Serialization
 log = {workspace = true}

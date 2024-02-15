@@ -10,7 +10,7 @@ cargo new my-first-burn-model
 As [mentioned previously](../getting-started.md#creating-a-burn-application), this will initialize
 your `my-first-burn-model` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
-In the `Cargo.toml` file, add the `burn` dependency with `train` and `wgpu` features.
+In the `Cargo.toml` file, add the `burn` dependency with `train`, `wgpu` and `vision` features.
 
 ```toml
 [package]
@@ -19,14 +19,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.12.0", features=["train", "wgpu"]}
+burn = { version = "0.13.0", features = ["train", "wgpu", "vision"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
 will keep the model simple by using two convolution layers followed by two linear layers, some
 pooling and ReLU activations. We will also use dropout to improve training performance.
 
-Let us start by creating a model in a file `model.rs`.
+Let us start by defining our model struct in a new file `src/model.rs`.
 
 ```rust , ignore
 use burn::{
@@ -281,9 +281,9 @@ network modules already built with Burn use the `forward` nomenclature, simply b
 standard in the field.
 
 Similar to neural network modules, the [`Tensor`](../building-blocks/tensor.md) struct given as a
-parameter also takes the Backend trait as a generic argument, alongside its rank. Even if it is not
+parameter also takes the Backend trait as a generic argument, alongside its dimensionality. Even if it is not
 used in this specific example, it is possible to add the kind of the tensor as a third generic
-argument.
+argument. For example, a 3-dimensional Tensor of different data types(float, int, bool) would be defined as following:
 
 ```rust , ignore
 Tensor<B, 3> // Float tensor (default)

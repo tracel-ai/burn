@@ -538,6 +538,24 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
+//Note this function should only execute if the second input is a constant
+//if it wasn't and the output shape was known, unsqueeze has been remapped to reshape
+pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
+    let input_value = &node.inputs[1];
+
+    match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => {
+            assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
+            if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
+                shape.clone()
+            } else {
+                panic!("Tensor data type must be int64")
+            }
+        }
+        _ => panic!("Arg for unsqueeze must be tensor or scalar"),
+    }
+}
+
 pub fn clip_config(node: &Node) -> (Option<f64>, Option<f64>) {
     let mut min_result: Option<f64> = None;
     let mut max_result: Option<f64> = None;

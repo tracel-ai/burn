@@ -116,7 +116,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
 
     fn bool_into_float<const D: usize>(
         tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::TensorPrimitive<D> {
+    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive<D> {
         let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }

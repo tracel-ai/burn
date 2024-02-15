@@ -5,7 +5,7 @@ use crate::storage::ComputeStorage;
 ///
 /// It is responsible for determining if the memory segment can be mutated,
 /// for instance by keeping track of a reference count
-pub trait MemoryHandle: Clone + Send + core::fmt::Debug {
+pub trait MemoryHandle: Clone + Send + Sync + core::fmt::Debug {
     /// Checks if the underlying memory can be safely mutated.
     fn can_mut(&self) -> bool;
 }

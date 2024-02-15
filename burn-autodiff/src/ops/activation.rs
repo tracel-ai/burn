@@ -14,7 +14,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         struct Gelu<const D: usize>;
 
         impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let input = ops.state;
@@ -39,7 +39,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         struct Relu;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -60,7 +60,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         struct Sigmoid;
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
-            type State = B::TensorPrimitive<D>;
+            type State = B::FloatTensorPrimitive<D>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {

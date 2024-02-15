@@ -13,7 +13,7 @@ pub struct Gradients {
     container: TensorContainer<GradID>,
 }
 
-type TensorPrimitive<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
 
 impl Gradients {
     /// Creates a new gradients container.
@@ -26,7 +26,7 @@ impl Gradients {
         };
         gradients.register::<B, D>(
             root_node,
-            B::ones(B::shape(&root_tensor), &B::device(&root_tensor)),
+            B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
         );
         gradients
     }

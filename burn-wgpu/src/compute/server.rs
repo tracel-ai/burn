@@ -1,4 +1,4 @@
-use super::{WgpuAutotuneKey, WgpuStorage, WorkGroup};
+use super::{JitAutotuneKey, WgpuStorage, WorkGroup};
 use crate::kernel::SourceTemplate;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
@@ -44,6 +44,34 @@ pub trait Kernel: 'static + Send + Sync {
     fn id(&self) -> String;
     /// Launch information.
     fn workgroup(&self) -> WorkGroup;
+}
+
+impl Kernel for Arc<dyn Kernel> {
+    fn source(&self) -> SourceTemplate {
+        self.as_ref().source()
+    }
+
+    fn id(&self) -> String {
+        self.as_ref().id()
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.as_ref().workgroup()
+    }
+}
+
+impl Kernel for Box<dyn Kernel> {
+    fn source(&self) -> SourceTemplate {
+        self.as_ref().source()
+    }
+
+    fn id(&self) -> String {
+        self.as_ref().id()
+    }
+
+    fn workgroup(&self) -> WorkGroup {
+        self.as_ref().workgroup()
+    }
 }
 
 impl<MM> WgpuServer<MM>
@@ -258,7 +286,7 @@ where
     type Kernel = Box<dyn Kernel>;
     type Storage = WgpuStorage;
     type MemoryManagement = MM;
-    type AutotuneKey = WgpuAutotuneKey;
+    type AutotuneKey = JitAutotuneKey;
 
     fn read(&mut self, handle: &server::Handle<Self>) -> Reader<Vec<u8>> {
         #[cfg(target_family = "wasm")]

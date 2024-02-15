@@ -16,8 +16,11 @@ pub mod kernel;
 pub mod tensor;
 
 pub(crate) mod codegen;
+pub(crate) mod tune;
 
 mod element;
+pub use codegen::dialect::wgsl;
+use compute::WgpuRuntime;
 pub use element::{FloatElement, IntElement};
 
 mod device;
@@ -25,6 +28,8 @@ pub use device::*;
 
 mod backend;
 pub use backend::*;
+mod runtime;
+pub use runtime::*;
 
 mod graphics;
 pub use graphics::*;
@@ -32,11 +37,53 @@ pub use graphics::*;
 #[cfg(any(feature = "fusion", test))]
 mod fusion;
 
+#[cfg(feature = "fusion")]
+/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+///
+/// This backend can target multiple graphics APIs, including:
+///   - [Vulkan] on Linux, Windows, and Android.
+///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
+///   - [DirectX 12](crate::Dx12) on Windows.
+///   - [Metal] on Apple hardware.
+///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
+///
+/// # Notes
+///
+/// This version of the [wgpu] backend uses [burn_fusion] to compile and optimize streams of tensor
+/// operations for improved performance.
+///
+/// You can disable the `fusion` feature flag to remove that functionality, which might be
+/// necessary on `wasm` for now.
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
+    burn_fusion::Fusion<JitBackend<WgpuRuntime<G, F, I>>>;
+
+#[cfg(not(feature = "fusion"))]
+/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+///
+/// This backend can target multiple graphics APIs, including:
+///   - [Vulkan] on Linux, Windows, and Android.
+///   - [OpenGL](crate::OpenGl) on Linux, Windows, and Android.
+///   - [DirectX 12](crate::Dx12) on Windows.
+///   - [Metal] on Apple hardware.
+///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
+///
+/// # Notes
+///
+/// This version of the [wgpu] backend doesn't use [burn_fusion] to compile and optimize streams of tensor
+/// operations.
+///
+/// You can enable the `fusion` feature flag to add that functionality, which might improve
+/// performance.
+pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::WgpuRuntime;
 
-    pub type TestBackend = Wgpu;
+    pub type TestCompiler = wgsl::Compiler<f32, i32>;
+    pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
+    pub type TestBackend = JitBackend<TestRuntime>;
     pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
     pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

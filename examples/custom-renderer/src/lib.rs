@@ -1,4 +1,4 @@
-use burn::data::dataset::source::huggingface::MNISTDataset;
+use burn::data::dataset::vision::MNISTDataset;
 use burn::train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
 use burn::train::LearnerBuilder;
 use burn::{

@@ -1,28 +1,29 @@
 use crate::{
-    codegen::{calculate_num_elems_dyn_rank, InplaceMapping},
+    codegen::{calculate_num_elems_dyn_rank, Compiler, InplaceMapping},
     compute::DynamicKernel,
     fusion::{
         kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
-        source::DynKernelSource,
+        source::GpuKernelSource,
         WgpuFusionHandle,
     },
-    kernel::{elemwise_workgroup, WORKGROUP_DEFAULT},
+    kernel::elemwise_workgroup,
+    Runtime,
 };
 use burn_fusion::TensorDescription;
 use std::sync::Arc;
 
-pub struct ScalarElementWise {
-    source: ElementWiseSource,
+pub struct ScalarElementWise<R: Runtime> {
+    source: ElementWiseSource<R>,
 }
 
-pub struct VecElementWise {
-    source: ElementWiseSource,
+pub struct VecElementWise<R: Runtime> {
+    source: ElementWiseSource<R>,
 }
 
-impl FusionKernel for ScalarElementWise {
+impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -31,7 +32,7 @@ impl FusionKernel for ScalarElementWise {
 
     fn priority(
         &self,
-        _handles_inputs: &[WgpuFusionHandle],
+        _handles_inputs: &[WgpuFusionHandle<R>],
         _inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
@@ -39,10 +40,10 @@ impl FusionKernel for ScalarElementWise {
     }
 }
 
-impl FusionKernel for VecElementWise {
+impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
@@ -51,11 +52,11 @@ impl FusionKernel for VecElementWise {
 
     fn priority(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         _outputs: &[&TensorDescription],
     ) -> Priority {
-        let is_unavailable_input = |handle: &WgpuFusionHandle, desc: &TensorDescription| {
+        let is_unavailable_input = |handle: &WgpuFusionHandle<R>, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -92,18 +93,26 @@ impl FusionKernel for VecElementWise {
     }
 }
 
-impl ElementWiseSource {
+impl<R: Runtime> ElementWiseSource<R> {
     fn kernel(
         &self,
-        handles_inputs: &[WgpuFusionHandle],
+        handles_inputs: &[WgpuFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
     ) -> SelectedKernel {
+        let workgroup_size_x = self.source_normal.shader.workgroup_size.x;
+        let workgroup_size_y = self.source_normal.shader.workgroup_size.y;
+        assert_eq!(
+            workgroup_size_x, workgroup_size_y,
+            "The grid must be a square"
+        );
+        let workgroup_size = workgroup_size_x as usize;
+
         match inplace_available(&self.mappings, handles_inputs) {
             true => {
                 let reference_tensor = inputs[self.mappings[0].position_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
                 let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
                 let output_infos =
                     self.inplace_output2input
@@ -119,7 +128,7 @@ impl ElementWiseSource {
                                 let elem =
                                     self.source_normal.shader.outputs[output_pos].item.elem();
                                 let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
-                                    * elem.size();
+                                    * <R::Compiler as Compiler>::elem_size(elem);
                                 OutputInfo::Array { size }
                             }
                         });
@@ -129,11 +138,12 @@ impl ElementWiseSource {
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, WORKGROUP_DEFAULT);
+                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
                 let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
                     let elem = self.source_normal.shader.outputs[pos].item.elem();
-                    let size = calculate_num_elems_dyn_rank(&tensor.shape) * elem.size();
+                    let size = calculate_num_elems_dyn_rank(&tensor.shape)
+                        * <R::Compiler as Compiler>::elem_size(elem);
                     OutputInfo::Array { size }
                 });
 
@@ -143,18 +153,18 @@ impl ElementWiseSource {
     }
 }
 
-struct ElementWiseSource {
-    source_normal: Arc<DynKernelSource>,
-    source_inplace: Arc<DynKernelSource>,
+struct ElementWiseSource<R: Runtime> {
+    source_normal: Arc<GpuKernelSource<R::Compiler>>,
+    source_inplace: Arc<GpuKernelSource<R::Compiler>>,
     mappings: Vec<InplaceMapping>,
     inplace_output2input: Vec<Option<usize>>,
     factor: usize,
 }
 
-impl ElementWiseSource {
+impl<R: Runtime> ElementWiseSource<R> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -175,10 +185,10 @@ impl ElementWiseSource {
     }
 }
 
-impl ScalarElementWise {
+impl<R: Runtime> ScalarElementWise<R> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
     ) -> Self {
@@ -188,10 +198,10 @@ impl ScalarElementWise {
     }
 }
 
-impl VecElementWise {
+impl<R: Runtime> VecElementWise<R> {
     pub fn new(
-        normal: DynKernelSource,
-        inplace: DynKernelSource,
+        normal: GpuKernelSource<R::Compiler>,
+        inplace: GpuKernelSource<R::Compiler>,
         mappings: Vec<InplaceMapping>,
         num_output: usize,
         factor: usize,
@@ -202,7 +212,10 @@ impl VecElementWise {
     }
 }
 
-fn inplace_available(mappings: &[InplaceMapping], handles_inputs: &[WgpuFusionHandle]) -> bool {
+fn inplace_available<R: Runtime>(
+    mappings: &[InplaceMapping],
+    handles_inputs: &[WgpuFusionHandle<R>],
+) -> bool {
     if mappings.is_empty() {
         return false;
     }

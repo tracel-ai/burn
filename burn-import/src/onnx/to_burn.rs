@@ -30,6 +30,7 @@ use crate::{
             max_pool2d::MaxPool2dNode,
             reshape::ReshapeNode,
             unary::UnaryNode,
+            unsqueeze::UnsqueezeNode,
         },
         ScalarKind, ScalarType, TensorKind, TensorType, Type,
     },
@@ -267,6 +268,7 @@ impl ONNXGraph {
                     graph.register(Self::conv_transpose2d_conversion(node))
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
+                NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -453,6 +455,13 @@ impl ONNXGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+    fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dims = unsqueeze_config(&node);
+
+        UnsqueezeNode::new(input, output, dims)
     }
 
     fn clip_conversion(node: Node) -> ClipNode {

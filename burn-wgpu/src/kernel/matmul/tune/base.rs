@@ -2,27 +2,28 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::WgpuAutotuneKey,
-    element::WgpuElement,
+    compute::JitAutotuneKey,
+    element::JitElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 
 use super::key::MatmulAutotuneKey;
 
 /// Set of matmul implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of m, k and n
-pub struct MatmulAutotuneOperationSet<E: WgpuElement, const D: usize> {
-    key: WgpuAutotuneKey,
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    out: WgpuTensor<E, D>,
+pub struct MatmulAutotuneOperationSet<R: Runtime, E: JitElement, const D: usize> {
+    key: JitAutotuneKey,
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    out: JitTensor<R, E, D>,
 }
-impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
-    fn new(lhs: WgpuTensor<E, D>, rhs: WgpuTensor<E, D>, out: WgpuTensor<E, D>) -> Self {
+impl<R: Runtime, E: JitElement, const D: usize> MatmulAutotuneOperationSet<R, E, D> {
+    fn new(lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>) -> Self {
         Self {
-            key: WgpuAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
+            key: JitAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
             lhs,
             rhs,
             out,
@@ -30,10 +31,10 @@ impl<E: WgpuElement, const D: usize> MatmulAutotuneOperationSet<E, D> {
     }
 }
 
-impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
-    for MatmulAutotuneOperationSet<E, D>
+impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<JitAutotuneKey>
+    for MatmulAutotuneOperationSet<R, E, D>
 {
-    fn key(&self) -> WgpuAutotuneKey {
+    fn key(&self) -> JitAutotuneKey {
         self.key.clone()
     }
 
@@ -49,27 +50,27 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
         );
 
         vec![
-            Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
+            Box::new(MemoryCoalescingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
+            Box::new(MemoryCoalescingMatmulW16x16::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulDefault::<E, D>::new(
+            Box::new(Vec4TilingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4TilingMatmulUnpaddedDefault::<E, D>::new(
+            Box::new(Vec4TilingMatmulUnpaddedDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
+            Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
@@ -79,19 +80,17 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
 
     fn fastest(self: Box<Self>, fastest_index: usize) -> Box<dyn AutotuneOperation> {
         match fastest_index {
-            0 => Box::new(MemoryCoalescingMatmulDefault::<E, D>::new(
+            0 => Box::new(MemoryCoalescingMatmulDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
-            1 => Box::new(MemoryCoalescingMatmulW16x16::<E, D>::new(
+            1 => Box::new(MemoryCoalescingMatmulW16x16::new(
                 self.lhs, self.rhs, self.out,
             )),
-            2 => Box::new(Vec4TilingMatmulDefault::<E, D>::new(
+            2 => Box::new(Vec4TilingMatmulDefault::new(self.lhs, self.rhs, self.out)),
+            3 => Box::new(Vec4TilingMatmulUnpaddedDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
-            3 => Box::new(Vec4TilingMatmulUnpaddedDefault::<E, D>::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            4 => Box::new(Vec4LhsOnlyTilingMatmulDefault::<E, D>::new(
+            4 => Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
             _ => panic!("Fastest index is out of bound"),
@@ -100,21 +99,17 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn matmul_autotune<R: Runtime, E: JitElement + Element, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let client = lhs.client.clone();
 
     let output = init_matmul_output(&lhs, &rhs);
 
-    let operation_set = Box::new(MatmulAutotuneOperationSet::<E, D>::new(
-        lhs,
-        rhs,
-        output.clone(),
-    ));
+    let operation_set = Box::new(MatmulAutotuneOperationSet::new(lhs, rhs, output.clone()));
 
-    client.execute_autotune(operation_set);
+    client.autotune_execute(operation_set);
 
     output
 }
@@ -122,13 +117,13 @@ pub fn matmul_autotune<E: WgpuElement + Element, const D: usize>(
 macro_rules! matmul_tune_ops {
     ($name:ident, $func:expr) => {
         #[derive(new)]
-        pub(crate) struct $name<E: WgpuElement, const D: usize> {
-            lhs: WgpuTensor<E, D>,
-            rhs: WgpuTensor<E, D>,
-            out: WgpuTensor<E, D>,
+        pub(crate) struct $name<R: Runtime, E: JitElement, const D: usize> {
+            lhs: JitTensor<R, E, D>,
+            rhs: JitTensor<R, E, D>,
+            out: JitTensor<R, E, D>,
         }
 
-        impl<E: WgpuElement, const D: usize> AutotuneOperation for $name<E, D> {
+        impl<R: Runtime, E: JitElement, const D: usize> AutotuneOperation for $name<R, E, D> {
             fn execute(self: Box<Self>) {
                 #[allow(clippy::redundant_closure_call)]
                 $func(self.lhs, self.rhs, self.out);

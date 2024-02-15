@@ -1,35 +1,84 @@
-use super::Item;
-use serde::{Deserialize, Serialize};
+use super::base::Item;
 use std::fmt::Display;
 
 /// Not all functions are native to WGSL, so this struct allows to support more functions.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum Function {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Extension {
+    PowfScalar(Item),
     Powf(Item),
     Erf(Item),
     #[cfg(target_os = "macos")]
     SafeTanh(Item),
 }
 
-impl Display for Function {
+impl Display for Extension {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Function::Powf(elem) => format_powf(f, elem),
-            Function::Erf(elem) => format_erf(f, elem),
+            Extension::PowfScalar(elem) => format_powf_scalar(f, elem),
+            Extension::Powf(elem) => format_powf(f, elem),
+            Extension::Erf(elem) => format_erf(f, elem),
             #[cfg(target_os = "macos")]
-            Function::SafeTanh(elem) => format_safe_tanh(f, elem),
+            Extension::SafeTanh(elem) => format_safe_tanh(f, elem),
         }
     }
 }
 
-fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
-    let elem = item.elem();
+fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+    base_powf_fmt(f, item)?;
 
+    match item {
+        Item::Vec4(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec4(
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
+        powf_primitive(lhs[2], rhs),
+        powf_primitive(lhs[3], rhs),
+    );
+}}
+"
+        )),
+        Item::Vec3(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec3(
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
+        powf_primitive(lhs[2], rhs),
+    );
+}}
+"
+        )),
+        Item::Vec2(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+    return vec2(
+        powf_primitive(lhs[0], rhs),
+        powf_primitive(lhs[1], rhs),
+    );
+}}
+"
+        )),
+        Item::Scalar(elem) => f.write_fmt(format_args!(
+            "
+fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
+    return powf_primitive(lhs, rhs);
+}}
+"
+        )),
+    }
+}
+
+fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std::fmt::Error> {
+    let elem = item.elem();
     f.write_fmt(format_args!(
         "
-fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
+fn powf_primitive(lhs: {elem}, rhs: {elem}) -> {elem} {{
     let modulo = rhs % 2.0;
-
+    if rhs == 0.0 {{
+        return 1.0;
+    }}
     if (modulo == 0.0) {{
         // Even number
         return pow(abs(lhs), rhs);
@@ -43,16 +92,21 @@ fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
 }}
 "
     ))?;
+    Ok(())
+}
+
+fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
+    base_powf_fmt(f, item)?;
 
     match item {
         Item::Vec4(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
-        powf_scalar(lhs[2], rhs),
-        powf_scalar(lhs[3], rhs),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
+        powf_primitive(lhs[2], rhs[2]),
+        powf_primitive(lhs[3], rhs[3]),
     );
 }}
 "
@@ -61,9 +115,9 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
-        powf_scalar(lhs[2], rhs),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
+        powf_primitive(lhs[2], rhs[2]),
     );
 }}
 "
@@ -72,8 +126,8 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
             "
 fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
-        powf_scalar(lhs[0], rhs),
-        powf_scalar(lhs[1], rhs),
+        powf_primitive(lhs[0], rhs[0]),
+        powf_primitive(lhs[1], rhs[1]),
     );
 }}
 "
@@ -81,7 +135,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         Item::Scalar(elem) => f.write_fmt(format_args!(
             "
 fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
-    return powf_scalar(lhs, rhs);
+    return powf_primitive(lhs, rhs);
 }}
 "
         )),

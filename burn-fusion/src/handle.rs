@@ -59,12 +59,12 @@ impl<B: FusionBackend> HandleContainer<B> {
         }
     }
 
-    /// Get the [float tensor](burn_tensor::backend::Backend::TensorPrimitive) corresponding to the
+    /// Get the [float tensor](burn_tensor::backend::Backend::FloatTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_float_tensor<const D: usize>(
         &mut self,
         tensor: &TensorDescription,
-    ) -> B::TensorPrimitive<D> {
+    ) -> B::FloatTensorPrimitive<D> {
         B::float_tensor(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
@@ -95,11 +95,11 @@ impl<B: FusionBackend> HandleContainer<B> {
         )
     }
 
-    /// Register a new [float tensor](burn_tensor::backend::Backend::TensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [float tensor](burn_tensor::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_float_tensor<const D: usize>(
         &mut self,
         id: &TensorId,
-        tensor: B::TensorPrimitive<D>,
+        tensor: B::FloatTensorPrimitive<D>,
     ) {
         let handle = B::float_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));

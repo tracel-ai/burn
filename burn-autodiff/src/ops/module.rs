@@ -14,7 +14,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct Embedding;
 
         impl<B: Backend> Backward<B, 3, 1> for Embedding {
-            type State = (B::TensorPrimitive<2>, IntTensor<B, 2>);
+            type State = (B::FloatTensorPrimitive<2>, IntTensor<B, 2>);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let (weights, indices) = ops.state;
@@ -58,9 +58,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 4, 3> for Conv2DWithBias {
             type State = (
-                B::TensorPrimitive<4>,
-                B::TensorPrimitive<4>,
-                B::TensorPrimitive<1>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<1>,
                 ConvOptions<2>,
             );
 
@@ -84,7 +84,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
-            type State = (B::TensorPrimitive<4>, B::TensorPrimitive<4>, ConvOptions<2>);
+            type State = (
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
+                ConvOptions<2>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
@@ -158,9 +162,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 4, 3> for ConvTranspose2DWithBias {
             type State = (
-                B::TensorPrimitive<4>,
-                B::TensorPrimitive<4>,
-                B::TensorPrimitive<1>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<1>,
                 ConvTransposeOptions<2>,
             );
 
@@ -185,8 +189,8 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 4, 2> for ConvTranspose2DNoBias {
             type State = (
-                B::TensorPrimitive<4>,
-                B::TensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
                 ConvTransposeOptions<2>,
             );
 
@@ -270,9 +274,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 3, 3> for Conv1DWithBias {
             type State = (
-                B::TensorPrimitive<3>,
-                B::TensorPrimitive<3>,
-                B::TensorPrimitive<1>,
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<1>,
                 ConvOptions<1>,
             );
 
@@ -296,7 +300,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
-            type State = (B::TensorPrimitive<3>, B::TensorPrimitive<3>, ConvOptions<1>);
+            type State = (
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<3>,
+                ConvOptions<1>,
+            );
 
             fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
                 let [node_x, node_weight] = ops.parents;
@@ -369,9 +377,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 3, 3> for ConvTranspose1DWithBias {
             type State = (
-                B::TensorPrimitive<3>,
-                B::TensorPrimitive<3>,
-                B::TensorPrimitive<1>,
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<1>,
                 ConvTransposeOptions<1>,
             );
 
@@ -396,8 +404,8 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 3, 2> for ConvTranspose1DNoBias {
             type State = (
-                B::TensorPrimitive<3>,
-                B::TensorPrimitive<3>,
+                B::FloatTensorPrimitive<3>,
+                B::FloatTensorPrimitive<3>,
                 ConvTransposeOptions<1>,
             );
 
@@ -494,7 +502,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
-            type State = (B::TensorPrimitive<3>, usize, usize, usize, bool);
+            type State = (B::FloatTensorPrimitive<3>, usize, usize, usize, bool);
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let [node_parent] = ops.parents;
@@ -551,7 +559,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         impl<B: Backend> Backward<B, 4, 1> for AvgPool2D {
             type State = (
-                B::TensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
                 [usize; 2],
                 [usize; 2],
                 [usize; 2],
@@ -807,7 +815,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AdaptiveAvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AdaptiveAvgPool1D {
-            type State = B::TensorPrimitive<3>;
+            type State = B::FloatTensorPrimitive<3>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let [node_parent] = ops.parents;
@@ -839,7 +847,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AdaptiveAvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AdaptiveAvgPool2D {
-            type State = B::TensorPrimitive<4>;
+            type State = B::FloatTensorPrimitive<4>;
 
             fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
                 let [node_parent] = ops.parents;
@@ -866,7 +874,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     fn adaptive_avg_pool2d_backward(
         _x: AutodiffTensor<B, 4>,
         _grad: AutodiffTensor<B, 4>,
-    ) -> <Autodiff<B> as Backend>::TensorPrimitive<4> {
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 }
@@ -876,7 +884,7 @@ struct MaxPool1D;
 
 impl<B: Backend> Backward<B, 3, 1> for MaxPool1D {
     type State = (
-        B::TensorPrimitive<3>,
+        B::FloatTensorPrimitive<3>,
         IntTensor<B, 3>,
         usize,
         usize,
@@ -910,7 +918,7 @@ struct MaxPool2D;
 
 impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     type State = (
-        B::TensorPrimitive<4>,
+        B::FloatTensorPrimitive<4>,
         IntTensor<B, 4>,
         [usize; 2],
         [usize; 2],

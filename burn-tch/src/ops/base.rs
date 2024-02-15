@@ -1,7 +1,7 @@
 use burn_tensor::Shape;
 use tch::Scalar;
 
-use crate::{TchShape, TchTensor};
+use crate::{LibTorchDevice, TchShape, TchTensor};
 use std::{marker::PhantomData, ops::Range};
 
 pub struct TchOps<E: tch::kind::Element + Copy + Default> {
@@ -9,6 +9,21 @@ pub struct TchOps<E: tch::kind::Element + Copy + Default> {
 }
 
 impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
+    pub fn to_device<const D: usize>(
+        tensor: TchTensor<E, D>,
+        device: &LibTorchDevice,
+    ) -> TchTensor<E, D> {
+        let device = (*device).into();
+
+        // We have to manually check if the device is the same, since when it's the case, we need to keep
+        // the same storage reference and not create a new one.
+        if tensor.tensor.device() == device {
+            return tensor;
+        }
+
+        TchTensor::new(tensor.tensor.to(device))
+    }
+
     pub fn reshape<const D1: usize, const D2: usize>(
         tensor: TchTensor<E, D1>,
         shape: Shape<D2>,
@@ -447,8 +462,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::binary_ops_tensor(
             tensor,
             exponent,
+            |lhs, rhs| lhs.f_pow_tensor_(rhs).unwrap(),
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
-            |lhs, rhs| rhs.f_pow(lhs).unwrap(),
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
         )
     }

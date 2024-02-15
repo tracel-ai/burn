@@ -1,15 +1,11 @@
-use burn_tensor::Element;
-
-use crate::{
-    element::WgpuElement,
-    kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
-    tensor::WgpuTensor,
-};
-use std::marker::PhantomData;
-
-use crate::kernel_wgsl;
-
 use super::base::{matmul_tiling_2d_launch, B_K, B_M, B_N, WORKGROUP_SIZE};
+use crate::{
+    element::JitElement,
+    kernel::{DynamicKernelSource, SourceTemplate, StaticKernelSource},
+    tensor::JitTensor,
+};
+use crate::{kernel_wgsl, Runtime};
+use std::marker::PhantomData;
 
 kernel_wgsl!(
     MatmulTiling2Dvec4Raw,
@@ -17,11 +13,11 @@ kernel_wgsl!(
 );
 
 #[derive(new, Debug)]
-struct MatmulTiling2Dvec4<E: WgpuElement> {
+struct MatmulTiling2Dvec4<E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
+impl<E: JitElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
     fn source(&self) -> SourceTemplate {
         MatmulTiling2Dvec4Raw::source()
             .register("b_m", B_M.to_string())
@@ -43,13 +39,14 @@ impl<E: WgpuElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs
-pub fn matmul_tiling_2d_vec4<E: WgpuElement + Element, const D: usize>(
-    lhs: WgpuTensor<E, D>,
-    rhs: WgpuTensor<E, D>,
-    out: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn matmul_tiling_2d_vec4<R: Runtime, E: JitElement, const D: usize>(
+    lhs: JitTensor<R, E, D>,
+    rhs: JitTensor<R, E, D>,
+    out: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let kernel = MatmulTiling2Dvec4::<E>::new();
-    matmul_tiling_2d_launch(lhs, rhs, out, kernel)
+    // TODO: don't hardcode the compiler.
+    matmul_tiling_2d_launch::<R, _, D, _>(lhs, rhs, out, kernel)
 }
 
 #[cfg(test)]

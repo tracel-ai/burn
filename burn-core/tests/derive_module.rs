@@ -38,6 +38,7 @@ struct ModuleWithGenericModule<B: Backend, M> {
 pub struct ModuleComposed<B: Backend> {
     weight: Param<Tensor<B, 2>>,
     basic: ModuleBasic<B>,
+    tuple: (ModuleBasic<B>, ModuleBasic<B>),
 }
 
 impl<B: Backend> ModuleComposed<B> {
@@ -46,6 +47,7 @@ impl<B: Backend> ModuleComposed<B> {
         Self {
             weight: Param::from(weight),
             basic: ModuleBasic::new(device),
+            tuple: (ModuleBasic::new(device), ModuleBasic::new(device)),
         }
     }
 }
@@ -109,7 +111,7 @@ mod num_params {
     fn should_output_state_composed() {
         let device = <TestBackend as Backend>::Device::default();
         let module = ModuleComposed::<TestBackend>::new(&device);
-        assert_eq!(2 * 20 * 20, module.num_params());
+        assert_eq!(4 * 20 * 20, module.num_params());
     }
 }
 

@@ -75,25 +75,26 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::{Elem, Item, Operator, Variable},
-        compute::compute_client,
+        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
-        AutoGraphicsApi, WgpuDevice,
+        tests::{TestCompiler, TestRuntime},
+        Runtime, WgpuDevice,
     };
 
     #[test]
     fn can_run_kernel() {
         binary!(
-            operator: |elem: Elem| Operator::Add {
+            operation: |elem: Elem| Operation::Add(BinaryOperation {
                 lhs: Variable::Input(0, Item::Scalar(elem)),
                 rhs: Variable::Input(1, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
+            compiler: TestCompiler,
             elem_in: f32,
             elem_out: f32
         );
 
-        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
+        let client = TestRuntime::client(&WgpuDevice::default());
 
         let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];
@@ -104,8 +105,14 @@ mod tests {
         let out = client.empty(core::mem::size_of::<f32>() * 8);
         let info = client.create(bytemuck::cast_slice(&info));
 
-        type Kernel =
-            KernelSettings<Ops<f32, f32>, f32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>;
+        type Kernel = KernelSettings<
+            Ops<TestCompiler, f32, f32>,
+            f32,
+            i32,
+            WORKGROUP_DEFAULT,
+            WORKGROUP_DEFAULT,
+            1,
+        >;
         let kernel = Box::new(StaticKernel::<Kernel>::new(WorkGroup::new(1, 1, 1)));
 
         client.execute(kernel, &[&lhs, &rhs, &out, &info]);

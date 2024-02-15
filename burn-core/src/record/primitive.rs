@@ -84,6 +84,43 @@ where
     }
 }
 
+/// A macro for generating implementations for tuple records of different sizes.
+/// For example: `impl_record_tuple!([R0, R1][0, 1])`.
+/// Would generate an implementation for a tuple of size 2.
+/// For this macro to work properly, please adhear to the convention:
+/// `impl_record_tuple!([R0, R1, ..., Rn][0, 1, ..., n])`.
+macro_rules! impl_record_tuple {
+    // `$r` represents the generic records.
+    // `$i` represents the indices of the records in the tuple.
+    ([$($r:ident),*][$($i:tt),*]) => {
+        impl<B, $($r,)*> Record<B> for ($($r,)*)
+        where
+            B: Backend,
+            $($r: Record<B>),*
+        {
+            type Item<S: PrecisionSettings> = ($($r::Item<S>,)*);
+
+            fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+                ($(self.$i.into_item(),)*)
+            }
+
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+                ($(Record::from_item(item.$i, device),)*)
+            }
+        }
+    };
+}
+
+impl_record_tuple!([R0, R1][0, 1]);
+impl_record_tuple!([R0, R1, R2][0, 1, 2]);
+impl_record_tuple!([R0, R1, R2, R3][0, 1, 2, 3]);
+impl_record_tuple!([R0, R1, R2, R3, R4][0, 1, 2, 3, 4]);
+impl_record_tuple!([R0, R1, R2, R3, R4, R5][0, 1, 2, 3, 4, 5]);
+impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6][0, 1, 2, 3, 4, 5, 6]);
+impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7][0, 1, 2, 3, 4, 5, 6, 7]);
+impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
+impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8, R9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
 impl<T, B> Record<B> for HashMap<ParamId, T>
 where
     T: Record<B>,

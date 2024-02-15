@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend, const D: usize> {
-    pub primitive: B::TensorPrimitive<D>,
+    pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
     pub graph: Graph,
 }
@@ -31,7 +31,7 @@ impl Step for RootStep {
 
 impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
-    pub fn new(primitive: B::TensorPrimitive<D>) -> Self {
+    pub fn new(primitive: B::FloatTensorPrimitive<D>) -> Self {
         let id = NodeID::new();
         let node = Node::new(vec![], 0, id, Requirement::None);
 
@@ -68,7 +68,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
 
     /// Create a tensor from parent infos.
     pub fn from_parents<I: Iterator<Item = Graph>>(
-        output: B::TensorPrimitive<D>,
+        output: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,

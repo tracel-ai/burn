@@ -14,7 +14,7 @@ pub type IntElem<B> = <B as Backend>::IntElem;
 pub type FullPrecisionBackend<B> = <B as Backend>::FullPrecisionBackend;
 
 /// Float tensor primitive type used by the backend.
-pub type FloatTensor<B, const D: usize> = <B as Backend>::TensorPrimitive<D>;
+pub type FloatTensor<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
 /// Integer tensor primitive type used by the backend.
 pub type IntTensor<B, const D: usize> = <B as Backend>::IntTensorPrimitive<D>;
 /// Boolean tensor primitive type used by the backend.

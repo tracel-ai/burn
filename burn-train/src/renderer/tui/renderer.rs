@@ -21,7 +21,7 @@ use super::{
 /// The current terminal backend.
 pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
 /// The current terminal frame.
-pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a, TerminalBackend>;
+pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a>;
 
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 

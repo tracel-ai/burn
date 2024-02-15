@@ -470,7 +470,10 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
-        B::into_int(B::powf(B::int_into_float(lhs), B::int_into_float(rhs)))
+        B::float_into_int(B::float_powf(
+            B::int_into_float(lhs),
+            B::int_into_float(rhs),
+        ))
     }
 
     /// Elementwise power with a floatTensor.
@@ -484,7 +487,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf<const D: usize>(lhs: IntTensor<B, D>, rhs: FloatTensor<B, D>) -> IntTensor<B, D> {
-        B::into_int(B::powf(B::int_into_float(lhs), rhs))
+        B::float_into_int(B::float_powf(B::int_into_float(lhs), rhs))
     }
 
     /// Elementwise power with a scalar.
@@ -498,7 +501,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D> {
-        B::into_int(B::powf_scalar(
+        B::float_into_int(B::float_powf_scalar(
             B::int_into_float(lhs),
             rhs.to_f32().unwrap(),
         ))
@@ -515,7 +518,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn int_powf_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: f32) -> IntTensor<B, D> {
-        B::into_int(B::powf_scalar(B::int_into_float(lhs), rhs))
+        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs))
     }
 
     /// Clamps a tensor under a minimum value.
@@ -954,5 +957,44 @@ pub trait IntTensorOps<B: Backend> {
         dim: usize,
     ) -> Vec<IntTensor<B, D>> {
         chunk::<B, D, Int>(tensor, chunks, dim)
+    }
+
+    /// Creates a new tensor with values from the given range with the given step size.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values.
+    /// * `step` - The step size.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given values.
+    fn int_arange_step(range: Range<i64>, step: usize, device: &Device<B>) -> IntTensor<B, 1> {
+        let value = range
+            .step_by(step)
+            .map(|i| i.elem())
+            .collect::<Vec<IntElem<B>>>();
+        let shape = Shape::new([value.len()]);
+        let data = Data::new(value, shape);
+        B::int_from_data(data, device)
+    }
+
+    /// Creates a new tensor with values from the given range.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range of values.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given values.
+    ///
+    /// # Remarks
+    ///
+    /// Uses `arange_step` with a step size of 1 under the hood.
+    fn int_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B, 1> {
+        Self::int_arange_step(range, 1, device)
     }
 }

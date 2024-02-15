@@ -1,16 +1,15 @@
-use crate::{
-    compute::WgpuHandle, element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, Runtime};
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 
 /// Build basic info to launch pool 2d kernels.
-pub fn build_output_and_info_pool2d<E: WgpuElement>(
-    x: &WgpuTensor<E, 4>,
+pub fn build_output_and_info_pool2d<R: Runtime, E: JitElement>(
+    x: &JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (WgpuHandle, WgpuTensor<E, 4>) {
+) -> (Handle<R::Server>, JitTensor<R, E, 4>) {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
@@ -31,14 +30,14 @@ pub fn build_output_and_info_pool2d<E: WgpuElement>(
     (info_buffer, output)
 }
 
-pub fn build_pool2d_info<E: WgpuElement>(
-    input: &WgpuTensor<E, 4>,
-    output: &WgpuTensor<E, 4>,
+pub fn build_pool2d_info<R: Runtime, E: JitElement>(
+    input: &JitTensor<R, E, 4>,
+    output: &JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> WgpuHandle {
+) -> Handle<R::Server> {
     let mut info: [u32; 24] = [0; 24];
     info[0] = input.strides[0] as u32;
     info[1] = input.strides[1] as u32;
