@@ -3,11 +3,11 @@ use crate::metric::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
-pub struct CUDAMetric {
+pub struct CudaMetric {
     nvml: Option<Nvml>,
 }
 
-impl CUDAMetric {
+impl CudaMetric {
     /// Creates a new metric for CUDA.
     pub fn new() -> Self {
         Self {
@@ -19,7 +19,7 @@ impl CUDAMetric {
     }
 }
 
-impl Default for CUDAMetric {
+impl Default for CudaMetric {
     fn default() -> Self {
         Self::new()
     }
@@ -29,7 +29,7 @@ impl<T> Adaptor<()> for T {
     fn adapt(&self) {}
 }
 
-impl Metric for CUDAMetric {
+impl Metric for CudaMetric {
     const NAME: &'static str = "CUDA Stats";
 
     type Input = ();
