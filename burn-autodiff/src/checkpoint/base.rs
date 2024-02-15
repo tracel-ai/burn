@@ -120,9 +120,6 @@ impl Checkpointer {
                 State::Recompute { n_required: _ } => {
                     let mut sorted = Vec::new();
                     for parent_node in self.node_tree.parents(&node_id) {
-                        // if !sorted.contains(&parent_node) {
-                        //     sorted.extend(self.topological_sort(parent_node));
-                        // }
                         let parent_sorted = self.topological_sort(parent_node);
                         for ps in parent_sorted {
                             if !sorted.contains(&ps) {
@@ -305,8 +302,8 @@ impl Checkpointer {
             }
         }
     }
-}
 
-// new edge case
-// a*a -> i think it will be two n_required but consumed once only?
-// while a(b*a) is fine because a is in separate nodes?
+    pub(crate) fn is_empty(&self) -> bool {
+        self.backward_states.is_empty()
+    }
+}

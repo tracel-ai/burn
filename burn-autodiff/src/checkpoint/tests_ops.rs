@@ -1,4 +1,4 @@
-use burn_tensor::{Data, Tensor};
+use burn_tensor::Data;
 use burn_wgpu::AutoGraphicsApi;
 
 use crate::Autodiff;
@@ -6,45 +6,6 @@ use crate::Autodiff;
 pub type TestBackend = burn_wgpu::Wgpu<AutoGraphicsApi, f32, i32>;
 pub type TestAutodiffBackend = Autodiff<TestBackend>;
 pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
-
-// #[test]
-// fn test_div_not_broken() {
-//     let device = Default::default();
-//     let t1 = Tensor::<AutodiffTestBackend, 2>::from_data([[99., 99.], [99., 99.]], &device);
-//     let t2 = Tensor::<AutodiffTestBackend, 2>::from_data([[11., 11.], [11., 11.]], &device);
-//     let t3 = t1 / t2;
-//     let expected = Tensor::<AutodiffTestBackend, 2>::from_data([[9., 9.], [9., 9.]], &device);
-//     t3.to_data().assert_approx_eq(&expected.to_data(), 3);
-// }
-
-// #[test]
-// fn test_div_not_broken_with_require_grad() {
-//     let device = Default::default();
-//     let t1 = Tensor::<AutodiffTestBackend, 2>::from_data([[99., 99.], [99., 99.]], &device)
-//         .require_grad();
-//     let t2 = Tensor::<AutodiffTestBackend, 2>::from_data([[11., 11.], [11., 11.]], &device)
-//         .require_grad();
-//     let t3 = t1 / t2;
-//     let expected = Tensor::<AutodiffTestBackend, 2>::from_data([[9., 9.], [9., 9.]], &device);
-//     t3.to_data().assert_approx_eq(&expected.to_data(), 3);
-// }
-
-// #[test]
-// fn test_div_not_broken_with_backward() {
-//     let device = Default::default();
-//     let t1 = Tensor::<AutodiffTestBackend, 2>::from_data([[99., 99.], [99., 99.]], &device)
-//         .require_grad();
-//     let t2 = Tensor::<AutodiffTestBackend, 2>::from_data([[11., 11.], [11., 11.]], &device)
-//         .require_grad();
-//     let t3 = t1.clone() / t2.clone();
-//     let gradients = t3.backward();
-//     println!("{:?}", t1.grad(&gradients).unwrap().to_data());
-//     println!("{:?}", t2.grad(&gradients).unwrap().to_data());
-//     println!("{:?}", t3.grad(&gradients).unwrap().to_data());
-//     // let expected = Tensor::<AutodiffTestBackend, 2>::from_data([[9., 9.], [9., 9.]], &device);
-//     // t3.to_data().assert_approx_eq(&expected.to_data(), 3);
-//     assert!(false);
-// }
 
 #[test]
 fn should_diff_div() {
@@ -198,8 +159,6 @@ fn should_diff_mul_div_tree() {
 
 #[test]
 fn should_diff_mul_div_tree_with_reuse() {
-    // For this test please put div checkpointed/stateful and mul lazy
-    // (a/b)(b/c) .  a=0, b=1, c=2 , a/b=3 , b/c=4
     let data_a = Data::from([1.0, 7.0]);
     let data_b = Data::from([2.0, 7.0]);
     let data_c = Data::from([3.0, 7.0]);
@@ -226,16 +185,6 @@ fn should_diff_mul_div_tree_with_reuse() {
     grad_b.assert_approx_eq(&expected_b, 3);
     grad_c.assert_approx_eq(&expected_c, 3);
 }
-
-// TODO
-// - Cleanup
-// .    - Maybe create retro forward instance before prepare to save a clone
-// - Check if all works fine
-//     - Make several test trees, with many variations, including sharing a parent node
-//          - Test for untracked parents
-//     - Check if the checkpointer extend is well done and there's only one
-// - Is node_tree redundant?
-//
 
 #[test]
 fn complicated_computation() {
@@ -266,8 +215,7 @@ fn complicated_computation() {
     let tensor_11 = tensor_8.mul(tensor_9);
     let tensor_12 = tensor_10.div(tensor_11.clone());
 
-    let grads = tensor_12.backward();
-    assert!(false)
+    assert_checkpoint(tensor_12);
 }
 
 #[test]
@@ -287,8 +235,7 @@ fn test_with_edge_cases() {
     let tensor_7 = tensor_5.add(tensor_2);
     let tensor_8 = tensor_6.div(tensor_7);
 
-    tensor_8.backward();
-    assert!(false);
+    assert_checkpoint(tensor_8);
 }
 
 #[test]
@@ -312,6 +259,12 @@ fn test_with_many_duplicates() {
     let tensor_11 = tensor_10.add_scalar(9);
     let tensor_12 = tensor_8.div(tensor_11);
 
-    tensor_12.backward();
-    assert!(false);
+    assert_checkpoint(tensor_12);
+}
+
+fn assert_checkpoint<const D: usize>(tensor: TestAutodiffTensor<D>) {
+    // Assert is not explicit here, but the test can fail
+    // - when a tensor is actually required more than n_required, it won't be found and will panic
+    // - when a tensor is actually required less than n_required, the backward states map won't be empty and will fail assertion within the backward code
+    tensor.backward();
 }

@@ -7,7 +7,6 @@ use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
     let checkpointer = root.graph.build_checkpointer();
-    checkpointer.print();
     let tape = build_tape(root.node, root.graph);
 
     execute_steps(tape, grads, checkpointer)
@@ -41,5 +40,10 @@ fn execute_steps(
             .into_iter()
             .for_each(|step| step.step(&mut grads, &mut checkpointer))
     });
+
+    #[cfg(test)]
+    // For checkpointing tests
+    assert!(checkpointer.is_empty());
+
     grads
 }

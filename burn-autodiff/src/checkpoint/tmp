@@ -1,8 +1,14 @@
-NodeID { value: 1 }: 1, 
-NodeID { value: 3 }: 1, 
-NodeID { value: 5 }: 1, 
-NodeID { value: 2 }: 3, 
-NodeID { value: 7 }: 1, 
-NodeID { value: 6 }: 1, 
-NodeID { value: 4 }: 1, 
-NodeID { value: 0 }: 1
+TODOs
+
+- rename unsure stuff and might_need
+- might_need
+  - put inside memory bound
+  - allow stateless
+- maybe have only one attribute checkpointactions (the struct) in the ops prep
+- refactor the build algorithm
+- remove tests, rename tests_ops, clean them
+- clean left out comments and prints
+
+- document
+
+- reactivate all operations

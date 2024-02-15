@@ -199,7 +199,7 @@ impl BackwardStates {
         self.map.len()
     }
 
-    pub(crate) fn get_mut(&mut self, node_id: &NodeID) -> Option<&mut State> {
-        self.map.get_mut(node_id)
+    pub(crate) fn is_empty(&self) -> bool {
+        self.map.is_empty()
     }
 }
