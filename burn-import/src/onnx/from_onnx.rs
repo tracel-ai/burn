@@ -9,7 +9,7 @@ use crate::onnx::{
     proto_conversion::convert_node_proto,
 };
 
-use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
+use super::ir::{ArgType, Argument, Node, NodeType, OnnxGraph, Tensor};
 use super::protos::{ModelProto, TensorProto};
 use super::{dim_inference::dim_inference, protos::ValueInfoProto};
 
@@ -33,14 +33,14 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
 ///
 /// # Returns
 ///
-/// * `ONNXGraph` - The graph representation of the onnx file
+/// * `OnnxGraph` - The graph representation of the onnx file
 ///
 /// # Panics
 ///
 /// * If the file cannot be opened
 /// * If the file cannot be parsed
 /// * If the nodes are not topologically sorted
-pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
+pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
     // Open the file
@@ -118,7 +118,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
-    ONNXGraph {
+    OnnxGraph {
         nodes,
         inputs,
         outputs,

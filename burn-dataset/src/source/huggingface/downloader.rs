@@ -49,12 +49,12 @@ pub enum ImporterError {
 ///  use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Deserialize, Debug, Clone)]
-/// struct MNISTItemRaw {
+/// struct MnistItemRaw {
 ///     pub image_bytes: Vec<u8>,
 ///     pub label: usize,
 /// }
 ///
-///  let train_ds:SqliteDataset<MNISTItemRaw> = HuggingfaceDatasetLoader::new("mnist")
+///  let train_ds:SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
 ///       .dataset("train")
 ///       .unwrap();
 pub struct HuggingfaceDatasetLoader {

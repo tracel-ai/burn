@@ -1,6 +1,6 @@
 use burn::{
     module::Module,
-    nn::{Linear, LinearConfig, ReLU},
+    nn::{Linear, LinearConfig, Relu},
     tensor::{backend::Backend, Tensor},
 };
 
@@ -8,7 +8,7 @@ use burn::{
 pub struct Net<B: Backend> {
     fc1: Linear<B>,
     fc2: Linear<B>,
-    relu: ReLU,
+    relu: Relu,
 }
 
 impl<B: Backend> Net<B> {
@@ -16,7 +16,7 @@ impl<B: Backend> Net<B> {
     pub fn new_with(record: NetRecord<B>) -> Self {
         let fc1 = LinearConfig::new(2, 3).init_with(record.fc1);
         let fc2 = LinearConfig::new(3, 4).init_with(record.fc2);
-        let relu = ReLU::default();
+        let relu = Relu::default();
 
         Self { fc1, fc2, relu }
     }

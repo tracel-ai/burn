@@ -160,4 +160,4 @@ Burn comes with built-in modules that you can use to build your own modules.
 | Burn API           | PyTorch Equivalent    |
 | ------------------ | --------------------- |
 | `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
-| `MSELoss`          | `nn.MSELoss`          |
+| `MseLoss`          | `nn.MSELoss`          |

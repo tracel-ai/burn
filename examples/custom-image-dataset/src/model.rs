@@ -3,7 +3,7 @@ use burn::{
     nn::{
         conv::{Conv2d, Conv2dConfig},
         pool::{MaxPool2d, MaxPool2dConfig},
-        Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, ReLU,
+        Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     },
     tensor::{backend::Backend, Device, Tensor},
 };
@@ -23,8 +23,8 @@ use burn::{
 // │       maxpool      │
 // └────────────────────┘
 #[derive(Module, Debug)]
-pub struct CNN<B: Backend> {
-    activation: ReLU,
+pub struct Cnn<B: Backend> {
+    activation: Relu,
     dropout: Dropout,
     pool: MaxPool2d,
     conv1: Conv2d<B>,
@@ -37,7 +37,7 @@ pub struct CNN<B: Backend> {
     fc2: Linear<B>,
 }
 
-impl<B: Backend> CNN<B> {
+impl<B: Backend> Cnn<B> {
     pub fn new(num_classes: usize, device: &Device<B>) -> Self {
         let conv1 = Conv2dConfig::new([3, 32], [3, 3])
             .with_padding(PaddingConfig2d::Same)
@@ -68,7 +68,7 @@ impl<B: Backend> CNN<B> {
         let dropout = DropoutConfig::new(0.3).init();
 
         Self {
-            activation: ReLU::new(),
+            activation: Relu::new(),
             dropout,
             pool,
             conv1,
