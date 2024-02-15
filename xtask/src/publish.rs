@@ -67,7 +67,7 @@ fn publish(crate_name: String) {
         "publish",
         dry_run_params,
         HashMap::new(),
-        "Failed to run cargo publish --dry-run",
+        "The cargo publish --dry-run should complete successfully, indicating readiness for actual publication",
     );
 
     let crates_io_token =
@@ -86,7 +86,7 @@ fn publish(crate_name: String) {
         "publish",
         publish_params,
         envs,
-        "Failed to publish the crate",
+        "The crate should be successfully published",
     );
 }
 
