@@ -44,7 +44,7 @@ Using Burn means having your models optimized on any backend. When possible, we 
 automatically and dynamically create custom kernels that minimize data relocation between different
 memory spaces, extremely useful when moving memory is the bottleneck.
 
-As an example, you could write your own Gelu activation function with the high level tensor api (see
+As an example, you could write your own GELU activation function with the high level tensor api (see
 Rust code snippet below).
 
 ```rust
