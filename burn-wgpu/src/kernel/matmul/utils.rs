@@ -1,17 +1,17 @@
-use crate::{element::WgpuElement, ops::numeric::empty_device, tensor::WgpuTensor};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, Runtime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<E, D>,
-    rhs: &WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+pub fn init_matmul_output<R: Runtime, E: JitElement, const D: usize>(
+    lhs: &JitTensor<R, E, D>,
+    rhs: &JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<E: WgpuElement, const D: usize>(
-    lhs: &WgpuTensor<E, D>,
-    rhs: &WgpuTensor<E, D>,
+pub(crate) fn shape_out<R: Runtime, E: JitElement, const D: usize>(
+    lhs: &JitTensor<R, E, D>,
+    rhs: &JitTensor<R, E, D>,
 ) -> Shape<D> {
     let mut shape_out = [0; D];
     lhs.shape
@@ -29,15 +29,21 @@ pub(crate) fn shape_out<E: WgpuElement, const D: usize>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::tensor::WgpuTensor;
-    use crate::tests::{ReferenceTensor, TestTensor};
+    use crate::tensor::JitTensor;
+    use crate::tests::{ReferenceTensor, TestRuntime, TestTensor};
     use burn_tensor::Shape;
 
     use super::init_matmul_output;
 
+    type TB = TestRuntime;
+
     pub(crate) fn same_as_reference<F, const D: usize, S>(func: F, shape_lhs: S, shape_rhs: S)
     where
-        F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
+        F: Fn(
+            JitTensor<TB, f32, D>,
+            JitTensor<TB, f32, D>,
+            JitTensor<TB, f32, D>,
+        ) -> JitTensor<TB, f32, D>,
         S: Into<Shape<D>>,
     {
         let ref_tensor_device = Default::default();
@@ -72,7 +78,11 @@ pub(crate) mod tests {
         shape_lhs: S,
         shape_rhs: S,
     ) where
-        F: Fn(WgpuTensor<f32, D>, WgpuTensor<f32, D>, WgpuTensor<f32, D>) -> WgpuTensor<f32, D>,
+        F: Fn(
+            JitTensor<TB, f32, D>,
+            JitTensor<TB, f32, D>,
+            JitTensor<TB, f32, D>,
+        ) -> JitTensor<TB, f32, D>,
         S: Into<Shape<D>>,
     {
         let x = ReferenceTensor::random(

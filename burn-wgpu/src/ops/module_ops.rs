@@ -1,20 +1,10 @@
+use crate::{kernel, JitBackend, Runtime};
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
-
-use crate::{
-    element::{FloatElement, IntElement},
-    kernel, GraphicsApi, Wgpu,
-};
-
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<G, F, I> ModuleOps<Self> for Wgpu<G, F, I>
-where
-    G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
-{
+impl<R: Runtime> ModuleOps<Self> for JitBackend<R> {
     fn conv2d(
         x: FloatTensor<Self, 4>,
         weight: FloatTensor<Self, 4>,
@@ -70,7 +60,7 @@ where
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<Wgpu<G, F, I>> {
+    ) -> MaxPool2dWithIndices<Self> {
         let (output, indices) =
             kernel::pool::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
 
@@ -85,7 +75,7 @@ where
         dilation: [usize; 2],
         output_grad: FloatTensor<Self, 4>,
         indices: IntTensor<Self, 4>,
-    ) -> MaxPool2dBackward<Wgpu<G, F, I>> {
+    ) -> MaxPool2dBackward<Self> {
         MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward(
             x,
             output_grad,

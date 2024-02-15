@@ -304,6 +304,77 @@ where
         self.reshape(shape)
     }
 
+    /// Creates a new tensor with added dimensions of size one inserted at the specified indices.
+    /// The indices can be negative, in which case they are counted from the last to the first dimension.
+    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index is the number of duplicates.
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([3, 4, 5]), &device);
+    ///     let tensor: Tensor<B, 6> = tensor.unsqueeze_dims(&[0, -1, -1]);
+    ///     println!("{:?}", tensor.shape());
+    ///     // Shape { dims: [1, 3, 4, 5, 1, 1] }
+    /// }
+    /// ```
+    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[isize]) -> Tensor<B, D2, K> {
+        let mut new_dims = [1; D2];
+        let old_dims = self.shape().dims;
+        //for checking if the dimension is in the acceptable range
+
+        //part 1: convert the negative indices to positive
+        let mut dim_indices = axes
+            .iter()
+            .map(|d| {
+                // check if the dimension is in the acceptable range
+                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
+                (if *d < 0 { d + D2 as isize } else { *d }) as usize
+            })
+            .collect::<Vec<usize>>();
+
+        //sort the indices
+        dim_indices.sort_unstable();
+
+        //Now use this to copy the chunks of the dims
+        let mut prev_idx: usize = 0;
+        let mut current_left_b: usize = 0;
+        let mut current_right_b: usize = 0;
+        let mut offset: usize = 0;
+        dim_indices.iter().for_each(|d| {
+            //check if there is space for at least one dimension
+            if prev_idx < *d {
+                current_right_b = *d - offset;
+                //copy the chunks of the dims
+                if current_right_b < D {
+                    new_dims[prev_idx..*d]
+                        .copy_from_slice(&old_dims[current_left_b..current_right_b]);
+                } else {
+                    new_dims[prev_idx..*d].copy_from_slice(&old_dims[current_left_b..]);
+                }
+                prev_idx = *d + 1;
+                //offset is equal to the number of extracted elements from the original shape
+                offset += current_right_b - current_left_b;
+                current_left_b = current_right_b;
+            } else {
+                //it's sorted so the only reason this would happen
+                //is if multiple indices are the same
+                prev_idx += 1;
+            }
+        });
+        //copy over anything past the index of the last new dimension
+        if current_left_b < D {
+            new_dims[prev_idx..].copy_from_slice(&old_dims[current_left_b..]);
+        }
+
+        //lastly, create the shape and reshape
+        let shape = Shape::new(new_dims);
+        self.reshape(shape)
+    }
+
     /// Returns a tensor containing the elements selected from the given ranges.
     ///
     /// # Panics

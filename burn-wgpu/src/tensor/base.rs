@@ -1,35 +1,75 @@
-use crate::codegen::{Elem, Item, Operator, Variable};
-use crate::element::WgpuElement;
-use crate::{
-    compute::{WgpuComputeClient, WgpuHandle},
-    unary, WgpuDevice,
-};
+use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::element::JitElement;
+use crate::{unary, Runtime};
+use burn_compute::client::ComputeClient;
+use burn_compute::server::Handle;
 use burn_tensor::Shape;
 use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
-#[derive(Debug, Clone)]
-pub struct WgpuTensor<E: WgpuElement, const D: usize> {
-    /// Compute client for wgpu.
-    pub client: WgpuComputeClient,
+pub struct JitTensor<R, E, const D: usize>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    /// Compute client for the [runtime](Runtime).
+    pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: WgpuHandle,
-    /// The shape of the current tensor.
+    pub handle: Handle<R::Server>,
+    /// The shape of the tensor.
     pub shape: Shape<D>,
-    /// The device of the current tensor.
-    pub device: WgpuDevice,
-    /// The strides of the current tensor.
+    /// The device of the tensor.
+    pub device: R::Device,
+    /// The strides of the tensor.
     pub strides: [usize; D],
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
-    /// Create a new tensor.
+impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "JitTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
+            self.shape,
+            self.device,
+            self.strides,
+            E::type_name(),
+            R::name(),
+        ))
+    }
+}
+
+impl<R, E, const D: usize> Clone for JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            handle: self.handle.clone(),
+            shape: self.shape.clone(),
+            device: self.device.clone(),
+            strides: self.strides,
+            elem: PhantomData,
+        }
+    }
+}
+
+impl<R, E, const D: usize> JitTensor<R, E, D>
+where
+    R: Runtime,
+    E: JitElement,
+{
+    /// Create a new tensor with a contiguous memory layout.
     pub fn new(
-        client: WgpuComputeClient,
-        device: WgpuDevice,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
         shape: Shape<D>,
-        handle: WgpuHandle,
+        handle: Handle<R::Server>,
     ) -> Self {
         let mut strides = [0; D];
 
@@ -55,7 +95,11 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&self, client: WgpuComputeClient, device: WgpuDevice) -> Self {
+    pub fn to_client(
+        &self,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
+    ) -> Self {
         let bytes = self
             .client
             .read(&self.handle)
@@ -73,7 +117,7 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         }
     }
 
-    pub(crate) fn can_mut_broadcast(&self, rhs: &WgpuTensor<E, D>) -> bool {
+    pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
         if !self.handle.can_mut() {
             return false;
         }
@@ -101,10 +145,11 @@ impl<E: WgpuElement, const D: usize> WgpuTensor<E, D> {
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operator: |elem: Elem| Operator::AssignLocal {
+            operation: |elem: Elem| Operation::AssignLocal(UnaryOperation {
                 input: Variable::Input(0, Item::Scalar(elem)),
                 out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            }),
+            runtime: R,
             input: self.clone(),
             elem: E
         )

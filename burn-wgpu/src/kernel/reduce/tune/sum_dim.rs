@@ -2,15 +2,16 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::WgpuAutotuneKey,
-    element::WgpuElement,
+    compute::JitAutotuneKey,
+    element::JitElement,
     kernel::{
         prng::random_like_uniform,
         reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory},
     },
     ops::numeric::empty_device,
     reduce_tune_ops,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 
 use super::ReduceAutotuneKey;
@@ -18,16 +19,16 @@ use super::ReduceAutotuneKey;
 /// Set of sum_dim implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of
 /// dim to reduce, and product of others
-pub struct SumDimAutotuneOperationSet<E: WgpuElement, const D: usize> {
-    key: WgpuAutotuneKey,
-    input: WgpuTensor<E, D>,
-    output: WgpuTensor<E, D>,
+pub struct SumDimAutotuneOperationSet<R: Runtime, E: JitElement, const D: usize> {
+    key: JitAutotuneKey,
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     reduce_dim: usize,
 }
-impl<E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<E, D> {
-    fn new(input: WgpuTensor<E, D>, output: WgpuTensor<E, D>, reduce_dim: usize) -> Self {
+impl<R: Runtime, E: JitElement, const D: usize> SumDimAutotuneOperationSet<R, E, D> {
+    fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: WgpuAutotuneKey::SumDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::SumDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,
@@ -39,10 +40,10 @@ impl<E: WgpuElement, const D: usize> SumDimAutotuneOperationSet<E, D> {
     }
 }
 
-impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotuneKey>
-    for SumDimAutotuneOperationSet<E, D>
+impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<JitAutotuneKey>
+    for SumDimAutotuneOperationSet<R, E, D>
 {
-    fn key(&self) -> WgpuAutotuneKey {
+    fn key(&self) -> JitAutotuneKey {
         self.key.clone()
     }
 
@@ -57,12 +58,12 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
         );
 
         vec![
-            Box::new(SumDimAutotune::<E, D>::new(
+            Box::new(SumDimAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(SumDimSharedMemoryAutotune::<E, D>::new(
+            Box::new(SumDimSharedMemoryAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
@@ -74,12 +75,12 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
         // Warning: since AutotuneOperationSet shares his key with MeanDimAutotuneOperationSet
         // we must make sure the order here is correlated with MeanDim
         match fastest_index {
-            0 => Box::new(SumDimAutotune::<E, D>::new(
+            0 => Box::new(SumDimAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
             )),
-            1 => Box::new(SumDimSharedMemoryAutotune::<E, D>::new(
+            1 => Box::new(SumDimSharedMemoryAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
@@ -90,15 +91,15 @@ impl<E: WgpuElement + Element, const D: usize> AutotuneOperationSet<WgpuAutotune
 }
 
 /// Executes autotune on sum_dim operation
-pub fn sum_dim_autotune<E: WgpuElement + Element, const D: usize>(
-    input: WgpuTensor<E, D>,
+pub fn sum_dim_autotune<R: Runtime, E: JitElement + Element, const D: usize>(
+    input: JitTensor<R, E, D>,
     reduce_dim: usize,
-) -> WgpuTensor<E, D> {
+) -> JitTensor<R, E, D> {
     let client = input.client.clone();
 
     let output = init_reduce_output(&input, reduce_dim);
 
-    let operation_set = Box::new(SumDimAutotuneOperationSet::<E, D>::new(
+    let operation_set = Box::new(SumDimAutotuneOperationSet::new(
         input,
         output.clone(),
         reduce_dim,

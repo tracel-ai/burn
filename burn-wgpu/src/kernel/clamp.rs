@@ -1,27 +1,32 @@
 use super::unary;
 use crate::{
-    codegen::{Item, Operator, Variable},
-    element::WgpuElement,
-    tensor::WgpuTensor,
-    unary,
+    codegen::dialect::gpu::{ClampOperation, Item, Operation, Variable},
+    element::JitElement,
+    tensor::JitTensor,
+    unary, Runtime,
 };
 
-unary!(
-    |elem| Operator::Clamp {
-        input: Variable::Input(0, Item::Scalar(elem)),
-        min_value: Variable::Scalar(0, Item::Scalar(elem)),
-        max_value: Variable::Scalar(1, Item::Scalar(elem)),
-        out: Variable::Local(0, Item::Scalar(elem)),
-    },
-    scalar 2
-);
-
-pub(crate) fn clamp<E: WgpuElement, const D: usize>(
-    input: WgpuTensor<E, D>,
+pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
     min_value: E,
     max_value: E,
-) -> WgpuTensor<E, D> {
-    unary::<Ops<E>, OpsInplace<E>, E, D>(input, Some(&[min_value, max_value]), true)
+) -> JitTensor<R, E, D> {
+    unary!(
+        operation: |elem| Operation::Clamp(ClampOperation {
+            input: Variable::Input(0, Item::Scalar(elem)),
+            min_value: Variable::Scalar(0, Item::Scalar(elem)),
+            max_value: Variable::Scalar(1, Item::Scalar(elem)),
+            out: Variable::Local(0, Item::Scalar(elem)),
+        }),
+        compiler: R::Compiler,
+        scalar 2
+    );
+
+    unary::<Ops<R::Compiler, E>, OpsInplace<R::Compiler, E>, R, E, D>(
+        input,
+        Some(&[min_value, max_value]),
+        true,
+    )
 }
 
 #[cfg(test)]

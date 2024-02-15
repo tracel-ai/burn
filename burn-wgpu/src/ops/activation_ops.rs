@@ -1,13 +1,4 @@
-use crate::{
-    element::{FloatElement, IntElement},
-    GraphicsApi, Wgpu,
-};
+use crate::{JitBackend, Runtime};
 use burn_tensor::ops::ActivationOps;
 
-impl<G, F, I> ActivationOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
-where
-    G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
-{
-}
+impl<R: Runtime> ActivationOps<Self> for JitBackend<R> {}

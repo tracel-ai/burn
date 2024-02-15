@@ -14,7 +14,9 @@ cfg_if::cfg_if! {
         mod group_norm;
         mod integer;
         mod key_remap;
+        mod key_remap_chained;
         mod layer_norm;
         mod linear;
+        mod missing_module_field;
     }
 }

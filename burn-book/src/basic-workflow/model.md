@@ -10,7 +10,7 @@ cargo new my-first-burn-model
 As [mentioned previously](../getting-started.md#creating-a-burn-application), this will initialize
 your `my-first-burn-model` project directory with a `Cargo.toml` and a `src/main.rs` file.
 
-In the `Cargo.toml` file, add the `burn` dependency with `train` and `wgpu` features.
+In the `Cargo.toml` file, add the `burn` dependency with `train`, `wgpu` and `vision` features.
 
 ```toml
 [package]
@@ -19,7 +19,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.13.0", features = ["train", "wgpu"] }
+burn = { version = "0.13.0", features = ["train", "wgpu", "vision"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -35,7 +35,7 @@ use burn::{
     nn::{
         conv::{Conv2d, Conv2dConfig},
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
-        Dropout, DropoutConfig, Linear, LinearConfig, ReLU,
+        Dropout, DropoutConfig, Linear, LinearConfig, Relu,
     },
     tensor::{backend::Backend, Tensor},
 };
@@ -48,7 +48,7 @@ pub struct Model<B: Backend> {
     dropout: Dropout,
     linear1: Linear<B>,
     linear2: Linear<B>,
-    activation: ReLU,
+    activation: Relu,
 }
 ```
 
@@ -98,7 +98,7 @@ There are two major things going on in this code sample.
    pub struct MyCustomModule<B: Backend> {
        linear1: Linear<B>,
        linear2: Linear<B>,
-       activation: ReLU,
+       activation: Relu,
    }
    ```
 
@@ -178,7 +178,7 @@ impl ModelConfig {
             conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
             conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
             pool: AdaptiveAvgPool2dConfig::new([8, 8]).init(),
-            activation: ReLU::new(),
+            activation: Relu::new(),
             linear1: LinearConfig::new(16 * 8 * 8, self.hidden_size).init(device),
             linear2: LinearConfig::new(self.hidden_size, self.num_classes).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),

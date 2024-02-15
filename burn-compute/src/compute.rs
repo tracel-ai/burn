@@ -4,11 +4,11 @@ use hashbrown::HashMap;
 
 /// The compute type has the responsibility to retrieve the correct compute client based on the
 /// given device.
-pub struct Compute<Device, Server: ComputeServer, Channel> {
+pub struct ComputeRuntime<Device, Server: ComputeServer, Channel> {
     clients: spin::Mutex<Option<HashMap<Device, ComputeClient<Server, Channel>>>>,
 }
 
-impl<Device, Server, Channel> Compute<Device, Server, Channel>
+impl<Device, Server, Channel> ComputeRuntime<Device, Server, Channel>
 where
     Device: core::hash::Hash + PartialEq + Eq + Clone + core::fmt::Debug,
     Server: ComputeServer,

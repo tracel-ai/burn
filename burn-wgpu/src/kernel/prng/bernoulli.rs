@@ -1,13 +1,13 @@
 use crate::{
-    compute::{compute_client, StaticKernel},
-    element::WgpuElement,
+    compute::StaticKernel,
+    element::JitElement,
     kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
-    GraphicsApi, WgpuDevice,
+    tensor::JitTensor,
+    Runtime,
 };
 use burn_tensor::Shape;
 
@@ -28,17 +28,17 @@ impl StaticKernelSource for BernoulliPrng {
 }
 
 /// Pseudo-random generator for bernoulli
-pub fn random_bernoulli<G: GraphicsApi, E: WgpuElement, const D: usize>(
+pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
-    device: &WgpuDevice,
+    device: &R::Device,
     prob: E,
-) -> WgpuTensor<E, D> {
+) -> JitTensor<R, E, D> {
     const N_VALUES_PER_THREAD: usize = 128;
 
-    let client = compute_client::<G>(device);
+    let client = R::client(device);
     let output = empty_device(client.clone(), device.clone(), shape.clone());
-    let info_handle = make_info_buffer(client.clone(), N_VALUES_PER_THREAD);
-    let args_handle = make_args_buffer(client.clone(), &[prob]);
+    let info_handle = make_info_buffer::<R>(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer::<R, E>(client.clone(), &[prob]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
     let kernel = StaticKernel::<
         KernelSettings<BernoulliPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
