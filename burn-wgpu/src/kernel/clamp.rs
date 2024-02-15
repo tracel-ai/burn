@@ -13,7 +13,7 @@ pub(crate) fn clamp<R: Runtime, E: JitElement, const D: usize>(
 ) -> JitTensor<R, E, D> {
     unary!(
         operation: |scope: &mut Scope, elem| Operator::Clamp(ClampOperator {
-            input: scope.read_global(0, elem),
+            input: scope.read_array(0, elem),
             min_value: scope.read_scalar(0, elem),
             max_value: scope.read_scalar(1, elem),
             out: scope.create_local(elem),

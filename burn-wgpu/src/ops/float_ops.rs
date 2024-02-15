@@ -363,7 +363,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Exp(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -375,7 +375,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Log(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -387,7 +387,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Log1p(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -402,7 +402,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     ) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Powf(BinaryOperator {
-                lhs: scope.read_global(0, elem),
+                lhs: scope.read_array(0, elem),
                 rhs: scope.read_scalar(0, elem),
                 out: scope.create_local(elem),
             }),
@@ -415,7 +415,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Sqrt(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -427,7 +427,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -439,7 +439,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Cos(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -451,7 +451,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Sin(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -463,7 +463,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Tanh(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -475,7 +475,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Erf(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,
@@ -520,7 +520,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Recip(UnaryOperator {
-                input: scope.read_global(0, elem),
+                input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),
             runtime: R,

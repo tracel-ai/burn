@@ -110,7 +110,7 @@ impl<R: Runtime> ElementWiseSource<R> {
 
         match inplace_available(&self.mappings, handles_inputs) {
             true => {
-                let reference_tensor = inputs[self.mappings[0].position_input];
+                let reference_tensor = inputs[self.mappings[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
                 let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
                 let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
@@ -172,7 +172,7 @@ impl<R: Runtime> ElementWiseSource<R> {
         let mut inplace_output2input = vec![None; num_output];
 
         for mapping in mappings.iter() {
-            inplace_output2input[mapping.position_output] = Some(mapping.position_input);
+            inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
         }
 
         Self {
@@ -221,7 +221,7 @@ fn inplace_available<R: Runtime>(
     }
 
     for mapping in mappings.iter() {
-        let handle = &handles_inputs[mapping.position_input];
+        let handle = &handles_inputs[mapping.pos_input];
 
         if !handle.handle.can_mut() {
             return false;

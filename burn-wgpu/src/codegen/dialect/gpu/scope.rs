@@ -1,6 +1,6 @@
 use super::{
-    Algorithm, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Variable,
-    Vectorization,
+    Algorithm, Elem, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo,
+    UnaryOperator, Variable, Vectorization,
 };
 use serde::{Deserialize, Serialize};
 
@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
-    pub locals: Vec<Variable>,
+    locals: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
     writes_global: Vec<(Variable, Variable)>,
+    reads_scalar: Vec<(Variable, Variable)>,
     output_ref: Option<Variable>,
-    pub undeclared: u16,
+    undeclared: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +37,7 @@ impl Scope {
             locals: Vec::new(),
             reads_global: Vec::new(),
             writes_global: Vec::new(),
+            reads_scalar: Vec::new(),
             output_ref: None,
             undeclared: 0,
         }
@@ -43,18 +45,30 @@ impl Scope {
 
     pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
-        let index = self.locals.len() as u16 + self.undeclared;
+        let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.locals.push(local);
         local
     }
 
-    pub fn read_global<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
+    /// Read an input array to a local variable.
+    ///
+    /// The index refers to the argument position of the array in the compute shader.
+    pub fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
         self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
     }
 
-    pub fn read_scalar<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
-        Variable::Scalar(index, item.into())
+    /// Read an input scalar to a local variable.
+    ///
+    /// The index refers to the scalar position for the same [element](Elem) type.
+    pub fn read_scalar(&mut self, index: u16, elem: Elem) -> Variable {
+        let local = Variable::LocalScalar(self.new_local_index(), elem.into(), self.depth);
+        let scalar = Variable::GlobalScalar(index, elem.into());
+
+        self.reads_scalar.push((local.clone(), scalar));
+        self.undeclared += 1;
+
+        local
     }
 
     pub fn write_global(&mut self, input: Variable, output: Variable) {
@@ -62,10 +76,6 @@ impl Scope {
             self.output_ref = Some(output);
         }
         self.writes_global.push((input, output));
-    }
-
-    pub fn read_input_plain(&mut self, index: u16, item: Item) -> Variable {
-        self.read_input_strategy(index, item, ReadingStrategy::Plain)
     }
 
     pub fn last_local_index(&self) -> u16 {
@@ -105,8 +115,8 @@ impl Scope {
         item: Item,
         strategy: ReadingStrategy,
     ) -> Variable {
-        let input = Variable::Input(index, item);
-        let index = self.locals.len() as u16 + self.undeclared;
+        let input = Variable::GlobalInputArray(index, item);
+        let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.reads_global.push((input, strategy, local));
         self.locals.push(local);
@@ -114,7 +124,7 @@ impl Scope {
     }
 
     pub fn create_local_undeclare(&mut self, item: Item) -> Variable {
-        let index = self.locals.len() as u16 + self.undeclared;
+        let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.undeclared += 1;
         local
@@ -155,14 +165,26 @@ impl Scope {
             }
         }
 
+        for (local, scalar) in self.reads_scalar.drain(..) {
+            operations.push(
+                Operator::AssignLocal(UnaryOperator {
+                    input: scalar,
+                    out: local,
+                })
+                .into(),
+            );
+            variables.push(local);
+        }
+
         for op in self.operations.drain(..) {
             operations.push(op);
         }
 
         for (input, out) in self.writes_global.drain(..) {
-            operations.push(Operation::Operator(Operator::AssignGlobal(
-                super::UnaryOperator { input, out },
-            )))
+            operations.push(Operation::Operator(Operator::AssignGlobal(UnaryOperator {
+                input,
+                out,
+            })))
         }
 
         ScopeProcessing {
@@ -178,8 +200,13 @@ impl Scope {
             locals: Vec::new(),
             reads_global: Vec::new(),
             writes_global: Vec::new(),
+            reads_scalar: Vec::new(),
             output_ref: None,
             undeclared: 0,
         }
+    }
+
+    fn new_local_index(&self) -> u16 {
+        self.locals.len() as u16 + self.undeclared
     }
 }

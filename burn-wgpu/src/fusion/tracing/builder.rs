@@ -41,7 +41,7 @@ impl TraceBuilder {
                 let index = self.inputs.len() as u16;
                 let item = gpu::Item::Scalar(elem);
 
-                let local = self.scope.read_global(index, item);
+                let local = self.scope.read_array(index, item);
                 self.inputs.push((tensor.clone(), local));
                 // self.locals
                 //     .insert(tensor.id.clone(), local.index().unwrap());
@@ -86,32 +86,32 @@ impl TraceBuilder {
     pub fn scalar_to_var<E: Element>(&mut self, _value: &E, elem_type: gpu::Elem) -> gpu::Variable {
         match elem_type {
             gpu::Elem::Float => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_float as u16, elem_type);
                 self.scalars.num_float += 1;
-                gpu::Variable::Scalar(
-                    self.scalars.num_float as u16 - 1,
-                    gpu::Item::Scalar(gpu::Elem::Float),
-                )
+                var
             }
             gpu::Elem::Int => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_int as u16, elem_type);
                 self.scalars.num_int += 1;
-                gpu::Variable::Scalar(
-                    self.scalars.num_int as u16 - 1,
-                    gpu::Item::Scalar(gpu::Elem::Int),
-                )
+                var
             }
             gpu::Elem::UInt => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_uint as u16, elem_type);
                 self.scalars.num_uint += 1;
-                gpu::Variable::Scalar(
-                    self.scalars.num_uint as u16 - 1,
-                    gpu::Item::Scalar(gpu::Elem::UInt),
-                )
+                var
             }
             gpu::Elem::Bool => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_bool as u16, elem_type);
                 self.scalars.num_bool += 1;
-                gpu::Variable::Scalar(
-                    self.scalars.num_bool as u16 - 1,
-                    gpu::Item::Scalar(gpu::Elem::Bool),
-                )
+                var
             }
         }
     }

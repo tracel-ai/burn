@@ -108,23 +108,27 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_variable(value: gpu::Variable) -> wgsl::Variable {
         match value {
-            gpu::Variable::Input(index, item) => {
-                wgsl::Variable::Input(index, Self::compile_item(item))
+            gpu::Variable::GlobalInputArray(index, item) => {
+                wgsl::Variable::GlobalInputArray(index, Self::compile_item(item))
             }
-            gpu::Variable::Scalar(index, item) => {
-                let elem = item.elem();
-                wgsl::Variable::Scalar(index, Self::compile_item(item), elem)
+            gpu::Variable::GlobalScalar(index, elem) => {
+                wgsl::Variable::GlobalScalar(index, Self::compile_elem(elem), elem)
             }
             gpu::Variable::Local(index, item, scope_depth) => wgsl::Variable::Local {
                 index,
                 item: Self::compile_item(item),
                 scope_depth,
             },
-            gpu::Variable::Output(index, item) => {
-                wgsl::Variable::Output(index, Self::compile_item(item))
+            gpu::Variable::LocalScalar(index, elem, scope_depth) => wgsl::Variable::LocalScalar {
+                index,
+                elem: Self::compile_elem(elem),
+                scope_depth,
+            },
+            gpu::Variable::GlobalOutputArray(index, item) => {
+                wgsl::Variable::GlobalOutputArray(index, Self::compile_item(item))
             }
-            gpu::Variable::Constant(index, item) => {
-                wgsl::Variable::Constant(index, Self::compile_item(item))
+            gpu::Variable::ConstantScalar(index, elem) => {
+                wgsl::Variable::ConstantScalar(index, Self::compile_elem(elem))
             }
             gpu::Variable::Id => wgsl::Variable::Id,
             gpu::Variable::Rank => wgsl::Variable::Rank,
@@ -190,23 +194,12 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_loop(&self, loop_val: gpu::Loop) -> wgsl::Instruction {
         match loop_val {
-            gpu::Loop::Range(mut range_loop) => {
-                // Start and end are from the parent scope.
-                let start = Self::compile_variable(range_loop.start);
-                let end = Self::compile_variable(range_loop.end);
-
-                // i is from the loop scope.
-                let i = Self::compile_variable(range_loop.i);
-
-                let instructions = self.compile_scope(&mut range_loop.scope).operators;
-
-                wgsl::Instruction::RangeLoop {
-                    i,
-                    start,
-                    end,
-                    instructions,
-                }
-            }
+            gpu::Loop::Range(mut range_loop) => wgsl::Instruction::RangeLoop {
+                i: Self::compile_variable(range_loop.i),
+                start: Self::compile_variable(range_loop.start),
+                end: Self::compile_variable(range_loop.end),
+                instructions: self.compile_scope(&mut range_loop.scope).operators,
+            },
         }
     }
 
@@ -214,8 +207,8 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         match metadata {
             gpu::Metadata::Stride { dim, var, out } => {
                 let position = match var {
-                    gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
+                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
+                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 wgsl::Instruction::Stride {
@@ -226,9 +219,9 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             }
             gpu::Metadata::Shape { dim, var, out } => {
                 let position = match var {
-                    gpu::Variable::Input(idx, _) => idx as usize,
-                    gpu::Variable::Output(idx, _) => self.num_inputs + idx as usize,
-                    _ => panic!("Only Input and Output have a shape."),
+                    gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
+                    gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
+                    _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
                 wgsl::Instruction::Shape {
                     dim: Self::compile_variable(dim),
@@ -400,16 +393,17 @@ fn register_extensions(body: &wgsl::Scope) -> Vec<wgsl::Extension> {
     // Since not all operators are native to WGSL, we need to add the custom ones.
     for op in body.operators.iter() {
         match op {
-            wgsl::Instruction::Powf { lhs: _, rhs, out } => match rhs {
-                wgsl::Variable::Scalar(_, _, _) => {
-                    register_extension(wgsl::Extension::PowfScalar(*out.item()));
+            wgsl::Instruction::Powf { lhs: _, rhs, out } => {
+                register_extension(wgsl::Extension::PowfPrimitive(out.item()));
+
+                if rhs.is_always_scalar() {
+                    register_extension(wgsl::Extension::PowfScalar(out.item()));
+                } else {
+                    register_extension(wgsl::Extension::Powf(out.item()));
                 }
-                _ => {
-                    register_extension(wgsl::Extension::Powf(*out.item()));
-                }
-            },
+            }
             wgsl::Instruction::Erf { input, out: _ } => {
-                register_extension(wgsl::Extension::Erf(*input.item()));
+                register_extension(wgsl::Extension::Erf(input.item()));
             }
             #[cfg(target_os = "macos")]
             wgsl::Instruction::Tanh { input, out: _ } => {

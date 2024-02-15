@@ -13,12 +13,12 @@ pub fn generate_read_global(scope: &mut Scope, algo: ReadGlobalAlgo) {
 }
 
 pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithLayoutAlgo) {
-    let index_type = Item::Scalar(Elem::UInt);
-    let index_local = scope.create_local(index_type);
-    let start = Variable::Constant(0.0, index_type);
+    let index_item_ty = Item::Scalar(Elem::UInt);
+    let index_local = scope.create_local(index_item_ty);
+    let start = Variable::ConstantScalar(0.0, Elem::UInt);
 
     scope.register(Operator::AssignLocal(UnaryOperator {
-        input: Variable::Constant(0.0, index_type),
+        input: Variable::ConstantScalar(0.0, Elem::UInt),
         out: index_local,
     }));
 
@@ -28,13 +28,13 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         Item::Vec2(_) => 2.0,
         Item::Scalar(_) => 1.0,
     };
-    let offset = Variable::Constant(offset, index_type);
+    let offset = Variable::ConstantScalar(offset, Elem::UInt);
 
     let op = RangeLoop::new(scope, start, Variable::Rank, |i, scope| {
-        let stride = scope.create_local(index_type);
-        let stride_layout = scope.create_local(index_type);
-        let shape = scope.create_local(index_type);
-        let tmp = scope.create_local(index_type);
+        let stride = scope.create_local(index_item_ty);
+        let stride_layout = scope.create_local(index_item_ty);
+        let shape = scope.create_local(index_item_ty);
+        let tmp = scope.create_local(index_item_ty);
 
         scope.register(Metadata::Stride {
             dim: *i,
@@ -80,7 +80,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
     });
 
     scope.register(Loop::Range(op));
-    let tmp = scope.create_local(index_type);
+    let tmp = scope.create_local(index_item_ty);
     scope.register(Operator::Div(BinaryOperator {
         lhs: index_local,
         rhs: offset,

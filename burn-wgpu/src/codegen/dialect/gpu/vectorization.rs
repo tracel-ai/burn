@@ -92,7 +92,15 @@ impl Operator {
                 Operator::ConditionalAssign(op.vectorize(vectorization))
             }
             Operator::AssignGlobal(op) => Operator::AssignGlobal(op.vectorize(vectorization)),
-            Operator::AssignLocal(op) => Operator::AssignLocal(op.vectorize(vectorization)),
+            Operator::AssignLocal(op) => {
+                if let Variable::GlobalScalar(_, _) = op.input {
+                    // Assign will not change the type of the output if the input can't be
+                    // vectorized.
+                    return Operator::AssignLocal(op.clone());
+                }
+
+                Operator::AssignLocal(op.vectorize(vectorization))
+            }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
         }
     }
@@ -152,17 +160,20 @@ impl ConditionalAssignOperator {
 impl Variable {
     pub fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
-            Variable::Input(index, item) => Variable::Input(*index, item.vectorize(vectorize)),
+            Variable::GlobalInputArray(index, item) => {
+                Variable::GlobalInputArray(*index, item.vectorize(vectorize))
+            }
             Variable::Local(index, item, name) => {
                 Variable::Local(*index, item.vectorize(vectorize), *name)
             }
-            Variable::Output(index, item) => Variable::Output(*index, item.vectorize(vectorize)),
-            Variable::Constant(index, item) => {
-                Variable::Constant(*index, item.vectorize(vectorize))
+            Variable::GlobalOutputArray(index, item) => {
+                Variable::GlobalOutputArray(*index, item.vectorize(vectorize))
             }
-            Variable::Scalar(index, item) => Variable::Scalar(*index, *item),
-            Variable::Id => Variable::Id,
-            Variable::Rank => Variable::Rank,
+            Variable::ConstantScalar(_, _) => self.clone(),
+            Variable::GlobalScalar(_, _) => self.clone(),
+            Variable::Id => self.clone(),
+            Variable::Rank => self.clone(),
+            Variable::LocalScalar(_, _, _) => self.clone(),
         }
     }
 }

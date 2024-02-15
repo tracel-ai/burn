@@ -85,8 +85,8 @@ mod tests {
     fn can_run_kernel() {
         binary!(
             operation: |scope: &mut Scope, elem: Elem| Operator::Add(BinaryOperator {
-                lhs: scope.read_global(0, elem),
-                rhs: scope.read_global(1, elem),
+                lhs: scope.read_array(0, elem),
+                rhs: scope.read_array(1, elem),
                 out: scope.create_local(elem),
             }),
             compiler: TestCompiler,

@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Variable {
-    Input(u16, Item),
-    Scalar(u16, Item),
+    GlobalInputArray(u16, Item),
+    GlobalScalar(u16, Elem),
+    GlobalOutputArray(u16, Item),
     Local(u16, Item, u8),
-    Output(u16, Item),
-    Constant(f64, Item),
+    LocalScalar(u16, Elem, u8),
+    ConstantScalar(f64, Elem),
     Id,
     Rank,
 }
@@ -15,22 +16,24 @@ pub enum Variable {
 impl Variable {
     pub fn index(&self) -> Option<u16> {
         match self {
-            Variable::Input(idx, _) => Some(*idx),
-            Variable::Scalar(idx, _) => Some(*idx),
+            Variable::GlobalInputArray(idx, _) => Some(*idx),
+            Variable::GlobalScalar(idx, _) => Some(*idx),
             Variable::Local(idx, _, _) => Some(*idx),
-            Variable::Output(idx, _) => Some(*idx),
-            Variable::Constant(_, _) => None,
+            Variable::LocalScalar(idx, _, _) => Some(*idx),
+            Variable::GlobalOutputArray(idx, _) => Some(*idx),
+            Variable::ConstantScalar(_, _) => None,
             Variable::Id => None,
             Variable::Rank => None,
         }
     }
     pub fn item(&self) -> Item {
         match self {
-            Variable::Input(_, item) => *item,
-            Variable::Scalar(_, item) => *item,
+            Variable::GlobalInputArray(_, item) => *item,
+            Variable::GlobalOutputArray(_, item) => *item,
+            Variable::GlobalScalar(_, elem) => Item::Scalar(*elem),
             Variable::Local(_, item, _) => *item,
-            Variable::Output(_, item) => *item,
-            Variable::Constant(_, item) => *item,
+            Variable::LocalScalar(_, elem, _) => Item::Scalar(*elem),
+            Variable::ConstantScalar(_, elem) => Item::Scalar(*elem),
             Variable::Id => Item::Scalar(Elem::UInt),
             Variable::Rank => Item::Scalar(Elem::UInt),
         }

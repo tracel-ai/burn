@@ -71,11 +71,11 @@ macro_rules! unary {
 
             let local = scope.last_local_index();
 
-            let input = $crate::codegen::Input::Array {
+            let input = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::Output::Array {
+            let out = $crate::codegen::OutputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -113,8 +113,8 @@ macro_rules! unary {
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
-                    position_input: 0,
-                    position_output: 0,
+                    pos_input: 0,
+                    pos_output: 0,
                 };
                 compile::<C, E>(settings, vec![mapping])
             }
@@ -150,15 +150,15 @@ macro_rules! unary {
 
             let local = scope.last_local_index();
 
-            let input = $crate::codegen::Input::Array {
+            let input = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let scalars = $crate::codegen::Input::Scalar {
+            let scalars = $crate::codegen::InputInfo::Scalar {
                 elem: E::gpu_elem(),
                 size: $num,
             };
-            let out = $crate::codegen::Output::Array {
+            let out = $crate::codegen::OutputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -196,8 +196,8 @@ macro_rules! unary {
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
-                    position_input: 0,
-                    position_output: 0,
+                    pos_input: 0,
+                    pos_output: 0,
                 };
                 compile::<C, E>(settings, vec![mapping])
             }
@@ -269,7 +269,7 @@ mod tests {
 
     unary!(
         operation: |scope: &mut Scope, elem| Operator::Tanh(UnaryOperator {
-            input: scope.read_global(0, elem),
+            input: scope.read_array(0, elem),
             out: scope.create_local(elem),
         }),
         compiler: TestCompiler

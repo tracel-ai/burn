@@ -4,6 +4,8 @@ use crate::codegen::dialect::gpu::{
     WorkgroupSize,
 };
 
+/// The compilation struct allows you to create a [compute shader](ComputeShader) based on
+/// [compilation info](CompilationInfo) and [compilation settings](CompilationSettings).
 #[derive(Clone)]
 pub struct Compilation {
     info: CompilationInfo,
@@ -12,18 +14,22 @@ pub struct Compilation {
     named_bindings: Vec<(String, Binding)>,
 }
 
+/// The information necessary to compile a [compute shader](ComputeShader).
 #[derive(Clone)]
 pub struct CompilationInfo {
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<Output>,
+    pub inputs: Vec<InputInfo>,
+    pub outputs: Vec<OutputInfo>,
     pub scope: gpu::Scope,
     pub mappings: Vec<InplaceMapping>,
 }
 
+/// Simply indicate the output that can be replaced by the input.
 #[derive(new, Clone, Copy)]
 pub struct InplaceMapping {
-    pub position_input: usize,
-    pub position_output: usize,
+    /// Input position.
+    pub pos_input: usize,
+    /// Output position.
+    pub pos_output: usize,
 }
 
 #[derive(Default)]
@@ -51,15 +57,21 @@ impl CompilationSettings {
     }
 }
 
+/// Information related to an input.
 #[derive(Clone)]
-pub enum Input {
+pub enum InputInfo {
     Array { item: Item, visibility: Visibility },
     Scalar { elem: Elem, size: usize },
 }
 
+/// Information related to an output.
 #[derive(Clone)]
-pub enum Output {
+pub enum OutputInfo {
+    /// Write the local variable to a new array.
+    ///
+    /// This will create a new binding in the [compute shader](ComputeShader).
     Array { item: Item, local: u16 },
+    /// Write the local variable to an existing input binding.
     Input { item: Item, input: u16, local: u16 },
 }
 
@@ -112,7 +124,7 @@ impl Compilation {
     fn register_inputs(&mut self, settings: &CompilationSettings) {
         for input in self.info.inputs.drain(..) {
             match input {
-                Input::Array { item, visibility } => {
+                InputInfo::Array { item, visibility } => {
                     let item = item.vectorize(settings.vectorization);
 
                     self.input_bindings.push(Binding {
@@ -122,7 +134,7 @@ impl Compilation {
                         size: None,
                     });
                 }
-                Input::Scalar { elem, size } => {
+                InputInfo::Scalar { elem, size } => {
                     let elem = bool_elem(elem);
 
                     self.named_bindings.push((
@@ -153,7 +165,7 @@ impl Compilation {
 
         for array in self.info.outputs.drain(..) {
             match array {
-                Output::Array { item, local } => {
+                OutputInfo::Array { item, local } => {
                     let item = item.vectorize(settings.vectorization);
                     let elem_adapted = bool_item(item);
 
@@ -165,16 +177,16 @@ impl Compilation {
                     });
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
-                        Variable::Output(index, elem_adapted),
+                        Variable::GlobalOutputArray(index, elem_adapted),
                     );
                     index += 1;
                 }
-                Output::Input { item, input, local } => {
+                OutputInfo::Input { item, input, local } => {
                     let item = item.vectorize(settings.vectorization);
 
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
-                        Variable::Input(input, bool_item(item)),
+                        Variable::GlobalInputArray(input, bool_item(item)),
                     );
                 }
             }
@@ -182,28 +194,28 @@ impl Compilation {
     }
 
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
-        let output = match self.info.outputs.get_mut(mapping.position_output) {
+        let output = match self.info.outputs.get_mut(mapping.pos_output as usize) {
             Some(output) => output,
             None => return, // No output to update.
         };
 
         let (item, local) = match output {
-            Output::Array { item, local } => (item, local),
-            Output::Input {
+            OutputInfo::Array { item, local } => (item, local),
+            OutputInfo::Input {
                 item: _,
                 input: _,
                 local: _,
             } => return, // Output already updated.
         };
 
-        let item = match self.input_bindings.get_mut(mapping.position_input) {
+        let item = match self.input_bindings.get_mut(mapping.pos_input as usize) {
             Some(binding) => {
                 // Update input visibility.
                 binding.visibility = Visibility::ReadWrite;
                 // Inputs modified inplace should be read without any specified layout.
                 self.info
                     .scope
-                    .update_read(mapping.position_input as u16, gpu::ReadingStrategy::Plain);
+                    .update_read(mapping.pos_input as u16, gpu::ReadingStrategy::Plain);
 
                 // Use the same item as the input.
                 //
@@ -214,9 +226,9 @@ impl Compilation {
         };
 
         // Update the output.
-        *output = Output::Input {
+        *output = OutputInfo::Input {
             item,
-            input: mapping.position_input as u16,
+            input: mapping.pos_input as u16,
             local: *local,
         };
     }

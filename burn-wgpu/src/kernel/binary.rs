@@ -65,15 +65,15 @@ macro_rules! binary {
 
             let local = scope.last_local_index();
 
-            let lhs = $crate::codegen::Input::Array {
+            let lhs = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let rhs = $crate::codegen::Input::Array {
+            let rhs = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::Output::Array {
+            let out = $crate::codegen::OutputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                 local,
             };
@@ -114,8 +114,8 @@ macro_rules! binary {
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
-                    position_input: 0,
-                    position_output: 0,
+                    pos_input: 0,
+                    pos_output: 0,
                 };
                 compile::<C, I, O>(settings, vec![mapping])
             }
@@ -133,8 +133,8 @@ macro_rules! binary {
                 let settings = $crate::codegen::CompilationSettings::default()
                     .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
-                    position_input: 1,
-                    position_output: 0,
+                    pos_input: 1,
+                    pos_output: 0,
                 };
                 compile::<C, I, O>(settings, vec![mapping])
             }

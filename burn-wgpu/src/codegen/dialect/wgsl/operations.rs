@@ -162,8 +162,8 @@ impl Display for Instruction {
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
                 let lhs = match lhs {
-                    Variable::Input(index, _) => format!("input_{index}_global"),
-                    Variable::Output(index, _) => format!("output_{index}_global"),
+                    Variable::GlobalInputArray(index, _) => format!("input_{index}_global"),
+                    Variable::GlobalOutputArray(index, _) => format!("output_{index}_global"),
                     _ => format!("{lhs}"),
                 };
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
@@ -192,7 +192,11 @@ impl Display for Instruction {
                 "{out} = clamp({input}, {min_value}, {max_value});\n"
             )),
             Instruction::Powf { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
+                if rhs.is_always_scalar() {
+                    f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
+                } else {
+                    f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
+                }
             }
             Instruction::Sqrt { input, out } => {
                 f.write_fmt(format_args!("{out} = sqrt({input});\n"))

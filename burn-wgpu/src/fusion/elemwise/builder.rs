@@ -1,7 +1,7 @@
 use super::{optimization::ElementWise, CompilationPhase};
 use crate::{
     codegen::dialect::gpu::{
-        BinaryOperator, ConditionalAssignOperator, Elem, Item, Operator, UnaryOperator, Variable,
+        BinaryOperator, ConditionalAssignOperator, Elem, Operator, UnaryOperator, Variable,
     },
     element::JitElement,
     fusion::{tracing::TraceBuilder, WgpuOptimization},
@@ -327,7 +327,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::Constant(1.0, Item::Scalar(E::gpu_elem()));
+                let input = Variable::ConstantScalar(1.0, E::gpu_elem());
                 let out = self.tracer.output_to_var(desc, E::gpu_elem());
 
                 self.tracer
@@ -340,7 +340,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = Variable::Constant(0.0, Item::Scalar(E::gpu_elem()));
+                let input = Variable::ConstantScalar(0.0, E::gpu_elem());
                 let out = self.tracer.output_to_var(desc, E::gpu_elem());
 
                 self.tracer

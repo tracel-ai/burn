@@ -17,7 +17,7 @@ pub enum Visibility {
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
 pub enum Elem {
     Float,
     Int,

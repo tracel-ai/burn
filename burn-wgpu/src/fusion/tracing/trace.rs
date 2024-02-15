@@ -1,5 +1,5 @@
 use super::Scalars;
-use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, Input, Output};
+use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, InputInfo, OutputInfo};
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ impl Trace {
         let mut inputs = self
             .inputs
             .iter()
-            .map(|(_tensor, elem)| Input::Array {
+            .map(|(_tensor, elem)| InputInfo::Array {
                 item: gpu::Item::Scalar(*elem),
                 visibility: gpu::Visibility::Read,
             })
@@ -41,28 +41,28 @@ impl Trace {
             .outputs
             .iter()
             .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| Output::Array {
+            .map(|((_tensor, elem), local)| OutputInfo::Array {
                 item: gpu::Item::Scalar(*elem),
                 local: *local,
             })
             .collect::<Vec<_>>();
 
         if self.scalars.num_float > 0 {
-            inputs.push(Input::Scalar {
+            inputs.push(InputInfo::Scalar {
                 elem: gpu::Elem::Float,
                 size: self.scalars.num_float,
             })
         }
 
         if self.scalars.num_uint > 0 {
-            inputs.push(Input::Scalar {
+            inputs.push(InputInfo::Scalar {
                 elem: gpu::Elem::UInt,
                 size: self.scalars.num_uint,
             })
         }
 
         if self.scalars.num_int > 0 {
-            inputs.push(Input::Scalar {
+            inputs.push(InputInfo::Scalar {
                 elem: gpu::Elem::Int,
                 size: self.scalars.num_int,
             })
