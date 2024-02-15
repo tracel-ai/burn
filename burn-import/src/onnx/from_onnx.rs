@@ -9,19 +9,20 @@ use crate::onnx::{
     proto_conversion::convert_node_proto,
 };
 
-use super::dim_inference::dim_inference;
 use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
 use super::protos::{ModelProto, TensorProto};
+use super::{dim_inference::dim_inference, protos::ValueInfoProto};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 6] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Reshape,
+    NodeType::Unsqueeze,
 ];
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
@@ -61,6 +62,13 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
     let mut nodes: Vec<Node> = vec![];
     for onnx_node in onnx_model.graph.node.iter() {
         let mut node = convert_node_proto(onnx_node);
+        if onnx_node.op_type == "Unsqueeze" {
+            move_output_for_unsqueeze(
+                &mut node,
+                onnx_model.graph.input.clone(),
+                onnx_model.graph.output.clone(),
+            );
+        }
         remap_node_type(&mut node);
         nodes.push(node);
     }
@@ -170,6 +178,49 @@ fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
             elem_type: tensor.elem_type,
             shape: tensor.shape,
         });
+    }
+}
+
+/// Stores the output shape in the unsqueeze node for the situation where
+/// the axes value isn't constant.
+fn move_output_for_unsqueeze(
+    node: &mut Node,
+    outputs: Vec<ValueInfoProto>,
+    inputs: Vec<ValueInfoProto>,
+) {
+    let output_name = node.outputs[0].name.clone();
+    // check outputs first, as it's shorter
+    for output in outputs.iter() {
+        if output.name == output_name {
+            //copy the shape
+            match node.outputs[0].ty {
+                ArgType::Tensor(ref mut tensor_type) => {
+                    if let Some(shape) = output.type_.as_ref().unwrap().tensor_type().shape.as_ref()
+                    {
+                        tensor_type.shape =
+                            Some(shape.dim.iter().map(|x| x.dim_value() as usize).collect());
+                        return;
+                    }
+                }
+                _ => return,
+            }
+        }
+    }
+    for input in inputs.iter() {
+        if input.name == output_name {
+            //copy the shape
+            match node.outputs[0].ty {
+                ArgType::Tensor(ref mut tensor_type) => {
+                    if let Some(shape) = input.type_.as_ref().unwrap().tensor_type().shape.as_ref()
+                    {
+                        tensor_type.shape =
+                            Some(shape.dim.iter().map(|x| x.dim_value() as usize).collect());
+                        return;
+                    }
+                }
+                _ => return,
+            }
+        }
     }
 }
 
@@ -335,7 +386,6 @@ fn rename_inputs(
 
     for node in nodes.iter_mut() {
         let mut counter = 1;
-
         // loop through node outputs and rename them and store the new name <-> old name mapping
         for output in node.outputs.iter_mut() {
             let old_name = output.name.clone();

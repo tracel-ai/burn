@@ -14,7 +14,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: Linear<B>,
     linear_outer: Linear<B>,
     dropout: Dropout,
-    gelu: GELU,
+    gelu: Gelu,
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {
@@ -113,7 +113,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `LayerNorm` | `nn.LayerNorm`                          |
 | `GroupNorm` | `nn.GroupNorm`                          |
 | `Dropout`   | `nn.Dropout`                            |
-| `GELU`      | `nn.GELU`                               |
+| `Gelu`      | `nn.Gelu`                               |
 | `Linear`    | `nn.Linear`                             |
 | `Embedding` | `nn.Embedding`                          |
 | `Relu`      | `nn.ReLU`                               |

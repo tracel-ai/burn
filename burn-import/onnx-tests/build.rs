@@ -45,6 +45,7 @@ fn main() {
         .input("tests/conv_transpose2d/conv_transpose2d.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
+        .input("tests/unsqueeze/unsqueeze.onnx")
         .out_dir("model/")
         .run_from_script();
 
