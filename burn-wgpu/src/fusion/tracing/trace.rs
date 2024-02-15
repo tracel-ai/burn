@@ -3,6 +3,10 @@ use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, InputInfo, O
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
 
+/// A trace encaptulate all information necessary to perform the compilation and execution of
+/// captured [tensor operations](burn_fusion::stream::OperationDescription).
+///
+/// A trace should be built using a [builder](super::TraceBuilder).
 #[derive(new, Clone, Serialize, Deserialize)]
 pub struct Trace {
     inputs: Vec<(TensorDescription, gpu::Elem)>,
@@ -12,13 +16,18 @@ pub struct Trace {
     scope: gpu::Scope,
 }
 
+/// Information necessary to execute a kernel.
 pub struct ExecutionInfo<'a> {
+    /// Tensor inputs.
     pub inputs: Vec<&'a TensorDescription>,
+    /// Tensor outputs.
     pub outputs: Vec<&'a TensorDescription>,
+    /// Scalar inputs.
     pub scalars: &'a Scalars,
 }
 
 impl Trace {
+    /// Collect information related to running the trace.
     pub fn running(&self) -> ExecutionInfo<'_> {
         ExecutionInfo {
             inputs: self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
@@ -27,6 +36,7 @@ impl Trace {
         }
     }
 
+    /// Collect information related to compiling the trace.
     pub fn compiling(&self) -> CompilationInfo {
         let mut inputs = self
             .inputs

@@ -22,7 +22,7 @@ use burn_tensor::{
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWiseBuilder<R: Runtime> {
-    tracer: TraceBuilder,
+    builder: TraceBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     num_added: usize,
@@ -78,7 +78,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
 
     fn build(&self) -> WgpuOptimization<R> {
         let op = ElementWise::new(
-            self.tracer.clone().build(),
+            self.builder.clone().build(),
             self.num_added,
             self.device.clone(),
             CompilationPhase,
@@ -92,7 +92,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
     }
 
     fn reset(&mut self) {
-        self.tracer = TraceBuilder::new();
+        self.builder = TraceBuilder::new();
         self.num_added = 0;
         self.status = OptimizationStatus::Open;
         self.current_output_shape.clear();
@@ -115,7 +115,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
 impl<R: Runtime> ElementWiseBuilder<R> {
     pub fn new(device: Device<JitBackend<R>>) -> Self {
         Self {
-            tracer: TraceBuilder::new(),
+            builder: TraceBuilder::new(),
             num_added: 0,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
@@ -285,12 +285,12 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.tracer.input_to_var(&desc.mask, Elem::Bool);
-                let lhs = self.tracer.input_to_var(&desc.value, E::gpu_elem());
-                let rhs = self.tracer.input_to_var(&desc.tensor, E::gpu_elem());
-                let out = self.tracer.output_to_var(&desc.out, E::gpu_elem());
+                let cond = self.builder.input(&desc.mask, Elem::Bool);
+                let lhs = self.builder.input(&desc.value, E::gpu_elem());
+                let rhs = self.builder.input(&desc.tensor, E::gpu_elem());
+                let out = self.builder.output(&desc.out, E::gpu_elem());
 
-                self.tracer.register_operation(Operator::ConditionalAssign(
+                self.builder.register_operation(Operator::ConditionalAssign(
                     ConditionalAssignOperator {
                         cond,
                         lhs,
@@ -306,12 +306,12 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let cond = self.tracer.input_to_var(&desc.mask, Elem::Bool);
-                let lhs = self.tracer.scalar_to_var(&desc.value, E::gpu_elem());
-                let rhs = self.tracer.input_to_var(&desc.tensor, E::gpu_elem());
-                let out = self.tracer.output_to_var(&desc.out, E::gpu_elem());
+                let cond = self.builder.input(&desc.mask, Elem::Bool);
+                let lhs = self.builder.scalar(&desc.value, E::gpu_elem());
+                let rhs = self.builder.input(&desc.tensor, E::gpu_elem());
+                let out = self.builder.output(&desc.out, E::gpu_elem());
 
-                self.tracer.register_operation(Operator::ConditionalAssign(
+                self.builder.register_operation(Operator::ConditionalAssign(
                     ConditionalAssignOperator {
                         cond,
                         lhs,
@@ -328,9 +328,9 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(1.0, E::gpu_elem());
-                let out = self.tracer.output_to_var(desc, E::gpu_elem());
+                let out = self.builder.output(desc, E::gpu_elem());
 
-                self.tracer
+                self.builder
                     .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
 
                 true
@@ -341,9 +341,9 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 }
 
                 let input = Variable::ConstantScalar(0.0, E::gpu_elem());
-                let out = self.tracer.output_to_var(desc, E::gpu_elem());
+                let out = self.builder.output(desc, E::gpu_elem());
 
-                self.tracer
+                self.builder
                     .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
 
                 true
@@ -353,10 +353,10 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     return false;
                 }
 
-                let input = self.tracer.scalar_to_var(elem, E::gpu_elem());
-                let out = self.tracer.output_to_var(desc, E::gpu_elem());
+                let input = self.builder.scalar(elem, E::gpu_elem());
+                let out = self.builder.output(desc, E::gpu_elem());
 
-                self.tracer
+                self.builder
                     .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
 
                 true
@@ -378,11 +378,11 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.tracer.input_to_var(&desc.lhs, elem_lhs);
-        let rhs = self.tracer.input_to_var(&desc.rhs, elem_rhs);
-        let out = self.tracer.output_to_var(&desc.out, elem_out);
+        let lhs = self.builder.input(&desc.lhs, elem_lhs);
+        let rhs = self.builder.input(&desc.rhs, elem_rhs);
+        let out = self.builder.output(&desc.out, elem_out);
 
-        self.tracer.register_operation(func(lhs, rhs, out));
+        self.builder.register_operation(func(lhs, rhs, out));
 
         true
     }
@@ -400,10 +400,10 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let input = self.tracer.input_to_var(&desc.input, elem_input);
-        let out = self.tracer.output_to_var(&desc.out, elem_out);
+        let input = self.builder.input(&desc.input, elem_input);
+        let out = self.builder.output(&desc.out, elem_out);
 
-        self.tracer.register_operation(func(input, out));
+        self.builder.register_operation(func(input, out));
 
         true
     }
@@ -421,11 +421,11 @@ impl<R: Runtime> ElementWiseBuilder<R> {
             return false;
         }
 
-        let lhs = self.tracer.input_to_var(&desc.lhs, elem_lhs);
-        let rhs = self.tracer.scalar_to_var(&desc.rhs, elem_rhs);
-        let out = self.tracer.output_to_var(&desc.out, elem_out);
+        let lhs = self.builder.input(&desc.lhs, elem_lhs);
+        let rhs = self.builder.scalar(&desc.rhs, elem_rhs);
+        let out = self.builder.output(&desc.out, elem_out);
 
-        self.tracer.register_operation(func(lhs, rhs, out));
+        self.builder.register_operation(func(lhs, rhs, out));
 
         true
     }

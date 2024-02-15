@@ -40,16 +40,23 @@ pub struct CompilationSettings {
 }
 
 impl CompilationSettings {
+    /// Compile the shader with vectorization enabled.
     #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
         self.vectorization = vectorization;
         self
     }
-    #[allow(dead_code)]
+    /// Compile the shader with inplace enabled.
+    ///
+    /// Notes:
+    ///
+    /// This won't garantee that the shader will use input arrays as outputs, since it is only
+    /// possible when [inplace mappings](InplaceMapping) are provided as [compilation info](CompilationInfo)
     pub fn inplace(mut self, available: bool) -> Self {
         self.inplace_available = available;
         self
     }
+    /// Set the grid size.
     #[allow(dead_code)] // Only used for fusion for now.
     pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
         self.workgroup_size = workgroup_size;
@@ -76,6 +83,7 @@ pub enum OutputInfo {
 }
 
 impl Compilation {
+    /// Starts a new compilation.
     pub fn new(info: CompilationInfo) -> Self {
         Self {
             info,
@@ -85,6 +93,7 @@ impl Compilation {
         }
     }
 
+    /// Performs the compilation with the provided [settings](CompilationSettings).
     pub fn compile(mut self, settings: CompilationSettings) -> ComputeShader {
         self.info.scope.vectorize(settings.vectorization);
 

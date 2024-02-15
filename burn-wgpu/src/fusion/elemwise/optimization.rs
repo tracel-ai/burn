@@ -25,11 +25,15 @@ pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
     pub(super) phase: Phase,
 }
 
+/// Phase where the kernel should be compiled.
 pub struct CompilationPhase;
 
+/// Phase where the kernel should be executed.
 #[derive(new)]
 pub struct ExecutionPhase<R: Runtime> {
+    /// Kernel set with default workgroup size.
     pub(super) kernel_set_1: FusionKernelSet<R>,
+    /// Kernel set with custom workgroup size.
     pub(super) kernel_set_2: FusionKernelSet<R>,
 }
 
