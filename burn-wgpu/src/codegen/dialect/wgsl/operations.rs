@@ -128,9 +128,6 @@ pub enum Instruction {
         input: Variable,
         out: Variable,
     },
-    Rank {
-        out: Variable,
-    },
     Stride {
         dim: Variable,
         position: usize,
@@ -369,7 +366,6 @@ if {cond} {{
                     )),
                 }
             }
-            Instruction::Rank { out } => f.write_fmt(format_args!("{out} = info[0];\n")),
             Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
                 "{out} = info[({position}u * (2u * rank)) + {dim} + 1u];\n"
             )),
