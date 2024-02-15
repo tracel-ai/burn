@@ -1,4 +1,4 @@
-use super::{ExecutionInfo, Scalars};
+use super::Scalars;
 use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, Input, Output};
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,12 @@ pub struct Trace {
     locals: Vec<u16>,
     scalars: Scalars,
     scope: gpu::Scope,
+}
+
+pub struct ExecutionInfo<'a> {
+    pub inputs: Vec<&'a TensorDescription>,
+    pub outputs: Vec<&'a TensorDescription>,
+    pub scalars: &'a Scalars,
 }
 
 impl Trace {
