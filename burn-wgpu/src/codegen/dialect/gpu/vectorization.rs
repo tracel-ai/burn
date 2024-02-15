@@ -169,11 +169,11 @@ impl Variable {
             Variable::GlobalOutputArray(index, item) => {
                 Variable::GlobalOutputArray(*index, item.vectorize(vectorize))
             }
-            Variable::ConstantScalar(_, _) => self.clone(),
-            Variable::GlobalScalar(_, _) => self.clone(),
-            Variable::Id => self.clone(),
-            Variable::Rank => self.clone(),
-            Variable::LocalScalar(_, _, _) => self.clone(),
+            Variable::ConstantScalar(_, _) => *self,
+            Variable::GlobalScalar(_, _) => *self,
+            Variable::Id => *self,
+            Variable::Rank => *self,
+            Variable::LocalScalar(_, _, _) => *self,
         }
     }
 }

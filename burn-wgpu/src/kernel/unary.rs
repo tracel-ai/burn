@@ -69,7 +69,7 @@ macro_rules! unary {
             let op = $ops(&mut scope, E::gpu_elem());
             scope.register(op);
 
-            let local = scope.last_local_index();
+            let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
@@ -148,7 +148,7 @@ macro_rules! unary {
             let op = $ops(&mut scope, E::gpu_elem());
             scope.register(op);
 
-            let local = scope.last_local_index();
+            let local = scope.last_local_index().unwrap().index().unwrap();
 
             let input = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),

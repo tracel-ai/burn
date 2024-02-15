@@ -2,13 +2,7 @@ use super::{shader::ComputeShader, Item};
 use crate::{
     codegen::{
         compiler,
-        dialect::{
-            gpu::{
-                self,
-                algorithm::{generate_read_global, generate_read_global_with_layout},
-            },
-            wgsl,
-        },
+        dialect::{gpu, wgsl},
     },
     FloatElement, IntElement,
 };
@@ -182,11 +176,11 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
         match algo {
             gpu::Algorithm::ReadGlobalWithLayout(algo) => {
-                generate_read_global_with_layout(scope, algo);
+                algo.expand(scope);
                 compile(scope);
             }
             gpu::Algorithm::ReadGlobal(algo) => {
-                generate_read_global(scope, algo);
+                algo.expand(scope);
                 compile(scope);
             }
         }

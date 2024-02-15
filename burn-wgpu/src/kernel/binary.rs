@@ -63,7 +63,7 @@ macro_rules! binary {
             let op = $ops(&mut scope, I::gpu_elem());
             scope.register(op);
 
-            let local = scope.last_local_index();
+            let local = scope.last_local_index().unwrap().index().unwrap();
 
             let lhs = $crate::codegen::InputInfo::Array {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),

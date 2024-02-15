@@ -194,7 +194,7 @@ impl Compilation {
     }
 
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
-        let output = match self.info.outputs.get_mut(mapping.pos_output as usize) {
+        let output = match self.info.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
             None => return, // No output to update.
         };
@@ -208,7 +208,7 @@ impl Compilation {
             } => return, // Output already updated.
         };
 
-        let item = match self.input_bindings.get_mut(mapping.pos_input as usize) {
+        let item = match self.input_bindings.get_mut(mapping.pos_input) {
             Some(binding) => {
                 // Update input visibility.
                 binding.visibility = Visibility::ReadWrite;

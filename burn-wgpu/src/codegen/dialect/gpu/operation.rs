@@ -2,6 +2,14 @@ use super::{Elem, Item, Scope, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
+///
+/// Notes:
+///
+/// [Operator] and [Algorithm] can be vectorized, but [Metadata] and [Loop] can't.
+/// Therefore, during tracing, only operators and algorithms can be registered, and during the
+/// compilation phase, the algorithm will be expanded.
+///
+/// Algorithm expansions can safely use [Metadata] and [Loop] operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {
@@ -11,7 +19,7 @@ pub enum Operation {
     Loop(Loop),
 }
 
-/// All operations that can be used in a GPU compute shader.
+/// All operator that can be used in a GPU compute shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operator {
@@ -43,37 +51,60 @@ pub enum Operator {
     Index(BinaryOperator),
 }
 
+/// Tensor operations that can't be executed with a simple [operator](Operator) should use an
+/// algorithm.
+///
+/// Algorithms can be expanded to basic [operator](Operator) during compilation, but after
+/// vectorization, since for loops and other construct can't simply be vectorized. This also gives
+/// the vectorization state to the expansion function, which may create a different set of
+/// [operator](Operator) depending on the vectorization state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Algorithm {
+    /// Read an input array with the given layout.
+    ///
+    /// Crucial to read arrays that aren't contiguous and to perform correct broadcasting.
     ReadGlobalWithLayout(ReadGlobalWithLayoutAlgo),
+    /// Read an input array.
     ReadGlobal(ReadGlobalAlgo),
 }
 
+/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalWithLayoutAlgo {
+    /// The array to be read.
     pub global: Variable,
+    /// The layout to be used.
     pub layout: Variable,
+    /// The output variable to write the result.
     pub out: Variable,
 }
 
+/// Settings for the [Algorithm::ReadGlobal] variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalAlgo {
+    /// The array to be read.
     pub global: Variable,
+    /// The output variable to write the result.
     pub out: Variable,
 }
 
+/// All loop variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Loop {
+    /// A basic range loop.
     Range(RangeLoop),
 }
 
+/// All metadata that can be access in a shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
+    /// The stride of an array at the given dimension.
     Stride {
         dim: Variable,
         var: Variable,
         out: Variable,
     },
+    /// The shape of an array at the given dimension.
     Shape {
         dim: Variable,
         var: Variable,
@@ -81,33 +112,40 @@ pub enum Metadata {
     },
 }
 
+/// Settings for the [Loop::Range] variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RangeLoop {
+    /// The loop index variable.
     pub i: Variable,
+    /// The start value.
     pub start: Variable,
+    /// The end value.
     pub end: Variable,
+    /// The scope that contains all operations and variables declared in the loop body.
     pub scope: Scope,
 }
 
 impl RangeLoop {
-    pub fn new<F: Fn(&Variable, &mut Scope)>(
+    /// Registers a range loop to the given scope.
+    pub fn register<F: Fn(&Variable, &mut Scope)>(
         parent_scope: &mut Scope,
         start: Variable,
         end: Variable,
         func: F,
-    ) -> Self {
+    ) {
         let mut scope = parent_scope.child();
         let index_ty = Item::Scalar(Elem::UInt);
         let i = scope.create_local_undeclare(index_ty);
 
         func(&i, &mut scope);
 
-        Self {
+        let op = Self {
             i,
             start,
             end,
             scope,
-        }
+        };
+        parent_scope.register(Loop::Range(op));
     }
 }
 

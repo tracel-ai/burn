@@ -55,7 +55,13 @@ impl Variable {
             } => true,
             Variable::Id => true,
             Variable::Rank => true,
-            _ => false,
+            Variable::GlobalInputArray(_, _) => false,
+            Variable::GlobalOutputArray(_, _) => false,
+            Variable::Local {
+                index: _,
+                item: _,
+                scope_depth: _,
+            } => false,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
