@@ -3,7 +3,7 @@ use std::env::args;
 use burn::backend::ndarray::NdArray;
 use burn::tensor::Tensor;
 
-use burn::data::dataset::vision::MNISTDataset;
+use burn::data::dataset::vision::MnistDataset;
 use burn::data::dataset::Dataset;
 
 use onnx_inference::mnist::Model;
@@ -34,7 +34,7 @@ fn main() {
     let model: Model<Backend> = Model::default();
 
     // Load the MNIST dataset and get an item
-    let dataset = MNISTDataset::test();
+    let dataset = MnistDataset::test();
     let item = dataset.get(image_index).unwrap();
 
     // Create a tensor from the image data

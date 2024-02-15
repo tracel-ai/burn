@@ -45,7 +45,7 @@ use crate::{
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{self, ArgType, Argument, Data, ElementType, ONNXGraph},
+    ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
         softmax_config,
@@ -218,7 +218,7 @@ impl ModelGen {
     }
 }
 
-impl ONNXGraph {
+impl OnnxGraph {
     /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();

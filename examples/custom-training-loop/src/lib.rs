@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn::data::dataset::vision::MNISTDataset;
+use burn::data::dataset::vision::MnistDataset;
 use burn::{
     config::Config,
     data::dataloader::DataLoaderBuilder,
@@ -13,7 +13,7 @@ use burn::{
     },
 };
 use guide::{
-    data::{MNISTBatch, MNISTBatcher},
+    data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
 
@@ -46,21 +46,21 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
-    let batcher_train = MNISTBatcher::<B>::new(device.clone());
-    let batcher_valid = MNISTBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = MnistBatcher::<B>::new(device.clone());
+    let batcher_valid = MnistBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::train());
+        .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MNISTDataset::test());
+        .build(MnistDataset::test());
 
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
@@ -145,7 +145,7 @@ where
     B: AutodiffBackend,
     O: Optimizer<Model<B>, B>,
 {
-    pub fn step1(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step1(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
@@ -156,14 +156,14 @@ where
     B: AutodiffBackend,
     O: Optimizer<Model<B>, B>,
 {
-    pub fn step2(&mut self, _batch: MNISTBatch<B>) {
+    pub fn step2(&mut self, _batch: MnistBatch<B>) {
         //
     }
 }
 
 #[allow(dead_code)]
 impl<M, O> Learner2<M, O> {
-    pub fn step3<B: AutodiffBackend>(&mut self, _batch: MNISTBatch<B>)
+    pub fn step3<B: AutodiffBackend>(&mut self, _batch: MnistBatch<B>)
     where
         B: AutodiffBackend,
         M: AutodiffModule<B>,

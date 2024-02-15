@@ -1,4 +1,4 @@
-use crate::data::MNISTBatch;
+use crate::data::MnistBatch;
 use burn::{
     module::Module,
     nn::{self, loss::CrossEntropyLossConfig, BatchNorm, PaddingConfig2d},
@@ -73,7 +73,7 @@ impl<B: Backend> Model<B> {
         self.fc2.forward(x)
     }
 
-    pub fn forward_classification(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
+    pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
         let targets = item.targets;
         let output = self.forward(item.images);
         let loss = CrossEntropyLossConfig::new()
@@ -117,16 +117,16 @@ impl<B: Backend> ConvBlock<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, item: MNISTBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(item);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<MNISTBatch<B>, ClassificationOutput<B>> for Model<B> {
-    fn step(&self, item: MNISTBatch<B>) -> ClassificationOutput<B> {
+impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+    fn step(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(item)
     }
 }
