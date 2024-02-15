@@ -46,29 +46,39 @@ impl<B: Backend> ImageReader<B> {
     pub fn image_to_tensor(&self, img: DynamicImage) -> Result<Tensor<B, 3>, ImageReaderError> {
         let (width, height) = img.dimensions();
 
-        let mut red_values = Vec::with_capacity((width * height) as usize);
-        let mut green_values = Vec::with_capacity((width * height) as usize);
-        let mut blue_values = Vec::with_capacity((width * height) as usize);
+        // let mut red_values = Vec::with_capacity((width * height) as usize);
+        // let mut green_values = Vec::with_capacity((width * height) as usize);
+        // let mut blue_values = Vec::with_capacity((width * height) as usize);
 
-        for pixel in img.pixels() {
-            let rgba = pixel.2;
-            red_values.push(rgba[0] as f32);
-            green_values.push(rgba[1] as f32);
-            blue_values.push(rgba[2] as f32);
-        }
+        // for pixel in img.pixels() {
+        //     let rgba = pixel.2;
+        //     red_values.push(rgba[0] as f32);
+        //     green_values.push(rgba[1] as f32);
+        //     blue_values.push(rgba[2] as f32);
+        // }
 
-        let raw_pixels: Vec<f32> = red_values
-            .into_iter()
-            .chain(green_values.into_iter())
-            .chain(blue_values.into_iter())
-            .collect();
+        // let raw_pixels: Vec<f32> = red_values
+        //     .into_iter()
+        //     .chain(green_values.into_iter())
+        //     .chain(blue_values.into_iter())
+        //     .collect();
 
-        let data = Data {
-            value: raw_pixels,
-            shape: Shape::new([3, height as usize, width as usize]),
-        };
+        // let data = Data {
+        //     value: raw_pixels,
+        //     shape: Shape::new([3, height as usize, width as usize]),
+        // };
 
-        Ok(Tensor::<B, 3>::from_data(data.convert(), &self.device))
+        let data = img.into_bytes().into_iter().map(|x| x as f32).collect();
+        let shape = Shape::new([3, height as usize, width as usize]);
+
+        
+
+        Ok(Tensor::<B, 3>::from_data(Data::new(data, shape).convert(), &self.device)  
+            // permute(2, 0, 1)
+            .swap_dims(2, 1) // [H, C, W]
+            .swap_dims(1, 0) // [C, H, W]
+            / 255 // normalize between [0, 1]
+        )
     }
 
     pub fn tensor_to_image(tensor: &Tensor<B, 3>) -> Result<DynamicImage, ImageReaderError> {
