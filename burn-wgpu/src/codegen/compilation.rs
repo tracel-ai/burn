@@ -50,7 +50,7 @@ impl CompilationSettings {
     ///
     /// Notes:
     ///
-    /// This won't garantee that the shader will use input arrays as outputs, since it is only
+    /// This won't guarantee that the shader will use input arrays as outputs, since it is only
     /// possible when [inplace mappings](InplaceMapping) are provided as [compilation info](CompilationInfo)
     pub fn inplace(mut self, available: bool) -> Self {
         self.inplace_available = available;

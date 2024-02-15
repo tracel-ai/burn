@@ -401,7 +401,7 @@ fn register_extensions(body: &wgsl::Scope) -> Vec<wgsl::Extension> {
             }
             #[cfg(target_os = "macos")]
             wgsl::Instruction::Tanh { input, out: _ } => {
-                register_extension(wgsl::Extension::SafeTanh(*input.item()))
+                register_extension(wgsl::Extension::SafeTanh(input.item()))
             }
             _ => {}
         }
