@@ -71,13 +71,11 @@ impl<B: Backend> ImageReader<B> {
         let data = img.into_bytes().into_iter().map(|x| x as f32).collect();
         let shape = Shape::new([3, height as usize, width as usize]);
 
-        
-
-        Ok(Tensor::<B, 3>::from_data(Data::new(data, shape).convert(), &self.device)  
-            // permute(2, 0, 1)
-            .swap_dims(2, 1) // [H, C, W]
-            .swap_dims(1, 0) // [C, H, W]
-            / 255 // normalize between [0, 1]
+        Ok(
+            Tensor::<B, 3>::from_data(Data::new(data, shape).convert(), &self.device)
+                .swap_dims(2, 1)
+                .swap_dims(1, 0)
+                / 255,
         )
     }
 
