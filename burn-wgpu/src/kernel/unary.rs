@@ -91,6 +91,7 @@ macro_rules! unary {
             $crate::kernel::SourceTemplate::new(compiled.to_string())
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
@@ -102,6 +103,7 @@ macro_rules! unary {
             }
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
@@ -172,6 +174,7 @@ macro_rules! unary {
             $crate::kernel::SourceTemplate::new(compiled.to_string())
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
@@ -183,6 +186,7 @@ macro_rules! unary {
             }
         }
 
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,

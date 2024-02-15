@@ -45,7 +45,7 @@ impl Scope {
         let item = item.into();
         let index = self.locals.len() as u16 + self.undeclared;
         let local = Variable::Local(index, item, self.depth);
-        self.locals.push(local.clone());
+        self.locals.push(local);
         local
     }
 
@@ -59,7 +59,7 @@ impl Scope {
 
     pub fn write_global(&mut self, input: Variable, output: Variable) {
         if self.output_ref.is_none() {
-            self.output_ref = Some(output.clone());
+            self.output_ref = Some(output);
         }
         self.writes_global.push((input, output));
     }
@@ -108,8 +108,8 @@ impl Scope {
         let input = Variable::Input(index, item);
         let index = self.locals.len() as u16 + self.undeclared;
         let local = Variable::Local(index, item, self.depth);
-        self.reads_global.push((input, strategy, local.clone()));
-        self.locals.push(local.clone());
+        self.reads_global.push((input, strategy, local));
+        self.locals.push(local);
         local
     }
 
@@ -135,7 +135,7 @@ impl Scope {
         for (input, strategy, local) in self.reads_global.drain(..) {
             match strategy {
                 ReadingStrategy::OutputLayout => {
-                    let output = self.output_ref.clone().expect(
+                    let output = self.output_ref.expect(
                         "Output should be set when processing an input with output layout.",
                     );
                     operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(

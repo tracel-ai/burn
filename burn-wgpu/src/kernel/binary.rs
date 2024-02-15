@@ -49,6 +49,7 @@ macro_rules! binary {
             _o: core::marker::PhantomData<O>,
         }
 
+        #[allow(clippy::redundant_closure_call)]
         fn compile<C, I, O>(
             settings: $crate::codegen::CompilationSettings,
             mappings: Vec<$crate::codegen::InplaceMapping>,

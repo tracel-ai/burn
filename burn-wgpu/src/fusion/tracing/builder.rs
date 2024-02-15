@@ -42,7 +42,7 @@ impl TraceBuilder {
                 let item = gpu::Item::Scalar(elem);
 
                 let local = self.scope.read_global(index, item);
-                self.inputs.push((tensor.clone(), local.clone()));
+                self.inputs.push((tensor.clone(), local));
                 // self.locals
                 //     .insert(tensor.id.clone(), local.index().unwrap());
                 local
@@ -57,7 +57,7 @@ impl TraceBuilder {
                     .inputs
                     .iter()
                     .find(|(input, _local)| input.id == tensor.id)
-                    .map(|(_, local)| local.clone())
+                    .map(|(_, local)| *local)
                     .unwrap(),
             },
         };

@@ -19,7 +19,7 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
 
     scope.register(Operator::AssignLocal(UnaryOperator {
         input: Variable::Constant(0.0, index_type),
-        out: index_local.clone(),
+        out: index_local,
     }));
 
     let offset = match algo.global.item() {
@@ -37,45 +37,45 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
         let tmp = scope.create_local(index_type);
 
         scope.register(Metadata::Stride {
-            dim: i.clone(),
-            var: algo.global.clone(),
-            out: stride.clone(),
+            dim: *i,
+            var: algo.global,
+            out: stride,
         });
         scope.register(Metadata::Stride {
-            dim: i.clone(),
-            var: algo.layout.clone(),
-            out: stride_layout.clone(),
+            dim: *i,
+            var: algo.layout,
+            out: stride_layout,
         });
         scope.register(Metadata::Shape {
-            dim: i.clone(),
-            var: algo.global.clone(),
-            out: shape.clone(),
+            dim: *i,
+            var: algo.global,
+            out: shape,
         });
 
         scope.register(Operator::Mul(BinaryOperator {
             lhs: Variable::Id,
-            rhs: offset.clone(),
-            out: tmp.clone(),
+            rhs: offset,
+            out: tmp,
         }));
         scope.register(Operator::Div(BinaryOperator {
-            lhs: tmp.clone(),
-            rhs: stride_layout.clone(),
-            out: tmp.clone(),
+            lhs: tmp,
+            rhs: stride_layout,
+            out: tmp,
         }));
         scope.register(Operator::Modulo(BinaryOperator {
-            lhs: tmp.clone(),
-            rhs: shape.clone(),
-            out: tmp.clone(),
+            lhs: tmp,
+            rhs: shape,
+            out: tmp,
         }));
         scope.register(Operator::Mul(BinaryOperator {
-            lhs: tmp.clone(),
-            rhs: stride.clone(),
-            out: tmp.clone(),
+            lhs: tmp,
+            rhs: stride,
+            out: tmp,
         }));
         scope.register(Operator::Add(BinaryOperator {
-            lhs: index_local.clone(),
-            rhs: tmp.clone(),
-            out: index_local.clone(),
+            lhs: index_local,
+            rhs: tmp,
+            out: index_local,
         }));
     });
 
@@ -84,10 +84,10 @@ pub fn generate_read_global_with_layout(scope: &mut Scope, algo: ReadGlobalWithL
     scope.register(Operator::Div(BinaryOperator {
         lhs: index_local,
         rhs: offset,
-        out: tmp.clone(),
+        out: tmp,
     }));
     scope.register(Operator::Index(BinaryOperator {
-        lhs: algo.global.clone(),
+        lhs: algo.global,
         rhs: tmp,
         out: algo.out,
     }));
