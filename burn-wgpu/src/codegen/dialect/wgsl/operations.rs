@@ -444,7 +444,7 @@ fn comparison(
             ))
         }
         Item::Scalar(_) => match rhs.item() {
-            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};")),
+            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};\n")),
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }

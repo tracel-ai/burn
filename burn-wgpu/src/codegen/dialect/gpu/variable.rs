@@ -1,7 +1,7 @@
 use super::{Elem, Item};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Variable {
     Input(u16, Item),
     Scalar(u16, Item),

@@ -4,14 +4,12 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::{Vectorization, WorkgroupSize},
-    codegen::ElemWiseKernelCodegen,
-    compute::JitAutotuneKey,
-    fusion::{
-        kernel::FusionKernelSet,
-        source::GpuKernelSource,
-        tracing::{Compilation, CompilationSettings, CompilingInfo, Trace},
+    codegen::{
+        dialect::gpu::{Vectorization, WorkgroupSize},
+        Compilation, CompilationInfo, CompilationSettings,
     },
+    compute::JitAutotuneKey,
+    fusion::{kernel::FusionKernelSet, source::GpuKernelSource, tracing::Trace},
     JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
@@ -177,7 +175,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
 }
 
 fn build_kernel_set<R: Runtime>(
-    info: &CompilingInfo,
+    info: &CompilationInfo,
     workgroup_size: WorkgroupSize,
 ) -> FusionKernelSet<R> {
     let scalar = ScalarElementWise::<R>::new(

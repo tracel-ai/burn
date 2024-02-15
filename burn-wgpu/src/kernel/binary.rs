@@ -49,6 +49,45 @@ macro_rules! binary {
             _o: core::marker::PhantomData<O>,
         }
 
+        fn compile<C, I, O>(
+            settings: $crate::codegen::CompilationSettings,
+            mappings: Vec<$crate::codegen::InplaceMapping>,
+        ) -> $crate::kernel::SourceTemplate
+        where
+            C: $crate::codegen::Compiler,
+            I: $crate::element::JitElement,
+            O: $crate::element::JitElement
+        {
+            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+            let op = $ops(&mut scope, I::gpu_elem());
+            scope.register(op);
+
+            let local = scope.last_local_index();
+
+            let lhs = $crate::codegen::Input::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+            };
+            let rhs = $crate::codegen::Input::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
+                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+            };
+            let out = $crate::codegen::Output::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
+                local,
+            };
+            let info = $crate::codegen::CompilationInfo {
+                inputs: vec![lhs, rhs],
+                outputs: vec![out],
+                scope,
+                mappings,
+            };
+            let shader = $crate::codegen::Compilation::new(info).compile(settings);
+
+            let compiled = C::compile(shader);
+            $crate::kernel::SourceTemplate::new(compiled.to_string())
+        }
+
         #[allow(clippy::redundant_closure_call)]
         impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
         where
@@ -57,31 +96,8 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-                let op = $ops(&mut scope, I::gpu_elem());
-                scope.register(op);
-                let local = scope.last_local_index();
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
-                    .inputs(&[
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                        },
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                        },
-                    ])
-                    .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
-                        local,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default();
+                compile::<C, I, O>(settings, Vec::new())
             }
         }
 
@@ -94,32 +110,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-                let op = $ops(&mut scope, I::gpu_elem());
-                scope.register(op);
-                let local = scope.last_local_index();
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
-                    .inputs(&[
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
-                            strategy: $crate::codegen::ReadingStrategy::Plain,
-                        },
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                        },
-                    ])
-                    .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                        input: 0,
-                        local,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(true);
+                let mapping = $crate::codegen::InplaceMapping {
+                    position_input: 0,
+                    position_output: 0,
+                };
+                compile::<C, I, O>(settings, vec![mapping])
             }
         }
 
@@ -132,32 +129,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-                let op = $ops(&mut scope, I::gpu_elem());
-                scope.register(op);
-                let local = scope.last_local_index();
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new(scope)
-                    .inputs(&[
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                        },
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
-                            strategy: $crate::codegen::ReadingStrategy::Plain,
-                        },
-                    ])
-                    .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                        input: 1,
-                        local,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(true);
+                let mapping = $crate::codegen::InplaceMapping {
+                    position_input: 1,
+                    position_output: 0,
+                };
+                compile::<C, I, O>(settings, vec![mapping])
             }
         }
     };

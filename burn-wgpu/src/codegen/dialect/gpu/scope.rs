@@ -72,6 +72,16 @@ impl Scope {
         self.locals.last().unwrap().index().unwrap()
     }
 
+    pub fn update_read(&mut self, index: u16, strategy: ReadingStrategy) {
+        if let Some((_, strategy_old, _)) = self
+            .reads_global
+            .iter_mut()
+            .find(|(var, _, _)| var.index() == Some(index))
+        {
+            *strategy_old = strategy;
+        }
+    }
+
     pub fn vectorize(&mut self, vectorization: Vectorization) {
         self.operations
             .iter_mut()

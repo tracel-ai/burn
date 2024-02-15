@@ -1,5 +1,5 @@
-use super::{CompilingInfo, RunningInfo, Scalars};
-use crate::codegen::{dialect::gpu, InplaceMapping, Input, Output, ReadingStrategy};
+use super::{ExecutionInfo, Scalars};
+use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, Input, Output};
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
 
@@ -13,22 +13,21 @@ pub struct Trace {
 }
 
 impl Trace {
-    pub fn running(&self) -> RunningInfo<'_> {
-        RunningInfo {
+    pub fn running(&self) -> ExecutionInfo<'_> {
+        ExecutionInfo {
             inputs: self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             outputs: self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
             scalars: &self.scalars,
         }
     }
 
-    pub fn compiling(&self) -> CompilingInfo {
+    pub fn compiling(&self) -> CompilationInfo {
         let mut inputs = self
             .inputs
             .iter()
             .map(|(_tensor, elem)| Input::Array {
                 item: gpu::Item::Scalar(*elem),
                 visibility: gpu::Visibility::Read,
-                strategy: ReadingStrategy::OutputLayout, // TODO: strategy should not be here.
             })
             .collect::<Vec<_>>();
 
@@ -108,7 +107,7 @@ impl Trace {
             })
             .collect::<Vec<_>>();
 
-        CompilingInfo {
+        CompilationInfo {
             inputs,
             outputs,
             scope: self.scope.clone(),

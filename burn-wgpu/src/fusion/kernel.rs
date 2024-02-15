@@ -11,7 +11,7 @@ use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
 use std::sync::Arc;
 
-use super::tracing::RunningInfo;
+use super::tracing::ExecutionInfo;
 
 /// Many kernels can be used for the same set of tensor operations fused into one.
 ///
@@ -123,7 +123,7 @@ impl<R: Runtime> FusionKernelSet<R> {
     /// Select the best kernel based on the given information.
     pub fn select(
         &self,
-        running_info: &RunningInfo<'_>,
+        running_info: &ExecutionInfo<'_>,
         context: &mut Context<'_, JitBackend<R>>,
         device: Device<JitBackend<R>>,
         client: ComputeClient<R::Server, R::Channel>,
