@@ -137,6 +137,7 @@ impl BackwardStates {
             downcasted
         } else {
             println!("NOT reinserting node {:?}", node_id);
+            println!("{:?}", self.map.len());
             let downcasted = state.into_state_content().downcast::<T>().unwrap();
             *downcasted
         }

@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use crate::{
-    graph::{Graph, Node, NodeID, NodeRef, NodeSteps},
+    graph::{NodeID, NodeRef, NodeSteps},
     ops::CheckpointingAction,
 };
 use std::fmt::Debug;
@@ -25,7 +25,10 @@ impl RetroForwards {
     /// Executes the [RetroForward] for a given [NodeID] if the node's
     /// [State] is [State::Recompute], otherwise does nothing.
     fn execute_retro_forward(&mut self, node_id: NodeID, backward_states: &mut BackwardStates) {
-        let n_required = match backward_states.get_state_ref(&node_id).unwrap() {
+        let n_required = match backward_states
+            .get_state_ref(&node_id)
+            .expect(&format!("Should find node {:?}", node_id))
+        {
             State::Recompute { n_required } => *n_required,
             State::Computed {
                 state_content: _,
@@ -117,11 +120,18 @@ impl Checkpointer {
                 State::Recompute { n_required: _ } => {
                     let mut sorted = Vec::new();
                     for parent_node in self.node_tree.parents(&node_id) {
-                        if !sorted.contains(&parent_node) {
-                            sorted.extend(self.topological_sort(parent_node));
+                        // if !sorted.contains(&parent_node) {
+                        //     sorted.extend(self.topological_sort(parent_node));
+                        // }
+                        let parent_sorted = self.topological_sort(parent_node);
+                        for ps in parent_sorted {
+                            if !sorted.contains(&ps) {
+                                sorted.push(ps)
+                            }
                         }
                     }
                     sorted.push(node_id);
+                    println!("X {:?}", sorted);
                     sorted
                 }
                 State::Computed {
@@ -182,12 +192,16 @@ impl Checkpointer {
         println!("\n\n");
     }
 
-    pub fn build(checkpointing_actions: Vec<CheckpointingAction>, graph: &NodeSteps) -> Self {
+    pub fn build(
+        mut checkpointing_actions: Vec<CheckpointingAction>,
+        mut unsure_checkpointing_actions: Vec<CheckpointingAction>,
+        graph: &NodeSteps,
+    ) -> Self {
         let mut checkpointer = Self::default();
         checkpointer.make_tree(graph);
         let mut n_required_map = HashMap::<NodeID, usize>::default();
 
-        // First loop computes n_required
+        // First loop: computes n_required
         for action in checkpointing_actions.iter() {
             match action {
                 CheckpointingAction::Compute {
@@ -217,24 +231,53 @@ impl Checkpointer {
         }
         println!("{:?}", n_required_map);
 
-        for action in checkpointing_actions.into_iter() {
+        // Second loop: inserts the states into the checkpointer
+        // We do not loop over checkpointing actions anymore because they can contain
+        // duplicates or miss unsure ones
+        // but how to distinguish compute from lazy?
+        for (node_id, n_required) in n_required_map {
+            // Find it in checkpointing_actions
+            // Technically can be there several times but can never be of both types, so we can assume any one is fine
+            // Performance could be upgraded by saving index in the loop above, but probably marginal
+            let mut pos = None;
+            let mut in_unsure = false;
+            for (i, action) in checkpointing_actions.iter().enumerate() {
+                if action.id() == node_id {
+                    pos = Some(i);
+                    break;
+                }
+            }
+
+            if pos.is_none() {
+                in_unsure = true;
+                for (i, action) in unsure_checkpointing_actions.iter().enumerate() {
+                    if action.id() == node_id {
+                        pos = Some(i);
+                        break;
+                    }
+                }
+            }
+
+            let pos = pos.expect(&format!(
+                "Node {:?} is needed but never checkpointed",
+                &node_id
+            ));
+
+            let action = if in_unsure {
+                unsure_checkpointing_actions.remove(pos)
+            } else {
+                checkpointing_actions.remove(pos)
+            };
+
             match action {
                 CheckpointingAction::Compute {
-                    node_ref,
+                    node_ref: _,
                     state_content,
-                } => {
-                    let id = node_ref.id.clone();
-                    let n_required = *n_required_map.get(&id).unwrap();
-                    checkpointer.checkpoint_compute(id, state_content, n_required)
-                }
+                } => checkpointer.checkpoint_compute(node_id, state_content, n_required),
                 CheckpointingAction::Recompute {
-                    node_ref,
+                    node_ref: _,
                     retro_forward,
-                } => {
-                    let id = node_ref.id.clone();
-                    let n_required = *n_required_map.get(&id).unwrap();
-                    checkpointer.checkpoint_lazy(id, retro_forward, n_required)
-                }
+                } => checkpointer.checkpoint_lazy(node_id, retro_forward, n_required),
             };
         }
 
@@ -248,6 +291,7 @@ impl Checkpointer {
     }
 
     fn find_n_required_of_parents(&self, id: NodeID, n_required_map: &mut HashMap<NodeID, usize>) {
+        println!("{:?}", id);
         match n_required_map.remove(&id) {
             Some(n) => {
                 n_required_map.insert(id, n + 1);
@@ -263,19 +307,6 @@ impl Checkpointer {
     }
 }
 
-// Problems
-//
-// Leaves 2 and 3 miss one n_required ?
-// 6's backward: 6 is lazy, therefore needs them. 
-// 8's backward: 8 is lazy, therefore needs 6 (and 7). 6 is compute bound, maybe made a mistake on paper
-//
-// Leaf 4 is not in a checkpointing action, but it still has a n_required of 1
-// We must add it to the backward state, but how?
-// Should be ambiguous, therefore a computed
-
-// Let's generalize the problem:
-// If child is eager, it does not ask to checkpoint its parents
-// Not a problem if child is compute bound, but problem if child is memory bound
-// Therefore the problem appears for EAGER-MEMORY-BOUND nodes [\]
-// If parent was checkpointed another way, we can find it back and give it the right n_required
-// But if only eager memory bound children, the parent will be needed but does not exist.
+// new edge case
+// a*a -> i think it will be two n_required but consumed once only?
+// while a(b*a) is fine because a is in separate nodes?

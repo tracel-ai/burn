@@ -88,12 +88,13 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         requirement: Requirement,
         computing_properties: ComputingProperty,
         checkpointing_actions: Vec<CheckpointingAction>,
+        unsure_checkpointing_actions: Vec<CheckpointingAction>,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
 
-        graph.extend_checkpointing_actions(checkpointing_actions);
+        graph.extend_checkpointing_actions(checkpointing_actions, unsure_checkpointing_actions);
 
         let order = parent_nodes
             .iter()

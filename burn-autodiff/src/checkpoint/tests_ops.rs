@@ -269,3 +269,49 @@ fn complicated_computation() {
     let grads = tensor_12.backward();
     assert!(false)
 }
+
+#[test]
+fn test_with_edge_cases() {
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+
+    let tensor_2 = tensor_0.add(tensor_1);
+    let tensor_3 = tensor_2.clone().add_scalar(11);
+    let tensor_4 = tensor_2.clone().add_scalar(11);
+    let tensor_5 = tensor_3.add(tensor_4);
+    let tensor_6 = tensor_5.clone().powf_scalar(11);
+    let tensor_7 = tensor_5.add(tensor_2);
+    let tensor_8 = tensor_6.div(tensor_7);
+
+    tensor_8.backward();
+    assert!(false);
+}
+
+#[test]
+fn test_with_many_duplicates() {
+    let data_0 = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+
+    let tensor_1 = tensor_0.clone().add(tensor_0.clone());
+    let tensor_2 = tensor_0.clone().powf(tensor_0.clone());
+    let tensor_3 = tensor_0.clone().mul(tensor_0.clone());
+    let tensor_4 = tensor_0.clone().div(tensor_0.clone());
+
+    let tensor_5 = tensor_1.clone().add(tensor_0.clone());
+    let tensor_6 = tensor_0.clone().add(tensor_5.clone());
+    let tensor_7 = tensor_3.clone().div(tensor_5.clone());
+    let tensor_8 = tensor_4.clone().powf(tensor_2.clone());
+    let tensor_9 = tensor_6.mul(tensor_7);
+    let tensor_10 = tensor_0.add(tensor_9);
+    let tensor_11 = tensor_10.add_scalar(9);
+    let tensor_12 = tensor_8.div(tensor_11);
+
+    tensor_12.backward();
+    assert!(false);
+}
