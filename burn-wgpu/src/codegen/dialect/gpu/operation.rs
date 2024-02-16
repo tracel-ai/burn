@@ -127,7 +127,7 @@ pub struct RangeLoop {
 
 impl RangeLoop {
     /// Registers a range loop to the given scope.
-    pub fn register<F: Fn(&Variable, &mut Scope)>(
+    pub fn register<F: Fn(Variable, &mut Scope)>(
         parent_scope: &mut Scope,
         start: Variable,
         end: Variable,
@@ -137,7 +137,7 @@ impl RangeLoop {
         let index_ty = Item::Scalar(Elem::UInt);
         let i = scope.create_local_undeclare(index_ty);
 
-        func(&i, &mut scope);
+        func(i, &mut scope);
 
         let op = Self {
             i,

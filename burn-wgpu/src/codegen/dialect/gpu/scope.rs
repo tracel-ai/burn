@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Notes:
 ///
-/// This type isn't reaponsable for creating [shader bindings](super::Binding) and figuring out which
+/// This type isn't responsible for creating [shader bindings](super::Binding) and figuring out which
 /// variable can be written to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Scope {
@@ -126,7 +126,7 @@ impl Scope {
     ///
     /// Notes:
     ///
-    /// This should only by used when doing compilation.
+    /// This should only be used when doing compilation.
     pub(crate) fn write_global(&mut self, input: Variable, output: Variable) {
         if self.output_ref.is_none() {
             self.output_ref = Some(output);
@@ -168,7 +168,7 @@ impl Scope {
         }
     }
 
-    /// Returns the variables and operations to be decled and executed.
+    /// Returns the variables and operations to be declared and executed.
     ///
     /// Notes:
     ///

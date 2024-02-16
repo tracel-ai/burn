@@ -3,7 +3,7 @@ use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, InputInfo, O
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
 
-/// A trace encaptulate all information necessary to perform the compilation and execution of
+/// A trace encaptulates all information necessary to perform the compilation and execution of
 /// captured [tensor operations](burn_fusion::stream::OperationDescription).
 ///
 /// A trace should be built using a [builder](super::TraceBuilder).

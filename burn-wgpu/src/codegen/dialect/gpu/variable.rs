@@ -14,6 +14,12 @@ pub enum Variable {
 }
 
 impl Variable {
+    pub fn const_value(&self) -> Option<f64> {
+        match self {
+            Variable::ConstantScalar(value, _) => Some(*value),
+            _ => None,
+        }
+    }
     pub fn index(&self) -> Option<u16> {
         match self {
             Variable::GlobalInputArray(idx, _) => Some(*idx),

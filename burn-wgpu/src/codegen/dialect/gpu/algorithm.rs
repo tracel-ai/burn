@@ -1,6 +1,5 @@
 use super::{
-    Elem, Item, Metadata, Operator, RangeLoop, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Scope,
-    UnaryOperator, Variable,
+    gpu, Elem, Item, Metadata, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Scope, Variable,
 };
 use crate::codegen::dialect::gpu::BinaryOperator;
 
@@ -16,82 +15,43 @@ impl ReadGlobalAlgo {
 
 impl ReadGlobalWithLayoutAlgo {
     pub fn expand(self, scope: &mut Scope) {
+        let out = self.out;
+        let tensor = self.global;
+        let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
         let index_local = scope.create_local(index_item_ty);
-        let start = Variable::ConstantScalar(0.0, Elem::UInt);
+        let zero: Variable = 0u32.into();
+        let id = Variable::Id;
+        let offset: Variable = match self.global.item() {
+            Item::Vec4(_) => 4u32,
+            Item::Vec3(_) => 3u32,
+            Item::Vec2(_) => 2u32,
+            Item::Scalar(_) => 1u32,
+        }
+        .into();
 
-        scope.register(Operator::AssignLocal(UnaryOperator {
-            input: Variable::ConstantScalar(0.0, Elem::UInt),
-            out: index_local,
-        }));
+        gpu!(scope, index_local = zero);
+        gpu!(
+            scope,
+            range(zero, Variable::Rank).for_each(|i, scope| {
+                let stride = scope.create_local(index_item_ty);
+                let stride_layout = scope.create_local(index_item_ty);
+                let shape = scope.create_local(index_item_ty);
+                let tmp = scope.create_local(index_item_ty);
 
-        let offset = match self.global.item() {
-            Item::Vec4(_) => 4.0,
-            Item::Vec3(_) => 3.0,
-            Item::Vec2(_) => 2.0,
-            Item::Scalar(_) => 1.0,
-        };
-        let offset = Variable::ConstantScalar(offset, Elem::UInt);
+                gpu!(scope, stride = stride(tensor, i));
+                gpu!(scope, shape = shape(tensor, i));
+                gpu!(scope, stride_layout = stride(layout, i));
 
-        RangeLoop::register(scope, start, Variable::Rank, |i, scope| {
-            let stride = scope.create_local(index_item_ty);
-            let stride_layout = scope.create_local(index_item_ty);
-            let shape = scope.create_local(index_item_ty);
-            let tmp = scope.create_local(index_item_ty);
+                gpu!(scope, tmp = id * offset);
+                gpu!(scope, tmp = tmp / stride_layout);
+                gpu!(scope, tmp = tmp % shape);
+                gpu!(scope, tmp = tmp * stride);
+                gpu!(scope, index_local = index_local + tmp);
+            })
+        );
 
-            scope.register(Metadata::Stride {
-                dim: *i,
-                var: self.global,
-                out: stride,
-            });
-            scope.register(Metadata::Stride {
-                dim: *i,
-                var: self.layout,
-                out: stride_layout,
-            });
-            scope.register(Metadata::Shape {
-                dim: *i,
-                var: self.global,
-                out: shape,
-            });
-
-            scope.register(Operator::Mul(BinaryOperator {
-                lhs: Variable::Id,
-                rhs: offset,
-                out: tmp,
-            }));
-            scope.register(Operator::Div(BinaryOperator {
-                lhs: tmp,
-                rhs: stride_layout,
-                out: tmp,
-            }));
-            scope.register(Operator::Modulo(BinaryOperator {
-                lhs: tmp,
-                rhs: shape,
-                out: tmp,
-            }));
-            scope.register(Operator::Mul(BinaryOperator {
-                lhs: tmp,
-                rhs: stride,
-                out: tmp,
-            }));
-            scope.register(Operator::Add(BinaryOperator {
-                lhs: index_local,
-                rhs: tmp,
-                out: index_local,
-            }));
-        });
-
-        let tmp = scope.create_local(index_item_ty);
-        scope.register(Operator::Div(BinaryOperator {
-            lhs: index_local,
-            rhs: offset,
-            out: tmp,
-        }));
-        scope.register(Operator::Index(BinaryOperator {
-            lhs: self.global,
-            rhs: tmp,
-            out: self.out,
-        }));
+        gpu!(scope, index_local = index_local / offset);
+        gpu!(scope, out = tensor[index_local]);
     }
 }

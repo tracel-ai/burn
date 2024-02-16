@@ -24,10 +24,10 @@ impl Operation {
             Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
             Operation::Algorithm(op) => Operation::Algorithm(op.vectorize(vectorization)),
             Operation::Metadata(_) => panic!(
-                "Metadata can't be vectorize, they should only be generated after vectorization."
+                "Metadata can't be vectorized, they should only be generated after vectorization."
             ),
             Operation::Loop(_) => panic!(
-                "Loops can't be vectorize, they should only be generated after vectorization."
+                "Loops can't be vectorized, they should only be generated after vectorization."
             ),
         }
     }
