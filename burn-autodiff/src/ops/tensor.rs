@@ -1,17 +1,13 @@
-use std::{marker::PhantomData, process::Output};
+use std::marker::PhantomData;
 
 use crate::{
     checkpoint::{
-        self,
         base::{Checkpointer, RetroForward},
         state::BackwardStates,
     },
     grads::Gradients,
-    graph::{Graph, NodeID, NodeRef, Requirement, Step},
-    ops::{
-        binary, broadcast_shape, tensor, unary, unary_different_backend, Backward, Ops, OpsKind,
-        OpsPrep,
-    },
+    graph::{NodeID, Requirement},
+    ops::{binary, broadcast_shape, unary, Backward, Ops, OpsKind},
     tensor::AutodiffTensor,
     utils::duplicate,
     Autodiff,
@@ -20,7 +16,7 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Data, Device, ElementConversion, Reader, Shape, Tensor,
+    Data, Device, ElementConversion, Reader, Shape,
 };
 
 // use super::maxmin::MaxMinDim;
@@ -70,8 +66,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_to_device<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        device: &Device<Self>,
+        _tensor: FloatTensor<Self, D>,
+        _device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -159,7 +155,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             )
             .stateful()
         {
-            OpsKind::Tracked(mut preps) => preps.finish(
+            OpsKind::Tracked(preps) => preps.finish(
                 (
                     B::float_shape(&lhs.primitive),
                     B::float_shape(&rhs.primitive),
@@ -214,8 +210,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_sub<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -250,8 +246,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_sub_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -579,7 +575,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn float_neg<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_neg<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Neg;
@@ -596,7 +592,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         //     .stateless(B::neg(tensor.primitive))
     }
 
-    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_recip<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Recip;
@@ -624,9 +620,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_swap_dims<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim1: usize,
-        dim2: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim1: usize,
+        _dim2: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -653,8 +649,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_reshape<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        shape: Shape<D2>,
+        _tensor: FloatTensor<Self, D1>,
+        _shape: Shape<D2>,
     ) -> FloatTensor<Self, D2> {
         todo!()
         // #[derive(Debug)]
@@ -691,9 +687,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_gather<const D: usize>(
-        dim: usize,
-        tensor: FloatTensor<Self, D>,
-        indices: IntTensor<B, D>,
+        _dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _indices: IntTensor<B, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -727,10 +723,10 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_scatter<const D: usize>(
-        dim: usize,
-        tensor: FloatTensor<Self, D>,
-        indices: IntTensor<B, D>,
-        value: FloatTensor<Self, D>,
+        _dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _indices: IntTensor<B, D>,
+        _value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -780,9 +776,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_select<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-        indices: IntTensor<B, 1>,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
+        _indices: IntTensor<B, 1>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -819,10 +815,10 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_select_assign<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-        indices: IntTensor<B, 1>,
-        value: FloatTensor<Self, D>,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
+        _indices: IntTensor<B, 1>,
+        _value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -875,8 +871,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_slice<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        ranges: [std::ops::Range<usize>; D2],
+        _tensor: FloatTensor<Self, D1>,
+        _ranges: [std::ops::Range<usize>; D2],
     ) -> FloatTensor<Self, D1> {
         todo!()
         // #[derive(Debug)]
@@ -909,9 +905,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_slice_assign<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        ranges: [std::ops::Range<usize>; D2],
-        value: FloatTensor<Self, D1>,
+        _tensor: FloatTensor<Self, D1>,
+        _ranges: [std::ops::Range<usize>; D2],
+        _value: FloatTensor<Self, D1>,
     ) -> FloatTensor<Self, D1> {
         todo!()
         // #[derive(Debug)]
@@ -956,9 +952,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_mask_where<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
-        source: FloatTensor<Self, D>,
+        _tensor: FloatTensor<Self, D>,
+        _mask: BoolTensor<Self, D>,
+        _source: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -1011,9 +1007,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_mask_fill<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        mask: BoolTensor<B, D>,
-        value: FloatElem<B>,
+        _tensor: FloatTensor<Self, D>,
+        _mask: BoolTensor<B, D>,
+        _value: FloatElem<B>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -1038,80 +1034,80 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::equal(lhs.primitive, rhs.primitive)
     }
 
     fn float_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::equal_elem(lhs.primitive, rhs)
     }
 
     fn float_greater<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::greater(lhs.primitive, rhs.primitive)
     }
 
     fn float_greater_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::greater_elem(lhs.primitive, rhs)
     }
 
     fn float_greater_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::greater_equal(lhs.primitive, rhs.primitive)
     }
 
     fn float_greater_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::greater_equal_elem(lhs.primitive, rhs)
     }
 
     fn float_lower<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::lower(lhs.primitive, rhs.primitive)
     }
 
     fn float_lower_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::lower_elem(lhs.primitive, rhs)
     }
 
     fn float_lower_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatTensor<Self, D>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::lower_equal(lhs.primitive, rhs.primitive)
     }
 
     fn float_lower_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<B>,
+        _lhs: FloatTensor<Self, D>,
+        _rhs: FloatElem<B>,
     ) -> BoolTensor<B, D> {
         todo!()
         // B::lower_equal_elem(lhs.primitive, rhs)
@@ -1144,7 +1140,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         matches!(tensor.node.requirement, Requirement::Grad)
     }
 
-    fn float_mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+    fn float_mean<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         todo!()
         // #[derive(Debug)]
         // struct Mean<const D: usize>;
@@ -1175,7 +1171,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+    fn float_sum<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         todo!()
         // #[derive(Debug)]
         // struct Sum<const D: usize>;
@@ -1204,8 +1200,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_mean_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -1238,8 +1234,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_sum_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -1270,7 +1266,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_to_full_precision<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
+        _tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
         todo!()
         // #[derive(Debug)]
@@ -1299,7 +1295,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
+        _tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
@@ -1328,17 +1324,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         //     .stateless(B::from_full_precision(tensor.primitive))
     }
 
-    fn float_argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
+    fn float_argmax<const D: usize>(_tensor: FloatTensor<Self, D>, _dim: usize) -> IntTensor<B, D> {
         todo!()
         // B::argmax(tensor.primitive, dim)
     }
 
-    fn float_argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
+    fn float_argmin<const D: usize>(_tensor: FloatTensor<Self, D>, _dim: usize) -> IntTensor<B, D> {
         todo!()
         // B::argmin(tensor.primitive, dim)
     }
 
-    fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_exp<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Exp;
@@ -1359,7 +1355,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_log<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Log;
@@ -1383,7 +1379,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_log1p<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Log1P;
@@ -1524,7 +1520,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
     }
 
-    fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_sqrt<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Sqrt;
@@ -1550,7 +1546,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_abs<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Abs;
@@ -1573,7 +1569,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_cos<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Cos;
@@ -1599,7 +1595,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_sin<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Sin;
@@ -1623,7 +1619,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_tanh<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Tanh;
@@ -1648,7 +1644,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
 
-    fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_erf<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Erf;
@@ -1677,8 +1673,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_cat<const D: usize>(
-        tensors: Vec<FloatTensor<Self, D>>,
-        dim: usize,
+        _tensors: Vec<FloatTensor<Self, D>>,
+        _dim: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(new, Debug)]
@@ -1747,8 +1743,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_max_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
@@ -1761,8 +1757,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
     fn float_max_dim_with_indices<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         todo!()
         // match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
@@ -1782,8 +1778,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
     fn float_min_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> FloatTensor<Self, D> {
         todo!()
         // match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
@@ -1796,8 +1792,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         // }
     }
     fn float_min_dim_with_indices<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
+        _tensor: FloatTensor<Self, D>,
+        _dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         todo!()
         // match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
@@ -1818,7 +1814,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     }
 
     fn float_into_int<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+        _tensor: FloatTensor<Self, D>,
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
         todo!()
         // B::into_int(tensor.primitive)

@@ -45,8 +45,8 @@ pub(crate) fn build_checkpointer(
 }
 
 fn find_stop_nodes(
-    main_actions: &Vec<CheckpointingAction>,
-    backup_actions: &Vec<CheckpointingAction>,
+    main_actions: &[CheckpointingAction],
+    backup_actions: &[CheckpointingAction],
 ) -> Vec<NodeID> {
     let mut stop_nodes = Vec::default();
     for action in main_actions.iter().chain(backup_actions.iter()) {
@@ -65,7 +65,7 @@ fn find_stop_nodes(
 }
 
 fn build_n_required_map(
-    checkpointing_actions: &Vec<CheckpointingAction>,
+    checkpointing_actions: &[CheckpointingAction],
     node_tree: &NodeTree,
     stop_nodes: Vec<NodeID>,
 ) -> HashMap<NodeID, usize> {
@@ -123,10 +123,9 @@ fn insert_checkpoints(
                 let pos = backup_checkpointing_actions
                     .iter()
                     .position(|action| action.id() == node_id);
-                backup_checkpointing_actions.remove(pos.expect(&format!(
-                    "Node {:?} is needed but never checkpointed",
-                    &node_id
-                )))
+                backup_checkpointing_actions.remove(pos.unwrap_or_else(|| {
+                    panic!("Node {:?} is needed but never checkpointed", &node_id)
+                }))
             }
         };
 

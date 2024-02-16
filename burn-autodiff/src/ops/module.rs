@@ -1,15 +1,15 @@
-use crate::grads::Gradients;
-use crate::ops::{unary, Ops};
+
+
 use crate::tensor::AutodiffTensor;
 use crate::Autodiff;
 
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
 
-use super::OpsKind;
+
 
 impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
-    fn embedding(weights: AutodiffTensor<B, 2>, indices: IntTensor<B, 2>) -> AutodiffTensor<B, 3> {
+    fn embedding(_weights: AutodiffTensor<B, 2>, _indices: IntTensor<B, 2>) -> AutodiffTensor<B, 3> {
         todo!()
         // #[derive(Debug)]
         // struct Embedding;
@@ -47,10 +47,10 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn conv2d(
-        x: AutodiffTensor<B, 4>,
-        weight: AutodiffTensor<B, 4>,
-        bias: Option<AutodiffTensor<B, 1>>,
-        options: ConvOptions<2>,
+        _x: AutodiffTensor<B, 4>,
+        _weight: AutodiffTensor<B, 4>,
+        _bias: Option<AutodiffTensor<B, 1>>,
+        _options: ConvOptions<2>,
     ) -> AutodiffTensor<B, 4> {
         todo!()
         // #[derive(Debug)]
@@ -148,10 +148,10 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn conv_transpose2d(
-        x: AutodiffTensor<B, 4>,
-        weight: AutodiffTensor<B, 4>,
-        bias: Option<AutodiffTensor<B, 1>>,
-        options: ConvTransposeOptions<2>,
+        _x: AutodiffTensor<B, 4>,
+        _weight: AutodiffTensor<B, 4>,
+        _bias: Option<AutodiffTensor<B, 1>>,
+        _options: ConvTransposeOptions<2>,
     ) -> AutodiffTensor<B, 4> {
         todo!()
         // #[derive(Debug)]
@@ -261,10 +261,10 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn conv1d(
-        x: AutodiffTensor<B, 3>,
-        weight: AutodiffTensor<B, 3>,
-        bias: Option<AutodiffTensor<B, 1>>,
-        options: ConvOptions<1>,
+        _x: AutodiffTensor<B, 3>,
+        _weight: AutodiffTensor<B, 3>,
+        _bias: Option<AutodiffTensor<B, 1>>,
+        _options: ConvOptions<1>,
     ) -> AutodiffTensor<B, 3> {
         todo!()
         // #[derive(Debug)]
@@ -361,10 +361,10 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn conv_transpose1d(
-        x: AutodiffTensor<B, 3>,
-        weight: AutodiffTensor<B, 3>,
-        bias: Option<AutodiffTensor<B, 1>>,
-        options: ConvTransposeOptions<1>,
+        _x: AutodiffTensor<B, 3>,
+        _weight: AutodiffTensor<B, 3>,
+        _bias: Option<AutodiffTensor<B, 1>>,
+        _options: ConvTransposeOptions<1>,
     ) -> AutodiffTensor<B, 3> {
         todo!()
         // #[derive(Debug)]
@@ -489,11 +489,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     // }
 
     fn avg_pool1d(
-        x: AutodiffTensor<B, 3>,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        count_include_pad: bool,
+        _x: AutodiffTensor<B, 3>,
+        _kernel_size: usize,
+        _stride: usize,
+        _padding: usize,
+        _count_include_pad: bool,
     ) -> AutodiffTensor<B, 3> {
         todo!()
         // #[derive(Debug)]
@@ -546,11 +546,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn avg_pool2d(
-        x: AutodiffTensor<B, 4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        count_include_pad: bool,
+        _x: AutodiffTensor<B, 4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _count_include_pad: bool,
     ) -> AutodiffTensor<B, 4> {
         todo!()
         // #[derive(Debug)]
@@ -620,11 +620,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn max_pool1d(
-        x: AutodiffTensor<B, 3>,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
+        _x: AutodiffTensor<B, 3>,
+        _kernel_size: usize,
+        _stride: usize,
+        _padding: usize,
+        _dilation: usize,
     ) -> AutodiffTensor<B, 3> {
         todo!()
         // match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
@@ -659,11 +659,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn max_pool1d_with_indices(
-        x: AutodiffTensor<B, 3>,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
+        _x: AutodiffTensor<B, 3>,
+        _kernel_size: usize,
+        _stride: usize,
+        _padding: usize,
+        _dilation: usize,
     ) -> MaxPool1dWithIndices<Autodiff<B>> {
         todo!()
         // match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
@@ -701,13 +701,13 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn max_pool1d_with_indices_backward(
-        x: AutodiffTensor<B, 3>,
-        kernel_size: usize,
-        stride: usize,
-        padding: usize,
-        dilation: usize,
-        output_grad: AutodiffTensor<B, 3>,
-        indices: IntTensor<B, 3>,
+        _x: AutodiffTensor<B, 3>,
+        _kernel_size: usize,
+        _stride: usize,
+        _padding: usize,
+        _dilation: usize,
+        _output_grad: AutodiffTensor<B, 3>,
+        _indices: IntTensor<B, 3>,
     ) -> MaxPool1dBackward<Autodiff<B>> {
         todo!()
         // let output = B::max_pool1d_with_indices_backward(
@@ -723,11 +723,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn max_pool2d(
-        x: AutodiffTensor<B, 4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
+        _x: AutodiffTensor<B, 4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _dilation: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
         todo!()
         // match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
@@ -762,11 +762,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn max_pool2d_with_indices(
-        x: AutodiffTensor<B, 4>,
-        kernel_size: [usize; 2],
-        stride: [usize; 2],
-        padding: [usize; 2],
-        dilation: [usize; 2],
+        _x: AutodiffTensor<B, 4>,
+        _kernel_size: [usize; 2],
+        _stride: [usize; 2],
+        _padding: [usize; 2],
+        _dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<Autodiff<B>> {
         todo!()
         // match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
@@ -814,7 +814,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     ) -> MaxPool2dBackward<Autodiff<B>> {
         panic!("Can't differentiate max pool2d with indices backward.");
     }
-    fn adaptive_avg_pool1d(x: AutodiffTensor<B, 3>, output_size: usize) -> AutodiffTensor<B, 3> {
+    fn adaptive_avg_pool1d(_x: AutodiffTensor<B, 3>, _output_size: usize) -> AutodiffTensor<B, 3> {
         todo!()
         // #[derive(Debug)]
         // struct AdaptiveAvgPool1D;
@@ -845,8 +845,8 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn adaptive_avg_pool2d(
-        x: AutodiffTensor<B, 4>,
-        output_size: [usize; 2],
+        _x: AutodiffTensor<B, 4>,
+        _output_size: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
         todo!()
         // #[derive(Debug)]

@@ -1,15 +1,11 @@
-use crate::{
-    grads::Gradients,
-    ops::{unary, Ops, OpsKind},
-    Autodiff,
-};
+use crate::Autodiff;
 use burn_tensor::{
     backend::Backend,
     ops::{ActivationOps, FloatTensor},
 };
 
 impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
-    fn gelu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn gelu<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Gelu<const D: usize>;
@@ -35,7 +31,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         // }
     }
 
-    fn relu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn relu<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Relu;
@@ -57,7 +53,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         // }
     }
 
-    fn sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn sigmoid<const D: usize>(_tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         todo!()
         // #[derive(Debug)]
         // struct Sigmoid;

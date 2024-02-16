@@ -24,7 +24,7 @@ impl RetroForwards {
     fn execute_retro_forward(&mut self, node_id: NodeID, backward_states: &mut BackwardStates) {
         if let State::Recompute { n_required: _ } = backward_states
             .get_state_ref(&node_id)
-            .expect(&format!("Should find node {:?}", node_id))
+            .unwrap_or_else(|| panic!("Should find node {:?}", node_id))
         {
             // Retro forwards are always used only once because afterwards their state is computed
             let retro_forward = self.map.remove(&node_id).unwrap();
