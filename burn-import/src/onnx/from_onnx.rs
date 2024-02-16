@@ -7,20 +7,19 @@ use std::{
 };
 
 use crate::onnx::{
-    coalesce::coalesce, ir::TensorType, node_remap::remap_node_type,
-    proto_conversion::convert_node_proto,
+    ir::TensorType, node_remap::remap_node_type, proto_conversion::convert_node_proto,
 };
 
 use super::{
     coalesce::convert_gemm_to_linear,
-    protos::{ModelProto, TensorProto},
+    protos::{ModelProto, TensorProto, ValueInfoProto},
 };
 
+use super::dim_inference::dim_inference;
 use super::{
     coalesce::convert_matmul_to_linear2,
     ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor},
 };
-use super::{dim_inference::dim_inference, protos::ValueInfoProto};
 
 use protobuf::Message;
 
@@ -33,13 +32,134 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::Reshape,
     NodeType::Unsqueeze,
 ];
+
+#[derive(Debug)]
+pub(crate) enum IOEntry {
+    In(usize),
+    Out(usize),
+    Node(usize),
+}
+
+pub(crate) struct OnnxGraphIO {
+    pub(crate) inputs: Vec<Argument>,
+    pub(crate) outputs: Vec<Argument>,
+    ///updated names of outputs of node not stored in the graph
+    node_out: Vec<Box<String>>,
+    ///map of old input names to a vec of indices of nodes that use it
+    input_of: HashMap<String, Vec<usize>>,
+    pub(crate) old_io_names: HashMap<String, IOEntry>,
+}
+
+impl OnnxGraphIO {
+    pub(crate) fn new(inputs: Vec<ValueInfoProto>, outputs: Vec<ValueInfoProto>) -> Self {
+        let mut old_io_names = HashMap::new();
+        let mut in_count = 1;
+        let inputs = inputs
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                let in_name = format!("input{}", in_count);
+                old_io_names.insert(x.name.clone(), IOEntry::In(i));
+                let mut arg = Argument::try_from(x.clone()).unwrap();
+                in_count += 1;
+                arg.name = in_name;
+                arg
+            })
+            .collect::<Vec<Argument>>();
+
+        let outputs = outputs
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                old_io_names.insert(x.name.clone(), IOEntry::Out(i));
+                Argument::try_from(x.clone()).unwrap()
+            })
+            .collect::<Vec<Argument>>();
+        let in_len = inputs.len();
+        Self {
+            inputs,
+            outputs,
+            node_out: Vec::new(),
+            old_io_names,
+            input_of: HashMap::with_capacity(in_len),
+        }
+    }
+
+    fn get_mut(&mut self, old_name: &str) -> Option<&mut Argument> {
+        match self.old_io_names.get(old_name) {
+            Some(IOEntry::In(i)) => self.inputs.get_mut(*i),
+            Some(IOEntry::Out(i)) => self.outputs.get_mut(*i),
+            Some(IOEntry::Node(i)) => panic!("This is a node output"),
+            None => None,
+        }
+    }
+
+    fn update(&mut self, old_name: &str, new_name: &str) {
+        match self.old_io_names.get(old_name) {
+            Some(IOEntry::In(i)) => {
+                let arg = self.inputs.get_mut(*i).unwrap();
+                arg.name = new_name.to_string();
+            }
+            Some(IOEntry::Out(i)) => {
+                let arg = self.outputs.get_mut(*i).unwrap();
+                arg.name = new_name.to_string();
+            }
+            Some(IOEntry::Node(i)) => {
+                panic!("This output is from another node");
+            }
+            None => {
+                let idx = self.node_out.len();
+                self.node_out.push(Box::new(new_name.to_string()));
+                self.old_io_names
+                    .insert(old_name.to_string(), IOEntry::Node(idx));
+            }
+        }
+    }
+    fn add_input(&mut self, old_name: &str, node_idx: usize) {
+        self.input_of
+            .entry(old_name.to_string())
+            .and_modify(|f| f.push(node_idx))
+            .or_insert(vec![node_idx]);
+    }
+
+    fn get(&self, old_name: &str) -> Option<&Argument> {
+        match self.old_io_names.get(old_name) {
+            Some(IOEntry::In(i)) => self.inputs.get(*i),
+            Some(IOEntry::Out(i)) => self.outputs.get(*i),
+            Some(IOEntry::Node(i)) => panic!("This is a node output"),
+            None => None,
+        }
+    }
+
+    fn get_new_name(&self, old_name: &str) -> Option<String> {
+        let new_name = match self.old_io_names.get(old_name) {
+            Some(IOEntry::In(i)) => Some(self.inputs[*i].name.clone()),
+            Some(IOEntry::Out(i)) => Some(self.outputs[*i].name.clone()),
+            Some(IOEntry::Node(i)) => Some(*self.node_out[*i].clone()),
+            None => None,
+        };
+
+        println!("new name value {:?}", &new_name);
+        if Some(old_name.to_string()) == new_name {
+            println!("old name hasn't changed: {}", old_name);
+            None
+        } else {
+            new_name
+        }
+    }
+
+    fn get_node_indices(&self, old_input_name: &str) -> Option<&Vec<usize>> {
+        self.input_of.get(old_input_name)
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct ONNXGraphBuilder {
     nodes: Vec<Node>,
+    inputs: Vec<Argument>,
+    outputs: Vec<Argument>,
+    // old_io_names: HashMap<String, String>,
     node_name_counter: HashMap<NodeType, usize>,
-    old_node_names: HashMap<String, String>,
-    //map of input names to a vec of indices of nodes that use it
-    input_of: HashMap<String, Vec<usize>>,
     outputs_to_move: HashMap<String, usize>,
     //map of output names to
     output_of: HashMap<String, usize>,
@@ -66,21 +186,19 @@ impl ONNXGraphBuilder {
             .map(|x| (x.name.clone(), x.clone()))
             .collect::<HashMap<String, TensorProto>>();
 
-        let inputs = model_proto
-            .graph
-            .input
-            .iter()
-            .map(|x| (x.name.clone(), x.clone()))
-            .collect::<HashMap<String, ValueInfoProto>>();
+        let mut graph_io = OnnxGraphIO::new(
+            model_proto.graph.input.clone(),
+            model_proto.graph.output.clone(),
+        );
 
         let mut nodes = Vec::with_capacity(model_proto.graph.node.len());
         for (i, node_proto) in model_proto.graph.node.iter().enumerate() {
             let mut node = convert_node_proto(node_proto);
             for node_input in node.inputs.iter_mut() {
-                self.input_of
-                    .entry(node_input.name.clone())
-                    .and_modify(|f| f.push(i))
-                    .or_insert(vec![i]);
+                // self.input_of
+                //     .entry(node_input.name.clone())
+                //     .and_modify(|f| f.push(i))
+                //     .or_insert(vec![i]);
                 if let Some(initializer) = initializers.get(&node_input.name) {
                     move_initializer_data(initializer, node_input);
                 }
@@ -91,14 +209,17 @@ impl ONNXGraphBuilder {
             }
 
             let node_type = node.node_type.clone();
-            self.handle_node_renaming(&node_type, &mut node);
-            _ = self.handle_identity(&node_type, &node, i);
-            self.check_constants(&node, &node_type, i);
 
+            self.handle_node_renaming(&node_type, &mut node);
+            self.handle_coalesce(&node_type, &mut node, i);
             self.handle_unsqueeze(&node_type, &node, i);
+
+            _ = self.handle_identity(&node_type, &node, i);
+
+            self.handle_rename_io(&mut node, i, &mut graph_io);
+            self.check_constants(&node, &node_type, i);
             //NOTE: still not done with this one
 
-            self.handle_coalesce(&node_type, &mut node, i);
             // if !self.nodes_to_remove.contains(&i) && !self.constants_map.contains_key(&node.name) {
             //     //name stuff
             //     self.handle_node_renaming(&node_type, &mut node);
@@ -106,8 +227,8 @@ impl ONNXGraphBuilder {
 
             nodes.push(RefCell::new(node));
         }
-        self.postprocess_unsqueeze(&nodes, inputs, model_proto.graph.output.clone());
-        self.postprocess_identity(&nodes);
+        self.postprocess_unsqueeze(&nodes, &graph_io);
+        self.postprocess_identity(&nodes, &graph_io);
         self.postprocess_constants(&nodes);
         self.postprocess_coalesce(&mut nodes);
 
@@ -122,6 +243,11 @@ impl ONNXGraphBuilder {
                 }
             })
             .collect();
+        let OnnxGraphIO {
+            inputs, outputs, ..
+        } = graph_io;
+        self.inputs = inputs;
+        self.outputs = outputs;
     }
 
     fn handle_node_renaming(&mut self, node_type: &NodeType, node: &mut Node) {
@@ -129,23 +255,39 @@ impl ONNXGraphBuilder {
             .entry(node_type.clone())
             .and_modify(|e| *e += 1)
             .or_insert(1);
-        let old_name = node.name.clone();
         let new_name =
             format!("{}{}", node.node_type, self.node_name_counter[&node_type]).to_lowercase();
         node.name = new_name.clone();
-        self.old_node_names
-            .insert(old_name.clone(), new_name.clone());
     }
 
-    fn postprocess_rename_inputs(
-        &mut self,
-        //nodes: &mut Vec<RefCell<Node>>,
-        inputs: &mut Vec<Argument>,
-    ) {
-        for input in inputs.iter_mut() {
-            if let Some(new_name) = self.old_node_names.get(&input.name) {
-                input.name = new_name.clone();
+    fn handle_rename_io(&mut self, node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
+        for node_input in node.inputs.iter_mut() {
+            println!("old output names {:?}", &graph_io.old_io_names);
+            //println!("out_args{:?}", outputs);
+            graph_io.add_input(&node_input.name, i);
+            if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
+                println!("yeet");
+                node_input.passed = true;
+                node_input.name = input_name.clone();
+            } else {
+                node_input.name = "".to_string();
+                node_input.passed = false;
             }
+        }
+        println!("\n\nchecking outputs");
+        let mut out_count = 1;
+        for output in node.outputs.iter_mut() {
+            println!("output name: {}", &output.name);
+
+            let new_name = format!("{}_out{}", node.name, out_count);
+
+            graph_io.update(&output.name, &new_name);
+
+            // self.node_output_names
+            //     .insert(output.name.clone(), new_name.clone());
+
+            output.name = new_name.clone();
+            out_count += 1;
         }
     }
 
@@ -164,6 +306,8 @@ impl ONNXGraphBuilder {
             let mut node = nodes[*check_idx].borrow_mut();
 
             for input in node.inputs.iter_mut().skip(1) {
+                println!("checking input {:?} for const", input);
+
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
                     let constant = nodes[*const_idx].borrow();
                     if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
@@ -189,23 +333,11 @@ impl ONNXGraphBuilder {
         }
     }
 
-    fn postprocess_unsqueeze(
-        &mut self,
-        nodes: &Vec<RefCell<Node>>,
-        node_inputs: HashMap<String, ValueInfoProto>,
-        graph_outputs: Vec<ValueInfoProto>,
-    ) {
-        for (output_name, i) in self.outputs_to_move.iter() {
-            if let Some(val_proto) = node_inputs.get(output_name) {
+    fn postprocess_unsqueeze(&mut self, nodes: &Vec<RefCell<Node>>, graph_io: &OnnxGraphIO) {
+        for (old_output_name, i) in self.outputs_to_move.iter() {
+            if let Some(in_arg) = graph_io.get(old_output_name) {
                 let node = nodes[*i].borrow_mut();
-                move_output_shape(node, val_proto);
-            } else {
-                for output in graph_outputs.iter() {
-                    if output.name == *output_name {
-                        let node = nodes[*i].borrow_mut();
-                        move_output_shape(node, output);
-                    }
-                }
+                move_output_shape(node, in_arg);
             }
         }
     }
@@ -219,7 +351,7 @@ impl ONNXGraphBuilder {
         false
     }
 
-    fn postprocess_identity(&mut self, nodes: &Vec<RefCell<Node>>) {
+    fn postprocess_identity(&mut self, nodes: &Vec<RefCell<Node>>, graph_io: &OnnxGraphIO) {
         for identity_idx in self.identity_idx.iter() {
             let identity_node = nodes[*identity_idx].borrow();
 
@@ -227,7 +359,7 @@ impl ONNXGraphBuilder {
             let identity_output = &identity_node.outputs[0].name;
 
             // Replace the identity node's output with its input in the connected nodes.
-            if let Some(indices) = self.input_of.get(identity_output) {
+            if let Some(indices) = graph_io.get_node_indices(identity_output) {
                 for node_index in indices {
                     let mut node = nodes[*node_index].borrow_mut();
                     if let Some(matched_input) =
@@ -240,9 +372,15 @@ impl ONNXGraphBuilder {
         }
     }
 
+    /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
     fn handle_coalesce(&mut self, node_type: &NodeType, node: &mut Node, i: usize) {
         match node_type {
-            NodeType::Gemm => convert_gemm_to_linear(node),
+            NodeType::Gemm => {
+                println!("Gemm before {:?}\n", node);
+                convert_gemm_to_linear(node);
+                self.handle_node_renaming(&node.node_type.clone(), node);
+                println!("Gemm after {:?}\n", node);
+            }
             NodeType::MatMul => {
                 self.matmul_nodes.push(i);
             }
@@ -251,8 +389,11 @@ impl ONNXGraphBuilder {
     }
 
     fn postprocess_coalesce(&mut self, nodes: &mut Vec<RefCell<Node>>) {
+        println!("{:?}", self.node_name_counter);
         for matmul_index in self.matmul_nodes.clone() {
             convert_matmul_to_linear2(nodes, matmul_index, &mut self.nodes_to_remove);
+            let mut node = nodes[matmul_index].borrow_mut();
+            self.handle_node_renaming(&node.node_type.clone(), &mut node)
         }
     }
 }
@@ -294,71 +435,39 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     let ONNXGraphBuilder {
         mut nodes,
-        old_node_names,
+        inputs: mut inner_inputs,
+        outputs: mut inner_outputs,
         ..
     } = builder;
-    //println!("nodes: {:#?}", nodes);
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    let mut inputs = onnx_model
-        .graph
-        .input
-        .iter()
-        .map(|x| Argument::try_from(x.clone()).unwrap())
-        .collect();
+    let my_nodes = nodes.clone();
 
-    let mut outputs = onnx_model
-        .graph
-        .output
-        .iter()
-        .map(|x| Argument::try_from(x.clone()).unwrap())
-        .collect();
+    for i in 0..nodes.len() {
+        if nodes[i] != my_nodes[i] {
+            println!("{} != {}", nodes[i].name, my_nodes[i].name);
+        }
+    }
+    println!("nodes: {:#?}", nodes);
+    println!("inner inputs: {:#?}", inner_inputs);
+    println!("inner outputs: {:#?}", inner_outputs);
 
-    let old_input_names = rename_inputs(&mut nodes, &mut inputs, &mut outputs);
     // Infer shapes and update the inputs and outputs
-    dim_inference(&mut nodes, &inputs, &mut outputs);
-
+    dim_inference(&mut nodes, &inner_inputs, &mut inner_outputs);
+    println!("inner outputs after dim inference: {:?}", inner_outputs);
     // Remove the graph inputs/output that are not used by any node
-    remove_unused_graph_inputs(&mut inputs, &mut outputs, &nodes);
+    remove_unused_graph_inputs(&mut inner_inputs, &mut inner_outputs, &nodes);
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     ONNXGraph {
         nodes,
-        inputs,
-        outputs,
-        old_node_names,
-        old_input_names,
+        inputs: inner_inputs,
+        outputs: inner_outputs,
     }
-}
-
-/// This function moves inputs that are also present
-/// in the initializer to the node's states vector.
-/// It also removes inputs that are already present in the states vector.
-///
-/// # Arguments
-///
-/// * `nodes` - A mutable reference to a vector of nodes
-/// * `initializers` - A vector of TensorProto
-fn move_inputs_to_state(nodes: &mut Vec<Node>, initializers: &[TensorProto]) {
-    // Convert initializers to hashmap for faster lookup
-    let initializers = initializers
-        .iter()
-        .map(|x| (x.name.clone(), x.clone()))
-        .collect::<HashMap<String, TensorProto>>();
-
-    // Iterate over each node in the graph
-    nodes.iter_mut().for_each(|node| {
-        for input in node.inputs.iter_mut() {
-            // If there is a corresponding initializer for the input, then move the data to the input value
-            if let Some(initializer) = initializers.get(&input.name) {
-                move_initializer_data(initializer, input);
-            }
-        }
-    });
 }
 
 fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
@@ -389,201 +498,15 @@ fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
     }
 }
 
-//this is an extremely hacky temporary solution while I figure out how to properly handle this
-//situation
-fn move_output_for_unsqueeze(
-    node: &mut Node,
-    outputs: Vec<ValueInfoProto>,
-    inputs: Vec<ValueInfoProto>,
-) {
-    let output_name = node.outputs[0].name.clone();
-    // check outputs first, as it's shorter
-    for output in outputs.iter() {
-        if output.name == output_name {
-            match node.outputs[0].ty {
-                ArgType::Tensor(ref mut tensor_type) => {
-                    if let Some(shape) = output.type_.as_ref().unwrap().tensor_type().shape.as_ref()
-                    {
-                        tensor_type.shape =
-                            Some(shape.dim.iter().map(|x| x.dim_value() as usize).collect());
-                        return;
-                    }
-                }
-                _ => return,
-            }
-        }
-    }
-    for input in inputs.iter() {
-        if input.name == output_name {
-            //copy the shape
-            match node.outputs[0].ty {
-                ArgType::Tensor(ref mut tensor_type) => {
-                    if let Some(shape) = input.type_.as_ref().unwrap().tensor_type().shape.as_ref()
-                    {
-                        tensor_type.shape =
-                            Some(shape.dim.iter().map(|x| x.dim_value() as usize).collect());
-                        return;
-                    }
-                }
-                _ => return,
-            }
-        }
-    }
-}
-
-fn move_output_shape<'parser>(mut node: RefMut<'parser, Node>, output_tensor: &ValueInfoProto) {
+fn move_output_shape<'parser>(mut node: RefMut<'parser, Node>, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
-            if let Some(shape) = output_tensor
-                .type_
-                .as_ref()
-                .unwrap()
-                .tensor_type()
-                .shape
-                .as_ref()
-            {
-                tensor_type.shape =
-                    Some(shape.dim.iter().map(|x| x.dim_value() as usize).collect());
+            if let ArgType::Tensor(arg_tensor) = &out_arg.ty {
+                tensor_type.shape = arg_tensor.shape.clone();
             }
         }
         _ => {}
     }
-}
-
-/// Lift constants from the graph into the states vector for known node types.
-///
-/// The primary reason to move constants into the states vector is to reduce the number of nodes in the graph,
-/// and consistently utilize the same interface for all nodes (constant inputs and inputs with initializers are
-/// treated the same way). This simplification aids code generation.
-///
-/// For example, if we have a graph ([Const1, Const2, Conv2d1]) where the Conv2d node has 3 inputs
-/// (graph_input, const2_out1, const_out2), we can lift the constants into the states of the Conv2d node.
-/// const2_out1 and const_out2 are used for the weights and bias of the Conv2d node.
-/// After lifting, we will have a graph ([Conv2d1]) where the Conv2d node has 1 input (graph_input) and 2 states.
-///
-/// Also note that often times, Conv2d node's inputs are not constants, but they are initializers. Initializers
-/// move to the states vector as well, using the `move_inputs_to_state` function.
-///
-///
-/// # Arguments
-///
-/// * `nodes` - A mutable reference to a vector of nodes
-///
-/// # Panics
-///
-/// Panics if the node's output is not a constant.
-fn lift_constants(nodes: &mut Vec<Node>) {
-    log::info!("Lifting constants into the states");
-
-    // create a set to hold the node types to process
-    let node_types_to_process: HashSet<NodeType> =
-        LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
-
-    // create a new vector to hold the graph's constants (index by the node's name)
-    let constants = nodes
-        .iter()
-        .filter(|node| node.node_type == NodeType::Constant || node.node_type == NodeType::Identity)
-        .map(|node| (node.outputs[0].name.clone(), node.clone()))
-        .collect::<HashMap<String, Node>>();
-
-    // create a set to hold the IDs of constants to be removed
-    let mut constant_to_removed = HashSet::<String>::new();
-
-    for node in nodes.iter_mut() {
-        // Skip the node if it is not in the set of node types to process
-        if !node_types_to_process.contains(&node.node_type) {
-            continue;
-        }
-
-        // Skip the first input because it is the node's true input and not a constant/state
-        node.inputs
-            .iter_mut()
-            .skip(1) // TODO make configurable
-            .for_each(|input| {
-                if let Some(constant) = constants.get(&input.name) {
-                    if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
-                        // The value comes from Identity inputs
-                        if let Some(constant_input) = constant.inputs.first() {
-                            input.ty = constant_input.ty.clone();
-                            input.value = constant_input.value.clone();
-                        }
-                    } else {
-                        // The value comes from an attribute
-                        let arg = convert_constant_value(constant); // get the value of the constant
-
-                        input.value = arg.value; // set the input's value to the constant's value
-                        input.ty = arg.ty; // set the input's type to the constant's type
-                                           // remove the constant from the graph
-                    }
-                    constant_to_removed.insert(constant.name.clone());
-                }
-            });
-    }
-
-    // remove the constants that were moved to the states vector
-    nodes.retain(|node| !constant_to_removed.contains(&node.name));
-
-    log::debug!(
-        "The number of constants lifted: {}",
-        constant_to_removed.len()
-    );
-}
-
-fn handle_identity(nodes: &mut Vec<Node>) {
-    log::info!("Handling identity nodes");
-
-    let mut nodes_to_remove = HashSet::new();
-
-    let identity_nodes = nodes
-        .iter()
-        .filter(|node| node.node_type == NodeType::Identity)
-        .cloned()
-        .collect::<Vec<Node>>();
-
-    // Handle pass-through nodes.
-    for identity_node in identity_nodes {
-        if identity_node.node_type == NodeType::Identity && identity_node.inputs[0].value.is_none()
-        {
-            let input_name = &identity_node.inputs[0].name;
-            let output_name = &identity_node.outputs[0].name;
-
-            // Replace the identity node's output with its input in the connected nodes.
-            for node in nodes.iter_mut() {
-                if let Some(matched_input) = node.inputs.iter_mut().find(|x| x.name == *output_name)
-                {
-                    matched_input.name = input_name.clone();
-                }
-            }
-
-            nodes_to_remove.insert(identity_node);
-        }
-    }
-
-    // Remove the identity nodes.
-    nodes.retain(|node| !nodes_to_remove.contains(node));
-}
-
-/// Rename the nodes in the graph to be unique and return a map of the old names to the new names.
-fn rename_nodes(nodes: &mut Vec<Node>) -> HashMap<String, String> {
-    let mut old_names = HashMap::new();
-    let mut counter: HashMap<NodeType, usize> = HashMap::new();
-
-    for node in nodes.iter_mut() {
-        // keep track of the number of nodes of each type
-        counter
-            .entry(node.node_type.clone())
-            .and_modify(|e| *e += 1)
-            .or_insert(1);
-
-        let old_name = node.name.clone();
-        let new_name = format!("{}{}", node.node_type, counter[&node.node_type]).to_lowercase();
-
-        node.name = new_name.clone();
-
-        old_names.insert(old_name, new_name);
-    }
-
-    old_names
 }
 
 /// Rename the inputs and output in the graph and return a map of
@@ -622,23 +545,24 @@ fn rename_inputs(
             let new_name = format!("{}_out{}", node.name, counter);
             output.name = new_name.clone();
             old_names.insert(old_name, new_name);
+            //old_names.insert(old_name, new_name);
             counter += 1;
         }
     }
 
-    for node in nodes.iter_mut() {
-        // loop through node inputs and rename them with previously replaced names
-        // and mark them as passed if they are in the old_names map (i.e. they are node outputs)
-        for input in node.inputs.iter_mut() {
-            if let Some(new_name) = old_names.get(&input.name) {
-                input.name = new_name.clone();
-                input.passed = true;
-            } else {
-                input.name = "".to_string(); // Rename to a placeholder
-                input.passed = false;
-            }
-        }
-    }
+    // for node in nodes.iter_mut() {
+    //     // loop through node inputs and rename them with previously replaced names
+    //     // and mark them as passed if they are in the old_names map (i.e. they are node outputs)
+    //     for input in node.inputs.iter_mut() {
+    //         if let Some(new_name) = old_names.get(&input.name) {
+    //             input.name = new_name.clone();
+    //             input.passed = true;
+    //         } else {
+    //             input.name = "".to_string(); // Rename to a placeholder
+    //             input.passed = false;
+    //         }
+    //     }
+    // }
 
     // Rename the graph outputs
     for output in outputs.iter_mut() {

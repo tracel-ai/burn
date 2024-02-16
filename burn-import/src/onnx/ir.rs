@@ -138,12 +138,6 @@ pub struct ONNXGraph {
 
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
-
-    /// The original node names.
-    pub old_node_names: HashMap<String, String>,
-
-    /// The original input names.
-    pub old_input_names: HashMap<String, String>,
 }
 
 /// Nodes produced by the ONNX parser

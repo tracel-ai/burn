@@ -154,6 +154,12 @@ fn convert_matmul_to_linear(
     }
 }
 
+/// This function converts a MatMul node into a Linear node if possible.
+///
+/// PyTorch and other frameworks use MatMul node to represent Linear layer.
+///
+/// This function also converts the following Add node into a Linear node if possible.
+/// Add node is used to represent bias in PyTorch.
 pub(crate) fn convert_matmul_to_linear2(
     node_vec: &Vec<RefCell<Node>>,
     node_index: usize,
