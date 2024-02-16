@@ -77,9 +77,19 @@ pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
     /// This will create a new binding in the [compute shader](ComputeShader).
-    Array { item: Item, local: u16 },
+    ArrayWrite {
+        item: Item,
+        local: u16,
+    },
+    Array {
+        item: Item,
+    },
     /// Write the local variable to an existing input binding.
-    Input { item: Item, input: u16, local: u16 },
+    Input {
+        item: Item,
+        input: u16,
+        local: u16,
+    },
 }
 
 impl Compilation {
@@ -125,8 +135,6 @@ impl Compilation {
             named,
             workgroup_size: settings.workgroup_size,
             body: self.info.scope,
-            num_workgroups: true,
-            global_invocation_id: true,
         }
     }
 
@@ -174,7 +182,7 @@ impl Compilation {
 
         for array in self.info.outputs.drain(..) {
             match array {
-                OutputInfo::Array { item, local } => {
+                OutputInfo::ArrayWrite { item, local } => {
                     let item = item.vectorize(settings.vectorization);
                     let elem_adapted = bool_item(item);
 
@@ -198,6 +206,19 @@ impl Compilation {
                         Variable::GlobalInputArray(input, bool_item(item)),
                     );
                 }
+                OutputInfo::Array { item } => {
+                    let item = item.vectorize(settings.vectorization);
+                    let elem_adapted = bool_item(item);
+
+                    self.output_bindings.push(Binding {
+                        item: elem_adapted,
+                        visibility: Visibility::ReadWrite,
+                        location: Location::Storage,
+                        size: None,
+                    });
+
+                    index += 1;
+                }
             }
         }
     }
@@ -209,12 +230,13 @@ impl Compilation {
         };
 
         let (item, local) = match output {
-            OutputInfo::Array { item, local } => (item, local),
+            OutputInfo::ArrayWrite { item, local } => (item, local),
             OutputInfo::Input {
                 item: _,
                 input: _,
                 local: _,
-            } => return, // Output already updated.
+            } => return,
+            OutputInfo::Array { item } => return,
         };
 
         let item = match self.input_bindings.get_mut(mapping.pos_input) {

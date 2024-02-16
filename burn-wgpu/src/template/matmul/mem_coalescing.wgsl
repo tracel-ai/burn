@@ -58,9 +58,9 @@ fn main(
 
     // Basic matmul implementation
     var sum = 0.0;
-    for (var k: u32 = 0u; k < K; k++) {
-        let lhs_index = row * K + k;
-        let rhs_index = k * n_cols + col;
+    for (var i: u32 = 0u; i < K; i++) {
+        let lhs_index = row * K + i;
+        let rhs_index = i * n_cols + col;
 
         sum += lhs[offset_lhs + lhs_index] * rhs[offset_rhs + rhs_index];
     }

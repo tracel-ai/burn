@@ -49,6 +49,7 @@ pub enum Operator {
     AssignLocal(UnaryOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
+    IndexAssign(BinaryOperator),
 }
 
 /// Tensor operations that can't be executed with a simple [operator](Operator) should use an
@@ -66,6 +67,7 @@ pub enum Algorithm {
     ReadGlobalWithLayout(ReadGlobalWithLayoutAlgo),
     /// Read an input array.
     ReadGlobal(ReadGlobalAlgo),
+    Matmul(MatmulAlgo),
 }
 
 /// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
@@ -77,6 +79,15 @@ pub struct ReadGlobalWithLayoutAlgo {
     pub layout: Variable,
     /// The output variable to write the result.
     pub out: Variable,
+}
+
+/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MatmulAlgo {
+    MemCoalescing {
+        variables: BinaryOperator,
+        block_size: usize,
+    },
 }
 
 /// Settings for the [Algorithm::ReadGlobal] variant.

@@ -13,6 +13,8 @@ use std::marker::PhantomData;
 pub struct Compiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
+    invocation_index: bool,
+    workgroup_id: bool,
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
@@ -28,6 +30,8 @@ impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
         Self {
             num_inputs: 0,
             num_outputs: 0,
+            invocation_index: false,
+            workgroup_id: false,
             _float: PhantomData,
             _int: PhantomData,
         }
@@ -75,8 +79,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
             workgroup_size: value.workgroup_size,
-            global_invocation_id: value.global_invocation_id,
-            num_workgroups: value.num_workgroups,
+            global_invocation_id: true,
+            local_invocation_index: self.invocation_index,
+            num_workgroups: true,
+            workgroup_id: self.workgroup_id,
             body,
             extensions,
         }
@@ -100,7 +106,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         }
     }
 
-    fn compile_variable(value: gpu::Variable) -> wgsl::Variable {
+    fn compile_variable(&mut self, value: gpu::Variable) -> wgsl::Variable {
         match value {
             gpu::Variable::GlobalInputArray(index, item) => {
                 wgsl::Variable::GlobalInputArray(index, Self::compile_item(item))
@@ -126,16 +132,32 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             }
             gpu::Variable::Id => wgsl::Variable::Id,
             gpu::Variable::Rank => wgsl::Variable::Rank,
+            gpu::Variable::InvocationIndex => {
+                self.invocation_index = true;
+                wgsl::Variable::LocalInvocationIndex
+            }
+            gpu::Variable::WorkgroupIdX => {
+                self.workgroup_id = true;
+                wgsl::Variable::WorkgroupIdX
+            }
+            gpu::Variable::WorkgroupIdY => {
+                self.workgroup_id = true;
+                wgsl::Variable::WorkgroupIdY
+            }
+            gpu::Variable::WorkgroupIdZ => {
+                self.workgroup_id = true;
+                wgsl::Variable::WorkgroupIdZ
+            }
         }
     }
 
-    fn compile_scope(&self, value: &mut gpu::Scope) -> wgsl::Scope {
+    fn compile_scope(&mut self, value: &mut gpu::Scope) -> wgsl::Scope {
         let mut operations = Vec::new();
         let processing = value.process();
 
         for var in processing.variables {
             operations.push(wgsl::Instruction::DeclareVariable {
-                var: Self::compile_variable(var),
+                var: self.compile_variable(var),
             });
         }
 
@@ -150,7 +172,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     }
 
     fn compile_operation(
-        &self,
+        &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
         operation: gpu::Operation,
         scope: &mut gpu::Scope,
@@ -164,7 +186,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     }
 
     fn compile_algorithm(
-        &self,
+        &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
         algo: gpu::Algorithm,
         scope: &mut gpu::Scope,
@@ -183,21 +205,25 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 algo.expand(scope);
                 compile(scope);
             }
+            gpu::Algorithm::Matmul(algo) => {
+                algo.expand(scope);
+                compile(scope);
+            }
         }
     }
 
-    fn compile_loop(&self, loop_val: gpu::Loop) -> wgsl::Instruction {
+    fn compile_loop(&mut self, loop_val: gpu::Loop) -> wgsl::Instruction {
         match loop_val {
             gpu::Loop::Range(mut range_loop) => wgsl::Instruction::RangeLoop {
-                i: Self::compile_variable(range_loop.i),
-                start: Self::compile_variable(range_loop.start),
-                end: Self::compile_variable(range_loop.end),
+                i: self.compile_variable(range_loop.i),
+                start: self.compile_variable(range_loop.start),
+                end: self.compile_variable(range_loop.end),
                 instructions: self.compile_scope(&mut range_loop.scope).operators,
             },
         }
     }
 
-    fn compile_metadata(&self, metadata: gpu::Metadata) -> wgsl::Instruction {
+    fn compile_metadata(&mut self, metadata: gpu::Metadata) -> wgsl::Instruction {
         match metadata {
             gpu::Metadata::Stride { dim, var, out } => {
                 let position = match var {
@@ -206,9 +232,9 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
                 wgsl::Instruction::Stride {
-                    dim: Self::compile_variable(dim),
+                    dim: self.compile_variable(dim),
                     position,
-                    out: Self::compile_variable(out),
+                    out: self.compile_variable(out),
                 }
             }
             gpu::Metadata::Shape { dim, var, out } => {
@@ -218,135 +244,140 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                     _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
                 wgsl::Instruction::Shape {
-                    dim: Self::compile_variable(dim),
+                    dim: self.compile_variable(dim),
                     position,
-                    out: Self::compile_variable(out),
+                    out: self.compile_variable(out),
                 }
             }
         }
     }
 
-    fn compile_instruction(&self, value: gpu::Operator) -> wgsl::Instruction {
+    fn compile_instruction(&mut self, value: gpu::Operator) -> wgsl::Instruction {
         match value {
             gpu::Operator::Add(op) => wgsl::Instruction::Add {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Index(op) => wgsl::Instruction::Index {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Modulo(op) => wgsl::Instruction::Modulo {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Sub(op) => wgsl::Instruction::Sub {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Mul(op) => wgsl::Instruction::Mul {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Div(op) => wgsl::Instruction::Div {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Abs(op) => wgsl::Instruction::Abs {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Exp(op) => wgsl::Instruction::Exp {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Log(op) => wgsl::Instruction::Log {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Log1p(op) => wgsl::Instruction::Log1p {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Cos(op) => wgsl::Instruction::Cos {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Sin(op) => wgsl::Instruction::Sin {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Tanh(op) => wgsl::Instruction::Tanh {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Powf(op) => wgsl::Instruction::Powf {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Sqrt(op) => wgsl::Instruction::Sqrt {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Erf(op) => wgsl::Instruction::Erf {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Recip(op) => wgsl::Instruction::Recip {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Equal(op) => wgsl::Instruction::Equal {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Lower(op) => wgsl::Instruction::Lower {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Clamp(op) => wgsl::Instruction::Clamp {
-                input: Self::compile_variable(op.input),
-                min_value: Self::compile_variable(op.min_value),
-                max_value: Self::compile_variable(op.max_value),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                min_value: self.compile_variable(op.min_value),
+                max_value: self.compile_variable(op.max_value),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::Greater(op) => wgsl::Instruction::Greater {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::LowerEqual(op) => wgsl::Instruction::LowerEqual {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::GreaterEqual(op) => wgsl::Instruction::GreaterEqual {
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::ConditionalAssign(op) => wgsl::Instruction::ConditionalAssign {
-                cond: Self::compile_variable(op.cond),
-                lhs: Self::compile_variable(op.lhs),
-                rhs: Self::compile_variable(op.rhs),
-                out: Self::compile_variable(op.out),
+                cond: self.compile_variable(op.cond),
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::AssignGlobal(op) => wgsl::Instruction::AssignGlobal {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
             },
             gpu::Operator::AssignLocal(op) => wgsl::Instruction::AssignLocal {
-                input: Self::compile_variable(op.input),
-                out: Self::compile_variable(op.out),
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
             },
         }
     }

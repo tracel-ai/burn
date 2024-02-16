@@ -75,7 +75,7 @@ macro_rules! unary {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -158,7 +158,7 @@ macro_rules! unary {
                 elem: E::gpu_elem(),
                 size: $num,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };

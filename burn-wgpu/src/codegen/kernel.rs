@@ -1,4 +1,4 @@
-use crate::compute::StaticKernel;
+use crate::compute::{StaticKernel, WorkGroup};
 use crate::element::JitElement;
 use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
 use crate::Runtime;
@@ -15,6 +15,7 @@ pub struct StaticHandle<'a, R: Runtime> {
 pub enum WorkgroupLaunch {
     Input { pos: usize },
     Output { pos: usize },
+    Custom(WorkGroup),
 }
 
 /// Execute a static kernel.
@@ -85,7 +86,11 @@ pub fn execute_static<R: Runtime, K, E: JitElement>(
         handles.push(scalars);
     }
 
-    let workgroup = elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT);
+    let workgroup = match launch {
+        WorkgroupLaunch::Custom(workgroup) => workgroup,
+        _ => elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT),
+    };
+
     let kernel = Box::new(StaticKernel::<K>::new(workgroup));
 
     client.execute(kernel, &handles);

@@ -134,6 +134,17 @@ impl Scope {
         self.writes_global.push((input, output));
     }
 
+    /// Writes a variable to given output.
+    ///
+    /// Notes:
+    ///
+    /// This should only be used when doing compilation.
+    pub(crate) fn write_global_custom(&mut self, output: Variable) {
+        if self.output_ref.is_none() {
+            self.output_ref = Some(output);
+        }
+    }
+
     /// Update the [reading strategy](ReadingStrategy) for an input array.
     ///
     /// Notes:

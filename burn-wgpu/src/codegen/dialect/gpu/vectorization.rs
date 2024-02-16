@@ -1,6 +1,6 @@
 use super::{
-    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, Operation, Operator,
-    ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
+    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, MatmulAlgo,
+    Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
 };
 
 /// Define a vectorization scheme.
@@ -40,6 +40,7 @@ impl Algorithm {
                 Algorithm::ReadGlobalWithLayout(op.vectorize(vectorization))
             }
             Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
+            Algorithm::Matmul(op) => Algorithm::Matmul(op.vectorize(vectorization)),
         }
     }
 }
@@ -63,6 +64,19 @@ impl ReadGlobalAlgo {
     }
 }
 
+impl MatmulAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            MatmulAlgo::MemCoalescing {
+                variables,
+                block_size,
+            } => MatmulAlgo::MemCoalescing {
+                variables: variables.vectorize(vectorization),
+                block_size: *block_size,
+            },
+        }
+    }
+}
 impl Operator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
@@ -102,6 +116,7 @@ impl Operator {
                 Operator::AssignLocal(op.vectorize(vectorization))
             }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
+            Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
         }
     }
 }
@@ -174,6 +189,10 @@ impl Variable {
             Variable::Id => *self,
             Variable::Rank => *self,
             Variable::LocalScalar(_, _, _) => *self,
+            Variable::InvocationIndex => *self,
+            Variable::WorkgroupIdX => *self,
+            Variable::WorkgroupIdY => *self,
+            Variable::WorkgroupIdZ => *self,
         }
     }
 }

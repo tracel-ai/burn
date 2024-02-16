@@ -1,4 +1,4 @@
-pub(crate) mod algorithm;
+pub(crate) mod algo;
 
 mod macros;
 mod operation;

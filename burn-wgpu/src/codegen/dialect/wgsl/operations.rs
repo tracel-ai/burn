@@ -18,6 +18,11 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    IndexAssign {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Modulo {
         lhs: Variable,
         rhs: Variable,
@@ -388,6 +393,10 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                 }
 
                 f.write_str("}\n")
+            }
+            Instruction::IndexAssign { lhs, rhs, out } => {
+                let item = out.item();
+                f.write_fmt(format_args!("{out}[{lhs}] = {item}({rhs});"))
             }
         }
     }

@@ -1,4 +1,4 @@
-use super::{
+use super::super::{
     gpu, Elem, Item, Metadata, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Scope, Variable,
 };
 use crate::codegen::dialect::gpu::BinaryOperator;
@@ -17,9 +17,32 @@ impl ReadGlobalWithLayoutAlgo {
     pub fn expand(self, scope: &mut Scope) {
         let out = self.out;
         let tensor = self.global;
+        let index_local = scope.create_local(Elem::UInt);
+
+        OffsetGlobalWithLayoutAlgo {
+            global: tensor,
+            layout: self.layout,
+            offset: index_local,
+        }
+        .expand(scope);
+
+        gpu!(scope, out = tensor[index_local]);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OffsetGlobalWithLayoutAlgo {
+    pub global: Variable,
+    pub layout: Variable,
+    pub offset: Variable,
+}
+
+impl OffsetGlobalWithLayoutAlgo {
+    pub fn expand(self, scope: &mut Scope) {
+        let tensor = self.global;
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
-        let index_local = scope.create_local(index_item_ty);
+        let index_local = self.offset;
         let zero: Variable = 0u32.into();
         let id = Variable::Id;
         let offset: Variable = match self.global.item() {
@@ -52,6 +75,5 @@ impl ReadGlobalWithLayoutAlgo {
         );
 
         gpu!(scope, index_local = index_local / offset);
-        gpu!(scope, out = tensor[index_local]);
     }
 }

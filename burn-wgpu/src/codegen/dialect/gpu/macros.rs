@@ -121,6 +121,12 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out[lhs] = rhs
+    ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::IndexAssign(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out = |input|
     ($scope:expr, $out:ident = |$input:ident|) => {
         gpu!($scope, $out = abs($input))
@@ -196,7 +202,7 @@ macro_rules! gpu {
         ));
     };
     ($scope:expr, $out:ident = shape($input:expr, $dim:expr)) => {
-        $scope.register(Metadata::Shape {
+        $scope.register($crate::codegen::dialect::gpu::Metadata::Shape {
             dim: $dim,
             var: $input,
             out: $out,

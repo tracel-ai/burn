@@ -305,6 +305,11 @@ impl TraceBuilder {
                             &mut local_tensor_ids_input,
                             &mut local_tensor_ids_output,
                         ),
+                        gpu::Operator::IndexAssign(op) => mark_binary(
+                            op,
+                            &mut local_tensor_ids_input,
+                            &mut local_tensor_ids_output,
+                        ),
                     }
                 }
                 Operation::Algorithm(algo) => {
@@ -315,6 +320,18 @@ impl TraceBuilder {
                         gpu::Algorithm::ReadGlobal(_) => {
                             // Nothing to do here.
                         }
+                        gpu::Algorithm::Matmul(algo) => match algo {
+                            gpu::MatmulAlgo::MemCoalescing {
+                                variables,
+                                block_size,
+                            } => {
+                                mark_binary(
+                                    variables,
+                                    &mut local_tensor_ids_input,
+                                    &mut local_tensor_ids_output,
+                                );
+                            }
+                        },
                     }
                 }
                 Operation::Metadata(_) => {

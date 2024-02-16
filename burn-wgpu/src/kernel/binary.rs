@@ -73,7 +73,7 @@ macro_rules! binary {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                 local,
             };
