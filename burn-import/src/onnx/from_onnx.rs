@@ -3,9 +3,7 @@ use std::{
     cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     fs::File,
-    iter::Peekable,
     path::Path,
-    slice::Iter,
 };
 
 use crate::onnx::{
@@ -13,15 +11,12 @@ use crate::onnx::{
 };
 
 use super::{
-    coalesce::{coalesce, convert_gemm_to_linear, convert_matmul_to_linear},
-    protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
+    coalesce::coalesce,
+    protos::{ModelProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
-use super::{
-    coalesce::convert_matmul_to_linear2,
-    ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor},
-};
+use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
 
 use protobuf::Message;
 
@@ -97,7 +92,7 @@ impl OnnxGraphIO {
                 let arg = self.outputs.get_mut(*i).unwrap();
                 arg.name = new_name.to_string();
             }
-            Some(IOEntry::Node(i)) => {
+            Some(IOEntry::Node(_i)) => {
                 panic!("This output is from another node");
             }
             None => {
@@ -199,10 +194,10 @@ impl ONNXGraphBuilder {
 
             //self.handle_unsqueeze(&node, nd_idx);
 
-            _ = self.handle_identity(&mut node, nd_idx);
+            self.handle_identity(&mut node, nd_idx);
             self.check_constants(&mut node, nd_idx);
             //self.handle_coalesce(&mut node, &mut node_iter, nd_idx);
-            self.handle_rename_io(&mut node, nd_idx, &mut graph_io);
+            rename_io(&mut node, nd_idx, &mut graph_io);
 
             self.nodes.push(node);
             nd_idx += 1;
@@ -212,7 +207,7 @@ impl ONNXGraphBuilder {
         //self.postprocess_constants(&nodes);
         //self.postprocess_coalesce(&mut nodes);
         let mut i = 0;
-        self.nodes.retain(|x| {
+        self.nodes.retain(|_x| {
             let res = !self.nodes_to_remove.contains(&i);
             i += 1;
             res
@@ -240,37 +235,6 @@ impl ONNXGraphBuilder {
         node.name = new_name.clone();
     }
 
-    fn handle_rename_io(&mut self, node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
-        for node_input in node.inputs.iter_mut() {
-            println!("old output names {:?}", &graph_io.old_io_names);
-            //println!("out_args{:?}", outputs);
-            graph_io.add_input(&node_input.name, i);
-            if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
-                println!("yeet");
-                node_input.passed = true;
-                node_input.name = input_name.clone();
-            } else {
-                node_input.name = "".to_string();
-                node_input.passed = false;
-            }
-        }
-        println!("\n\nchecking outputs");
-        let mut out_count = 1;
-        for output in node.outputs.iter_mut() {
-            println!("output name: {}", &output.name);
-
-            let new_name = format!("{}_out{}", node.name, out_count);
-
-            graph_io.update(&output.name, &new_name);
-
-            // self.node_output_names
-            //     .insert(output.name.clone(), new_name.clone());
-
-            output.name = new_name.clone();
-            out_count += 1;
-        }
-    }
-
     fn check_constants(&mut self, node: &mut Node, i: usize) {
         if &node.node_type == &NodeType::Constant
             || (&node.node_type == &NodeType::Identity && node.inputs[0].value.is_some())
@@ -287,7 +251,7 @@ impl ONNXGraphBuilder {
                         input.value = constant.inputs[0].value.clone();
                         input.ty = constant.inputs[0].ty.clone();
                     } else {
-                        let arg = convert_constant_value(&constant);
+                        let arg = convert_constant_value(constant);
                         input.value = arg.value;
                         input.ty = arg.ty;
                     }
@@ -326,57 +290,6 @@ impl ONNXGraphBuilder {
             });
         }
     }
-
-    // fn postprocess_identity(&mut self, nodes: &Vec<RefCell<Node>>, graph_io: &OnnxGraphIO) {
-    //     for identity_idx in self.identity_idx.iter() {
-    //         let identity_node = nodes[*identity_idx].borrow();
-
-    //         let input_name = &identity_node.inputs[0].name;
-    //         let identity_output = &identity_node.outputs[0].name;
-
-    //         // Replace the identity node's output with its input in the connected nodes.
-    //         if let Some(indices) = graph_io.get_node_indices(identity_output) {
-    //             for node_index in indices {
-    //                 let mut node = nodes[*node_index].borrow_mut();
-    //                 if let Some(matched_input) =
-    //                     node.inputs.iter_mut().find(|x| x.name == *identity_output)
-    //                 {
-    //                     matched_input.name = input_name.clone();
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    //// The function transforms the graph into a new one where the nodes are coalesced into a single node.
-    // fn handle_coalesce(
-    //     &mut self,
-    //     node: &mut Node,
-    //     _nodes_iter: &mut Peekable<Iter<NodeProto>>,
-    //     i: usize,
-    // ) {
-    //     match node.node_type {
-    //         NodeType::Gemm => {
-    //             println!("Gemm before {:?}\n", node);
-    //             convert_gemm_to_linear(node);
-    //             self.handle_node_renaming(&node.node_type.clone(), node);
-    //             println!("Gemm after {:?}\n", node);
-    //         }
-    //         NodeType::MatMul => {
-    //             self.matmul_nodes.push(i);
-    //         }
-    //         _ => {}
-    //     }
-    // }
-
-    // fn postprocess_coalesce(&mut self, nodes: &mut Vec<RefCell<Node>>) {
-    //     println!("{:?}", self.node_name_counter);
-    //     for matmul_index in self.matmul_nodes.clone() {
-    //         convert_matmul_to_linear2(nodes, matmul_index, &mut self.nodes_to_remove);
-    //         let mut node = nodes[matmul_index].borrow_mut();
-    //         self.handle_node_renaming(&node.node_type.clone(), &mut node)
-    //     }
-    // }
 }
 
 /// Open an onnx file and convert it to a Graph (intermediate representation)
@@ -479,7 +392,7 @@ pub(crate) fn move_initializer_data(initializer: &TensorProto, input: &mut Argum
     }
 }
 
-fn move_output_shape<'parser>(mut node: RefMut<'parser, Node>, out_arg: &Argument) {
+fn move_output_shape(mut node: RefMut<'_, Node>, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
             if let ArgType::Tensor(arg_tensor) = &out_arg.ty {
@@ -496,65 +409,39 @@ fn move_output_shape<'parser>(mut node: RefMut<'parser, Node>, out_arg: &Argumen
 /// The inputs are renamed to be unique and to be in the format of
 /// conv2_in1, conv2_in2, etc. This is done to be consistent with
 /// the naming convention of the nodes and allow to be used as rust identifiers.
-fn rename_inputs(
-    nodes: &mut Vec<Node>,
-    inputs: &mut Vec<Argument>,
-    outputs: &mut Vec<Argument>,
-) -> HashMap<String, String> {
-    let mut old_names = HashMap::new();
-    //println!("inputs: {:#?}", inputs);
-    //println!("outputs: {:#?}", outputs);
-    //println!("nodes: {:#?}", nodes);
-    // rename all graph input names to follow input1, input2, input3, etc.
-    // (assumes the input names are already unique)
-    let mut counter = 1;
-    for input in inputs.iter_mut() {
-        let old_name = input.name.clone();
-        let new_name = format!("input{}", counter);
-        input.name = new_name.clone();
-        old_names.insert(old_name, new_name);
-        counter += 1;
-    }
-
-    for node in nodes.iter_mut() {
-        let mut counter = 1;
-        //println!("node: {:#?}", node);
-
-        // loop through node outputs and rename them and store the new name <-> old name mapping
-        for output in node.outputs.iter_mut() {
-            let old_name = output.name.clone();
-            let new_name = format!("{}_out{}", node.name, counter);
-            output.name = new_name.clone();
-            old_names.insert(old_name, new_name);
-            //old_names.insert(old_name, new_name);
-            counter += 1;
-        }
-    }
-
-    // for node in nodes.iter_mut() {
-    //     // loop through node inputs and rename them with previously replaced names
-    //     // and mark them as passed if they are in the old_names map (i.e. they are node outputs)
-    //     for input in node.inputs.iter_mut() {
-    //         if let Some(new_name) = old_names.get(&input.name) {
-    //             input.name = new_name.clone();
-    //             input.passed = true;
-    //         } else {
-    //             input.name = "".to_string(); // Rename to a placeholder
-    //             input.passed = false;
-    //         }
-    //     }
-    // }
-
-    // Rename the graph outputs
-    for output in outputs.iter_mut() {
-        if let Some(new_name) = old_names.get(&output.name) {
-            output.name = new_name.clone();
+/// Rename the inputs and output in the graph and return a map of
+/// the old names to the new names.
+///
+/// The inputs are renamed to be unique and to be in the format of
+/// conv2_in1, conv2_in2, etc. This is done to be consistent with
+/// the naming convention of the nodes and allow to be used as rust identifiers.
+fn rename_io(node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
+    for node_input in node.inputs.iter_mut() {
+        println!("old output names {:?}", &graph_io.old_io_names);
+        graph_io.add_input(&node_input.name, i);
+        if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
+            node_input.passed = true;
+            node_input.name = input_name.clone();
         } else {
-            log::warn!("Output {:?} not found in old_names", output.name);
+            node_input.name = "".to_string();
+            node_input.passed = false;
         }
     }
+    println!("\n\nchecking outputs");
+    let mut out_count = 1;
+    for output in node.outputs.iter_mut() {
+        println!("output name: {}", &output.name);
 
-    old_names
+        let new_name = format!("{}_out{}", node.name, out_count);
+
+        graph_io.update(&output.name, &new_name);
+
+        // self.node_output_names
+        //     .insert(output.name.clone(), new_name.clone());
+
+        output.name = new_name.clone();
+        out_count += 1;
+    }
 }
 
 /// Removes the graph inputs/output that are not used by any node.

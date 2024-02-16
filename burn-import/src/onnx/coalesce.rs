@@ -2,7 +2,7 @@ use std::{
     cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     iter::Peekable,
-    slice::{Iter, IterMut},
+    slice::Iter,
 };
 
 use super::{
@@ -152,10 +152,6 @@ pub(crate) fn convert_matmul_to_linear(
     if let Some(peek_node) = iter_mut.peek() {
         let mut peek_node = convert_node_proto(peek_node).clone();
         for node_input in peek_node.inputs.iter_mut() {
-            // self.input_of
-            //     .entry(node_input.name.clone())
-            //     .and_modify(|f| f.push(i))
-            //     .or_insert(vec![i]);
             if let Some(initializer) = initializers.get(&node_input.name) {
                 move_initializer_data(initializer, node_input);
             }
@@ -214,17 +210,17 @@ pub(crate) fn convert_matmul_to_linear2(
 }
 /// Helper function to check if the peeked node is an Add node with bias
 fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
-    if (peek_node.node_type == NodeType::Add && peek_node.inputs.len() == 2) {
+    if peek_node.node_type == NodeType::Add && peek_node.inputs.len() == 2 {
         println!("\n\ntwo matches");
         println!("peek_node.inputs[0].name: {:?}", peek_node.inputs[0].name);
         println!(
             "current_node.outputs[0].name: {:?}",
             current_node.outputs[0].name
         );
-        return ((peek_node.inputs[0].name == current_node.outputs[0].name
+        return (peek_node.inputs[0].name == current_node.outputs[0].name
             && peek_node.inputs[1].value.is_some())
             || (peek_node.inputs[1].name == current_node.outputs[0].name
-                && peek_node.inputs[0].value.is_some()));
+                && peek_node.inputs[0].value.is_some());
     }
     false
 }
@@ -243,7 +239,7 @@ fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
 }
 
 /// Helper function to convert and remove the Add node
-pub(crate) fn convert_node2<'parser>(bias_node: &Node, mut current_node: RefMut<'parser, Node>) {
+pub(crate) fn convert_node2(bias_node: &Node, mut current_node: RefMut<'_, Node>) {
     let bias_input = if bias_node.inputs[0].value.is_some() {
         bias_node.inputs[0].clone()
     } else {
