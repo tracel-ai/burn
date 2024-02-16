@@ -1,6 +1,6 @@
 use crate::{
     binary,
-    codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
+    codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
     element::JitElement,
     kernel::StaticKernelSource,
     kernel::{binary::binary, unary::unary},
@@ -51,10 +51,10 @@ pub fn equal<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |elem: Elem| Operation::Equal(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        binary: |scope: &mut Scope, elem: Elem| Operator::Equal(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -67,10 +67,10 @@ pub fn greater<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |elem: Elem| Operation::Greater(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        binary: |scope: &mut Scope, elem: Elem| Operator::Greater(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -83,10 +83,10 @@ pub fn greater_equal<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        binary: |scope: &mut Scope, elem: Elem| Operator::GreaterEqual(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -99,10 +99,10 @@ pub fn lower<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |elem: Elem| Operation::Lower(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        binary: |scope: &mut Scope, elem: Elem| Operator::Lower(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -115,10 +115,10 @@ pub fn lower_equal<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        binary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        binary: |scope: &mut Scope, elem: Elem| Operator::LowerEqual(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -131,10 +131,10 @@ pub fn equal_elem<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        unary: |elem: Elem| Operation::Equal(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        unary: |scope: &mut Scope, elem: Elem| Operator::Equal(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -147,10 +147,10 @@ pub fn greater_elem<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        unary: |elem: Elem| Operation::Greater(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        unary: |scope: &mut Scope, elem: Elem| Operator::Greater(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -163,10 +163,10 @@ pub fn lower_elem<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        unary: |elem: Elem| Operation::Lower(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        unary: |scope: &mut Scope, elem: Elem| Operator::Lower(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -179,10 +179,10 @@ pub fn greater_equal_elem<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        unary: |elem: Elem| Operation::GreaterEqual(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        unary: |scope: &mut Scope, elem: Elem| Operator::GreaterEqual(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -195,10 +195,10 @@ pub fn lower_equal_elem<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, u32, D> {
     comparison!(
-        unary: |elem: Elem| Operation::LowerEqual(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(Elem::Bool)),
+        unary: |scope: &mut Scope, elem: Elem| Operator::LowerEqual(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(Elem::Bool),
         }),
         runtime: R,
         input: lhs; rhs,

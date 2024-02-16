@@ -5,6 +5,7 @@ use std::fmt::Display;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Extension {
     PowfScalar(Item),
+    PowfPrimitive(Item),
     Powf(Item),
     Erf(Item),
     #[cfg(target_os = "macos")]
@@ -15,6 +16,7 @@ impl Display for Extension {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Extension::PowfScalar(elem) => format_powf_scalar(f, elem),
+            Extension::PowfPrimitive(elem) => format_powf_primitive(f, elem),
             Extension::Powf(elem) => format_powf(f, elem),
             Extension::Erf(elem) => format_erf(f, elem),
             #[cfg(target_os = "macos")]
@@ -24,12 +26,10 @@ impl Display for Extension {
 }
 
 fn format_powf_scalar(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
-    base_powf_fmt(f, item)?;
-
     match item {
         Item::Vec4(elem) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf_scalar(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec4(
         powf_primitive(lhs[0], rhs),
         powf_primitive(lhs[1], rhs),
@@ -41,7 +41,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         )),
         Item::Vec3(elem) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf_scalar(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec3(
         powf_primitive(lhs[0], rhs),
         powf_primitive(lhs[1], rhs),
@@ -52,7 +52,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         )),
         Item::Vec2(elem) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf_scalar(lhs: {item}, rhs: {elem}) -> {item} {{
     return vec2(
         powf_primitive(lhs[0], rhs),
         powf_primitive(lhs[1], rhs),
@@ -62,7 +62,7 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
         )),
         Item::Scalar(elem) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
+fn powf_scalar(lhs: {elem}, rhs: {elem}) -> {elem} {{
     return powf_primitive(lhs, rhs);
 }}
 "
@@ -70,7 +70,10 @@ fn powf(lhs: {elem}, rhs: {elem}) -> {elem} {{
     }
 }
 
-fn base_powf_fmt(f: &mut std::fmt::Formatter<'_>, item: &Item) -> Result<(), std::fmt::Error> {
+fn format_powf_primitive(
+    f: &mut std::fmt::Formatter<'_>,
+    item: &Item,
+) -> Result<(), std::fmt::Error> {
     let elem = item.elem();
     f.write_fmt(format_args!(
         "
@@ -96,12 +99,10 @@ fn powf_primitive(lhs: {elem}, rhs: {elem}) -> {elem} {{
 }
 
 fn format_powf(f: &mut core::fmt::Formatter<'_>, item: &Item) -> core::fmt::Result {
-    base_powf_fmt(f, item)?;
-
     match item {
-        Item::Vec4(elem) => f.write_fmt(format_args!(
+        Item::Vec4(_) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf(lhs: {item}, rhs: {item}) -> {item} {{
     return vec4(
         powf_primitive(lhs[0], rhs[0]),
         powf_primitive(lhs[1], rhs[1]),
@@ -111,9 +112,9 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec3(elem) => f.write_fmt(format_args!(
+        Item::Vec3(_) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf(lhs: {item}, rhs: {item}) -> {item} {{
     return vec3(
         powf_primitive(lhs[0], rhs[0]),
         powf_primitive(lhs[1], rhs[1]),
@@ -122,9 +123,9 @@ fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
 }}
 "
         )),
-        Item::Vec2(elem) => f.write_fmt(format_args!(
+        Item::Vec2(_) => f.write_fmt(format_args!(
             "
-fn powf(lhs: {item}, rhs: {elem}) -> {item} {{
+fn powf(lhs: {item}, rhs: {item}) -> {item} {{
     return vec2(
         powf_primitive(lhs[0], rhs[0]),
         powf_primitive(lhs[1], rhs[1]),

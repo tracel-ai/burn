@@ -1,11 +1,11 @@
 use super::{
-    BinaryOperation, ClampOperation, ConditionalAssignOperation, Item, Operation,
-    ReadGlobalOperation, ReadGlobalWithLayoutOperation, UnaryOperation, Variable,
+    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, Operation, Operator,
+    ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
 };
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
     Vec4,
@@ -14,47 +14,99 @@ pub enum Vectorization {
     /// Use vec2 for vectorization.
     Vec2,
     /// Don't vectorize.
+    #[default]
     Scalar,
 }
 
 impl Operation {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
-            Operation::Add(op) => Operation::Add(op.vectorize(vectorization)),
-            Operation::Sub(op) => Operation::Sub(op.vectorize(vectorization)),
-            Operation::Mul(op) => Operation::Mul(op.vectorize(vectorization)),
-            Operation::Div(op) => Operation::Div(op.vectorize(vectorization)),
-            Operation::Abs(op) => Operation::Abs(op.vectorize(vectorization)),
-            Operation::Exp(op) => Operation::Exp(op.vectorize(vectorization)),
-            Operation::Log(op) => Operation::Log(op.vectorize(vectorization)),
-            Operation::Log1p(op) => Operation::Log1p(op.vectorize(vectorization)),
-            Operation::Cos(op) => Operation::Cos(op.vectorize(vectorization)),
-            Operation::Sin(op) => Operation::Sin(op.vectorize(vectorization)),
-            Operation::Tanh(op) => Operation::Tanh(op.vectorize(vectorization)),
-            Operation::Powf(op) => Operation::Powf(op.vectorize(vectorization)),
-            Operation::Sqrt(op) => Operation::Sqrt(op.vectorize(vectorization)),
-            Operation::Erf(op) => Operation::Erf(op.vectorize(vectorization)),
-            Operation::Recip(op) => Operation::Recip(op.vectorize(vectorization)),
-            Operation::Equal(op) => Operation::Equal(op.vectorize(vectorization)),
-            Operation::Lower(op) => Operation::Lower(op.vectorize(vectorization)),
-            Operation::Clamp(op) => Operation::Clamp(op.vectorize(vectorization)),
-            Operation::Greater(op) => Operation::Greater(op.vectorize(vectorization)),
-            Operation::LowerEqual(op) => Operation::LowerEqual(op.vectorize(vectorization)),
-            Operation::GreaterEqual(op) => Operation::GreaterEqual(op.vectorize(vectorization)),
-            Operation::ConditionalAssign(op) => {
-                Operation::ConditionalAssign(op.vectorize(vectorization))
-            }
-            Operation::AssignGlobal(op) => Operation::AssignGlobal(op.vectorize(vectorization)),
-            Operation::AssignLocal(op) => Operation::AssignLocal(op.vectorize(vectorization)),
-            Operation::ReadGlobal(op) => Operation::ReadGlobal(op.vectorize(vectorization)),
-            Operation::ReadGlobalWithLayout(op) => {
-                Operation::ReadGlobalWithLayout(op.vectorize(vectorization))
-            }
+            Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
+            Operation::Algorithm(op) => Operation::Algorithm(op.vectorize(vectorization)),
+            Operation::Metadata(_) => panic!(
+                "Metadata can't be vectorized, they should only be generated after vectorization."
+            ),
+            Operation::Loop(_) => panic!(
+                "Loops can't be vectorized, they should only be generated after vectorization."
+            ),
         }
     }
 }
 
-impl BinaryOperation {
+impl Algorithm {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            Algorithm::ReadGlobalWithLayout(op) => {
+                Algorithm::ReadGlobalWithLayout(op.vectorize(vectorization))
+            }
+            Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
+        }
+    }
+}
+
+impl ReadGlobalWithLayoutAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            global: self.global.vectorize(vectorization),
+            layout: self.layout.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
+    }
+}
+
+impl ReadGlobalAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            global: self.global.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
+    }
+}
+
+impl Operator {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
+            Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
+            Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
+            Operator::Mul(op) => Operator::Mul(op.vectorize(vectorization)),
+            Operator::Div(op) => Operator::Div(op.vectorize(vectorization)),
+            Operator::Abs(op) => Operator::Abs(op.vectorize(vectorization)),
+            Operator::Exp(op) => Operator::Exp(op.vectorize(vectorization)),
+            Operator::Log(op) => Operator::Log(op.vectorize(vectorization)),
+            Operator::Log1p(op) => Operator::Log1p(op.vectorize(vectorization)),
+            Operator::Cos(op) => Operator::Cos(op.vectorize(vectorization)),
+            Operator::Sin(op) => Operator::Sin(op.vectorize(vectorization)),
+            Operator::Tanh(op) => Operator::Tanh(op.vectorize(vectorization)),
+            Operator::Powf(op) => Operator::Powf(op.vectorize(vectorization)),
+            Operator::Sqrt(op) => Operator::Sqrt(op.vectorize(vectorization)),
+            Operator::Erf(op) => Operator::Erf(op.vectorize(vectorization)),
+            Operator::Recip(op) => Operator::Recip(op.vectorize(vectorization)),
+            Operator::Equal(op) => Operator::Equal(op.vectorize(vectorization)),
+            Operator::Lower(op) => Operator::Lower(op.vectorize(vectorization)),
+            Operator::Clamp(op) => Operator::Clamp(op.vectorize(vectorization)),
+            Operator::Greater(op) => Operator::Greater(op.vectorize(vectorization)),
+            Operator::LowerEqual(op) => Operator::LowerEqual(op.vectorize(vectorization)),
+            Operator::GreaterEqual(op) => Operator::GreaterEqual(op.vectorize(vectorization)),
+            Operator::ConditionalAssign(op) => {
+                Operator::ConditionalAssign(op.vectorize(vectorization))
+            }
+            Operator::AssignGlobal(op) => Operator::AssignGlobal(op.vectorize(vectorization)),
+            Operator::AssignLocal(op) => {
+                if let Variable::GlobalScalar(_, _) = op.input {
+                    // Assign will not change the type of the output if the input can't be
+                    // vectorized.
+                    return Operator::AssignLocal(op.clone());
+                }
+
+                Operator::AssignLocal(op.vectorize(vectorization))
+            }
+            Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
+        }
+    }
+}
+
+impl BinaryOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         let lhs = self.lhs.vectorize(vectorization);
         let rhs = self.rhs.vectorize(vectorization);
@@ -64,7 +116,7 @@ impl BinaryOperation {
     }
 }
 
-impl UnaryOperation {
+impl UnaryOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         let input = self.input.vectorize(vectorization);
         let out = self.out.vectorize(vectorization);
@@ -73,7 +125,7 @@ impl UnaryOperation {
     }
 }
 
-impl ClampOperation {
+impl ClampOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         let input = self.input.vectorize(vectorization);
         let out = self.out.vectorize(vectorization);
@@ -89,7 +141,7 @@ impl ClampOperation {
     }
 }
 
-impl ConditionalAssignOperation {
+impl ConditionalAssignOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         let cond = self.cond.vectorize(vectorization);
         let lhs = self.lhs.vectorize(vectorization);
@@ -105,39 +157,23 @@ impl ConditionalAssignOperation {
     }
 }
 
-impl ReadGlobalOperation {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let variable = self.variable.vectorize(vectorization);
-
-        Self { variable }
-    }
-}
-
-impl ReadGlobalWithLayoutOperation {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let variable = self.variable.vectorize(vectorization);
-        let tensor_read_pos = self.tensor_read_pos;
-        let tensor_layout_pos = self.tensor_layout_pos;
-
-        Self {
-            variable,
-            tensor_read_pos,
-            tensor_layout_pos,
-        }
-    }
-}
-
 impl Variable {
     pub fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
-            Variable::Input(index, item) => Variable::Input(*index, item.vectorize(vectorize)),
-            Variable::Local(index, item) => Variable::Local(*index, item.vectorize(vectorize)),
-            Variable::Output(index, item) => Variable::Output(*index, item.vectorize(vectorize)),
-            Variable::Constant(index, item) => {
-                Variable::Constant(*index, item.vectorize(vectorize))
+            Variable::GlobalInputArray(index, item) => {
+                Variable::GlobalInputArray(*index, item.vectorize(vectorize))
             }
-            Variable::Scalar(index, item) => Variable::Scalar(*index, *item), // Don't vectorize
-                                                                              // scalar variables.
+            Variable::Local(index, item, name) => {
+                Variable::Local(*index, item.vectorize(vectorize), *name)
+            }
+            Variable::GlobalOutputArray(index, item) => {
+                Variable::GlobalOutputArray(*index, item.vectorize(vectorize))
+            }
+            Variable::ConstantScalar(_, _) => *self,
+            Variable::GlobalScalar(_, _) => *self,
+            Variable::Id => *self,
+            Variable::Rank => *self,
+            Variable::LocalScalar(_, _, _) => *self,
         }
     }
 }

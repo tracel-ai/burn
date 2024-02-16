@@ -1,7 +1,8 @@
-use super::Body;
 use crate::kernel::WORKGROUP_DEFAULT;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+
+use super::Scope;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Location {
@@ -16,12 +17,18 @@ pub enum Visibility {
     ReadWrite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
 pub enum Elem {
     Float,
     Int,
     UInt,
     Bool,
+}
+
+impl From<Elem> for Item {
+    fn from(val: Elem) -> Self {
+        Item::Scalar(val)
+    }
 }
 
 impl Display for Elem {
@@ -87,5 +94,5 @@ pub struct ComputeShader {
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
-    pub body: Body,
+    pub body: Scope,
 }
