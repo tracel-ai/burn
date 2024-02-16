@@ -153,28 +153,19 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
-            .memory_bound(RetroAdd::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .memory_bound(
+                RetroAdd::<B, D>::new(lhs.node.id.clone(), rhs.node.id.clone()),
+                vec![&lhs, &rhs],
+            )
             .stateful()
         {
-            OpsKind::Tracked(mut preps) => {
-                // TODO FIND MORE ELEGANT WAY
-                // This operation is eager therefore does not need checkpoint for itself, but needs to checkpoint what is used in memory bound
-                // It could also happen that the state needs some parents so is lazy, but not all. So not only for eager but all memory_bound
-                // -> Memory_bound should need to call might_need by default, maybe can be removed if there is also some explicit checkpointing....
-                preps.might_need(&lhs);
-                preps.might_need(&rhs);
-
-                preps.finish(
-                    (
-                        B::float_shape(&lhs.primitive),
-                        B::float_shape(&rhs.primitive),
-                    ),
-                    B::float_add(lhs.primitive, rhs.primitive),
-                )
-            }
+            OpsKind::Tracked(mut preps) => preps.finish(
+                (
+                    B::float_shape(&lhs.primitive),
+                    B::float_shape(&rhs.primitive),
+                ),
+                B::float_add(lhs.primitive, rhs.primitive),
+            ),
             OpsKind::UnTracked(preps) => preps.finish(B::float_add(lhs.primitive, rhs.primitive)),
         }
     }
@@ -213,19 +204,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match AddScalar
+        AddScalar
             .prepare([lhs.node.clone()], [lhs.graph.clone()])
-            .memory_bound(RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs))
-            // TODO make stateless even with might_need -> can probably checkpoint in memory bound declaration
-            .stateful()
-        {
-            OpsKind::Tracked(mut prep) => {
-                prep.might_need(&lhs);
-                prep.finish((), B::float_add_scalar(lhs.primitive, rhs))
-            }
-            OpsKind::UnTracked(prep) => prep.finish(B::float_add_scalar(lhs.primitive, rhs)),
-        }
-        // .stateless(B::float_add_scalar(lhs.primitive, rhs))
+            .memory_bound(
+                RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs),
+                vec![&lhs],
+            )
+            .stateless(B::float_add_scalar(lhs.primitive, rhs))
     }
 
     fn float_sub<const D: usize>(
@@ -345,10 +330,10 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
-            .memory_bound(RetroMul::<B, D>::new(
-                lhs.node.id.clone(),
-                rhs.node.id.clone(),
-            ))
+            .memory_bound(
+                RetroMul::<B, D>::new(lhs.node.id.clone(), rhs.node.id.clone()),
+                vec![&lhs, &rhs],
+            )
             .stateful()
         {
             OpsKind::Tracked(mut prep) => {
@@ -401,8 +386,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match MulScalar
-            .prepare([lhs.node.clone()], [lhs.graph])
-            .memory_bound(RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .prepare([lhs.node.clone()], [lhs.graph.clone()])
+            .memory_bound(
+                RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs),
+                vec![&lhs],
+            )
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(rhs, B::float_mul_scalar(lhs.primitive, rhs)),

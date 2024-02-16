@@ -1,7 +1,11 @@
 use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{checkpoint::base::Checkpointer, grads::Gradients, ops::CheckpointingAction};
+use crate::{
+    checkpoint::{base::Checkpointer, builder::build_checkpointer},
+    grads::Gradients,
+    ops::CheckpointingAction,
+};
 
 use super::{NodeID, NodeRef};
 
@@ -18,22 +22,22 @@ pub type NodeSteps = HashMap<NodeID, StepBoxed>;
 
 #[derive(new, Debug, Default)]
 pub struct CheckpointingActions {
-    pub actions: Vec<CheckpointingAction>,
-    pub unsure: Vec<CheckpointingAction>,
+    pub main_actions: Vec<CheckpointingAction>,
+    pub backup_actions: Vec<CheckpointingAction>,
 }
 
 impl CheckpointingActions {
     fn extend(&mut self, other: CheckpointingActions) {
-        for other_action in other.actions {
-            self.actions.push(other_action)
+        for other_action in other.main_actions {
+            self.main_actions.push(other_action)
         }
-        for other_unsure in other.unsure {
-            self.unsure.push(other_unsure)
+        for other_unsure in other.backup_actions {
+            self.backup_actions.push(other_unsure)
         }
     }
 
     fn len(&self) -> usize {
-        self.actions.len() + self.unsure.len()
+        self.main_actions.len() + self.backup_actions.len()
     }
 }
 
@@ -157,37 +161,16 @@ impl Graph {
         self
     }
 
-    // pub fn take_checkpointing_actions(&self) -> Vec<CheckpointingAction> {
-    //     let mut guard = self.checkpointing_actions.lock();
-    //     let owned: Vec<CheckpointingAction> = std::mem::replace(&mut *guard, Vec::default());
-    //     owned
-    // }
-
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {
         let mut guard = self.checkpointing_actions.lock();
         let owned: CheckpointingActions =
             std::mem::replace(&mut *guard, CheckpointingActions::default());
-        Checkpointer::build(owned.actions, owned.unsure, &self.steps.lock())
+        build_checkpointer(owned.main_actions, owned.backup_actions, &self.steps.lock())
     }
 
-    // pub fn print_checkpoint(&self) {
-    //     self.checkpointer.lock().print();
-    // }
-
-    // pub(crate) fn merge_checkpointer(self, checkpointer: Checkpointer) -> Self {
-    //     // TODO add again the if for slarget one
-    //     self.execute_mut_checkpointer(|checkpointer1| {
-    //         checkpointer1.extend(checkpointer);
-    //     })
-    // }
-
-    pub(crate) fn extend_checkpointing_actions(
-        &self,
-        actions: Vec<CheckpointingAction>,
-        unsure: Vec<CheckpointingAction>,
-    ) {
+    pub(crate) fn extend_checkpointing_actions(&self, checkpointing_actions: CheckpointingActions) {
         self.checkpointing_actions
             .lock()
-            .extend(CheckpointingActions::new(actions, unsure));
+            .extend(checkpointing_actions);
     }
 }

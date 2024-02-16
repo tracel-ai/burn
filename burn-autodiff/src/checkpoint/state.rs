@@ -57,38 +57,6 @@ impl State {
             } => *n_required,
         }
     }
-
-    pub(crate) fn increment(&mut self) {
-        match self {
-            State::Recompute { n_required } => *n_required += 1,
-            State::Computed {
-                state_content: _,
-                n_required,
-            } => *n_required += 1,
-        }
-    }
-
-    pub(crate) fn merge(&mut self, other: Self) {
-        match other {
-            State::Recompute { n_required: n } => match self {
-                State::Recompute { n_required } => *n_required += n,
-                State::Computed {
-                    state_content,
-                    n_required,
-                } => panic!("Not supposed to happen"),
-            },
-            State::Computed {
-                state_content,
-                n_required: n,
-            } => match self {
-                State::Recompute { n_required } => panic!("Not supposed to happen"),
-                State::Computed {
-                    state_content,
-                    n_required,
-                } => *n_required += n,
-            },
-        }
-    }
 }
 
 #[derive(new, Default, Debug)]
@@ -168,37 +136,7 @@ impl BackwardStates {
         );
     }
 
-    pub(crate) fn extend(&mut self, other: Self) {
-        // println!("extending");
-        // println!("..");
-        // println!("{:?}", self.map.keys());
-        // println!("{:?}", self.map.values());
-        // println!("..");
-        // println!("{:?}", other.map.keys());
-        // println!("{:?}", other.map.values());
-        // println!("..");
-        for (node_id, state) in other.map.into_iter() {
-            // println!("{:?}", node_id);
-            match self.map.remove(&node_id) {
-                Some(mut s) => {
-                    // println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                    s.merge(state);
-                    self.map.insert(node_id, s);
-                }
-                None => {
-                    self.map.insert(node_id, state);
-                }
-            }
-        }
-        // println!("-> {:?}", self.map.keys());
-        // println!("-> {:?}", self.map.values());
-        // println!("\n\n")
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.map.len()
-    }
-
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

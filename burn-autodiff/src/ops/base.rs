@@ -2,40 +2,37 @@ use super::Backward;
 use crate::{
     checkpoint::base::{Checkpointer, RetroForward},
     grads::Gradients,
-    graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
+    graph::{CheckpointingActions, ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
 use std::{any::Any, marker::PhantomData, sync::Arc};
 
-pub enum CheckpointStrategy {
-    Computed,
-    Recompute {
-        retro_forward: Box<dyn RetroForward>,
-    },
-}
-
-pub enum StateStrategy {
-    Saved,
-    FromInputs,
-}
-
 #[derive(Debug)]
+/// Determines if a node should checkpoint its computed output or its retro_forward for recomputation
+/// The action is normally created by the child of the node, once the node is determined to be needed
 pub enum CheckpointingAction {
-    Compute {
+    /// The node's already computed output should be saved
+    Computed {
+        /// The node
         node_ref: NodeRef,
+        /// The node's output
         state_content: Box<dyn Any + Send + Sync>,
     },
+    /// The node should recompute itself when asked
     Recompute {
+        /// The node
         node_ref: NodeRef,
+        /// How the node should recompute itself
         retro_forward: Arc<dyn RetroForward>,
     },
 }
 
 impl CheckpointingAction {
+    /// Utilitary function to access the id of the node of the checkpointing action
     pub fn id(&self) -> NodeID {
         match self {
-            CheckpointingAction::Compute {
+            CheckpointingAction::Computed {
                 node_ref,
                 state_content: _,
             } => node_ref.id.clone(),
@@ -58,8 +55,7 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
-    checkpointing_actions: Vec<CheckpointingAction>,
-    unsure_checkpointing_actions: Vec<CheckpointingAction>,
+    checkpointing_actions: CheckpointingActions,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
     marker: PhantomData<Mode>,
@@ -79,6 +75,8 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
+    /// Indicates that the operation is compute bound, meaning its computation
+    /// is heavy and should not be recomputed
     pub fn compute_bound(self) -> OpsPrep<BO, B, S, D, N, ComputePropertyChosen> {
         OpsPrep::new(
             self.nodes,
@@ -87,14 +85,22 @@ where
             self.backward,
             ComputingProperty::ComputeBound,
             self.checkpointing_actions,
-            self.unsure_checkpointing_actions,
         )
     }
 
+    /// Indicates that the operation is memory bound, meaning its computation
+    /// is light and can be recomputed
+    ///
+    /// Note: since the operation may not checkpoint its parents but may need them indirectly
+    /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
     pub fn memory_bound<R: RetroForward>(
-        self,
+        mut self,
         retro_forward: R,
+        tensors_to_checkpoint: Vec<&AutodiffTensor<B, D>>,
     ) -> OpsPrep<BO, B, S, D, N, ComputePropertyChosen> {
+        for tensor in tensors_to_checkpoint {
+            checkpoint(&mut self.checkpointing_actions.backup_actions, tensor);
+        }
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -104,7 +110,6 @@ where
                 retro_forward: Arc::new(retro_forward),
             },
             self.checkpointing_actions,
-            self.unsure_checkpointing_actions,
         )
     }
 }
@@ -142,7 +147,6 @@ where
                 self.backward,
                 self.compute_property,
                 self.checkpointing_actions,
-                self.unsure_checkpointing_actions,
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
@@ -151,7 +155,6 @@ where
                 self.backward,
                 self.compute_property,
                 self.checkpointing_actions,
-                self.unsure_checkpointing_actions,
             )),
         }
     }
@@ -191,7 +194,6 @@ where
                 self.backward,
                 self.compute_property,
                 self.checkpointing_actions,
-                self.unsure_checkpointing_actions,
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
@@ -200,7 +202,6 @@ where
                 self.backward,
                 self.compute_property,
                 self.checkpointing_actions,
-                self.unsure_checkpointing_actions,
             )),
         }
     }
@@ -221,7 +222,6 @@ where
             self.requirement,
             self.compute_property,
             self.checkpointing_actions,
-            self.unsure_checkpointing_actions,
         )
     }
 }
@@ -245,7 +245,6 @@ where
             self.requirement,
             self.compute_property,
             self.checkpointing_actions,
-            self.unsure_checkpointing_actions,
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
@@ -253,42 +252,33 @@ where
         output.register_step(OpsStep::new(ops, self.backward))
     }
 
+    /// Checkpoints the tensor
     pub fn checkpoint<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> NodeID {
-        match &tensor.node.properties {
-            ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => self
-                .checkpointing_actions
-                .push(CheckpointingAction::Compute {
-                    node_ref: tensor.node.clone(),
-                    state_content: Box::new(tensor.primitive.clone()), 
-                }),
-            ComputingProperty::MemoryBound { retro_forward } => {
-                self.checkpointing_actions
-                    .push(CheckpointingAction::Recompute {
-                        node_ref: tensor.node.clone(),
-                        retro_forward: retro_forward.clone(),
-                    })
-            }
-        }
-        tensor.node.id.clone()
+        checkpoint(&mut self.checkpointing_actions.main_actions, tensor)
     }
+}
 
-    pub fn might_need<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> NodeID {
-        match &tensor.node.properties {
-            ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => self
-                .unsure_checkpointing_actions
-                .push(CheckpointingAction::Compute {
-                    node_ref: tensor.node.clone(),
-                    state_content: Box::new(tensor.primitive.clone()),
-                }),
-            ComputingProperty::MemoryBound { retro_forward } => self
-                .unsure_checkpointing_actions
-                .push(CheckpointingAction::Recompute {
-                    node_ref: tensor.node.clone(),
-                    retro_forward: retro_forward.clone(),
-                }),
+/// Checkpointing creates a [CheckpointingAction] that is stored into a list
+/// and actually checkpointed only right before the backward pass.
+fn checkpoint<B: Backend, const D2: usize>(
+    action_list: &mut Vec<CheckpointingAction>,
+    tensor: &AutodiffTensor<B, D2>,
+) -> NodeID {
+    match &tensor.node.properties {
+        ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
+            action_list.push(CheckpointingAction::Computed {
+                node_ref: tensor.node.clone(),
+                state_content: Box::new(tensor.primitive.clone()),
+            })
         }
-        tensor.node.id.clone()
+        ComputingProperty::MemoryBound { retro_forward } => {
+            action_list.push(CheckpointingAction::Recompute {
+                node_ref: tensor.node.clone(),
+                retro_forward: retro_forward.clone(),
+            })
+        }
     }
+    tensor.node.id.clone()
 }
 
 /// Enum used before finishing tracked and untracked operations.

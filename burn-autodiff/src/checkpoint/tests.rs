@@ -1,462 +1,308 @@
-use std::marker::PhantomData;
-
-use burn_tensor::{backend::Backend, Data, Tensor};
+use burn_tensor::Data;
 use burn_wgpu::AutoGraphicsApi;
 
-use crate::graph::NodeID;
-
-use std::{collections::HashMap, sync::Arc};
-
-use crate::{
-    checkpoint::{
-        base::{Checkpointer, NodeTree, RetroForwards},
-        state::StateContent,
-    },
-    graph::{Node, NodeRef, Requirement},
-};
-
-use super::{
-    base::RetroForward,
-    state::{BackwardStates, State},
-};
+use crate::Autodiff;
 
 pub type TestBackend = burn_wgpu::Wgpu<AutoGraphicsApi, f32, i32>;
+pub type TestAutodiffBackend = Autodiff<TestBackend>;
+pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
-#[derive(new, Debug)]
-/// For testing purpose, all operations are float divisions.
-pub struct RetroDiv<B, const D: usize> {
-    lhs_parent_id: NodeID,
-    rhs_parent_id: NodeID,
-    _backend: PhantomData<B>,
-}
+#[test]
+fn should_diff_div() {
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([4.0, 7.0]);
 
-impl<B: Backend, const D: usize> RetroForward for RetroDiv<B, D> {
-    /// Typical content of a [RetroForward] function.
-    fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-        // Get the needed outputs downcasted to their expected types
-        // This will decrement n_required for both parent states
-        let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_parent_id);
-        let rhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.rhs_parent_id);
+    let device = Default::default();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
 
-        // Compute the output through a call to the inner backend operation
-        let out = B::float_div(lhs, rhs);
+    let tensor_3 = tensor_1.clone().div(tensor_2.clone());
+    let grads = tensor_3.backward();
 
-        // Replace the state for this node id by the new computed output
-        // without changing n_required
-        states.save(out_node, out);
-    }
+    let grad_1 = tensor_1.grad(&grads).unwrap();
+    let grad_2 = tensor_2.grad(&grads).unwrap();
+
+    grad_1
+        .to_data()
+        .assert_approx_eq(&Data::from([0.25, 0.1429]), 3);
+    grad_2
+        .to_data()
+        .assert_approx_eq(&Data::from([-0.0625, -0.1429]), 3);
 }
 
 #[test]
-fn div_lazy_tree_has_expected_leaves() {
+fn should_diff_mul() {
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([4.0, 7.0]);
+
     let device = Default::default();
-    let ids = make_ids();
-    let mut checkpointer = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+    let tensor_1 = TestAutodiffTensor::from_data(data_1.clone(), &device).require_grad();
+    let tensor_2 = TestAutodiffTensor::from_data(data_2.clone(), &device).require_grad();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[1].clone(),
-        Tensor::<TestBackend, 2>::from_data([[3.0, 6.0], [8.0, -9.0]], &device).into_primitive(),
-    );
+    let tensor_3 = tensor_1.clone().mul(tensor_2.clone());
+    let grads = tensor_3.backward();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[2].clone(),
-        Tensor::<TestBackend, 2>::from_data([[-6.0, 1.0], [4.0, 2.0]], &device).into_primitive(),
-    );
+    let grad_1 = tensor_1.grad(&grads).unwrap();
+    let grad_2 = tensor_2.grad(&grads).unwrap();
+
+    assert_eq!(grad_1.to_data(), data_2);
+    assert_eq!(grad_2.to_data(), data_1);
+    assert_eq!(tensor_3.into_data(), Data::from([4.0, 49.0]));
 }
 
 #[test]
-fn div_lazy_tree_accepts_several_independant_node_gets() {
+fn should_diff_mul_tree() {
+    // (ab)(cd)
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+    let data_d = Data::from([4.0, 7.0]);
+
     let device = Default::default();
-    let ids = make_ids();
-    let mut checkpointer = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
+    let tensor_d = TestAutodiffTensor::from_data(data_d, &device).require_grad();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[4].clone(),
-        Tensor::<TestBackend, 2>::from_data([[0.6666, -0.1666], [0.625, -0.2222]], &device)
-            .into_primitive(),
-    );
+    let tensor_e = tensor_a.clone().mul(tensor_b.clone());
+    let tensor_f = tensor_c.clone().mul(tensor_d.clone());
+    let tensor_g = tensor_e.mul(tensor_f);
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[5].clone(),
-        Tensor::<TestBackend, 2>::from_data([[-1.5, 0.125], [-0.8, 0.4]], &device).into_primitive(),
-    );
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+    let grad_d = tensor_d.grad(&grads).unwrap().to_data();
+
+    let expected_a = Data::from([24.0, 343.0]);
+    let expected_b = Data::from([12.0, 343.0]);
+    let expected_c = Data::from([8.0, 343.0]);
+    let expected_d = Data::from([6.0, 343.0]);
+
+    assert_eq!(grad_a, expected_a);
+    assert_eq!(grad_b, expected_b);
+    assert_eq!(grad_c, expected_c);
+    assert_eq!(grad_d, expected_d);
+    // assert!(false)
 }
 
 #[test]
-#[should_panic]
-fn div_lazy_tree_rejects_more_gets_than_required() {
+fn should_diff_div_tree() {
+    // (a/b)/(c/d)
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+    let data_d = Data::from([4.0, 7.0]);
+
     let device = Default::default();
-    let ids = make_ids();
-    let mut checkpointer = div_recompute_tree::<TestBackend>(&device, ids.clone(), HashMap::new());
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
+    let tensor_d = TestAutodiffTensor::from_data(data_d, &device).require_grad();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[5].clone(),
-        Tensor::<TestBackend, 2>::from_data([[-1.5, 0.125], [-0.8, 0.4]], &device).into_primitive(),
-    );
+    let tensor_e = tensor_a.clone().div(tensor_b.clone());
+    let tensor_f = tensor_c.clone().div(tensor_d.clone());
+    let tensor_g = tensor_e.div(tensor_f);
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[6].clone(),
-        Tensor::<TestBackend, 2>::from_data([[-0.4444, -1.3328], [-0.78125, -0.5555]], &device)
-            .into_primitive(),
-    );
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+    let grad_d = tensor_d.grad(&grads).unwrap().to_data();
+
+    let expected_a = Data::from([0.6667, 0.1429]);
+    let expected_b = Data::from([-0.3333, -0.1429]);
+    let expected_c = Data::from([-0.2222, -0.1429]);
+    let expected_d = Data::from([0.1667, 0.1429]);
+
+    grad_a.assert_approx_eq(&expected_a, 3);
+    grad_b.assert_approx_eq(&expected_b, 3);
+    grad_c.assert_approx_eq(&expected_c, 3);
+    grad_d.assert_approx_eq(&expected_d, 3);
 }
 
 #[test]
-fn div_lazy_tree_called_twice_uses_cached_values() {
+fn should_diff_mul_div_tree() {
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+    let data_d = Data::from([4.0, 7.0]);
+
     let device = Default::default();
-    let ids = make_ids();
-    let mut n_required_changed = HashMap::new();
-    n_required_changed.insert(ids[6].clone(), 2);
-    let mut checkpointer =
-        div_recompute_tree::<TestBackend>(&device, ids.clone(), n_required_changed);
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
+    let tensor_d = TestAutodiffTensor::from_data(data_d, &device).require_grad();
 
-    // First call
-    checkpointer
-        .retrieve_output::<<TestBackend as Backend>::FloatTensorPrimitive<2>>(ids[6].clone());
+    let tensor_e = tensor_a.clone().div(tensor_b.clone());
+    let tensor_f = tensor_c.clone().div(tensor_d.clone());
+    let tensor_g = tensor_e.mul(tensor_f);
 
-    // Artificially changes parent answer and should not impact already computed child
-    checkpointer.checkpoint(
-        ids[4].clone(),
-        Tensor::<TestBackend, 2>::from_data([[99., 99.], [99., 99.]], &device),
-        1,
-    );
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+    let grad_d = tensor_d.grad(&grads).unwrap().to_data();
 
-    // Second call
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[6].clone(),
-        Tensor::<TestBackend, 2>::from_data([[-0.4444, -1.3328], [-0.78125, -0.5555]], &device)
-            .into_primitive(),
-    );
+    let expected_a = Data::from([0.375, 0.1429]);
+    let expected_b = Data::from([-0.1875, -0.1429]);
+    let expected_c = Data::from([0.125, 0.1429]);
+    let expected_d = Data::from([-0.0938, -0.1429]);
+
+    grad_a.assert_approx_eq(&expected_a, 3);
+    grad_b.assert_approx_eq(&expected_b, 3);
+    grad_c.assert_approx_eq(&expected_c, 3);
+    grad_d.assert_approx_eq(&expected_d, 3);
 }
 
 #[test]
-fn div_computed_tree_has_expected_directly_computed_node() {
+fn should_diff_mul_div_tree_with_reuse() {
+    let data_a = Data::from([1.0, 7.0]);
+    let data_b = Data::from([2.0, 7.0]);
+    let data_c = Data::from([3.0, 7.0]);
+
     let device = Default::default();
-    let ids = make_ids();
-    let mut checkpointer = div_precomputed_tree::<TestBackend>(&device, ids.clone());
+    let tensor_a = TestAutodiffTensor::from_data(data_a, &device).require_grad();
+    let tensor_b = TestAutodiffTensor::from_data(data_b, &device).require_grad();
+    let tensor_c = TestAutodiffTensor::from_data(data_c, &device).require_grad();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[4].clone(),
-        Tensor::<TestBackend, 2>::from_data([[0.6666, -0.1666], [0.625, -0.2222]], &device)
-            .into_primitive(),
-    );
+    let tensor_e = tensor_a.clone().div(tensor_b.clone());
+    let tensor_f = tensor_b.clone().div(tensor_c.clone());
+    let tensor_g = tensor_e.mul(tensor_f);
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[5].clone(),
-        Tensor::<TestBackend, 2>::from_data([[10.0, 10.0], [10.0, 10.0]], &device).into_primitive(),
-    );
+    let grads = tensor_g.backward();
+    let grad_a = tensor_a.grad(&grads).unwrap().to_data();
+    let grad_b = tensor_b.grad(&grads).unwrap().to_data();
+    let grad_c = tensor_c.grad(&grads).unwrap().to_data();
+
+    let expected_a = Data::from([0.3333, 0.1429]);
+    let expected_b = Data::from([0., 0.]);
+    let expected_c = Data::from([-0.1111, -0.1429]);
+
+    grad_a.assert_approx_eq(&expected_a, 3);
+    grad_b.assert_approx_eq(&expected_b, 3);
+    grad_c.assert_approx_eq(&expected_c, 3);
 }
 
 #[test]
-fn div_computed_tree_has_expected_lazily_computed_node() {
-    let device = Default::default();
-    let ids = make_ids();
-    let mut checkpointer = div_precomputed_tree::<TestBackend>(&device, ids.clone());
+fn test_complicated_computation() {
+    // The test is especially interesting if we consider the following:
+    // Add: MemoryBound, Eager
+    // Powf: ComputeBound, Eager
+    // Mul: MemoryBound, Lazy
+    // Div: ComputeBound, Lazy
+    // Since all those are element-wise they will probably all be memory bound, then
+    // we should change the tests to have some variation
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([2.0, 7.0]);
+    let data_3 = Data::from([3.0, 7.0]);
+    let data_4 = Data::from([4.0, 7.0]);
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[6].clone(),
-        Tensor::<TestBackend, 2>::from_data([[0.0666, -0.0166], [0.0625, -0.0222]], &device)
-            .into_primitive(),
-    );
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+
+    let tensor_5 = tensor_0.powf(tensor_1);
+    let tensor_6 = tensor_2.div(tensor_3.clone());
+    let tensor_7 = tensor_3.add(tensor_4);
+    let tensor_8 = tensor_6.div(tensor_7.clone());
+    let tensor_9 = tensor_7.mul_scalar(11);
+    let tensor_10 = tensor_5.mul(tensor_8.clone());
+    let tensor_11 = tensor_8.mul(tensor_9);
+    let tensor_12 = tensor_10.div(tensor_11.clone());
+
+    assert_checkpoint(tensor_12);
 }
 
 #[test]
-fn div_lazy_graph_with_duplicate_works() {
+fn test_with_edge_cases() {
+    // The test is especially interesting if we consider the following:
+    // Add: MemoryBound, Eager
+    // Powf: ComputeBound, Eager
+    // Mul: MemoryBound, Lazy
+    // Div: ComputeBound, Lazy
+    // Since all those are element-wise they will probably all be memory bound, then
+    // we should change the tests to have some variation
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+
     let device = Default::default();
-    let ids = [NodeID::new(), NodeID::new(), NodeID::new(), NodeID::new()];
-    let mut checkpointer = div_lazy_graph_with_duplicate::<TestBackend>(&device, ids.clone());
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
 
-    expect_tensor::<TestBackend>(
-        &mut checkpointer,
-        ids[3].clone(),
-        Tensor::<TestBackend, 2>::from_data([[0.2222, -0.0277], [0.0781, 0.0247]], &device)
-            .into_primitive(),
-    );
+    let tensor_2 = tensor_0.add(tensor_1);
+    let tensor_3 = tensor_2.clone().add_scalar(11);
+    let tensor_4 = tensor_2.clone().add_scalar(11);
+    let tensor_5 = tensor_3.add(tensor_4);
+    let tensor_6 = tensor_5.clone().powf_scalar(11);
+    let tensor_7 = tensor_5.add(tensor_2);
+    let tensor_8 = tensor_6.div(tensor_7);
+
+    assert_checkpoint(tensor_8);
 }
 
-/// Inserts a state that needs recompute.
-/// Number of times required is defined here for tests; normally it should be incremented
-/// during the forward pass while building the autodiff graph
-fn insert_recompute(id: NodeID, inner_states: &mut BackwardStates, n_required: Option<usize>) {
-    inner_states.insert_state(
-        id.clone(),
-        State::Recompute {
-            n_required: n_required.unwrap_or(1),
-        },
-    );
+#[test]
+fn test_with_many_duplicates() {
+    // The test is especially interesting if we consider the following:
+    // Add: MemoryBound, Eager
+    // Powf: ComputeBound, Eager
+    // Mul: MemoryBound, Lazy
+    // Div: ComputeBound, Lazy
+    // Since all those are element-wise they will probably all be memory bound, then
+    // we should change the tests to have some variation
+    let data_0 = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+
+    let tensor_1 = tensor_0.clone().add(tensor_0.clone());
+    let tensor_2 = tensor_0.clone().powf(tensor_0.clone());
+    let tensor_3 = tensor_0.clone().mul(tensor_0.clone());
+    let tensor_4 = tensor_0.clone().div(tensor_0.clone());
+
+    let tensor_5 = tensor_1.clone().add(tensor_0.clone());
+    let tensor_6 = tensor_0.clone().add(tensor_5.clone());
+    let tensor_7 = tensor_3.clone().div(tensor_5.clone());
+    let tensor_8 = tensor_4.clone().powf(tensor_2.clone());
+    let tensor_9 = tensor_6.mul(tensor_7);
+    let tensor_10 = tensor_0.add(tensor_9);
+    let tensor_11 = tensor_10.add_scalar(9);
+    let tensor_12 = tensor_8.div(tensor_11);
+
+    assert_checkpoint(tensor_12);
 }
 
-/// Inserts a pre-computed state
-fn insert_precomputed(
-    id: NodeID,
-    inner_states: &mut BackwardStates,
-    state_content: StateContent,
-    n_required: Option<usize>,
-) {
-    inner_states.insert_state(
-        id.clone(),
-        State::Computed {
-            state_content,
-            n_required: n_required.unwrap_or(1),
-        },
-    );
+#[test]
+fn test_long_chain_of_eager_memory_bound() {
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([2.0, 7.0]);
+    let data_3 = Data::from([3.0, 7.0]);
+    let data_4 = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+
+    let tensor_5 = tensor_0.add(tensor_1);
+    let tensor_6 = tensor_5.add(tensor_2);
+    let tensor_7 = tensor_6.add(tensor_3);
+    let tensor_8 = tensor_7.add(tensor_4);
+
+    assert_checkpoint(tensor_8)
 }
 
-/// Asserts the tensor obtained through checkpointing is the right one
-fn expect_tensor<B: Backend>(
-    checkpointer: &mut Checkpointer,
-    id: NodeID,
-    expected: B::FloatTensorPrimitive<2>,
-) {
-    let obtained: B::FloatTensorPrimitive<2> = checkpointer.retrieve_output(id.clone());
-    let x: Data<f32, 2> = Tensor::<B, 2>::from_primitive(expected).to_data().convert();
-    let y: Data<f32, 2> = Tensor::<B, 2>::from_primitive(obtained).to_data().convert();
-    x.assert_approx_eq(&y, 3);
-}
-
-/// Ids for the div tree of 7 nodes
-fn make_ids() -> [NodeID; 7] {
-    [
-        NodeID::new(),
-        NodeID::new(),
-        NodeID::new(),
-        NodeID::new(),
-        NodeID::new(),
-        NodeID::new(),
-        NodeID::new(),
-    ]
-}
-
-/// Make the leaves for a div tree
-fn make_leaves<B: Backend>(device: &B::Device, ids: [NodeID; 4]) -> (BackwardStates, NodeTree) {
-    let mut node_tree = NodeTree::default();
-    let mut backward_states = BackwardStates::default();
-
-    // Leaves are just tensors, so they are always precomputed
-    let mut make_leaf = |id: NodeID, t: B::FloatTensorPrimitive<2>| {
-        let n: NodeRef = Arc::new(Node::new(Vec::new(), 0, id.clone(), Requirement::Grad));
-        node_tree.insert_node(id.clone(), n);
-        insert_precomputed(id, &mut backward_states, Box::new(t), None);
-    };
-
-    // Leaf 0
-    make_leaf(
-        ids[0].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[2.0, -1.0], [5.0, 2.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-    );
-
-    // Leaf 1
-    make_leaf(
-        ids[1].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[3.0, 6.0], [8.0, -9.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-    );
-
-    // Leaf 2
-    make_leaf(
-        ids[2].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[-6.0, 1.0], [4.0, 2.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-    );
-
-    // Leaf 3
-    make_leaf(
-        ids[3].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[4.0, 8.0], [-5.0, 5.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-    );
-
-    (backward_states, node_tree)
-}
-
-/// Makes a tree where every node except leaves are in a Recompute state
-/// Ids at indices 0, 1, 2, 3 correspond leaves
-/// Then ids 5, 6, 7 correspond to division nodes like in the folowing
-/// 4: 0 / 1         5: 2 / 3
-///        6: t4 / t5
-fn div_recompute_tree<B: Backend>(
-    device: &B::Device,
-    ids: [NodeID; 7],
-    n_required_changed: HashMap<NodeID, usize>,
-) -> Checkpointer {
-    let id_0 = ids[0].clone();
-    let id_1 = ids[1].clone();
-    let id_2 = ids[2].clone();
-    let id_3 = ids[3].clone();
-
-    let leaves = make_leaves::<B>(
-        device,
-        [id_0.clone(), id_1.clone(), id_2.clone(), id_3.clone()],
-    );
-    let mut inner_states = leaves.0;
-    let mut nodes = leaves.1;
-    let mut retro_forwards = RetroForwards::default();
-
-    let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
-        let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
-        retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
-        nodes.insert_node(id.clone(), n);
-    };
-
-    // Node 4: t0/t1
-    make_div_node(ids[4].clone(), &[id_0, id_1]);
-
-    // Node 5: t2/t3
-    make_div_node(ids[5].clone(), &[id_2, id_3]);
-
-    // Node 6: t4/t5
-    make_div_node(ids[6].clone(), &[ids[4].clone(), ids[5].clone()]);
-
-    insert_recompute(
-        ids[4].clone(),
-        &mut inner_states,
-        n_required_changed.get(&ids[4]).copied(),
-    );
-    insert_recompute(
-        ids[5].clone(),
-        &mut inner_states,
-        n_required_changed.get(&ids[5]).copied(),
-    );
-    insert_recompute(
-        ids[6].clone(),
-        &mut inner_states,
-        n_required_changed.get(&ids[6]).copied(),
-    );
-
-    Checkpointer::new(inner_states, retro_forwards, nodes)
-}
-
-/// Makes a tree like div_recompute_tree but where node id 5 is precomputed
-/// Ids at indices 0, 1, 2, 3 correspond leaves
-/// Then ids 5, 6, 7 correspond to division nodes like in the folowing
-/// 4: 0 / 1         5: 2 / 3
-///        6: 4 / 5
-///
-/// Note: precomputed result for 5 is wrong on purpose so it's possible to
-/// differentiate between precomputed and recompute states.
-fn div_precomputed_tree<B: Backend>(device: &B::Device, ids: [NodeID; 7]) -> Checkpointer {
-    let id_0 = ids[0].clone();
-    let id_1 = ids[1].clone();
-    let id_2 = ids[2].clone();
-    let id_3 = ids[3].clone();
-
-    let leaves = make_leaves::<B>(
-        device,
-        [id_0.clone(), id_1.clone(), id_2.clone(), id_3.clone()],
-    );
-    let mut inner_states = leaves.0;
-    let mut nodes = leaves.1;
-    let mut retro_forwards = RetroForwards::default();
-
-    let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
-        let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
-        retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
-        nodes.insert_node(id.clone(), n);
-    };
-
-    // Node 4: 0/t1
-    make_div_node(ids[4].clone(), &[id_0, id_1]);
-
-    // Node 5: t2/t3
-    make_div_node(ids[5].clone(), &[id_2, id_3]);
-
-    // Node 6: t4/t5
-    make_div_node(ids[6].clone(), &[ids[4].clone(), ids[5].clone()]);
-
-    insert_recompute(ids[4].clone(), &mut inner_states, None);
-    insert_precomputed(
-        ids[5].clone(),
-        &mut inner_states,
-        Box::new(
-            Tensor::<B, 2>::from_data(
-                Data::<f32, 2>::from([[10.0, 10.0], [10.0, 10.0]]).convert(),
-                device,
-            )
-            .into_primitive(),
-        ),
-        None,
-    );
-    insert_recompute(ids[6].clone(), &mut inner_states, None);
-
-    Checkpointer::new(inner_states, retro_forwards, nodes)
-}
-
-/// Makes this graph, where id 1 is used twice
-/// (0 / 1) / 1
-fn div_lazy_graph_with_duplicate<B: Backend>(device: &B::Device, ids: [NodeID; 4]) -> Checkpointer {
-    let id_0 = ids[0].clone();
-    let id_1 = ids[1].clone();
-
-    let mut node_tree = NodeTree::default();
-    let mut inner_states = BackwardStates::default();
-    let mut retro_forwards = RetroForwards::default();
-
-    // Leaves are just tensors, so they are always precomputed
-    let mut make_leaf = |id: NodeID, t: B::FloatTensorPrimitive<2>, n_required: Option<usize>| {
-        let n: NodeRef = Arc::new(Node::new(Vec::new(), 0, id.clone(), Requirement::Grad));
-        node_tree.insert_node(id.clone(), n);
-        insert_precomputed(id, &mut inner_states, Box::new(t), n_required);
-    };
-
-    // Leaf 0
-    make_leaf(
-        ids[0].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[2.0, -1.0], [5.0, 2.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-        None,
-    );
-
-    // Leaf 1
-    make_leaf(
-        ids[1].clone(),
-        Tensor::<B, 2>::from_data(
-            Data::<f32, 2>::from([[3.0, 6.0], [8.0, -9.0]]).convert(),
-            device,
-        )
-        .into_primitive(),
-        Some(2),
-    );
-
-    let mut make_div_node = |id: NodeID, parents: &[NodeID; 2]| {
-        let n: NodeRef = Arc::new(Node::new(parents.into(), 0, id.clone(), Requirement::Grad));
-        let retro_div = RetroDiv::<B, 2>::new(parents[0].clone(), parents[1].clone());
-        retro_forwards.insert_retro_forward(id.clone(), Box::new(retro_div));
-        node_tree.insert_node(id.clone(), n);
-    };
-
-    make_div_node(ids[2].clone(), &[id_0, id_1.clone()]);
-    make_div_node(ids[3].clone(), &[ids[2].clone(), id_1]);
-
-    insert_recompute(ids[2].clone(), &mut inner_states, None);
-    insert_recompute(ids[3].clone(), &mut inner_states, None);
-
-    Checkpointer::new(inner_states, retro_forwards, node_tree)
+fn assert_checkpoint<const D: usize>(tensor: TestAutodiffTensor<D>) {
+    // Assert is not explicit here, but the test can fail
+    // - when a tensor is actually required more than n_required, it won't be found and will panic
+    // - when a tensor is actually required less than n_required, the backward states map won't be
+    //   empty and will fail the assertion within the backward code, same for retro_forwards
+    tensor.backward();
 }

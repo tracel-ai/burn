@@ -2,7 +2,7 @@ use super::{Ops, OpsPrep};
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{ComputingProperty, Graph, NodeRef, Requirement},
+    graph::{CheckpointingActions, ComputingProperty, Graph, NodeRef, Requirement},
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
@@ -43,8 +43,7 @@ where
             requirement,
             self,
             ComputingProperty::Ambiguous, // If not specified we start with ambiguous
-            Vec::new(),
-            Vec::new(),
+            CheckpointingActions::default(),
         )
     }
 }

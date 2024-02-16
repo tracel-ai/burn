@@ -3,8 +3,7 @@ use burn_tensor::backend::Backend;
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
-    ops::CheckpointingAction,
+    graph::{CheckpointingActions, ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
 };
 
 #[derive(Debug, Clone)]
@@ -87,14 +86,13 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         parent_graphs: I,
         requirement: Requirement,
         computing_properties: ComputingProperty,
-        checkpointing_actions: Vec<CheckpointingAction>,
-        unsure_checkpointing_actions: Vec<CheckpointingAction>,
+        checkpointing_actions: CheckpointingActions,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
 
-        graph.extend_checkpointing_actions(checkpointing_actions, unsure_checkpointing_actions);
+        graph.extend_checkpointing_actions(checkpointing_actions);
 
         let order = parent_nodes
             .iter()
