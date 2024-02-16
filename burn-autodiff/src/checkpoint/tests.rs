@@ -123,6 +123,7 @@ fn should_diff_div_tree() {
 
 #[test]
 fn should_diff_mul_div_tree() {
+    // (a/b)*(c/d)
     let data_a = Data::from([1.0, 7.0]);
     let data_b = Data::from([2.0, 7.0]);
     let data_c = Data::from([3.0, 7.0]);
@@ -157,6 +158,7 @@ fn should_diff_mul_div_tree() {
 
 #[test]
 fn should_diff_mul_div_tree_with_reuse() {
+    // (a/b)*(b/c)
     let data_a = Data::from([1.0, 7.0]);
     let data_b = Data::from([2.0, 7.0]);
     let data_c = Data::from([3.0, 7.0]);
@@ -219,7 +221,34 @@ fn test_complicated_computation() {
 }
 
 #[test]
-fn test_with_edge_cases() {
+fn test_with_missing_requirement() {
+    // The test is especially interesting if we consider the following:
+    // Add: MemoryBound, Eager
+    // Powf: ComputeBound, Eager
+    // Mul: MemoryBound, Lazy
+    // Div: ComputeBound, Lazy
+    // Since all those are element-wise they will probably all be memory bound, then
+    // we should change the tests to have some variation
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device); // does not require_grad
+
+    let tensor_2 = tensor_0.add(tensor_1); 
+    let tensor_3 = tensor_2.clone().add_scalar(11);
+    let tensor_4 = tensor_2.clone().add_scalar(11);
+    let tensor_5 = tensor_3.div(tensor_4);
+    let tensor_6 = tensor_5.clone().powf_scalar(11);
+    let tensor_7 = tensor_5.add(tensor_2);
+    let tensor_8 = tensor_6.add(tensor_7);
+
+    assert_checkpoint(tensor_8);
+}
+
+#[test]
+fn test_fails_powf() {
     // The test is especially interesting if we consider the following:
     // Add: MemoryBound, Eager
     // Powf: ComputeBound, Eager
@@ -234,15 +263,12 @@ fn test_with_edge_cases() {
     let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
     let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
 
-    let tensor_2 = tensor_0.add(tensor_1);
+    let tensor_2 = tensor_0.powf(tensor_1);
     let tensor_3 = tensor_2.clone().add_scalar(11);
     let tensor_4 = tensor_2.clone().add_scalar(11);
-    let tensor_5 = tensor_3.add(tensor_4);
-    let tensor_6 = tensor_5.clone().powf_scalar(11);
-    let tensor_7 = tensor_5.add(tensor_2);
-    let tensor_8 = tensor_6.div(tensor_7);
+    let tensor_5 = tensor_3.div(tensor_4);
 
-    assert_checkpoint(tensor_8);
+    assert_checkpoint(tensor_5);
 }
 
 #[test]
@@ -278,6 +304,7 @@ fn test_with_many_duplicates() {
 
 #[test]
 fn test_long_chain_of_eager_memory_bound() {
+    // This test assumes add is eager and memory bound
     let data_0 = Data::from([0.0, 7.0]);
     let data_1 = Data::from([1.0, 7.0]);
     let data_2 = Data::from([2.0, 7.0]);

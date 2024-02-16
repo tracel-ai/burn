@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use crate::{
-    graph::{NodeID, NodeSteps},
+    graph::{CheckpointingActions, NodeID, NodeSteps},
     ops::CheckpointingAction,
 };
 
@@ -10,24 +10,33 @@ use super::{
     state::{BackwardStates, State},
 };
 
+// B
 pub fn build_checkpointer(
-    checkpointing_actions: Vec<CheckpointingAction>,
-    backup_checkpointing_actions: Vec<CheckpointingAction>,
+    checkpointing_actions: CheckpointingActions,
     graph: &NodeSteps,
 ) -> Checkpointer {
     let node_tree = make_tree(graph);
     let mut backward_states_map = HashMap::new();
     let mut retro_forwards_map = HashMap::new();
-    let n_required_map = build_n_required_map(&checkpointing_actions, &node_tree);
 
+    // Split checkpointing actions into its two inner vecs
+    let main_actions = checkpointing_actions.main_actions;
+    let backup_actions = checkpointing_actions.backup_actions;
+
+    // We start by identifying how many times each node will be required.
+    let n_required_map = build_n_required_map(&main_actions, &node_tree);
+
+    // Then we checkpoint the nodes with the corresponding n_required value
     insert_checkpoints(
         &mut backward_states_map,
         &mut retro_forwards_map,
         n_required_map,
-        checkpointing_actions,
-        backup_checkpointing_actions,
+        main_actions,
+        backup_actions,
     );
 
+    println!("Checkpointer successfully built");
+    println!("{:?}", backward_states_map);
     Checkpointer::new(
         BackwardStates::new(backward_states_map),
         RetroForwards::new(retro_forwards_map),
@@ -67,6 +76,7 @@ fn build_n_required_map(
         }
     }
 
+    println!("{:?}", n_required_map);
     n_required_map
 }
 
@@ -77,12 +87,14 @@ fn insert_checkpoints(
     mut checkpointing_actions: Vec<CheckpointingAction>,
     mut backup_checkpointing_actions: Vec<CheckpointingAction>,
 ) {
+    println!("{:?}", checkpointing_actions);
+    println!("{:?}", backup_checkpointing_actions);
     // We do not loop over checkpointing actions anymore because they can contain
     // duplicates or miss some that are in backup
     for (node_id, n_required) in n_required_map {
         // We find the checkpointing action for node_id. It's likely in checkpointing_actions
         // so we check there first, otherwise it will be in backup.
-        // Technically it can be there several times but can never be of both types, so we can assume any one is fine
+        // Technically it can be there several times but can never be of both types, so we can assume the first we find is fine
 
         let action = match checkpointing_actions
             .iter()
@@ -122,6 +134,7 @@ fn insert_checkpoints(
 fn make_tree(graph: &NodeSteps) -> NodeTree {
     let mut tree = HashMap::default();
     for (id, step) in graph {
+        println!("{:?}", id);
         tree.insert(id.clone(), step.node());
     }
     NodeTree::new(tree)
@@ -137,10 +150,11 @@ fn find_n_required_of_parents(
             n_required_map.insert(id, n + 1);
         }
         None => {
-            let parents = node_tree.parents(&id);
-            n_required_map.insert(id, 1);
-            for p in parents {
-                find_n_required_of_parents(p, n_required_map, node_tree);
+            if let Some(parents) = node_tree.parents(&id) {
+                n_required_map.insert(id, 1);
+                for p in parents {
+                    find_n_required_of_parents(p, n_required_map, node_tree);
+                }
             }
         }
     }

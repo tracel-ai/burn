@@ -73,6 +73,17 @@ impl Graph {
         map_drain
     }
 
+    /// # Notes
+    ///
+    /// This is a owned method, so the current checkpointing actions will be freed.
+    pub fn take_checkpointing_actions(self) -> CheckpointingActions {
+        let mut actions = CheckpointingActions::default();
+        self.execute_mut_checkpointing_actions(|checkpointing_actions| {
+            std::mem::swap(&mut *checkpointing_actions, &mut actions);
+        });
+        actions
+    }
+
     /// Register a new step into the graph.
     pub fn register(self, id: &NodeID, ops: StepBoxed) -> Self {
         self.execute_mut_steps(|map| {
@@ -105,9 +116,28 @@ impl Graph {
         self
     }
 
+    fn execute_mut_checkpointing_actions<F: FnOnce(&mut CheckpointingActions)>(
+        mut self,
+        func: F,
+    ) -> Self {
+        match Arc::get_mut(&mut self.checkpointing_actions) {
+            Some(mutex) => {
+                let map = mutex.get_mut();
+                func(map);
+            }
+            None => {
+                // Only lock when there are multiple references to the graph.
+                let mut actions = self.checkpointing_actions.lock();
+                func(&mut actions);
+            }
+        };
+
+        self
+    }
+
     fn merge_different(self, other: Self) -> Self {
         let mut map2 = other.clone().steps();
-        let mut actions2 = other.checkpointing_actions_own();
+        let mut actions2 = other.take_checkpointing_actions();
 
         self.execute_mut_steps(|map1| {
             if map1.len() > map2.len() {
@@ -131,41 +161,11 @@ impl Graph {
         })
     }
 
-    /// # Notes
-    ///
-    /// This is a owned method, so the current checkpointer will be freed.
-    pub fn checkpointing_actions_own(self) -> CheckpointingActions {
-        let mut actions = CheckpointingActions::default();
-        self.execute_mut_checkpointing_actions(|checkpointing_actions| {
-            std::mem::swap(&mut *checkpointing_actions, &mut actions);
-        });
-        actions
-    }
-
-    fn execute_mut_checkpointing_actions<F: FnOnce(&mut CheckpointingActions)>(
-        mut self,
-        func: F,
-    ) -> Self {
-        match Arc::get_mut(&mut self.checkpointing_actions) {
-            Some(mutex) => {
-                let map = mutex.get_mut();
-                func(map);
-            }
-            None => {
-                // Only lock when there are multiple references to the graph.
-                let mut actions = self.checkpointing_actions.lock();
-                func(&mut actions);
-            }
-        };
-
-        self
-    }
-
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {
         let mut guard = self.checkpointing_actions.lock();
         let owned: CheckpointingActions =
             std::mem::replace(&mut *guard, CheckpointingActions::default());
-        build_checkpointer(owned.main_actions, owned.backup_actions, &self.steps.lock())
+        build_checkpointer(owned, &self.steps.lock())
     }
 
     pub(crate) fn extend_checkpointing_actions(&self, checkpointing_actions: CheckpointingActions) {
