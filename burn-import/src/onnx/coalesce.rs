@@ -1,6 +1,6 @@
 use std::{
     cell::{RefCell, RefMut},
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     iter::Peekable,
     slice::{Iter, IterMut},
 };
@@ -8,16 +8,23 @@ use std::{
 use super::{
     ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
-    protos::NodeProto,
+    protos::{NodeProto, TensorProto},
 };
-use crate::onnx::ir::{ArgType, Data, TensorType};
+use crate::onnx::{
+    from_onnx::move_initializer_data,
+    ir::{ArgType, Data, TensorType},
+};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
-pub fn coalesce(node: &mut Node, nodes_iter: &mut Peekable<Iter<NodeProto>>) {
+pub fn coalesce(
+    node: &mut Node,
+    nodes_iter: &mut Peekable<Iter<NodeProto>>,
+    initializers: &HashMap<String, TensorProto>,
+) {
     match node.node_type {
         NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
-            convert_matmul_to_linear(node, nodes_iter);
+            convert_matmul_to_linear(node, nodes_iter, initializers);
         }
         _ => {}
     }
@@ -117,7 +124,11 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 ///
 /// This function also converts the following Add node into a Linear node if possible.
 /// Add node is used to represent bias in PyTorch.
-pub(crate) fn convert_matmul_to_linear(node: &mut Node, iter_mut: &mut Peekable<Iter<NodeProto>>) {
+pub(crate) fn convert_matmul_to_linear(
+    node: &mut Node,
+    iter_mut: &mut Peekable<Iter<NodeProto>>,
+    initializers: &HashMap<String, TensorProto>,
+) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
     }
@@ -139,10 +150,20 @@ pub(crate) fn convert_matmul_to_linear(node: &mut Node, iter_mut: &mut Peekable<
 
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
-        let peek_node = &convert_node_proto(peek_node);
+        let mut peek_node = convert_node_proto(peek_node).clone();
+        for node_input in peek_node.inputs.iter_mut() {
+            // self.input_of
+            //     .entry(node_input.name.clone())
+            //     .and_modify(|f| f.push(i))
+            //     .or_insert(vec![i]);
+            if let Some(initializer) = initializers.get(&node_input.name) {
+                move_initializer_data(initializer, node_input);
+            }
+        }
         println!("next node is {:?}", peek_node);
-        if is_add_node_with_bias(peek_node, node) {
-            convert_and_remove_add_node(peek_node, node);
+        if is_add_node_with_bias(&peek_node, node) {
+            convert_and_remove_add_node(&peek_node, node);
+
             // You don't have to remove it if it's never stored in the first place
             let _ = iter_mut.next();
             println!("\n\nskipping add node\n\n");
