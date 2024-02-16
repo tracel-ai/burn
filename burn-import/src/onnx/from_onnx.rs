@@ -3,7 +3,9 @@ use std::{
     cell::{RefCell, RefMut},
     collections::{HashMap, HashSet},
     fs::File,
+    iter::Peekable,
     path::Path,
+    slice::Iter,
 };
 
 use crate::onnx::{
@@ -11,8 +13,8 @@ use crate::onnx::{
 };
 
 use super::{
-    coalesce::convert_gemm_to_linear,
-    protos::{ModelProto, TensorProto, ValueInfoProto},
+    coalesce::{coalesce, convert_gemm_to_linear, convert_matmul_to_linear},
+    protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
@@ -85,15 +87,6 @@ impl OnnxGraphIO {
         }
     }
 
-    fn get_mut(&mut self, old_name: &str) -> Option<&mut Argument> {
-        match self.old_io_names.get(old_name) {
-            Some(IOEntry::In(i)) => self.inputs.get_mut(*i),
-            Some(IOEntry::Out(i)) => self.outputs.get_mut(*i),
-            Some(IOEntry::Node(i)) => panic!("This is a node output"),
-            None => None,
-        }
-    }
-
     fn update(&mut self, old_name: &str, new_name: &str) {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => {
@@ -126,7 +119,7 @@ impl OnnxGraphIO {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => self.inputs.get(*i),
             Some(IOEntry::Out(i)) => self.outputs.get(*i),
-            Some(IOEntry::Node(i)) => panic!("This is a node output"),
+            Some(IOEntry::Node(_)) => panic!("This is a node output"),
             None => None,
         }
     }
@@ -192,8 +185,12 @@ impl ONNXGraphBuilder {
         );
 
         let mut nodes = Vec::with_capacity(model_proto.graph.node.len());
-        for (i, node_proto) in model_proto.graph.node.iter().enumerate() {
+        let mut nd_idx = 0;
+        let mut node_iter = model_proto.graph.node.iter().peekable();
+
+        while let Some(node_proto) = node_iter.next() {
             let mut node = convert_node_proto(node_proto);
+            println!("current_node {:?}", node);
             for node_input in node.inputs.iter_mut() {
                 // self.input_of
                 //     .entry(node_input.name.clone())
@@ -204,20 +201,22 @@ impl ONNXGraphBuilder {
                 }
             }
             remap_node_type(&mut node);
-            for node_output in node.outputs.iter() {
-                self.output_of.insert(node_output.name.clone(), i);
-            }
+            // for node_output in node.outputs.iter() {
+            //     self.output_of.insert(node_output.name.clone(), nd_idx);
+            // }
 
             let node_type = node.node_type.clone();
-
+            //coalesce(&mut node, &mut node_iter);
             self.handle_node_renaming(&node_type, &mut node);
-            self.handle_coalesce(&node_type, &mut node, i);
-            self.handle_unsqueeze(&node_type, &node, i);
 
-            _ = self.handle_identity(&node_type, &node, i);
+            //coalesce(&mut node, &mut node_iter);
 
-            self.handle_rename_io(&mut node, i, &mut graph_io);
-            self.check_constants(&node, &node_type, i);
+            self.handle_unsqueeze(&node_type, &node, nd_idx);
+
+            _ = self.handle_identity(&node_type, &node, nd_idx);
+            self.handle_coalesce(&mut node, &mut node_iter, nd_idx);
+            self.handle_rename_io(&mut node, nd_idx, &mut graph_io);
+            self.check_constants(&node, &node_type, nd_idx);
             //NOTE: still not done with this one
 
             // if !self.nodes_to_remove.contains(&i) && !self.constants_map.contains_key(&node.name) {
@@ -226,6 +225,7 @@ impl ONNXGraphBuilder {
             // }
 
             nodes.push(RefCell::new(node));
+            nd_idx += 1;
         }
         self.postprocess_unsqueeze(&nodes, &graph_io);
         self.postprocess_identity(&nodes, &graph_io);
@@ -373,8 +373,13 @@ impl ONNXGraphBuilder {
     }
 
     /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
-    fn handle_coalesce(&mut self, node_type: &NodeType, node: &mut Node, i: usize) {
-        match node_type {
+    fn handle_coalesce(
+        &mut self,
+        node: &mut Node,
+        _nodes_iter: &mut Peekable<Iter<NodeProto>>,
+        i: usize,
+    ) {
+        match node.node_type {
             NodeType::Gemm => {
                 println!("Gemm before {:?}\n", node);
                 convert_gemm_to_linear(node);
@@ -451,9 +456,9 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
             println!("{} != {}", nodes[i].name, my_nodes[i].name);
         }
     }
-    println!("nodes: {:#?}", nodes);
-    println!("inner inputs: {:#?}", inner_inputs);
-    println!("inner outputs: {:#?}", inner_outputs);
+    // println!("nodes: {:#?}", nodes);
+    // println!("inner inputs: {:#?}", inner_inputs);
+    // println!("inner outputs: {:#?}", inner_outputs);
 
     // Infer shapes and update the inputs and outputs
     dim_inference(&mut nodes, &inner_inputs, &mut inner_outputs);
