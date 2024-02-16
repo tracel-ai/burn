@@ -1,15 +1,5 @@
 TODOs
 
-- PROBLEM: retro_forwards are not well drained
-- PROBLEM: fails powf??? weird
-- PROBLEM: div (compute bound, LAZY) and mul (memory bound, LAZY) don't work when not all leaves require grad
-
-  - If removed there's no lazy operations, no checkpoints... normal it passes
-  - Node 1 is NOT in backward states nor n_required_map. They concord well.
-  - Therefore the problem happens when executing a checkpoint.
-  - Once not fail powf:
-    - Idea: If a parent is not tracked then force compute bound, because otherwise it will need to re-add all the untracked subgraph which sucks hard
-
 - clean left out comments and prints
 
 - reactivate all operations

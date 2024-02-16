@@ -10,7 +10,6 @@ use super::{
     state::{BackwardStates, State},
 };
 
-// B
 pub fn build_checkpointer(
     checkpointing_actions: CheckpointingActions,
     graph: &NodeSteps,
@@ -23,8 +22,11 @@ pub fn build_checkpointer(
     let main_actions = checkpointing_actions.main_actions;
     let backup_actions = checkpointing_actions.backup_actions;
 
+    // Find recursion stopping points
+    let stop_nodes: Vec<NodeID> = find_stop_nodes(&main_actions, &backup_actions);
+
     // We start by identifying how many times each node will be required.
-    let n_required_map = build_n_required_map(&main_actions, &node_tree);
+    let n_required_map = build_n_required_map(&main_actions, &node_tree, stop_nodes);
 
     // Then we checkpoint the nodes with the corresponding n_required value
     insert_checkpoints(
@@ -44,9 +46,30 @@ pub fn build_checkpointer(
     )
 }
 
+fn find_stop_nodes(
+    main_actions: &Vec<CheckpointingAction>,
+    backup_actions: &Vec<CheckpointingAction>,
+) -> Vec<NodeID> {
+    let mut stop_nodes = Vec::default();
+    for action in main_actions.iter().chain(backup_actions.iter()) {
+        match action {
+            CheckpointingAction::Computed {
+                node_ref,
+                state_content: _,
+            } => stop_nodes.push(node_ref.id.clone()),
+            CheckpointingAction::Recompute {
+                node_ref: _,
+                retro_forward: _,
+            } => {}
+        }
+    }
+    stop_nodes
+}
+
 fn build_n_required_map(
     checkpointing_actions: &Vec<CheckpointingAction>,
     node_tree: &NodeTree,
+    stop_nodes: Vec<NodeID>,
 ) -> HashMap<NodeID, usize> {
     let mut n_required_map = HashMap::<NodeID, usize>::default();
 
@@ -71,12 +94,11 @@ fn build_n_required_map(
                 retro_forward: _,
             } => {
                 let id = node_ref.id.clone();
-                find_n_required_of_parents(id, &mut n_required_map, node_tree);
+                find_n_required_of_parents(id, &mut n_required_map, node_tree, &stop_nodes);
             }
         }
     }
 
-    println!("{:?}", n_required_map);
     n_required_map
 }
 
@@ -87,8 +109,6 @@ fn insert_checkpoints(
     mut checkpointing_actions: Vec<CheckpointingAction>,
     mut backup_checkpointing_actions: Vec<CheckpointingAction>,
 ) {
-    println!("{:?}", checkpointing_actions);
-    println!("{:?}", backup_checkpointing_actions);
     // We do not loop over checkpointing actions anymore because they can contain
     // duplicates or miss some that are in backup
     for (node_id, n_required) in n_required_map {
@@ -134,7 +154,6 @@ fn insert_checkpoints(
 fn make_tree(graph: &NodeSteps) -> NodeTree {
     let mut tree = HashMap::default();
     for (id, step) in graph {
-        println!("{:?}", id);
         tree.insert(id.clone(), step.node());
     }
     NodeTree::new(tree)
@@ -144,16 +163,19 @@ fn find_n_required_of_parents(
     id: NodeID,
     n_required_map: &mut HashMap<NodeID, usize>,
     node_tree: &NodeTree,
+    stop_nodes: &Vec<NodeID>,
 ) {
     match n_required_map.remove(&id) {
         Some(n) => {
             n_required_map.insert(id, n + 1);
         }
         None => {
-            if let Some(parents) = node_tree.parents(&id) {
-                n_required_map.insert(id, 1);
-                for p in parents {
-                    find_n_required_of_parents(p, n_required_map, node_tree);
+            n_required_map.insert(id.clone(), 1);
+            if !stop_nodes.contains(&id) {
+                if let Some(parents) = node_tree.parents(&id) {
+                    for p in parents {
+                        find_n_required_of_parents(p, n_required_map, node_tree, stop_nodes);
+                    }
                 }
             }
         }

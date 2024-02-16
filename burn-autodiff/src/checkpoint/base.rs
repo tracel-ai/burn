@@ -22,29 +22,19 @@ impl RetroForwards {
     /// Executes the [RetroForward] for a given [NodeID] if the node's
     /// [State] is [State::Recompute], otherwise does nothing.
     fn execute_retro_forward(&mut self, node_id: NodeID, backward_states: &mut BackwardStates) {
-        let n_required = match backward_states
+        if let State::Recompute { n_required: _ } = backward_states
             .get_state_ref(&node_id)
             .expect(&format!("Should find node {:?}", node_id))
         {
-            State::Recompute { n_required } => *n_required,
-            State::Computed {
-                state_content: _,
-                n_required: _,
-            } => return,
-        };
-
-        let retro_forward = self.map.remove(&node_id).unwrap();
-        retro_forward.forward(backward_states, node_id.clone());
-        if n_required > 1 {
-            self.map.insert(node_id, retro_forward);
+            // Retro forwards are always used only once because afterwards their state is computed
+            let retro_forward = self.map.remove(&node_id).unwrap();
+            retro_forward.forward(backward_states, node_id.clone());
         }
     }
 
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
-        // TODO
-        true
-        // self.map.is_empty()
+        self.map.is_empty()
     }
 }
 

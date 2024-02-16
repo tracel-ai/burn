@@ -236,7 +236,7 @@ fn test_with_missing_requirement() {
     let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
     let tensor_1 = TestAutodiffTensor::from_data(data_1, &device); // does not require_grad
 
-    let tensor_2 = tensor_0.add(tensor_1); 
+    let tensor_2 = tensor_0.add(tensor_1);
     let tensor_3 = tensor_2.clone().add_scalar(11);
     let tensor_4 = tensor_2.clone().add_scalar(11);
     let tensor_5 = tensor_3.div(tensor_4);
@@ -313,17 +313,82 @@ fn test_long_chain_of_eager_memory_bound() {
 
     let device = Default::default();
     let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
     let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
     let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
     let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
 
-    let tensor_5 = tensor_0.add(tensor_1);
+    let tensor_5 = tensor_0.add(tensor_1.clone());
     let tensor_6 = tensor_5.add(tensor_2);
     let tensor_7 = tensor_6.add(tensor_3);
     let tensor_8 = tensor_7.add(tensor_4);
+    let tensor_9 = tensor_8.mul(tensor_1);
 
-    assert_checkpoint(tensor_8)
+    assert_checkpoint(tensor_9)
+}
+
+#[test]
+fn test_half_sub_graph_not_tracked() {
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([2.0, 7.0]);
+    let data_3 = Data::from([3.0, 7.0]);
+    let data_4 = Data::from([4.0, 7.0]);
+    let data_5 = Data::from([5.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device);
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device);
+    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+    let tensor_5 = TestAutodiffTensor::from_data(data_5, &device).require_grad();
+
+    let tensor_6 = tensor_0.mul(tensor_1);
+    let tensor_7 = tensor_6.powf(tensor_2);
+
+    let tensor_9 = tensor_3.add(tensor_4);
+    let tensor_10 = tensor_9.div(tensor_5);
+
+    let tensor_11 = tensor_7.div(tensor_10);
+
+    assert_checkpoint(tensor_11);
+}
+
+#[test]
+fn test_very_complex() {
+    let data_0 = Data::from([0.0, 7.0]);
+    let data_1 = Data::from([1.0, 7.0]);
+    let data_2 = Data::from([2.0, 7.0]);
+    let data_3 = Data::from([3.0, 7.0]);
+    let data_4 = Data::from([4.0, 7.0]);
+
+    let device = Default::default();
+    let tensor_0 = TestAutodiffTensor::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
+    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+
+    let tensor_5 = tensor_0.add_scalar(8);
+    let tensor_6 = tensor_5.clone().mul(tensor_1.clone());
+    let tensor_7 = tensor_6.clone().div(tensor_6);
+    let tensor_8 = tensor_1.clone().mul(tensor_5.clone());
+    let tensor_9 = tensor_7.clone().mul_scalar(7);
+    let tensor_10 = tensor_5.powf(tensor_8);
+    let tensor_11 = tensor_2.clone().add(tensor_9);
+    let tensor_12 = tensor_2.clone().mul(tensor_2);
+    let tensor_13 = tensor_10.clone().powf(tensor_11);
+    let tensor_14 = tensor_3.div_scalar(8);
+    let tensor_15 = tensor_4.div(tensor_12);
+    let tensor_16 = tensor_10.mul(tensor_7);
+    let tensor_17 = tensor_13.div(tensor_1);
+    let tensor_18 = tensor_15.add(tensor_16);
+    let tensor_19 = tensor_14.powf(tensor_17);
+    let tensor_20 = tensor_18.mul(tensor_19.clone());
+    let tensor_21 = tensor_20.add_scalar(8);
+
+    assert_checkpoint(tensor_21)
 }
 
 fn assert_checkpoint<const D: usize>(tensor: TestAutodiffTensor<D>) {

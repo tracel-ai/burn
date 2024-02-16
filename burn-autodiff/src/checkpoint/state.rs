@@ -80,7 +80,6 @@ impl BackwardStates {
         // Downcast the state to whatever it is supposed to be
         // If still needed after giving ownership, we copy it back to the hashmap
         if remaining_n_required > 0 {
-            println!("reinserting node {:?}", node_id);
             let new_stored_state = match state {
                 State::Recompute { n_required: _ } => State::Recompute {
                     n_required: remaining_n_required,
@@ -104,8 +103,6 @@ impl BackwardStates {
 
             downcasted
         } else {
-            println!("NOT reinserting node {:?}", node_id);
-            println!("{:?}", self.map.len());
             let downcasted = state.into_state_content().downcast::<T>().unwrap();
             *downcasted
         }
