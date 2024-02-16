@@ -2,22 +2,30 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{parse_quote, Generics};
 
-use super::{codegen::RecordItemCodegen, codegen_struct::StructRecordItemCodegen};
+use super::item::{codegen::RecordItemCodegen, codegen_struct::StructRecordItemCodegen};
 use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 
 pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> proc_macro::TokenStream {
-    let record_gen = RecordDeriveCodegen::from_ast(ast);
-    let item_struct = record_gen.gen_record_type();
-    let record_impl = record_gen.gen_impl_record();
+    match &ast.data {
+        syn::Data::Struct(_) => {
+            let record_gen = StructRecordCodegen::from_ast(ast);
+            let item_struct = record_gen.gen_record_type();
+            let record_impl = record_gen.gen_impl_record();
 
-    quote! {
-        #item_struct
-        #record_impl
+            quote! {
+                #item_struct
+                #record_impl
+            }
+        }
+        syn::Data::Enum(_data) => {
+            panic!("Enum records aren't supported yet.")
+        }
+        syn::Data::Union(_) => panic!("Union modules aren't supported yet."),
     }
     .into()
 }
 
-struct RecordDeriveCodegen {
+struct StructRecordCodegen {
     name_record: Ident,
     name_item: Ident,
     gen: StructRecordItemCodegen,
@@ -25,7 +33,7 @@ struct RecordDeriveCodegen {
     has_backend: bool,
 }
 
-impl RecordDeriveCodegen {
+impl StructRecordCodegen {
     pub(crate) fn from_ast(ast: &syn::DeriveInput) -> Self {
         let name_record = ast.ident.clone();
         let name_item = Ident::new(format!("{}Item", name_record).as_str(), name_record.span());
