@@ -3,7 +3,9 @@ use burn_tensor::backend::Backend;
 use crate::{
     checkpoint::base::Checkpointer,
     grads::Gradients,
-    graph::{CheckpointingActions, ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{
+        CheckpointingActions, ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step,
+    },
 };
 
 #[derive(Debug, Clone)]

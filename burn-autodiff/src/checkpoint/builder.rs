@@ -10,7 +10,7 @@ use super::{
     state::{BackwardStates, State},
 };
 
-pub fn build_checkpointer(
+pub(crate) fn build_checkpointer(
     checkpointing_actions: CheckpointingActions,
     graph: &NodeSteps,
 ) -> Checkpointer {
@@ -37,8 +37,6 @@ pub fn build_checkpointer(
         backup_actions,
     );
 
-    println!("Checkpointer successfully built");
-    println!("{:?}", backward_states_map);
     Checkpointer::new(
         BackwardStates::new(backward_states_map),
         RetroForwards::new(retro_forwards_map),
