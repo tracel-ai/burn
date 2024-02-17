@@ -80,16 +80,18 @@ impl MatmulAlgo {
                 OffsetGlobalWithLayoutAlgo {
                     global: lhs,
                     layout: out,
-                    offset: offset_lhs,
+                    out: offset_lhs,
                     end: batch_dims,
+                    offset_ref: offset_output,
                 }
                 .expand(scope);
                 // Batch offset for the rhs matrix.
                 OffsetGlobalWithLayoutAlgo {
                     global: rhs,
                     layout: out,
-                    offset: offset_rhs,
+                    out: offset_rhs,
                     end: batch_dims,
+                    offset_ref: offset_output,
                 }
                 .expand(scope);
 

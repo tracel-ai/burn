@@ -22,7 +22,8 @@ impl ReadGlobalWithLayoutAlgo {
         OffsetGlobalWithLayoutAlgo {
             global: tensor,
             layout: self.layout,
-            offset: index_local,
+            out: index_local,
+            offset_ref: Variable::Id,
             end: Variable::Rank,
         }
         .expand(scope);
@@ -35,7 +36,8 @@ impl ReadGlobalWithLayoutAlgo {
 pub struct OffsetGlobalWithLayoutAlgo {
     pub global: Variable,
     pub layout: Variable,
-    pub offset: Variable,
+    pub out: Variable,
+    pub offset_ref: Variable,
     pub end: Variable,
 }
 
@@ -44,9 +46,9 @@ impl OffsetGlobalWithLayoutAlgo {
         let tensor = self.global;
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
-        let index_local = self.offset;
+        let output = self.out;
+        let offset_ref = self.offset_ref;
         let zero: Variable = 0u32.into();
-        let id = Variable::Id;
         let offset: Variable = match self.global.item() {
             Item::Vec4(_) => 4u32,
             Item::Vec3(_) => 3u32,
@@ -55,7 +57,7 @@ impl OffsetGlobalWithLayoutAlgo {
         }
         .into();
 
-        gpu!(scope, index_local = zero);
+        gpu!(scope, output = zero);
         gpu!(
             scope,
             range(zero, self.end).for_each(|i, scope| {
@@ -68,14 +70,14 @@ impl OffsetGlobalWithLayoutAlgo {
                 gpu!(scope, shape = shape(tensor, i));
                 gpu!(scope, stride_layout = stride(layout, i));
 
-                gpu!(scope, tmp = id * offset);
+                gpu!(scope, tmp = offset_ref * offset);
                 gpu!(scope, tmp = tmp / stride_layout);
                 gpu!(scope, tmp = tmp % shape);
                 gpu!(scope, tmp = tmp * stride);
-                gpu!(scope, index_local = index_local + tmp);
+                gpu!(scope, output = output + tmp);
             })
         );
 
-        gpu!(scope, index_local = index_local / offset);
+        gpu!(scope, output = output / offset);
     }
 }
