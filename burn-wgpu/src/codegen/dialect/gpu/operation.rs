@@ -96,11 +96,11 @@ pub enum Algorithm {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalWithLayoutAlgo {
     /// The array to be read.
-    pub global: Variable,
+    pub globals: Vec<Variable>,
+    /// The output variable to write the result.
+    pub outs: Vec<Variable>,
     /// The layout to be used.
     pub layout: Variable,
-    /// The output variable to write the result.
-    pub out: Variable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

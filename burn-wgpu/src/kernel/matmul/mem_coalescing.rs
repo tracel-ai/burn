@@ -94,7 +94,6 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     let rhs = into_contiguous(rhs);
 
     let workgroup = launch_options(&lhs.shape, &rhs.shape, &out.shape, 16, 16);
-    println!("WG {workgroup:?}");
 
     execute_static::<R, MatmulMemCoalescing<R, 16>, E>(
         &[

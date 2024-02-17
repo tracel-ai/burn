@@ -164,7 +164,9 @@ impl Display for Item {
 impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Variable::GlobalInputArray(number, _) => f.write_fmt(format_args!("input_{number}_global")),
+            Variable::GlobalInputArray(number, _) => {
+                f.write_fmt(format_args!("input_{number}_global"))
+            }
             Variable::LocalScalar {
                 index,
                 elem: _,

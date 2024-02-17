@@ -1,7 +1,7 @@
 use super::{Elem, Item};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Variable {
     GlobalInputArray(u16, Item),
     GlobalScalar(u16, Elem),
@@ -64,5 +64,12 @@ impl Variable {
             Variable::GlobalInvocationIdY => Item::Scalar(Elem::UInt),
             Variable::GlobalInvocationIdZ => Item::Scalar(Elem::UInt),
         }
+    }
+}
+
+// Usefull with the gpu! macro.
+impl From<&Variable> for Variable {
+    fn from(value: &Variable) -> Self {
+        *value
     }
 }

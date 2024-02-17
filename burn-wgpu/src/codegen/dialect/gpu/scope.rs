@@ -201,9 +201,9 @@ impl Scope {
                     );
                     operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
                         ReadGlobalWithLayoutAlgo {
-                            global: input,
+                            globals: vec![input],
                             layout: output,
-                            out: local,
+                            outs: vec![local],
                         },
                     )));
                 }
@@ -241,6 +241,7 @@ impl Scope {
             variables,
             operations,
         }
+        .optimize()
     }
 
     fn new_local_index(&self) -> u16 {

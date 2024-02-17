@@ -53,9 +53,17 @@ impl Algorithm {
 impl ReadGlobalWithLayoutAlgo {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
-            global: self.global.vectorize(vectorization),
+            globals: self
+                .globals
+                .iter()
+                .map(|g| g.vectorize(vectorization))
+                .collect(),
             layout: self.layout.vectorize(vectorization),
-            out: self.out.vectorize(vectorization),
+            outs: self
+                .outs
+                .iter()
+                .map(|o| o.vectorize(vectorization))
+                .collect(),
         }
     }
 }

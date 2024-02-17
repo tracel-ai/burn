@@ -78,18 +78,9 @@ impl MatmulAlgo {
 
                 // Batch offset for the lhs matrix.
                 OffsetGlobalWithLayoutAlgo {
-                    global: lhs,
+                    tensors: vec![lhs, rhs],
+                    indexes: vec![offset_lhs, offset_rhs],
                     layout: out,
-                    out: offset_lhs,
-                    end: batch_dims,
-                    offset_ref: offset_output,
-                }
-                .expand(scope);
-                // Batch offset for the rhs matrix.
-                OffsetGlobalWithLayoutAlgo {
-                    global: rhs,
-                    layout: out,
-                    out: offset_rhs,
                     end: batch_dims,
                     offset_ref: offset_output,
                 }

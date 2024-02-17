@@ -2,6 +2,7 @@ pub(crate) mod algo;
 
 mod macros;
 mod operation;
+mod optimization;
 mod scope;
 mod shader;
 mod variable;
