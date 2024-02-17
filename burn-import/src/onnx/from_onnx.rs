@@ -12,15 +12,15 @@ use crate::onnx::{
 
 use super::{
     coalesce::coalesce,
+    ir::OnnxGraph,
     protos::{ModelProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
-use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
+use super::ir::{ArgType, Argument, Node, NodeType, Tensor};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
 const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
@@ -28,7 +28,6 @@ const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Reshape,
-    NodeType::Unsqueeze,
     NodeType::Unsqueeze,
 ];
 
@@ -40,6 +39,8 @@ pub(crate) enum IOEntry {
 }
 
 pub(crate) struct OnnxGraphIO {
+    ///Per Onnx spec "Inputs represent graph inputs or values computed elsewhere in the graph..."
+    /// Thus all computed inputs are in the list of inputs in a valid Onnx file
     pub(crate) inputs: Vec<Argument>,
     pub(crate) outputs: Vec<Argument>,
     ///updated names of outputs of node not stored in the graph
@@ -150,7 +151,6 @@ pub(crate) struct ONNXGraphBuilder {
     outputs: Vec<Argument>,
 
     node_name_counter: HashMap<NodeType, usize>,
-    outputs_to_move: HashMap<String, usize>,
     //nodes to remove
     nodes_to_remove: HashSet<usize>,
     constants_map: HashMap<String, usize>,
@@ -177,12 +177,12 @@ impl ONNXGraphBuilder {
         );
 
         self.nodes = Vec::with_capacity(model_proto.graph.node.len());
-        let mut nd_idx = 0;
+        let mut and_idx = 0;
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
         while let Some(node_proto) = node_iter.next() {
             let mut node = convert_node_proto(node_proto);
-            println!("current_node {:?}", node);
+
             for node_input in node.inputs.iter_mut() {
                 if let Some(initializer) = initializers.get(&node_input.name) {
                     move_initializer_data(initializer, node_input);
@@ -194,20 +194,17 @@ impl ONNXGraphBuilder {
             coalesce(&mut node, &mut node_iter, &initializers);
             self.handle_node_renaming(&mut node);
 
-            //self.handle_unsqueeze(&node, nd_idx);
+            self.handle_unsqueeze(&mut node, &graph_io);
 
-            self.handle_identity(&mut node, nd_idx);
-            self.check_constants(&mut node, nd_idx);
-            //self.handle_coalesce(&mut node, &mut node_iter, nd_idx);
-            rename_io(&mut node, nd_idx, &mut graph_io);
+            self.handle_identity(&mut node, and_idx);
+            self.check_constants(&mut node, and_idx);
+            //self.handle_coalesce(&mut node, &mut node_iter, and_idx);
+            rename_io(&mut node, and_idx, &mut graph_io);
 
             self.nodes.push(node);
-            nd_idx += 1;
+            and_idx += 1;
         }
-        //self.postprocess_unsqueeze(&nodes, &graph_io);
-        //self.postprocess_identity(&nodes, &graph_io);
-        //self.postprocess_constants(&nodes);
-        //self.postprocess_coalesce(&mut nodes);
+
         let mut i = 0;
         self.nodes.retain(|_x| {
             let res = !self.nodes_to_remove.contains(&i);
@@ -263,16 +260,9 @@ impl ONNXGraphBuilder {
         }
     }
 
-    fn handle_unsqueeze(&mut self, node_type: &NodeType, node: &Node, i: usize) {
-        if *node_type == NodeType::Unsqueeze {
-            self.outputs_to_move.insert(node.outputs[0].name.clone(), i);
-        }
-    }
-
-    fn postprocess_unsqueeze(&mut self, nodes: &Vec<RefCell<Node>>, graph_io: &OnnxGraphIO) {
-        for (old_output_name, i) in self.outputs_to_move.iter() {
-            if let Some(in_arg) = graph_io.get(old_output_name) {
-                let node = nodes[*i].borrow_mut();
+    fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
+        if node.node_type == NodeType::Unsqueeze {
+            if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
                 move_output_shape(node, in_arg);
             }
         }
@@ -340,20 +330,8 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    let my_nodes = nodes.clone();
-
-    for i in 0..nodes.len() {
-        if nodes[i] != my_nodes[i] {
-            println!("{} != {}", nodes[i].name, my_nodes[i].name);
-        }
-    }
-    // println!("nodes: {:#?}", nodes);
-    // println!("inner inputs: {:#?}", inner_inputs);
-    // println!("inner outputs: {:#?}", inner_outputs);
-
     // Infer shapes and update the inputs and outputs
     dim_inference(&mut nodes, &inner_inputs, &mut inner_outputs);
-    println!("inner outputs after dim inference: {:?}", inner_outputs);
     // Remove the graph inputs/output that are not used by any node
     remove_unused_graph_inputs(&mut inner_inputs, &mut inner_outputs, &nodes);
 
@@ -394,9 +372,7 @@ pub(crate) fn move_initializer_data(initializer: &TensorProto, input: &mut Argum
     }
 }
 
-
-
-fn move_output_shape(mut node: RefMut<'_, Node>, out_arg: &Argument) {
+fn move_output_shape(mut node: &mut Node, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
             if let ArgType::Tensor(arg_tensor) = &out_arg.ty {
