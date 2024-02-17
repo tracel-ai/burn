@@ -29,6 +29,9 @@ impl Operation {
             Operation::Loop(_) => panic!(
                 "Loops can't be vectorized, they should only be generated after vectorization."
             ),
+            Operation::Branch(_) => panic!(
+                "A branch can't be vectorized, they should only be generated after vectorization."
+            ),
         }
     }
 }
@@ -193,6 +196,9 @@ impl Variable {
             Variable::WorkgroupIdX => *self,
             Variable::WorkgroupIdY => *self,
             Variable::WorkgroupIdZ => *self,
+            Variable::GlobalInvocationIdX => *self,
+            Variable::GlobalInvocationIdY => *self,
+            Variable::GlobalInvocationIdZ => *self,
         }
     }
 }

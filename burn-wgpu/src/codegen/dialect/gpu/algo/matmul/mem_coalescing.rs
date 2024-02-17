@@ -1,5 +1,5 @@
 use crate::codegen::dialect::gpu::{
-    algo::read::OffsetGlobalWithLayoutAlgo, macros::gpu, Elem, MatmulAlgo, Scope, Variable,
+    algo::read::OffsetGlobalWithLayoutAlgo, macros::gpu, Branch, Elem, MatmulAlgo, Scope, Variable,
 };
 
 impl MatmulAlgo {
@@ -9,59 +9,98 @@ impl MatmulAlgo {
                 variables,
                 block_size,
             } => {
-                let block_size: Variable = block_size.into();
+                // Define out global variables.
                 let local_idx = Variable::InvocationIndex;
-                let tmp_index = scope.create_local(Elem::UInt);
-                let row = scope.create_local(Elem::UInt);
-                let col = scope.create_local(Elem::UInt);
+                let batch = Variable::GlobalInvocationIdZ;
+                let rank = Variable::Rank;
+                let block_size: Variable = block_size.into();
+
+                // Extract tensor variables.
                 let lhs = variables.lhs;
                 let rhs = variables.rhs;
                 let out = variables.out;
-                let n_rows = scope.create_local(Elem::UInt);
-                let n_cols = scope.create_local(Elem::UInt);
-                let k = scope.create_local(Elem::UInt);
 
+                // Define where we have to work on the current matrix.
+                let tmp_index = scope.create_local(Elem::UInt);
+                let batch_dims = scope.create_local(Elem::UInt);
+                let row = scope.create_local(Elem::UInt);
+                let col = scope.create_local(Elem::UInt);
+
+                // Row position.
                 gpu!(scope, tmp_index = local_idx / block_size);
                 gpu!(scope, row = block_size * Variable::WorkgroupIdX);
                 gpu!(scope, row = row + tmp_index);
 
+                // Col position.
                 gpu!(scope, tmp_index = local_idx % block_size);
                 gpu!(scope, col = block_size * Variable::WorkgroupIdY);
                 gpu!(scope, col = col + tmp_index);
 
+                // Batch position.
+                gpu!(scope, batch_dims = rank - 2u32);
+
+                // Define the matrix size.
+                let n_rows = scope.create_local(Elem::UInt);
+                let n_cols = scope.create_local(Elem::UInt);
+                let k = scope.create_local(Elem::UInt);
+
+                // Number of rows.
                 gpu!(scope, tmp_index = sub(Variable::Rank, 2u32));
                 gpu!(scope, n_rows = shape(out, tmp_index));
 
-                gpu!(scope, k = shape(rhs, tmp_index));
-
+                // Number of cols.
                 gpu!(scope, tmp_index = sub(Variable::Rank, 1u32));
                 gpu!(scope, n_cols = shape(out, tmp_index));
 
+                // The dimension that is going to be squashed.
+                gpu!(scope, k = shape(lhs, tmp_index));
+
+                // Check if there is some work to be done.
+                let should_stop = scope.create_local(Elem::Bool);
+                gpu!(scope, should_stop = row >= n_rows);
+                gpu!(scope, if (should_stop).then(|scope| {
+                    scope.register(Branch::Return);
+                }));
+
+                gpu!(scope, should_stop = col >= n_cols);
+                gpu!(scope, if (should_stop).then(|scope| {
+                    scope.register(Branch::Return);
+                }));
+
+                // Calculate the batch offset.
                 let offset_lhs = scope.create_local(Elem::UInt);
                 let offset_rhs = scope.create_local(Elem::UInt);
                 let offset_output = scope.create_local(Elem::UInt);
 
-                let n_batches: Variable = 0u32.into();
+                // Batch offset for the output.
                 gpu!(scope, offset_output = n_rows * n_cols);
-                gpu!(scope, offset_output = offset_output * n_batches);
+                gpu!(scope, offset_output = offset_output * batch);
 
+                // Batch offset for the lhs matrix.
                 OffsetGlobalWithLayoutAlgo {
                     global: lhs,
                     layout: out,
                     offset: offset_lhs,
+                    end: batch_dims,
                 }
                 .expand(scope);
+                // Batch offset for the rhs matrix.
                 OffsetGlobalWithLayoutAlgo {
                     global: rhs,
                     layout: out,
                     offset: offset_rhs,
+                    end: batch_dims,
                 }
                 .expand(scope);
 
+                // Calculate the dot product (row X col).
                 let sum = scope.create_local(out.item());
-                let zero: Variable = 0u32.into();
+
+                // Initialize the sum to zero.
+                let zero: Variable = 0f32.into();
                 gpu!(scope, sum = zero);
 
+                // Loop over the k dimension.
                 gpu!(
                     scope,
                     range(0u32, k).for_each(|i, scope| {
@@ -70,7 +109,7 @@ impl MatmulAlgo {
 
                         let lhs_value = scope.create_local(lhs.item());
                         let rhs_value = scope.create_local(rhs.item());
-                        let out_value = scope.create_local(rhs.item());
+                        let out_value = scope.create_local(out.item());
 
                         gpu!(scope, lhs_index = row * k);
                         gpu!(scope, lhs_index = lhs_index + i);
@@ -84,7 +123,7 @@ impl MatmulAlgo {
                         gpu!(scope, rhs_value = rhs[rhs_index]);
 
                         gpu!(scope, out_value = lhs_value * rhs_value);
-                        gpu!(scope, sum = sum + rhs_value);
+                        gpu!(scope, sum = sum + out_value);
                     })
                 );
 

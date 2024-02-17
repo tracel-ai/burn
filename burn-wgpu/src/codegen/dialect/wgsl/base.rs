@@ -23,6 +23,9 @@ pub enum Variable {
     WorkgroupIdX,
     WorkgroupIdY,
     WorkgroupIdZ,
+    GlobalInvocationIdX,
+    GlobalInvocationIdY,
+    GlobalInvocationIdZ,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -70,6 +73,9 @@ impl Variable {
             Variable::WorkgroupIdX => true,
             Variable::WorkgroupIdY => true,
             Variable::WorkgroupIdZ => true,
+            Variable::GlobalInvocationIdX => true,
+            Variable::GlobalInvocationIdY => true,
+            Variable::GlobalInvocationIdZ => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -101,6 +107,9 @@ impl Variable {
             Self::WorkgroupIdX => Item::Scalar(Elem::U32),
             Self::WorkgroupIdY => Item::Scalar(Elem::U32),
             Self::WorkgroupIdZ => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdX => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdY => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdZ => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -179,6 +188,9 @@ impl Display for Variable {
             Variable::WorkgroupIdX => f.write_str("workgroup_id.x"),
             Variable::WorkgroupIdY => f.write_str("workgroup_id.y"),
             Variable::WorkgroupIdZ => f.write_str("workgroup_id.z"),
+            Variable::GlobalInvocationIdX => f.write_str("global_id.x"),
+            Variable::GlobalInvocationIdY => f.write_str("global_id.y"),
+            Variable::GlobalInvocationIdZ => f.write_str("global_id.z"),
         }
     }
 }

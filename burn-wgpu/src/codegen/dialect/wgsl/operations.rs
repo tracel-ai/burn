@@ -13,6 +13,17 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    If {
+        cond: Variable,
+        instructions: Vec<Instruction>,
+    },
+    IfElse {
+        cond: Variable,
+        instructions_if: Vec<Instruction>,
+        instructions_else: Vec<Instruction>,
+    },
+    Return,
+    Break,
     Index {
         lhs: Variable,
         rhs: Variable,
@@ -398,6 +409,30 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                 let item = out.item();
                 f.write_fmt(format_args!("{out}[{lhs}] = {item}({rhs});"))
             }
+            Instruction::If { cond, instructions } => {
+                f.write_fmt(format_args!("if {cond} {{\n"))?;
+                for i in instructions {
+                    f.write_fmt(format_args!("{i}"))?;
+                }
+                f.write_str("}\n")
+            }
+            Instruction::IfElse {
+                cond,
+                instructions_if,
+                instructions_else,
+            } => {
+                f.write_fmt(format_args!("if {cond} {{\n"))?;
+                for i in instructions_if {
+                    f.write_fmt(format_args!("{i}"))?;
+                }
+                f.write_str("} else {")?;
+                for i in instructions_else {
+                    f.write_fmt(format_args!("{i}"))?;
+                }
+                f.write_str("}\n")
+            }
+            Instruction::Return => f.write_str("return;\n"),
+            Instruction::Break => f.write_str("break;\n"),
         }
     }
 }

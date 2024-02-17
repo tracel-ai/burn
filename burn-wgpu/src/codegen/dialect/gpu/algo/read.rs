@@ -23,6 +23,7 @@ impl ReadGlobalWithLayoutAlgo {
             global: tensor,
             layout: self.layout,
             offset: index_local,
+            end: Variable::Rank,
         }
         .expand(scope);
 
@@ -35,6 +36,7 @@ pub struct OffsetGlobalWithLayoutAlgo {
     pub global: Variable,
     pub layout: Variable,
     pub offset: Variable,
+    pub end: Variable,
 }
 
 impl OffsetGlobalWithLayoutAlgo {
@@ -56,7 +58,7 @@ impl OffsetGlobalWithLayoutAlgo {
         gpu!(scope, index_local = zero);
         gpu!(
             scope,
-            range(zero, Variable::Rank).for_each(|i, scope| {
+            range(zero, self.end).for_each(|i, scope| {
                 let stride = scope.create_local(index_item_ty);
                 let stride_layout = scope.create_local(index_item_ty);
                 let shape = scope.create_local(index_item_ty);

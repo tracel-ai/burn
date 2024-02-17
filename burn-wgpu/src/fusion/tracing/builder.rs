@@ -340,6 +340,9 @@ impl TraceBuilder {
                 Operation::Loop(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
+                Operation::Branch(_) => {
+                    // Nothing to do, should never impact read-write access to bindings.
+                }
             }
         }
 

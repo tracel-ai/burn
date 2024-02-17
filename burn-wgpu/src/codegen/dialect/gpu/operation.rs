@@ -17,6 +17,7 @@ pub enum Operation {
     Metadata(Metadata),
     Algorithm(Algorithm),
     Loop(Loop),
+    Branch(Branch),
 }
 
 /// All operator that can be used in a GPU compute shader.
@@ -50,6 +51,27 @@ pub enum Operator {
     Modulo(BinaryOperator),
     Index(BinaryOperator),
     IndexAssign(BinaryOperator),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Branch {
+    If(If),
+    IfElse(IfElse),
+    Return,
+    Break,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct If {
+    pub cond: Variable,
+    pub scope: Scope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IfElse {
+    pub cond: Variable,
+    pub scope_if: Scope,
+    pub scope_else: Scope,
 }
 
 /// Tensor operations that can't be executed with a simple [operator](Operator) should use an
@@ -136,6 +158,17 @@ pub struct RangeLoop {
     pub scope: Scope,
 }
 
+impl If {
+    /// Registers a range loop to the given scope.
+    pub fn register<F: Fn(&mut Scope)>(parent_scope: &mut Scope, cond: Variable, func: F) {
+        let mut scope = parent_scope.child();
+
+        func(&mut scope);
+
+        let op = Self { cond, scope };
+        parent_scope.register(Branch::If(op));
+    }
+}
 impl RangeLoop {
     /// Registers a range loop to the given scope.
     pub fn register<F: Fn(Variable, &mut Scope)>(
@@ -204,6 +237,12 @@ pub struct ReadGlobalWithLayoutOperator {
 impl From<Operator> for Operation {
     fn from(val: Operator) -> Self {
         Operation::Operator(val)
+    }
+}
+
+impl From<Branch> for Operation {
+    fn from(value: Branch) -> Self {
+        Self::Branch(value)
     }
 }
 

@@ -54,7 +54,10 @@ mod tests {
         let tensor_1 = TestTensor::from_floats([[5.0, 14.0], [14.0, 50.0]], &device);
         let tensor_2 = TestTensor::from_floats([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]], &device);
 
+        println!("{tensor_1}");
+        println!("{tensor_2}");
         let tensor_3 = tensor_1.matmul(tensor_2);
+        println!("{tensor_3}");
 
         assert_eq!(
             tensor_3.into_data(),

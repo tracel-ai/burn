@@ -148,6 +148,9 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdZ
             }
+            gpu::Variable::GlobalInvocationIdX => wgsl::Variable::GlobalInvocationIdX,
+            gpu::Variable::GlobalInvocationIdY => wgsl::Variable::GlobalInvocationIdY,
+            gpu::Variable::GlobalInvocationIdZ => wgsl::Variable::GlobalInvocationIdZ,
         }
     }
 
@@ -182,7 +185,24 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Operation::Algorithm(algo) => self.compile_algorithm(instructions, algo, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Loop(val) => instructions.push(self.compile_loop(val)),
+            gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
         }
+    }
+
+    fn compile_branch(&mut self, instructions: &mut Vec<wgsl::Instruction>, branch: gpu::Branch) {
+        match branch {
+            gpu::Branch::If(mut op) => instructions.push(wgsl::Instruction::If {
+                cond: self.compile_variable(op.cond),
+                instructions: self.compile_scope(&mut op.scope).operators,
+            }),
+            gpu::Branch::IfElse(mut op) => instructions.push(wgsl::Instruction::IfElse {
+                cond: self.compile_variable(op.cond),
+                instructions_if: self.compile_scope(&mut op.scope_if).operators,
+                instructions_else: self.compile_scope(&mut op.scope_else).operators,
+            }),
+            gpu::Branch::Return => instructions.push(wgsl::Instruction::Return),
+            gpu::Branch::Break => instructions.push(wgsl::Instruction::Break),
+        };
     }
 
     fn compile_algorithm(

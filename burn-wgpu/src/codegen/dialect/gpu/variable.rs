@@ -14,6 +14,9 @@ pub enum Variable {
     WorkgroupIdX,
     WorkgroupIdY,
     WorkgroupIdZ,
+    GlobalInvocationIdX,
+    GlobalInvocationIdY,
+    GlobalInvocationIdZ,
     Rank,
 }
 
@@ -38,6 +41,9 @@ impl Variable {
             Variable::WorkgroupIdX => None,
             Variable::WorkgroupIdY => None,
             Variable::WorkgroupIdZ => None,
+            Variable::GlobalInvocationIdX => None,
+            Variable::GlobalInvocationIdY => None,
+            Variable::GlobalInvocationIdZ => None,
         }
     }
     pub fn item(&self) -> Item {
@@ -54,6 +60,9 @@ impl Variable {
             Variable::WorkgroupIdX => Item::Scalar(Elem::UInt),
             Variable::WorkgroupIdY => Item::Scalar(Elem::UInt),
             Variable::WorkgroupIdZ => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdX => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdY => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdZ => Item::Scalar(Elem::UInt),
         }
     }
 }

@@ -203,20 +203,23 @@ macro_rules! gpu {
     };
     ($scope:expr, $out:ident = shape($input:expr, $dim:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Metadata::Shape {
-            dim: $dim,
-            var: $input,
-            out: $out,
+            dim: $dim.into(),
+            var: $input.into(),
+            out: $out.into(),
         });
     };
     ($scope:expr, $out:ident = stride($input:expr, $dim:expr)) => {
         $scope.register(Metadata::Stride {
-            dim: $dim,
-            var: $input,
-            out: $out,
+            dim: $dim.into(),
+            var: $input.into(),
+            out: $out.into(),
         });
     };
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+    };
+    ($scope:expr, if ($cond:expr).then($arg:expr)) => {
+        $crate::codegen::dialect::gpu::If::register($scope, $cond.into(), $arg);
     };
     (binary $lhs:expr, $rhs:expr, $out:expr) => {
         $crate::codegen::dialect::gpu::BinaryOperator {
