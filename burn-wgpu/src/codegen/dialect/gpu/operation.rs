@@ -46,7 +46,6 @@ pub enum Operator {
     LowerEqual(BinaryOperator),
     GreaterEqual(BinaryOperator),
     ConditionalAssign(ConditionalAssignOperator),
-    AssignGlobal(UnaryOperator),
     AssignLocal(UnaryOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
@@ -90,6 +89,7 @@ pub enum Algorithm {
     /// Read an input array.
     ReadGlobal(ReadGlobalAlgo),
     Matmul(MatmulAlgo),
+    WriteGlobal(WriteGlobalAlgo),
 }
 
 /// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
@@ -101,6 +101,12 @@ pub struct ReadGlobalWithLayoutAlgo {
     pub layout: Variable,
     /// The output variable to write the result.
     pub out: Variable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WriteGlobalAlgo {
+    pub input: Variable,
+    pub global: Variable,
 }
 
 /// Settings for the [Algorithm::ReadGlobalWithLayout] variant.

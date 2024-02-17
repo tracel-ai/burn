@@ -229,6 +229,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 algo.expand(scope);
                 compile(scope);
             }
+            gpu::Algorithm::WriteGlobal(algo) => {
+                algo.expand(scope);
+                compile(scope);
+            }
         }
     }
 
@@ -384,10 +388,6 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 cond: self.compile_variable(op.cond),
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::AssignGlobal(op) => wgsl::Instruction::AssignGlobal {
-                input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
             gpu::Operator::AssignLocal(op) => wgsl::Instruction::AssignLocal {

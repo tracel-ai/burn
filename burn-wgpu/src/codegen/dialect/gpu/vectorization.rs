@@ -1,6 +1,7 @@
 use super::{
     Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, MatmulAlgo,
     Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
+    WriteGlobalAlgo,
 };
 
 /// Define a vectorization scheme.
@@ -44,6 +45,7 @@ impl Algorithm {
             }
             Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
             Algorithm::Matmul(op) => Algorithm::Matmul(op.vectorize(vectorization)),
+            Algorithm::WriteGlobal(op) => Algorithm::WriteGlobal(op.vectorize(vectorization)),
         }
     }
 }
@@ -63,6 +65,14 @@ impl ReadGlobalAlgo {
         Self {
             global: self.global.vectorize(vectorization),
             out: self.out.vectorize(vectorization),
+        }
+    }
+}
+impl WriteGlobalAlgo {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            input: self.input.vectorize(vectorization),
+            global: self.global.vectorize(vectorization),
         }
     }
 }
@@ -108,7 +118,6 @@ impl Operator {
             Operator::ConditionalAssign(op) => {
                 Operator::ConditionalAssign(op.vectorize(vectorization))
             }
-            Operator::AssignGlobal(op) => Operator::AssignGlobal(op.vectorize(vectorization)),
             Operator::AssignLocal(op) => {
                 if let Variable::GlobalScalar(_, _) = op.input {
                     // Assign will not change the type of the output if the input can't be

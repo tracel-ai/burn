@@ -177,141 +177,136 @@ impl TraceBuilder {
         // For all operators, mark their local tensor id in the proper set.
         for op in self.scope.operations.iter() {
             match op {
-                Operation::Operator(op) => {
-                    match op {
-                        gpu::Operator::AssignGlobal(_) => {
-                            // Nothing to do here.
-                        }
-                        gpu::Operator::AssignLocal(op) => {
-                            mark(&op.out, &mut local_tensor_ids_output);
-                        }
-                        gpu::Operator::Add(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Index(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Sub(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Mul(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Div(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Exp(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Abs(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Erf(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Log(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Log1p(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Cos(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Sin(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Tanh(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Clamp(op) => {
-                            mark(&op.input, &mut local_tensor_ids_input);
-                            mark(&op.out, &mut local_tensor_ids_output);
-                        }
-                        gpu::Operator::Powf(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Recip(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Lower(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Greater(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::LowerEqual(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::GreaterEqual(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Equal(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::ConditionalAssign(op) => {
-                            mark(&op.cond, &mut local_tensor_ids_input);
-                            mark(&op.lhs, &mut local_tensor_ids_input);
-                            mark(&op.rhs, &mut local_tensor_ids_input);
-                            mark(&op.out, &mut local_tensor_ids_output);
-                        }
-                        gpu::Operator::Sqrt(op) => mark_unary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::Modulo(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
-                        gpu::Operator::IndexAssign(op) => mark_binary(
-                            op,
-                            &mut local_tensor_ids_input,
-                            &mut local_tensor_ids_output,
-                        ),
+                Operation::Operator(op) => match op {
+                    gpu::Operator::AssignLocal(op) => {
+                        mark(&op.out, &mut local_tensor_ids_output);
                     }
-                }
+                    gpu::Operator::Add(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Index(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Sub(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Mul(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Div(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Exp(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Abs(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Erf(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Log(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Log1p(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Cos(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Sin(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Tanh(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Clamp(op) => {
+                        mark(&op.input, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    gpu::Operator::Powf(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Recip(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Lower(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Greater(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::LowerEqual(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::GreaterEqual(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Equal(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::ConditionalAssign(op) => {
+                        mark(&op.cond, &mut local_tensor_ids_input);
+                        mark(&op.lhs, &mut local_tensor_ids_input);
+                        mark(&op.rhs, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    gpu::Operator::Sqrt(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Modulo(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::IndexAssign(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                },
                 Operation::Algorithm(algo) => {
                     match algo {
                         gpu::Algorithm::ReadGlobalWithLayout(_) => {
@@ -332,6 +327,9 @@ impl TraceBuilder {
                                 );
                             }
                         },
+                        gpu::Algorithm::WriteGlobal(_) => {
+                            // Nothing to do here.
+                        }
                     }
                 }
                 Operation::Metadata(_) => {

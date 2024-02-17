@@ -136,10 +136,6 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
-    AssignGlobal {
-        input: Variable,
-        out: Variable,
-    },
     AssignLocal {
         input: Variable,
         out: Variable,
@@ -236,44 +232,6 @@ impl Display for Instruction {
             Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
             Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
-            Instruction::AssignGlobal { input, out } => {
-                let elem_out = out.item();
-                let elem_in = input.item();
-
-                if elem_out != elem_in {
-                    match elem_out {
-                        Item::Vec4(elem) => f.write_fmt(format_args!(
-                            "
-{out}_global[id] = vec4(
-    {elem}({input}[0]),
-    {elem}({input}[1]),
-    {elem}({input}[2]),
-    {elem}({input}[3]),
-);"
-                        )),
-                        Item::Vec3(elem) => f.write_fmt(format_args!(
-                            "
-{out}_global[id] = vec3(
-    {elem}({input}[0]),
-    {elem}({input}[1]),
-    {elem}({input}[2]),
-);"
-                        )),
-                        Item::Vec2(elem) => f.write_fmt(format_args!(
-                            "
-{out}_global[id] = vec2(
-    {elem}({input}[0]),
-    {elem}({input}[1]),
-);"
-                        )),
-                        Item::Scalar(elem) => {
-                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});\n"))
-                        }
-                    }
-                } else {
-                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});\n"))
-                }
-            }
             Instruction::AssignLocal { input, out } => {
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({input});\n"))

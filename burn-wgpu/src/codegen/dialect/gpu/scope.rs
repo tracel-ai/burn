@@ -1,6 +1,6 @@
 use super::{
     Algorithm, Elem, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo,
-    UnaryOperator, Variable, Vectorization,
+    UnaryOperator, Variable, Vectorization, WriteGlobalAlgo,
 };
 use serde::{Deserialize, Serialize};
 
@@ -231,11 +231,10 @@ impl Scope {
             operations.push(op);
         }
 
-        for (input, out) in self.writes_global.drain(..) {
-            operations.push(Operation::Operator(Operator::AssignGlobal(UnaryOperator {
-                input,
-                out,
-            })))
+        for (input, global) in self.writes_global.drain(..) {
+            operations.push(Operation::Algorithm(Algorithm::WriteGlobal(
+                WriteGlobalAlgo { input, global },
+            )))
         }
 
         ScopeProcessing {
