@@ -4,191 +4,67 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::{Elem, Item, Operation, Vectorization, Visibility, WorkgroupSize},
     codegen::{
-        compiler::Compiler, dialect::wgsl, ElemWiseKernelCodegen, InplaceMapping, Input, Output,
-        ReadingStrategy,
+        dialect::gpu::{Vectorization, WorkgroupSize},
+        Compilation, CompilationInfo, CompilationSettings,
     },
-    compute::{compute_client, WgpuAutotuneKey, WgpuComputeClient},
-    fusion::{kernel::FusionKernelSet, source::GpuKernelSource},
-    FloatElement, GraphicsApi, IntElement, WgpuBackend, WgpuDevice,
+    compute::JitAutotuneKey,
+    fusion::{kernel::FusionKernelSet, source::GpuKernelSource, tracing::Trace},
+    JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
-use burn_fusion::{stream::Context, TensorDescription};
-use burn_tensor::Device;
+use burn_compute::client::ComputeClient;
+use burn_fusion::stream::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<G, F, I, Phase = ExecutionPhase>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
-    pub(super) inputs: Vec<(TensorDescription, Elem)>,
-    pub(super) outputs: Vec<(TensorDescription, Elem)>,
-    pub(super) locals: Vec<u16>,
-    pub(super) scalars: Scalars,
-    pub(super) operators: Vec<Operation>,
-    pub(super) device: Device<WgpuBackend<G, F, I>>,
+pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
+    pub(super) trace: Trace,
+    pub(super) num_operations: usize,
+    pub(super) device: R::Device,
     pub(super) phase: Phase,
 }
 
-#[derive(new, Clone, Serialize, Deserialize)]
-pub struct Scalars {
-    pub(super) num_f32: usize,
-    pub(super) num_u32: usize,
-    pub(super) num_i32: usize,
-}
-
+/// Phase where the kernel should be compiled.
 pub struct CompilationPhase;
 
+/// Phase where the kernel should be executed.
 #[derive(new)]
-pub struct ExecutionPhase {
-    pub(super) kernel_set_1: FusionKernelSet,
-    pub(super) kernel_set_2: FusionKernelSet,
+pub struct ExecutionPhase<R: Runtime> {
+    /// Kernel set with default workgroup size.
+    pub(super) kernel_set_1: FusionKernelSet<R>,
+    /// Kernel set with custom workgroup size.
+    pub(super) kernel_set_2: FusionKernelSet<R>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(new, Serialize, Deserialize)]
 pub struct ElementWiseState {
-    inputs: Vec<(TensorDescription, Elem)>,
-    outputs: Vec<(TensorDescription, Elem)>,
-    scalars: Scalars,
-    operators: Vec<Operation>,
-    locals: Vec<u16>,
+    trace: Trace,
+    num_operations: usize,
 }
 
-impl<G, F, I> ElementWise<G, F, I, CompilationPhase>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
-    pub(crate) fn compile(self) -> ElementWise<G, F, I, ExecutionPhase> {
-        let mut inputs = self
-            .inputs
-            .iter()
-            .map(|(_tensor, elem)| Input::Array {
-                item: Item::Scalar(*elem),
-                visibility: Visibility::Read,
-                strategy: ReadingStrategy::OutputLayout,
-            })
-            .collect::<Vec<_>>();
+impl<R: Runtime> ElementWise<R, CompilationPhase> {
+    pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
+        let info = self.trace.compiling();
 
-        let outputs = self
-            .outputs
-            .iter()
-            .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| Output::Array {
-                item: Item::Scalar(*elem),
-                local: *local,
-            })
-            .collect::<Vec<_>>();
-
-        if self.scalars.num_f32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::Float,
-                size: self.scalars.num_f32,
-            })
-        }
-
-        if self.scalars.num_u32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::UInt,
-                size: self.scalars.num_u32,
-            })
-        }
-
-        if self.scalars.num_i32 > 0 {
-            inputs.push(Input::Scalar {
-                elem: Elem::Int,
-                size: self.scalars.num_i32,
-            })
-        }
-
-        let mut potential_inplace = self
-            .inputs
-            .iter()
-            .zip(inputs.iter())
-            .enumerate()
-            .filter(|(_pos, ((desc, _elem), _input))| match desc.status {
-                burn_fusion::TensorStatus::ReadOnly => false,
-                burn_fusion::TensorStatus::ReadWrite => true,
-                burn_fusion::TensorStatus::NotInit => false,
-            })
-            .map(|(pos, ((desc, elem), input))| (pos, desc, elem, input))
-            .collect::<Vec<_>>();
-
-        let mappings = self
-            .outputs
-            .iter()
-            .zip(outputs.iter())
-            .enumerate()
-            .filter_map(|(pos, ((desc, elem), _output))| {
-                if potential_inplace.is_empty() {
-                    return None;
-                }
-
-                let mut chosen = None;
-                for (index, (_pos_input, desc_input, elem_input, _input)) in
-                    potential_inplace.iter().enumerate()
-                {
-                    if chosen.is_some() {
-                        break;
-                    }
-                    if desc.shape == desc_input.shape && *elem_input == elem {
-                        chosen = Some(index);
-                    }
-                }
-
-                match chosen {
-                    Some(index) => {
-                        let input = potential_inplace.remove(index);
-                        Some(InplaceMapping::new(input.0, pos))
-                    }
-                    None => None,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let kernel_set_1 = build_kernel_set::<wgsl::Compiler<F, I>>(
-            &inputs,
-            &outputs,
-            &self.operators,
-            &mappings,
-            WorkgroupSize::default(),
-        );
-        let kernel_set_2 = build_kernel_set::<wgsl::Compiler<F, I>>(
-            &inputs,
-            &outputs,
-            &self.operators,
-            &mappings,
-            WorkgroupSize::new(16, 16, 1),
-        );
+        let kernel_set_1 = build_kernel_set::<R>(&info, WorkgroupSize::default());
+        let kernel_set_2 = build_kernel_set::<R>(&info, WorkgroupSize::new(16, 16, 1));
 
         ElementWise {
-            inputs: self.inputs,
-            outputs: self.outputs,
-            scalars: self.scalars,
+            trace: self.trace,
             device: self.device,
-            operators: self.operators,
-            locals: self.locals,
             phase: ExecutionPhase::new(kernel_set_1, kernel_set_2),
+            num_operations: self.num_operations,
         }
     }
 }
 
-impl<G, F, I> ElementWise<G, F, I, ExecutionPhase>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, WgpuBackend<G, F, I>>) {
-        let client = compute_client::<G>(&self.device);
+impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitBackend<R>>) {
+        let client = R::client(&self.device);
 
-        let key = WgpuAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
-            self.operators.len(),
+        let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
+            self.num_operations,
             self.autotune_shape(context),
         ));
 
@@ -201,61 +77,46 @@ where
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, WgpuBackend<G, F, I>>,
-        client: WgpuComputeClient,
+        context: &mut Context<'_, JitBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
+        let info = self.trace.running();
         let kernel_set = match fastest_set_index {
             0 => &self.phase.kernel_set_1,
             1 => &self.phase.kernel_set_2,
             _ => panic!("Should be 0 or 1, got {fastest_set_index}"),
         };
 
-        let kernel = kernel_set.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
-            context,
-            self.device.clone(),
-            client,
-            true,
-        );
+        let kernel = kernel_set.select(&info, context, self.device.clone(), client, true);
 
         kernel.execute();
     }
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, WgpuBackend<G, F, I>>,
-        client: WgpuComputeClient,
-        key: WgpuAutotuneKey,
+        context: &mut Context<'_, JitBackend<R>>,
+        client: ComputeClient<R::Server, R::Channel>,
+        key: JitAutotuneKey,
     ) {
+        let info = self.trace.running();
+
         let kernel_1 = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
             false, // Should not mutate the context.
         );
         let kernel_2 = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
             false, // Should not mutate the context.
         );
         let kernel_default = self.phase.kernel_set_1.select(
-            &self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            &self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            self.scalars.num_f32,
-            self.scalars.num_i32,
+            &info,
             context,
             self.device.clone(),
             client.clone(),
@@ -271,140 +132,116 @@ where
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.operators.len()
+        self.num_operations
     }
 
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, WgpuBackend<G, F, I>>,
+        context: &mut Context<'a, JitBackend<R>>,
     ) -> &'a [usize] {
-        if let Some(tensor) = self.outputs.first() {
-            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+        let info = self.trace.running();
+
+        if let Some(tensor) = info.outputs.first() {
+            let tensor = context.tensors.get(&tensor.id).unwrap();
             return &tensor.shape;
         }
 
-        if let Some(tensor) = self.inputs.first() {
-            let tensor = context.tensors.get(&tensor.0.id).unwrap();
+        if let Some(tensor) = info.inputs.first() {
+            let tensor = context.tensors.get(&tensor.id).unwrap();
             return &tensor.shape;
         }
 
         &[]
     }
 
-    pub(crate) fn from_state(device: &WgpuDevice, state: ElementWiseState) -> Self {
+    pub(crate) fn from_state(device: &R::Device, state: ElementWiseState) -> Self {
         // We don't save the compiled kernel structs since it's quick to compile and the output is
         // very large.
         //
         // It is still unclear if the deserialization would be that much faster than
         // simply recompiling it.
         ElementWise {
-            inputs: state.inputs,
-            outputs: state.outputs,
-            scalars: state.scalars,
+            trace: state.trace,
             device: device.clone(),
-            locals: state.locals,
-            operators: state.operators,
             phase: CompilationPhase,
+            num_operations: state.num_operations,
         }
         .compile()
     }
 
     pub(crate) fn to_state(&self) -> ElementWiseState {
         ElementWiseState {
-            inputs: self.inputs.clone(),
-            outputs: self.outputs.clone(),
-            scalars: self.scalars.clone(),
-            operators: self.operators.clone(),
-            locals: self.locals.clone(),
+            trace: self.trace.clone(),
+            num_operations: self.num_operations,
         }
     }
 }
 
-fn build_kernel_set<C>(
-    inputs: &[Input],
-    outputs: &[Output],
-    operators: &[Operation],
-    mappings: &[InplaceMapping],
+fn build_kernel_set<R: Runtime>(
+    info: &CompilationInfo,
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet
-where
-    C: Compiler,
-{
-    let scalar = ScalarElementWise::<C>::new(
+) -> FusionKernelSet<R> {
+    let scalar = ScalarElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone())
+                .compile(CompilationSettings::default().workgroup_size(workgroup_size)),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
     );
 
-    let vec2 = VecElementWise::<C>::new(
+    let vec2 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec2)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .vectorize(Vectorization::Vec2)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec2)
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .vectorize(Vectorization::Vec2)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
         2,
     );
-    let vec4 = VecElementWise::<C>::new(
+    let vec4 = VecElementWise::<R>::new(
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec4)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .vectorize(Vectorization::Vec4)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
         GpuKernelSource::new(
             IdGenerator::generate(),
-            ElemWiseKernelCodegen::new()
-                .vectorize(Vectorization::Vec4)
-                .inplace(mappings)
-                .inputs(inputs)
-                .body(operators)
-                .outputs(outputs)
-                .workgroup_size(workgroup_size)
-                .compile(),
+            Compilation::new(info.clone()).compile(
+                CompilationSettings::default()
+                    .inplace(true)
+                    .vectorize(Vectorization::Vec4)
+                    .workgroup_size(workgroup_size),
+            ),
         ),
-        mappings.to_vec(),
-        outputs.len(),
+        info.mappings.to_vec(),
+        info.outputs.len(),
         4,
     );
 
@@ -413,7 +250,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::WgpuBackend;
+    use crate::tests::TestRuntime;
+    use crate::JitBackend;
 
     use burn_fusion::stream::Operation;
     use burn_fusion::{Fusion, FusionBackend};
@@ -422,8 +260,8 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior() {
-        type Backend = WgpuBackend;
-        type FusedBackend = Fusion<WgpuBackend>;
+        type Backend = JitBackend<TestRuntime>;
+        type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
             [1, 32],
@@ -485,8 +323,8 @@ mod tests {
             z.into_data().convert()
         }
 
-        type Backend = WgpuBackend;
-        type FusedBackend = Fusion<WgpuBackend>;
+        type Backend = JitBackend<TestRuntime>;
+        type FusedBackend = Fusion<Backend>;
 
         let result_fused = func::<FusedBackend>(data_1.clone(), data_2.clone());
         let result_ref = func::<Backend>(data_1.clone(), data_2.clone());
@@ -496,8 +334,8 @@ mod tests {
 
     #[test]
     fn test_fusion_same_behavior_different_variant() {
-        type Backend = WgpuBackend;
-        type FusedBackend = Fusion<WgpuBackend>;
+        type Backend = JitBackend<TestRuntime>;
+        type FusedBackend = Fusion<Backend>;
 
         let data_1 = Tensor::<FusedBackend, 2>::random(
             [1, 32],
@@ -534,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_end_condition_scalar_ops() {
-        type Backend = Fusion<WgpuBackend>;
+        type Backend = JitBackend<TestRuntime>;
         let device = Default::default();
         let tensor1 = Tensor::<Backend, 2>::ones([32, 32], &device);
         let tensor2 = Tensor::<Backend, 2>::ones([32, 42], &device);

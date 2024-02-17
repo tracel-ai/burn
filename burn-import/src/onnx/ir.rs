@@ -129,7 +129,7 @@ pub enum Data {
 
 /// ONNX graph representation
 #[derive(Debug, Clone)]
-pub struct ONNXGraph {
+pub struct OnnxGraph {
     /// The nodes of the graph.
     pub nodes: Vec<Node>,
 

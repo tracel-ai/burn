@@ -75,27 +75,26 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
-        compute::compute_client,
+        codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
-        tests::TestCompiler,
-        AutoGraphicsApi, WgpuDevice,
+        tests::{TestCompiler, TestRuntime},
+        Runtime, WgpuDevice,
     };
 
     #[test]
     fn can_run_kernel() {
         binary!(
-            operation: |elem: Elem| Operation::Add(BinaryOperation {
-                lhs: Variable::Input(0, Item::Scalar(elem)),
-                rhs: Variable::Input(1, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+            operation: |scope: &mut Scope, elem: Elem| Operator::Add(BinaryOperator {
+                lhs: scope.read_array(0, elem),
+                rhs: scope.read_array(1, elem),
+                out: scope.create_local(elem),
             }),
             compiler: TestCompiler,
             elem_in: f32,
             elem_out: f32
         );
 
-        let client = compute_client::<AutoGraphicsApi>(&WgpuDevice::default());
+        let client = TestRuntime::client(&WgpuDevice::default());
 
         let lhs: Vec<f32> = vec![0., 1., 2., 3., 4., 5., 6., 7.];
         let rhs: Vec<f32> = vec![10., 11., 12., 6., 7., 3., 1., 0.];

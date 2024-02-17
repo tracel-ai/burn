@@ -197,6 +197,7 @@ represent the corresponding Burn Op.
 | [Upsample][190]                  |       ❌        |      ❌       |
 | [Where][191]                     |       ❌        |      ✅       |
 | [Xor][192]                       |       ❌        |      ❌       |
+| [Unsqueeze][193]                 |       ✅        |      ✅       |
 
 [1]: https://onnx.ai/onnx/operators/onnx__Abs.html "ONNX Abs"
 [2]: https://onnx.ai/onnx/operators/onnx__Acos.html "ONNX Acos"
@@ -385,3 +386,4 @@ represent the corresponding Burn Op.
 [190]: https://onnx.ai/onnx/operators/onnx__Upsample.html "ONNX Upsample"
 [191]: https://onnx.ai/onnx/operators/onnx__Where.html "ONNX Where"
 [192]: https://onnx.ai/onnx/operators/onnx__Xor.html "ONNX Xor"
+[193]: https://onnx.ai/onnx/operators/onnx__Unsqueeze.html "ONNX Unsqueeze"

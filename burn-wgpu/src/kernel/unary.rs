@@ -1,8 +1,9 @@
 use super::StaticKernelSource;
 use crate::{
     codegen::{execute_static, StaticHandle, WorkgroupLaunch},
-    element::WgpuElement,
-    tensor::WgpuTensor,
+    element::JitElement,
+    tensor::JitTensor,
+    Runtime,
 };
 
 /// Creates a unary kernel.
@@ -10,23 +11,35 @@ use crate::{
 macro_rules! unary {
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        runtime: $runtime:ty,
         input: $input:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, None, true)
+        $crate::kernel::unary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($input, None, true)
     }};
     (
         operation: $ops:expr,
-        compiler: $compiler:ty,
+        runtime: $runtime:ty,
         input: $input:expr; $scalar:expr,
         elem: $elem:ty
     ) => {{
-        unary!(operation: $ops, compiler: $compiler, scalar 1);
+        unary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, scalar 1);
 
-        $crate::kernel::unary::<Ops<$compiler, $elem>, OpsInplace<$compiler, $elem>, $elem, D>($input, Some(&[$scalar]), true)
+        $crate::kernel::unary::<
+            Ops<<$runtime as Runtime>::Compiler, $elem>,
+            OpsInplace<<$runtime as Runtime>::Compiler, $elem>,
+            $runtime,
+            $elem,
+            D
+        >($input, Some(&[$scalar]), true)
     }};
 
     (
@@ -43,27 +56,50 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
+        fn compile<C, E>(
+            settings: $crate::codegen::CompilationSettings,
+            mappings: Vec<$crate::codegen::InplaceMapping>,
+        ) -> $crate::kernel::SourceTemplate
+        where
+            C: $crate::codegen::Compiler,
+            E: $crate::element::JitElement
+        {
+
+            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+            let op = $ops(&mut scope, E::gpu_elem());
+            scope.register(op);
+
+            let local = scope.last_local_index().unwrap().index().unwrap();
+
+            let input = $crate::codegen::InputInfo::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+            };
+            let out = $crate::codegen::OutputInfo::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                local,
+            };
+            let info = $crate::codegen::CompilationInfo {
+                inputs: vec![input],
+                outputs: vec![out],
+                scope,
+                mappings,
+            };
+            let shader = $crate::codegen::Compilation::new(info).compile(settings);
+
+            let compiled = C::compile(shader);
+            $crate::kernel::SourceTemplate::new(compiled.to_string())
+        }
+
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
-                    .inputs(&[$crate::codegen::Input::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                        strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                    }])
-                    .body(&[$ops(E::gpu_elem())])
-                    .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        local: 0,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default();
+                compile::<C, E>(settings, Vec::new())
             }
         }
 
@@ -71,25 +107,16 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
-                    .inputs(&[$crate::codegen::Input::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
-                        strategy: $crate::codegen::ReadingStrategy::Plain,
-                    }])
-                    .body(&[$ops(E::gpu_elem())])
-                    .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        input: 0,
-                        local: 0,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(true);
+                let mapping = $crate::codegen::InplaceMapping {
+                    pos_input: 0,
+                    pos_output: 0,
+                };
+                compile::<C, E>(settings, vec![mapping])
             }
         }
     };
@@ -108,33 +135,54 @@ macro_rules! unary {
         }
 
         #[allow(clippy::redundant_closure_call)]
+        fn compile<C, E>(
+            settings: $crate::codegen::CompilationSettings,
+            mappings: Vec<$crate::codegen::InplaceMapping>,
+        ) -> $crate::kernel::SourceTemplate
+        where
+            C: $crate::codegen::Compiler,
+            E: $crate::element::JitElement
+        {
+
+            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
+            let op = $ops(&mut scope, E::gpu_elem());
+            scope.register(op);
+
+            let local = scope.last_local_index().unwrap().index().unwrap();
+
+            let input = $crate::codegen::InputInfo::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
+            };
+            let scalars = $crate::codegen::InputInfo::Scalar {
+                elem: E::gpu_elem(),
+                size: $num,
+            };
+            let out = $crate::codegen::OutputInfo::Array {
+                item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
+                local,
+            };
+            let info = $crate::codegen::CompilationInfo {
+                inputs: vec![input, scalars],
+                outputs: vec![out],
+                scope,
+                mappings,
+            };
+            let shader = $crate::codegen::Compilation::new(info).compile(settings);
+
+            let compiled = C::compile(shader);
+            $crate::kernel::SourceTemplate::new(compiled.to_string())
+        }
+
+        #[allow(clippy::redundant_closure_call)]
         impl<C, E> $crate::kernel::StaticKernelSource for Ops<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
-                    .inputs(&[
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-                            strategy: $crate::codegen::ReadingStrategy::OutputLayout,
-                        },
-                        $crate::codegen::Input::Scalar {
-                            elem: E::gpu_elem(),
-                            size: $num,
-                        },
-                    ])
-                    .body(&[$ops(E::gpu_elem())])
-                    .outputs(&[$crate::codegen::Output::Array {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        local: 0,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default();
+                compile::<C, E>(settings, Vec::new())
             }
         }
 
@@ -142,49 +190,34 @@ macro_rules! unary {
         impl<C, E> $crate::kernel::StaticKernelSource for OpsInplace<C, E>
         where
             C: $crate::codegen::Compiler,
-            E: $crate::element::WgpuElement,
+            E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let shader = $crate::codegen::ElemWiseKernelCodegen::new()
-                    .inputs(&[
-                        $crate::codegen::Input::Array {
-                            item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                            visibility: $crate::codegen::dialect::gpu::Visibility::ReadWrite,
-                            strategy: $crate::codegen::ReadingStrategy::Plain,
-                        },
-                        $crate::codegen::Input::Scalar {
-                            elem: E::gpu_elem(),
-                            size: $num,
-                        },
-                    ])
-                    .body(&[$ops(E::gpu_elem())])
-                    .outputs(&[$crate::codegen::Output::Input {
-                        item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
-                        input: 0,
-                        local: 0,
-                    }])
-                    .compile();
-
-                let compiled = C::compile(shader);
-                $crate::kernel::SourceTemplate::new(compiled.to_string())
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(true);
+                let mapping = $crate::codegen::InplaceMapping {
+                    pos_input: 0,
+                    pos_output: 0,
+                };
+                compile::<C, E>(settings, vec![mapping])
             }
         }
     };
 }
 
 /// Launch an unary operation.
-pub fn unary<Kernel, KernelInplace, E, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+pub fn unary<Kernel, KernelInplace, R: Runtime, E, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     scalars: Option<&[E]>,
     inplace_enabled: bool,
-) -> WgpuTensor<E, D>
+) -> JitTensor<R, E, D>
 where
     Kernel: StaticKernelSource,
     KernelInplace: StaticKernelSource,
-    E: WgpuElement,
+    E: JitElement,
 {
     if inplace_enabled && tensor.can_mut() {
-        execute_static::<KernelInplace, E>(
+        execute_static::<R, KernelInplace, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -200,14 +233,14 @@ where
     } else {
         let num_elems = tensor.shape.num_elements();
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = WgpuTensor::new(
+        let output = JitTensor::new(
             tensor.client.clone(),
             tensor.device,
             tensor.shape.clone(),
             buffer,
         );
 
-        execute_static::<Kernel, E>(
+        execute_static::<R, Kernel, E>(
             &[StaticHandle::new(
                 &tensor.handle,
                 &tensor.strides,
@@ -230,14 +263,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codegen::dialect::gpu::{Item, Operation, UnaryOperation, Variable};
-    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler};
+    use crate::codegen::dialect::gpu::{Operator, Scope, UnaryOperator};
+    use crate::tests::{ReferenceBackend, TestBackend, TestCompiler, TestRuntime};
     use burn_tensor::{Distribution, Tensor};
 
     unary!(
-        operation: |elem| Operation::Tanh(UnaryOperation {
-            input: Variable::Input(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem| Operator::Tanh(UnaryOperator {
+            input: scope.read_array(0, elem),
+            out: scope.create_local(elem),
         }),
         compiler: TestCompiler
     );
@@ -249,11 +282,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(
@@ -269,11 +303,12 @@ mod tests {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let actual = unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, f32, 2>(
-            tensor.into_primitive(),
-            None,
-            true,
-        );
+        let actual =
+            unary::<Ops<TestCompiler, f32>, OpsInplace<TestCompiler, f32>, TestRuntime, f32, 2>(
+                tensor.into_primitive(),
+                None,
+                true,
+            );
         let expected = tensor_ref.tanh();
 
         expected.into_data().assert_approx_eq(

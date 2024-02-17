@@ -194,7 +194,7 @@ impl<E: FloatElement> DynamicKernel for FusedMatmulAddRelu<E> {
 ```
 
 Subsequently, we'll go into implementing our custom backend trait for the WGPU backend.
-Note that we won't go into supporting the `fusion` feature flag in this tutorial, so 
+Note that we won't go into supporting the `fusion` feature flag in this tutorial, so
 we implement the trait for the raw `WgpuBackend` type.
 
 ```rust, ignore

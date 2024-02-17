@@ -1,12 +1,13 @@
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
+use burn_wgpu::compute::WgpuRuntime;
 use burn_wgpu::kernel::matmul::init_matmul_output;
 use burn_wgpu::kernel::matmul::unpadded::matmul_tiling_2d_unpadded;
 use burn_wgpu::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use burn_wgpu::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs;
 use burn_wgpu::WgpuDevice;
-use burn_wgpu::{AutoGraphicsApi, WgpuBackend};
+use burn_wgpu::{AutoGraphicsApi, JitBackend};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -15,7 +16,8 @@ use burn_wgpu::{
     GraphicsApi,
 };
 
-type WTensor<G, const D: usize> = Tensor<WgpuBackend<G, f32, i32>, D>;
+type WBackend<G> = JitBackend<WgpuRuntime<G, f32, i32>>;
+type WTensor<G, const D: usize> = Tensor<WBackend<G>, D>;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, F, const D: usize> {
@@ -30,7 +32,7 @@ trait MatmulFunction<G: GraphicsApi, const D: usize> {
     fn run(lhs: WTensor<G, D>, rhs: WTensor<G, D>) -> WTensor<G, D>;
 }
 
-impl<F, const D: usize, G> Benchmark for MatmulBenchmark<WgpuBackend<G, f32, i32>, F, D>
+impl<F, const D: usize, G> Benchmark for MatmulBenchmark<WBackend<G>, F, D>
 where
     F: MatmulFunction<G, D>,
     G: GraphicsApi,
@@ -64,7 +66,7 @@ where
     }
 
     fn sync(&self) {
-        WgpuBackend::<G, f32, i32>::sync(&self.device)
+        WBackend::<G>::sync(&self.device)
     }
 }
 
@@ -80,7 +82,7 @@ macro_rules! bench_matmul {
             }
         }
         type $benchmark<const D: usize> =
-            MatmulBenchmark<WgpuBackend<AutoGraphicsApi, f32, i32>, $matmul_name, D>;
+            MatmulBenchmark<WBackend<AutoGraphicsApi>, $matmul_name, D>;
     };
 }
 bench_matmul!(NaiveMatmulBenchmark, NaiveMatmul, matmul_naive_default);

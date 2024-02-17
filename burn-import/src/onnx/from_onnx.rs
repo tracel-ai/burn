@@ -21,12 +21,14 @@ use super::ir::{ArgType, Argument, Node, NodeType, ONNXGraph, Tensor};
 use protobuf::Message;
 
 const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 7] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Reshape,
+    NodeType::Unsqueeze,
     NodeType::Unsqueeze,
 ];
 
@@ -300,14 +302,14 @@ impl ONNXGraphBuilder {
 ///
 /// # Returns
 ///
-/// * `ONNXGraph` - The graph representation of the onnx file
+/// * `OnnxGraph` - The graph representation of the onnx file
 ///
 /// # Panics
 ///
 /// * If the file cannot be opened
 /// * If the file cannot be parsed
 /// * If the nodes are not topologically sorted
-pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
+pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
     // Open the file
@@ -357,7 +359,7 @@ pub fn parse_onnx(onnx_path: &Path) -> ONNXGraph {
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
-    ONNXGraph {
+    OnnxGraph {
         nodes,
         inputs: inner_inputs,
         outputs: inner_outputs,
@@ -391,6 +393,8 @@ pub(crate) fn move_initializer_data(initializer: &TensorProto, input: &mut Argum
         });
     }
 }
+
+
 
 fn move_output_shape(mut node: RefMut<'_, Node>, out_arg: &Argument) {
     match node.outputs[0].ty {

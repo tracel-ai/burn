@@ -19,7 +19,7 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, CUDAMetric, LearningRateMetric, LossMetric},
+        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
         LearnerBuilder,
     },
 };
@@ -91,8 +91,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
 
     // Initialize learner
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train(CUDAMetric::new())
-        .metric_valid(CUDAMetric::new())
+        .metric_train(CudaMetric::new())
+        .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())

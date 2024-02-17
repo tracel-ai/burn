@@ -1,9 +1,4 @@
-use crate::{
-    compute::compute_client,
-    element::{FloatElement, IntElement},
-    tensor::WgpuTensor,
-    AutoGraphicsApi, GraphicsApi, WgpuDevice,
-};
+use crate::{codegen::Compiler, tensor::JitTensor, Runtime};
 use burn_tensor::backend::Backend;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
@@ -11,32 +6,25 @@ use std::{marker::PhantomData, sync::Mutex};
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
-#[derive(Debug, Default, Clone)]
-pub struct WgpuBackend<G = AutoGraphicsApi, F = f32, I = i32>
-where
-    G: GraphicsApi,
-    F: FloatElement,
-    I: IntElement,
-{
-    _g: PhantomData<G>,
-    _f: PhantomData<F>,
-    _i: PhantomData<I>,
+#[derive(new)]
+pub struct JitBackend<R: Runtime> {
+    _runtime: PhantomData<R>,
 }
 
-impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WgpuBackend<G, F, I> {
-    type Device = WgpuDevice;
-    type FullPrecisionBackend = WgpuBackend<G, f32, i32>;
+impl<R: Runtime> Backend for JitBackend<R> {
+    type Device = R::Device;
+    type FullPrecisionBackend = JitBackend<R::FullPrecisionRuntime>;
 
     type FullPrecisionElem = f32;
-    type FloatElem = F;
-    type IntElem = I;
+    type FloatElem = <R::Compiler as Compiler>::Float;
+    type IntElem = <R::Compiler as Compiler>::Int;
 
-    type FloatTensorPrimitive<const D: usize> = WgpuTensor<F, D>;
-    type IntTensorPrimitive<const D: usize> = WgpuTensor<I, D>;
-    type BoolTensorPrimitive<const D: usize> = WgpuTensor<u32, D>;
+    type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
+    type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
+    type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
 
     fn name() -> String {
-        String::from("wgpu")
+        format!("jit<{}>", R::name())
     }
 
     fn seed(seed: u64) {
@@ -50,7 +38,25 @@ impl<G: GraphicsApi + 'static, F: FloatElement, I: IntElement> Backend for WgpuB
     }
 
     fn sync(device: &Self::Device) {
-        let client = compute_client::<G>(device);
+        let client = R::client(device);
         client.sync();
+    }
+}
+
+impl<R: Runtime> core::fmt::Debug for JitBackend<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
+    }
+}
+
+impl<R: Runtime> Clone for JitBackend<R> {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl<R: Runtime> Default for JitBackend<R> {
+    fn default() -> Self {
+        Self::new()
     }
 }
