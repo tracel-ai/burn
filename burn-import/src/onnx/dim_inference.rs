@@ -1,115 +1,63 @@
 use core::panic;
-use std::collections::HashMap;
 
 use protobuf::Enum;
 
 use super::{
+    from_onnx::OnnxGraphIO,
     ir::{ArgType, Argument, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
 
-struct TensorDimUpdater {
-    arguments: HashMap<String, Argument>,
-}
-
-impl TensorDimUpdater {
-    fn new(inputs: &[Argument]) -> Self {
-        let mut arguments: HashMap<String, Argument> = HashMap::with_capacity(inputs.len());
-
-        inputs.iter().for_each(|input| {
-            arguments.insert(input.name.clone(), input.clone());
-        });
-
-        Self { arguments }
-    }
-    /// Update tensor inputs from the registered arguments and returns the number of input
-    /// updated.
-    fn update_tensor_inputs(&self, node: &mut Node) -> usize {
-        self.update_arguments(&mut node.inputs)
-    }
-
-    /// Update the arguments struct from the node output tensors and return the number of output
-    /// updated.
-    fn update_tensor_outputs(&mut self, node: &Node) -> usize {
-        node.outputs
-            .iter()
-            .map(|arg| {
-                self.arguments.insert(arg.name.clone(), arg.clone());
-            })
-            .count()
-    }
-
-    fn update_arguments(&self, arguments: &mut [Argument]) -> usize {
-        arguments
-            .iter_mut()
-            .filter_map(|input| self.arguments.get(&input.name).map(|arg| (arg, input)))
-            .map(|(arg, input)| {
-                input.ty = arg.ty.clone();
-            })
-            .count()
-    }
-}
-
 /// Infer the dimension of each output tensor and update them.
-pub fn dim_inference(
-    nodes: &mut Vec<Node>,
-    graph_inputs: &Vec<Argument>,
-    graph_outputs: &mut Vec<Argument>,
-) {
-    let mut updater = TensorDimUpdater::new(graph_inputs);
+pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+    //graph_io.copy_to_node_inputs(node);
 
-    for node in nodes.iter_mut() {
-        updater.update_tensor_inputs(node);
-
-        match node.node_type {
-            NodeType::Add => same_as_input(node),
-            NodeType::AveragePool2d => same_as_input(node),
-            NodeType::BatchNormalization => same_as_input(node),
-            NodeType::Cast => cast_update_outputs(node),
-            NodeType::Clip => same_as_input(node),
-            NodeType::Concat => concat_update_outputs(node),
-            NodeType::Constant => constant_update_outputs(node),
-            NodeType::Conv1d => conv1d_update_outputs(node),
-            NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::Cos => same_as_input(node),
-            NodeType::Div => same_as_input(node),
-            NodeType::Dropout => same_as_input(node),
-            NodeType::Equal => equal_update_outputs(node),
-            NodeType::Erf => same_as_input(node),
-            NodeType::Exp => same_as_input(node),
-            NodeType::Flatten => flatten_update_outputs(node),
-            NodeType::Gelu => same_as_input(node),
-            NodeType::GatherElements => same_as_input(node),
-            NodeType::GlobalAveragePool => same_as_input(node),
-            NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
-            NodeType::Linear => linear_update_outputs(node),
-            NodeType::Log => same_as_input(node),
-            NodeType::LogSoftmax => same_as_input(node),
-            NodeType::MaxPool2d => same_as_input(node),
-            NodeType::Mul => same_as_input(node),
-            NodeType::Neg => same_as_input(node),
-            NodeType::Reciprocal => same_as_input(node),
-            NodeType::ReduceMean => mean_update_outputs(node),
-            NodeType::Relu => same_as_input(node),
-            NodeType::Reshape => reshape_update_outputs(node),
-            NodeType::Shape => shape_update_outputs(node),
-            NodeType::Sigmoid => same_as_input(node),
-            NodeType::Softmax => same_as_input(node),
-            NodeType::Sqrt => same_as_input(node),
-            NodeType::Sub => same_as_input(node),
-            NodeType::Tanh => same_as_input(node),
-            NodeType::Transpose => same_as_input(node),
-            NodeType::Unsqueeze => unsqueeze_update_output_or_node(node),
-            NodeType::Pow => same_as_input(node),
-            // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
-            _ => temporary_pass_through_stub(node),
-        }
-
-        updater.update_tensor_outputs(node);
+    match node.node_type {
+        NodeType::Add => same_as_input(node),
+        NodeType::AveragePool2d => same_as_input(node),
+        NodeType::BatchNormalization => same_as_input(node),
+        NodeType::Cast => cast_update_outputs(node),
+        NodeType::Clip => same_as_input(node),
+        NodeType::Concat => concat_update_outputs(node),
+        NodeType::Constant => constant_update_outputs(node),
+        NodeType::Conv1d => conv1d_update_outputs(node),
+        NodeType::Conv2d => conv2d_update_outputs(node),
+        NodeType::Cos => same_as_input(node),
+        NodeType::Div => same_as_input(node),
+        NodeType::Dropout => same_as_input(node),
+        NodeType::Equal => equal_update_outputs(node),
+        NodeType::Erf => same_as_input(node),
+        NodeType::Exp => same_as_input(node),
+        NodeType::Flatten => flatten_update_outputs(node),
+        NodeType::Gelu => same_as_input(node),
+        NodeType::GatherElements => same_as_input(node),
+        NodeType::GlobalAveragePool => same_as_input(node),
+        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::Linear => linear_update_outputs(node),
+        NodeType::Log => same_as_input(node),
+        NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MaxPool2d => same_as_input(node),
+        NodeType::Mul => same_as_input(node),
+        NodeType::Neg => same_as_input(node),
+        NodeType::Reciprocal => same_as_input(node),
+        NodeType::ReduceMean => mean_update_outputs(node),
+        NodeType::Relu => same_as_input(node),
+        NodeType::Reshape => reshape_update_outputs(node),
+        NodeType::Shape => shape_update_outputs(node),
+        NodeType::Sigmoid => same_as_input(node),
+        NodeType::Softmax => same_as_input(node),
+        NodeType::Sqrt => same_as_input(node),
+        NodeType::Sub => same_as_input(node),
+        NodeType::Tanh => same_as_input(node),
+        NodeType::Transpose => same_as_input(node),
+        NodeType::Unsqueeze => unsqueeze_update_output_or_node(node),
+        NodeType::Pow => same_as_input(node),
+        // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
+        _ => temporary_pass_through_stub(node),
     }
 
-    updater.update_arguments(graph_outputs);
+    graph_io.update_tensor_output(node);
 }
 
 fn constant_update_outputs(node: &mut Node) {

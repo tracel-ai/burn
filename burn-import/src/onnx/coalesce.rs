@@ -1,17 +1,16 @@
 use std::{
-    cell::{RefCell, RefMut},
-    collections::{HashMap, HashSet},
+    cell::{RefMut},
     iter::Peekable,
     slice::Iter,
 };
 
 use super::{
+    from_onnx::OnnxGraphIO,
     ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
-    protos::{NodeProto, TensorProto},
+    protos::{NodeProto},
 };
 use crate::onnx::{
-    from_onnx::move_initializer_data,
     ir::{ArgType, Data, TensorType},
 };
 
@@ -19,12 +18,12 @@ use crate::onnx::{
 pub fn coalesce(
     node: &mut Node,
     nodes_iter: &mut Peekable<Iter<NodeProto>>,
-    initializers: &HashMap<String, TensorProto>,
+    graph_io: &OnnxGraphIO,
 ) {
     match node.node_type {
         NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
-            convert_matmul_to_linear(node, nodes_iter, initializers);
+            convert_matmul_to_linear(node, nodes_iter, graph_io);
         }
         _ => {}
     }
@@ -127,7 +126,7 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
     iter_mut: &mut Peekable<Iter<NodeProto>>,
-    initializers: &HashMap<String, TensorProto>,
+    graph_io: &OnnxGraphIO,
 ) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
@@ -150,12 +149,7 @@ pub(crate) fn convert_matmul_to_linear(
 
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
-        let mut peek_node = convert_node_proto(peek_node).clone();
-        for node_input in peek_node.inputs.iter_mut() {
-            if let Some(initializer) = initializers.get(&node_input.name) {
-                move_initializer_data(initializer, node_input);
-            }
-        }
+        let peek_node = convert_node_proto(peek_node, graph_io).clone();
         println!("next node is {:?}", peek_node);
         if is_add_node_with_bias(&peek_node, node) {
             convert_and_remove_add_node(&peek_node, node);
@@ -167,47 +161,6 @@ pub(crate) fn convert_matmul_to_linear(
     }
 }
 
-/// This function converts a MatMul node into a Linear node if possible.
-///
-/// PyTorch and other frameworks use MatMul node to represent Linear layer.
-///
-/// This function also converts the following Add node into a Linear node if possible.
-/// Add node is used to represent bias in PyTorch.
-pub(crate) fn convert_matmul_to_linear2(
-    node_vec: &Vec<RefCell<Node>>,
-    node_index: usize,
-    nodes_to_remove: &mut HashSet<usize>,
-) {
-    let mut node = node_vec[node_index].borrow_mut();
-    if node.inputs.len() != 2 {
-        panic!("MatMul node must have 2 inputs");
-    }
-
-    // if the second input does not have a value, it is not a weight, then proceed to the next node
-    if node.inputs[1].value.is_none() {
-        return;
-    }
-
-    // Check if the second input is a 2D tensor
-    if let ArgType::Tensor(ref tensor_type) = node.inputs[1].ty {
-        assert_eq!(tensor_type.dim, 2, "Weight must be a 2D tensor");
-    } else {
-        panic!("Tensor input is expected");
-    }
-
-    // Convert the node to Linear
-    node.node_type = NodeType::Linear;
-
-    // Check the next node for potential conversion
-
-    if node_index + 1 < node_vec.len() {
-        let next_node = node_vec[node_index + 1].borrow();
-        if is_add_node_with_bias(&next_node, &node) {
-            convert_node2(&next_node, node);
-            nodes_to_remove.insert(node_index + 1);
-        }
-    }
-}
 /// Helper function to check if the peeked node is an Add node with bias
 fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
     if peek_node.node_type == NodeType::Add && peek_node.inputs.len() == 2 {
