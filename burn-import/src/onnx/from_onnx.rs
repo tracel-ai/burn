@@ -4,18 +4,16 @@ use std::{
     path::Path,
 };
 
-use crate::onnx::{
-    ir::TensorType, node_remap::remap_node_type, proto_conversion::convert_node_proto,
-};
+use crate::onnx::{node_remap::remap_node_type, proto_conversion::convert_node_proto};
 
 use super::{
     coalesce::coalesce,
-    ir::OnnxGraph,
+    ir::{Data, OnnxGraph, TensorType},
     protos::{ModelProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
-use super::ir::{ArgType, Argument, Node, NodeType, Tensor};
+use super::ir::{ArgType, Argument, Node, NodeType};
 
 use protobuf::Message;
 
@@ -175,6 +173,8 @@ impl OnnxGraphIO {
                 Some(IOEntry::Out(i)) => {
                     let arg = self.outputs.get_mut(*i).unwrap();
                     arg.copy_value(node_output);
+                    //Set the output to passed since it's been altered by a Node
+                    arg.passed = true;
                 }
                 Some(IOEntry::Node(_)) => {
                     panic!("This output is from another node");
@@ -199,10 +199,23 @@ impl OnnxGraphIO {
         }
     }
 
-    fn get_new_name(&self, old_name: &str) -> Option<String> {
+    /// get the updated name of a Node Input, which obviously should be
+    /// either a graph input or a node output.
+    /// will return None if the it isn't a graph input or node output(like an initializer)
+    /// Will panic if it's a graph output
+    fn get_new_name(&mut self, old_name: &str) -> Option<String> {
         match self.old_io_names.get(old_name) {
-            Some(IOEntry::In(i)) => Some(self.inputs[*i].name.clone()),
-            Some(IOEntry::Out(i)) => Some(self.outputs[*i].name.clone()),
+            Some(IOEntry::In(i)) => {
+                //set the input as passed since a node is referencing it
+                self.inputs[*i].passed = true;
+                Some(self.inputs[*i].name.clone())
+            }
+            Some(IOEntry::Out(_)) => {
+                panic!(
+                    "you just tried to get an updated name on a graph output: {}",
+                    old_name
+                )
+            }
             Some(IOEntry::Node(i)) => Some(self.node_out[*i].name.clone()),
             None => None,
         }
@@ -221,8 +234,8 @@ pub(crate) struct ONNXGraphBuilder {
     constants_map: HashMap<String, usize>,
 
     constants_types: HashSet<NodeType>,
-    ///map from old node name to indices of identity nodes
-    identity_idx: HashMap<String, usize>,
+    //map from old node name to indices of identity nodes
+    //identity_idx: HashMap<String, usize>,
 }
 
 impl ONNXGraphBuilder {
@@ -246,9 +259,7 @@ impl ONNXGraphBuilder {
 
             coalesce(&mut node, &mut node_iter, &graph_io);
             self.handle_node_renaming(&mut node);
-
             self.handle_unsqueeze(&mut node, &graph_io);
-
             self.handle_identity(&mut node, and_idx);
             self.check_constants(&mut node, and_idx, &mut graph_io);
 
@@ -256,7 +267,6 @@ impl ONNXGraphBuilder {
                 dim_inference(&mut node, &mut graph_io);
             }
 
-            //self.handle_coalesce(&mut node, &mut node_iter, and_idx);
             rename_io(&mut node, &mut graph_io);
 
             self.nodes.push(node);
@@ -272,10 +282,10 @@ impl ONNXGraphBuilder {
         let OnnxGraphIO {
             mut inputs,
             mut outputs,
-            old_io_names,
             ..
         } = graph_io;
-
+        // Remove the graph inputs/output that are not used by any node
+        remove_unused_graph_inputs(&mut inputs, &mut outputs);
         //remove_unused_graph_inputs(&mut inputs, &mut outputs, &old_io_names);
         self.inputs = inputs;
         self.outputs = outputs;
@@ -297,7 +307,7 @@ impl ONNXGraphBuilder {
         node.name = new_name.clone();
     }
 
-    fn check_constants(&mut self, node: &mut Node, i: usize, graph_io: &mut OnnxGraphIO) {
+    fn check_constants(&mut self, node: &mut Node, i: usize, _graph_io: &mut OnnxGraphIO) {
         if &node.node_type == &NodeType::Constant
             || (&node.node_type == &NodeType::Identity && node.inputs[0].value.is_some())
         {
@@ -331,26 +341,29 @@ impl ONNXGraphBuilder {
 
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
         if node.node_type == NodeType::Unsqueeze {
-            if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
-                move_output_shape(node, in_arg);
+            if node.inputs[1].value.is_none() {
+                if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
+                    remap_unsqueeze_to_reshape(node, in_arg);
+                }
             }
         }
     }
 
     fn handle_identity(&mut self, node: &mut Node, i: usize) {
-        if &node.node_type == &NodeType::Identity && node.inputs[0].value.is_none() {
+        if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
             log::debug!("\nfound identity node:\n{:?}\n", &node);
-            self.identity_idx.insert(node.outputs[0].name.clone(), i);
+            //self.identity_idx.insert(node.outputs[0].name.clone(), i);
             self.nodes_to_remove.insert(i);
-        } else {
-            node.inputs.iter_mut().for_each(|x| {
-                if let Some(identity_idx) = self.identity_idx.get(&x.name) {
-                    let input_name = &self.nodes[*identity_idx].inputs[0].name;
+            //apparently the below is no longer necessary
+        } //else {
+          //     node.inputs.iter_mut().for_each(|x| {
+          //         if let Some(identity_idx) = self.identity_idx.get(&x.name) {
+          //             let input_name = &self.nodes[*identity_idx].inputs[0].name;
 
-                    x.name = input_name.clone();
-                }
-            });
-        }
+        //             x.name = input_name.clone();
+        //         }
+        //     });
+        // }
     }
 }
 
@@ -400,9 +413,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
     assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
-    // Remove the graph inputs/output that are not used by any node
-    remove_unused_graph_inputs(&mut inner_inputs, &mut inner_outputs, &nodes);
-
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     OnnxGraph {
@@ -412,11 +422,37 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     }
 }
 
-fn move_output_shape(node: &mut Node, out_arg: &Argument) {
+/// Remap the unsqueeze node to a reshape node, Should only be called after
+/// node renaming has been done. avoids marking rhs as passed so that it can be
+/// properly deleted if nothing else uses it
+fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
             if let ArgType::Tensor(arg_tensor) = &out_arg.ty {
                 tensor_type.shape = arg_tensor.shape.clone();
+                let inner = arg_tensor
+                    .shape
+                    .clone()
+                    .unwrap()
+                    .into_iter()
+                    .map(|x| x as i64)
+                    .collect::<Vec<i64>>();
+                let shape_len = inner.len();
+                let new_rhs_value = Some(Data::Int64s(inner));
+                //moving the remap to here
+                let rhs_arg = Argument {
+                    name: format!("{}_generated_const", node.name),
+                    ty: ArgType::Tensor(TensorType {
+                        elem_type: super::ir::ElementType::Int64,
+                        dim: 1,
+                        shape: Some(vec![shape_len]),
+                    }),
+                    value: new_rhs_value,
+                    passed: false,
+                };
+                node.inputs[1] = rhs_arg;
+                node.outputs[0] = out_arg.clone();
+                node.node_type = NodeType::Reshape;
             }
         }
         _ => {}
@@ -474,34 +510,12 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
 ///
 /// Generally, it's a good idea to remove unused inputs/outputs because it makes the
 /// generated code cleaner and easier to read.
-fn remove_unused_graph_inputs(
-    inputs: &mut Vec<Argument>,
-    outputs: &mut Vec<Argument>,
-    nodes: &Vec<Node>,
-) {
+fn remove_unused_graph_inputs(inputs: &mut Vec<Argument>, outputs: &mut Vec<Argument>) {
     // Remove inputs that are not used by any node
-    inputs.retain(|input| {
-        for node in nodes.iter() {
-            if node
-                .inputs
-                .iter()
-                .any(|x| x.name == input.name && x.value.is_none())
-            {
-                return true;
-            }
-        }
-        false
-    });
+    inputs.retain(|input| input.passed);
 
     // Remove outputs that are not used by any node
-    outputs.retain(|output| {
-        for node in nodes.iter() {
-            if node.outputs.iter().any(|x| x.name == output.name) {
-                return true;
-            }
-        }
-        false
-    });
+    outputs.retain(|output| output.passed);
 }
 
 // Define a trait for topological sorting
