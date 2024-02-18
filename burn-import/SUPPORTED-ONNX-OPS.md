@@ -74,7 +74,7 @@ represent the corresponding Burn Op.
 | [Greater][66]                    |       ❌        |      ✅       |
 | [GreaterOrEqual][67]             |       ❌        |      ✅       |
 | [GridSample][68]                 |       ❌        |      ❌       |
-| [GroupNormalization][69]         |       ❌        |      ❌       |
+| [GroupNormalization][69]         |       ❌        |      ✅       |
 | [GRU][70]                        |       ❌        |      ✅       |
 | [HammingWindow][71]              |       ❌        |      ❌       |
 | [HannWindow][72]                 |       ❌        |      ❌       |
@@ -84,7 +84,7 @@ represent the corresponding Burn Op.
 | [Identity][76]                   |       ✅        |      ✅       |
 | [If][77]                         |       ❌        |      ✅       |
 | [Im][78]                         |       ❌        |      ❌       |
-| [InstanceNormalization][79]      |       ❌        |      ❌       |
+| [InstanceNormalization][79]      |       ❌        |      ✅       |
 | [IsInf][80]                      |       ❌        |      ❌       |
 | [IsNaN][81]                      |       ❌        |      ❌       |
 | [LayerNormalization][82]         |       ❌        |      ✅       |
