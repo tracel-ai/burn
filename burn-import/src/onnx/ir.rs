@@ -27,10 +27,9 @@ pub struct Argument {
 
 impl Argument {
     ///Copy everything except the name from the other argument
-    pub fn copy_all_but_name(&mut self, other_arg: &Argument) {
+    pub fn copy_value(&mut self, other_arg: &Argument) {
         self.ty = other_arg.ty.clone();
         self.value = other_arg.value.clone();
-        self.passed = other_arg.passed;
     }
 
     pub fn from_initializer(initializer: &TensorProto) -> Argument {

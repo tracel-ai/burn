@@ -1,18 +1,12 @@
-use std::{
-    cell::{RefMut},
-    iter::Peekable,
-    slice::Iter,
-};
+use std::{cell::RefMut, iter::Peekable, slice::Iter};
 
 use super::{
     from_onnx::OnnxGraphIO,
     ir::{AttributeValue, Node, NodeType},
     proto_conversion::convert_node_proto,
-    protos::{NodeProto},
+    protos::NodeProto,
 };
-use crate::onnx::{
-    ir::{ArgType, Data, TensorType},
-};
+use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(

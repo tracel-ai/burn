@@ -37,13 +37,12 @@ pub(crate) enum IOEntry {
 }
 
 pub(crate) struct OnnxGraphIO {
-    ///Per Onnx spec "Inputs represent graph inputs or values computed elsewhere in the graph..."
-    /// Thus all computed inputs are in the list of inputs in a valid Onnx file
+    /// The inputs for the Graph
     pub(crate) inputs: Vec<Argument>,
+    /// The outputs for the Graph
     pub(crate) outputs: Vec<Argument>,
-    /// Initializers or constants, for more information on why these are treated the
-    /// same, please see: https://github.com/onnx/onnx/issues/4677
-    pub(crate) constants: HashMap<String, Argument>,
+    /// Initializers
+    pub(crate) initializers: HashMap<String, Argument>,
     //pub(crate) initializers: Vec<Argument>,
     ///updated names of outputs of node not stored in the graph
     node_out: Vec<Argument>,
@@ -88,7 +87,7 @@ impl OnnxGraphIO {
         Self {
             inputs,
             outputs,
-            constants,
+            initializers: constants,
             node_out: Vec::new(),
             old_io_names,
         }
@@ -97,8 +96,6 @@ impl OnnxGraphIO {
     fn update_name(&mut self, arg: &Argument, new_name: &str) {
         match self.old_io_names.get(&arg.name) {
             Some(IOEntry::In(_)) => {
-                // let arg = self.inputs.get_mut(*i).unwrap();
-                // arg.name = new_name.to_string();
                 panic!("input names are set from the beginning");
             }
             Some(IOEntry::Out(i)) => {
@@ -109,34 +106,22 @@ impl OnnxGraphIO {
                 let arg = self.node_out.get_mut(*i).unwrap();
                 arg.name = new_name.to_string();
             }
-
             None => {
-                //Constants, Casts
-                let idx = self.node_out.len();
-                self.old_io_names
-                    .insert(arg.name.clone(), IOEntry::Node(idx));
-                self.node_out.push(arg.clone());
-                self.node_out[idx].name = new_name.to_string();
+                //Constants, Casts wound up here before API changes
+                panic!(
+                    "Tried to update the name of {} to {} but entry doesn't exist in the map",
+                    arg.name, new_name
+                )
             }
-        }
-    }
-    fn update_value(&mut self, updated_arg: &Argument) {
-        match self.old_io_names.get(&updated_arg.name) {
-            Some(IOEntry::Node(i)) => {
-                let arg = self.node_out.get_mut(*i).unwrap();
-                arg.copy_all_but_name(updated_arg);
-            }
-            _ => panic!(
-                "Tried to update the value of {:?} which was the output from another node",
-                &updated_arg.name
-            ),
         }
     }
 
+    ///Used to initialize the input arguments for nodes. Names need to remain the same because
+    /// currently the old names are the key for accessing the Argument
     pub fn init_in(&self, proto_str: &str) -> Argument {
         match self.old_io_names.get(proto_str) {
             None => {
-                if let Some(init_arg) = self.constants.get(proto_str) {
+                if let Some(init_arg) = self.initializers.get(proto_str) {
                     init_arg.clone()
                 } else {
                     Argument::new(proto_str.to_string())
@@ -146,6 +131,7 @@ impl OnnxGraphIO {
             Some(IOEntry::In(i)) => {
                 let mut arg = self.inputs[*i].clone();
                 arg.name = proto_str.to_string();
+                arg.passed = true;
                 arg
             }
             Some(IOEntry::Node(i)) => {
@@ -177,50 +163,24 @@ impl OnnxGraphIO {
         self.node_out.push(arg.clone());
         self.node_out[idx].name = new_name.to_string();
     }
-    ///Copy data from the graph inputs to the nodes inputs
-    pub(crate) fn copy_to_node_inputs(&self, node: &mut Node) {
-        for input in node.inputs.iter_mut() {
-            if input.name.is_empty() {
-                continue;
-            }
-            match self.old_io_names.get(&input.name) {
-                Some(IOEntry::In(i)) => {
-                    let arg = self.inputs.get(*i).unwrap();
-                    input.copy_all_but_name(arg);
-                }
-                Some(IOEntry::Out(_i)) => {
-                    panic!("Output should only contain final outputs");
-                }
-                Some(IOEntry::Node(i)) => {
-                    let arg = self.node_out.get(*i).unwrap();
-                    input.copy_all_but_name(arg);
-                }
-                None => {
-                    //happens with initializers
-                    // println!("io names: {:?}", &self.old_io_names);
 
-                    // panic!("Failure when copying nonexistent io to input {} for node {}\nShouldn't happen", &input.name, &node.name);
-                }
-            }
-        }
-    }
     ///iterate over the nodes output and copy them to the graph IO
     pub(crate) fn update_tensor_output(&mut self, node: &Node) {
         for node_output in node.outputs.iter() {
             match self.old_io_names.get(&node_output.name) {
                 Some(IOEntry::In(i)) => {
                     let arg = self.inputs.get_mut(*i).unwrap();
-                    arg.copy_all_but_name(node_output);
+                    arg.copy_value(node_output);
                 }
                 Some(IOEntry::Out(i)) => {
                     let arg = self.outputs.get_mut(*i).unwrap();
-                    arg.copy_all_but_name(node_output);
+                    arg.copy_value(node_output);
                 }
                 Some(IOEntry::Node(_)) => {
                     panic!("This output is from another node");
                 }
                 None => {
-                    println!("inserting with name {:?}", &node_output.name);
+                    log::debug!("inserting with name {:?}", &node_output.name);
                     let idx = self.node_out.len();
                     self.old_io_names
                         .insert(node_output.name.clone(), IOEntry::Node(idx));
@@ -229,12 +189,6 @@ impl OnnxGraphIO {
             }
         }
     }
-    // fn add_input(&mut self, old_name: &str, node_idx: usize) {
-    //     self.input_of
-    //         .entry(old_name.to_string())
-    //         .and_modify(|f| f.push(node_idx))
-    //         .or_insert(vec![node_idx]);
-    // }
 
     pub(crate) fn get(&self, old_name: &str) -> Option<&Argument> {
         match self.old_io_names.get(old_name) {
@@ -246,25 +200,13 @@ impl OnnxGraphIO {
     }
 
     fn get_new_name(&self, old_name: &str) -> Option<String> {
-        let new_name = match self.old_io_names.get(old_name) {
+        match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => Some(self.inputs[*i].name.clone()),
             Some(IOEntry::Out(i)) => Some(self.outputs[*i].name.clone()),
             Some(IOEntry::Node(i)) => Some(self.node_out[*i].name.clone()),
             None => None,
-        };
-        println!("old name {:?}", &old_name);
-        println!("new name value {:?}", &new_name);
-        if Some(old_name.to_string()) == new_name {
-            println!("old name hasn't changed: {}", old_name);
-            None
-        } else {
-            new_name
         }
     }
-
-    // fn get_node_indices(&self, old_input_name: &str) -> Option<&Vec<usize>> {
-    //     self.input_of.get(old_input_name)
-    // }
 }
 
 #[derive(Default)]
@@ -286,13 +228,6 @@ pub(crate) struct ONNXGraphBuilder {
 impl ONNXGraphBuilder {
     pub(crate) fn node_gen(&mut self, model_proto: &ModelProto) {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
-        // Convert initializers to hashmap for faster lookup
-        // let initializers = model_proto
-        //     .graph
-        //     .initializer
-        //     .iter()
-        //     .map(|x| (x.name.clone(), x.clone()))
-        //     .collect::<HashMap<String, TensorProto>>();
 
         let mut graph_io = OnnxGraphIO::new(
             &model_proto.graph.input,
@@ -335,15 +270,20 @@ impl ONNXGraphBuilder {
             res
         });
         let OnnxGraphIO {
-            inputs, outputs, ..
+            mut inputs,
+            mut outputs,
+            old_io_names,
+            ..
         } = graph_io;
+
+        //remove_unused_graph_inputs(&mut inputs, &mut outputs, &old_io_names);
         self.inputs = inputs;
         self.outputs = outputs;
     }
 
     fn handle_node_renaming(&mut self, node: &mut Node) {
         if &node.node_type == &NodeType::Linear {
-            println!("rename linear node {:?}", node);
+            log::debug!("rename linear node {:?}", node);
         }
         self.node_name_counter
             .entry(node.node_type.clone())
@@ -363,29 +303,28 @@ impl ONNXGraphBuilder {
         {
             self.constants_map.insert(node.outputs[0].name.clone(), i);
         } else if self.constants_types.contains(&node.node_type) {
-            println!("lift const type match for node {:?}\n\n", &node);
+            log::debug!("lift const type match for node {:?}\n\n", &node);
             for input in node.inputs.iter_mut().skip(1) {
-                println!("checking input {:?} for const", input);
-                println!("constants map {:?}", &self.constants_map);
+                log::debug!("checking input {:?} for const", input);
+                log::debug!("constants map {:?}", &self.constants_map);
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
-                    println!("\nMATCH\n");
+                    log::debug!("\nMATCH\n");
                     let constant = &self.nodes[*const_idx];
-                    println!("constant node {:?}", constant);
+                    log::debug!("constant node {:?}", constant);
                     if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
                         // The value comes from Identity inputs
                         input.value = constant.inputs[0].value.clone();
                         input.ty = constant.inputs[0].ty.clone();
-                        graph_io.update_value(input);
+                        //graph_io.update_value(input);
                     } else {
                         let arg = convert_constant_value(constant);
                         input.value = arg.value;
                         input.ty = arg.ty;
-                        graph_io.update_value(input);
+                        //graph_io.update_value(input);
                     }
                     self.nodes_to_remove.insert(*const_idx);
-                    println! {"\nupdated input {:?}", input};
+                    log::debug! {"\nupdated input {:?}", input};
                 }
-                //TODO: Future me, right now if the constant is written to the
             }
         }
     }
@@ -400,7 +339,7 @@ impl ONNXGraphBuilder {
 
     fn handle_identity(&mut self, node: &mut Node, i: usize) {
         if &node.node_type == &NodeType::Identity && node.inputs[0].value.is_none() {
-            println!("\nfound identity node:\n{:?}\n", &node);
+            log::debug!("\nfound identity node:\n{:?}\n", &node);
             self.identity_idx.insert(node.outputs[0].name.clone(), i);
             self.nodes_to_remove.insert(i);
         } else {
@@ -473,34 +412,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     }
 }
 
-pub(crate) fn move_initializer_data(initializer: &TensorProto, input: &mut Argument) {
-    // If the input name matches the tensor name in the initializer
-    // Convert the initializer to a tensor
-    let tensor = Tensor::try_from(initializer.clone()).expect("Invalid tensor");
-
-    if tensor.dim == 0 {
-        // Convert zero dim tensor to scalar
-        if let Some(data) = tensor.data {
-            input.value = Some(data.into_scalar());
-        } else {
-            input.value = None;
-        }
-
-        // Update the input type
-        input.ty = ArgType::Scalar(tensor.elem_type);
-    } else {
-        // Move the tensor data to the input value
-        input.value = tensor.data.clone();
-
-        // Update the input type
-        input.ty = ArgType::Tensor(TensorType {
-            dim: tensor.dim,
-            elem_type: tensor.elem_type,
-            shape: tensor.shape,
-        });
-    }
-}
-
 fn move_output_shape(node: &mut Node, out_arg: &Argument) {
     match node.outputs[0].ty {
         ArgType::Tensor(ref mut tensor_type) => {
@@ -521,9 +432,9 @@ fn move_output_shape(node: &mut Node, out_arg: &Argument) {
 /// Rename the inputs and output in the graph and return a map of
 /// the old names to the new names.
 fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
-    println!("checking inputs for node {:?}", &node.name);
+    log::debug!("checking inputs for node {:?}", &node.name);
     for node_input in node.inputs.iter_mut() {
-        println!("old output names {:?}", &graph_io.old_io_names);
+        log::debug!("old output names {:?}", &graph_io.old_io_names);
         //graph_io.add_input(&node_input.name, i);
         if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
             node_input.passed = true;
@@ -533,23 +444,20 @@ fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
             node_input.passed = false;
         }
     }
-    println!("\n\nchecking outputs");
+    log::debug!("\n\nchecking outputs");
     let mut out_count = 1;
     if node.node_type == NodeType::Constant || node.node_type == NodeType::Identity {
-        println!("it's a constant");
+        log::debug!("it's a constant");
         let new_name = format!("{}_out{}", node.name, out_count);
         graph_io.insert(&node.outputs[0], &new_name);
         node.outputs[0].name = new_name;
     } else {
         for output in node.outputs.iter_mut() {
-            println!("output name: {}", &output.name);
+            log::debug!("output name: {}", &output.name);
 
             let new_name = format!("{}_out{}", node.name, out_count);
 
             graph_io.update_name(output, &new_name);
-
-            // self.node_output_names
-            //     .insert(output.name.clone(), new_name.clone());
 
             output.name = new_name.clone();
             out_count += 1;
