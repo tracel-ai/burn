@@ -139,6 +139,43 @@ something like this:
    }
    ```
 
+## Extract Configuration
+
+In some cases, models may require additional configuration settings, which are often included in a `.pt` file during export. The `config_from_file` function from the `burn-import` cargo package allows for the extraction of these configurations directly from the `.pt` file. The extracted configuration can then be used to initialize the model in Burn. Here is an example of how to extract the configuration from a `.pt` file:
+
+```rust
+use std::collections::HashMap;
+
+use burn::config::Config;
+use burn_import::pytorch::config_from_file;
+
+#[derive(Debug, Config)]
+struct NetConfig {
+    n_head: usize,
+    n_layer: usize,
+    d_model: usize,
+    // Candle's pickle has a bug with float serialization
+    // https://github.com/huggingface/candle/issues/1729
+    // some_float: f64,
+    some_int: i32,
+    some_bool: bool,
+    some_str: String,
+    some_list_int: Vec<i32>,
+    some_list_str: Vec<String>,
+    // Candle's pickle has a bug with float serialization
+    // https://github.com/huggingface/candle/issues/1729
+    // some_list_float: Vec<f64>,
+    some_dict: HashMap<String, String>,
+}
+
+fn main() {
+    let path = "weights_with_config.pt";
+    let top_level_key = Some("my_config");
+    let config: NetConfig = config_from_file(path, top_level_key).unwrap();
+    println!("{:#?}", config);
+}
+```
+
 ## Troubleshooting
 
 ### Adjusting the source model architecture
