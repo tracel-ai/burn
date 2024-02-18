@@ -16,7 +16,7 @@ default-run = "onnx2burn"
 [features]
 default = ["onnx", "pytorch"]
 onnx = []
-pytorch = ["burn/record-item-custom-serde", "thiserror"]
+pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 
 [dependencies]
 burn = { path = "../burn", version = "0.13.0", features = ["ndarray"] }
@@ -39,6 +39,7 @@ syn = { workspace = true, features = ["parsing"] }
 thiserror = { workspace = true, optional = true }
 tracing-core = { workspace = true }
 tracing-subscriber = { workspace = true }
+zip = { workspace = true, optional = true }
 
 [build-dependencies]
 protobuf-codegen = { workspace = true }

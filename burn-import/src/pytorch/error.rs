@@ -1,4 +1,5 @@
 use burn::record::{serde::error, RecorderError};
+use zip::result::ZipError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -7,6 +8,12 @@ pub enum Error {
 
     #[error("Candle pickle error: {0}")]
     CandlePickle(#[from] candle_core::Error),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Zip error: {0}")]
+    Zip(#[from] ZipError),
 
     // Add other kinds of errors as needed
     #[error("other error: {0}")]
