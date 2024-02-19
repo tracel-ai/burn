@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
@@ -16,6 +17,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
