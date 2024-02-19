@@ -75,7 +75,7 @@ mod tests {
     use super::*;
     use crate::{
         binary,
-        codegen::dialect::gpu::{BinaryOperation, Elem, Item, Operation, Variable},
+        codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope},
         kernel::{KernelSettings, WORKGROUP_DEFAULT},
         tests::{TestCompiler, TestRuntime},
         Runtime, WgpuDevice,
@@ -84,10 +84,10 @@ mod tests {
     #[test]
     fn can_run_kernel() {
         binary!(
-            operation: |elem: Elem| Operation::Add(BinaryOperation {
-                lhs: Variable::Input(0, Item::Scalar(elem)),
-                rhs: Variable::Input(1, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+            operation: |scope: &mut Scope, elem: Elem| Operator::Add(BinaryOperator {
+                lhs: scope.read_array(0, elem),
+                rhs: scope.read_array(1, elem),
+                out: scope.create_local(elem),
             }),
             compiler: TestCompiler,
             elem_in: f32,

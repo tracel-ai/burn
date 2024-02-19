@@ -1,4 +1,4 @@
-use super::{Body, Extension, Item};
+use super::{Extension, Item, Scope};
 use crate::codegen::dialect::gpu::WorkgroupSize;
 use std::fmt::Display;
 
@@ -31,7 +31,7 @@ pub struct ComputeShader {
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub num_workgroups: bool,
-    pub body: Body,
+    pub body: Scope,
     pub extensions: Vec<Extension>,
 }
 

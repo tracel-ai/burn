@@ -1,11 +1,24 @@
 use super::base::{Item, Variable};
 use std::fmt::Display;
 
-/// All operations that can be used in a WGSL compute shader.
+/// All instructions that can be used in a WGSL compute shader.
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Some variants might not be used with different flags
-pub enum Operation {
+pub enum Instruction {
+    DeclareVariable {
+        var: Variable,
+    },
     Add {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Index {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Modulo {
         lhs: Variable,
         rhs: Variable,
         out: Variable,
@@ -115,72 +128,99 @@ pub enum Operation {
         input: Variable,
         out: Variable,
     },
-    ReadGlobal {
-        variable: Variable,
+    Stride {
+        dim: Variable,
+        position: usize,
+        out: Variable,
     },
-    /// Read the tensor in a way to be compatible with another tensor layout.
-    ReadGlobalWithLayout {
-        variable: Variable,
-        tensor_read_pos: usize,
-        tensor_layout_pos: usize,
+    Shape {
+        dim: Variable,
+        position: usize,
+        out: Variable,
+    },
+    RangeLoop {
+        i: Variable,
+        start: Variable,
+        end: Variable,
+        instructions: Vec<Instruction>,
     },
 }
 
-impl Display for Operation {
+impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operation::Add { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} + {rhs};"))
+            Instruction::DeclareVariable { var } => {
+                let item = var.item();
+                f.write_fmt(format_args!("var {var}: {item};\n"))
             }
-            Operation::Sub { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} - {rhs};"))
+            Instruction::Add { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
-            Operation::Mul { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} * {rhs};"))
+            Instruction::Index { lhs, rhs, out } => {
+                let item = out.item();
+                let lhs = match lhs {
+                    Variable::GlobalInputArray(index, _) => format!("input_{index}_global"),
+                    Variable::GlobalOutputArray(index, _) => format!("output_{index}_global"),
+                    _ => format!("{lhs}"),
+                };
+                f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
             }
-            Operation::Div { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = {lhs} / {rhs};"))
+            Instruction::Modulo { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
-            Operation::Abs { input, out } => f.write_fmt(format_args!("let {out} = abs({input});")),
-            Operation::Exp { input, out } => f.write_fmt(format_args!("let {out} = exp({input});")),
-            Operation::Log { input, out } => f.write_fmt(format_args!("let {out} = log({input});")),
-            Operation::Clamp {
+            Instruction::Sub { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} - {rhs};\n"))
+            }
+            Instruction::Mul { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} * {rhs};\n"))
+            }
+            Instruction::Div { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} / {rhs};\n"))
+            }
+            Instruction::Abs { input, out } => f.write_fmt(format_args!("{out} = abs({input});\n")),
+            Instruction::Exp { input, out } => f.write_fmt(format_args!("{out} = exp({input});\n")),
+            Instruction::Log { input, out } => f.write_fmt(format_args!("{out} = log({input});\n")),
+            Instruction::Clamp {
                 input,
                 min_value,
                 max_value,
                 out,
             } => f.write_fmt(format_args!(
-                "let {out} = clamp({input}, {min_value}, {max_value});"
+                "{out} = clamp({input}, {min_value}, {max_value});\n"
             )),
-            Operation::Powf { lhs, rhs, out } => {
-                f.write_fmt(format_args!("let {out} = powf({lhs}, {rhs});"))
+            Instruction::Powf { lhs, rhs, out } => {
+                if rhs.is_always_scalar() {
+                    f.write_fmt(format_args!("{out} = powf_scalar({lhs}, {rhs});\n"))
+                } else {
+                    f.write_fmt(format_args!("{out} = powf({lhs}, {rhs});\n"))
+                }
             }
-            Operation::Sqrt { input, out } => {
-                f.write_fmt(format_args!("let {out} = sqrt({input});"))
+            Instruction::Sqrt { input, out } => {
+                f.write_fmt(format_args!("{out} = sqrt({input});\n"))
             }
-            Operation::Log1p { input, out } => {
-                f.write_fmt(format_args!("let {out} = log({input} + 1.0);"))
+            Instruction::Log1p { input, out } => {
+                f.write_fmt(format_args!("{out} = log({input} + 1.0);\n"))
             }
-            Operation::Cos { input, out } => f.write_fmt(format_args!("let {out} = cos({input});")),
-            Operation::Sin { input, out } => f.write_fmt(format_args!("let {out} = sin({input});")),
-            Operation::Tanh { input, out } => {
+            Instruction::Cos { input, out } => f.write_fmt(format_args!("{out} = cos({input});\n")),
+            Instruction::Sin { input, out } => f.write_fmt(format_args!("{out} = sin({input});\n")),
+            Instruction::Tanh { input, out } => {
                 #[cfg(target_os = "macos")]
-                let result = f.write_fmt(format_args!("let {out} = safe_tanh({input});"));
+                let result = f.write_fmt(format_args!("{out} = safe_tanh({input});\n"));
                 #[cfg(not(target_os = "macos"))]
-                let result = f.write_fmt(format_args!("let {out} = tanh({input});"));
+                let result = f.write_fmt(format_args!("{out} = tanh({input});\n"));
 
                 result
             }
-            Operation::Erf { input, out } => f.write_fmt(format_args!("let {out} = erf({input});")),
-            Operation::Recip { input, out } => {
-                f.write_fmt(format_args!("let {out} = 1.0 / {input};"))
+            Instruction::Erf { input, out } => f.write_fmt(format_args!("{out} = erf({input});\n")),
+            Instruction::Recip { input, out } => {
+                f.write_fmt(format_args!("{out} = 1.0 / {input};"))
             }
-            Operation::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
-            Operation::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
-            Operation::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
-            Operation::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
-            Operation::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
-            Operation::AssignGlobal { input, out } => {
+            Instruction::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
+            Instruction::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
+            Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
+            Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
+            Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Instruction::AssignGlobal { input, out } => {
                 let elem_out = out.item();
                 let elem_in = input.item();
 
@@ -211,76 +251,18 @@ impl Display for Operation {
 );"
                         )),
                         Item::Scalar(elem) => {
-                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});"))
+                            f.write_fmt(format_args!("{out}_global[id] = {elem}({input});\n"))
                         }
                     }
                 } else {
-                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});"))
+                    f.write_fmt(format_args!("{out}_global[id] = {elem_out}({input});\n"))
                 }
             }
-            Operation::AssignLocal { input, out } => {
-                let elem = out.item();
-                f.write_fmt(format_args!("let {out} = {elem}({input});"))
+            Instruction::AssignLocal { input, out } => {
+                let item = out.item();
+                f.write_fmt(format_args!("{out} = {item}({input});\n"))
             }
-            Operation::ReadGlobal { variable } => match variable {
-                Variable::Input(number, _elem) => f.write_fmt(format_args!(
-                    "let input_{number} = input_{number}_global[id];"
-                )),
-                Variable::Local(_, _) => panic!("can't read global local variable."),
-                Variable::Output(number, _elem) => f.write_fmt(format_args!(
-                    "let output_{number} = output_{number}_global[id];"
-                )),
-                Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                Variable::Constant(_, _) => panic!("Can't read global constant variable."),
-            },
-            Operation::ReadGlobalWithLayout {
-                variable,
-                tensor_read_pos: position,
-                tensor_layout_pos: position_out,
-            } => {
-                let (global, local, elem) = match variable {
-                    Variable::Input(number, elem) => (
-                        format!("input_{number}_global"),
-                        format!("input_{number}"),
-                        elem,
-                    ),
-                    Variable::Local(_, _) => panic!("can't read global local variable."),
-                    Variable::Output(number, elem) => (
-                        format!("output_{number}_global"),
-                        format!("output_{number}"),
-                        elem,
-                    ),
-                    Variable::Scalar(_, _, _) => panic!("Can't read global scalar variable."),
-                    Variable::Constant(_, _) => panic!("Can't read global constant variable."),
-                };
-
-                let offset = match elem {
-                    Item::Vec4(_) => 4,
-                    Item::Vec3(_) => 3,
-                    Item::Vec2(_) => 2,
-                    Item::Scalar(_) => 1,
-                };
-
-                f.write_fmt(format_args!(
-                    "
-var index_{local}: u32 = 0u;
-
-for (var i: u32 = 1u; i <= rank; i++) {{
-    let position = {position}u * (2u * rank);
-    let position_out = {position_out}u * (2u * rank);
-
-    let stride = info[position + i];
-    let stride_out = info[position_out + i];
-    let shape = info[position + rank + i];
-
-    index_{local} += (id * {offset}u) / stride_out % shape * stride;
-}}
-
-let {local} = {elem}({global}[index_{local} /  {offset}u]);
-"
-                ))
-            }
-            Operation::ConditionalAssign {
+            Instruction::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
@@ -301,7 +283,6 @@ let {local} = {elem}({global}[index_{local} /  {offset}u]);
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -335,7 +316,6 @@ if {cond}[3] {{
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -362,7 +342,6 @@ if {cond}[2] {{
 
                         f.write_fmt(format_args!(
                             "
-var {out}: {elem};
 if {cond}[0] {{
     {out}[0] = {lhs0};
 }} else {{
@@ -378,7 +357,6 @@ if {cond}[1] {{
                     }
                     Item::Scalar(_) => f.write_fmt(format_args!(
                         "
-var {out}: {elem};
 if {cond} {{
     {out} = {lhs};
 }} else {{
@@ -387,6 +365,29 @@ if {cond} {{
 "
                     )),
                 }
+            }
+            Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
+                "{out} = info[({position}u * (2u * rank)) + {dim} + 1u];\n"
+            )),
+            Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
+                "{out} = info[({position}u * (2u * rank)) + rank + {dim} + 1u];\n"
+            )),
+            Instruction::RangeLoop {
+                i,
+                start,
+                end,
+                instructions,
+            } => {
+                f.write_fmt(format_args!(
+                    "
+for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
+"
+                ))?;
+                for instruction in instructions {
+                    f.write_fmt(format_args!("{instruction}"))?;
+                }
+
+                f.write_str("}\n")
             }
         }
     }
@@ -412,7 +413,7 @@ fn comparison(
 
             f.write_fmt(format_args!(
                 "
-let {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
+{out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
 "
             ))
         }
@@ -426,7 +427,7 @@ let {out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lh
 
             f.write_fmt(format_args!(
                 "
-let {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
+{out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
 "
             ))
         }
@@ -438,12 +439,12 @@ let {out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
 
             f.write_fmt(format_args!(
                 "
-let {out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
+{out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
 "
             ))
         }
         Item::Scalar(_) => match rhs.item() {
-            Item::Scalar(_) => f.write_fmt(format_args!("let {out} = {lhs} {op} {rhs};")),
+            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};\n")),
             _ => panic!("Can only compare a scalar when the output is a scalar"),
         },
     }
