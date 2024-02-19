@@ -3,7 +3,9 @@ use syn::Generics;
 
 /// Basic trait to be implemented for record generation.
 pub(crate) trait RecordItemCodegen {
-    /// Generate the record item type (i.e a struct)
+    /// Initialize the record item.
+    fn from_ast(ast: &syn::DeriveInput) -> Self;
+    /// Generate the record item type.
     fn gen_item_type(
         &self,
         item_name: &Ident,
