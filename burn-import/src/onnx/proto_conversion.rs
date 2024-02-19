@@ -189,7 +189,7 @@ pub fn convert_node_proto(node: &NodeProto, graph_io: &OnnxGraphIO) -> Node {
         .input
         .clone()
         .into_iter()
-        .map(|x| graph_io.init_in(&x))
+        .map(|x| graph_io.init_in(x))
         .collect();
 
     let outputs = node.output.clone().into_iter().map(Argument::new).collect();

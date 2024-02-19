@@ -1,4 +1,4 @@
-use std::{cell::RefMut, iter::Peekable, slice::Iter};
+use std::{iter::Peekable, slice::Iter};
 
 use super::{
     from_onnx::OnnxGraphIO,
@@ -174,19 +174,6 @@ fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
 
 /// Helper function to convert and remove the Add node
 fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
-    let bias_input = if bias_node.inputs[0].value.is_some() {
-        bias_node.inputs[0].clone()
-    } else {
-        bias_node.inputs[1].clone()
-    };
-
-    // Push the bias input and update the output name
-    current_node.inputs.push(bias_input);
-    current_node.outputs[0].name = bias_node.outputs[0].name.clone();
-}
-
-/// Helper function to convert and remove the Add node
-pub(crate) fn convert_node2(bias_node: &Node, mut current_node: RefMut<'_, Node>) {
     let bias_input = if bias_node.inputs[0].value.is_some() {
         bias_node.inputs[0].clone()
     } else {

@@ -55,6 +55,11 @@ impl OnnxGraphIO {
     ) -> Self {
         let mut old_io_names = HashMap::new();
         let mut in_count = 1;
+        let constants = initializers
+            .iter()
+            .map(|x| (x.name.clone(), Argument::from_initializer(x)))
+            .collect::<HashMap<String, Argument>>();
+
         let inputs = inputs
             .iter()
             .enumerate()
@@ -62,6 +67,12 @@ impl OnnxGraphIO {
                 let in_name = format!("input{}", in_count);
                 old_io_names.insert(x.name.clone(), IOEntry::In(i));
                 let mut arg = Argument::try_from(x.clone()).unwrap();
+                if let Some(initial_arg) = constants.get(&x.name) {
+                    if arg.value.is_none() {
+                        arg.copy_value(initial_arg);
+                    }
+                }
+
                 in_count += 1;
                 arg.name = in_name;
                 arg
@@ -116,29 +127,30 @@ impl OnnxGraphIO {
 
     ///Used to initialize the input arguments for nodes. Names need to remain the same because
     /// currently the old names are the key for accessing the Argument
-    pub fn init_in(&self, proto_str: &str) -> Argument {
-        match self.old_io_names.get(proto_str) {
+    pub fn init_in(&self, proto_str: String) -> Argument {
+        match self.old_io_names.get(&proto_str) {
             None => {
-                if let Some(init_arg) = self.initializers.get(proto_str) {
+                if let Some(init_arg) = self.initializers.get(&proto_str) {
                     init_arg.clone()
                 } else {
-                    Argument::new(proto_str.to_string())
+                    Argument::new(proto_str)
                 }
             }
 
             Some(IOEntry::In(i)) => {
                 let mut arg = self.inputs[*i].clone();
-                arg.name = proto_str.to_string();
+
+                arg.name = proto_str;
                 arg.passed = true;
                 arg
             }
             Some(IOEntry::Node(i)) => {
                 let mut arg = self.node_out[*i].clone();
-                arg.name = proto_str.to_string();
+                arg.name = proto_str;
                 arg
             }
             Some(IOEntry::Out(_)) => {
-                panic!("graph out {} can't be an input", &proto_str)
+                panic!("graph output {} can't be a Node input", &proto_str)
             }
         }
     }
@@ -206,9 +218,13 @@ impl OnnxGraphIO {
     fn get_new_name(&mut self, old_name: &str) -> Option<String> {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => {
-                //set the input as passed since a node is referencing it
-                self.inputs[*i].passed = true;
-                Some(self.inputs[*i].name.clone())
+                if self.initializers.contains_key(old_name) {
+                    None
+                } else {
+                    //set the input as passed since a node is referencing it
+                    self.inputs[*i].passed = true;
+                    Some(self.inputs[*i].name.clone())
+                }
             }
             Some(IOEntry::Out(_)) => {
                 panic!(
@@ -259,9 +275,9 @@ impl ONNXGraphBuilder {
 
             coalesce(&mut node, &mut node_iter, &graph_io);
             self.handle_node_renaming(&mut node);
-            self.handle_unsqueeze(&mut node, &graph_io);
             self.handle_identity(&mut node, and_idx);
             self.check_constants(&mut node, and_idx, &mut graph_io);
+            self.handle_unsqueeze(&mut node, &graph_io);
 
             if node.node_type != NodeType::Identity {
                 dim_inference(&mut node, &mut graph_io);
@@ -284,17 +300,15 @@ impl ONNXGraphBuilder {
             mut outputs,
             ..
         } = graph_io;
+
         // Remove the graph inputs/output that are not used by any node
         remove_unused_graph_inputs(&mut inputs, &mut outputs);
-        //remove_unused_graph_inputs(&mut inputs, &mut outputs, &old_io_names);
         self.inputs = inputs;
         self.outputs = outputs;
     }
 
     fn handle_node_renaming(&mut self, node: &mut Node) {
-        if &node.node_type == &NodeType::Linear {
-            log::debug!("rename linear node {:?}", node);
-        }
+        log::debug!("renaming node {:?}", &node.name);
         self.node_name_counter
             .entry(node.node_type.clone())
             .and_modify(|e| *e += 1)
@@ -308,43 +322,43 @@ impl ONNXGraphBuilder {
     }
 
     fn check_constants(&mut self, node: &mut Node, i: usize, _graph_io: &mut OnnxGraphIO) {
-        if &node.node_type == &NodeType::Constant
-            || (&node.node_type == &NodeType::Identity && node.inputs[0].value.is_some())
+        if node.node_type == NodeType::Constant
+            || (node.node_type == NodeType::Identity && node.inputs[0].value.is_some())
         {
             self.constants_map.insert(node.outputs[0].name.clone(), i);
         } else if self.constants_types.contains(&node.node_type) {
-            log::debug!("lift const type match for node {:?}\n\n", &node);
+            log::debug!("checking node {} for constants", &node.name);
             for input in node.inputs.iter_mut().skip(1) {
                 log::debug!("checking input {:?} for const", input);
-                log::debug!("constants map {:?}", &self.constants_map);
                 if let Some(const_idx) = self.constants_map.get(&input.name) {
-                    log::debug!("\nMATCH\n");
                     let constant = &self.nodes[*const_idx];
-                    log::debug!("constant node {:?}", constant);
+                    log::debug!(
+                        "input {} matched constant node {}",
+                        &input.name,
+                        &constant.name
+                    );
                     if !constant.inputs.is_empty() && constant.inputs[0].value.is_some() {
                         // The value comes from Identity inputs
                         input.value = constant.inputs[0].value.clone();
                         input.ty = constant.inputs[0].ty.clone();
-                        //graph_io.update_value(input);
                     } else {
                         let arg = convert_constant_value(constant);
                         input.value = arg.value;
                         input.ty = arg.ty;
-                        //graph_io.update_value(input);
                     }
                     self.nodes_to_remove.insert(*const_idx);
-                    log::debug! {"\nupdated input {:?}", input};
                 }
             }
         }
     }
 
+    ///check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
+    /// Needs to be called after node renaming to ensure that the rhs name is correct
+    /// Needs to be called after constant lifting to ensure that the rhs value exists
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
-        if node.node_type == NodeType::Unsqueeze {
-            if node.inputs[1].value.is_none() {
-                if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
-                    remap_unsqueeze_to_reshape(node, in_arg);
-                }
+        if node.node_type == NodeType::Unsqueeze && node.inputs[1].value.is_none() {
+            if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
+                remap_unsqueeze_to_reshape(node, in_arg);
             }
         }
     }
@@ -404,8 +418,8 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 
     let ONNXGraphBuilder {
         nodes,
-        inputs: mut inner_inputs,
-        outputs: mut inner_outputs,
+        inputs: inner_inputs,
+        outputs: inner_outputs,
         ..
     } = builder;
 
@@ -470,7 +484,6 @@ fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
 fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     log::debug!("checking inputs for node {:?}", &node.name);
     for node_input in node.inputs.iter_mut() {
-        log::debug!("old output names {:?}", &graph_io.old_io_names);
         //graph_io.add_input(&node_input.name, i);
         if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
             node_input.passed = true;
