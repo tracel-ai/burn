@@ -48,6 +48,7 @@ pub(crate) struct OnnxGraphIO {
 }
 
 impl OnnxGraphIO {
+    
     pub(crate) fn new(
         inputs: &Vec<ValueInfoProto>,
         outputs: &Vec<ValueInfoProto>,
@@ -202,7 +203,9 @@ impl OnnxGraphIO {
         }
     }
 
-    pub(crate) fn get(&self, old_name: &str) -> Option<&Argument> {
+    ///used by handle unsqeeze to remap the output of a node to a new name
+    ///expected match if it exists is either a graph input or graph output
+    pub(crate) fn get_node_output(&self, old_name: &str) -> Option<&Argument> {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => self.inputs.get(*i),
             Some(IOEntry::Out(i)) => self.outputs.get(*i),
@@ -218,6 +221,11 @@ impl OnnxGraphIO {
     fn get_new_name(&mut self, old_name: &str) -> Option<String> {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => {
+                //FIXME: technically in the spec, initializers are default values
+                //for optional inputs, but implementing that would require reworking
+                //the way the graph is built, and it's not clear burn users are using initializers
+                //in that way
+                // see https://github.com/onnx/onnx/issues/2660
                 if self.initializers.contains_key(old_name) {
                     None
                 } else {
@@ -357,7 +365,7 @@ impl ONNXGraphBuilder {
     /// Needs to be called after constant lifting to ensure that the rhs value exists
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
         if node.node_type == NodeType::Unsqueeze && node.inputs[1].value.is_none() {
-            if let Some(in_arg) = graph_io.get(&node.outputs[0].name) {
+            if let Some(in_arg) = graph_io.get_node_output(&node.outputs[0].name) {
                 remap_unsqueeze_to_reshape(node, in_arg);
             }
         }
