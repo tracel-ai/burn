@@ -18,6 +18,9 @@ pub mod grads;
 pub mod ops;
 
 pub(crate) mod checkpoint;
+// Exposed for backend extension
+pub use checkpoint::base::Checkpointer;
+
 pub(crate) mod graph;
 pub(crate) mod tensor;
 pub(crate) mod utils;

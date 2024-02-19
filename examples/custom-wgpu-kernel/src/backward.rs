@@ -4,7 +4,7 @@ use super::{AutodiffBackend, Backend};
 use burn::backend::autodiff::{
     grads::Gradients,
     ops::{broadcast_shape, Backward, Ops, OpsKind},
-    Autodiff,
+    Autodiff, Checkpointer,
 };
 use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, Wgpu};
 use burn::tensor::Shape;
@@ -41,7 +41,12 @@ impl<B: Backend> Backend for Autodiff<B> {
                 Shape<D>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
                 // Get the nodes of each variable.
                 let [node_lhs, node_rhs, node_bias] = ops.parents;
                 // Fetch the gradient for the current node.

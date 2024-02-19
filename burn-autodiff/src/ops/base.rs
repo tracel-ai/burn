@@ -61,10 +61,14 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
     marker: PhantomData<Mode>,
 }
 
-/// Init operation tag.
+/// Operation is initialized
 pub struct Init;
-/// Compute properties decided operation tag.
-pub struct ComputePropertyChosen;
+/// Operation has been tagged as memory bound
+pub struct MemoryBound;
+/// Memory bound operation has received its RetroForward
+pub struct MemoryBoundRetroForward;
+/// Operation's compute property is fixed
+pub struct ComputePropertyDone;
 /// Tracked operation tag.
 pub struct Tracked;
 /// Untracked operation tag.
@@ -77,7 +81,7 @@ where
 {
     /// Indicates that the operation is compute bound, meaning its computation
     /// is heavy and should not be recomputed
-    pub fn compute_bound(self) -> OpsPrep<BO, B, S, D, N, ComputePropertyChosen> {
+    pub fn compute_bound(self) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -91,16 +95,28 @@ where
     /// Indicates that the operation is memory bound, meaning its computation
     /// is light and can be recomputed
     ///
-    /// Note: since the operation may not checkpoint its parents but may need them indirectly
-    /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
-    pub fn memory_bound<R: RetroForward>(
-        mut self,
+    pub fn memory_bound(self) -> OpsPrep<BO, B, S, D, N, MemoryBound> {
+        OpsPrep::new(
+            self.nodes,
+            self.graphs,
+            self.requirement,
+            self.backward,
+            self.compute_property,
+            self.checkpointing_actions,
+        )
+    }
+}
+
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, MemoryBound>
+where
+    B: Backend,
+    BO: Backward<B, D, N, State = S>,
+{
+    /// When memory bound, an operation needs to save its RetroForward
+    pub fn retro_forward<R: RetroForward>(
+        self,
         retro_forward: R,
-        tensors_to_checkpoint: Vec<&AutodiffTensor<B, D>>,
-    ) -> OpsPrep<BO, B, S, D, N, ComputePropertyChosen> {
-        for tensor in tensors_to_checkpoint {
-            checkpoint(&mut self.checkpointing_actions.backup_actions, tensor);
-        }
+    ) -> OpsPrep<BO, B, S, D, N, MemoryBoundRetroForward> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -114,7 +130,31 @@ where
     }
 }
 
-impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, ComputePropertyChosen>
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, MemoryBoundRetroForward>
+where
+    B: Backend,
+    BO: Backward<B, D, N, State = S>,
+{
+    /// Since the operation may not checkpoint its parents but may need them indirectly
+    /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
+    pub fn parents<'a, A: IntoIterator<Item = &'a AutodiffTensor<B, D>>>(
+        mut self,
+        parents: A,
+    ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
+        for tensor in parents.into_iter() {
+            checkpoint(&mut self.checkpointing_actions.backup_actions, tensor);
+        }
+        OpsPrep::new(
+            self.nodes,
+            self.graphs,
+            self.requirement,
+            self.backward,
+            self.compute_property,
+            self.checkpointing_actions,
+        )
+    }
+}
+impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, ComputePropertyDone>
 where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
@@ -131,7 +171,7 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, ComputePropertyChosen>
+impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, ComputePropertyDone>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -278,6 +318,7 @@ fn checkpoint<B: Backend, const D2: usize>(
             })
         }
     }
+
     tensor.node.id.clone()
 }
 

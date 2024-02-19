@@ -149,10 +149,12 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
-            .memory_bound(
-                RetroAdd::<B, D>::new(lhs.node.id.clone(), rhs.node.id.clone()),
-                vec![&lhs, &rhs],
-            )
+            .memory_bound()
+            .retro_forward(RetroAdd::<B, D>::new(
+                lhs.node.id.clone(),
+                rhs.node.id.clone(),
+            ))
+            .parents([&lhs, &rhs])
             .stateful()
         {
             OpsKind::Tracked(preps) => preps.finish(
@@ -202,10 +204,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
         AddScalar
             .prepare([lhs.node.clone()], [lhs.graph.clone()])
-            .memory_bound(
-                RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs),
-                vec![&lhs],
-            )
+            .memory_bound()
+            .retro_forward(RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .parents([&lhs])
             .stateless(B::float_add_scalar(lhs.primitive, rhs))
     }
 
@@ -326,10 +327,12 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
-            .memory_bound(
-                RetroMul::<B, D>::new(lhs.node.id.clone(), rhs.node.id.clone()),
-                vec![&lhs, &rhs],
-            )
+            .memory_bound()
+            .retro_forward(RetroMul::<B, D>::new(
+                lhs.node.id.clone(),
+                rhs.node.id.clone(),
+            ))
+            .parents([&lhs, &rhs])
             .stateful()
         {
             OpsKind::Tracked(mut prep) => {
@@ -383,10 +386,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
         match MulScalar
             .prepare([lhs.node.clone()], [lhs.graph.clone()])
-            .memory_bound(
-                RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs),
-                vec![&lhs],
-            )
+            .memory_bound()
+            .retro_forward(RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs))
+            .parents([&lhs])
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(rhs, B::float_mul_scalar(lhs.primitive, rhs)),
