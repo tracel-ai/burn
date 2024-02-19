@@ -70,7 +70,7 @@ impl<R: Runtime> FusionBackend for JitBackend<R> {
     type OptimizationState = WgpuOptimizationState;
     type Optimization = WgpuOptimization<R>;
     type FusionDevice = R::Device;
-    type Handle = WgpuFusionHandle<R>;
+    type Handle = JitFusionHandle<R>;
     type FusionClient = MutexFusionClient<Self>;
 
     fn optimizations(
@@ -126,7 +126,7 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 }
 
 /// Handle to be used when fusing operations.
-pub struct WgpuFusionHandle<R: Runtime> {
+pub struct JitFusionHandle<R: Runtime> {
     /// Compute client for wgpu.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
@@ -136,13 +136,17 @@ pub struct WgpuFusionHandle<R: Runtime> {
     pub(crate) strides: Vec<usize>,
 }
 
-impl<R: Runtime> core::fmt::Debug for WgpuFusionHandle<R> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+impl<R: Runtime> core::fmt::Debug for JitFusionHandle<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "JitFusionHandle {{ device: {:?}, runtime: {}}}",
+            self.device,
+            R::name(),
+        ))
     }
 }
 
-impl<R: Runtime> Clone for WgpuFusionHandle<R> {
+impl<R: Runtime> Clone for JitFusionHandle<R> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -153,10 +157,10 @@ impl<R: Runtime> Clone for WgpuFusionHandle<R> {
     }
 }
 
-unsafe impl<R: Runtime> Send for WgpuFusionHandle<R> {}
-unsafe impl<R: Runtime> Sync for WgpuFusionHandle<R> {}
+unsafe impl<R: Runtime> Send for JitFusionHandle<R> {}
+unsafe impl<R: Runtime> Sync for JitFusionHandle<R> {}
 
-impl<R: Runtime> WgpuFusionHandle<R> {
+impl<R: Runtime> JitFusionHandle<R> {
     pub(crate) fn into_tensor<const D: usize, E: JitElement>(
         self,
         shape: Shape<D>,
@@ -172,7 +176,7 @@ impl<R: Runtime> WgpuFusionHandle<R> {
     }
 }
 
-impl<R: Runtime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for WgpuFusionHandle<R> {
+impl<R: Runtime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for JitFusionHandle<R> {
     fn from(value: JitTensor<R, E, D>) -> Self {
         Self {
             client: value.client,

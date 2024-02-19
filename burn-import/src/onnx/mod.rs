@@ -11,4 +11,4 @@ mod to_burn;
 pub use to_burn::*;
 
 pub use from_onnx::parse_onnx;
-pub use ir::ONNXGraph;
+pub use ir::OnnxGraph;

@@ -12,19 +12,19 @@ use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::AutodiffBackend, Tensor};
 use burn_tensor::backend::Backend;
 
-/// Configuration to create the [RMSProp](RMSProp) optimizer.
+/// Configuration to create the [RmsProp](RmsProp) optimizer.
 #[derive(Config)]
-pub struct RMSPropConfig {
+pub struct RmsPropConfig {
     /// Smoothing constant.
     #[config(default = 0.99)]
     alpha: f32,
-    /// momentum for RMSProp.
+    /// momentum for RmsProp.
     #[config(default = 0.9)]
     momentum: f32,
     /// A value required for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
-    /// if True, compute the centered RMSProp, the gradient is normalized by an estimation of its variance
+    /// if True, compute the centered RmsProp, the gradient is normalized by an estimation of its variance
     #[config(default = false)]
     centered: bool,
     /// [Weight decay](WeightDecayConfig) config.
@@ -33,22 +33,22 @@ pub struct RMSPropConfig {
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-impl RMSPropConfig {
-    /// Initialize RMSProp optimizer.
+impl RmsPropConfig {
+    /// Initialize RmsProp optimizer.
     ///
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
-    ) -> OptimizerAdaptor<RMSProp<B::InnerBackend>, M, B> {
+    ) -> OptimizerAdaptor<RmsProp<B::InnerBackend>, M, B> {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
-        let mut optim = OptimizerAdaptor::from(RMSProp {
+        let mut optim = OptimizerAdaptor::from(RmsProp {
             alpha: self.alpha,
             centered: self.centered,
             weight_decay,
-            momentum: RMSPropMomentum {
+            momentum: RmsPropMomentum {
                 momentum: self.momentum,
                 epsilon: self.epsilon,
             },
@@ -63,18 +63,18 @@ impl RMSPropConfig {
 }
 
 /// Optimizer that implements stochastic gradient descent with momentum.
-/// The optimizer can be configured with [RMSPropConfig](RMSPropConfig).
-pub struct RMSProp<B: Backend> {
+/// The optimizer can be configured with [RmsPropConfig](RmsPropConfig).
+pub struct RmsProp<B: Backend> {
     alpha: f32,
     // epsilon: f32,
     centered: bool,
     // momentum: Option<Momentum<B>>,
-    momentum: RMSPropMomentum,
+    momentum: RmsPropMomentum,
     weight_decay: Option<WeightDecay<B>>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
-    type State<const D: usize> = RMSPropState<B, D>;
+impl<B: Backend> SimpleOptimizer<B> for RmsProp<B> {
+    type State<const D: usize> = RmsPropState<B, D>;
 
     fn step<const D: usize>(
         &self,
@@ -117,7 +117,7 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
                 .transform(grad, state_centered, state_momentum);
 
         // transition state
-        let state = RMSPropState::new(state_square_avg, state_centered, state_momentum);
+        let state = RmsPropState::new(state_square_avg, state_centered, state_momentum);
 
         // tensor param transform
         let delta = grad.mul_scalar(lr);
@@ -135,12 +135,12 @@ impl<B: Backend> SimpleOptimizer<B> for RMSProp<B> {
     }
 }
 
-/// State of [RMSProp](RMSProp)
+/// State of [RmsProp](RmsProp)
 #[derive(Record, Clone, new)]
-pub struct RMSPropState<B: Backend, const D: usize> {
+pub struct RmsPropState<B: Backend, const D: usize> {
     square_avg: SquareAvgState<B, D>,
     centered: CenteredState<B, D>,
-    momentum: Option<RMSPropMomentumState<B, D>>,
+    momentum: Option<RmsPropMomentumState<B, D>>,
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
@@ -249,24 +249,24 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
     }
 }
 
-/// [RMSPropMomentum](RMSPropMomentum) is to store config status for optimizer.
-/// (, which is stored in [optimizer](RMSProp) itself and not passed in during `step()` calculation)
-pub struct RMSPropMomentum {
+/// [RmsPropMomentum](RmsPropMomentum) is to store config status for optimizer.
+/// (, which is stored in [optimizer](RmsProp) itself and not passed in during `step()` calculation)
+pub struct RmsPropMomentum {
     momentum: f32,
     epsilon: f32,
 }
 
-impl RMSPropMomentum {
-    /// transform [grad](Tensor) and [RMSPropMomentumState] to the next step
+impl RmsPropMomentum {
+    /// transform [grad](Tensor) and [RmsPropMomentumState] to the next step
     fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
         centered_state: CenteredState<B, D>,
-        momentum_state: Option<RMSPropMomentumState<B, D>>,
+        momentum_state: Option<RmsPropMomentumState<B, D>>,
     ) -> (
         Tensor<B, D>,
         CenteredState<B, D>,
-        Option<RMSPropMomentumState<B, D>>,
+        Option<RmsPropMomentumState<B, D>>,
     ) {
         let grad = grad.div(centered_state.avg.clone().sqrt().add_scalar(self.epsilon));
 
@@ -278,7 +278,7 @@ impl RMSPropMomentum {
             (
                 buf.clone(),
                 centered_state,
-                Some(RMSPropMomentumState { buf }),
+                Some(RmsPropMomentumState { buf }),
             )
         } else {
             (grad, centered_state, None)
@@ -286,13 +286,13 @@ impl RMSPropMomentum {
     }
 }
 
-/// [RMSPropMomentumState](RMSPropMomentumState) is to store and pass optimizer step params.
+/// [RmsPropMomentumState](RmsPropMomentumState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
-pub struct RMSPropMomentumState<B: Backend, const D: usize> {
+pub struct RmsPropMomentumState<B: Backend, const D: usize> {
     buf: Tensor<B, D>,
 }
 
-impl<B: Backend, const D: usize> RMSPropMomentumState<B, D> {
+impl<B: Backend, const D: usize> RmsPropMomentumState<B, D> {
     /// Moves the state to a device.
     ///
     /// # Arguments
@@ -378,7 +378,7 @@ mod tests {
         )
         .require_grad();
 
-        let mut optimizer = RMSPropConfig::new()
+        let mut optimizer = RmsPropConfig::new()
             .with_alpha(0.99)
             .with_epsilon(1e-8)
             .with_weight_decay(WeightDecayConfig::new(0.05).into())
@@ -453,7 +453,7 @@ mod tests {
         )
         .require_grad();
 
-        let mut optimizer = RMSPropConfig::new()
+        let mut optimizer = RmsPropConfig::new()
             .with_alpha(0.99)
             .with_epsilon(1e-8)
             .with_weight_decay(WeightDecayConfig::new(0.05).into())
@@ -529,9 +529,9 @@ mod tests {
     }
 
     fn create_rmsprop(
-    ) -> OptimizerAdaptor<RMSProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    ) -> OptimizerAdaptor<RmsProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
     {
-        RMSPropConfig {
+        RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,
             centered: false,

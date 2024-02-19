@@ -1,6 +1,4 @@
-use crate::codegen::dialect::gpu::{
-    BinaryOperation, Elem, Item, Operation, UnaryOperation, Variable,
-};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
 use crate::{binary, Runtime};
 use crate::{element::JitElement, tensor::JitTensor, unary};
 use burn_compute::client::ComputeClient;
@@ -25,9 +23,9 @@ pub fn full_device<R: Runtime, E: JitElement, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     unary!(
-        operation: |elem: Elem| Operation::AssignLocal(UnaryOperation {
-            input: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::AssignLocal(UnaryOperator {
+            input: scope.read_scalar(0, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: empty; value,
@@ -84,10 +82,10 @@ pub fn add<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Add(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Add(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -100,10 +98,10 @@ pub fn add_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Add(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Add(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -116,10 +114,10 @@ pub fn sub<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Sub(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Sub(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -132,10 +130,10 @@ pub fn sub_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Sub(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Sub(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -148,10 +146,10 @@ pub fn mul<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Mul(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Mul(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -164,10 +162,10 @@ pub fn mul_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Mul(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Mul(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -180,10 +178,10 @@ pub fn div<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Div(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Div(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -196,10 +194,10 @@ pub fn div_scalar<R: Runtime, E: JitElement, const D: usize>(
     rhs: E,
 ) -> JitTensor<R, E, D> {
     unary!(
-        operation: |elem: Elem| Operation::Div(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Scalar(0, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Div(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_scalar(0, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,
@@ -212,10 +210,10 @@ pub fn pow<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     binary!(
-        operation: |elem: Elem| Operation::Powf(BinaryOperation {
-            lhs: Variable::Input(0, Item::Scalar(elem)),
-            rhs: Variable::Input(1, Item::Scalar(elem)),
-            out: Variable::Local(0, Item::Scalar(elem)),
+        operation: |scope: &mut Scope, elem: Elem| Operator::Powf(BinaryOperator {
+            lhs: scope.read_array(0, elem),
+            rhs: scope.read_array(1, elem),
+            out: scope.create_local(elem),
         }),
         runtime: R,
         input: lhs; rhs,

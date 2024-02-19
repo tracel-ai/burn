@@ -5,17 +5,17 @@ use burn_tensor::{backend::Backend, Tensor};
 
 /// Calculate the mean squared error loss from the input logits and the targets.
 #[derive(Clone, Debug)]
-pub struct MSELoss<B: Backend> {
+pub struct MseLoss<B: Backend> {
     backend: PhantomData<B>,
 }
 
-impl<B: Backend> Default for MSELoss<B> {
+impl<B: Backend> Default for MseLoss<B> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> MSELoss<B> {
+impl<B: Backend> MseLoss<B> {
     /// Create the criterion.
     pub fn new() -> Self {
         Self {
@@ -67,7 +67,7 @@ mod tests {
         let targets =
             Tensor::<TestBackend, 2>::from_data(Data::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
-        let mse = MSELoss::new();
+        let mse = MseLoss::new();
         let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());
         let loss = mse.forward(logits.clone(), targets.clone(), Reduction::Auto);
         let loss_sum = mse.forward(logits, targets, Reduction::Sum);

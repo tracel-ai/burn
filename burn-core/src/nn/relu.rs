@@ -8,9 +8,9 @@ use crate::tensor::Tensor;
 ///
 /// `y = max(0, x)`
 #[derive(Module, Clone, Debug, Default)]
-pub struct ReLU {}
+pub struct Relu {}
 
-impl ReLU {
+impl Relu {
     /// Create the module.
     pub fn new() -> Self {
         Self {}

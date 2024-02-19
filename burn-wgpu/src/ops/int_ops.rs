@@ -1,5 +1,5 @@
 use super::numeric;
-use crate::codegen::dialect::gpu::{Elem, Item, Operation, UnaryOperation, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::reduce::{self, init_reduce_output};
 use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
@@ -281,9 +281,9 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operation: |elem: Elem| Operation::Abs(UnaryOperation {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
+            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
+                input: scope.read_array(0, Item::Scalar(elem)),
+                out: scope.create_local(elem),
             }),
             runtime: R,
             input: tensor,
