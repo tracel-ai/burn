@@ -146,23 +146,26 @@ impl If {
 
 impl IfElse {
     /// Registers a range loop to the given scope.
-    pub fn register<F_IF: Fn(&mut Scope), F_ELSE: Fn(&mut Scope)>(
+    pub fn register<IF, ELSE>(
         parent_scope: &mut Scope,
         cond: Variable,
-        func_if: F_IF,
-        func_else: F_ELSE,
-    ) {
+        func_if: IF,
+        func_else: ELSE,
+    ) where
+        IF: Fn(&mut Scope),
+        ELSE: Fn(&mut Scope),
+    {
         let mut scope_if = parent_scope.child();
         let mut scope_else = parent_scope.child();
+
         func_if(&mut scope_if);
         func_else(&mut scope_else);
 
-        let op = Self {
+        parent_scope.register(Branch::IfElse(Self {
             cond,
             scope_if,
             scope_else,
-        };
-        parent_scope.register(Branch::IfElse(op));
+        }));
     }
 }
 
@@ -180,13 +183,12 @@ impl RangeLoop {
 
         func(i, &mut scope);
 
-        let op = Self {
+        parent_scope.register(Loop::Range(Self {
             i,
             start,
             end,
             scope,
-        };
-        parent_scope.register(Loop::Range(op));
+        }));
     }
 }
 

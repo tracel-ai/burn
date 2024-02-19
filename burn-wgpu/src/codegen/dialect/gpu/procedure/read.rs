@@ -45,7 +45,7 @@ impl ReadGlobalWithLayout {
             return Some(Self {
                 globals,
                 outs,
-                layout: self.layout.clone(),
+                layout: self.layout,
             });
         }
 

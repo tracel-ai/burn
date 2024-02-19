@@ -388,7 +388,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Assign(op) => wgsl::Instruction::AssignLocal {
+            gpu::Operator::Assign(op) => wgsl::Instruction::Assign {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },

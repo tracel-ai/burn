@@ -9,7 +9,7 @@ use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
-use crate::kernel::{self, matmul, reduce};
+use crate::kernel::{self, reduce};
 use crate::tensor::JitTensor;
 use crate::Runtime;
 use crate::{unary, JitBackend};
@@ -146,18 +146,16 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        let out = matmul::init_matmul_output(&lhs, &rhs);
-        matmul::matmul_mem_coalescing_default(lhs, rhs, out)
-        // #[cfg(feature = "autotune")]
-        // {
-        //     matmul_autotune(lhs, rhs)
-        // }
+        #[cfg(feature = "autotune")]
+        {
+            matmul_autotune(lhs, rhs)
+        }
 
-        // #[cfg(not(feature = "autotune"))]
-        // {
-        //     let out = init_matmul_output(&lhs, &rhs);
-        //     matmul_tiling_2d_vec4(lhs, rhs, out)
-        // }
+        #[cfg(not(feature = "autotune"))]
+        {
+            let out = init_matmul_output(&lhs, &rhs);
+            matmul_tiling_2d_vec4(lhs, rhs, out)
+        }
     }
 
     fn float_swap_dims<const D: usize>(
