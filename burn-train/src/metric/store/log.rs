@@ -44,7 +44,7 @@ impl EventStore for LogEventStore {
                 Split::Valid => self
                     .loggers_valid
                     .iter_mut()
-                    .for_each(|logger| logger.end_epoch(epoch + 1)),
+                    .for_each(|logger| logger.end_epoch(epoch)),
             },
         }
     }
