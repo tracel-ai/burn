@@ -169,13 +169,56 @@ impl Display for Instruction {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
             Instruction::Index { lhs, rhs, out } => {
-                let item = out.item();
-                let lhs = match lhs {
-                    Variable::GlobalInputArray(index, _) => format!("input_{index}_global"),
-                    Variable::GlobalOutputArray(index, _) => format!("output_{index}_global"),
-                    _ => format!("{lhs}"),
-                };
-                f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
+                // println!("Index {out:?} = {lhs:?}[{rhs:?}]");
+                // if out.item() == lhs.item() {
+                //     f.write_fmt(format_args!("{out} = {lhs}[{rhs}];\n"))
+                // } else {
+                    match rhs.item() {
+                        Item::Vec4(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+                            let lhs2 = lhs.index(2);
+                            let lhs3 = lhs.index(3);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+                            let rhs2 = rhs.index(2);
+                            let rhs3 = rhs.index(3);
+
+                            f.write_fmt(format_args!("{out} = {elem}({lhs0}[{rhs0}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs1}[{rhs1}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs2}[{rhs2}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs3}[{rhs3}]);\n"))
+                        }
+                        Item::Vec3(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+                            let lhs2 = lhs.index(2);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+                            let rhs2 = rhs.index(2);
+
+                            f.write_fmt(format_args!("{out} = {elem}({lhs0}[{rhs0}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs1}[{rhs1}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs2}[{rhs2}]);\n"))
+                        }
+                        Item::Vec2(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+
+                            f.write_fmt(format_args!("{out} = {elem}({lhs0}[{rhs0}]);\n"))?;
+                            f.write_fmt(format_args!("{out} = {elem}({lhs1}[{rhs1}]);\n"))
+                        }
+                        Item::Scalar(_elem) => {
+                            let item = out.item();
+                            f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
+                        }
+                    }
+                // }
             }
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
@@ -233,8 +276,58 @@ impl Display for Instruction {
             Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
             Instruction::AssignLocal { input, out } => {
-                let item = out.item();
-                f.write_fmt(format_args!("{out} = {item}({input});\n"))
+                // println!("Asssign {out:?} = {input:?}");
+                // if out.item() == input.item() {
+                //     f.write_fmt(format_args!("{out} = {input};\n"))
+                // } else {
+                    match out.item() {
+                        Item::Vec4(elem) => {
+                            let input0 = input.index(0);
+                            let input1 = input.index(1);
+                            let input2 = input.index(2);
+                            let input3 = input.index(3);
+
+                            f.write_fmt(format_args!(
+                                "{out} = vec4(
+    {elem}({input0}),
+    {elem}({input1}),
+    {elem}({input2}),
+    {elem}({input3}),
+);
+"
+                            ))
+                        }
+                        Item::Vec3(elem) => {
+                            let input0 = input.index(0);
+                            let input1 = input.index(1);
+                            let input2 = input.index(2);
+
+                            f.write_fmt(format_args!(
+                                "{out} = vec3(
+    {elem}({input0}),
+    {elem}({input1}),
+    {elem}({input2}),
+);
+"
+                            ))
+                        }
+                        Item::Vec2(elem) => {
+                            let input0 = input.index(0);
+                            let input1 = input.index(1);
+
+                            f.write_fmt(format_args!(
+                                "{out} = vec2(
+    {elem}({input0}),
+    {elem}({input1}),
+);
+"
+                            ))
+                        }
+                        Item::Scalar(elem) => {
+                            f.write_fmt(format_args!("{out} = {elem}({input});\n"))
+                        }
+                    }
+                // }
             }
             Instruction::ConditionalAssign {
                 cond,
@@ -364,8 +457,62 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                 f.write_str("}\n")
             }
             Instruction::IndexAssign { lhs, rhs, out } => {
-                let item = out.item();
-                f.write_fmt(format_args!("{out}[{lhs}] = {item}({rhs});"))
+                // println!("IndexAssign {out:?}[{lhs:?}] = {rhs:?}");
+                //if out.item() == rhs.item() {
+                //    f.write_fmt(format_args!("{out}[{lhs}] = {rhs};\n"))
+                //} else {
+                    match lhs.item() {
+                        Item::Vec4(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+                            let lhs2 = lhs.index(2);
+                            let lhs3 = lhs.index(3);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+                            let rhs2 = rhs.index(2);
+                            let rhs3 = rhs.index(3);
+
+                            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+                        }
+                        Item::Vec3(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+                            let lhs2 = lhs.index(2);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+                            let rhs2 = rhs.index(2);
+
+                            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
+                        }
+                        Item::Vec2(elem) => {
+                            let lhs0 = lhs.index(0);
+                            let lhs1 = lhs.index(1);
+
+                            let rhs0 = rhs.index(0);
+                            let rhs1 = rhs.index(1);
+
+                            f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                            f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
+                        }
+                        Item::Scalar(_elem) => {
+                            let elem_out = out.elem();
+                            let casting_type = match rhs.item() {
+                                Item::Vec4(_) => Item::Vec4(elem_out),
+                                Item::Vec3(_) => Item::Vec3(elem_out),
+                                Item::Vec2(_) => Item::Vec2(elem_out),
+                                Item::Scalar(_) => Item::Scalar(elem_out),
+                            };
+                            f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                        }
+                    }
+                // }
             }
             Instruction::If { cond, instructions } => {
                 f.write_fmt(format_args!("if {cond} {{\n"))?;
@@ -383,7 +530,7 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                 for i in instructions_if {
                     f.write_fmt(format_args!("{i}"))?;
                 }
-                f.write_str("} else {")?;
+                f.write_str("} else {\n")?;
                 for i in instructions_else {
                     f.write_fmt(format_args!("{i}"))?;
                 }

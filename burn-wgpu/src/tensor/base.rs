@@ -145,7 +145,7 @@ where
         //
         // The solution is just to use a simple unary compute shader.
         unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::AssignLocal(UnaryOperator {
+            operation: |scope: &mut Scope, elem: Elem| Operator::Assign(UnaryOperator {
                 input: scope.read_array(0, elem),
                 out: scope.create_local(elem),
             }),

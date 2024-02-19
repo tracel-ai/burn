@@ -178,7 +178,7 @@ impl TraceBuilder {
         for op in self.scope.operations.iter() {
             match op {
                 Operation::Operator(op) => match op {
-                    gpu::Operator::AssignLocal(op) => {
+                    gpu::Operator::Assign(op) => {
                         mark(&op.out, &mut local_tensor_ids_output);
                     }
                     gpu::Operator::Add(op) => mark_binary(
@@ -285,12 +285,6 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    gpu::Operator::ConditionalAssign(op) => {
-                        mark(&op.cond, &mut local_tensor_ids_input);
-                        mark(&op.lhs, &mut local_tensor_ids_input);
-                        mark(&op.rhs, &mut local_tensor_ids_input);
-                        mark(&op.out, &mut local_tensor_ids_output);
-                    }
                     gpu::Operator::Sqrt(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
@@ -307,18 +301,18 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                 },
-                Operation::Algorithm(algo) => {
-                    match algo {
-                        gpu::Algorithm::ReadGlobalWithLayout(_) => {
+                Operation::Procedure(proc) => {
+                    match proc {
+                        gpu::Procedure::ReadGlobalWithLayout(_) => {
                             // Nothing to do here.
                         }
-                        gpu::Algorithm::ReadGlobal(_) => {
+                        gpu::Procedure::ReadGlobal(_) => {
                             // Nothing to do here.
                         }
-                        gpu::Algorithm::Matmul(algo) => match algo {
-                            gpu::MatmulAlgo::MemCoalescing {
+                        gpu::Procedure::Matmul(proc) => match proc {
+                            gpu::Matmul::MemCoalescing {
                                 variables,
-                                block_size,
+                                block_size: _,
                             } => {
                                 mark_binary(
                                     variables,
@@ -327,8 +321,14 @@ impl TraceBuilder {
                                 );
                             }
                         },
-                        gpu::Algorithm::WriteGlobal(_) => {
+                        gpu::Procedure::WriteGlobal(_) => {
                             // Nothing to do here.
+                        }
+                        gpu::Procedure::ConditionalAssign(proc) => {
+                            mark(&proc.cond, &mut local_tensor_ids_input);
+                            mark(&proc.lhs, &mut local_tensor_ids_input);
+                            mark(&proc.rhs, &mut local_tensor_ids_input);
+                            mark(&proc.out, &mut local_tensor_ids_output);
                         }
                     }
                 }

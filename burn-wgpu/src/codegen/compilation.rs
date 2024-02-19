@@ -236,7 +236,7 @@ impl Compilation {
                 input: _,
                 local: _,
             } => return,
-            OutputInfo::Array { item } => return,
+            OutputInfo::Array { item: _ } => return,
         };
 
         let item = match self.input_bindings.get_mut(mapping.pos_input) {

@@ -1,33 +1,31 @@
-use burn_tensor::Shape;
-
 use crate::{
     codegen::{
-        dialect::gpu, execute_static, Compilation, CompilationInfo, CompilationSettings, Compiler,
+        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
         InputInfo, OutputInfo, StaticHandle, WorkgroupLaunch,
     },
     compute::WorkGroup,
     element::JitElement,
-    kernel::{into_contiguous, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT},
-    kernel_wgsl,
+    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
+use burn_tensor::Shape;
 use std::marker::PhantomData;
 
-kernel_wgsl!(
-    MatmulMemCoalescingRaw,
-    "../../template/matmul/mem_coalescing.wgsl"
-);
-
 #[derive(new, Debug)]
-struct MatmulMemCoalescing<R: Runtime, const BLOCK_SIZE: usize> {
+struct MatmulMemCoalescing<R: Runtime> {
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
     _runtime: PhantomData<R>,
 }
 
-impl<R: Runtime, const BLOCK_SIZE: usize> StaticKernelSource
-    for MatmulMemCoalescing<R, BLOCK_SIZE>
-{
-    fn source() -> SourceTemplate {
+impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
+    fn source(&self) -> SourceTemplate {
+        assert_eq!(
+            self.workgroup_size_x, self.workgroup_size_y,
+            "Only square grid is supported."
+        );
+
         let mut scope = gpu::Scope::root();
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
         let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
@@ -35,9 +33,9 @@ impl<R: Runtime, const BLOCK_SIZE: usize> StaticKernelSource
         scope.write_global_custom(out);
 
         let operation =
-            gpu::Operation::Algorithm(gpu::Algorithm::Matmul(gpu::MatmulAlgo::MemCoalescing {
+            gpu::Operation::Procedure(gpu::Procedure::Matmul(gpu::Matmul::MemCoalescing {
                 variables: gpu::BinaryOperator { lhs, rhs, out },
-                block_size: BLOCK_SIZE,
+                block_size: self.workgroup_size_x,
             }));
         scope.register(operation);
 
@@ -61,13 +59,22 @@ impl<R: Runtime, const BLOCK_SIZE: usize> StaticKernelSource
         };
 
         let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
-            BLOCK_SIZE as u32,
-            BLOCK_SIZE as u32,
+            self.workgroup_size_x as u32,
+            self.workgroup_size_y as u32,
             1,
         ));
         let shader = Compilation::new(info).compile(settings);
         let shader = <R::Compiler as Compiler>::compile(shader);
         SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!(
+            "{:?}x={}y={}",
+            core::any::TypeId::of::<Self>(),
+            self.workgroup_size_x,
+            self.workgroup_size_y
+        )
     }
 }
 
@@ -93,9 +100,17 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let workgroup = launch_options(&lhs.shape, &rhs.shape, &out.shape, 16, 16);
+    let workgroup = launch_options(
+        &lhs.shape,
+        &rhs.shape,
+        &out.shape,
+        workgroup_size_x,
+        workgroup_size_y,
+    );
 
-    execute_static::<R, MatmulMemCoalescing<R, 16>, E>(
+    let kernel = MatmulMemCoalescing::new(workgroup_size_x, workgroup_size_y);
+
+    execute_dynamic::<R, MatmulMemCoalescing<R>, E>(
         &[
             StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
             StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
@@ -103,6 +118,7 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
         ],
         &[],
         None,
+        kernel,
         WorkgroupLaunch::Custom(workgroup),
         rhs.client,
     );

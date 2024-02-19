@@ -182,7 +182,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     ) {
         match operation {
             gpu::Operation::Operator(op) => instructions.push(self.compile_instruction(op)),
-            gpu::Operation::Algorithm(algo) => self.compile_algorithm(instructions, algo, scope),
+            gpu::Operation::Procedure(algo) => self.compile_algorithm(instructions, algo, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Loop(val) => instructions.push(self.compile_loop(val)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
@@ -208,7 +208,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     fn compile_algorithm(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
-        algo: gpu::Algorithm,
+        proc: gpu::Procedure,
         scope: &mut gpu::Scope,
     ) {
         let mut compile = |scope: &mut gpu::Scope| {
@@ -216,21 +216,25 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             instructions.extend(compiled);
         };
 
-        match algo {
-            gpu::Algorithm::ReadGlobalWithLayout(algo) => {
+        match proc {
+            gpu::Procedure::ReadGlobalWithLayout(algo) => {
                 algo.expand(scope);
                 compile(scope);
             }
-            gpu::Algorithm::ReadGlobal(algo) => {
+            gpu::Procedure::ReadGlobal(algo) => {
                 algo.expand(scope);
                 compile(scope);
             }
-            gpu::Algorithm::Matmul(algo) => {
+            gpu::Procedure::Matmul(algo) => {
                 algo.expand(scope);
                 compile(scope);
             }
-            gpu::Algorithm::WriteGlobal(algo) => {
+            gpu::Procedure::WriteGlobal(algo) => {
                 algo.expand(scope);
+                compile(scope);
+            }
+            gpu::Procedure::ConditionalAssign(proc) => {
+                proc.expand(scope);
                 compile(scope);
             }
         }
@@ -384,13 +388,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::ConditionalAssign(op) => wgsl::Instruction::ConditionalAssign {
-                cond: self.compile_variable(op.cond),
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::AssignLocal(op) => wgsl::Instruction::AssignLocal {
+            gpu::Operator::Assign(op) => wgsl::Instruction::AssignLocal {
                 input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },

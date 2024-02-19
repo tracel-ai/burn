@@ -1,9 +1,27 @@
-use super::super::{
-    gpu, Elem, Item, Metadata, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, Scope, Variable,
-};
+use super::super::{gpu, Elem, Item, Metadata, Operator, Scope, Variable};
 use crate::codegen::dialect::gpu::BinaryOperator;
+use serde::{Deserialize, Serialize};
 
-impl ReadGlobalAlgo {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadGlobal {
+    /// The array to be read.
+    pub global: Variable,
+    /// The output variable to write the result.
+    pub out: Variable,
+}
+
+/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadGlobalWithLayout {
+    /// The array to be read.
+    pub globals: Vec<Variable>,
+    /// The output variable to write the result.
+    pub outs: Vec<Variable>,
+    /// The layout to be used.
+    pub layout: Variable,
+}
+
+impl ReadGlobal {
     pub fn expand(self, scope: &mut Scope) {
         scope.register(Operator::Index(BinaryOperator {
             lhs: self.global,
@@ -13,7 +31,7 @@ impl ReadGlobalAlgo {
     }
 }
 
-impl ReadGlobalWithLayoutAlgo {
+impl ReadGlobalWithLayout {
     pub fn try_merge(&self, other: &Self) -> Option<Self> {
         if self.layout == other.layout {
             let mut globals = Vec::with_capacity(self.globals.len() + other.globals.len());
@@ -42,7 +60,7 @@ impl ReadGlobalWithLayoutAlgo {
             .map(|_| scope.create_local(Elem::UInt))
             .collect::<Vec<_>>();
 
-        OffsetGlobalWithLayoutAlgo {
+        OffsetGlobalWithLayout {
             tensors: tensors.clone(),
             layout: self.layout,
             indexes: indexes.clone(),
@@ -62,7 +80,7 @@ impl ReadGlobalWithLayoutAlgo {
 }
 
 #[derive(Debug, Clone)]
-pub struct OffsetGlobalWithLayoutAlgo {
+pub struct OffsetGlobalWithLayout {
     pub tensors: Vec<Variable>,
     pub layout: Variable,
     pub indexes: Vec<Variable>,
@@ -70,7 +88,7 @@ pub struct OffsetGlobalWithLayoutAlgo {
     pub end: Variable,
 }
 
-impl OffsetGlobalWithLayoutAlgo {
+impl OffsetGlobalWithLayout {
     pub fn expand(self, scope: &mut Scope) {
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
@@ -91,11 +109,11 @@ impl OffsetGlobalWithLayoutAlgo {
             scope,
             range(zero, self.end).for_each(|i, scope| {
                 let stride_layout = scope.create_local(index_item_ty);
-                let ordso = scope.create_local(index_item_ty);
+                let ogwl = scope.create_local(index_item_ty);
 
                 gpu!(scope, stride_layout = stride(layout, i));
-                gpu!(scope, ordso = offset_ref * vectorization_factor);
-                gpu!(scope, ordso = ordso / stride_layout);
+                gpu!(scope, ogwl = offset_ref * vectorization_factor);
+                gpu!(scope, ogwl = ogwl / stride_layout);
 
                 for (tensor, index) in self.tensors.iter().zip(self.indexes.iter()) {
                     let stride = scope.create_local(index_item_ty);
@@ -105,7 +123,7 @@ impl OffsetGlobalWithLayoutAlgo {
                     gpu!(scope, stride = stride(tensor, i));
                     gpu!(scope, shape = shape(tensor, i));
 
-                    gpu!(scope, tmp = ordso % shape);
+                    gpu!(scope, tmp = ogwl % shape);
                     gpu!(scope, tmp = tmp * stride);
                     gpu!(scope, index = index + tmp);
                 }

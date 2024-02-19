@@ -1,8 +1,11 @@
-use crate::compute::{StaticKernel, WorkGroup};
+use crate::compute::{DynamicKernel, Kernel, StaticKernel, WorkGroup};
 use crate::element::JitElement;
-use crate::kernel::{elemwise_workgroup, StaticKernelSource, WORKGROUP_DEFAULT};
+use crate::kernel::{
+    elemwise_workgroup, DynamicKernelSource, StaticKernelSource, WORKGROUP_DEFAULT,
+};
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
+use burn_compute::server::Handle;
 
 #[derive(new)]
 pub struct StaticHandle<'a, R: Runtime> {
@@ -23,7 +26,7 @@ pub enum WorkgroupLaunch {
 ///
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
-pub fn execute_static<R: Runtime, K, E: JitElement>(
+pub fn execute_static<R, K, E>(
     inputs: &[StaticHandle<R>],
     outputs: &[StaticHandle<R>],
     scalar_elems: Option<&[E]>,
@@ -31,7 +34,67 @@ pub fn execute_static<R: Runtime, K, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
 ) where
     K: StaticKernelSource + 'static,
+    R: Runtime,
+    E: JitElement,
 {
+    let settings = execute_settings(inputs, outputs, scalar_elems, launch, &client);
+    let mut handles = settings.handles_tensors;
+    let workgroup = settings.workgroup;
+
+    handles.push(&settings.handle_info);
+    if let Some(handle) = settings.handle_scalars.as_ref() {
+        handles.push(handle);
+    }
+
+    let kernel = Box::new(StaticKernel::<K>::new(workgroup));
+    client.execute(kernel, &handles);
+}
+
+/// Execute a static kernel.
+///
+///
+/// The limitation from this method is that you can't launch a kernel with multiple types of
+/// scalar.
+pub fn execute_dynamic<R, K, E>(
+    inputs: &[StaticHandle<R>],
+    outputs: &[StaticHandle<R>],
+    scalar_elems: Option<&[E]>,
+    kernel: K,
+    launch: WorkgroupLaunch,
+    client: ComputeClient<R::Server, R::Channel>,
+) where
+    K: DynamicKernelSource + 'static,
+    R: Runtime,
+    E: JitElement,
+{
+    let settings = execute_settings(inputs, outputs, scalar_elems, launch, &client);
+    let mut handles = settings.handles_tensors;
+    let workgroup = settings.workgroup;
+
+    handles.push(&settings.handle_info);
+    if let Some(handle) = settings.handle_scalars.as_ref() {
+        handles.push(handle);
+    }
+
+    let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
+
+    client.execute(kernel, &handles);
+}
+
+struct ExecuteSettings<'a, R: Runtime> {
+    handles_tensors: Vec<&'a Handle<R::Server>>,
+    handle_info: Handle<R::Server>,
+    handle_scalars: Option<Handle<R::Server>>,
+    workgroup: WorkGroup,
+}
+
+fn execute_settings<'a, R: Runtime, E: JitElement>(
+    inputs: &'a [StaticHandle<R>],
+    outputs: &'a [StaticHandle<R>],
+    scalar_elems: Option<&[E]>,
+    launch: WorkgroupLaunch,
+    client: &ComputeClient<R::Server, R::Channel>,
+) -> ExecuteSettings<'a, R> {
     let mut info = Vec::new();
     let mut handles = Vec::with_capacity(inputs.len() + outputs.len() + 2);
 
@@ -73,8 +136,7 @@ pub fn execute_static<R: Runtime, K, E: JitElement>(
         handles.push(output.handle);
     }
 
-    let info = &client.create(bytemuck::cast_slice(&info));
-    handles.push(info);
+    let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.
     let mut scalars = None;
@@ -82,18 +144,17 @@ pub fn execute_static<R: Runtime, K, E: JitElement>(
         scalars = Some(client.create(bytemuck::cast_slice(values)));
     }
 
-    if let Some(scalars) = scalars.as_ref() {
-        handles.push(scalars);
-    }
-
     let workgroup = match launch {
         WorkgroupLaunch::Custom(workgroup) => workgroup,
         _ => elemwise_workgroup(num_elems_output, WORKGROUP_DEFAULT),
     };
 
-    let kernel = Box::new(StaticKernel::<K>::new(workgroup));
-
-    client.execute(kernel, &handles);
+    ExecuteSettings {
+        handles_tensors: handles,
+        handle_info: info,
+        handle_scalars: scalars,
+        workgroup,
+    }
 }
 
 pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {

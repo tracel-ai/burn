@@ -1,4 +1,7 @@
-use super::{Elem, Item, Scope, Variable};
+use super::{
+    ConditionalAssign, Elem, Item, Matmul, ReadGlobal, ReadGlobalWithLayout, Scope, Variable,
+    WriteGlobal,
+};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
@@ -15,7 +18,7 @@ use serde::{Deserialize, Serialize};
 pub enum Operation {
     Operator(Operator),
     Metadata(Metadata),
-    Algorithm(Algorithm),
+    Procedure(Procedure),
     Loop(Loop),
     Branch(Branch),
 }
@@ -45,8 +48,7 @@ pub enum Operator {
     Greater(BinaryOperator),
     LowerEqual(BinaryOperator),
     GreaterEqual(BinaryOperator),
-    ConditionalAssign(ConditionalAssignOperator),
-    AssignLocal(UnaryOperator),
+    Assign(UnaryOperator),
     Modulo(BinaryOperator),
     Index(BinaryOperator),
     IndexAssign(BinaryOperator),
@@ -81,50 +83,16 @@ pub struct IfElse {
 /// the vectorization state to the expansion function, which may create a different set of
 /// [operator](Operator) depending on the vectorization state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Algorithm {
+pub enum Procedure {
     /// Read an input array with the given layout.
     ///
     /// Crucial to read arrays that aren't contiguous and to perform correct broadcasting.
-    ReadGlobalWithLayout(ReadGlobalWithLayoutAlgo),
+    ReadGlobalWithLayout(ReadGlobalWithLayout),
     /// Read an input array.
-    ReadGlobal(ReadGlobalAlgo),
-    Matmul(MatmulAlgo),
-    WriteGlobal(WriteGlobalAlgo),
-}
-
-/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReadGlobalWithLayoutAlgo {
-    /// The array to be read.
-    pub globals: Vec<Variable>,
-    /// The output variable to write the result.
-    pub outs: Vec<Variable>,
-    /// The layout to be used.
-    pub layout: Variable,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WriteGlobalAlgo {
-    pub input: Variable,
-    pub global: Variable,
-}
-
-/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MatmulAlgo {
-    MemCoalescing {
-        variables: BinaryOperator,
-        block_size: usize,
-    },
-}
-
-/// Settings for the [Algorithm::ReadGlobal] variant.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReadGlobalAlgo {
-    /// The array to be read.
-    pub global: Variable,
-    /// The output variable to write the result.
-    pub out: Variable,
+    ReadGlobal(ReadGlobal),
+    Matmul(Matmul),
+    WriteGlobal(WriteGlobal),
+    ConditionalAssign(ConditionalAssign),
 }
 
 /// All loop variants.
@@ -175,6 +143,29 @@ impl If {
         parent_scope.register(Branch::If(op));
     }
 }
+
+impl IfElse {
+    /// Registers a range loop to the given scope.
+    pub fn register<F_IF: Fn(&mut Scope), F_ELSE: Fn(&mut Scope)>(
+        parent_scope: &mut Scope,
+        cond: Variable,
+        func_if: F_IF,
+        func_else: F_ELSE,
+    ) {
+        let mut scope_if = parent_scope.child();
+        let mut scope_else = parent_scope.child();
+        func_if(&mut scope_if);
+        func_else(&mut scope_else);
+
+        let op = Self {
+            cond,
+            scope_if,
+            scope_else,
+        };
+        parent_scope.register(Branch::IfElse(op));
+    }
+}
+
 impl RangeLoop {
     /// Registers a range loop to the given scope.
     pub fn register<F: Fn(Variable, &mut Scope)>(
@@ -221,14 +212,6 @@ pub struct ClampOperator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConditionalAssignOperator {
-    pub cond: Variable,
-    pub lhs: Variable,
-    pub rhs: Variable,
-    pub out: Variable,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalOperator {
     pub variable: Variable,
 }
@@ -258,9 +241,9 @@ impl From<Metadata> for Operation {
     }
 }
 
-impl From<Algorithm> for Operation {
-    fn from(val: Algorithm) -> Self {
-        Operation::Algorithm(val)
+impl From<Procedure> for Operation {
+    fn from(val: Procedure) -> Self {
+        Operation::Procedure(val)
     }
 }
 

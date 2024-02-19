@@ -1,11 +1,21 @@
 use crate::codegen::dialect::gpu::{
-    algo::read::OffsetGlobalWithLayoutAlgo, macros::gpu, Branch, Elem, MatmulAlgo, Scope, Variable,
+    macros::gpu, procedure::read::OffsetGlobalWithLayout, BinaryOperator, Branch, Elem, Scope,
+    Variable,
 };
+use serde::{Deserialize, Serialize};
 
-impl MatmulAlgo {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Matmul {
+    MemCoalescing {
+        variables: BinaryOperator,
+        block_size: usize,
+    },
+}
+
+impl Matmul {
     pub fn expand(self, scope: &mut Scope) {
         match self {
-            MatmulAlgo::MemCoalescing {
+            Matmul::MemCoalescing {
                 variables,
                 block_size,
             } => {
@@ -77,7 +87,7 @@ impl MatmulAlgo {
                 gpu!(scope, offset_output = offset_output * batch);
 
                 // Batch offset for the lhs matrix.
-                OffsetGlobalWithLayoutAlgo {
+                OffsetGlobalWithLayout {
                     tensors: vec![lhs, rhs],
                     indexes: vec![offset_lhs, offset_rhs],
                     layout: out,

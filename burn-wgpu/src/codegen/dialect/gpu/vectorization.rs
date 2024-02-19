@@ -1,7 +1,6 @@
 use super::{
-    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, MatmulAlgo,
-    Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
-    WriteGlobalAlgo,
+    BinaryOperator, ClampOperator, ConditionalAssign, Item, Matmul, Operation, Operator, Procedure,
+    ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, WriteGlobal,
 };
 
 /// Define a vectorization scheme.
@@ -23,7 +22,7 @@ impl Operation {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
-            Operation::Algorithm(op) => Operation::Algorithm(op.vectorize(vectorization)),
+            Operation::Procedure(op) => Operation::Procedure(op.vectorize(vectorization)),
             Operation::Metadata(_) => panic!(
                 "Metadata can't be vectorized, they should only be generated after vectorization."
             ),
@@ -37,20 +36,23 @@ impl Operation {
     }
 }
 
-impl Algorithm {
+impl Procedure {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
-            Algorithm::ReadGlobalWithLayout(op) => {
-                Algorithm::ReadGlobalWithLayout(op.vectorize(vectorization))
+            Procedure::ReadGlobalWithLayout(op) => {
+                Procedure::ReadGlobalWithLayout(op.vectorize(vectorization))
             }
-            Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
-            Algorithm::Matmul(op) => Algorithm::Matmul(op.vectorize(vectorization)),
-            Algorithm::WriteGlobal(op) => Algorithm::WriteGlobal(op.vectorize(vectorization)),
+            Procedure::ReadGlobal(op) => Procedure::ReadGlobal(op.vectorize(vectorization)),
+            Procedure::Matmul(op) => Procedure::Matmul(op.vectorize(vectorization)),
+            Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
+            Procedure::ConditionalAssign(proc) => {
+                Procedure::ConditionalAssign(proc.vectorize(vectorization))
+            }
         }
     }
 }
 
-impl ReadGlobalWithLayoutAlgo {
+impl ReadGlobalWithLayout {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
             globals: self
@@ -68,7 +70,7 @@ impl ReadGlobalWithLayoutAlgo {
     }
 }
 
-impl ReadGlobalAlgo {
+impl ReadGlobal {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
             global: self.global.vectorize(vectorization),
@@ -76,7 +78,19 @@ impl ReadGlobalAlgo {
         }
     }
 }
-impl WriteGlobalAlgo {
+
+impl ConditionalAssign {
+    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            cond: self.cond.vectorize(vectorization),
+            lhs: self.lhs.vectorize(vectorization),
+            rhs: self.rhs.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
+    }
+}
+
+impl WriteGlobal {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
             input: self.input.vectorize(vectorization),
@@ -85,13 +99,13 @@ impl WriteGlobalAlgo {
     }
 }
 
-impl MatmulAlgo {
+impl Matmul {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
-            MatmulAlgo::MemCoalescing {
+            Matmul::MemCoalescing {
                 variables,
                 block_size,
-            } => MatmulAlgo::MemCoalescing {
+            } => Matmul::MemCoalescing {
                 variables: variables.vectorize(vectorization),
                 block_size: *block_size,
             },
@@ -123,17 +137,14 @@ impl Operator {
             Operator::Greater(op) => Operator::Greater(op.vectorize(vectorization)),
             Operator::LowerEqual(op) => Operator::LowerEqual(op.vectorize(vectorization)),
             Operator::GreaterEqual(op) => Operator::GreaterEqual(op.vectorize(vectorization)),
-            Operator::ConditionalAssign(op) => {
-                Operator::ConditionalAssign(op.vectorize(vectorization))
-            }
-            Operator::AssignLocal(op) => {
+            Operator::Assign(op) => {
                 if let Variable::GlobalScalar(_, _) = op.input {
                     // Assign will not change the type of the output if the input can't be
                     // vectorized.
-                    return Operator::AssignLocal(op.clone());
+                    return Operator::Assign(op.clone());
                 }
 
-                Operator::AssignLocal(op.vectorize(vectorization))
+                Operator::Assign(op.vectorize(vectorization))
             }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
             Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
@@ -162,32 +173,11 @@ impl UnaryOperator {
 
 impl ClampOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let input = self.input.vectorize(vectorization);
-        let out = self.out.vectorize(vectorization);
-        let min_value = self.min_value.vectorize(vectorization);
-        let max_value = self.max_value.vectorize(vectorization);
-
         Self {
-            input,
-            out,
-            min_value,
-            max_value,
-        }
-    }
-}
-
-impl ConditionalAssignOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let cond = self.cond.vectorize(vectorization);
-        let lhs = self.lhs.vectorize(vectorization);
-        let rhs = self.rhs.vectorize(vectorization);
-        let out = self.out.vectorize(vectorization);
-
-        Self {
-            cond,
-            lhs,
-            rhs,
-            out,
+            input: self.input.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+            min_value: self.min_value.vectorize(vectorization),
+            max_value: self.max_value.vectorize(vectorization),
         }
     }
 }

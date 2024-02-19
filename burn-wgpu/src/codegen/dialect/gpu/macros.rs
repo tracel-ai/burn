@@ -191,13 +191,13 @@ macro_rules! gpu {
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        $scope.register($crate::codegen::dialect::gpu::Operator::AssignLocal(
+        $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
         ));
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        $scope.register($crate::codegen::dialect::gpu::Operator::AssignLocal(
+        $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
         ));
     };
@@ -220,6 +220,9 @@ macro_rules! gpu {
     };
     ($scope:expr, if ($cond:expr).then($arg:expr)) => {
         $crate::codegen::dialect::gpu::If::register($scope, $cond.into(), $arg);
+    };
+    ($scope:expr, if ($cond:expr).then($arg_if:expr).else($arg_else:expr)) => {
+        $crate::codegen::dialect::gpu::IfElse::register($scope, $cond.into(), $arg_if, $arg_else);
     };
     (binary $lhs:expr, $rhs:expr, $out:expr) => {
         $crate::codegen::dialect::gpu::BinaryOperator {

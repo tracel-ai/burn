@@ -14,12 +14,12 @@ impl ScopeProcessing {
 
         for (position, operation) in self.operations.iter().enumerate() {
             let algo = match operation {
-                Operation::Algorithm(algo) => algo,
+                Operation::Procedure(algo) => algo,
                 _ => continue,
             };
 
             let read = match algo {
-                super::Algorithm::ReadGlobalWithLayout(algo) => algo,
+                super::Procedure::ReadGlobalWithLayout(algo) => algo,
                 _ => continue,
             };
 
@@ -47,8 +47,8 @@ impl ScopeProcessing {
 
             for (position, operation) in self.operations.into_iter().enumerate() {
                 if position == main_position {
-                    operations.push(Operation::Algorithm(
-                        super::Algorithm::ReadGlobalWithLayout(main.clone()),
+                    operations.push(Operation::Procedure(
+                        super::Procedure::ReadGlobalWithLayout(main.clone()),
                     ));
                     continue;
                 }

@@ -1,6 +1,6 @@
 use super::{
-    Algorithm, Elem, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo,
-    UnaryOperator, Variable, Vectorization, WriteGlobalAlgo,
+    Elem, Item, Operation, Operator, Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator,
+    Variable, Vectorization, WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -199,26 +199,26 @@ impl Scope {
                     let output = self.output_ref.expect(
                         "Output should be set when processing an input with output layout.",
                     );
-                    operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
-                        ReadGlobalWithLayoutAlgo {
+                    operations.push(Operation::Procedure(Procedure::ReadGlobalWithLayout(
+                        ReadGlobalWithLayout {
                             globals: vec![input],
                             layout: output,
                             outs: vec![local],
                         },
                     )));
                 }
-                ReadingStrategy::Plain => operations.push(Operation::Algorithm(
-                    Algorithm::ReadGlobal(ReadGlobalAlgo {
+                ReadingStrategy::Plain => {
+                    operations.push(Operation::Procedure(Procedure::ReadGlobal(ReadGlobal {
                         global: input,
                         out: local,
-                    }),
-                )),
+                    })))
+                }
             }
         }
 
         for (local, scalar) in self.reads_scalar.drain(..) {
             operations.push(
-                Operator::AssignLocal(UnaryOperator {
+                Operator::Assign(UnaryOperator {
                     input: scalar,
                     out: local,
                 })
@@ -232,9 +232,10 @@ impl Scope {
         }
 
         for (input, global) in self.writes_global.drain(..) {
-            operations.push(Operation::Algorithm(Algorithm::WriteGlobal(
-                WriteGlobalAlgo { input, global },
-            )))
+            operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
+                input,
+                global,
+            })))
         }
 
         ScopeProcessing {
@@ -258,7 +259,16 @@ impl Scope {
         item: Item,
         strategy: ReadingStrategy,
     ) -> Variable {
-        let input = Variable::GlobalInputArray(index, item);
+        let item_global = match item.elem() {
+            Elem::Bool => match item {
+                Item::Vec4(_) => Item::Vec4(Elem::UInt),
+                Item::Vec3(_) => Item::Vec4(Elem::UInt),
+                Item::Vec2(_) => Item::Vec4(Elem::UInt),
+                Item::Scalar(_) => Item::Vec4(Elem::UInt),
+            },
+            _ => item,
+        };
+        let input = Variable::GlobalInputArray(index, item_global);
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.reads_global.push((input, strategy, local));
