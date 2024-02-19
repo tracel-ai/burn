@@ -52,8 +52,8 @@ fn main(
         index_offset += num_block * stride_input;
     }
 
-    // Ensure shared memory starts at 0
-    shared_memory[local_id] = {{ elem }}(0);
+    // Ensure shared memory starts at {{ initial }}
+    shared_memory[local_id] = {{ elem }}({{ initial }});
 
     for (var i = 0u; i < n_input_values_per_thread; i++) {
         let nth = local_id + i * n_threads;
