@@ -8,11 +8,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// Notes:
 ///
-/// [Operator] and [Algorithm] can be vectorized, but [Metadata] and [Loop] can't.
-/// Therefore, during tracing, only operators and algorithms can be registered, and during the
-/// compilation phase, the algorithm will be expanded.
+/// [Operator] and [Procedure] can be vectorized, but [Metadata], [Branch] and [Loop] can't.
+/// Therefore, during tracing, only operators and procedures can be registered.
 ///
-/// Algorithm expansions can safely use [Metadata] and [Loop] operations.
+/// [Procedure] expansions can safely use all operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {
