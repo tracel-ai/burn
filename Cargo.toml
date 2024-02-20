@@ -5,30 +5,11 @@
 resolver = "2"
 
 members = [
-    "burn",
-    "burn-autodiff",
-    "burn-fusion",
-    "burn-candle",
-    "burn-common",
-    "burn-compute",
-    "burn-core",
-    "burn-dataset",
-    "burn-derive",
-    "burn-import",
-    "burn-import/onnx-tests",
-    "burn-import/pytorch-tests",
-    "burn-ndarray",
-    "burn-no-std-tests",
-    "burn-tch",
-    "burn-wgpu",
-    "burn-candle",
-    "burn-tensor-testgen",
-    "burn-tensor",
-    "burn-train",
-    "xtask",
+    "backend-comparison",
+    "crates/*",
     "examples/*",
     "examples/pytorch-import/model",
-    "backend-comparison",
+    "xtask",
 ]
 
 exclude = ["examples/notebook"]
