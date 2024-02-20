@@ -1,6 +1,6 @@
 use super::{
-    Elem, Item, Operation, Operator, Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator,
-    Variable, Vectorization, WriteGlobal,
+    processing::ScopeProcessing, Elem, Item, Operation, Operator, Procedure, ReadGlobal,
+    ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization, WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -29,14 +29,6 @@ pub enum ReadingStrategy {
     OutputLayout,
     /// Keep the current layout.
     Plain,
-}
-
-/// Information necessary when compiling a scope.
-pub struct ScopeProcessing {
-    /// The variable declarations.
-    pub variables: Vec<Variable>,
-    /// The operations.
-    pub operations: Vec<Operation>,
 }
 
 impl Scope {

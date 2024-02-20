@@ -23,9 +23,6 @@ impl Operation {
             Operation::Metadata(_) => panic!(
                 "Metadata can't be vectorized, they should only be generated after vectorization."
             ),
-            Operation::Loop(_) => panic!(
-                "Loops can't be vectorized, they should only be generated after vectorization."
-            ),
             Operation::Branch(_) => panic!(
                 "A branch can't be vectorized, they should only be generated after vectorization."
             ),

@@ -1,11 +1,11 @@
-use super::{Elem, Item, Procedure, Scope, Variable};
+use super::{Branch, Procedure, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
 ///
 /// Notes:
 ///
-/// [Operator] and [Procedure] can be vectorized, but [Metadata], [Branch] and [Loop] can't.
+/// [Operator] and [Procedure] can be vectorized, but [Metadata] and [Branch] can't.
 /// Therefore, during tracing, only operators and procedures can be registered.
 ///
 /// [Procedure] expansions can safely use all operation variants.
@@ -15,7 +15,6 @@ pub enum Operation {
     Operator(Operator),
     Metadata(Metadata),
     Procedure(Procedure),
-    Loop(Loop),
     Branch(Branch),
 }
 
@@ -50,34 +49,6 @@ pub enum Operator {
     IndexAssign(BinaryOperator),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Branch {
-    If(If),
-    IfElse(IfElse),
-    Return,
-    Break,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct If {
-    pub cond: Variable,
-    pub scope: Scope,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IfElse {
-    pub cond: Variable,
-    pub scope_if: Scope,
-    pub scope_else: Scope,
-}
-
-/// All loop variants.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Loop {
-    /// A basic range loop.
-    Range(RangeLoop),
-}
-
 /// All metadata that can be access in a shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
@@ -93,79 +64,6 @@ pub enum Metadata {
         var: Variable,
         out: Variable,
     },
-}
-
-/// Settings for the [Loop::Range] variant.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RangeLoop {
-    /// The loop index variable.
-    pub i: Variable,
-    /// The start value.
-    pub start: Variable,
-    /// The end value.
-    pub end: Variable,
-    /// The scope that contains all operations and variables declared in the loop body.
-    pub scope: Scope,
-}
-
-impl If {
-    /// Registers a range loop to the given scope.
-    pub fn register<F: Fn(&mut Scope)>(parent_scope: &mut Scope, cond: Variable, func: F) {
-        let mut scope = parent_scope.child();
-
-        func(&mut scope);
-
-        let op = Self { cond, scope };
-        parent_scope.register(Branch::If(op));
-    }
-}
-
-impl IfElse {
-    /// Registers a range loop to the given scope.
-    pub fn register<IF, ELSE>(
-        parent_scope: &mut Scope,
-        cond: Variable,
-        func_if: IF,
-        func_else: ELSE,
-    ) where
-        IF: Fn(&mut Scope),
-        ELSE: Fn(&mut Scope),
-    {
-        let mut scope_if = parent_scope.child();
-        let mut scope_else = parent_scope.child();
-
-        func_if(&mut scope_if);
-        func_else(&mut scope_else);
-
-        parent_scope.register(Branch::IfElse(Self {
-            cond,
-            scope_if,
-            scope_else,
-        }));
-    }
-}
-
-impl RangeLoop {
-    /// Registers a range loop to the given scope.
-    pub fn register<F: Fn(Variable, &mut Scope)>(
-        parent_scope: &mut Scope,
-        start: Variable,
-        end: Variable,
-        func: F,
-    ) {
-        let mut scope = parent_scope.child();
-        let index_ty = Item::Scalar(Elem::UInt);
-        let i = scope.create_local_undeclare(index_ty);
-
-        func(i, &mut scope);
-
-        parent_scope.register(Loop::Range(Self {
-            i,
-            start,
-            end,
-            scope,
-        }));
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,11 +120,5 @@ impl From<Metadata> for Operation {
 impl From<Procedure> for Operation {
     fn from(val: Procedure) -> Self {
         Operation::Procedure(val)
-    }
-}
-
-impl From<Loop> for Operation {
-    fn from(val: Loop) -> Self {
-        Operation::Loop(val)
     }
 }

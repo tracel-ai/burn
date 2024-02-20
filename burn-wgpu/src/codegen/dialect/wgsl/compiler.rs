@@ -15,6 +15,10 @@ pub struct Compiler<F: FloatElement, I: IntElement> {
     num_outputs: usize,
     invocation_index: bool,
     workgroup_id: bool,
+    rank: bool,
+    id: bool,
+    stride: bool,
+    shape: bool,
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
@@ -32,6 +36,10 @@ impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
             num_outputs: 0,
             invocation_index: false,
             workgroup_id: false,
+            rank: false,
+            id: false,
+            stride: false,
+            shape: false,
             _float: PhantomData,
             _int: PhantomData,
         }
@@ -59,8 +67,15 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
-        let body = self.compile_scope(&mut value.body);
-        let extensions = register_extensions(&body);
+        let instructions = self.compile_scope(&mut value.body);
+        let extensions = register_extensions(&instructions);
+        let body = wgsl::Body {
+            instructions,
+            rank: true,
+            id: self.id,
+            stride: self.stride,
+            shape: self.shape,
+        };
 
         wgsl::ComputeShader {
             inputs: value
@@ -130,8 +145,14 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Variable::ConstantScalar(index, elem) => {
                 wgsl::Variable::ConstantScalar(index, Self::compile_elem(elem))
             }
-            gpu::Variable::Id => wgsl::Variable::Id,
-            gpu::Variable::Rank => wgsl::Variable::Rank,
+            gpu::Variable::Id => {
+                self.id = true;
+                wgsl::Variable::Id
+            }
+            gpu::Variable::Rank => {
+                self.rank = true;
+                wgsl::Variable::Rank
+            }
             gpu::Variable::InvocationIndex => {
                 self.invocation_index = true;
                 wgsl::Variable::LocalInvocationIndex
@@ -154,12 +175,12 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         }
     }
 
-    fn compile_scope(&mut self, value: &mut gpu::Scope) -> wgsl::Scope {
-        let mut operations = Vec::new();
+    fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<wgsl::Instruction> {
+        let mut instructions = Vec::new();
         let processing = value.process();
 
         for var in processing.variables {
-            operations.push(wgsl::Instruction::DeclareVariable {
+            instructions.push(wgsl::Instruction::DeclareVariable {
                 var: self.compile_variable(var),
             });
         }
@@ -167,11 +188,9 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         processing
             .operations
             .into_iter()
-            .for_each(|op| self.compile_operation(&mut operations, op, value));
+            .for_each(|op| self.compile_operation(&mut instructions, op, value));
 
-        wgsl::Scope {
-            operators: operations,
-        }
+        instructions
     }
 
     fn compile_operation(
@@ -184,7 +203,6 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Operation::Operator(op) => instructions.push(self.compile_instruction(op)),
             gpu::Operation::Procedure(algo) => self.compile_algorithm(instructions, algo, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
-            gpu::Operation::Loop(val) => instructions.push(self.compile_loop(val)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
         }
     }
@@ -193,15 +211,23 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         match branch {
             gpu::Branch::If(mut op) => instructions.push(wgsl::Instruction::If {
                 cond: self.compile_variable(op.cond),
-                instructions: self.compile_scope(&mut op.scope).operators,
+                instructions: self.compile_scope(&mut op.scope),
             }),
             gpu::Branch::IfElse(mut op) => instructions.push(wgsl::Instruction::IfElse {
                 cond: self.compile_variable(op.cond),
-                instructions_if: self.compile_scope(&mut op.scope_if).operators,
-                instructions_else: self.compile_scope(&mut op.scope_else).operators,
+                instructions_if: self.compile_scope(&mut op.scope_if),
+                instructions_else: self.compile_scope(&mut op.scope_else),
             }),
             gpu::Branch::Return => instructions.push(wgsl::Instruction::Return),
             gpu::Branch::Break => instructions.push(wgsl::Instruction::Break),
+            gpu::Branch::RangeLoop(mut range_loop) => {
+                instructions.push(wgsl::Instruction::RangeLoop {
+                    i: self.compile_variable(range_loop.i),
+                    start: self.compile_variable(range_loop.start),
+                    end: self.compile_variable(range_loop.end),
+                    instructions: self.compile_scope(&mut range_loop.scope),
+                })
+            }
         };
     }
 
@@ -212,8 +238,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         scope: &mut gpu::Scope,
     ) {
         let mut compile = |scope: &mut gpu::Scope| {
-            let compiled = self.compile_scope(scope).operators;
-            instructions.extend(compiled);
+            instructions.extend(self.compile_scope(scope));
         };
 
         match proc {
@@ -240,20 +265,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         }
     }
 
-    fn compile_loop(&mut self, loop_val: gpu::Loop) -> wgsl::Instruction {
-        match loop_val {
-            gpu::Loop::Range(mut range_loop) => wgsl::Instruction::RangeLoop {
-                i: self.compile_variable(range_loop.i),
-                start: self.compile_variable(range_loop.start),
-                end: self.compile_variable(range_loop.end),
-                instructions: self.compile_scope(&mut range_loop.scope).operators,
-            },
-        }
-    }
-
     fn compile_metadata(&mut self, metadata: gpu::Metadata) -> wgsl::Instruction {
         match metadata {
             gpu::Metadata::Stride { dim, var, out } => {
+                self.stride = true;
                 let position = match var {
                     gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
                     gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
@@ -266,6 +281,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 }
             }
             gpu::Metadata::Shape { dim, var, out } => {
+                self.shape = true;
                 let position = match var {
                     gpu::Variable::GlobalInputArray(idx, _) => idx as usize,
                     gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
@@ -424,7 +440,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     }
 }
 
-fn register_extensions(body: &wgsl::Scope) -> Vec<wgsl::Extension> {
+fn register_extensions(instructions: &[wgsl::Instruction]) -> Vec<wgsl::Extension> {
     let mut extensions = Vec::new();
 
     let mut register_extension = |extension: wgsl::Extension| {
@@ -433,9 +449,9 @@ fn register_extensions(body: &wgsl::Scope) -> Vec<wgsl::Extension> {
         }
     };
 
-    // Since not all operators are native to WGSL, we need to add the custom ones.
-    for op in body.operators.iter() {
-        match op {
+    // Since not all instructions are native to WGSL, we need to add the custom ones.
+    for instruction in instructions {
+        match instruction {
             wgsl::Instruction::Powf { lhs: _, rhs, out } => {
                 register_extension(wgsl::Extension::PowfPrimitive(out.item()));
 

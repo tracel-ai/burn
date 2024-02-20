@@ -324,10 +324,10 @@ impl Display for Instruction {
                 Item::Scalar(elem) => f.write_fmt(format_args!("{out} = {elem}({input});\n")),
             },
             Instruction::Stride { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[({position}u * (2u * rank)) + {dim} + 1u];\n"
+                "{out} = info[({position}u * rank_2) + {dim} + 1u];\n"
             )),
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
-                "{out} = info[({position}u * (2u * rank)) + rank + {dim} + 1u];\n"
+                "{out} = info[({position}u * rank_2) + rank + {dim} + 1u];\n"
             )),
             Instruction::RangeLoop {
                 i,

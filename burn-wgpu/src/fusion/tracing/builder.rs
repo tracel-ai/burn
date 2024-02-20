@@ -335,9 +335,6 @@ impl TraceBuilder {
                 Operation::Metadata(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
-                Operation::Loop(_) => {
-                    // Nothing to do, should never impact read-write access to bindings.
-                }
                 Operation::Branch(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }

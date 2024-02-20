@@ -1,12 +1,14 @@
+mod branch;
 mod macros;
 mod operation;
-mod optimization;
 mod procedure;
+mod processing;
 mod scope;
 mod shader;
 mod variable;
 mod vectorization;
 
+pub(crate) use branch::*;
 pub(crate) use macros::gpu;
 pub(crate) use operation::*;
 pub(crate) use procedure::*;
