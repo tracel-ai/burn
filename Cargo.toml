@@ -95,6 +95,7 @@ serial_test = "3.0.0"
 web-time = "1.0.0"
 hound = "3.5.1"
 image = "0.24.7"
+zip = "0.6.6"
 
 # Terminal UI
 ratatui = "0.25"
@@ -134,7 +135,7 @@ num-traits = { version = "0.2.18", default-features = false, features = [
 ] } # libm is for no_std
 rand = { version = "0.8.5", default-features = false, features = [
     "std_rng",
-] } # std_rng is for no_std 
+] } # std_rng is for no_std
 rand_distr = { version = "0.4.3", default-features = false }
 serde = { version = "1.0.192", default-features = false, features = [
     "derive",
@@ -148,7 +149,6 @@ tch = "0.15.0"
 nvml-wrapper = "0.9.0"
 sysinfo = "0.29.10"
 systemstat = "0.2.3"
-
 
 
 [profile.dev]
