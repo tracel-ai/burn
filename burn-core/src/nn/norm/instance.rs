@@ -44,6 +44,8 @@ impl InstanceNormConfig {
 
     fn to_group_norm(&self) -> GroupNormConfig {
         GroupNormConfig {
+            // Group norm is equivalent to instance norm, when the number of groups is
+            // equal to the number of channels.
             num_groups: self.num_channels,
             num_channels: self.num_channels,
             epsilon: self.epsilon,
