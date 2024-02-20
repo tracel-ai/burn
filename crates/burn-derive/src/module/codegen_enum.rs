@@ -161,7 +161,6 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 }
 
-// TODO: this
 impl EnumModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
