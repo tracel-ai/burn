@@ -14,6 +14,7 @@ pub struct Compiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
     invocation_index: bool,
+    global_invocation_id: bool,
     workgroup_id: bool,
     rank: bool,
     id: bool,
@@ -35,6 +36,7 @@ impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
             num_inputs: 0,
             num_outputs: 0,
             invocation_index: false,
+            global_invocation_id: false,
             workgroup_id: false,
             rank: false,
             id: false,
@@ -94,9 +96,9 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
             workgroup_size: value.workgroup_size,
-            global_invocation_id: true,
+            global_invocation_id: self.global_invocation_id || self.id,
             local_invocation_index: self.invocation_index,
-            num_workgroups: true,
+            num_workgroups: self.id,
             workgroup_id: self.workgroup_id,
             body,
             extensions,
@@ -169,9 +171,18 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 self.workgroup_id = true;
                 wgsl::Variable::WorkgroupIdZ
             }
-            gpu::Variable::GlobalInvocationIdX => wgsl::Variable::GlobalInvocationIdX,
-            gpu::Variable::GlobalInvocationIdY => wgsl::Variable::GlobalInvocationIdY,
-            gpu::Variable::GlobalInvocationIdZ => wgsl::Variable::GlobalInvocationIdZ,
+            gpu::Variable::GlobalInvocationIdX => {
+                self.global_invocation_id = true;
+                wgsl::Variable::GlobalInvocationIdX
+            }
+            gpu::Variable::GlobalInvocationIdY => {
+                self.global_invocation_id = true;
+                wgsl::Variable::GlobalInvocationIdY
+            }
+            gpu::Variable::GlobalInvocationIdZ => {
+                self.global_invocation_id = true;
+                wgsl::Variable::GlobalInvocationIdZ
+            }
         }
     }
 

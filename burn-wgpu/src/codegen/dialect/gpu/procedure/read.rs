@@ -2,6 +2,7 @@ use super::super::{gpu, Elem, Item, Operator, Scope, Variable};
 use crate::codegen::dialect::gpu::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
+/// Read a global array.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobal {
     /// The array to be read.
@@ -10,7 +11,7 @@ pub struct ReadGlobal {
     pub out: Variable,
 }
 
-/// Settings for the [Algorithm::ReadGlobalWithLayout] variant.
+/// Read a global array with the given layout.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadGlobalWithLayout {
     /// The array to be read.
@@ -38,24 +39,26 @@ impl ReadGlobal {
 }
 
 impl ReadGlobalWithLayout {
+    /// Try to merge two reads together reducing branching.
     pub fn try_merge(&self, other: &Self) -> Option<Self> {
-        if self.layout == other.layout {
-            let mut globals = Vec::with_capacity(self.globals.len() + other.globals.len());
-            globals.extend(&self.globals);
-            globals.extend(&other.globals);
-
-            let mut outs = Vec::with_capacity(self.outs.len() + other.outs.len());
-            outs.extend(&self.outs);
-            outs.extend(&other.outs);
-
-            return Some(Self {
-                globals,
-                outs,
-                layout: self.layout,
-            });
+        // Can only merge two reads when they share the same reference layout.
+        if self.layout != other.layout {
+            return None;
         }
 
-        None
+        let mut globals = Vec::with_capacity(self.globals.len() + other.globals.len());
+        globals.extend(&self.globals);
+        globals.extend(&other.globals);
+
+        let mut outs = Vec::with_capacity(self.outs.len() + other.outs.len());
+        outs.extend(&self.outs);
+        outs.extend(&other.outs);
+
+        Some(Self {
+            globals,
+            outs,
+            layout: self.layout,
+        })
     }
 
     pub fn expand(self, scope: &mut Scope) {
@@ -83,6 +86,7 @@ impl ReadGlobalWithLayout {
             gpu!(scope, output = tensor[index]);
         }
     }
+
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
             globals: self

@@ -2,13 +2,8 @@ use super::{ConditionalAssign, Matmul, ReadGlobal, ReadGlobalWithLayout, WriteGl
 use crate::codegen::dialect::gpu::Vectorization;
 use serde::{Deserialize, Serialize};
 
-/// Tensor operations that can't be executed with a simple [operator](Operator) should use an
-/// algorithm.
-///
-/// Algorithms can be expanded to basic [operator](Operator) during compilation, but after
-/// vectorization, since for loops and other construct can't simply be vectorized. This also gives
-/// the vectorization state to the expansion function, which may create a different set of
-/// [operator](Operator) depending on the vectorization state.
+/// Tensor operations that can't be executed with a simple [operator](super::super::Operator) should use a
+/// procedure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Procedure {
     /// Read a global array with the given layout.

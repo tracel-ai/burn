@@ -1,6 +1,5 @@
-use crate::codegen::dialect::gpu::ReadGlobalWithLayout;
-
 use super::{Operation, Procedure, Variable};
+use crate::codegen::dialect::gpu::ReadGlobalWithLayout;
 
 /// Information necessary when compiling a scope.
 pub struct ScopeProcessing {
@@ -36,7 +35,24 @@ impl ScopeProcessing {
         }
 
         impl Optimization {
-            fn register(&mut self, proc: &ReadGlobalWithLayout, position: usize) {
+            fn new(existing_operations: &[Operation]) -> Self {
+                let mut optim = Self::default();
+
+                existing_operations
+                    .iter()
+                    .enumerate()
+                    .for_each(|(position, operation)| {
+                        if let Operation::Procedure(Procedure::ReadGlobalWithLayout(proc)) =
+                            operation
+                        {
+                            optim.register_one(proc, position);
+                        }
+                    });
+
+                optim
+            }
+
+            fn register_one(&mut self, proc: &ReadGlobalWithLayout, position: usize) {
                 for merged_proc in self.merged_procs.iter_mut() {
                     if let Some(merged) = merged_proc.proc.try_merge(proc) {
                         merged_proc.proc = merged;
@@ -48,52 +64,41 @@ impl ScopeProcessing {
                 self.merged_procs
                     .push(MergedProc::new(proc.clone(), vec![position]));
             }
-        }
 
-        let mut optimization = Optimization::default();
-
-        for (position, operation) in self.operations.iter().enumerate() {
-            let proc = match operation {
-                Operation::Procedure(algo) => algo,
-                _ => continue,
-            };
-
-            let proc = match proc {
-                Procedure::ReadGlobalWithLayout(algo) => algo,
-                _ => continue,
-            };
-
-            optimization.register(proc, position);
-        }
-
-        if optimization.merged_procs.is_empty() {
-            return self;
-        }
-
-        let mut operations = Vec::with_capacity(self.operations.len());
-
-        for (position, operation) in self.operations.into_iter().enumerate() {
-            let mut is_merged_op = false;
-
-            for merged_proc in optimization.merged_procs.iter() {
-                if merged_proc.positions[0] == position {
-                    operations.push(Operation::Procedure(Procedure::ReadGlobalWithLayout(
-                        merged_proc.proc.clone(),
-                    )));
-                    is_merged_op = true;
+            fn apply(self, existing_operations: Vec<Operation>) -> Vec<Operation> {
+                if self.merged_procs.is_empty() {
+                    return existing_operations;
                 }
 
-                if merged_proc.positions.contains(&position) {
-                    is_merged_op = true;
-                }
-            }
+                let mut operations = Vec::with_capacity(existing_operations.len());
 
-            if !is_merged_op {
-                operations.push(operation);
+                for (position, operation) in existing_operations.into_iter().enumerate() {
+                    let mut is_merged_op = false;
+
+                    for merged_proc in self.merged_procs.iter() {
+                        if merged_proc.positions[0] == position {
+                            operations.push(Operation::Procedure(Procedure::ReadGlobalWithLayout(
+                                merged_proc.proc.clone(),
+                            )));
+                            is_merged_op = true;
+                        }
+
+                        if merged_proc.positions.contains(&position) {
+                            is_merged_op = true;
+                        }
+                    }
+
+                    if !is_merged_op {
+                        operations.push(operation);
+                    }
+                }
+
+                operations
             }
         }
 
-        self.operations = operations;
+        let optimization = Optimization::new(&self.operations);
+        self.operations = optimization.apply(self.operations);
         self
     }
 }

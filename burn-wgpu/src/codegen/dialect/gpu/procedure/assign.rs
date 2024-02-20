@@ -1,6 +1,7 @@
 use crate::codegen::dialect::gpu::{macros::gpu, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
+/// Assign value to a variable based on a given condition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConditionalAssign {
     pub cond: Variable,
