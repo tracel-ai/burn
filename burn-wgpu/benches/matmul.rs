@@ -113,9 +113,9 @@ pub fn bench(device: &WgpuDevice) {
     const D: usize = 3;
     let num_repeats = 3;
     let batch_size = 3;
-    let m = 1007;
-    let k = 1023;
-    let n = 1005;
+    let m = 1024;
+    let k = 1024;
+    let n = 1024;
     let shape_lhs = Shape::new([batch_size, m, k]);
     let shape_rhs = Shape::new([batch_size, k, n]);
 

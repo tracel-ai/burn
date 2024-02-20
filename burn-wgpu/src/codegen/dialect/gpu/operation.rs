@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {
     Operator(Operator),
-    Metadata(Metadata),
     Procedure(Procedure),
+    Metadata(Metadata),
     Branch(Branch),
 }
 

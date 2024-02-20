@@ -212,7 +212,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
     ) {
         match operation {
             gpu::Operation::Operator(op) => instructions.push(self.compile_instruction(op)),
-            gpu::Operation::Procedure(algo) => self.compile_algorithm(instructions, algo, scope),
+            gpu::Operation::Procedure(algo) => self.compile_procedure(instructions, algo, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
         }
@@ -242,7 +242,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
         };
     }
 
-    fn compile_algorithm(
+    fn compile_procedure(
         &mut self,
         instructions: &mut Vec<wgsl::Instruction>,
         proc: gpu::Procedure,
