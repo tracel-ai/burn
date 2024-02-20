@@ -41,14 +41,12 @@ pub(crate) struct OnnxGraphIO {
     pub(crate) outputs: Vec<Argument>,
     /// Initializers
     pub(crate) initializers: HashMap<String, Argument>,
-    //pub(crate) initializers: Vec<Argument>,
     ///updated names of outputs of node not stored in the graph
     node_out: Vec<Argument>,
     pub(crate) old_io_names: HashMap<String, IOEntry>,
 }
 
 impl OnnxGraphIO {
-    
     pub(crate) fn new(
         inputs: &Vec<ValueInfoProto>,
         outputs: &Vec<ValueInfoProto>,
@@ -251,15 +249,15 @@ pub(crate) struct ONNXGraphBuilder {
     nodes: Vec<Node>,
     inputs: Vec<Argument>,
     outputs: Vec<Argument>,
-
+    /// Counter for node names, used for renaming nodes
     node_name_counter: HashMap<NodeType, usize>,
-    //nodes to remove
+    /// Nodes to remove
     nodes_to_remove: HashSet<usize>,
+    /// Map from constant node output names to indices of constant nodes
     constants_map: HashMap<String, usize>,
-
     constants_types: HashSet<NodeType>,
-    //map from old node name to indices of identity nodes
-    //identity_idx: HashMap<String, usize>,
+    /// Map from identity node output names to indices of identity nodes
+    identity_idx: HashMap<String, usize>,
 }
 
 impl ONNXGraphBuilder {
@@ -287,9 +285,7 @@ impl ONNXGraphBuilder {
             self.check_constants(&mut node, and_idx, &mut graph_io);
             self.handle_unsqueeze(&mut node, &graph_io);
 
-            if node.node_type != NodeType::Identity {
-                dim_inference(&mut node, &mut graph_io);
-            }
+            dim_inference(&mut node, &mut graph_io);
 
             rename_io(&mut node, &mut graph_io);
 
@@ -360,7 +356,7 @@ impl ONNXGraphBuilder {
         }
     }
 
-    ///check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
+    /// Check if the unsqueeze node has a rhs value (rhs is constant) and if not remap it to a reshape
     /// Needs to be called after node renaming to ensure that the rhs name is correct
     /// Needs to be called after constant lifting to ensure that the rhs value exists
     fn handle_unsqueeze(&mut self, node: &mut Node, graph_io: &OnnxGraphIO) {
@@ -374,18 +370,20 @@ impl ONNXGraphBuilder {
     fn handle_identity(&mut self, node: &mut Node, i: usize) {
         if node.node_type == NodeType::Identity && node.inputs[0].value.is_none() {
             log::debug!("\nfound identity node:\n{:?}\n", &node);
-            //self.identity_idx.insert(node.outputs[0].name.clone(), i);
+            //map the output name to check for pass through values
+            self.identity_idx.insert(node.outputs[0].name.clone(), i);
             self.nodes_to_remove.insert(i);
-            //apparently the below is no longer necessary
-        } //else {
-          //     node.inputs.iter_mut().for_each(|x| {
-          //         if let Some(identity_idx) = self.identity_idx.get(&x.name) {
-          //             let input_name = &self.nodes[*identity_idx].inputs[0].name;
+        } else {
+            //NOTE: it might be possible to rework the API to handle all "per input" operations
+            //in a new function that operates on each input.
+            node.inputs.iter_mut().for_each(|x| {
+                if let Some(identity_idx) = self.identity_idx.get(&x.name) {
+                    let input_name = &self.nodes[*identity_idx].inputs[0].name;
 
-        //             x.name = input_name.clone();
-        //         }
-        //     });
-        // }
+                    x.name = input_name.clone();
+                }
+            });
+        }
     }
 }
 

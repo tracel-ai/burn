@@ -144,32 +144,23 @@ pub(crate) fn convert_matmul_to_linear(
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
         let peek_node = convert_node_proto(peek_node, graph_io).clone();
-        println!("next node is {:?}", peek_node);
         if is_add_node_with_bias(&peek_node, node) {
             convert_and_remove_add_node(&peek_node, node);
 
             // You don't have to remove it if it's never stored in the first place
             let _ = iter_mut.next();
-            println!("\n\nskipping add node\n\n");
         }
     }
 }
 
 /// Helper function to check if the peeked node is an Add node with bias
 fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
-    if peek_node.node_type == NodeType::Add && peek_node.inputs.len() == 2 {
-        println!("\n\ntwo matches");
-        println!("peek_node.inputs[0].name: {:?}", peek_node.inputs[0].name);
-        println!(
-            "current_node.outputs[0].name: {:?}",
-            current_node.outputs[0].name
-        );
-        return (peek_node.inputs[0].name == current_node.outputs[0].name
+    peek_node.node_type == NodeType::Add
+        && peek_node.inputs.len() == 2
+        && ((peek_node.inputs[0].name == current_node.outputs[0].name
             && peek_node.inputs[1].value.is_some())
             || (peek_node.inputs[1].name == current_node.outputs[0].name
-                && peek_node.inputs[0].value.is_some());
-    }
-    false
+                && peek_node.inputs[0].value.is_some()))
 }
 
 /// Helper function to convert and remove the Add node

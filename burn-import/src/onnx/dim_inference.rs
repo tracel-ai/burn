@@ -11,8 +11,6 @@ use super::{
 
 /// Infer the dimension of each output tensor and update them.
 pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
-    //graph_io.copy_to_node_inputs(node);
-
     match node.node_type {
         NodeType::Add => same_as_input(node),
         NodeType::AveragePool2d => same_as_input(node),
