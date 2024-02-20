@@ -31,18 +31,18 @@ impl InstanceNormConfig {
     /// Initialize a new [instance norm](InstanceNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
         InstanceNorm {
-            group_norm: self.into().init(device),
+            group_norm: self.to_group_norm().init(device),
         }
     }
 
     /// Initialize a new [instance norm](InstanceNorm) module with a [record](InstanceNormRecord).
     pub fn init_with<B: Backend>(&self, record: InstanceNormRecord<B>) -> InstanceNorm<B> {
         InstanceNorm {
-            group_norm: self.into().init_with(record.group_norm),
+            group_norm: self.to_group_norm().init_with(record.group_norm),
         }
     }
 
-    fn into(&self) -> GroupNormConfig {
+    fn to_group_norm(&self) -> GroupNormConfig {
         GroupNormConfig {
             num_groups: self.num_channels,
             num_channels: self.num_channels,
