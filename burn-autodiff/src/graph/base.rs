@@ -163,8 +163,7 @@ impl Graph {
 
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {
         let mut guard = self.checkpointing_actions.lock();
-        let owned: CheckpointingActions =
-            std::mem::take(&mut *guard);
+        let owned: CheckpointingActions = std::mem::take(&mut *guard);
         build_checkpointer(owned, &self.steps.lock())
     }
 
