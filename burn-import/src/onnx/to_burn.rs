@@ -30,6 +30,7 @@ use crate::{
             max_pool2d::MaxPool2dNode,
             reshape::ReshapeNode,
             unary::UnaryNode,
+            unsqueeze::UnsqueezeNode,
         },
         ScalarKind, ScalarType, TensorKind, TensorType, Type,
     },
@@ -44,7 +45,7 @@ use crate::{
 
 use super::{
     from_onnx::parse_onnx,
-    ir::{self, ArgType, Argument, Data, ElementType, ONNXGraph},
+    ir::{self, ArgType, Argument, Data, ElementType, OnnxGraph},
     op_configuration::{
         avg_pool2d_config, clip_config, concat_config, dropout_config, reshape_config,
         softmax_config,
@@ -217,7 +218,7 @@ impl ModelGen {
     }
 }
 
-impl ONNXGraph {
+impl OnnxGraph {
     /// Converts ONNX graph to Burn graph.
     pub fn into_burn<PS: PrecisionSettings + 'static>(self) -> BurnGraph<PS> {
         let mut graph = BurnGraph::<PS>::default();
@@ -267,6 +268,7 @@ impl ONNXGraph {
                     graph.register(Self::conv_transpose2d_conversion(node))
                 }
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
+                NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 _ => panic!("Unsupported node conversion {}", node.node_type),
             }
         }
@@ -453,6 +455,13 @@ impl ONNXGraph {
         let shape = reshape_config(&node);
 
         ReshapeNode::new(input, output, shape)
+    }
+    fn unsqueeze_conversion(node: Node) -> UnsqueezeNode {
+        let input = node.inputs.first().unwrap().to_tensor_type();
+        let output = node.outputs.first().unwrap().to_tensor_type();
+        let dims = unsqueeze_config(&node);
+
+        UnsqueezeNode::new(input, output, dims)
     }
 
     fn clip_conversion(node: Node) -> ClipNode {

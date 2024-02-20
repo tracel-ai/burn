@@ -10,6 +10,8 @@ use crate::{
     Dataset, InMemDataset,
 };
 
+use burn_common::network::downloader::download_file_as_bytes;
+
 // CVDF mirror of http://yann.lecun.com/exdb/mnist/
 const URL: &str = "https://storage.googleapis.com/cvdf-datasets/mnist/";
 const TRAIN_IMAGES: &str = "train-images-idx3-ubyte";
@@ -22,7 +24,7 @@ const HEIGHT: usize = 28;
 
 /// MNIST item.
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MNISTItem {
+pub struct MnistItem {
     /// Image as a 2D array of floats.
     pub image: [[f32; WIDTH]; HEIGHT],
 
@@ -31,16 +33,16 @@ pub struct MNISTItem {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct MNISTItemRaw {
+struct MnistItemRaw {
     pub image_bytes: Vec<u8>,
     pub label: u8,
 }
 
 struct BytesToImage;
 
-impl Mapper<MNISTItemRaw, MNISTItem> for BytesToImage {
+impl Mapper<MnistItemRaw, MnistItem> for BytesToImage {
     /// Convert a raw MNIST item (image bytes) to a MNIST item (2D array image).
-    fn map(&self, item: &MNISTItemRaw) -> MNISTItem {
+    fn map(&self, item: &MnistItemRaw) -> MnistItem {
         // Ensure the image dimensions are correct.
         debug_assert_eq!(item.image_bytes.len(), WIDTH * HEIGHT);
 
@@ -52,25 +54,25 @@ impl Mapper<MNISTItemRaw, MNISTItem> for BytesToImage {
             image_array[y][x] = *pixel as f32;
         }
 
-        MNISTItem {
+        MnistItem {
             image: image_array,
             label: item.label,
         }
     }
 }
 
-type MappedDataset = MapperDataset<InMemDataset<MNISTItemRaw>, BytesToImage, MNISTItemRaw>;
+type MappedDataset = MapperDataset<InMemDataset<MnistItemRaw>, BytesToImage, MnistItemRaw>;
 
 /// The MNIST dataset consists of 70,000 28x28 black-and-white images in 10 classes (one for each digits), with 7,000
 /// images per class. There are 60,000 training images and 10,000 test images.
 ///
 /// The data is downloaded from the web from the [CVDF mirror](https://github.com/cvdfoundation/mnist).
-pub struct MNISTDataset {
+pub struct MnistDataset {
     dataset: MappedDataset,
 }
 
-impl Dataset<MNISTItem> for MNISTDataset {
-    fn get(&self, index: usize) -> Option<MNISTItem> {
+impl Dataset<MnistItem> for MnistDataset {
+    fn get(&self, index: usize) -> Option<MnistItem> {
         self.dataset.get(index)
     }
 
@@ -79,7 +81,7 @@ impl Dataset<MNISTItem> for MNISTDataset {
     }
 }
 
-impl MNISTDataset {
+impl MnistDataset {
     /// Creates a new train dataset.
     pub fn train() -> Self {
         Self::new("train")
@@ -92,19 +94,19 @@ impl MNISTDataset {
 
     fn new(split: &str) -> Self {
         // Download dataset
-        let root = MNISTDataset::download(split);
+        let root = MnistDataset::download(split);
 
         // MNIST is tiny so we can load it in-memory
         // Train images (u8): 28 * 28 * 60000 = 47.04Mb
         // Test images (u8): 28 * 28 * 10000 = 7.84Mb
-        let images = MNISTDataset::read_images(&root, split);
-        let labels = MNISTDataset::read_labels(&root, split);
+        let images = MnistDataset::read_images(&root, split);
+        let labels = MnistDataset::read_labels(&root, split);
 
-        // Collect as vector of MNISTItemRaw
+        // Collect as vector of MnistItemRaw
         let items: Vec<_> = images
             .into_iter()
             .zip(labels)
-            .map(|(image_bytes, label)| MNISTItemRaw { image_bytes, label })
+            .map(|(image_bytes, label)| MnistItemRaw { image_bytes, label })
             .collect();
 
         let dataset = InMemDataset::new(items);
@@ -130,12 +132,12 @@ impl MNISTDataset {
         // Download split files
         match split {
             "train" => {
-                MNISTDataset::download_file(TRAIN_IMAGES, &split_dir);
-                MNISTDataset::download_file(TRAIN_LABELS, &split_dir);
+                MnistDataset::download_file(TRAIN_IMAGES, &split_dir);
+                MnistDataset::download_file(TRAIN_LABELS, &split_dir);
             }
             "test" => {
-                MNISTDataset::download_file(TEST_IMAGES, &split_dir);
-                MNISTDataset::download_file(TEST_LABELS, &split_dir);
+                MnistDataset::download_file(TEST_IMAGES, &split_dir);
+                MnistDataset::download_file(TEST_LABELS, &split_dir);
             }
             _ => panic!("Invalid split specified {}", split),
         };
@@ -151,7 +153,7 @@ impl MNISTDataset {
 
         if !file_name.exists() {
             // Download gzip file
-            let bytes = super::downloader::download_file_as_bytes(&format!("{URL}{name}.gz"), name);
+            let bytes = download_file_as_bytes(&format!("{URL}{name}.gz"), name);
 
             // Create file to write the downloaded content to
             let mut output_file = File::create(&file_name).unwrap();

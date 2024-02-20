@@ -1,10 +1,11 @@
 use crate::{
     compute::StaticKernel,
-    element::WgpuElement,
+    element::JitElement,
     kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 
 kernel_wgsl!(IndexSelect, "../../template/index/select.wgsl");
@@ -13,11 +14,11 @@ kernel_wgsl!(
     "../../template/index/select_assign_inplace.wgsl"
 );
 
-pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     dim: usize,
-    indices: WgpuTensor<I, 1>,
-) -> WgpuTensor<E, D> {
+    indices: JitTensor<R, I, 1>,
+) -> JitTensor<R, E, D> {
     let mut output_shape = tensor.shape.clone();
     output_shape.dims[dim] = indices.shape.dims[0];
 
@@ -45,12 +46,12 @@ pub(crate) fn select<E: WgpuElement, I: WgpuElement, const D: usize>(
     output
 }
 
-pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
-    tensor: WgpuTensor<E, D>,
+pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
     dim: usize,
-    indices: WgpuTensor<I, 1>,
-    value: WgpuTensor<E, D>,
-) -> WgpuTensor<E, D> {
+    indices: JitTensor<R, I, 1>,
+    value: JitTensor<R, E, D>,
+) -> JitTensor<R, E, D> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -100,7 +101,7 @@ pub(crate) fn select_assign<E: WgpuElement, I: WgpuElement, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
+    use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
 
     #[test]
@@ -174,12 +175,13 @@ mod tests {
             &Default::default(),
         );
 
-        let actual = Tensor::<TestBackend, D>::from_primitive(select_assign(
-            tensor.into_primitive(),
-            dim,
-            indices.into_primitive(),
-            value.into_primitive(),
-        ));
+        let actual =
+            Tensor::<TestBackend, D>::from_primitive(select_assign::<TestRuntime, _, _, D>(
+                tensor.into_primitive(),
+                dim,
+                indices.into_primitive(),
+                value.into_primitive(),
+            ));
         let expected = tensor_ref.select_assign(dim, indices_ref, value_ref);
 
         expected

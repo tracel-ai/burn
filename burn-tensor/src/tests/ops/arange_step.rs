@@ -18,7 +18,14 @@ mod tests {
 
         // Test correct sequence of numbers when the range is 0..2 and the step is 5
         let tensor = Tensor::<TestBackend, 1, Int>::arange_step(0..2, 5, &device);
-        assert_eq!(tensor.clone().into_data(), Data::from([0]));
+        assert_eq!(tensor.into_data(), Data::from([0]));
+
+        // Test correct sequence of numbers when the range includes negative numbers
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-3..3, 2, &device);
+        assert_eq!(tensor.into_data(), Data::from([-3, -1, 1]));
+
+        let tensor = Tensor::<TestBackend, 1, Int>::arange_step(-5..1, 5, &device);
+        assert_eq!(tensor.clone().into_data(), Data::from([-5, 0]));
         assert_eq!(tensor.device(), device);
     }
 

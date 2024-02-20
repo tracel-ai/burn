@@ -27,14 +27,14 @@ pub struct AdaGradConfig {
 
 /// AdaGrad optimizer
 pub struct AdaGrad<B: Backend> {
-    lr_decay: LRDecay,
+    lr_decay: LrDecay,
     weight_decay: Option<WeightDecay<B>>,
 }
 
 /// AdaGrad state.
 #[derive(Record, Clone, new)]
 pub struct AdaGradState<B: Backend, const D: usize> {
-    lr_decay: LRDecayState<B, D>,
+    lr_decay: LrDecayState<B, D>,
 }
 
 impl<B: Backend> SimpleOptimizer<B> for AdaGrad<B> {
@@ -81,7 +81,7 @@ impl AdaGradConfig {
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> impl Optimizer<M, B> {
         let optim = AdaGrad {
-            lr_decay: LRDecay {
+            lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
                 epsilon: self.epsilon,
             },
@@ -98,29 +98,29 @@ impl AdaGradConfig {
 
 /// Learning rate decay state (also includes sum state).
 #[derive(Record, new, Clone)]
-pub struct LRDecayState<B: Backend, const D: usize> {
+pub struct LrDecayState<B: Backend, const D: usize> {
     time: usize,
     sum: Tensor<B, D>,
 }
 
-struct LRDecay {
+struct LrDecay {
     lr_decay: f64,
     epsilon: f32,
 }
 
-impl LRDecay {
+impl LrDecay {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
         lr: LearningRate,
-        lr_decay_state: Option<LRDecayState<B, D>>,
-    ) -> (Tensor<B, D>, LRDecayState<B, D>) {
+        lr_decay_state: Option<LrDecayState<B, D>>,
+    ) -> (Tensor<B, D>, LrDecayState<B, D>) {
         let state = if let Some(mut state) = lr_decay_state {
             state.sum = state.sum.add(grad.clone().powf_scalar(2.));
             state.time += 1;
             state
         } else {
-            LRDecayState::new(1, grad.clone().powf_scalar(2.))
+            LrDecayState::new(1, grad.clone().powf_scalar(2.))
         };
 
         let new_lr = lr / (1. + (state.time as f64 - 1.) * self.lr_decay);
@@ -133,7 +133,7 @@ impl LRDecay {
     }
 }
 
-impl<B: Backend, const D: usize> LRDecayState<B, D> {
+impl<B: Backend, const D: usize> LrDecayState<B, D> {
     /// Move state to device.
     ///
     /// # Arguments
@@ -278,7 +278,7 @@ mod tests {
     {
         let config = AdaGradConfig::new();
         AdaGrad {
-            lr_decay: LRDecay {
+            lr_decay: LrDecay {
                 lr_decay: config.lr_decay,
                 epsilon: config.epsilon,
             },

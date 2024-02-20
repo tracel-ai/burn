@@ -7,7 +7,6 @@ use alloc::vec::Vec;
 use alloc::{boxed::Box, sync::Arc};
 use burn_common::reader::Reader;
 use burn_common::stub::RwLock;
-use core::marker::PhantomData;
 
 /// The ComputeClient is the entry point to require tasks from the ComputeServer.
 /// It should be obtained for a specific device via the Compute struct.
@@ -15,7 +14,6 @@ use core::marker::PhantomData;
 pub struct ComputeClient<Server: ComputeServer, Channel> {
     channel: Channel,
     tuner: Arc<RwLock<Tuner<Server, Channel>>>,
-    _server: PhantomData<Server>,
 }
 
 impl<S, C> Clone for ComputeClient<S, C>
@@ -27,7 +25,6 @@ where
         Self {
             channel: self.channel.clone(),
             tuner: self.tuner.clone(),
-            _server: PhantomData,
         }
     }
 }
@@ -39,11 +36,7 @@ where
 {
     /// Create a new client.
     pub fn new(channel: Channel, tuner: Arc<RwLock<Tuner<Server, Channel>>>) -> Self {
-        Self {
-            channel,
-            tuner,
-            _server: PhantomData,
-        }
+        Self { channel, tuner }
     }
 
     /// Given a handle, returns owned resource as bytes.

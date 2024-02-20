@@ -16,6 +16,8 @@ jobs:
     uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
       crate: burn-dataset
+    needs:
+      - publish-burn-common
     secrets: inherit
 
   publish-burn-common:

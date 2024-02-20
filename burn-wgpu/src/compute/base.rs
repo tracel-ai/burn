@@ -1,5 +1,7 @@
 use super::WgpuServer;
-use crate::{compute::WgpuStorage, GraphicsApi, WgpuDevice};
+use crate::{
+    compute::WgpuStorage, wgsl, FloatElement, GraphicsApi, IntElement, Runtime, WgpuDevice,
+};
 use alloc::sync::Arc;
 use burn_common::stub::RwLock;
 use burn_compute::{
@@ -7,30 +9,43 @@ use burn_compute::{
     client::ComputeClient,
     memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy},
     tune::Tuner,
-    Compute,
+    ComputeRuntime,
 };
+use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
-type MemoryManagement = SimpleMemoryManagement<WgpuStorage>;
-/// Wgpu [compute server](WgpuServer)
-pub type Server = WgpuServer<MemoryManagement>;
-type Channel = MutexComputeChannel<Server>;
+/// Runtime that uses the [wgpu] crate with the [wgsl compiler](wgsl::Compiler).
+///
+/// The [graphics api](GraphicsApi), the [float element](FloatElement) and the
+/// [int element](IntElement) types are passed as generic.
+pub struct WgpuRuntime<G: GraphicsApi, F: FloatElement, I: IntElement> {
+    _g: PhantomData<G>,
+    _f: PhantomData<F>,
+    _i: PhantomData<I>,
+}
 
-/// Wgpu [compute client](ComputeClient) to communicate with the [compute server](WgpuServer).
-pub type WgpuComputeClient = ComputeClient<Server, Channel>;
-/// Wgpu [server handle](burn_compute::server::Handle).
-pub type WgpuHandle = burn_compute::server::Handle<Server>;
+/// The compute instance is shared across all [wgpu runtimes](WgpuRuntime).
+static RUNTIME: ComputeRuntime<WgpuDevice, Server, MutexComputeChannel<Server>> =
+    ComputeRuntime::new();
+type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-/// Compute handle for the wgpu backend.
-static COMPUTE: Compute<WgpuDevice, WgpuServer<MemoryManagement>, Channel> = Compute::new();
+impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
+    type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
+    type Compiler = wgsl::Compiler<F, I>;
+    type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
-/// Get the [compute client](ComputeClient) for the given [device](WgpuDevice).
-pub fn compute_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
-    let device = Arc::new(device);
+    type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;
+    type Device = WgpuDevice;
 
-    COMPUTE.client(&device, move || {
-        pollster::block_on(create_client::<G>(&device))
-    })
+    fn client(device: &Self::Device) -> ComputeClient<Self::Server, Self::Channel> {
+        RUNTIME.client(device, move || {
+            pollster::block_on(create_client::<G>(device))
+        })
+    }
+
+    fn name() -> &'static str {
+        "wgpu"
+    }
 }
 
 /// Init the client async, necessary for wasm.
@@ -38,10 +53,15 @@ pub async fn init_async<G: GraphicsApi>(device: &WgpuDevice) {
     let device = Arc::new(device);
     let client = create_client::<G>(&device).await;
 
-    COMPUTE.register(&device, client)
+    RUNTIME.register(&device, client)
 }
 
-async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Server, Channel> {
+async fn create_client<G: GraphicsApi>(
+    device: &WgpuDevice,
+) -> ComputeClient<
+    WgpuServer<SimpleMemoryManagement<WgpuStorage>>,
+    MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>,
+> {
     let (device_wgpu, queue, info) = select_device::<G>(device).await;
 
     log::info!(
@@ -66,7 +86,7 @@ async fn create_client<G: GraphicsApi>(device: &WgpuDevice) -> ComputeClient<Ser
         SliceStrategy::Ratio(0.8),
     );
     let server = WgpuServer::new(memory_management, device, queue, max_tasks);
-    let channel = Channel::new(server);
+    let channel = MutexComputeChannel::new(server);
 
     let tuner_device_id = tuner_device_id(info);
     ComputeClient::new(channel, Arc::new(RwLock::new(Tuner::new(&tuner_device_id))))

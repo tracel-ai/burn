@@ -1,5 +1,5 @@
 use super::numeric;
-use crate::codegen::{Elem, Item, Operator, Variable};
+use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
 #[cfg(feature = "autotune")]
@@ -10,8 +10,9 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
-use crate::WgpuDevice;
-use crate::{unary, FloatElement, GraphicsApi, IntElement, Wgpu};
+use crate::tensor::JitTensor;
+use crate::Runtime;
+use crate::{unary, JitBackend};
 use burn_tensor::ops::{
     BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntTensor,
 };
@@ -19,17 +20,12 @@ use burn_tensor::{ops::FloatTensorOps, Data, Distribution, Shape};
 use burn_tensor::{ElementConversion, Reader};
 use std::ops::Range;
 
-impl<G, F, I> FloatTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
-where
-    G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
-{
+impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::from_data::<G, F, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn float_random<const D: usize>(
@@ -38,15 +34,13 @@ where
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         match distribution {
-            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 1.elem()),
+            Distribution::Default => random_uniform(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+                random_uniform(shape, device, low.elem(), high.elem())
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli::<G, F, D>(shape, device, prob.elem())
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem()),
             Distribution::Normal(mean, std) => {
-                random_normal::<G, F, D>(shape, device, mean.elem(), std.elem())
+                random_normal(shape, device, mean.elem(), std.elem())
             }
         }
     }
@@ -69,11 +63,11 @@ where
         tensor: FloatTensor<Self, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        super::to_device::<G, F, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        super::empty::<G, F, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn float_add<const D: usize>(
@@ -91,19 +85,19 @@ where
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::zeros::<G, F, D>(shape, device)
+        numeric::zeros(shape, device)
     }
 
     fn float_full<const D: usize>(
         shape: Shape<D>,
         fill_value: FloatElem<Self>,
-        device: &WgpuDevice,
+        device: &R::Device,
     ) -> FloatTensor<Self, D> {
-        numeric::full::<G, F, D>(shape, device, fill_value)
+        numeric::full(shape, device, fill_value)
     }
 
     fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
-        numeric::ones::<G, F, D>(shape, device)
+        numeric::ones(shape, device)
     }
 
     fn float_sub<const D: usize>(
@@ -353,45 +347,52 @@ where
     fn float_to_full_precision<const D: usize>(
         tensor: &FloatTensor<Self, D>,
     ) -> FloatTensor<FullPrecisionBackend<Self>, D> {
-        kernel::cast(tensor.clone())
+        let tensor = kernel::cast::<R, FloatElem<Self>, f32, D>(tensor.clone());
+        // The line bellow does the backend type cast.
+        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_from_full_precision<const D: usize>(
         tensor: FloatTensor<FullPrecisionBackend<Self>, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::cast(tensor)
+        let tensor = kernel::cast::<R::FullPrecisionRuntime, f32, FloatElem<Self>, D>(tensor);
+        // The line bellow does the backend type cast.
+        JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle)
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Exp {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Exp(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Log {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Log(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Log1p {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Log1p(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
@@ -400,79 +401,86 @@ where
         rhs: f32,
     ) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Powf {
-                lhs: Variable::Input(0, Item::Scalar(elem)),
-                rhs: Variable::Scalar(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Powf(BinaryOperator {
+                lhs: scope.read_array(0, elem),
+                rhs: scope.read_scalar(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: lhs; rhs.elem(),
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Sqrt {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Sqrt(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Abs {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Cos {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Cos(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Sin {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Sin(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Tanh {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Tanh(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Erf {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Erf(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
@@ -509,16 +517,15 @@ where
         kernel::clamp(tensor, min, max)
     }
 
-    fn float_recip<const D: usize>(
-        tensor: FloatTensor<Wgpu<G, F, I>, D>,
-    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Recip {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Recip(UnaryOperator {
+                input: scope.read_array(0, elem),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: F
+            elem: FloatElem<Self>
         )
     }
 
@@ -531,9 +538,9 @@ where
     }
 
     fn float_powf<const D: usize>(
-        lhs: FloatTensor<Wgpu<G, F, I>, D>,
-        rhs: FloatTensor<Wgpu<G, F, I>, D>,
-    ) -> FloatTensor<Wgpu<G, F, I>, D> {
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
         numeric::pow(lhs, rhs)
     }
 }

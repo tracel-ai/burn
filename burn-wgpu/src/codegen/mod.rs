@@ -1,13 +1,9 @@
-mod body;
-mod function;
-mod kernel;
-mod operator;
-mod shader;
-mod variable;
+mod compilation;
+pub(crate) mod compiler;
+pub(crate) mod dialect;
 
-pub(crate) use body::*;
-pub(crate) use function::*;
+mod kernel;
+
+pub(crate) use compilation::*;
+pub(crate) use compiler::*;
 pub(crate) use kernel::*;
-pub(crate) use operator::*;
-pub(crate) use shader::*;
-pub(crate) use variable::*;

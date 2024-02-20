@@ -1,22 +1,12 @@
-use crate::{
-    element::{FloatElement, IntElement},
-    kernel,
-    tensor::WgpuTensor,
-    GraphicsApi, Wgpu,
-};
-use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
+use crate::{kernel, tensor::JitTensor, JitBackend, Runtime};
+use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
-impl<G, F, I> BoolTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
-where
-    G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
-{
+impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
-        super::empty::<G, u32, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
@@ -41,19 +31,19 @@ where
                 .collect(),
             data.shape,
         );
-        super::from_data::<G, u32, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
-        if std::mem::size_of::<I>() == std::mem::size_of::<u32>() {
-            return WgpuTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
+        if std::mem::size_of::<IntElem<Self>>() == std::mem::size_of::<u32>() {
+            return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
         }
 
         let device = Self::bool_device(&tensor);
         let data = Self::bool_into_data(tensor)
             .read_sync()
             .expect("Can't convert bool to int with a different type size async")
-            .convert::<I>();
+            .convert::<IntElem<Self>>();
 
         Self::int_from_data(data, &device)
     }
@@ -66,7 +56,7 @@ where
         tensor: BoolTensor<Self, D>,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        super::to_device::<G, u32, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
@@ -117,7 +107,7 @@ where
         mut tensor: BoolTensor<Self, D>,
         dim1: usize,
         dim2: usize,
-    ) -> <Wgpu<G, F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    ) -> BoolTensor<Self, D> {
         tensor.strides.swap(dim1, dim2);
         tensor.shape.dims.swap(dim1, dim2);
 

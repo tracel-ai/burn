@@ -7,7 +7,7 @@ use burn_compute::client::ComputeClient;
 use burn_compute::memory_management::{DeallocStrategy, SimpleMemoryManagement, SliceStrategy};
 use burn_compute::storage::BytesStorage;
 use burn_compute::tune::Tuner;
-use burn_compute::Compute;
+use burn_compute::ComputeRuntime;
 
 /// The dummy device.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -16,7 +16,7 @@ pub struct DummyDevice;
 pub type DummyChannel = MutexComputeChannel<DummyServer>;
 pub type DummyClient = ComputeClient<DummyServer, DummyChannel>;
 
-static COMPUTE: Compute<DummyDevice, DummyServer, DummyChannel> = Compute::new();
+static RUNTIME: ComputeRuntime<DummyDevice, DummyServer, DummyChannel> = ComputeRuntime::new();
 pub static TUNER_DEVICE_ID: &str = "tests/dummy-device";
 
 pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServer>> {
@@ -30,5 +30,5 @@ pub fn init_client() -> ComputeClient<DummyServer, MutexComputeChannel<DummyServ
 }
 
 pub fn client(device: &DummyDevice) -> DummyClient {
-    COMPUTE.client(device, init_client)
+    RUNTIME.client(device, init_client)
 }

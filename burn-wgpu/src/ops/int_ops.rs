@@ -1,40 +1,31 @@
 use super::numeric;
-
-use crate::codegen::{Elem, Item, Operator, Variable};
+use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::reduce::{self, init_reduce_output};
-use crate::{
-    element::{FloatElement, IntElement},
-    kernel, unary, GraphicsApi, Wgpu,
-};
+use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 
 use burn_tensor::Reader;
 use burn_tensor::{ops::IntTensorOps, Data, Shape};
 use std::ops::Range;
 
-impl<G, F, I> IntTensorOps<Wgpu<G, F, I>> for Wgpu<G, F, I>
-where
-    G: GraphicsApi + 'static,
-    F: FloatElement,
-    I: IntElement,
-{
+impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        super::empty::<G, I, D>(shape, device)
+        super::empty(shape, device)
     }
 
     fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<I, D>> {
+    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
         super::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
-        data: Data<I, D>,
+        data: Data<IntElem<Self>, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        super::from_data::<G, I, D>(data, device)
+        super::from_data(data, device)
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
@@ -45,7 +36,7 @@ where
         tensor: IntTensor<Self, D>,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        super::to_device::<G, I, D>(tensor, device)
+        super::to_device(tensor, device)
     }
 
     fn int_reshape<const D1: usize, const D2: usize>(
@@ -128,77 +119,77 @@ where
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal::<I, D>(lhs, rhs)
+        kernel::equal(lhs, rhs)
     }
 
     fn int_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::equal_elem::<I, D>(lhs, rhs)
+        kernel::equal_elem(lhs, rhs)
     }
 
     fn int_greater<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater::<I, D>(lhs, rhs)
+        kernel::greater(lhs, rhs)
     }
 
     fn int_greater_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_elem::<I, D>(lhs, rhs)
+        kernel::greater_elem(lhs, rhs)
     }
 
     fn int_greater_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal::<I, D>(lhs, rhs)
+        kernel::greater_equal(lhs, rhs)
     }
 
     fn int_greater_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::greater_equal_elem::<I, D>(lhs, rhs)
+        kernel::greater_equal_elem(lhs, rhs)
     }
 
     fn int_lower<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower::<I, D>(lhs, rhs)
+        kernel::lower(lhs, rhs)
     }
 
     fn int_lower_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_elem::<I, D>(lhs, rhs)
+        kernel::lower_elem(lhs, rhs)
     }
 
     fn int_lower_equal<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal::<I, D>(lhs, rhs)
+        kernel::lower_equal(lhs, rhs)
     }
 
     fn int_lower_equal_elem<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntElem<Self>,
     ) -> BoolTensor<Self, D> {
-        kernel::lower_equal_elem::<I, D>(lhs, rhs)
+        kernel::lower_equal_elem(lhs, rhs)
     }
 
     fn int_add<const D: usize>(
         lhs: IntTensor<Self, D>,
         rhs: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        numeric::add::<I, D>(lhs, rhs)
+        numeric::add(lhs, rhs)
     }
 
     fn int_add_scalar<const D: usize>(
@@ -251,11 +242,11 @@ where
     }
 
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::zeros::<G, I, D>(shape, device)
+        numeric::zeros(shape, device)
     }
 
     fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
-        numeric::ones::<G, I, D>(shape, device)
+        numeric::ones(shape, device)
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
@@ -290,12 +281,13 @@ where
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
         unary!(
-            operator: |elem: Elem| Operator::Abs {
-                input: Variable::Input(0, Item::Scalar(elem)),
-                out: Variable::Local(0, Item::Scalar(elem)),
-            },
+            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
+                input: scope.read_array(0, Item::Scalar(elem)),
+                out: scope.create_local(elem),
+            }),
+            runtime: R,
             input: tensor,
-            elem: I
+            elem: IntElem<Self>
         )
     }
 

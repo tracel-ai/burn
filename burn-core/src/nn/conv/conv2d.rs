@@ -49,8 +49,10 @@ pub struct Conv2dConfig {
 /// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
 pub struct Conv2d<B: Backend> {
-    weight: Param<Tensor<B, 4>>,
-    bias: Option<Param<Tensor<B, 1>>>,
+    /// Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
+    pub weight: Param<Tensor<B, 4>>,
+    /// Tensor of shape `[channels_out]`
+    pub bias: Option<Param<Tensor<B, 1>>>,
     stride: [usize; 2],
     kernel_size: [usize; 2],
     dilation: [usize; 2],
@@ -70,9 +72,9 @@ impl Conv2dConfig {
             self.kernel_size[1],
         ];
 
-        let k = self.kernel_size.iter().product::<usize>() / self.groups;
-        let fan_in = self.channels[0] * k;
-        let fan_out = self.channels[1] * k;
+        let k = self.kernel_size.iter().product::<usize>();
+        let fan_in = self.channels[0] / self.groups * k;
+        let fan_out = self.channels[1] / self.groups * k;
 
         let weight = self
             .initializer
@@ -177,6 +179,23 @@ mod tests {
         };
         let device = Default::default();
         let config = Conv2dConfig::new([5, 1], [5, 5]).with_initializer(init.clone());
+        let _ = config.init::<TestBackend>(&device);
+
+        assert_eq!(config.initializer, init);
+    }
+
+    #[test]
+    fn initializer_fan_with_groups_is_valid() {
+        TestBackend::seed(0);
+
+        let init = Initializer::KaimingUniform {
+            gain: 1.0 / sqrt(3.0),
+            fan_out_only: true,
+        };
+        let device = Default::default();
+        let config = Conv2dConfig::new([4, 4], [1, 1])
+            .with_initializer(init.clone())
+            .with_groups(4);
         let _ = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, init);

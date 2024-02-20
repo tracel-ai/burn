@@ -277,6 +277,22 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn unsqueeze_dims<const D: usize>(dim: isize) -> Self {
+        let mut check = Self::Ok;
+        let output_rank = D as isize;
+        //contains is right exclusive, so this is to spec
+        if !(-output_rank..output_rank).contains(&dim) {
+            check = check.register(
+                "Unsqeeze",
+                TensorError::new(format!(
+                    "unsqueeze arg {} is out of range for the output tensor of rank {}",
+                    dim, output_rank
+                )),
+            );
+        }
+        check
+    }
+
     pub(crate) fn one_hot(index: usize, num_classes: usize) -> Self {
         let mut check = Self::Ok;
         if index >= num_classes {

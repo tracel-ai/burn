@@ -16,7 +16,7 @@ pub struct Model<B: Backend> {
     dropout: nn::Dropout,
     fc1: nn::Linear<B>,
     fc2: nn::Linear<B>,
-    activation: nn::GELU,
+    activation: nn::Gelu,
 }
 
 const NUM_CLASSES: usize = 10;
@@ -43,7 +43,7 @@ impl<B: Backend> Model<B> {
             fc1,
             fc2,
             dropout,
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
         }
     }
 
@@ -70,7 +70,7 @@ impl<B: Backend> Model<B> {
 pub struct ConvBlock<B: Backend> {
     conv: nn::conv::Conv2d<B>,
     norm: BatchNorm<B, 2>,
-    activation: nn::GELU,
+    activation: nn::Gelu,
 }
 
 impl<B: Backend> ConvBlock<B> {
@@ -83,7 +83,7 @@ impl<B: Backend> ConvBlock<B> {
         Self {
             conv,
             norm,
-            activation: nn::GELU::new(),
+            activation: nn::Gelu::new(),
         }
     }
 

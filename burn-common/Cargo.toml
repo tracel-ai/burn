@@ -15,6 +15,7 @@ default = ["std"]
 std = ["rand/std"]
 doc = ["default"]
 wasm-sync = []
+network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 async-trait = { workspace = true }
@@ -30,6 +31,11 @@ spin = { workspace = true }       # using in place of use std::sync::Mutex;
 uuid = { workspace = true }
 derive-new = { workspace = true }
 serde = { workspace = true }
+
+# Network downloader
+indicatif = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

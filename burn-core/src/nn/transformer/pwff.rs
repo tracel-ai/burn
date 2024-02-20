@@ -4,7 +4,7 @@ use crate::nn::Initializer;
 use crate::{
     config::Config,
     module::Module,
-    nn::{Dropout, DropoutConfig, Linear, LinearConfig, GELU},
+    nn::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig},
     tensor::{backend::Backend, Tensor},
 };
 
@@ -36,7 +36,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: Linear<B>,
     linear_outer: Linear<B>,
     dropout: Dropout,
-    gelu: GELU,
+    gelu: Gelu,
 }
 
 impl PositionWiseFeedForwardConfig {
@@ -50,7 +50,7 @@ impl PositionWiseFeedForwardConfig {
                 .with_initializer(self.initializer.clone())
                 .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
-            gelu: GELU::new(),
+            gelu: Gelu::new(),
         }
     }
     /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module with a
@@ -63,7 +63,7 @@ impl PositionWiseFeedForwardConfig {
             linear_inner: LinearConfig::new(self.d_model, self.d_ff).init_with(record.linear_inner),
             linear_outer: LinearConfig::new(self.d_ff, self.d_model).init_with(record.linear_outer),
             dropout: DropoutConfig::new(self.dropout).init(),
-            gelu: GELU::new(),
+            gelu: Gelu::new(),
         }
     }
 }
