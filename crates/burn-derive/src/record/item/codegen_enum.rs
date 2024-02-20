@@ -1,41 +1,20 @@
+use crate::shared::enum_variant::{parse_variants, EnumVariant};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{parse_quote, Generics};
 
 use super::codegen::RecordItemCodegen;
 
-/// An enum variant (simplified).
-struct Variant {
-    ident: syn::Ident,
-    ty: syn::Type,
-}
-
 pub(crate) struct EnumRecordItemCodegen {
     /// Enum variants.
-    variants: Vec<Variant>,
+    variants: Vec<EnumVariant>,
 }
 
 impl RecordItemCodegen for EnumRecordItemCodegen {
     fn from_ast(ast: &syn::DeriveInput) -> Self {
-        let mut variants = Vec::new();
-
-        if let syn::Data::Enum(enum_data) = &ast.data {
-            for variant in enum_data.variants.iter() {
-                if variant.fields.len() != 1 {
-                    panic!("Enums are only supported for a single field type")
-                }
-
-                let field = variant.fields.iter().next().unwrap();
-
-                variants.push(Variant {
-                    ident: variant.ident.clone(),
-                    ty: field.ty.clone(),
-                });
-            }
-        } else {
-            panic!("Only enum can be derived")
+        Self {
+            variants: parse_variants(ast),
         }
-        Self { variants }
     }
 
     fn gen_item_type(
