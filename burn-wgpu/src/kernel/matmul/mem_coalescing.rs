@@ -124,25 +124,6 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     );
 
     out
-
-    // let info = build_info(&[&lhs, &rhs, &output]);
-
-    // let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
-
-    // let kernel = matmul_mem_coalescing_kernel::<E, D>(
-    //     &lhs.shape,
-    //     &rhs.shape,
-    //     &output.shape,
-    //     workgroup_size_x,
-    //     workgroup_size_y,
-    // );
-
-    // lhs.client.execute(
-    //     kernel,
-    //     &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
-    // );
-
-    // output
 }
 
 fn launch_options<const D: usize>(

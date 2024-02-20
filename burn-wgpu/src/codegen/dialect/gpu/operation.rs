@@ -1,7 +1,4 @@
-use super::{
-    ConditionalAssign, Elem, Item, Matmul, ReadGlobal, ReadGlobalWithLayout, Scope, Variable,
-    WriteGlobal,
-};
+use super::{Elem, Item, Procedure, Scope, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
@@ -72,26 +69,6 @@ pub struct IfElse {
     pub cond: Variable,
     pub scope_if: Scope,
     pub scope_else: Scope,
-}
-
-/// Tensor operations that can't be executed with a simple [operator](Operator) should use an
-/// algorithm.
-///
-/// Algorithms can be expanded to basic [operator](Operator) during compilation, but after
-/// vectorization, since for loops and other construct can't simply be vectorized. This also gives
-/// the vectorization state to the expansion function, which may create a different set of
-/// [operator](Operator) depending on the vectorization state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Procedure {
-    /// Read an input array with the given layout.
-    ///
-    /// Crucial to read arrays that aren't contiguous and to perform correct broadcasting.
-    ReadGlobalWithLayout(ReadGlobalWithLayout),
-    /// Read an input array.
-    ReadGlobal(ReadGlobal),
-    Matmul(Matmul),
-    WriteGlobal(WriteGlobal),
-    ConditionalAssign(ConditionalAssign),
 }
 
 /// All loop variants.

@@ -1,6 +1,6 @@
 use crate::codegen::dialect::gpu::{
-    macros::gpu, procedure::read::OffsetGlobalWithLayout, BinaryOperator, Branch, Elem, Scope,
-    Variable,
+    macros::gpu, procedure::read::IndexOffsetGlobalWithLayout, BinaryOperator, Branch, Elem, Scope,
+    Variable, Vectorization,
 };
 use serde::{Deserialize, Serialize};
 
@@ -87,12 +87,12 @@ impl Matmul {
                 gpu!(scope, offset_output = offset_output * batch);
 
                 // Batch offset for the lhs matrix.
-                OffsetGlobalWithLayout {
+                IndexOffsetGlobalWithLayout {
                     tensors: vec![lhs, rhs],
                     indexes: vec![offset_lhs, offset_rhs],
                     layout: out,
-                    end: batch_dims,
-                    offset_ref: offset_output,
+                    end_dim: batch_dims,
+                    index_ref: offset_output,
                 }
                 .expand(scope);
 
@@ -137,6 +137,18 @@ impl Matmul {
                 gpu!(scope, out_index = out_index + offset_output);
                 gpu!(scope, out[out_index] = sum);
             }
+        }
+    }
+
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        match self {
+            Matmul::MemCoalescing {
+                variables,
+                block_size,
+            } => Matmul::MemCoalescing {
+                variables: variables.vectorize(vectorization),
+                block_size: *block_size,
+            },
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{macros::gpu, Scope, Variable};
+use crate::codegen::dialect::gpu::{macros::gpu, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,5 +14,12 @@ impl WriteGlobal {
         let position = Variable::Id;
 
         gpu!(scope, output[position] = intput);
+    }
+
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            input: self.input.vectorize(vectorization),
+            global: self.global.vectorize(vectorization),
+        }
     }
 }

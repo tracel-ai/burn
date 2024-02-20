@@ -1,4 +1,4 @@
-use crate::codegen::dialect::gpu::{macros::gpu, Item, Scope, Variable};
+use crate::codegen::dialect::gpu::{macros::gpu, Item, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,5 +63,14 @@ impl ConditionalAssign {
                 }));
             }
         };
+    }
+
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            cond: self.cond.vectorize(vectorization),
+            lhs: self.lhs.vectorize(vectorization),
+            rhs: self.rhs.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
     }
 }

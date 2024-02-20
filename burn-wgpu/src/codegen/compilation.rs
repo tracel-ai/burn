@@ -77,19 +77,14 @@ pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
     /// This will create a new binding in the [compute shader](ComputeShader).
-    ArrayWrite {
-        item: Item,
-        local: u16,
-    },
-    Array {
-        item: Item,
-    },
+    ArrayWrite { item: Item, local: u16 },
     /// Write the local variable to an existing input binding.
-    Input {
-        item: Item,
-        input: u16,
-        local: u16,
-    },
+    InputArrayWrite { item: Item, input: u16, local: u16 },
+    /// Simply register the output, but don't automatically add a write to it.
+    ///
+    /// Useful when a [procedure](gpu::Procedure) writes to the output using
+    /// [operations](gpu::Operation).
+    Array { item: Item },
 }
 
 impl Compilation {
@@ -198,7 +193,7 @@ impl Compilation {
                     );
                     index += 1;
                 }
-                OutputInfo::Input { item, input, local } => {
+                OutputInfo::InputArrayWrite { item, input, local } => {
                     let item = item.vectorize(settings.vectorization);
 
                     self.info.scope.write_global(
@@ -231,7 +226,7 @@ impl Compilation {
 
         let (item, local) = match output {
             OutputInfo::ArrayWrite { item, local } => (item, local),
-            OutputInfo::Input {
+            OutputInfo::InputArrayWrite {
                 item: _,
                 input: _,
                 local: _,
@@ -257,7 +252,7 @@ impl Compilation {
         };
 
         // Update the output.
-        *output = OutputInfo::Input {
+        *output = OutputInfo::InputArrayWrite {
             item,
             input: mapping.pos_input as u16,
             local: *local,

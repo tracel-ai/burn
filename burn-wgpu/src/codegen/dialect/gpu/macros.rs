@@ -186,10 +186,6 @@ macro_rules! gpu {
         ));
     };
     // out = input
-    ($scope:expr, eval $arg:expr) => {
-        gpu!($scope, $arg);
-    };
-    // out = input
     ($scope:expr, $out:ident = $input:ident) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
@@ -201,6 +197,7 @@ macro_rules! gpu {
             gpu!(unary $input, $out)
         ));
     };
+    // out = shape(tensor, dim)
     ($scope:expr, $out:ident = shape($input:expr, $dim:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Metadata::Shape {
             dim: $dim.into(),
@@ -208,19 +205,23 @@ macro_rules! gpu {
             out: $out.into(),
         });
     };
+    // out = stride(tensor, dim)
     ($scope:expr, $out:ident = stride($input:expr, $dim:expr)) => {
-        $scope.register(Metadata::Stride {
+        $scope.register($crate::codegen::dialect::gpu::Metadata::Stride {
             dim: $dim.into(),
             var: $input.into(),
             out: $out.into(),
         });
     };
+    // range(start, end).for_each(|scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
     };
+    // if (cond).then(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg:expr)) => {
         $crate::codegen::dialect::gpu::If::register($scope, $cond.into(), $arg);
     };
+    // if (cond).then(|scope| { ... }).else(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg_if:expr).else($arg_else:expr)) => {
         $crate::codegen::dialect::gpu::IfElse::register($scope, $cond.into(), $arg_if, $arg_else);
     };

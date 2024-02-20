@@ -1,7 +1,4 @@
-use super::{
-    BinaryOperator, ClampOperator, ConditionalAssign, Item, Matmul, Operation, Operator, Procedure,
-    ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, WriteGlobal,
-};
+use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
@@ -36,82 +33,6 @@ impl Operation {
     }
 }
 
-impl Procedure {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        match self {
-            Procedure::ReadGlobalWithLayout(op) => {
-                Procedure::ReadGlobalWithLayout(op.vectorize(vectorization))
-            }
-            Procedure::ReadGlobal(op) => Procedure::ReadGlobal(op.vectorize(vectorization)),
-            Procedure::Matmul(op) => Procedure::Matmul(op.vectorize(vectorization)),
-            Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
-            Procedure::ConditionalAssign(proc) => {
-                Procedure::ConditionalAssign(proc.vectorize(vectorization))
-            }
-        }
-    }
-}
-
-impl ReadGlobalWithLayout {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            globals: self
-                .globals
-                .iter()
-                .map(|g| g.vectorize(vectorization))
-                .collect(),
-            layout: self.layout.vectorize(vectorization),
-            outs: self
-                .outs
-                .iter()
-                .map(|o| o.vectorize(vectorization))
-                .collect(),
-        }
-    }
-}
-
-impl ReadGlobal {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            global: self.global.vectorize(vectorization),
-            out: self.out.vectorize(vectorization),
-        }
-    }
-}
-
-impl ConditionalAssign {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            cond: self.cond.vectorize(vectorization),
-            lhs: self.lhs.vectorize(vectorization),
-            rhs: self.rhs.vectorize(vectorization),
-            out: self.out.vectorize(vectorization),
-        }
-    }
-}
-
-impl WriteGlobal {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            input: self.input.vectorize(vectorization),
-            global: self.global.vectorize(vectorization),
-        }
-    }
-}
-
-impl Matmul {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        match self {
-            Matmul::MemCoalescing {
-                variables,
-                block_size,
-            } => Matmul::MemCoalescing {
-                variables: variables.vectorize(vectorization),
-                block_size: *block_size,
-            },
-        }
-    }
-}
 impl Operator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {

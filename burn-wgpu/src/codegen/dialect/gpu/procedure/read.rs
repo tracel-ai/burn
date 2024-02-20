@@ -1,5 +1,5 @@
-use super::super::{gpu, Elem, Item, Metadata, Operator, Scope, Variable};
-use crate::codegen::dialect::gpu::BinaryOperator;
+use super::super::{gpu, Elem, Item, Operator, Scope, Variable};
+use crate::codegen::dialect::gpu::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +28,12 @@ impl ReadGlobal {
             rhs: Variable::Id,
             out: self.out,
         }));
+    }
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            global: self.global.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+        }
     }
 }
 
@@ -60,12 +66,12 @@ impl ReadGlobalWithLayout {
             .map(|_| scope.create_local(Elem::UInt))
             .collect::<Vec<_>>();
 
-        OffsetGlobalWithLayout {
+        IndexOffsetGlobalWithLayout {
             tensors: tensors.clone(),
             layout: self.layout,
             indexes: indexes.clone(),
-            offset_ref: Variable::Id,
-            end: Variable::Rank,
+            index_ref: Variable::Id,
+            end_dim: Variable::Rank,
         }
         .expand(scope);
 
@@ -77,22 +83,47 @@ impl ReadGlobalWithLayout {
             gpu!(scope, output = tensor[index]);
         }
     }
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            globals: self
+                .globals
+                .iter()
+                .map(|g| g.vectorize(vectorization))
+                .collect(),
+            layout: self.layout.vectorize(vectorization),
+            outs: self
+                .outs
+                .iter()
+                .map(|o| o.vectorize(vectorization))
+                .collect(),
+        }
+    }
 }
 
+/// Calculate the index offset for all tensor variables provided compatible with the given layout.
 #[derive(Debug, Clone)]
-pub struct OffsetGlobalWithLayout {
+pub struct IndexOffsetGlobalWithLayout {
+    /// Tensor [variables](Variable), same length as [indexes](Self::indexes).
     pub tensors: Vec<Variable>,
-    pub layout: Variable,
+    /// Offsets that are going to be written to.
     pub indexes: Vec<Variable>,
-    pub offset_ref: Variable,
-    pub end: Variable,
+    /// Reference layout.
+    pub layout: Variable,
+    /// Index that corresponds to the reference layout.
+    ///
+    /// All other indexes will be made to be compatible with this one.
+    pub index_ref: Variable,
+    /// The number of dimensions to consider.
+    ///
+    /// For all dimensions to be considerred, use [rank](Variable::Rank).
+    pub end_dim: Variable,
 }
 
-impl OffsetGlobalWithLayout {
+impl IndexOffsetGlobalWithLayout {
     pub fn expand(self, scope: &mut Scope) {
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
-        let offset_ref = self.offset_ref;
+        let offset_ref = self.index_ref;
         let zero: Variable = 0u32.into();
         let vectorization_factor: Variable = match self.tensors[0].item() {
             Item::Vec4(_) => 4u32,
@@ -107,7 +138,7 @@ impl OffsetGlobalWithLayout {
         }
         gpu!(
             scope,
-            range(zero, self.end).for_each(|i, scope| {
+            range(zero, self.end_dim).for_each(|i, scope| {
                 let stride_layout = scope.create_local(index_item_ty);
                 let ogwl = scope.create_local(index_item_ty);
 
