@@ -50,7 +50,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
                     GeluKind::WithReferenceErf => gelu_custom(tensor.clone(), Tensor::erf),
                     GeluKind::WithCustomErf => gelu_custom(tensor.clone(), erf_custom),
                 };
-                let mut gradients = output.backward();
+                let mut gradients = output.sum().backward();
                 let _tmp = tensor.grad_remove(&mut gradients).unwrap();
             }
 
@@ -73,7 +73,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn num_samples(&self) -> usize {
-        1
+        50
     }
 }
 
