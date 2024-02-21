@@ -492,7 +492,6 @@ fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
 fn rename_io(node: &mut Node, graph_io: &mut OnnxGraphIO) {
     log::debug!("checking inputs for node {:?}", &node.name);
     for node_input in node.inputs.iter_mut() {
-        //graph_io.add_input(&node_input.name, i);
         if let Some(input_name) = graph_io.get_new_name(&node_input.name) {
             node_input.passed = true;
             node_input.name = input_name.clone();
