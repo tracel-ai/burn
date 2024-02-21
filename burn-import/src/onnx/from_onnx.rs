@@ -245,7 +245,7 @@ impl OnnxGraphIO {
 }
 
 #[derive(Default)]
-pub(crate) struct ONNXGraphBuilder {
+pub(crate) struct OnnxGraphBuilder {
     nodes: Vec<Node>,
     inputs: Vec<Argument>,
     outputs: Vec<Argument>,
@@ -260,7 +260,7 @@ pub(crate) struct ONNXGraphBuilder {
     identity_idx: HashMap<String, usize>,
 }
 
-impl ONNXGraphBuilder {
+impl OnnxGraphBuilder {
     pub(crate) fn node_gen(&mut self, model_proto: &ModelProto) {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
@@ -425,10 +425,10 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     );
 
     log::debug!("Number of outputs: {:?}", onnx_model.graph.output.len());
-    let mut builder = ONNXGraphBuilder::default();
+    let mut builder = OnnxGraphBuilder::default();
     builder.node_gen(&onnx_model);
 
-    let ONNXGraphBuilder {
+    let OnnxGraphBuilder {
         nodes,
         inputs: inner_inputs,
         outputs: inner_outputs,
