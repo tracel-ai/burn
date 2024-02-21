@@ -62,3 +62,18 @@ pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
 /// can be used for constant learning rate.
 pub type LearningRate = f64; // We could potentially change the type.
+
+pub mod prelude {
+    //! Structs and macros used by most projects. Add `use
+    //! burn::prelude::*` to your code to quickly get started with
+    //! Burn.
+    pub use crate::{
+        config::Config,
+        module::Module,
+        nn::{loss::*, *},
+        tensor::{
+            backend::{AutodiffBackend, Backend},
+            Data, Tensor,
+        },
+    };
+}
