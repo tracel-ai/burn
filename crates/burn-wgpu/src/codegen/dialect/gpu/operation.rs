@@ -18,7 +18,7 @@ pub enum Operation {
     Branch(Branch),
 }
 
-/// All operator that can be used in a GPU compute shader.
+/// All operators that can be used in a GPU compute shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operator {

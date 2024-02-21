@@ -55,11 +55,10 @@ impl Matmul {
                 let k = scope.create_local(Elem::UInt);
 
                 // Number of rows.
-                gpu!(scope, tmp_index = sub(Variable::Rank, 2u32));
-                gpu!(scope, n_rows = shape(out, tmp_index));
+                gpu!(scope, n_rows = shape(out, batch_dims));
 
                 // Number of cols.
-                gpu!(scope, tmp_index = sub(Variable::Rank, 1u32));
+                gpu!(scope, tmp_index = batch_dims + 1u32);
                 gpu!(scope, n_cols = shape(out, tmp_index));
 
                 // The dimension that is going to be squashed.
@@ -126,15 +125,15 @@ impl Matmul {
                         gpu!(scope, rhs_value = rhs[rhs_index]);
 
                         gpu!(scope, out_value = lhs_value * rhs_value);
-                        gpu!(scope, sum = sum + out_value);
+                        gpu!(scope, sum += out_value);
                     })
                 );
 
                 let out_index = scope.create_local(Elem::UInt);
 
                 gpu!(scope, out_index = row * n_cols);
-                gpu!(scope, out_index = out_index + col);
-                gpu!(scope, out_index = out_index + offset_output);
+                gpu!(scope, out_index += col);
+                gpu!(scope, out_index += offset_output);
                 gpu!(scope, out[out_index] = sum);
             }
         }

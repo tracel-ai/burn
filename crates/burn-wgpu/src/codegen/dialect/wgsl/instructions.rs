@@ -137,7 +137,6 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
-
     Stride {
         dim: Variable,
         position: usize,

@@ -5,6 +5,10 @@ macro_rules! gpu {
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {
         gpu!($scope, $out = add($lhs, $rhs))
     };
+    // out += input
+    ($scope:expr, $out:ident += $input:ident) => {
+        gpu!($scope, $out = add($out, $input))
+    };
     // out = add(lhs, rhs)
     ($scope:expr, $out:ident = add($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Add(
