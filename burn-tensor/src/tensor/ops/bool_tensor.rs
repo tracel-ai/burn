@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data};
+use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -301,5 +301,72 @@ pub trait BoolTensorOps<B: Backend> {
         dim: usize,
     ) -> Vec<BoolTensor<B, D>> {
         chunk::<B, D, Bool>(tensor, chunks, dim)
+    }
+
+    /// Tests if any element in the boolean `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
+    fn bool_any<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, 1> {
+        let sum = B::int_sum(B::bool_into_int(tensor.clone()));
+        B::int_greater_elem(sum, 0.elem())
+    }
+
+    /// Tests if any element in the boolean `tensor` evaluates to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
+    /// evaluates to True, False otherwise.
+
+    fn bool_any_dim<const D: usize>(tensor: BoolTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let sum = B::int_sum_dim(B::bool_into_int(tensor.clone()), dim);
+        B::int_greater_elem(sum, 0.elem())
+    }
+
+    /// Tests if all elements in the boolean `tensor` evaluate to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// evaluate to True, False otherwise.
+    fn bool_all<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, 1> {
+        let num_elems = B::bool_shape(&tensor).num_elements();
+        let sum = B::int_sum(B::bool_into_int(tensor.clone()));
+        B::int_equal_elem(sum, (num_elems as i32).elem())
+    }
+
+    /// Tests if all elements in the boolean `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
+    /// evaluates to True, False otherwise.
+
+    fn bool_all_dim<const D: usize>(tensor: BoolTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let num_elems = B::bool_shape(&tensor).dims[dim];
+        let sum = B::int_sum_dim(B::bool_into_int(tensor.clone()), dim);
+        B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 }
