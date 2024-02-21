@@ -9,7 +9,8 @@ use crate::{
 };
 
 use super::{
-    base::{Checkpointer, NodeTree, RetroForward, RetroForwards},
+    base::{Checkpointer, NodeTree},
+    retro_forward::{RetroForward, RetroForwards},
     state::{BackwardStates, State},
 };
 

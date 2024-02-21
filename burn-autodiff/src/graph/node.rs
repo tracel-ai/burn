@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use crate::checkpoint::base::RetroForward;
+use crate::checkpoint::retro_forward::RetroForward;
 
 use super::Requirement;
 

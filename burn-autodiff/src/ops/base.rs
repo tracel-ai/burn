@@ -1,8 +1,9 @@
 use super::Backward;
 use crate::{
     checkpoint::{
-        base::{Checkpointer, RetroForward},
+        base::Checkpointer,
         builder::{ActionType, CheckpointerBuilder},
+        retro_forward::RetroForward,
     },
     grads::Gradients,
     graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
@@ -140,7 +141,7 @@ where
 {
     /// Since the operation may not checkpoint its parents but may need them indirectly
     /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
-    pub fn parents<'a, A: IntoIterator<Item = &'a AutodiffTensor<B, D>>>(
+    pub fn parents<'a, B2: Backend, const D2: usize, A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>>(
         mut self,
         parents: A,
     ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {

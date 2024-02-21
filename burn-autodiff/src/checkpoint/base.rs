@@ -1,42 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use crate::graph::{NodeID, NodeRef};
-use std::fmt::Debug;
 
-use super::state::{BackwardStates, State};
-
-/// Definition of the forward function of a node, called during retropropagation only.
-/// This is different from the normal forward function because it reads and writes from
-/// the [InnerStates] map instead of having a clear function signature.
-pub trait RetroForward: Debug + Send + Sync + 'static {
-    fn forward(&self, states: &mut BackwardStates, out_node: NodeID);
-}
-
-#[derive(new, Debug)]
-/// Links [NodeID]s to their corresponding [RetroForward]
-pub(crate) struct RetroForwards {
-    map: HashMap<NodeID, Arc<dyn RetroForward>>,
-}
-
-impl RetroForwards {
-    /// Executes the [RetroForward] for a given [NodeID] if the node's
-    /// [State] is [State::Recompute], otherwise does nothing.
-    fn execute_retro_forward(&mut self, node_id: NodeID, backward_states: &mut BackwardStates) {
-        if let State::Recompute { n_required: _ } = backward_states
-            .get_state_ref(&node_id)
-            .unwrap_or_else(|| panic!("Should find node {:?}", node_id))
-        {
-            // Retro forwards are always used only once because afterwards their state is computed
-            let retro_forward = self.map.remove(&node_id).unwrap();
-            retro_forward.forward(backward_states, node_id.clone());
-        }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.map.is_empty()
-    }
-}
+use super::{
+    retro_forward::RetroForwards,
+    state::{BackwardStates, State},
+};
 
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]
