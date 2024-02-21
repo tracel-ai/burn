@@ -5,30 +5,11 @@
 resolver = "2"
 
 members = [
-    "burn",
-    "burn-autodiff",
-    "burn-fusion",
-    "burn-candle",
-    "burn-common",
-    "burn-compute",
-    "burn-core",
-    "burn-dataset",
-    "burn-derive",
-    "burn-import",
-    "burn-import/onnx-tests",
-    "burn-import/pytorch-tests",
-    "burn-ndarray",
-    "burn-no-std-tests",
-    "burn-tch",
-    "burn-wgpu",
-    "burn-candle",
-    "burn-tensor-testgen",
-    "burn-tensor",
-    "burn-train",
-    "xtask",
+    "backend-comparison",
+    "crates/*",
     "examples/*",
     "examples/pytorch-import/model",
-    "backend-comparison",
+    "xtask",
 ]
 
 exclude = ["examples/notebook"]
@@ -96,6 +77,7 @@ serial_test = "3.0.0"
 web-time = "1.0.0"
 hound = "3.5.1"
 image = "0.24.7"
+zip = "0.6.6"
 
 # Terminal UI
 ratatui = "0.25"

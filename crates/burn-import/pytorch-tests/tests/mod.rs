@@ -6,6 +6,7 @@ cfg_if::cfg_if! {
         mod boolean;
         mod buffer;
         mod complex_nested;
+        mod config;
         mod conv1d;
         mod conv2d;
         mod conv_transpose1d;
