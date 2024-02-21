@@ -429,6 +429,7 @@ dependencies = [
  "hashbrown 0.14.3",
  "libm",
  "log",
+ "num-traits",
  "rand",
  "regex",
  "rmp-serde",
@@ -519,6 +520,7 @@ dependencies = [
  "thiserror",
  "tracing-core",
  "tracing-subscriber",
+ "zip",
 ]
 
 [[package]]
