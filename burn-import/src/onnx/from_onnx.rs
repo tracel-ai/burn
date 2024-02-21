@@ -4,12 +4,12 @@ use std::{
     path::Path,
 };
 
-use crate::onnx::{node_remap::remap_node_type, proto_conversion::convert_node_proto};
+use crate::onnx::{self, node_remap::remap_node_type, proto_conversion::convert_node_proto};
 
 use super::{
     coalesce::coalesce,
     ir::{Data, OnnxGraph, TensorType},
-    protos::{ModelProto, TensorProto, ValueInfoProto},
+    protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
@@ -410,6 +410,12 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
+    // ONNX nodes must be topologically sorted per spec:
+    // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
+    debug_assert!(
+        onnx_model.graph.node.is_top_sorted(),
+        "Nodes are not topologically sorted"
+    );
     log::debug!("Number of nodes: {:?}", onnx_model.graph.node.len());
     log::debug!("Number of inputs: {:?}", onnx_model.graph.input.len());
 
@@ -428,10 +434,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
         outputs: inner_outputs,
         ..
     } = builder;
-
-    // ONNX nodes must be topologically sorted per spec:
-    // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
-    debug_assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
@@ -542,7 +544,7 @@ trait TopologicalSortable {
     fn is_top_sorted(&self) -> bool;
 }
 
-impl TopologicalSortable for Vec<Node> {
+impl TopologicalSortable for Vec<NodeProto> {
     fn is_top_sorted(&self) -> bool {
         // Create a hashmap to store the position of each node in the vector
         let position: HashMap<String, usize> = self
@@ -554,11 +556,11 @@ impl TopologicalSortable for Vec<Node> {
         // Iterate over each node in the vector
         for node in self {
             // Iterate over each output of the node
-            for output in &node.outputs {
+            for output in &node.output {
                 // Iterate over each other node in the vector
                 for other_node in self {
                     // If the other node has an input that matches the current output
-                    if other_node.inputs.contains(output) {
+                    if other_node.input.contains(output) {
                         // If the position of the current node is greater than the position of the other node
                         if position[&node.name] > position[&other_node.name] {
                             // The vector is not topologically sorted
