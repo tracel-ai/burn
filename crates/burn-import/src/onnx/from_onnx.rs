@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::onnx::{self, node_remap::remap_node_type, proto_conversion::convert_node_proto};
+use crate::onnx::{node_remap::remap_node_type, proto_conversion::convert_node_proto};
 
 use super::{
     coalesce::coalesce,
