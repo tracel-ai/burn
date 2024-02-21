@@ -173,7 +173,7 @@ impl OnnxGraphIO {
         self.node_out[idx].name = new_name.to_string();
     }
 
-    /// iterate over the nodes output and copy them to the graph IO
+    /// Copies node outputs to graph IO. Used at the end of dim inference.
     pub(crate) fn update_tensor_output(&mut self, node: &Node) {
         for node_output in node.outputs.iter() {
             match self.old_io_names.get(&node_output.name) {
