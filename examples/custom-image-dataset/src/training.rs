@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::{
     data::{ClassificationBatch, ClassificationBatcher},
     dataset::CIFAR10Loader,
-    model::CNN,
+    model::Cnn,
 };
 use burn::data::{dataloader::DataLoaderBuilder, dataset::vision::ImageFolderDataset};
 use burn::train::{
@@ -26,7 +26,7 @@ use burn::{
 const NUM_CLASSES: u8 = 10;
 const ARTIFACT_DIR: &str = "/tmp/custom-image-dataset";
 
-impl<B: Backend> CNN<B> {
+impl<B: Backend> Cnn<B> {
     pub fn forward_classification(
         &self,
         images: Tensor<B, 4>,
@@ -41,7 +41,7 @@ impl<B: Backend> CNN<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>> for CNN<B> {
+impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
     fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -49,7 +49,7 @@ impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<
     }
 }
 
-impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for CNN<B> {
+impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
     fn step(&self, batch: ClassificationBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
@@ -104,7 +104,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .build(
-            CNN::new(NUM_CLASSES.into(), &device),
+            Cnn::new(NUM_CLASSES.into(), &device),
             config.optimizer.init(),
             config.learning_rate,
         );

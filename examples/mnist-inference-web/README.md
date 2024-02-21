@@ -44,10 +44,10 @@ values.
 Layers:
 
 1. Input Image (28,28, 1ch)
-2. `Conv2d`(3x3, 8ch), `BatchNorm2d`, `GELU`
-3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `GELU`
-4. `Conv2d`(3x3, 24ch), `BatchNorm2d`, `GELU`
-5. `Linear`(11616, 32), `GELU`
+2. `Conv2d`(3x3, 8ch), `BatchNorm2d`, `Gelu`
+3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`
+4. `Conv2d`(3x3, 24ch), `BatchNorm2d`, `Gelu`
+5. `Linear`(11616, 32), `Gelu`
 6. `Linear`(32, 10)
 7. Softmax Output
 
