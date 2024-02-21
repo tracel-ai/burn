@@ -124,7 +124,7 @@ impl OnnxGraphIO {
         }
     }
 
-    ///Used to initialize the input arguments for nodes. Names need to remain the same because
+    /// Used to initialize the input arguments for nodes. Names need to remain the same because
     /// currently the old names are the key for accessing the Argument
     pub fn init_in(&self, proto_str: String) -> Argument {
         match self.old_io_names.get(&proto_str) {
@@ -173,7 +173,7 @@ impl OnnxGraphIO {
         self.node_out[idx].name = new_name.to_string();
     }
 
-    ///iterate over the nodes output and copy them to the graph IO
+    /// iterate over the nodes output and copy them to the graph IO
     pub(crate) fn update_tensor_output(&mut self, node: &Node) {
         for node_output in node.outputs.iter() {
             match self.old_io_names.get(&node_output.name) {
@@ -201,8 +201,8 @@ impl OnnxGraphIO {
         }
     }
 
-    ///used by handle unsqeeze to remap the output of a node to a new name
-    ///expected match if it exists is either a graph input or graph output
+    /// Used by handle unsqeeze to remap the output of a node to a new name
+    /// expected match if it exists is either a graph input or graph output
     pub(crate) fn get_node_output(&self, old_name: &str) -> Option<&Argument> {
         match self.old_io_names.get(old_name) {
             Some(IOEntry::In(i)) => self.inputs.get(*i),
@@ -212,9 +212,9 @@ impl OnnxGraphIO {
         }
     }
 
-    /// get the updated name of a Node Input, which obviously should be
+    /// Get the updated name of a Node Input, which should be
     /// either a graph input or a node output.
-    /// will return None if the it isn't a graph input or node output(like an initializer)
+    /// Will return None if the it isn't a graph input or node output(like an initializer)
     /// Will panic if it's a graph output
     fn get_new_name(&mut self, old_name: &str) -> Option<String> {
         match self.old_io_names.get(old_name) {
@@ -431,7 +431,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
-    assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
+    debug_assert!(nodes.is_top_sorted(), "Nodes are not topologically sorted");
 
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
