@@ -24,7 +24,6 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         syn::Data::Enum(_data) => {
             if has_backend {
                 generate_module_standard(ast, EnumModuleCodegen::from_ast(ast))
-                // panic!("Enum modules aren't supported yet.")
             } else {
                 generate_module_const(ast)
             }
