@@ -144,6 +144,10 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.to_device(device)`            | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`           |
 | `tensor.equal(other)`                 | `x == y`                             |
+| `tensor.any()`                        | `torch.any()`                        |
+| `tensor.any_dim(dim)`                 | `torch.any(dim)`                     |
+| `tensor.all()`                        | `torch.any(dim)`                     |
+| `tensor.all_dim(dim)`                 | `torch.all(dim)`                     |
 | `Tensor::cat(tensors, dim)`           | `torch.cat(tensors, dim)`            |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.to_data()`                    | N/A                                  |
