@@ -508,7 +508,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: nn::Linear<B>,
     linear_outer: nn::Linear<B>,
     dropout: nn::Dropout,
-    gelu: nn::GELU,
+    gelu: nn::Gelu,
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {
