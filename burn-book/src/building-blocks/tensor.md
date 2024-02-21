@@ -146,7 +146,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.equal(other)`                 | `x == y`                             |
 | `tensor.any()`                        | `torch.any()`                        |
 | `tensor.any_dim(dim)`                 | `torch.any(dim)`                     |
-| `tensor.all()`                        | `torch.any(dim)`                     |
+| `tensor.all()`                        | `torch.all()`                        |
 | `tensor.all_dim(dim)`                 | `torch.all(dim)`                     |
 | `Tensor::cat(tensors, dim)`           | `torch.cat(tensors, dim)`            |
 | `tensor.into_data()`                  | N/A                                  |
