@@ -596,6 +596,68 @@ where
             .map(|v| Self::new(v))
             .collect()
     }
+
+    /// Tests if any element in the `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
+    /// evaluates to True, False otherwise.
+
+    pub fn any(self) -> Tensor<B, 1, Bool> {
+        K::any(self.primitive)
+    }
+
+    /// Tests if any element in the `tensor` evaluates to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
+    /// evaluates to True, False otherwise.
+    pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+        K::any_dim(self.primitive, dim)
+    }
+
+    /// Tests if all elements in the `tensor` evaluate to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// evaluate to True, False otherwise.
+    pub fn all(self) -> Tensor<B, 1, Bool> {
+        K::all(self.primitive)
+    }
+
+    /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test. All input tensor types (Float, Int, Bool) are supported.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
+    /// evaluates to True, False otherwise.
+
+    pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+        K::all_dim(self.primitive, dim)
+    }
 }
 
 /// Iterator given by (Tensor::iter_dim).
@@ -1204,6 +1266,83 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
     }
+
+    /// Tests if any element in the `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if any element in the input tensor evaluates to True, False otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly. Users should prefer the [Tensor::any](Tensor::any) function
+    /// which is more high-level and designed for public use.
+    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+
+    /// Tests if any element in the tensor evaluates to True along a given dimension dim.
+    ///
+    /// # Arguments
+    ///
+    /// * tensor - The tensor to test.
+    /// * dim - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same size as input tensor, except in the dim axis where the size is 1.
+    /// Returns True if any element in the input tensor along the given dimension evaluates to True, False otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly. Users should prefer the [Tensor::any_dim](Tensor::any_dim) function,
+    /// which is more high-level and designed for public use.
+    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+
+    /// Tests if all element in the `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if all elements in the input tensor evaluates to True, False otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly. Users should prefer the [Tensor::all](Tensor::all) function,
+    /// which is more high-level and designed for public use.
+
+    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+
+    /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same size as input `tensor`, except in the `dim` axis where the size is 1.
+    /// Returns True if all elements in the input tensor along the given dimension evaluate to True, False otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly. Users should prefer the [Tensor::all_dim](Tensor::all_dim) function,
+    /// which is more high-level and designed for public use.
+
+    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
@@ -1290,6 +1429,22 @@ impl<B: Backend> BasicOps<B> for Float {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::float_equal(lhs, rhs))
+    }
+
+    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::float_any(tensor))
+    }
+
+    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_any_dim(tensor, dim))
+    }
+
+    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::float_all(tensor))
+    }
+
+    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_all_dim(tensor, dim))
     }
 }
 
@@ -1378,6 +1533,22 @@ impl<B: Backend> BasicOps<B> for Int {
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::int_cat(vectors, dim)
     }
+
+    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::int_any(tensor))
+    }
+
+    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_any_dim(tensor, dim))
+    }
+
+    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::int_all(tensor))
+    }
+
+    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_all_dim(tensor, dim))
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1464,6 +1635,22 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
+    }
+
+    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::bool_any(tensor))
+    }
+
+    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_any_dim(tensor, dim))
+    }
+
+    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
+        Tensor::new(B::bool_all(tensor))
+    }
+
+    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_all_dim(tensor, dim))
     }
 }
 

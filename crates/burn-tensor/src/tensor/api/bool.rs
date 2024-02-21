@@ -23,4 +23,20 @@ where
     pub fn bool_not(self) -> Self {
         Tensor::new(B::bool_not(self.primitive))
     }
+
+    // pub fn any(self) -> Tensor<B, 1, Bool> {
+    //     Tensor::new(B::bool_any(self.primitive))
+    // }
+    //
+    // pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    //     Tensor::new(B::bool_any_dim(self.primitive, dim))
+    // }
+    //
+    // pub fn all(self) -> Tensor<B, 1, Bool> {
+    //     Tensor::new(B::bool_all(self.primitive))
+    // }
+    //
+    // pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    //     Tensor::new(B::bool_all_dim(self.primitive, dim))
+    // }
 }
