@@ -143,11 +143,11 @@ impl Matmul {
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Matmul::MemCoalescing {
-                variables,
-                block_size,
-            } => Matmul::MemCoalescing {
-                variables: variables.vectorize(vectorization),
-                block_size: *block_size,
+                variables: _,
+                block_size: _,
+            } => match vectorization {
+                Vectorization::Scalar => self.clone(),
+                _ => panic!("MemCoalescing can't be vectorized with {vectorization:?}."),
             },
         }
     }

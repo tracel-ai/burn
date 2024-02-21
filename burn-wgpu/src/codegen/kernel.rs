@@ -8,7 +8,7 @@ use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
 
 #[derive(new)]
-pub struct StaticHandle<'a, R: Runtime> {
+pub struct EagerHandle<'a, R: Runtime> {
     handle: &'a burn_compute::server::Handle<R::Server>,
     strides: &'a [usize],
     shape: &'a [usize],
@@ -27,8 +27,8 @@ pub enum WorkgroupLaunch {
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
 pub fn execute_static<R, K, E>(
-    inputs: &[StaticHandle<R>],
-    outputs: &[StaticHandle<R>],
+    inputs: &[EagerHandle<R>],
+    outputs: &[EagerHandle<R>],
     scalar_elems: Option<&[E]>,
     launch: WorkgroupLaunch,
     client: ComputeClient<R::Server, R::Channel>,
@@ -56,8 +56,8 @@ pub fn execute_static<R, K, E>(
 /// The limitation from this method is that you can't launch a kernel with multiple types of
 /// scalar.
 pub fn execute_dynamic<R, K, E>(
-    inputs: &[StaticHandle<R>],
-    outputs: &[StaticHandle<R>],
+    inputs: &[EagerHandle<R>],
+    outputs: &[EagerHandle<R>],
     scalar_elems: Option<&[E]>,
     kernel: K,
     launch: WorkgroupLaunch,
@@ -89,8 +89,8 @@ struct ExecuteSettings<'a, R: Runtime> {
 }
 
 fn execute_settings<'a, R: Runtime, E: JitElement>(
-    inputs: &'a [StaticHandle<R>],
-    outputs: &'a [StaticHandle<R>],
+    inputs: &'a [EagerHandle<R>],
+    outputs: &'a [EagerHandle<R>],
     scalar_elems: Option<&[E]>,
     launch: WorkgroupLaunch,
     client: &ComputeClient<R::Server, R::Channel>,

@@ -1,5 +1,5 @@
 use crate::{
-    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
+    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
@@ -157,8 +157,8 @@ where
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         execute_static::<R, KernelInplaceLhs, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
             &[],
             None,
@@ -170,8 +170,8 @@ where
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
         execute_static::<R, KernelInplaceRhs, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
             &[],
             None,
@@ -198,14 +198,10 @@ where
 
         execute_static::<R, Kernel, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
-            &[StaticHandle::new(
-                &out.handle,
-                &out.strides,
-                &out.shape.dims,
-            )],
+            &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
             None,
             WorkgroupLaunch::Output { pos: 0 },
             lhs.client,

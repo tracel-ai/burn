@@ -1,7 +1,7 @@
 use crate::{
     codegen::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        InputInfo, OutputInfo, StaticHandle, WorkgroupLaunch,
+        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
     },
     compute::WorkGroup,
     element::JitElement,
@@ -16,7 +16,6 @@ use std::marker::PhantomData;
 struct MatmulMemCoalescing<R: Runtime> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-    vectorization: gpu::Vectorization,
     _runtime: PhantomData<R>,
 }
 
@@ -59,13 +58,11 @@ impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
             mappings: vec![],
         };
 
-        let settings = CompilationSettings::default()
-            .vectorize(self.vectorization)
-            .workgroup_size(gpu::WorkgroupSize::new(
-                self.workgroup_size_x as u32,
-                self.workgroup_size_y as u32,
-                1,
-            ));
+        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
+            self.workgroup_size_x as u32,
+            self.workgroup_size_y as u32,
+            1,
+        ));
         let shader = Compilation::new(info).compile(settings);
         let shader = <R::Compiler as Compiler>::compile(shader);
         SourceTemplate::new(shader.to_string())
@@ -73,11 +70,10 @@ impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
 
     fn id(&self) -> String {
         format!(
-            "{:?}x={}y={}vec={:?}",
+            "{:?}x={}y={}",
             core::any::TypeId::of::<Self>(),
             self.workgroup_size_x,
             self.workgroup_size_y,
-            self.vectorization,
         )
     }
 }
@@ -103,7 +99,7 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let (workgroup, vectorization) = launch_options(
+    let workgroup = launch_options(
         &lhs.shape,
         &rhs.shape,
         &out.shape,
@@ -111,13 +107,13 @@ pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
         workgroup_size_y,
     );
 
-    let kernel = MatmulMemCoalescing::new(workgroup_size_x, workgroup_size_y, vectorization);
+    let kernel = MatmulMemCoalescing::new(workgroup_size_x, workgroup_size_y);
 
     execute_dynamic::<R, MatmulMemCoalescing<R>, E>(
         &[
-            StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            StaticHandle::new(&out.handle, &out.strides, &out.shape.dims),
+            EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            EagerHandle::new(&out.handle, &out.strides, &out.shape.dims),
         ],
         &[],
         None,
@@ -135,29 +131,19 @@ fn launch_options<const D: usize>(
     output_shape: &Shape<D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> (WorkGroup, gpu::Vectorization) {
+) -> WorkGroup {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
-    let can_vectorize_row = num_rows % 4 == 0 && num_rows % workgroup_size_x == 0;
-    let can_vectorize_col = num_cols % 4 == 0 && num_cols % workgroup_size_y == 0;
-
-    let (vectorization, factor) = match can_vectorize_row && can_vectorize_col {
-        true => (gpu::Vectorization::Vec4, 4),
-        false => (gpu::Vectorization::Scalar, 1),
-    };
-
     // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / (workgroup_size_x * factor) as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / (workgroup_size_y * factor) as f32) as u32;
+    let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
+    let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
     let mut num_iter = 1;
     for i in 0..D - 2 {
         num_iter *= output_shape.dims[i];
     }
 
-    let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
-
-    (workgroup, vectorization)
+    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
 
 #[cfg(test)]
