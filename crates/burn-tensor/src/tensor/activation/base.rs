@@ -12,12 +12,31 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
 }
+
+/// Applies Parametric ReLu activation
+/// ` PReLu(x) = max(0,x) + \alpha * min(0,x)`
 pub fn prelu<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     alpha: Tensor<B, 1>,
 ) -> Tensor<B, D> {
-    let s = tensor.shape();
-    Tensor::from_primitive(B::prelu(tensor.primitive, alpha.reshape(s).primitive))
+    let weight = if alpha.dims()[0] == 1 {
+        alpha.reshape([1; D])
+    } else if D >= 2 {
+        let channels = tensor.dims()[1];
+        let num_weights = alpha.dims()[0];
+        assert_eq!(
+            num_weights, channels,
+            "Number of channels and weights must be equal. Got no. of channels: {}, no. of weights: {}",
+            channels, num_weights
+        );
+        let mut s = [1; D];
+        s[1] = num_weights;
+        alpha.reshape(s)
+    } else {
+        alpha.reshape([1; D])
+    };
+
+    Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))
 }
 
 /// Applies the softmax function on the input tensor along the given dimension.

@@ -58,6 +58,10 @@ pub trait ActivationOps<B: Backend> {
 
         B::float_div_scalar(x, 2i32.elem())
     }
+    /// Applies the PReLu activation function.
+    /// # Arguments
+    /// * `tensor` - The input tensor
+    /// * `alpha` - The weight tensor
     fn prelu<const D: usize>(
         tensor: FloatTensor<B, D>,
         alpha: FloatTensor<B, D>,
@@ -66,11 +70,19 @@ pub trait ActivationOps<B: Backend> {
         let scaled_tensor = B::float_mul(tensor.clone(), alpha);
         B::float_mask_where(tensor, mask, scaled_tensor)
     }
-
+    /// Applies the PReLU activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The output tensor.
+    /// * `grad` - The gradient tensor
+    ///
+    /// # Returns
+    ///
+    /// The gradient.
     fn prelu_backward<const D: usize>(
         output: FloatTensor<B, D>,
         grad: FloatTensor<B, D>,
-        alpha: FloatTensor<B, D>,
     ) -> FloatTensor<B, D> {
         // f'(y) = 0 if y >0 or y if y<=0
         let mask = B::float_greater_elem(output.clone(), 0.elem());
