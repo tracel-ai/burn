@@ -5,30 +5,11 @@
 resolver = "2"
 
 members = [
-    "burn",
-    "burn-autodiff",
-    "burn-fusion",
-    "burn-candle",
-    "burn-common",
-    "burn-compute",
-    "burn-core",
-    "burn-dataset",
-    "burn-derive",
-    "burn-import",
-    "burn-import/onnx-tests",
-    "burn-import/pytorch-tests",
-    "burn-ndarray",
-    "burn-no-std-tests",
-    "burn-tch",
-    "burn-wgpu",
-    "burn-candle",
-    "burn-tensor-testgen",
-    "burn-tensor",
-    "burn-train",
-    "xtask",
+    "backend-comparison",
+    "crates/*",
     "examples/*",
     "examples/pytorch-import/model",
-    "backend-comparison",
+    "xtask",
 ]
 
 exclude = ["examples/notebook"]
@@ -43,7 +24,7 @@ license = "MIT OR Apache-2.0"
 async-trait = "0.1.74"
 bytemuck = "1.14"
 candle-core = { version = "0.3.3" }
-clap = { version = "4.5.0", features = ["derive"] }
+clap = { version = "4.5.1", features = ["derive"] }
 console_error_panic_hook = "0.1.7"
 csv = "1.3.0"
 dashmap = "5.5.3"

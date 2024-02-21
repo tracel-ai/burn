@@ -141,7 +141,11 @@ something like this:
 
 ## Extract Configuration
 
-In some cases, models may require additional configuration settings, which are often included in a `.pt` file during export. The `config_from_file` function from the `burn-import` cargo package allows for the extraction of these configurations directly from the `.pt` file. The extracted configuration can then be used to initialize the model in Burn. Here is an example of how to extract the configuration from a `.pt` file:
+In some cases, models may require additional configuration settings, which are often included in a
+`.pt` file during export. The `config_from_file` function from the `burn-import` cargo package
+allows for the extraction of these configurations directly from the `.pt` file. The extracted
+configuration can then be used to initialize the model in Burn. Here is an example of how to extract
+the configuration from a `.pt` file:
 
 ```rust
 use std::collections::HashMap;
@@ -173,6 +177,9 @@ fn main() {
     let top_level_key = Some("my_config");
     let config: NetConfig = config_from_file(path, top_level_key).unwrap();
     println!("{:#?}", config);
+
+    // After extracting, it's recommended you save it as a json file.
+    config.save("my_config.json").unwrap();
 }
 ```
 

@@ -127,7 +127,7 @@ where
     // Create a deserializer with PyTorch adapter and nested value
     let deserializer = Deserializer::<DefaultAdapter>::new(nested_value, true);
 
-    // Deserialize the nested value into a record type
+    // Deserialize the nested value into a target type
     let value = D::deserialize(deserializer)?;
     Ok(value)
 }
