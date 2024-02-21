@@ -16,7 +16,16 @@ pub(crate) struct NodeTree {
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
     pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
+        println!("{:?}", node_id);
+        println!(
+            "{:?}",
+            self.map.get(node_id).map(|node| node.parents.clone())
+        );
         self.map.get(node_id).map(|node| node.parents.clone())
+    }
+
+    pub(crate) fn print(&self) {
+        println!("{:?}", self.map.keys())
     }
 }
 
@@ -52,6 +61,7 @@ impl Checkpointer {
             Some(state) => match state {
                 State::Recompute { n_required: _ } => {
                     let mut sorted = Vec::new();
+                    println!("{:?}", node_id);
                     let parents = self.node_tree.parents(&node_id).unwrap();
                     for parent_node in parents {
                         let parent_sorted = self.topological_sort(parent_node);

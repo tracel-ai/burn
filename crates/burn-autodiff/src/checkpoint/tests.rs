@@ -347,12 +347,12 @@ fn test_half_sub_graph_not_tracked() {
     let tensor_6 = tensor_0.mul(tensor_1);
     let tensor_7 = tensor_6.powf(tensor_2);
 
-    let tensor_9 = tensor_3.add(tensor_4);
-    let tensor_10 = tensor_9.div(tensor_5);
+    let tensor_8 = tensor_3.add(tensor_4);
+    let tensor_9 = tensor_8.div(tensor_5);
 
-    let tensor_11 = tensor_7.div(tensor_10);
+    let tensor_10 = tensor_7.div(tensor_9);
 
-    assert_checkpoint(tensor_11);
+    assert_checkpoint(tensor_10);
 }
 
 #[test]

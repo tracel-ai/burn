@@ -52,11 +52,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         !self.node.requirement.is_none()
     }
 
-    /// Mark the tensor as requirering gradients.
+    /// Mark the tensor as requiring gradients.
     ///
     /// # Panics
     ///
-    /// It panics if the tensor is non a leaf.
+    /// It panics if the tensor is not a leaf.
     pub fn require_grad(mut self) -> Self {
         match self.node.requirement {
             Requirement::Grad => self,

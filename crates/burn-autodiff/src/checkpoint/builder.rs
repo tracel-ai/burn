@@ -84,6 +84,8 @@ impl CheckpointerBuilder {
             n_required_map,
         );
 
+        println!("checkpointer built");
+        node_tree.print();
         Checkpointer::new(
             BackwardStates::new(backward_states_map),
             RetroForwards::new(retro_forwards_map),

@@ -141,7 +141,12 @@ where
 {
     /// Since the operation may not checkpoint its parents but may need them indirectly
     /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
-    pub fn parents<'a, B2: Backend, const D2: usize, A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>>(
+    pub fn parents<
+        'a,
+        B2: Backend,
+        const D2: usize,
+        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
+    >(
         mut self,
         parents: A,
     ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
@@ -261,14 +266,18 @@ where
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
     pub fn finish(self, output: <B as Backend>::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
-        AutodiffTensor::from_parents(
+        let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
             self.graphs.into_iter(),
             self.requirement,
             self.compute_property,
             self.checkpointer_builder,
-        )
+        );
+        let parents = self.nodes.map(|node| node.clone_if_require_grad());
+        let ops = Ops::new(parents, output.node.clone(), ());
+
+        output.register_step(UntrackedOpsStep::new(ops))
     }
 }
 
@@ -346,7 +355,23 @@ where
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
+        println!("bw: {:?}", self.ops.node.id);
         self.backward.backward(self.ops, grads, checkpointer);
+    }
+
+    fn node(&self) -> NodeRef {
+        self.ops.node.clone()
+    }
+}
+
+#[derive(new, Debug)]
+struct UntrackedOpsStep<const N: usize> {
+    ops: Ops<(), N>,
+}
+
+impl<const N: usize> Step for UntrackedOpsStep<N> {
+    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+        // Nothing to do
     }
 
     fn node(&self) -> NodeRef {
