@@ -32,6 +32,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match Embedding
             .prepare([weights.node], [weights.graph])
+            .compute_bound()
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
@@ -127,6 +128,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                     [x.node, weight.node, bias.node],
                     [x.graph, weight.graph, bias.graph],
                 )
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -147,6 +149,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             },
             None => match Conv2DNoBias
                 .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -241,6 +244,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                     [x.node, weight.node, bias.node],
                     [x.graph, weight.graph, bias.graph],
                 )
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -266,6 +270,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             },
             None => match ConvTranspose2DNoBias
                 .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -362,6 +367,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                     [x.node, weight.node, bias.node],
                     [x.graph, weight.graph, bias.graph],
                 )
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -382,6 +388,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             },
             None => match Conv1DNoBias
                 .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -476,6 +483,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                     [x.node, weight.node, bias.node],
                     [x.graph, weight.graph, bias.graph],
                 )
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -501,6 +509,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             },
             None => match ConvTranspose1DNoBias
                 .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .compute_bound()
                 .stateful()
             {
                 OpsKind::Tracked(prep) => prep.finish(
@@ -573,7 +582,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AvgPool1D.prepare([x.node], [x.graph]).stateful() {
+        match AvgPool1D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::avg_pool1d(
                     x.primitive.clone(),
@@ -640,7 +653,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AvgPool2D.prepare([x.node], [x.graph]).stateful() {
+        match AvgPool2D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::avg_pool2d(
                     x.primitive.clone(),
@@ -682,7 +699,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: usize,
         dilation: usize,
     ) -> AutodiffTensor<B, 3> {
-        match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
+        match MaxPool1D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool1d_with_indices(
                     x.primitive.clone(),
@@ -720,7 +741,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: usize,
         dilation: usize,
     ) -> MaxPool1dWithIndices<Autodiff<B>> {
-        match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
+        match MaxPool1D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool1d_with_indices(
                     x.primitive.clone(),
@@ -782,7 +807,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
-        match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
+        match MaxPool2D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool2d_with_indices(
                     x.primitive.clone(),
@@ -820,7 +849,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<Autodiff<B>> {
-        match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
+        match MaxPool2D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::max_pool2d_with_indices(
                     x.primitive.clone(),
@@ -888,7 +921,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AdaptiveAvgPool1D.prepare([x.node], [x.graph]).stateful() {
+        match AdaptiveAvgPool1D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => prep.finish(
                 x.primitive.clone(),
                 B::adaptive_avg_pool1d(x.primitive, output_size),
@@ -925,7 +962,11 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AdaptiveAvgPool2D.prepare([x.node], [x.graph]).stateful() {
+        match AdaptiveAvgPool2D
+            .prepare([x.node], [x.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => prep.finish(
                 x.primitive.clone(),
                 B::adaptive_avg_pool2d(x.primitive, output_size),

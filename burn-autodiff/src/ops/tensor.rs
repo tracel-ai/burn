@@ -858,7 +858,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         indices: IntTensor<B, 1>,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
-        struct IndexSelectDim;
+        struct Select;
 
         #[derive(new, Debug)]
         struct RetroSelect<B: Backend, const D: usize> {
@@ -875,7 +875,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for IndexSelectDim {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Select {
             type State = (usize, IntTensor<B, 1>, Shape<D>, B::Device);
 
             fn backward(
@@ -893,7 +893,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match IndexSelectDim
+        match Select
             .prepare([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSelect::<B, D>::new(
