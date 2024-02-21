@@ -58,6 +58,24 @@ pub trait ActivationOps<B: Backend> {
 
         B::float_div_scalar(x, 2i32.elem())
     }
+    fn prelu<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        alpha: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(tensor.clone(), 0.elem());
+        let scaled_tensor = B::float_mul(tensor.clone(), alpha);
+        B::float_mask_where(tensor, mask, scaled_tensor)
+    }
+
+    fn prelu_backward<const D: usize>(
+        output: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+        alpha: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        // f'(y) = 0 if y >0 or y if y<=0
+        let mask = B::float_greater_elem(output.clone(), 0.elem());
+        B::float_mask_fill(grad, mask, 0.elem())
+    }
 
     /// Applies the Gelu activation function backward.
     ///

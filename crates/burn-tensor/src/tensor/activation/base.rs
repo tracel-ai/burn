@@ -12,6 +12,13 @@ pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(B::gelu(tensor.primitive))
 }
+pub fn prelu<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    alpha: Tensor<B, 1>,
+) -> Tensor<B, D> {
+    let s = tensor.shape();
+    Tensor::from_primitive(B::prelu(tensor.primitive, alpha.reshape(s).primitive))
+}
 
 /// Applies the softmax function on the input tensor along the given dimension.
 ///
