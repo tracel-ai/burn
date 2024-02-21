@@ -2,7 +2,7 @@ use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    checkpoint::{base::Checkpointer, builder::build_checkpointer},
+    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
     ops::CheckpointingAction,
 };
@@ -20,34 +20,13 @@ pub trait Step: Send + Sync + std::fmt::Debug {
 pub type StepBoxed = Box<dyn Step>;
 pub type NodeSteps = HashMap<NodeID, StepBoxed>;
 
-#[derive(new, Debug, Default)]
-pub struct CheckpointingActions {
-    pub main_actions: Vec<CheckpointingAction>,
-    pub backup_actions: Vec<CheckpointingAction>,
-}
-
-impl CheckpointingActions {
-    fn extend(&mut self, other: CheckpointingActions) {
-        for other_action in other.main_actions {
-            self.main_actions.push(other_action)
-        }
-        for other_unsure in other.backup_actions {
-            self.backup_actions.push(other_unsure)
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.main_actions.len() + self.backup_actions.len()
-    }
-}
-
 /// Graph data structure.
 ///
 /// The graph contains the [node steps](Step), which can be access by [node id](NodeID).
 #[derive(Default, Clone, Debug)]
 pub struct Graph {
     steps: Arc<Mutex<NodeSteps>>,
-    checkpointing_actions: Arc<Mutex<CheckpointingActions>>,
+    checkpointing_actions: Arc<Mutex<CheckpointerBuilder>>,
 }
 
 impl Graph {
@@ -76,8 +55,8 @@ impl Graph {
     /// # Notes
     ///
     /// This is a owned method, so the current checkpointing actions will be freed.
-    pub fn take_checkpointing_actions(self) -> CheckpointingActions {
-        let mut actions = CheckpointingActions::default();
+    pub fn take_checkpointing_actions(self) -> CheckpointerBuilder {
+        let mut actions = CheckpointerBuilder::default();
         self.execute_mut_checkpointing_actions(|checkpointing_actions| {
             std::mem::swap(&mut *checkpointing_actions, &mut actions);
         });
@@ -116,7 +95,7 @@ impl Graph {
         self
     }
 
-    fn execute_mut_checkpointing_actions<F: FnOnce(&mut CheckpointingActions)>(
+    fn execute_mut_checkpointing_actions<F: FnOnce(&mut CheckpointerBuilder)>(
         mut self,
         func: F,
     ) -> Self {
@@ -153,7 +132,7 @@ impl Graph {
             if actions1.len() > actions2.len() {
                 actions1.extend(actions2);
             } else {
-                let mut checkpointing_drain = CheckpointingActions::default();
+                let mut checkpointing_drain = CheckpointerBuilder::default();
                 std::mem::swap(actions1, &mut checkpointing_drain);
                 actions2.extend(checkpointing_drain);
                 std::mem::swap(actions1, &mut actions2);
@@ -163,11 +142,11 @@ impl Graph {
 
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {
         let mut guard = self.checkpointing_actions.lock();
-        let owned: CheckpointingActions = std::mem::take(&mut *guard);
-        build_checkpointer(owned, &self.steps.lock())
+        let builder: CheckpointerBuilder = std::mem::take(&mut *guard);
+        builder.build(&self.steps.lock())
     }
 
-    pub(crate) fn extend_checkpointing_actions(&self, checkpointing_actions: CheckpointingActions) {
+    pub(crate) fn extend_checkpointer_builder(&self, checkpointing_actions: CheckpointerBuilder) {
         self.checkpointing_actions
             .lock()
             .extend(checkpointing_actions);

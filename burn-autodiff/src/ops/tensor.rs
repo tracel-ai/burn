@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::{
-    checkpoint::{base::RetroForward, state::BackwardStates},
+    checkpoint::{base::RetroForward, builder::CheckpointerBuilder, state::BackwardStates},
     grads::Gradients,
-    graph::{CheckpointingActions, ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
     ops::{binary, broadcast_shape, unary, unary_different_backend, Backward, Ops, OpsKind},
     tensor::AutodiffTensor,
     utils::duplicate,
@@ -1807,7 +1807,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 graphs.into_iter(),
                 requirement,
                 cat_computing_property,
-                CheckpointingActions::default(),
+                CheckpointerBuilder::default(),
             );
         }
 
@@ -1817,7 +1817,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             graphs.into_iter(),
             requirement,
             cat_computing_property,
-            CheckpointingActions::default(),
+            CheckpointerBuilder::default(),
         );
         let nodes = nodes
             .into_iter()

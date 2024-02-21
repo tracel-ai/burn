@@ -1,8 +1,11 @@
 use super::Backward;
 use crate::{
-    checkpoint::base::{Checkpointer, RetroForward},
+    checkpoint::{
+        base::{Checkpointer, RetroForward},
+        builder::CheckpointerBuilder,
+    },
     grads::Gradients,
-    graph::{CheckpointingActions, ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
@@ -55,7 +58,7 @@ pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> 
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
-    checkpointing_actions: CheckpointingActions,
+    checkpointer_builder: CheckpointerBuilder,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
     marker: PhantomData<Mode>,
@@ -88,7 +91,7 @@ where
             self.requirement,
             self.backward,
             ComputingProperty::ComputeBound,
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         )
     }
 
@@ -102,7 +105,7 @@ where
             self.requirement,
             self.backward,
             self.compute_property,
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         )
     }
 }
@@ -125,7 +128,7 @@ where
             ComputingProperty::MemoryBound {
                 retro_forward: Arc::new(retro_forward),
             },
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         )
     }
 }
@@ -142,7 +145,7 @@ where
         parents: A,
     ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
         for tensor in parents.into_iter() {
-            checkpoint(&mut self.checkpointing_actions.backup_actions, tensor);
+            checkpoint(&mut self.checkpointer_builder.backup_actions, tensor);
         }
         OpsPrep::new(
             self.nodes,
@@ -150,7 +153,7 @@ where
             self.requirement,
             self.backward,
             self.compute_property,
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         )
     }
 }
@@ -186,7 +189,7 @@ where
                 self.requirement,
                 self.backward,
                 self.compute_property,
-                self.checkpointing_actions,
+                self.checkpointer_builder,
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
@@ -194,7 +197,7 @@ where
                 self.requirement,
                 self.backward,
                 self.compute_property,
-                self.checkpointing_actions,
+                self.checkpointer_builder,
             )),
         }
     }
@@ -233,7 +236,7 @@ where
                 self.requirement,
                 self.backward,
                 self.compute_property,
-                self.checkpointing_actions,
+                self.checkpointer_builder,
             )),
             true => OpsKind::UnTracked(OpsPrep::new(
                 self.nodes,
@@ -241,7 +244,7 @@ where
                 self.requirement,
                 self.backward,
                 self.compute_property,
-                self.checkpointing_actions,
+                self.checkpointer_builder,
             )),
         }
     }
@@ -261,7 +264,7 @@ where
             self.graphs.into_iter(),
             self.requirement,
             self.compute_property,
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         )
     }
 }
@@ -284,7 +287,7 @@ where
             self.graphs.into_iter(),
             self.requirement,
             self.compute_property,
-            self.checkpointing_actions,
+            self.checkpointer_builder,
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
@@ -294,7 +297,7 @@ where
 
     /// Checkpoints the tensor
     pub fn checkpoint<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> NodeID {
-        checkpoint(&mut self.checkpointing_actions.main_actions, tensor)
+        checkpoint(&mut self.checkpointer_builder.main_actions, tensor)
     }
 }
 
