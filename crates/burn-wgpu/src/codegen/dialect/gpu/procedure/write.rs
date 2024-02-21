@@ -11,10 +11,10 @@ pub struct WriteGlobal {
 impl WriteGlobal {
     pub fn expand(self, scope: &mut Scope) {
         let output = self.global;
-        let intput = self.input;
+        let input = self.input;
         let position = Variable::Id;
 
-        gpu!(scope, output[position] = intput);
+        gpu!(scope, output[position] = input);
     }
 
     pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {

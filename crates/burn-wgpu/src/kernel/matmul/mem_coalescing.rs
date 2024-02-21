@@ -30,14 +30,14 @@ impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
         let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
         let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
-        scope.write_global_custom(out);
 
-        let operation =
-            gpu::Operation::Procedure(gpu::Procedure::Matmul(gpu::Matmul::MemCoalescing {
+        scope.write_global_custom(out);
+        scope.register(gpu::Operation::Procedure(gpu::Procedure::Matmul(
+            gpu::Matmul::MemCoalescing {
                 variables: gpu::BinaryOperator { lhs, rhs, out },
                 block_size: self.workgroup_size_x,
-            }));
-        scope.register(operation);
+            },
+        )));
 
         let lhs = InputInfo::Array {
             item: gpu::Elem::Float.into(),

@@ -86,7 +86,7 @@ impl Matmul {
                 gpu!(scope, offset_output = n_rows * n_cols);
                 gpu!(scope, offset_output = offset_output * batch);
 
-                // Batch offset for the lhs matrix.
+                // Batch offset for the lhs & rhs matrices.
                 IndexOffsetGlobalWithLayout {
                     tensors: vec![lhs, rhs],
                     indexes: vec![offset_lhs, offset_rhs],

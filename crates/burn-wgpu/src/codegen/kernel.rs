@@ -50,7 +50,7 @@ pub fn execute_static<R, K, E>(
     client.execute(kernel, &handles);
 }
 
-/// Execute a static kernel.
+/// Execute a dynamic kernel.
 ///
 ///
 /// The limitation from this method is that you can't launch a kernel with multiple types of

@@ -29,21 +29,16 @@ pub struct IfElse {
     pub scope_else: Scope,
 }
 
-/// Settings for the [Loop::Range] variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RangeLoop {
-    /// The loop index variable.
     pub i: Variable,
-    /// The start value.
     pub start: Variable,
-    /// The end value.
     pub end: Variable,
-    /// The scope that contains all operations and variables declared in the loop body.
     pub scope: Scope,
 }
 
 impl If {
-    /// Registers an if statemen to the given scope.
+    /// Registers an if statement to the given scope.
     pub fn register<F: Fn(&mut Scope)>(parent_scope: &mut Scope, cond: Variable, func: F) {
         let mut scope = parent_scope.child();
 
