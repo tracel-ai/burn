@@ -7,6 +7,7 @@ use super::ser::Serializer;
 use crate::record::{PrecisionSettings, Record};
 use crate::tensor::backend::Backend;
 
+use num_traits::cast::ToPrimitive;
 use regex::Regex;
 use serde::Deserialize;
 
@@ -82,6 +83,7 @@ impl NestedValue {
     pub fn as_f32(self) -> Option<f32> {
         match self {
             NestedValue::F32(f32) => Some(f32),
+            NestedValue::F64(f) => f.to_f32(),
             _ => None,
         }
     }
@@ -90,6 +92,7 @@ impl NestedValue {
     pub fn as_f64(self) -> Option<f64> {
         match self {
             NestedValue::F64(f64) => Some(f64),
+            NestedValue::F32(f) => f.to_f64(),
             _ => None,
         }
     }
@@ -98,6 +101,10 @@ impl NestedValue {
     pub fn as_i16(self) -> Option<i16> {
         match self {
             NestedValue::I16(i16) => Some(i16),
+            NestedValue::I32(i) => i.to_i16(),
+            NestedValue::I64(i) => i.to_i16(),
+            NestedValue::U16(u) => u.to_i16(),
+            NestedValue::U64(u) => u.to_i16(),
             _ => None,
         }
     }
@@ -106,6 +113,10 @@ impl NestedValue {
     pub fn as_i32(self) -> Option<i32> {
         match self {
             NestedValue::I32(i32) => Some(i32),
+            NestedValue::I16(i) => i.to_i32(),
+            NestedValue::I64(i) => i.to_i32(),
+            NestedValue::U16(u) => u.to_i32(),
+            NestedValue::U64(u) => u.to_i32(),
             _ => None,
         }
     }
@@ -114,6 +125,10 @@ impl NestedValue {
     pub fn as_i64(self) -> Option<i64> {
         match self {
             NestedValue::I64(i64) => Some(i64),
+            NestedValue::I16(i) => i.to_i64(),
+            NestedValue::I32(i) => i.to_i64(),
+            NestedValue::U16(u) => u.to_i64(),
+            NestedValue::U64(u) => u.to_i64(),
             _ => None,
         }
     }
@@ -122,6 +137,10 @@ impl NestedValue {
     pub fn as_u16(self) -> Option<u16> {
         match self {
             NestedValue::U16(u16) => Some(u16),
+            NestedValue::I16(i) => i.to_u16(),
+            NestedValue::I32(i) => i.to_u16(),
+            NestedValue::I64(i) => i.to_u16(),
+            NestedValue::U64(u) => u.to_u16(),
             _ => None,
         }
     }
@@ -130,6 +149,10 @@ impl NestedValue {
     pub fn as_u64(self) -> Option<u64> {
         match self {
             NestedValue::U64(u64) => Some(u64),
+            NestedValue::I16(i) => i.to_u64(),
+            NestedValue::I32(i) => i.to_u64(),
+            NestedValue::I64(i) => i.to_u64(),
+            NestedValue::U16(u) => u.to_u64(),
             _ => None,
         }
     }
