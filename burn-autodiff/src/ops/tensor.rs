@@ -1731,6 +1731,21 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         #[derive(Debug)]
         struct PowFScalar;
 
+        #[derive(new, Debug)]
+        struct PowFScalar<B: Backend, const D: usize> {
+            lhs_id: NodeID,
+            rhs: f32,
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D: usize> RetroForward for PowFScalar<B, D> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_id);
+                let out = $ops(lhs, self.rhs);
+                states.save(out_node, out)
+            }
+        }
+
         impl<B: Backend, const D: usize> Backward<B, D, 1> for PowFScalar {
             type State = (B::FloatTensorPrimitive<D>, f32);
 
@@ -1751,7 +1766,12 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match PowFScalar.prepare([tensor.node], [tensor.graph]).stateful() {
+        match PowFScalar
+            .prepare([tensor.node], [tensor.graph])
+            .memory_bound()
+            .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id.clone(), value))
+            .stateful()
+        {
             OpsKind::Tracked(prep) => prep.finish(
                 (tensor.primitive.clone(), value),
                 B::float_powf_scalar(tensor.primitive, value),
