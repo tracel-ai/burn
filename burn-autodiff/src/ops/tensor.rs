@@ -1796,7 +1796,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let requirement = Requirement::from_nodes(&nodes);
 
         // We keep compute bound because if memory bound we will need
-        // to do hard checkpointing stuff because everything is de-encapsulated here
+        // to do complicated checkpointing stuff because everything is de-encapsulated here
         let cat_computing_property = ComputingProperty::ComputeBound;
 
         let output = B::float_cat(primitives, dim);

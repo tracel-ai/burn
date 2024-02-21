@@ -1,8 +1,11 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
+use burn_tensor::backend::Backend;
+
 use crate::{
-    graph::{NodeID, NodeSteps},
+    graph::{ComputingProperty, NodeID, NodeSteps},
     ops::CheckpointingAction,
+    tensor::AutodiffTensor,
 };
 
 use super::{
@@ -11,12 +14,44 @@ use super::{
 };
 
 #[derive(new, Debug, Default)]
+/// Accumulates checkpoints as checkpointing actions during the forward pass,
+/// and builds a checkpointer right before the backward pass
 pub struct CheckpointerBuilder {
-    pub main_actions: Vec<CheckpointingAction>,
-    pub backup_actions: Vec<CheckpointingAction>,
+    main_actions: Vec<CheckpointingAction>,
+    backup_actions: Vec<CheckpointingAction>,
+}
+
+pub(crate) enum ActionType {
+    Main,
+    Backup,
 }
 
 impl CheckpointerBuilder {
+    pub(crate) fn checkpoint<B: Backend, const D: usize>(
+        &mut self,
+        tensor: &AutodiffTensor<B, D>,
+        action_type: ActionType,
+    ) {
+        let action_list = match action_type {
+            ActionType::Main => &mut self.main_actions,
+            ActionType::Backup => &mut self.backup_actions,
+        };
+        match &tensor.node.properties {
+            ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
+                action_list.push(CheckpointingAction::Computed {
+                    node_ref: tensor.node.clone(),
+                    state_content: Box::new(tensor.primitive.clone()),
+                })
+            }
+            ComputingProperty::MemoryBound { retro_forward } => {
+                action_list.push(CheckpointingAction::Recompute {
+                    node_ref: tensor.node.clone(),
+                    retro_forward: retro_forward.clone(),
+                })
+            }
+        }
+    }
+
     pub(crate) fn extend(&mut self, other: CheckpointerBuilder) {
         for other_action in other.main_actions {
             self.main_actions.push(other_action)

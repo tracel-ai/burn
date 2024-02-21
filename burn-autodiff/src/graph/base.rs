@@ -4,7 +4,6 @@ use std::{collections::HashMap, sync::Arc};
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    ops::CheckpointingAction,
 };
 
 use super::{NodeID, NodeRef};

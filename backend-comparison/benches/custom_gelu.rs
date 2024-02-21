@@ -119,12 +119,12 @@ fn bench<B: Backend>(device: &B::Device) {
     let shape: Shape<D> = [32, 512, 2048].into();
     let autodiff = true;
 
-    // let reference_gelu = CustomGeluBenchmark::<B, D>::new(
-    //     shape.clone(),
-    //     device.clone(),
-    //     GeluKind::Reference,
-    //     autodiff,
-    // );
+    let reference_gelu = CustomGeluBenchmark::<B, D>::new(
+        shape.clone(),
+        device.clone(),
+        GeluKind::Reference,
+        autodiff,
+    );
     let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
         shape.clone(),
         device.clone(),
@@ -136,9 +136,9 @@ fn bench<B: Backend>(device: &B::Device) {
 
     save::<B>(
         vec![
-            // run_benchmark(reference_gelu),
+            run_benchmark(reference_gelu),
             run_benchmark(reference_erf_gelu),
-            // run_benchmark(custom_erf_gelu),
+            run_benchmark(custom_erf_gelu),
         ],
         device,
     )

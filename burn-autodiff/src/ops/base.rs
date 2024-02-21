@@ -2,7 +2,7 @@ use super::Backward;
 use crate::{
     checkpoint::{
         base::{Checkpointer, RetroForward},
-        builder::CheckpointerBuilder,
+        builder::{ActionType, CheckpointerBuilder},
     },
     grads::Gradients,
     graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
@@ -145,8 +145,10 @@ where
         parents: A,
     ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
         for tensor in parents.into_iter() {
-            checkpoint(&mut self.checkpointer_builder.backup_actions, tensor);
+            self.checkpointer_builder
+                .checkpoint(tensor, ActionType::Backup);
         }
+
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -297,32 +299,11 @@ where
 
     /// Checkpoints the tensor
     pub fn checkpoint<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> NodeID {
-        checkpoint(&mut self.checkpointer_builder.main_actions, tensor)
-    }
-}
+        self.checkpointer_builder
+            .checkpoint(tensor, ActionType::Main);
 
-/// Checkpointing creates a [CheckpointingAction] that is stored into a list
-/// and actually checkpointed only right before the backward pass.
-fn checkpoint<B: Backend, const D2: usize>(
-    action_list: &mut Vec<CheckpointingAction>,
-    tensor: &AutodiffTensor<B, D2>,
-) -> NodeID {
-    match &tensor.node.properties {
-        ComputingProperty::ComputeBound | ComputingProperty::Ambiguous => {
-            action_list.push(CheckpointingAction::Computed {
-                node_ref: tensor.node.clone(),
-                state_content: Box::new(tensor.primitive.clone()),
-            })
-        }
-        ComputingProperty::MemoryBound { retro_forward } => {
-            action_list.push(CheckpointingAction::Recompute {
-                node_ref: tensor.node.clone(),
-                retro_forward: retro_forward.clone(),
-            })
-        }
+        tensor.node.id.clone()
     }
-
-    tensor.node.id.clone()
 }
 
 /// Enum used before finishing tracked and untracked operations.
