@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
@@ -16,6 +17,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
+      - 'Cargo.lock'
       - '**.rs'
       - '**.sh'
       - '**.ps1'
@@ -260,6 +262,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   check-typos:
     runs-on: ubuntu-22.04
