@@ -1729,24 +1729,24 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         value: f32,
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
-        struct PowFScalar;
+        struct PowfScalar;
 
         #[derive(new, Debug)]
-        struct PowFScalar<B: Backend, const D: usize> {
+        struct RetroPowfScalar<B: Backend, const D: usize> {
             lhs_id: NodeID,
             rhs: f32,
             _backend: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> RetroForward for PowFScalar<B, D> {
+        impl<B: Backend, const D: usize> RetroForward for RetroPowfScalar<B, D> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
                 let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_id);
-                let out = $ops(lhs, self.rhs);
+                let out = B::float_powf_scalar(lhs, self.rhs);
                 states.save(out_node, out)
             }
         }
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for PowFScalar {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for PowfScalar {
             type State = (B::FloatTensorPrimitive<D>, f32);
 
             fn backward(
@@ -1766,10 +1766,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match PowFScalar
-            .prepare([tensor.node], [tensor.graph])
+        match PowfScalar
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id.clone(), value))
+            .parents([&tensor])
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
@@ -1783,6 +1784,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sqrt;
+
+        retro_unary!(RetroSqrt, B::float_sqrt);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sqrt {
             type State = B::FloatTensorPrimitive<D>;
@@ -1802,7 +1805,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match Sqrt.prepare([tensor.node], [tensor.graph]).stateful() {
+        match Sqrt
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroSqrt::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::float_sqrt(tensor.primitive))
             }
@@ -1813,6 +1822,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Abs;
+
+        retro_unary!(RetroAbs, B::float_abs);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
             type State = B::FloatTensorPrimitive<D>;
@@ -1829,7 +1840,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match Abs.prepare([tensor.node], [tensor.graph]).stateful() {
+        match Abs
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroAbs::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::float_abs(tensor.primitive.clone());
                 let state = B::float_div(tensor.primitive, output.clone());
@@ -1842,6 +1859,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Cos;
+
+        retro_unary!(RetroCos, B::float_cos);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Cos {
             type State = B::FloatTensorPrimitive<D>;
@@ -1861,7 +1880,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match Cos.prepare([tensor.node], [tensor.graph]).stateful() {
+        match Cos
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroCos::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::float_cos(tensor.primitive))
             }
@@ -1872,6 +1897,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sin;
+
+        retro_unary!(RetroSin, B::float_sin);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sin {
             type State = B::FloatTensorPrimitive<D>;
@@ -1889,7 +1916,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match Sin.prepare([tensor.node], [tensor.graph]).stateful() {
+        match Sin
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroSin::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 prep.finish(tensor.primitive.clone(), B::float_sin(tensor.primitive))
             }
@@ -1900,6 +1933,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Tanh;
+
+        retro_unary!(RetroTanh, B::float_tanh);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Tanh {
             type State = B::FloatTensorPrimitive<D>;
@@ -1920,7 +1955,13 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        match Tanh.prepare([tensor.node], [tensor.graph]).stateful() {
+        match Tanh
+            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroTanh::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let output = B::float_tanh(tensor.primitive);
                 prep.finish(output.clone(), output)
@@ -1933,19 +1974,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         #[derive(Debug)]
         struct Erf;
 
-        #[derive(new, Debug)]
-        struct RetroErf<B: Backend, const D: usize> {
-            input: NodeID,
-            _backend: PhantomData<B>,
-        }
-
-        impl<B: Backend, const D: usize> RetroForward for RetroErf<B, D> {
-            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let input = states.get_state::<B::FloatTensorPrimitive<D>>(&self.input);
-                let out = B::float_erf(input);
-                states.save(out_node, out)
-            }
-        }
+        retro_unary!(RetroErf, B::float_erf);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Erf {
             type State = NodeID;
@@ -2074,7 +2103,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
+        match MaxMinDim
+            .prepare([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let shape = B::float_shape(&tensor.primitive);
                 let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
@@ -2087,7 +2120,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
+        match MaxMinDim
+            .prepare([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let shape = B::float_shape(&tensor.primitive);
                 let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
@@ -2107,7 +2144,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
+        match MaxMinDim
+            .prepare([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let shape = B::float_shape(&tensor.primitive);
                 let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
@@ -2120,7 +2161,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
-        match MaxMinDim.prepare([tensor.node], [tensor.graph]).stateful() {
+        match MaxMinDim
+            .prepare([tensor.node], [tensor.graph])
+            .compute_bound()
+            .stateful()
+        {
             OpsKind::Tracked(prep) => {
                 let shape = B::float_shape(&tensor.primitive);
                 let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
@@ -2149,6 +2194,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
     ) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct PowF;
+
+        retro_binary!(RetroPowf, B::float_powf);
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
             type State = (
@@ -2206,7 +2253,16 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match PowF
-            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .prepare(
+                [lhs.node.clone(), rhs.node.clone()],
+                [lhs.graph.clone(), rhs.graph.clone()],
+            )
+            .memory_bound()
+            .retro_forward(RetroPowf::<B, D>::new(
+                lhs.node.id.clone(),
+                rhs.node.id.clone(),
+            ))
+            .parents([&lhs, &rhs])
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
