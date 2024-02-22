@@ -35,6 +35,23 @@ struct ModuleWithGenericModule<B: Backend, M> {
 }
 
 #[derive(Module, Debug)]
+enum ModuleEnum<B: Backend> {
+    Basic(ModuleBasic<B>),
+    Composed(ModuleComposed<B>),
+}
+
+#[derive(Module, Debug)]
+enum ModuleEnumNested<B: Backend> {
+    AnotherEnum(ModuleEnum<B>),
+}
+
+#[derive(Module, Debug)]
+enum ModuleEnumWithGenericModule<B: Backend, M: Module<B>> {
+    Basic(ModuleBasic<B>),
+    Generic(ModuleWithGenericModule<B, M>),
+}
+
+#[derive(Module, Debug)]
 pub struct ModuleComposed<B: Backend> {
     weight: Param<Tensor<B, 2>>,
     basic: ModuleBasic<B>,
@@ -95,6 +112,46 @@ mod state {
             module_2.basic.weight_basic.to_data()
         );
     }
+
+    #[test]
+    fn should_load_from_record_enum() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
+        let mut module_2 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
+        let state_1 = module_1.clone().into_record();
+
+        let ModuleEnum::Basic(module_1_basic) = module_1 else {
+            panic!("Invalid module type")
+        };
+        let ModuleEnum::Basic(module_2_basic) = module_2.clone() else {
+            panic!("Invalid module type")
+        };
+        assert_ne!(
+            module_1_basic.weight_basic.to_data(),
+            module_2_basic.weight_basic.to_data()
+        );
+
+        module_2 = module_2.load_record(state_1);
+
+        let ModuleEnum::Basic(module_2_basic) = module_2 else {
+            panic!("Invalid module type")
+        };
+        assert_eq!(
+            module_1_basic.weight_basic.to_data(),
+            module_2_basic.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Can't parse record from a different variant")]
+    fn should_panic_load_from_incorrect_enum_variant() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
+        let module_2 = ModuleEnum::Composed(ModuleComposed::<TestBackend>::new(&device));
+        let state_1 = module_1.clone().into_record();
+
+        module_2.load_record(state_1);
+    }
 }
 
 mod num_params {
@@ -111,6 +168,16 @@ mod num_params {
     fn should_output_state_composed() {
         let device = <TestBackend as Backend>::Device::default();
         let module = ModuleComposed::<TestBackend>::new(&device);
+        assert_eq!(4 * 20 * 20, module.num_params());
+    }
+
+    #[test]
+    fn should_calculate_num_params_enum() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
+        assert_eq!(20 * 20, module.num_params());
+
+        let module = ModuleEnum::Composed(ModuleComposed::<TestBackend>::new(&device));
         assert_eq!(4 * 20 * 20, module.num_params());
     }
 }

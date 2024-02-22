@@ -18,7 +18,14 @@ pub enum Variable {
         scope_depth: u8,
     },
     Id,
+    LocalInvocationIndex,
     Rank,
+    WorkgroupIdX,
+    WorkgroupIdY,
+    WorkgroupIdZ,
+    GlobalInvocationIdX,
+    GlobalInvocationIdY,
+    GlobalInvocationIdZ,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -54,6 +61,7 @@ impl Variable {
                 scope_depth: _,
             } => true,
             Variable::Id => true,
+            Variable::LocalInvocationIndex => true,
             Variable::Rank => true,
             Variable::GlobalInputArray(_, _) => false,
             Variable::GlobalOutputArray(_, _) => false,
@@ -62,6 +70,12 @@ impl Variable {
                 item: _,
                 scope_depth: _,
             } => false,
+            Variable::WorkgroupIdX => true,
+            Variable::WorkgroupIdY => true,
+            Variable::WorkgroupIdZ => true,
+            Variable::GlobalInvocationIdX => true,
+            Variable::GlobalInvocationIdY => true,
+            Variable::GlobalInvocationIdZ => true,
         }
     }
     pub fn index(&self, index: usize) -> IndexedVariable {
@@ -83,12 +97,19 @@ impl Variable {
             Self::ConstantScalar(_, e) => Item::Scalar(*e),
             Self::GlobalScalar(_, e, _) => Item::Scalar(*e),
             Self::Id => Item::Scalar(Elem::U32),
+            Self::LocalInvocationIndex => Item::Scalar(Elem::U32),
             Self::Rank => Item::Scalar(Elem::U32),
             Self::LocalScalar {
                 index: _,
                 elem,
                 scope_depth: _,
             } => Item::Scalar(*elem),
+            Self::WorkgroupIdX => Item::Scalar(Elem::U32),
+            Self::WorkgroupIdY => Item::Scalar(Elem::U32),
+            Self::WorkgroupIdZ => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdX => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdY => Item::Scalar(Elem::U32),
+            Self::GlobalInvocationIdZ => Item::Scalar(Elem::U32),
         }
     }
     pub fn elem(&self) -> Elem {
@@ -143,7 +164,9 @@ impl Display for Item {
 impl Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Variable::GlobalInputArray(number, _) => f.write_fmt(format_args!("input_{number}")),
+            Variable::GlobalInputArray(number, _) => {
+                f.write_fmt(format_args!("input_{number}_global"))
+            }
             Variable::LocalScalar {
                 index,
                 elem: _,
@@ -154,13 +177,22 @@ impl Display for Variable {
                 item: _,
                 scope_depth,
             } => f.write_fmt(format_args!("l_{scope_depth}_{index}")),
-            Variable::GlobalOutputArray(number, _) => f.write_fmt(format_args!("output_{number}")),
+            Variable::GlobalOutputArray(number, _) => {
+                f.write_fmt(format_args!("output_{number}_global"))
+            }
             Variable::GlobalScalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))
             }
             Variable::ConstantScalar(number, elem) => f.write_fmt(format_args!("{elem}({number})")),
             Variable::Id => f.write_str("id"),
+            Variable::LocalInvocationIndex => f.write_str("local_idx"),
             Variable::Rank => f.write_str("rank"),
+            Variable::WorkgroupIdX => f.write_str("workgroup_id.x"),
+            Variable::WorkgroupIdY => f.write_str("workgroup_id.y"),
+            Variable::WorkgroupIdZ => f.write_str("workgroup_id.z"),
+            Variable::GlobalInvocationIdX => f.write_str("global_id.x"),
+            Variable::GlobalInvocationIdY => f.write_str("global_id.y"),
+            Variable::GlobalInvocationIdZ => f.write_str("global_id.z"),
         }
     }
 }
