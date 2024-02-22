@@ -11,7 +11,6 @@ pub struct PRelu<B: Backend> {
     /// the weights learnt for PReLu. can be of shape \[1\] or \[num_parameters\] in which case it must
     /// be the same as number of channels in the input tensor
     pub alpha: Param<Tensor<B, 1>>,
-    num_parameters: usize,
 }
 /// Configuration to create a [Parametric Relu](PRelu) layer.
 #[derive(Config, Debug)]
@@ -27,7 +26,6 @@ impl PReluConfig {
     /// Initialize a new [Parametric Relu](PRelu) Layer
     pub fn init<B: Backend>(&self, device: &B::Device) -> PRelu<B> {
         PRelu {
-            num_parameters: self.num_parameters,
             // alpha is a tensor of length num_parameters
             alpha: Param::from(
                 Initializer::Constant { value: self.alpha }.init([self.num_parameters], device),
