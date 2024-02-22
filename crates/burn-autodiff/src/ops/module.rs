@@ -883,7 +883,34 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         _output_size: [usize; 2],
         _options: InterpolateOptions,
     ) -> AutodiffTensor<B, 4> {
-        unimplemented!()
+        #[derive(Debug)]
+        struct Interpolate;
+        impl<B: Backend> Backward<B, 4, 3> for Interpolate {
+            type State = (
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<4>,
+                B::FloatTensorPrimitive<1>,
+                ConvOptions<2>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x, weight, bias, options) = ops.state;
+                let backward = B::conv2d_backward(x, weight, Some(bias), grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B, 4>(node, backward.x_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B, 4>(node, backward.weights_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
+                }
+            }
+        }
     }
 }
 

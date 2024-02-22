@@ -136,6 +136,13 @@ pub struct InterpolateOptions {
     pub mode: InterpolateMode,
 }
 
+/// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
+#[derive(new)]
+pub struct InterpolateBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B, 4>,
+}
+
 /// Module operations trait.
 pub trait ModuleOps<B: Backend> {
     /// Embedding operation.
@@ -472,4 +479,12 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B, 4>;
+
+    /// Backward pass for the [interpolate](ModuleOps::interpolate) operation.
+    fn interpolate_backward(
+        x: FloatTensor<B, 4>,
+        grad: FloatTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> InterpolateBackward<B>;
 }
