@@ -92,7 +92,5 @@ pub struct ComputeShader {
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
     pub workgroup_size: WorkgroupSize,
-    pub global_invocation_id: bool,
-    pub num_workgroups: bool,
     pub body: Scope,
 }

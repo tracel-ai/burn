@@ -1,16 +1,24 @@
-use crate::shared::field::FieldTypeAnalyzer;
+use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{parse_quote, Generics};
 
 use super::codegen::RecordItemCodegen;
 
-#[derive(new)]
 pub(crate) struct StructRecordItemCodegen {
     fields: Vec<FieldTypeAnalyzer>,
 }
 
 impl RecordItemCodegen for StructRecordItemCodegen {
+    fn from_ast(ast: &syn::DeriveInput) -> Self {
+        Self {
+            fields: parse_fields(ast)
+                .into_iter()
+                .map(FieldTypeAnalyzer::new)
+                .collect(),
+        }
+    }
+
     fn gen_item_type(
         &self,
         item_name: &Ident,

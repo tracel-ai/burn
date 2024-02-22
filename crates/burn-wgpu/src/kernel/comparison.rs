@@ -16,7 +16,7 @@ macro_rules! comparison {
         input: $lhs:expr; $rhs:expr,
         elem: $elem:ty
     ) => {{
-        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
+        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: u32);
 
         launch_binary::<
             Ops<<$runtime as Runtime>::Compiler, E, u32>,

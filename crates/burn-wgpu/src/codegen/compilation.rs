@@ -77,9 +77,14 @@ pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
     /// This will create a new binding in the [compute shader](ComputeShader).
-    Array { item: Item, local: u16 },
+    ArrayWrite { item: Item, local: u16 },
     /// Write the local variable to an existing input binding.
-    Input { item: Item, input: u16, local: u16 },
+    InputArrayWrite { item: Item, input: u16, local: u16 },
+    /// Simply register the output, but don't automatically add a write to it.
+    ///
+    /// Useful when a [procedure](gpu::Procedure) writes to the output using
+    /// [operations](gpu::Operation).
+    Array { item: Item },
 }
 
 impl Compilation {
@@ -125,8 +130,6 @@ impl Compilation {
             named,
             workgroup_size: settings.workgroup_size,
             body: self.info.scope,
-            num_workgroups: true,
-            global_invocation_id: true,
         }
     }
 
@@ -174,7 +177,7 @@ impl Compilation {
 
         for array in self.info.outputs.drain(..) {
             match array {
-                OutputInfo::Array { item, local } => {
+                OutputInfo::ArrayWrite { item, local } => {
                     let item = item.vectorize(settings.vectorization);
                     let elem_adapted = bool_item(item);
 
@@ -190,13 +193,26 @@ impl Compilation {
                     );
                     index += 1;
                 }
-                OutputInfo::Input { item, input, local } => {
+                OutputInfo::InputArrayWrite { item, input, local } => {
                     let item = item.vectorize(settings.vectorization);
 
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalInputArray(input, bool_item(item)),
                     );
+                }
+                OutputInfo::Array { item } => {
+                    let item = item.vectorize(settings.vectorization);
+                    let elem_adapted = bool_item(item);
+
+                    self.output_bindings.push(Binding {
+                        item: elem_adapted,
+                        visibility: Visibility::ReadWrite,
+                        location: Location::Storage,
+                        size: None,
+                    });
+
+                    index += 1;
                 }
             }
         }
@@ -209,12 +225,13 @@ impl Compilation {
         };
 
         let (item, local) = match output {
-            OutputInfo::Array { item, local } => (item, local),
-            OutputInfo::Input {
+            OutputInfo::ArrayWrite { item, local } => (item, local),
+            OutputInfo::InputArrayWrite {
                 item: _,
                 input: _,
                 local: _,
-            } => return, // Output already updated.
+            } => return,
+            OutputInfo::Array { item: _ } => return,
         };
 
         let item = match self.input_bindings.get_mut(mapping.pos_input) {
@@ -235,7 +252,7 @@ impl Compilation {
         };
 
         // Update the output.
-        *output = OutputInfo::Input {
+        *output = OutputInfo::InputArrayWrite {
             item,
             input: mapping.pos_input as u16,
             local: *local,

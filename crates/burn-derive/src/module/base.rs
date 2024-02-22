@@ -1,5 +1,6 @@
 use super::{
     codegen::{generate_module_const, generate_module_standard},
+    codegen_enum::EnumModuleCodegen,
     codegen_struct::StructModuleCodegen,
 };
 use proc_macro::TokenStream;
@@ -22,7 +23,7 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         }
         syn::Data::Enum(_data) => {
             if has_backend {
-                panic!("Enum modules aren't supported yet.")
+                generate_module_standard(ast, EnumModuleCodegen::from_ast(ast))
             } else {
                 generate_module_const(ast)
             }

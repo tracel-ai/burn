@@ -1,7 +1,7 @@
 use super::{optimization::ElementWise, CompilationPhase};
 use crate::{
     codegen::dialect::gpu::{
-        BinaryOperator, ConditionalAssignOperator, Elem, Operator, UnaryOperator, Variable,
+        BinaryOperator, ConditionalAssign, Elem, Operator, Procedure, UnaryOperator, Variable,
     },
     element::JitElement,
     fusion::{tracing::TraceBuilder, WgpuOptimization},
@@ -290,14 +290,13 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 let rhs = self.builder.input(&desc.tensor, E::gpu_elem());
                 let out = self.builder.output(&desc.out, E::gpu_elem());
 
-                self.builder.register_operation(Operator::ConditionalAssign(
-                    ConditionalAssignOperator {
+                self.builder
+                    .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    },
-                ));
+                    }));
 
                 true
             }
@@ -311,14 +310,13 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 let rhs = self.builder.input(&desc.tensor, E::gpu_elem());
                 let out = self.builder.output(&desc.out, E::gpu_elem());
 
-                self.builder.register_operation(Operator::ConditionalAssign(
-                    ConditionalAssignOperator {
+                self.builder
+                    .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    },
-                ));
+                    }));
 
                 true
             }
@@ -331,7 +329,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 let out = self.builder.output(desc, E::gpu_elem());
 
                 self.builder
-                    .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
+                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
 
                 true
             }
@@ -344,7 +342,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 let out = self.builder.output(desc, E::gpu_elem());
 
                 self.builder
-                    .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
+                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
 
                 true
             }
@@ -357,7 +355,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                 let out = self.builder.output(desc, E::gpu_elem());
 
                 self.builder
-                    .register_operation(Operator::AssignLocal(UnaryOperator { input, out }));
+                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
 
                 true
             }

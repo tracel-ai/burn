@@ -1,4 +1,4 @@
-use super::{Extension, Item, Scope};
+use super::{Body, Extension, Item};
 use crate::codegen::dialect::gpu::WorkgroupSize;
 use std::fmt::Display;
 
@@ -30,8 +30,10 @@ pub struct ComputeShader {
     pub named: Vec<(String, Binding)>,
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
+    pub local_invocation_index: bool,
     pub num_workgroups: bool,
-    pub body: Scope,
+    pub workgroup_id: bool,
+    pub body: Body,
     pub extensions: Vec<Extension>,
 }
 
@@ -69,8 +71,16 @@ fn main(
             f.write_str("    @builtin(global_invocation_id) global_id: vec3<u32>,\n")?;
         }
 
+        if self.local_invocation_index {
+            f.write_str("    @builtin(local_invocation_index) local_idx: u32,\n")?;
+        }
+
         if self.num_workgroups {
             f.write_str("    @builtin(num_workgroups) num_workgroups: vec3<u32>,\n")?;
+        }
+
+        if self.workgroup_id {
+            f.write_str("    @builtin(workgroup_id) workgroup_id: vec3<u32>,\n")?;
         }
 
         f.write_fmt(format_args!(
