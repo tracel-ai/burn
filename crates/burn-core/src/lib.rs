@@ -70,10 +70,7 @@ pub mod prelude {
     pub use crate::{
         config::Config,
         module::Module,
-        nn::{loss::*, *},
-        tensor::{
-            backend::{AutodiffBackend, Backend},
-            Data, Tensor,
-        },
+        nn,
+        tensor::{backend::Backend, Data, Device, ElementConversion, Tensor},
     };
 }
