@@ -73,7 +73,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn num_samples(&self) -> usize {
-        50
+        10
     }
 }
 
@@ -117,32 +117,40 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 fn bench<B: Backend>(device: &B::Device) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
-    let autodiff = true;
 
-    let reference_gelu = CustomGeluBenchmark::<B, D>::new(
-        shape.clone(),
-        device.clone(),
-        GeluKind::Reference,
-        autodiff,
-    );
-    let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
-        shape.clone(),
-        device.clone(),
-        GeluKind::WithReferenceErf,
-        autodiff,
-    );
-    let custom_erf_gelu =
-        CustomGeluBenchmark::<B, D>::new(shape, device.clone(), GeluKind::WithCustomErf, autodiff);
+    let run = |autodiff: bool| {
+        let reference_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::Reference,
+            autodiff,
+        );
+        let reference_erf_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::WithReferenceErf,
+            autodiff,
+        );
+        let custom_erf_gelu = CustomGeluBenchmark::<B, D>::new(
+            shape.clone(),
+            device.clone(),
+            GeluKind::WithCustomErf,
+            autodiff,
+        );
 
-    save::<B>(
-        vec![
-            run_benchmark(reference_gelu),
-            run_benchmark(reference_erf_gelu),
-            run_benchmark(custom_erf_gelu),
-        ],
-        device,
-    )
-    .unwrap();
+        save::<B>(
+            vec![
+                run_benchmark(reference_gelu),
+                run_benchmark(reference_erf_gelu),
+                run_benchmark(custom_erf_gelu),
+            ],
+            device,
+        )
+        .unwrap();
+    };
+
+    run(false);
+    run(true);
 }
 
 fn main() {
