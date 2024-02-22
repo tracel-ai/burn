@@ -2,7 +2,7 @@ use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv2d, conv_transpose2d},
-    interpolate::{bilinear_interpolate, nearest_interpolate},
+    interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
@@ -109,7 +109,7 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
         match options.mode {
             InterpolateMode::Nearest => nearest_interpolate(x, output_size),
             InterpolateMode::Bilinear => bilinear_interpolate(x, output_size),
-            InterpolateMode::Bicubic => todo!(),
+            InterpolateMode::Bicubic => bicubic_interpolate(x, output_size),
         }
     }
 }
