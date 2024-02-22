@@ -138,7 +138,7 @@ impl CheckpointerBuilder {
                     retro_forward: _,
                 } => {
                     let id = node_ref.id.clone();
-                    self.find_n_required_of_parents(
+                    Self::find_n_required_of_parents(
                         id,
                         &mut n_required_map,
                         node_tree,
@@ -211,7 +211,6 @@ impl CheckpointerBuilder {
     }
 
     fn find_n_required_of_parents(
-        &self,
         id: NodeID,
         n_required_map: &mut HashMap<NodeID, usize>,
         node_tree: &NodeTree,
@@ -226,7 +225,7 @@ impl CheckpointerBuilder {
                 if !stop_nodes.contains(&id) {
                     if let Some(parents) = node_tree.parents(&id) {
                         for p in parents {
-                            self.find_n_required_of_parents(
+                            Self::find_n_required_of_parents(
                                 p,
                                 n_required_map,
                                 node_tree,
