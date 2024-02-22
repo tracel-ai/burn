@@ -1,6 +1,7 @@
 use super::{
-    processing::ScopeProcessing, Elem, Item, Operation, Operator, Procedure, ReadGlobal,
-    ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization, WriteGlobal,
+    processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
+    Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
+    WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,7 @@ pub struct Scope {
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
+    index_offset_with_output_layout_position: Vec<usize>,
     writes_global: Vec<(Variable, Variable)>,
     reads_scalar: Vec<(Variable, Variable)>,
     layout_ref: Option<Variable>,
@@ -42,6 +44,7 @@ impl Scope {
             operations: Vec::new(),
             locals: Vec::new(),
             reads_global: Vec::new(),
+            index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
             layout_ref: None,
@@ -73,6 +76,30 @@ impl Scope {
     /// The index refers to the argument position of the array in the compute shader.
     pub fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
         self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
+    }
+
+    pub fn index_offset_with_output_layout(
+        &mut self,
+        tensor: Variable,
+        dim_start: Variable,
+        dim_end: Variable,
+    ) -> Variable {
+        let index_offset = self.create_local(Elem::UInt);
+        let proc = IndexOffsetGlobalWithLayout {
+            tensors: vec![tensor],
+            indexes: vec![index_offset],
+            layout: Variable::Id, // Tmp
+            index_ref: Variable::Id,
+            dim_start,
+            dim_end,
+        };
+
+        self.index_offset_with_output_layout_position
+            .push(self.operations.len());
+        self.operations
+            .push(Procedure::IndexOffsetGlobalWithLayout(proc).into());
+
+        index_offset
     }
 
     /// Reads an input scalar to a local variable.
@@ -166,9 +193,10 @@ impl Scope {
             operations: Vec::new(),
             locals: Vec::new(),
             reads_global: Vec::new(),
+            index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            layout_ref: None,
+            layout_ref: self.layout_ref.clone(),
             undeclared: 0,
         }
     }
@@ -184,6 +212,16 @@ impl Scope {
 
         let mut variables = Vec::new();
         core::mem::swap(&mut self.locals, &mut variables);
+
+        for index in self.index_offset_with_output_layout_position.drain(..) {
+            if let Some(Operation::Procedure(Procedure::IndexOffsetGlobalWithLayout(proc))) =
+                self.operations.get_mut(index)
+            {
+                proc.layout = self.layout_ref.expect(
+                    "Output should be set when processing an index offset with output layout.",
+                );
+            }
+        }
 
         let mut operations = Vec::new();
 

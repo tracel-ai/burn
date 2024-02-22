@@ -1,4 +1,7 @@
-use super::{ConditionalAssign, Matmul, ReadGlobal, ReadGlobalWithLayout, WriteGlobal};
+use super::{
+    ConditionalAssign, Gather, IndexOffsetGlobalWithLayout, Matmul, ReadGlobal,
+    ReadGlobalWithLayout, WriteGlobal,
+};
 use crate::codegen::dialect::gpu::Vectorization;
 use serde::{Deserialize, Serialize};
 
@@ -6,18 +9,13 @@ use serde::{Deserialize, Serialize};
 /// procedure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Procedure {
-    /// Read a global array with the given layout.
-    ///
-    /// Crucial to read arrays that aren't contiguous and to perform correct broadcasting.
     ReadGlobalWithLayout(ReadGlobalWithLayout),
-    /// Read a global array.
+    IndexOffsetGlobalWithLayout(IndexOffsetGlobalWithLayout),
     ReadGlobal(ReadGlobal),
-    /// Matrix Multiplication procedure.
     Matmul(Matmul),
-    /// Write to a global array.
     WriteGlobal(WriteGlobal),
-    /// Assign value to a variable based on a given condition.
     ConditionalAssign(ConditionalAssign),
+    Gather(Gather),
 }
 
 impl Procedure {
@@ -32,6 +30,10 @@ impl Procedure {
             Procedure::ConditionalAssign(proc) => {
                 Procedure::ConditionalAssign(proc.vectorize(vectorization))
             }
+            Procedure::IndexOffsetGlobalWithLayout(op) => {
+                Procedure::IndexOffsetGlobalWithLayout(op.vectorize(vectorization))
+            }
+            Procedure::Gather(proc) => Procedure::Gather(proc.vectorize(vectorization)),
         }
     }
 }

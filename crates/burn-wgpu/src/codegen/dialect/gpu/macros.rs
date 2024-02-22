@@ -197,6 +197,10 @@ macro_rules! gpu {
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
+        gpu!($scope, $out = cast($input))
+    };
+    // out = cast(input)
+    ($scope:expr, $out:ident = cast($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
         ));

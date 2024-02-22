@@ -90,8 +90,9 @@ impl Matmul {
                     tensors: vec![lhs, rhs],
                     indexes: vec![offset_lhs, offset_rhs],
                     layout: out,
-                    end_dim: batch_dims,
                     index_ref: offset_output,
+                    dim_start: 0u32.into(),
+                    dim_end: batch_dims,
                 }
                 .expand(scope);
 

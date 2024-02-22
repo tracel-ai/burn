@@ -330,6 +330,14 @@ impl TraceBuilder {
                             mark(&proc.rhs, &mut local_tensor_ids_input);
                             mark(&proc.out, &mut local_tensor_ids_output);
                         }
+                        gpu::Procedure::IndexOffsetGlobalWithLayout(_) => {
+                            // Nothing to do here.
+                        }
+                        gpu::Procedure::Gather(proc) => {
+                            mark(&proc.tensor, &mut local_tensor_ids_input);
+                            mark(&proc.indices, &mut local_tensor_ids_input);
+                            mark(&proc.indices, &mut local_tensor_ids_output);
+                        }
                     }
                 }
                 Operation::Metadata(_) => {

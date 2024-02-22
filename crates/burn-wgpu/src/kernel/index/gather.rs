@@ -1,14 +1,73 @@
+use std::marker::PhantomData;
+
 use crate::{
-    compute::StaticKernel,
+    codegen::{
+        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
+        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
+    },
     element::JitElement,
-    kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
-    kernel_wgsl,
+    kernel::{self, DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
 };
 
-kernel_wgsl!(Gather, "../../template/index/gather.wgsl");
+#[derive(new)]
+struct Gather<R: Runtime, E: JitElement> {
+    dim: usize,
+    _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
+}
+
+impl<R: Runtime, E: JitElement> DynamicKernelSource for Gather<R, E> {
+    fn source(&self) -> kernel::SourceTemplate {
+        let mut scope = gpu::Scope::root();
+        let item_tensor = E::gpu_elem().into();
+        let item_indices: gpu::Item = gpu::Elem::Int.into();
+
+        let tensor = gpu::Variable::GlobalInputArray(0, item_tensor);
+        let indices = scope.read_array(1, item_indices);
+
+        let output_array = gpu::Variable::GlobalOutputArray(0, item_tensor);
+        let output_local = scope.create_local(item_tensor);
+
+        scope.register(gpu::Operation::Procedure(gpu::Procedure::Gather(
+            gpu::Gather {
+                tensor,
+                indices,
+                out: output_local,
+                dim: self.dim,
+            },
+        )));
+        scope.write_global(output_local, output_array);
+
+        let tensor = InputInfo::Array {
+            item: item_tensor,
+            visibility: gpu::Visibility::Read,
+        };
+        let indices = InputInfo::Array {
+            item: gpu::Elem::Int.into(),
+            visibility: gpu::Visibility::Read,
+        };
+        let out = OutputInfo::Array { item: item_tensor };
+
+        let info = CompilationInfo {
+            inputs: vec![tensor, indices],
+            outputs: vec![out],
+            scope,
+            mappings: vec![],
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    }
+}
 
 pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     dim: usize,
@@ -16,26 +75,23 @@ pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     indices: JitTensor<R, I, D>,
 ) -> JitTensor<R, E, D> {
     let shape_output = indices.shape.clone();
-    let num_elems = shape_output.num_elements();
-    let indices = kernel::into_contiguous(indices);
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let kernel = Gather::new(dim);
 
-    let mut info = build_info(&[&tensor, &output]);
-    info.push(dim as u32);
-    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = StaticKernel::<
-        KernelSettings<Gather, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-
-    tensor.client.execute(
-        Box::new(kernel),
+    execute_dynamic::<R, Gather<R, E>, E>(
         &[
-            &tensor.handle,
-            &indices.handle,
-            &output.handle,
-            &info_handle,
+            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
         ],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        None,
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        tensor.client,
     );
 
     output

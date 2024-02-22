@@ -273,6 +273,14 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 proc.expand(scope);
                 compile(scope);
             }
+            gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
+            gpu::Procedure::Gather(proc) => {
+                proc.expand(scope);
+                compile(scope);
+            }
         }
     }
 

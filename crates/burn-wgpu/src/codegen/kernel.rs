@@ -76,6 +76,7 @@ pub fn execute_dynamic<R, K, E>(
         handles.push(handle);
     }
 
+    println!("{workgroup:?}");
     let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
 
     client.execute(kernel, &handles);

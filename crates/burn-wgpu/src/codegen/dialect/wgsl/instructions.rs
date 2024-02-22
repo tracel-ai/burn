@@ -165,63 +165,10 @@ impl Display for Instruction {
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
-            Instruction::Index { lhs, rhs, out } => match rhs.item() {
-                Item::Vec4(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-                    let lhs3 = lhs.index(3);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-                    let rhs3 = rhs.index(3);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec4(
-{elem}({lhs0}[{rhs0}],
-{elem}({lhs1}[{rhs1}],
-{elem}({lhs2}[{rhs2}],
-{elem}({lhs3}[{rhs3}],
-"
-                    ))
-                }
-                Item::Vec3(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec3(
-{elem}({lhs0}[{rhs0}],
-{elem}({lhs1}[{rhs1}],
-{elem}({lhs2}[{rhs2}],
-"
-                    ))
-                }
-                Item::Vec2(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec2(
-{elem}({lhs0}[{rhs0}],
-{elem}({lhs1}[{rhs1}],
-"
-                    ))
-                }
-                Item::Scalar(_elem) => {
-                    let item = out.item();
-                    f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
-                }
-            },
+            Instruction::Index { lhs, rhs, out } => {
+                let item = out.item();
+                f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
+            }
             Instruction::Modulo { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
             }
