@@ -1,41 +1,80 @@
-use burn_tensor::Shape;
-use std::marker::PhantomData;
-
 use crate::{
-    compute::{DynamicKernel, Kernel, WorkGroup},
-    element::JitElement,
-    kernel::{
-        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
-        WORKGROUP_DEFAULT,
+    codegen::{
+        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
+        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
     },
-    kernel_wgsl,
+    compute::WorkGroup,
+    element::JitElement,
+    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
-
-kernel_wgsl!(
-    MatmulMemCoalescingRaw,
-    "../../template/matmul/mem_coalescing.wgsl"
-);
+use burn_tensor::Shape;
+use std::marker::PhantomData;
 
 #[derive(new, Debug)]
-struct MatmulMemCoalescing<E: JitElement> {
+struct MatmulMemCoalescing<R: Runtime> {
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-    _elem: PhantomData<E>,
+    _runtime: PhantomData<R>,
 }
 
-impl<E: JitElement> DynamicKernelSource for MatmulMemCoalescing<E> {
+impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
     fn source(&self) -> SourceTemplate {
-        MatmulMemCoalescingRaw::source()
-            .register("workgroup_size_x", self.workgroup_size_x.to_string())
-            .register("workgroup_size_y", self.workgroup_size_y.to_string())
-            .register("elem", E::type_name())
-            .register("int", "i32")
+        assert_eq!(
+            self.workgroup_size_x, self.workgroup_size_y,
+            "Only square grid is supported."
+        );
+
+        let mut scope = gpu::Scope::root();
+        let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
+        let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
+        let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
+
+        scope.write_global_custom(out);
+        scope.register(gpu::Operation::Procedure(gpu::Procedure::Matmul(
+            gpu::Matmul::MemCoalescing {
+                variables: gpu::BinaryOperator { lhs, rhs, out },
+                block_size: self.workgroup_size_x,
+            },
+        )));
+
+        let lhs = InputInfo::Array {
+            item: gpu::Elem::Float.into(),
+            visibility: gpu::Visibility::Read,
+        };
+        let rhs = InputInfo::Array {
+            item: gpu::Elem::Float.into(),
+            visibility: gpu::Visibility::Read,
+        };
+        let out = OutputInfo::Array {
+            item: gpu::Elem::Float.into(),
+        };
+
+        let info = CompilationInfo {
+            inputs: vec![lhs, rhs],
+            outputs: vec![out],
+            scope,
+            mappings: vec![],
+        };
+
+        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
+            self.workgroup_size_x as u32,
+            self.workgroup_size_y as u32,
+            1,
+        ));
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
     }
 
     fn id(&self) -> String {
-        std::format!("{:?}", self)
+        format!(
+            "{:?}x={}y={}",
+            core::any::TypeId::of::<Self>(),
+            self.workgroup_size_x,
+            self.workgroup_size_y,
+        )
     }
 }
 
@@ -52,42 +91,47 @@ pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
 pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
+    out: JitTensor<R, E, D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
 ) -> JitTensor<R, E, D> {
     lhs.assert_is_on_same_device(&rhs);
-
     let lhs = into_contiguous(lhs);
     let rhs = into_contiguous(rhs);
 
-    let info = build_info(&[&lhs, &rhs, &output]);
-
-    let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = matmul_mem_coalescing_kernel::<E, D>(
+    let workgroup = launch_options(
         &lhs.shape,
         &rhs.shape,
-        &output.shape,
+        &out.shape,
         workgroup_size_x,
         workgroup_size_y,
     );
 
-    lhs.client.execute(
+    let kernel = MatmulMemCoalescing::new(workgroup_size_x, workgroup_size_y);
+
+    execute_dynamic::<R, MatmulMemCoalescing<R>, E>(
+        &[
+            EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+            EagerHandle::new(&out.handle, &out.strides, &out.shape.dims),
+        ],
+        &[],
+        None,
         kernel,
-        &[&lhs.handle, &rhs.handle, &output.handle, &info_handle],
+        WorkgroupLaunch::Custom(workgroup),
+        rhs.client,
     );
 
-    output
+    out
 }
 
-fn matmul_mem_coalescing_kernel<E: JitElement, const D: usize>(
+fn launch_options<const D: usize>(
     lhs_shape: &Shape<D>,
     rhs_shape: &Shape<D>,
     output_shape: &Shape<D>,
     workgroup_size_x: usize,
     workgroup_size_y: usize,
-) -> Box<dyn Kernel> {
+) -> WorkGroup {
     let num_rows = lhs_shape.dims[D - 2];
     let num_cols = rhs_shape.dims[D - 1];
 
@@ -99,12 +143,7 @@ fn matmul_mem_coalescing_kernel<E: JitElement, const D: usize>(
         num_iter *= output_shape.dims[i];
     }
 
-    let workgroup = WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32);
-
-    Box::new(DynamicKernel::new(
-        MatmulMemCoalescing::<E>::new(workgroup_size_x, workgroup_size_y),
-        workgroup,
-    ))
+    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }
 
 #[cfg(test)]

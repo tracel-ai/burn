@@ -1,7 +1,7 @@
 use super::{Elem, Item};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum Variable {
     GlobalInputArray(u16, Item),
     GlobalScalar(u16, Elem),
@@ -10,6 +10,13 @@ pub enum Variable {
     LocalScalar(u16, Elem, u8),
     ConstantScalar(f64, Elem),
     Id,
+    InvocationIndex,
+    WorkgroupIdX,
+    WorkgroupIdY,
+    WorkgroupIdZ,
+    GlobalInvocationIdX,
+    GlobalInvocationIdY,
+    GlobalInvocationIdZ,
     Rank,
 }
 
@@ -29,7 +36,14 @@ impl Variable {
             Variable::GlobalOutputArray(idx, _) => Some(*idx),
             Variable::ConstantScalar(_, _) => None,
             Variable::Id => None,
+            Variable::InvocationIndex => None,
             Variable::Rank => None,
+            Variable::WorkgroupIdX => None,
+            Variable::WorkgroupIdY => None,
+            Variable::WorkgroupIdZ => None,
+            Variable::GlobalInvocationIdX => None,
+            Variable::GlobalInvocationIdY => None,
+            Variable::GlobalInvocationIdZ => None,
         }
     }
     pub fn item(&self) -> Item {
@@ -42,6 +56,20 @@ impl Variable {
             Variable::ConstantScalar(_, elem) => Item::Scalar(*elem),
             Variable::Id => Item::Scalar(Elem::UInt),
             Variable::Rank => Item::Scalar(Elem::UInt),
+            Variable::InvocationIndex => Item::Scalar(Elem::UInt),
+            Variable::WorkgroupIdX => Item::Scalar(Elem::UInt),
+            Variable::WorkgroupIdY => Item::Scalar(Elem::UInt),
+            Variable::WorkgroupIdZ => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdX => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdY => Item::Scalar(Elem::UInt),
+            Variable::GlobalInvocationIdZ => Item::Scalar(Elem::UInt),
         }
+    }
+}
+
+// Useful with the gpu! macro.
+impl From<&Variable> for Variable {
+    fn from(value: &Variable) -> Self {
+        *value
     }
 }

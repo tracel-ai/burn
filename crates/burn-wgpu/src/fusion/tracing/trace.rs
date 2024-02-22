@@ -51,7 +51,7 @@ impl Trace {
             .outputs
             .iter()
             .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| OutputInfo::Array {
+            .map(|((_tensor, elem), local)| OutputInfo::ArrayWrite {
                 item: gpu::Item::Scalar(*elem),
                 local: *local,
             })

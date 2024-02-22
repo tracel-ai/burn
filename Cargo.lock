@@ -1565,15 +1565,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "float-cmp"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3130,17 +3121,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "onnx-tests"
-version = "0.13.0"
-dependencies = [
- "burn",
- "burn-import",
- "burn-ndarray",
- "float-cmp",
- "serde",
-]
-
-[[package]]
 name = "openblas-build"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3512,18 +3492,6 @@ dependencies = [
  "burn",
  "burn-import",
  "model",
-]
-
-[[package]]
-name = "pytorch-tests"
-version = "0.13.0"
-dependencies = [
- "burn",
- "burn-import",
- "burn-ndarray",
- "cfg-if",
- "float-cmp",
- "serde",
 ]
 
 [[package]]
