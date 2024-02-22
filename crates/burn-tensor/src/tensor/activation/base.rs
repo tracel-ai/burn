@@ -40,9 +40,7 @@ pub fn prelu<const D: usize, B: Backend>(
     } else {
         // if there is more than 1 weight, and the rank of input tensor is less than 2 (i.e rank is 1)
         // reshape alpha to (1, channels,1,1...) so that the rank is D
-        let mut s = [1; D];
-        s[1] = alpha.dims()[0];
-        alpha.reshape(s)
+        panic!("Number of channels and weights must be equal. Got no. of channels: {}, no. of weights: {}", 1, alpha.dims()[0]);
     };
 
     Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))

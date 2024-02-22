@@ -10,7 +10,6 @@ mod tests {
             [-4.567, 0.56, -1.55, 99.9, 0.0],
         ];
         let tensor = TestTensor::from(data);
-
         let data_actual =
             activation::prelu(tensor, TestTensor::from([0.5, 0.25, 0.0, -0.8, -0.4])).into_data();
         let data_expected = Data::from([
@@ -26,7 +25,6 @@ mod tests {
             [-4.567, 0.56, -1.55, 99.9, 0.0],
         ];
         let tensor = TestTensor::from(data);
-
         let data_actual = activation::prelu(tensor, TestTensor::from([-0.8])).into_data();
         let data_expected = Data::from([
             [0.8800, -0.0000, 1.2000, 0.2500, 4.3200],
@@ -63,5 +61,26 @@ mod tests {
         let data_actual = activation::prelu(tensor, TestTensor::from([0.5])).into_data();
         let data_expected = Data::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
         data_expected.assert_approx_eq(&data_actual, 9);
+    }
+    #[test]
+    #[should_panic]
+    fn test_prelu_single_dim_multi_weight() {
+        // should panic because the data has only 1 channel
+        let data = [-1.1, 2.0, 1.2, 0.25, -5.4];
+        let tensor = TestTensor::from(data);
+        let data_actual =
+            activation::prelu(tensor, TestTensor::from([0.5, -0.25, 0.0, 0.5, -1.0])).into_data();
+        let data_expected = Data::from([-0.550, 0.0, 1.20, 0.250, -2.70]);
+        data_expected.assert_approx_eq(&data_actual, 9);
+    }
+    #[test]
+    #[should_panic]
+    fn test_prelu_multi_dim_wrong_weights() {
+        let data = [
+            [-1.1, 0.0, 1.2, 0.25, -5.4],
+            [-4.567, 0.56, -1.55, 99.9, 0.0],
+        ];
+        let tensor = TestTensor::from(data);
+        let data_actual = activation::prelu(tensor, TestTensor::from([-0.8, 0.1])).into_data();
     }
 }
