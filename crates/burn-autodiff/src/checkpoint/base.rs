@@ -52,7 +52,6 @@ impl Checkpointer {
             Some(state) => match state {
                 State::Recompute { n_required: _ } => {
                     let mut sorted = Vec::new();
-                    println!("{:?}", node_id);
                     let parents = self.node_tree.parents(&node_id).unwrap();
                     for parent_node in parents {
                         let parent_sorted = self.topological_sort(parent_node);
