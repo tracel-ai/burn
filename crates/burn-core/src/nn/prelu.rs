@@ -8,7 +8,9 @@ use crate::tensor::Tensor;
 /// Parametric Relu layer.
 #[derive(Module, Debug)]
 pub struct PRelu<B: Backend> {
-    alpha: Param<Tensor<B, 1>>,
+    /// the weights learnt for PReLu. can be of shape \[1\] or \[num_parameters\] in which case it must
+    /// be the same as number of channels in the input tensor
+    pub alpha: Param<Tensor<B, 1>>,
     num_parameters: usize,
 }
 /// Configuration to create a [Parametric Relu](PRelu) layer.
@@ -17,7 +19,7 @@ pub struct PReluConfig {
     /// The number of parameters.
     #[config(default = "1")]
     pub num_parameters: usize,
-    /// The learnable weight alpha.
+    /// The learnable weight alpha. Default is 0.25
     #[config(default = "0.25")]
     pub alpha: f64,
 }

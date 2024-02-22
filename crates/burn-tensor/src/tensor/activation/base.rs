@@ -15,13 +15,17 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
 
 /// Applies Parametric ReLu activation
 /// ` PReLu(x) = max(0,x) + \alpha * min(0,x)`
+/// tensor is assumed to be of shape \[batch_size, channels, ...\]
+/// alpha is assumed to be of shape \[channels\] or \[1\]
 pub fn prelu<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     alpha: Tensor<B, 1>,
 ) -> Tensor<B, D> {
     let weight = if alpha.dims()[0] == 1 {
+        // if there is only 1 weight, then reshape it to (1,1,1... D times) so that the rank is D
         alpha.reshape([1; D])
     } else if D >= 2 {
+        // there is more than 1 weight and rank is more than 2
         let channels = tensor.dims()[1];
         let num_weights = alpha.dims()[0];
         assert_eq!(
@@ -31,9 +35,14 @@ pub fn prelu<const D: usize, B: Backend>(
         );
         let mut s = [1; D];
         s[1] = num_weights;
+        // reshape the weights to (1, channels,1 ...)
         alpha.reshape(s)
     } else {
-        alpha.reshape([1; D])
+        // if there is more than 1 weight, and the rank of input tensor is less than 2 (i.e rank is 1)
+        // reshape alpha to (1, channels,1,1...) so that the rank is D
+        let mut s = [1; D];
+        s[1] = alpha.dims()[0];
+        alpha.reshape(s)
     };
 
     Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))
