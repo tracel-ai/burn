@@ -261,10 +261,6 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 proc.expand(scope);
                 compile(scope);
             }
-            gpu::Procedure::Matmul(proc) => {
-                proc.expand(scope);
-                compile(scope);
-            }
             gpu::Procedure::WriteGlobal(proc) => {
                 proc.expand(scope);
                 compile(scope);
@@ -274,10 +270,6 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 compile(scope);
             }
             gpu::Procedure::IndexOffsetGlobalWithLayout(proc) => {
-                proc.expand(scope);
-                compile(scope);
-            }
-            gpu::Procedure::Gather(proc) => {
                 proc.expand(scope);
                 compile(scope);
             }
@@ -312,6 +304,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                     out: self.compile_variable(out),
                 }
             }
+            gpu::Metadata::ArrayLength { var, out } => wgsl::Instruction::ArrayLength {
+                out: self.compile_variable(out),
+                var: self.compile_variable(var),
+            },
         }
     }
 

@@ -309,18 +309,6 @@ impl TraceBuilder {
                         gpu::Procedure::ReadGlobal(_) => {
                             // Nothing to do here.
                         }
-                        gpu::Procedure::Matmul(proc) => match proc {
-                            gpu::Matmul::MemCoalescing {
-                                variables,
-                                block_size: _,
-                            } => {
-                                mark_binary(
-                                    variables,
-                                    &mut local_tensor_ids_input,
-                                    &mut local_tensor_ids_output,
-                                );
-                            }
-                        },
                         gpu::Procedure::WriteGlobal(_) => {
                             // Nothing to do here.
                         }
@@ -332,11 +320,6 @@ impl TraceBuilder {
                         }
                         gpu::Procedure::IndexOffsetGlobalWithLayout(_) => {
                             // Nothing to do here.
-                        }
-                        gpu::Procedure::Gather(proc) => {
-                            mark(&proc.tensor, &mut local_tensor_ids_input);
-                            mark(&proc.indices, &mut local_tensor_ids_input);
-                            mark(&proc.indices, &mut local_tensor_ids_output);
                         }
                     }
                 }

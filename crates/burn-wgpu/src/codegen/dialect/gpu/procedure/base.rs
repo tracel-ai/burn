@@ -1,6 +1,5 @@
 use super::{
-    ConditionalAssign, Gather, IndexOffsetGlobalWithLayout, Matmul, ReadGlobal,
-    ReadGlobalWithLayout, WriteGlobal,
+    ConditionalAssign, IndexOffsetGlobalWithLayout, ReadGlobal, ReadGlobalWithLayout, WriteGlobal,
 };
 use crate::codegen::dialect::gpu::Vectorization;
 use serde::{Deserialize, Serialize};
@@ -12,10 +11,8 @@ pub enum Procedure {
     ReadGlobalWithLayout(ReadGlobalWithLayout),
     IndexOffsetGlobalWithLayout(IndexOffsetGlobalWithLayout),
     ReadGlobal(ReadGlobal),
-    Matmul(Matmul),
     WriteGlobal(WriteGlobal),
     ConditionalAssign(ConditionalAssign),
-    Gather(Gather),
 }
 
 impl Procedure {
@@ -25,7 +22,6 @@ impl Procedure {
                 Procedure::ReadGlobalWithLayout(op.vectorize(vectorization))
             }
             Procedure::ReadGlobal(op) => Procedure::ReadGlobal(op.vectorize(vectorization)),
-            Procedure::Matmul(op) => Procedure::Matmul(op.vectorize(vectorization)),
             Procedure::WriteGlobal(op) => Procedure::WriteGlobal(op.vectorize(vectorization)),
             Procedure::ConditionalAssign(proc) => {
                 Procedure::ConditionalAssign(proc.vectorize(vectorization))
@@ -33,7 +29,6 @@ impl Procedure {
             Procedure::IndexOffsetGlobalWithLayout(op) => {
                 Procedure::IndexOffsetGlobalWithLayout(op.vectorize(vectorization))
             }
-            Procedure::Gather(proc) => Procedure::Gather(proc.vectorize(vectorization)),
         }
     }
 }

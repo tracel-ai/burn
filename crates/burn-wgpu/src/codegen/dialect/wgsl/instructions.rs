@@ -142,6 +142,10 @@ pub enum Instruction {
         position: usize,
         out: Variable,
     },
+    ArrayLength {
+        var: Variable,
+        out: Variable,
+    },
     Shape {
         dim: Variable,
         position: usize,
@@ -367,6 +371,9 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::Return => f.write_str("return;\n"),
             Instruction::Break => f.write_str("break;\n"),
+            Instruction::ArrayLength { var, out } => {
+                f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
+            }
         }
     }
 }

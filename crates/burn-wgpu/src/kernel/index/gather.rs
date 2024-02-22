@@ -1,5 +1,4 @@
-use std::marker::PhantomData;
-
+use crate::codegen::dialect::gpu::{gpu, Elem, Scope, Variable};
 use crate::{
     codegen::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
@@ -11,15 +10,71 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
+use std::marker::PhantomData;
 
 #[derive(new)]
-struct Gather<R: Runtime, E: JitElement> {
+struct GatherEagerKernel<R: Runtime, E: JitElement> {
     dim: usize,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for Gather<R, E> {
+struct GatherComputeShader {
+    tensor: Variable,
+    indices: Variable,
+    out: Variable,
+    dim: usize,
+}
+
+impl GatherComputeShader {
+    pub fn expand(self, scope: &mut Scope) {
+        match self.tensor {
+            Variable::GlobalInputArray(_, _) => (),
+            Variable::GlobalOutputArray(_, _) => (),
+            _ => panic!("Tensor variable must be an global array."),
+        };
+
+        let tensor = self.tensor;
+        let output = self.out;
+
+        let stride = scope.create_local(Elem::UInt);
+        let offset = scope.create_local(Elem::UInt);
+
+        // The offset of the `dim` dimension is obtained by the indices tensor.
+        gpu!(scope, offset = cast(self.indices));
+        gpu!(scope, stride = stride(tensor, self.dim));
+        gpu!(scope, offset = offset * stride);
+
+        // We fetch the offset before the `dim` dimension.
+        if self.dim > 0 {
+            let offset_before = scope.create_local(Elem::UInt);
+            scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+                tensors: vec![tensor],
+                indexes: vec![offset_before],
+                layout: Variable::Id, // Will be updated.
+                index_ref: Variable::Id,
+                dim_start: 0u32.into(),
+                dim_end: self.dim.into(),
+            });
+            gpu!(scope, offset += offset_before);
+        }
+
+        let offset_after = scope.create_local(Elem::UInt);
+        scope.index_offset_with_output_layout(gpu::IndexOffsetGlobalWithLayout {
+            tensors: vec![tensor],
+            indexes: vec![offset_after],
+            layout: Variable::Id, // Will be updated.
+            index_ref: Variable::Id,
+            dim_start: (self.dim + 1).into(),
+            dim_end: Variable::Rank,
+        });
+        gpu!(scope, offset += offset_after);
+
+        gpu!(scope, output = tensor[offset]);
+    }
+}
+
+impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> {
     fn source(&self) -> kernel::SourceTemplate {
         let mut scope = gpu::Scope::root();
         let item_tensor = E::gpu_elem().into();
@@ -31,14 +86,14 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for Gather<R, E> {
         let output_array = gpu::Variable::GlobalOutputArray(0, item_tensor);
         let output_local = scope.create_local(item_tensor);
 
-        scope.register(gpu::Operation::Procedure(gpu::Procedure::Gather(
-            gpu::Gather {
-                tensor,
-                indices,
-                out: output_local,
-                dim: self.dim,
-            },
-        )));
+        GatherComputeShader {
+            tensor,
+            indices,
+            out: output_local,
+            dim: self.dim,
+        }
+        .expand(&mut scope);
+
         scope.write_global(output_local, output_array);
 
         let tensor = InputInfo::Array {
@@ -76,9 +131,9 @@ pub(crate) fn gather<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
 ) -> JitTensor<R, E, D> {
     let shape_output = indices.shape.clone();
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    let kernel = Gather::new(dim);
+    let kernel = GatherEagerKernel::new(dim);
 
-    execute_dynamic::<R, Gather<R, E>, E>(
+    execute_dynamic::<R, GatherEagerKernel<R, E>, E>(
         &[
             EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),

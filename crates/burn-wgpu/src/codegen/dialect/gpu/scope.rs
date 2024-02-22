@@ -1,5 +1,5 @@
 use super::{
-    processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
+    gpu, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
     Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
     WriteGlobal,
 };
@@ -52,6 +52,12 @@ impl Scope {
         }
     }
 
+    pub fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
+        let local = self.create_local(item);
+        let zero: Variable = 0u32.into();
+        gpu!(self, local = zero);
+        local
+    }
     /// Create a local variable of the given [item type](Item).
     pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
@@ -78,28 +84,11 @@ impl Scope {
         self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
     }
 
-    pub fn index_offset_with_output_layout(
-        &mut self,
-        tensor: Variable,
-        dim_start: Variable,
-        dim_end: Variable,
-    ) -> Variable {
-        let index_offset = self.create_local(Elem::UInt);
-        let proc = IndexOffsetGlobalWithLayout {
-            tensors: vec![tensor],
-            indexes: vec![index_offset],
-            layout: Variable::Id, // Tmp
-            index_ref: Variable::Id,
-            dim_start,
-            dim_end,
-        };
-
+    pub fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
         self.index_offset_with_output_layout_position
             .push(self.operations.len());
         self.operations
             .push(Procedure::IndexOffsetGlobalWithLayout(proc).into());
-
-        index_offset
     }
 
     /// Reads an input scalar to a local variable.

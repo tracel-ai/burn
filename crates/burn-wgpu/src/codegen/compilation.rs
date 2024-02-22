@@ -34,7 +34,7 @@ pub struct InplaceMapping {
 
 #[derive(Default)]
 pub struct CompilationSettings {
-    vectorization: Vectorization,
+    vectorization: Option<Vectorization>,
     inplace_available: bool,
     workgroup_size: WorkgroupSize,
 }
@@ -43,7 +43,7 @@ impl CompilationSettings {
     /// Compile the shader with vectorization enabled.
     #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
-        self.vectorization = vectorization;
+        self.vectorization = Some(vectorization);
         self
     }
     /// Compile the shader with inplace enabled.
@@ -100,7 +100,9 @@ impl Compilation {
 
     /// Performs the compilation with the provided [settings](CompilationSettings).
     pub fn compile(mut self, settings: CompilationSettings) -> ComputeShader {
-        self.info.scope.vectorize(settings.vectorization);
+        if let Some(vectorization) = settings.vectorization {
+            self.info.scope.vectorize(vectorization);
+        }
 
         self.register_inputs(&settings);
         self.register_outputs(&settings);
@@ -137,7 +139,11 @@ impl Compilation {
         for input in self.info.inputs.drain(..) {
             match input {
                 InputInfo::Array { item, visibility } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
 
                     self.input_bindings.push(Binding {
                         item: bool_item(item),
@@ -178,7 +184,11 @@ impl Compilation {
         for array in self.info.outputs.drain(..) {
             match array {
                 OutputInfo::ArrayWrite { item, local } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
                     let elem_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {
@@ -194,7 +204,11 @@ impl Compilation {
                     index += 1;
                 }
                 OutputInfo::InputArrayWrite { item, input, local } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
 
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
@@ -202,7 +216,11 @@ impl Compilation {
                     );
                 }
                 OutputInfo::Array { item } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
                     let elem_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {

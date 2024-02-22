@@ -221,6 +221,13 @@ macro_rules! gpu {
             out: $out.into(),
         });
     };
+    // out = len(array)
+    ($scope:expr, $out:ident = len($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Metadata::ArrayLength {
+            var: $input.into(),
+            out: $out.into(),
+        });
+    };
     // range(start, end).for_each(|scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
