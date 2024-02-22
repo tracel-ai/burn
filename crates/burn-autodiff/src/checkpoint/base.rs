@@ -16,16 +16,7 @@ pub(crate) struct NodeTree {
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
     pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
-        println!("{:?}", node_id);
-        println!(
-            "{:?}",
-            self.map.get(node_id).map(|node| node.parents.clone())
-        );
         self.map.get(node_id).map(|node| node.parents.clone())
-    }
-
-    pub(crate) fn print(&self) {
-        println!("{:?}", self.map.keys())
     }
 }
 
@@ -40,7 +31,7 @@ pub struct Checkpointer {
 impl Checkpointer {
     /// Gives the output of the given node, by recursively asking parents to compute themselves
     /// or give their pre-computed tensors.
-    pub fn retrieve_output<T>(&mut self, node_id: NodeID) -> T
+    pub fn retrieve_node_output<T>(&mut self, node_id: NodeID) -> T
     where
         T: Clone + Send + Sync + 'static,
     {

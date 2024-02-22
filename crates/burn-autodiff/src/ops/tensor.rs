@@ -291,8 +291,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 checkpointer: &mut Checkpointer,
             ) {
                 let (lhs, rhs, broadcast) = ops.state;
-                let lhs = lhs.map(|lhs| checkpointer.retrieve_output(lhs));
-                let rhs = rhs.map(|rhs| checkpointer.retrieve_output(rhs));
+                let lhs = lhs.map(|lhs| checkpointer.retrieve_node_output(lhs));
+                let rhs = rhs.map(|rhs| checkpointer.retrieve_node_output(rhs));
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -395,8 +395,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 checkpointer: &mut Checkpointer,
             ) {
                 let (lhs, rhs, broadcast) = ops.state;
-                let lhs = lhs.map(|lhs| checkpointer.retrieve_output(lhs));
-                let rhs = rhs.map(|rhs| checkpointer.retrieve_output(rhs));
+                let lhs = lhs.map(|lhs| checkpointer.retrieve_node_output(lhs));
+                let rhs = rhs.map(|rhs| checkpointer.retrieve_node_output(rhs));
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
 
                 binary::<B, D, D, D, _, _>(
@@ -497,19 +497,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         struct Matmul;
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Matmul {
-            type State = (
-                Option<B::FloatTensorPrimitive<D>>,
-                Option<B::FloatTensorPrimitive<D>>,
-                BinaryOpsBroadcast<D>,
-            );
+            type State = (Option<NodeID>, Option<NodeID>, BinaryOpsBroadcast<D>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
                 let (lhs, rhs, broadcast) = ops.state;
+                let lhs = lhs.map(|lhs| checkpointer.retrieve_node_output(lhs));
+                let rhs = rhs.map(|rhs| checkpointer.retrieve_node_output(rhs));
 
                 binary::<B, D, D, D, _, _>(
                     ops.parents,
@@ -536,18 +534,21 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Matmul
-            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .prepare(
+                [lhs.node.clone(), rhs.node.clone()],
+                [lhs.graph.clone(), rhs.graph.clone()],
+            )
             .compute_bound()
             .stateful()
         {
-            OpsKind::Tracked(prep) => prep.finish(
-                (
-                    rhs_tracked.then(|| lhs.primitive.clone()),
-                    lhs_tracked.then(|| rhs.primitive.clone()),
-                    broadcast,
-                ),
-                B::float_matmul(lhs.primitive, rhs.primitive),
-            ),
+            OpsKind::Tracked(mut prep) => {
+                let lhs_state = rhs_tracked.then(|| prep.checkpoint(&lhs));
+                let rhs_state = lhs_tracked.then(|| prep.checkpoint(&rhs));
+                prep.finish(
+                    (lhs_state, rhs_state, broadcast),
+                    B::float_matmul(lhs.primitive, rhs.primitive),
+                )
+            }
             OpsKind::UnTracked(prep) => prep.finish(B::float_matmul(lhs.primitive, rhs.primitive)),
         }
     }
@@ -585,15 +586,15 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroRecip, B::float_recip);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Recip {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
-                let tensor = ops.state;
+                let tensor = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let tmp = B::float_powf_scalar(tensor, -2.0);
                     let value = B::float_neg(tmp);
@@ -610,8 +611,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_recip(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_recip(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_recip(tensor.primitive)),
         }
@@ -1621,16 +1623,18 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroExp, B::float_exp);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Exp {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                let output = B::float_exp(input);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    B::float_mul(grad, ops.state)
+                    B::float_mul(grad, output)
                 });
             }
         }
@@ -1642,9 +1646,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                let output = B::float_exp(tensor.primitive);
-                prep.finish(output.clone(), output)
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_exp(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_exp(tensor.primitive)),
         }
@@ -1657,16 +1661,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroLog, B::float_log);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::float_powf_scalar(ops.state, -1.0);
+                    let value = B::float_powf_scalar(input, -1.0);
                     B::float_mul(grad, value)
                 });
             }
@@ -1679,8 +1684,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_log(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_log(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_log(tensor.primitive)),
         }
@@ -1693,16 +1699,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroLog1P, B::float_log1p);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log1P {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::float_add_scalar(ops.state, 1.elem());
+                    let value = B::float_add_scalar(input, 1.elem());
                     let value = B::float_powf_scalar(value, -1.0);
 
                     B::float_mul(grad, value)
@@ -1717,8 +1724,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_log1p(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_log1p(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_log1p(tensor.primitive)),
         }
@@ -1747,15 +1755,16 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for PowfScalar {
-            type State = (B::FloatTensorPrimitive<D>, f32);
+            type State = (NodeID, f32);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
-                let (tensor, value) = ops.state;
+                let (tensor_id, value) = ops.state;
+                let tensor = checkpointer.retrieve_node_output(tensor_id);
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let tmp = B::float_powf_scalar(tensor, value - 1.0);
@@ -1773,10 +1782,10 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => prep.finish(
-                (tensor.primitive.clone(), value),
-                B::float_powf_scalar(tensor.primitive, value),
-            ),
+            OpsKind::Tracked(mut prep) => {
+                let state = (prep.checkpoint(&tensor), value);
+                prep.finish(state, B::float_powf_scalar(tensor.primitive, value))
+            }
             OpsKind::UnTracked(prep) => prep.finish(B::float_powf_scalar(tensor.primitive, value)),
         }
     }
@@ -1788,16 +1797,16 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroSqrt, B::float_sqrt);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sqrt {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let input = ops.state;
                     let value = B::float_div_scalar(B::float_powf_scalar(input, -0.5), 2.elem());
 
                     B::float_mul(grad, value)
@@ -1812,8 +1821,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_sqrt(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_sqrt(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_sqrt(tensor.primitive)),
         }
@@ -1826,16 +1836,20 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroAbs, B::float_abs);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let tensor: B::FloatTensorPrimitive<D> =
+                    checkpointer.retrieve_node_output(ops.state);
+                let output = B::float_abs(tensor.clone());
+                let state = B::float_div(tensor, output);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    B::float_mul(grad, ops.state)
+                    B::float_mul(grad, state)
                 });
             }
         }
@@ -1847,10 +1861,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                let output = B::float_abs(tensor.primitive.clone());
-                let state = B::float_div(tensor.primitive, output.clone());
-                prep.finish(state, output)
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_abs(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_abs(tensor.primitive)),
         }
@@ -1863,16 +1876,16 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroCos, B::float_cos);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Cos {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let input = ops.state;
                     let value = B::float_neg(B::float_sin(input));
 
                     B::float_mul(grad, value)
@@ -1887,8 +1900,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_cos(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_cos(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_cos(tensor.primitive)),
         }
@@ -1901,16 +1915,17 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroSin, B::float_sin);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sin {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let state = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let value = B::float_cos(ops.state);
+                    let value = B::float_cos(state);
                     B::float_mul(grad, value)
                 });
             }
@@ -1923,8 +1938,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(tensor.primitive.clone(), B::float_sin(tensor.primitive))
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_sin(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_sin(tensor.primitive)),
         }
@@ -1937,17 +1953,19 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_unary!(RetroTanh, B::float_tanh);
 
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Tanh {
-            type State = B::FloatTensorPrimitive<D>;
+            type State = NodeID;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                let state = B::float_tanh(input);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_add_scalar(
-                        B::float_neg(B::float_powf_scalar(ops.state, 2.0)),
+                        B::float_neg(B::float_powf_scalar(state, 2.0)),
                         1.elem(),
                     );
                     B::float_mul(grad, value)
@@ -1962,9 +1980,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                let output = B::float_tanh(tensor.primitive);
-                prep.finish(output.clone(), output)
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::float_tanh(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_tanh(tensor.primitive)),
         }
@@ -1986,7 +2004,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 checkpointer: &mut Checkpointer,
             ) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let ops = checkpointer.retrieve_output(ops.state);
+                    let ops = checkpointer.retrieve_node_output(ops.state);
                     let exponent = B::float_neg(B::float_powf_scalar(ops, 2.0));
                     let numerator = B::float_mul_scalar(B::float_exp(exponent), 2.0.elem());
                     let denominator = std::f64::consts::PI.sqrt().elem();
@@ -2066,8 +2084,8 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
         let requirement = Requirement::from_nodes(&nodes);
 
-        // This operation does not checkpoint anything
-        let cat_computing_property = ComputingProperty::ComputeBound;
+        // For simplicity, this operation does not checkpoint anything
+        let cat_computing_property = ComputingProperty::Ambiguous;
         let checkpointer_builder = CheckpointerBuilder::default();
 
         let output = B::float_cat(primitives, dim);
@@ -2198,19 +2216,18 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         retro_binary!(RetroPowf, B::float_powf);
 
         impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
-            type State = (
-                B::FloatTensorPrimitive<D>,
-                B::FloatTensorPrimitive<D>,
-                BinaryOpsBroadcast<D>,
-            );
+            type State = (NodeID, NodeID, BinaryOpsBroadcast<D>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
                 grads: &mut Gradients,
-                _checkpointer: &mut Checkpointer,
+                checkpointer: &mut Checkpointer,
             ) {
-                let (lhs, rhs, broadcast) = ops.state;
+                let (lhs_id, rhs_id, broadcast) = ops.state;
+                let lhs: B::FloatTensorPrimitive<D> = checkpointer.retrieve_node_output(lhs_id);
+                let rhs: B::FloatTensorPrimitive<D> = checkpointer.retrieve_node_output(rhs_id);
+
                 // Both lhs and rhs are needed for both lhs and rhs gradients, but we clone them
                 // the number of times required by the parents specification.
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, Some(rhs));
@@ -2265,10 +2282,14 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             .parents([&lhs, &rhs])
             .stateful()
         {
-            OpsKind::Tracked(prep) => prep.finish(
-                (lhs.primitive.clone(), rhs.primitive.clone(), broadcast),
-                B::float_powf(lhs.primitive, rhs.primitive),
-            ),
+            OpsKind::Tracked(mut prep) => {
+                let lhs_state = prep.checkpoint(&lhs);
+                let rhs_state = prep.checkpoint(&rhs);
+                prep.finish(
+                    (lhs_state, rhs_state, broadcast),
+                    B::float_powf(lhs.primitive, rhs.primitive),
+                )
+            }
             OpsKind::UnTracked(prep) => prep.finish(B::float_powf(lhs.primitive, rhs.primitive)),
         }
     }

@@ -355,7 +355,6 @@ where
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
-        println!("bw: {:?}", self.ops.node.id);
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
