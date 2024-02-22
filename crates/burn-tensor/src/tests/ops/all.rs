@@ -11,16 +11,31 @@ mod tests {
         let data_expected = Data::from([false]);
         assert_eq!(data_expected, data_actual);
 
+        let tensor = TestTensor::from([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
+        let data_actual = tensor.all().into_data();
+        let data_expected = Data::from([true]);
+        assert_eq!(data_expected, data_actual);
+
         // test int tensor
         let tensor = TestTensorInt::from([[0, 1, 0], [1, -1, 1]]);
         let data_actual = tensor.all().into_data();
         let data_expected = Data::from([false]);
         assert_eq!(data_expected, data_actual);
 
+        let tensor = TestTensorInt::from([[1, 1, 1], [1, 1, 1]]);
+        let data_actual = tensor.all().into_data();
+        let data_expected = Data::from([true]);
+        assert_eq!(data_expected, data_actual);
+
         // test bool tensor
         let tensor = TestTensorBool::from([[false, true, false], [true, true, true]]);
         let data_actual = tensor.all().into_data();
         let data_expected = Data::from([false]);
+        assert_eq!(data_expected, data_actual);
+
+        let tensor = TestTensorBool::from([[true, true, true], [true, true, true]]);
+        let data_actual = tensor.all().into_data();
+        let data_expected = Data::from([true]);
         assert_eq!(data_expected, data_actual);
     }
 

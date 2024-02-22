@@ -1305,7 +1305,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
 
-    /// Tests if all element in the `tensor` evaluates to True.
+    /// Tests if all elements in the `tensor` evaluate to True.
     ///
     /// # Arguments
     ///

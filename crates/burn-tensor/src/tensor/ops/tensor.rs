@@ -1190,7 +1190,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn float_any<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
-        let bool_tensor = B::float_equal_elem(tensor.clone(), 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
         B::float_greater_elem(sum, 0.0f32.elem())
@@ -1210,7 +1210,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// input evaluates to True, False otherwise.
 
     fn float_any_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
-        let bool_tensor = B::float_equal_elem(tensor.clone(), 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
         B::float_greater_elem(sum, 0.0f32.elem())
@@ -1228,7 +1228,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// evaluate to True, False otherwise.
     fn float_all<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
         let num_elems = B::float_shape(&tensor).num_elements();
-        let bool_tensor = B::float_equal_elem(tensor.clone(), 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
         B::float_equal_elem(sum, (num_elems as f32).elem())
@@ -1248,7 +1248,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
     fn float_all_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let num_elems = B::float_shape(&tensor).dims[dim];
-        let bool_tensor = B::float_equal_elem(tensor.clone(), 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
         B::float_equal_elem(sum, (num_elems as f32).elem())

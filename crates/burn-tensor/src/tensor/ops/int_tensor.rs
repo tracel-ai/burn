@@ -1008,7 +1008,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn int_any<const D: usize>(tensor: IntTensor<B, D>) -> BoolTensor<B, 1> {
-        let bool_tensor = B::int_equal_elem(tensor.clone(), 0.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum(B::bool_into_int(bool_tensor));
         B::int_greater_elem(sum, 0.elem())
@@ -1028,7 +1028,7 @@ pub trait IntTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
 
     fn int_any_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
-        let bool_tensor = B::int_equal_elem(tensor.clone(), 0.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
         B::int_greater_elem(sum, 0.elem())
@@ -1047,7 +1047,7 @@ pub trait IntTensorOps<B: Backend> {
 
     fn int_all<const D: usize>(tensor: IntTensor<B, D>) -> BoolTensor<B, 1> {
         let num_elems = B::int_shape(&tensor).num_elements();
-        let bool_tensor = B::int_equal_elem(tensor.clone(), 0.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum(B::bool_into_int(bool_tensor));
         B::int_equal_elem(sum, (num_elems as i32).elem())
@@ -1068,7 +1068,7 @@ pub trait IntTensorOps<B: Backend> {
 
     fn int_all_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let num_elems = B::int_shape(&tensor).dims[dim];
-        let bool_tensor = B::int_equal_elem(tensor.clone(), 0.0f32.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())

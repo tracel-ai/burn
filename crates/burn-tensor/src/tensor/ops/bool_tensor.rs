@@ -313,7 +313,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn bool_any<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, 1> {
-        let sum = B::int_sum(B::bool_into_int(tensor.clone()));
+        let sum = B::int_sum(B::bool_into_int(tensor));
         B::int_greater_elem(sum, 0.elem())
     }
 
@@ -331,7 +331,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
 
     fn bool_any_dim<const D: usize>(tensor: BoolTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
-        let sum = B::int_sum_dim(B::bool_into_int(tensor.clone()), dim);
+        let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_greater_elem(sum, 0.elem())
     }
 
@@ -347,7 +347,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluate to True, False otherwise.
     fn bool_all<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, 1> {
         let num_elems = B::bool_shape(&tensor).num_elements();
-        let sum = B::int_sum(B::bool_into_int(tensor.clone()));
+        let sum = B::int_sum(B::bool_into_int(tensor));
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 
@@ -366,7 +366,7 @@ pub trait BoolTensorOps<B: Backend> {
 
     fn bool_all_dim<const D: usize>(tensor: BoolTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
         let num_elems = B::bool_shape(&tensor).dims[dim];
-        let sum = B::int_sum_dim(B::bool_into_int(tensor.clone()), dim);
+        let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 }

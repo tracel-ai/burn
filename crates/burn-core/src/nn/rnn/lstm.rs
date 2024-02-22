@@ -377,7 +377,7 @@ mod tests {
             .grad(&grads)
             .unwrap();
 
-        // Asserts the gradients exist and are non zero
-        assert!(*some_gradient.abs().sum().into_data().value.first().unwrap() > 0.);
+        // Asserts that the gradients exist and are non-zero
+        assert!(*some_gradient.any().into_data().value.first().unwrap());
     }
 }
