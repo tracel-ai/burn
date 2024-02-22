@@ -22,6 +22,8 @@ pub struct CheckpointerBuilder {
     backup_actions: Vec<CheckpointingAction>,
 }
 
+/// Determines if a checkpoint should impact the n_required values (Main)
+/// or if it should just keep the state in case it's required (Backup)
 pub(crate) enum ActionType {
     Main,
     Backup,
