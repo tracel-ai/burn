@@ -7,6 +7,8 @@ resolver = "2"
 members = [
     "backend-comparison",
     "crates/*",
+    "crates/burn-import/pytorch-tests",
+    "crates/burn-import/onnx-tests",
     "examples/*",
     "examples/pytorch-import/model",
     "xtask",
