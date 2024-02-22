@@ -1,6 +1,6 @@
 use super::StaticKernelSource;
 use crate::{
-    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
+    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
@@ -75,7 +75,7 @@ macro_rules! unary {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -158,7 +158,7 @@ macro_rules! unary {
                 elem: E::gpu_elem(),
                 size: $num,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -218,7 +218,7 @@ where
 {
     if inplace_enabled && tensor.can_mut() {
         execute_static::<R, KernelInplace, E>(
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &tensor.handle,
                 &tensor.strides,
                 &tensor.shape.dims,
@@ -241,12 +241,12 @@ where
         );
 
         execute_static::<R, Kernel, E>(
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &tensor.handle,
                 &tensor.strides,
                 &tensor.shape.dims,
             )],
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &output.handle,
                 &output.strides,
                 &output.shape.dims,

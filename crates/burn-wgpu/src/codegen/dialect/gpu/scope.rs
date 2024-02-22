@@ -1,6 +1,6 @@
 use super::{
-    Algorithm, Elem, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo,
-    UnaryOperator, Variable, Vectorization,
+    processing::ScopeProcessing, Elem, Item, Operation, Operator, Procedure, ReadGlobal,
+    ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization, WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub struct Scope {
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
     writes_global: Vec<(Variable, Variable)>,
     reads_scalar: Vec<(Variable, Variable)>,
-    output_ref: Option<Variable>,
+    layout_ref: Option<Variable>,
     undeclared: u16,
 }
 
@@ -29,14 +29,6 @@ pub enum ReadingStrategy {
     OutputLayout,
     /// Keep the current layout.
     Plain,
-}
-
-/// Information necessary when compiling a scope.
-pub struct ScopeProcessing {
-    /// The variable declarations.
-    pub variables: Vec<Variable>,
-    /// The operations.
-    pub operations: Vec<Operation>,
 }
 
 impl Scope {
@@ -52,7 +44,7 @@ impl Scope {
             reads_global: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            output_ref: None,
+            layout_ref: None,
             undeclared: 0,
         }
     }
@@ -69,7 +61,7 @@ impl Scope {
     /// Create a new local variable, but doesn't perform the declaration.
     ///
     /// Useful for _for loops_ and other algorithms that require the control over initialization.
-    pub fn create_local_undeclare(&mut self, item: Item) -> Variable {
+    pub fn create_local_undeclared(&mut self, item: Item) -> Variable {
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.undeclared += 1;
@@ -128,10 +120,23 @@ impl Scope {
     ///
     /// This should only be used when doing compilation.
     pub(crate) fn write_global(&mut self, input: Variable, output: Variable) {
-        if self.output_ref.is_none() {
-            self.output_ref = Some(output);
+        // This assumes that all outputs have the same layout
+        if self.layout_ref.is_none() {
+            self.layout_ref = Some(output);
         }
         self.writes_global.push((input, output));
+    }
+
+    /// Writes a variable to given output.
+    ///
+    /// Notes:
+    ///
+    /// This should only be used when doing compilation.
+    pub(crate) fn write_global_custom(&mut self, output: Variable) {
+        // This assumes that all outputs have the same layout
+        if self.layout_ref.is_none() {
+            self.layout_ref = Some(output);
+        }
     }
 
     /// Update the [reading strategy](ReadingStrategy) for an input array.
@@ -163,7 +168,7 @@ impl Scope {
             reads_global: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            output_ref: None,
+            layout_ref: None,
             undeclared: 0,
         }
     }
@@ -185,29 +190,29 @@ impl Scope {
         for (input, strategy, local) in self.reads_global.drain(..) {
             match strategy {
                 ReadingStrategy::OutputLayout => {
-                    let output = self.output_ref.expect(
+                    let output = self.layout_ref.expect(
                         "Output should be set when processing an input with output layout.",
                     );
-                    operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
-                        ReadGlobalWithLayoutAlgo {
-                            global: input,
+                    operations.push(Operation::Procedure(Procedure::ReadGlobalWithLayout(
+                        ReadGlobalWithLayout {
+                            globals: vec![input],
                             layout: output,
-                            out: local,
+                            outs: vec![local],
                         },
                     )));
                 }
-                ReadingStrategy::Plain => operations.push(Operation::Algorithm(
-                    Algorithm::ReadGlobal(ReadGlobalAlgo {
+                ReadingStrategy::Plain => {
+                    operations.push(Operation::Procedure(Procedure::ReadGlobal(ReadGlobal {
                         global: input,
                         out: local,
-                    }),
-                )),
+                    })))
+                }
             }
         }
 
         for (local, scalar) in self.reads_scalar.drain(..) {
             operations.push(
-                Operator::AssignLocal(UnaryOperator {
+                Operator::Assign(UnaryOperator {
                     input: scalar,
                     out: local,
                 })
@@ -220,10 +225,10 @@ impl Scope {
             operations.push(op);
         }
 
-        for (input, out) in self.writes_global.drain(..) {
-            operations.push(Operation::Operator(Operator::AssignGlobal(UnaryOperator {
+        for (input, global) in self.writes_global.drain(..) {
+            operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
                 input,
-                out,
+                global,
             })))
         }
 
@@ -231,6 +236,7 @@ impl Scope {
             variables,
             operations,
         }
+        .optimize()
     }
 
     fn new_local_index(&self) -> u16 {
@@ -247,7 +253,16 @@ impl Scope {
         item: Item,
         strategy: ReadingStrategy,
     ) -> Variable {
-        let input = Variable::GlobalInputArray(index, item);
+        let item_global = match item.elem() {
+            Elem::Bool => match item {
+                Item::Vec4(_) => Item::Vec4(Elem::UInt),
+                Item::Vec3(_) => Item::Vec4(Elem::UInt),
+                Item::Vec2(_) => Item::Vec4(Elem::UInt),
+                Item::Scalar(_) => Item::Vec4(Elem::UInt),
+            },
+            _ => item,
+        };
+        let input = Variable::GlobalInputArray(index, item_global);
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.reads_global.push((input, strategy, local));

@@ -45,7 +45,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
     let record = codegen.record_codegen();
     let record_name = Ident::new(format!("{}Record", name).as_str(), name.span());
-    let record_struct = record.gen_record_type(&record_name, &generics.module);
+    let record_type = record.gen_record_type(&record_name, &generics.module);
 
     let (generics_module, generics_ty_module, generics_where_module) =
         generics.module.split_for_impl();
@@ -86,7 +86,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             #clone_fn
         }
 
-        #record_struct
+        #record_type
     };
 
     gen

@@ -230,7 +230,8 @@ Which produces the following weights structure (viewed in
 
 You can use the `PyTorchFileRecorder` to change the attribute names and the order of the attributes
 by specifying a regular expression (See
-[regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)) to
+[regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) and
+[try it online](https://rregex.dev/?version=1.10&method=replace)) to
 match the attribute name and a replacement string in `LoadArgs`:
 
 ```rust
