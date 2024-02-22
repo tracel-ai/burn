@@ -4,7 +4,7 @@ use crate::record::RecorderError;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Failed to deserialize.
-    #[error("failed to deserialize")]
+    #[error("failed to deserialize: {0}")]
     Deserialize(#[from] serde::de::value::Error),
 
     /// Failed to serialize.
