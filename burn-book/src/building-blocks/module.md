@@ -114,6 +114,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `GroupNorm` | `nn.GroupNorm`                          |
 | `Dropout`   | `nn.Dropout`                            |
 | `Gelu`      | `nn.Gelu`                               |
+| `Prelu`     | `nn.PReLu`                              |
 | `Linear`    | `nn.Linear`                             |
 | `Embedding` | `nn.Embedding`                          |
 | `Relu`      | `nn.ReLU`                               |
