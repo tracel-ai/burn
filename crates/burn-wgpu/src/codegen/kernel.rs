@@ -76,7 +76,6 @@ pub fn execute_dynamic<R, K, E>(
         handles.push(handle);
     }
 
-    println!("{workgroup:?}");
     let kernel: Box<dyn Kernel> = Box::new(DynamicKernel::new(kernel, workgroup));
 
     client.execute(kernel, &handles);
@@ -137,7 +136,6 @@ fn execute_settings<'a, R: Runtime, E: JitElement>(
         handles.push(output.handle);
     }
 
-    println!("INFO DYN {info:?}");
     let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.

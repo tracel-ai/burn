@@ -18,13 +18,6 @@ pub enum Operation {
     Branch(Branch),
 }
 
-// pub trait ProcesureI {
-//     fn expand(self: Box<Self>, scope: &mut Scope);
-//     fn vectorize(self: Box<Self>, vectorization: Vectorization) -> Box<Self> {
-//         panic!("Vectorized not supported")
-//     };
-// }
-
 /// All operators that can be used in a GPU compute shader.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)] // Some variants might not be used with different flags
