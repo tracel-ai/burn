@@ -1,19 +1,24 @@
 use crate as burn;
 
+use super::{GroupNorm, GroupNormConfig};
 use crate::config::Config;
 use crate::module::Module;
-use crate::module::Param;
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer.
 #[derive(Config)]
 pub struct LayerNormConfig {
-    /// The size of the input features.
-    pub d_model: usize,
+    /// The number of channels expected in the input
+    num_channels: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    pub epsilon: f64,
+    epsilon: f64,
+    /// A boolean value that when set to `true`, this module has learnable
+    /// per-channel affine parameters initialized to ones (for weights)
+    /// and zeros (for biases). Default: `true`
+    #[config(default = true)]
+    affine: bool,
 }
 
 /// Applies Layer Normalization over an input tensor as described in the paper [Layer Normalization](https://arxiv.org/abs/1607.06450).
@@ -21,30 +26,31 @@ pub struct LayerNormConfig {
 /// `Y = norm(X) * γ + β`
 #[derive(Module, Debug)]
 pub struct LayerNorm<B: Backend> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
-    epsilon: f64,
+    group_norm: GroupNorm<B>,
 }
 
 impl LayerNormConfig {
     /// Initialize a new [layer norm](LayerNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> LayerNorm<B> {
-        let gamma = Tensor::ones([self.d_model], device);
-        let beta = Tensor::zeros([self.d_model], device);
-
         LayerNorm {
-            gamma: Param::from(gamma),
-            beta: Param::from(beta),
-            epsilon: self.epsilon,
+            group_norm: self.to_group_norm().init(device),
         }
     }
 
     /// Initialize a new [layer norm](LayerNorm) module with a [record](LayerNormRecord).
     pub fn init_with<B: Backend>(&self, record: LayerNormRecord<B>) -> LayerNorm<B> {
         LayerNorm {
-            gamma: record.gamma,
-            beta: record.beta,
+            group_norm: self.to_group_norm().init_with(record.group_norm),
+        }
+    }
+
+    fn to_group_norm(&self) -> GroupNormConfig {
+        GroupNormConfig {
+            // Group norm is equivalent to layer norm, when the number of groups is 1.
+            num_groups: 1,
+            num_channels: self.num_channels,
             epsilon: self.epsilon,
+            affine: self.affine,
         }
     }
 }
@@ -57,13 +63,7 @@ impl<B: Backend> LayerNorm<B> {
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        let (var, mean) = input.clone().var_mean_bias(D - 1);
-
-        let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
-
-        input_normalized
-            .mul(self.gamma.val().unsqueeze())
-            .add(self.beta.val().unsqueeze())
+        self.group_norm.forward(input)
     }
 }
 
@@ -122,15 +122,7 @@ mod tests {
 
         let tensor_1_grad = tensor_1.grad(&grads).unwrap();
         let tensor_2_grad = tensor_2.grad(&grads).unwrap();
-        let gamma_grad = module.gamma.grad(&grads).unwrap();
-        let beta_grad = module.beta.grad(&grads).unwrap();
 
-        gamma_grad
-            .to_data()
-            .assert_approx_eq(&Data::from([-2.0, 2.0]), 3);
-        beta_grad
-            .to_data()
-            .assert_approx_eq(&Data::from([2.0, 2.0]), 3);
         tensor_1_grad
             .to_data()
             .assert_approx_eq(&Data::zeros(tensor_1_grad.shape()), 3);
