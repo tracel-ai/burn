@@ -14,6 +14,7 @@ use burn_tensor::{
 
 kernel_wgsl!(Nearest, "../template/interpolate/nearest.wgsl");
 kernel_wgsl!(Bilinear, "../template/interpolate/bilinear.wgsl");
+kernel_wgsl!(Bicubic, "../template/interpolate/bicubic.wgsl");
 
 pub(crate) fn interpolate<R: Runtime, E: JitElement + Element>(
     input: JitTensor<R, E, 4>,
@@ -44,9 +45,12 @@ pub(crate) fn interpolate<R: Runtime, E: JitElement + Element>(
             output.shape.num_elements(),
             WORKGROUP_DEFAULT,
         ))),
-        InterpolateMode::Bicubic => {
-            todo!()
-        }
+        InterpolateMode::Bicubic => Box::new(StaticKernel::<
+            KernelSettings<Bicubic, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(elemwise_workgroup(
+            output.shape.num_elements(),
+            WORKGROUP_DEFAULT,
+        ))),
     };
 
     input
