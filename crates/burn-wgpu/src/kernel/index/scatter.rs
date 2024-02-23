@@ -6,7 +6,7 @@ use crate::{
         EagerHandle, InputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    kernel::{self, into_contiguous, DynamicKernelSource, SourceTemplate},
+    kernel::{self, DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Runtime,
 };
@@ -64,30 +64,32 @@ impl ScatterComputeShader {
                 gpu!(scope, if(should_skip).then(|_| {
                     // Nothing to do.
                 }).else(|scope| {
-                    let shape_input = scope.create_local(Elem::UInt);
-                    let shape_value = scope.create_local(Elem::UInt);
-                    let stride_value = scope.create_local(Elem::UInt);
+                    let shape_input_loop = scope.create_local(Elem::UInt);
+                    let shape_value_loop = scope.create_local(Elem::UInt);
+                    let stride_value_loop = scope.create_local(Elem::UInt);
+
                     let stride_tmp = scope.create_local(Elem::UInt);
                     let num_blocks = scope.create_local(Elem::UInt);
                     let offset_tmp = scope.create_local(Elem::UInt);
+                    let stride_input_loop = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, stride_value = stride(value, i));
-                    gpu!(scope, stride_input = stride(input, i));
+                    gpu!(scope, stride_value_loop = stride(value, i));
+                    gpu!(scope, stride_input_loop = stride(input, i));
                     gpu!(scope, stride_tmp = stride(indices, i));
 
-                    gpu!(scope, shape_value = shape(value, i));
-                    gpu!(scope, shape_input = shape(input, i));
+                    gpu!(scope, shape_value_loop = shape(value, i));
+                    gpu!(scope, shape_input_loop = shape(input, i));
 
                     gpu!(scope, num_blocks = id / stride_tmp);
-                    gpu!(scope, num_blocks = num_blocks % shape_input);
+                    gpu!(scope, num_blocks = num_blocks % shape_input_loop);
 
-                    gpu!(scope, offset_tmp = num_blocks * stride_input);
+                    gpu!(scope, offset_tmp = num_blocks * stride_input_loop);
                     gpu!(scope, offset_input += offset_tmp);
 
-                    gpu!(scope, offset_tmp = num_blocks * stride_value);
+                    gpu!(scope, offset_tmp = num_blocks * stride_value_loop);
                     gpu!(scope, offset_value += offset_tmp);
 
-                    gpu!(scope, num_elems = num_elems * shape_value);
+                    gpu!(scope, num_elems = num_elems * shape_value_loop);
                 }));
             })
         );
@@ -101,8 +103,8 @@ impl ScatterComputeShader {
         let index_input = scope.create_local(Elem::UInt);
         let index = scope.create_local(Elem::UInt);
 
-        let result_input = scope.create_local(Elem::UInt);
-        let result_value = scope.create_local(Elem::UInt);
+        let result_input = scope.create_local(input.item());
+        let result_value = scope.create_local(value.item());
         let result_indices = scope.create_local(Elem::UInt);
 
         gpu!(
@@ -122,7 +124,6 @@ impl ScatterComputeShader {
                 gpu!(scope, input[index_input] = result_input);
             })
         );
-        // gpu!(scope, input[id] = id);
     }
 }
 
@@ -183,21 +184,18 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     indices: JitTensor<R, I, D>,
     value: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    let mut indices = into_contiguous(indices);
-    let value = into_contiguous(value);
-    let tensor = into_contiguous(tensor);
+    let mut indices = kernel::into_contiguous(indices);
+    let tensor = kernel::into_contiguous(tensor);
+    let value = kernel::into_contiguous(value);
 
-    let tensor = if !tensor.can_mut() {
-        tensor.copy()
-    } else {
-        tensor
+    let tensor = match tensor.can_mut() {
+        true => tensor,
+        false => tensor.copy(),
     };
-    let mut info = build_info(&[&tensor, &value]);
-    println!("Shape value {:?}", value.shape);
-    println!("Dim {dim}");
+
     let kernel = ScatterEagerKernel::new(dim);
-    let mut current = 1;
     let mut strides = [0; D];
+    let mut current = 1;
     let mut num_elems_per_workgroup = 1;
 
     tensor
@@ -208,23 +206,15 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
         .rev()
         .filter(|(index, _val)| *index != dim)
         .for_each(|(index, val)| {
-            current *= val;
             strides[index] = current;
+            current *= val;
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
-    strides
-        .into_iter()
-        .for_each(|stride| info.push(stride as u32));
-
-    info.push(dim as u32);
 
     let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
-
-    // We will use the indices tensor's strides to store the virtal strides.
+    // Fake strides.
     indices.strides = strides;
-    println!("Info {:?}", info);
-    println!("Strides {:?}", indices.strides);
-    println!("Strides Real {:?}", tensor.strides);
+
     execute_dynamic::<R, ScatterEagerKernel<R, E>, E>(
         &[
             EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
