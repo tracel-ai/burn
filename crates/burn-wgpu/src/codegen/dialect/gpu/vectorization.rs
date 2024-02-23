@@ -2,7 +2,7 @@ use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOpera
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, Hash)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
     Vec4,

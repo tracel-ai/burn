@@ -1,6 +1,12 @@
+use crate::codegen::Compilation;
+use crate::codegen::CompilationInfo;
+use crate::codegen::CompilationSettings;
+use crate::codegen::Compiler;
 use crate::compute::Kernel;
+use crate::compute::WorkGroup;
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
+use crate::kernel::SourceTemplate;
 use crate::JitBackend;
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
@@ -9,16 +15,28 @@ use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_fusion::{TensorDescription, TensorStatus};
 use burn_tensor::Device;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use super::tracing::ExecutionInfo;
 
-/// Many kernels can be used for the same set of tensor operations fused into one.
-///
-/// This type makes it easy to group those potential kernels and execute the best one depending on the context.
 #[derive(new)]
-pub struct FusionKernelSet<R: Runtime> {
-    kernels: Vec<Box<dyn FusionKernel<R>>>,
+pub struct FusionKernel<R: Runtime> {
+    id: String, // Same ID for all different settings.
+    info: Arc<CompilationInfo>,
+    settings: CompilationSettings,
+    runtime_info: Vec<OutputRuntimeInfo>,
+    workgroup: WorkGroup,
+    _runtime: PhantomData<R>,
+}
+
+pub trait FusionKernelFactory<R: Runtime> {
+    fn create(
+        &self,
+        handles_inputs: &[JitFusionHandle<R>],
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+    ) -> FusionKernel<R>;
 }
 
 /// An instantiation of a [kernel](Kernel) that can be executed.
@@ -42,27 +60,9 @@ pub struct AutotunableKernel<R: Runtime> {
     client: ComputeClient<R::Server, R::Channel>,
 }
 
-/// A selected kernel encapsulates a kernel that should be executed with the provided
-/// [output info](OutputInfo).
-///
-/// It isn't ready for execution yet but should provide all information necessary to
-/// a [kernel set](FusionKernelSet) to create an [executable kernel](ExecutableKernel).
-#[derive(new)]
-pub struct SelectedKernel {
-    kernel: Box<dyn Kernel>,
-    info: Vec<OutputInfo>,
-}
-
-/// The priority of a kernel.
-pub enum Priority {
-    /// When a kernel can be executed in the specified context with its priority, higher is better.
-    Available(u8),
-    /// When a kernel can't be executed in the specified context.
-    Unavailable,
-}
-
 // Information related to the output of this kernel.
-pub enum OutputInfo {
+#[derive(Debug)]
+pub enum OutputRuntimeInfo {
     Inplace { input_index: usize },
     Array { size: usize },
 }
@@ -102,27 +102,9 @@ impl<R: Runtime> From<ExecutableKernel<R>> for AutotunableKernel<R> {
     }
 }
 
-pub trait FusionKernel<R: Runtime>: Send + Sync {
-    /// Returns the priority of this kernel based on the input and output information.
-    fn priority(
-        &self,
-        handles_inputs: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-    ) -> Priority;
-    /// Returns a [selected kernel](SelectedKernel) that can be executed by the compute server.
-    fn kernel(
-        &self,
-        handles_inputs: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-    ) -> SelectedKernel;
-}
-
-impl<R: Runtime> FusionKernelSet<R> {
-    /// Select the best kernel based on the given information.
-    pub fn select(
-        &self,
+impl<R: Runtime> FusionKernel<R> {
+    pub fn create<K: FusionKernelFactory<R>>(
+        factory: &K,
         running_info: &ExecutionInfo<'_>,
         context: &mut Context<'_, JitBackend<R>>,
         device: Device<JitBackend<R>>,
@@ -137,7 +119,7 @@ impl<R: Runtime> FusionKernelSet<R> {
                 stateful,
             );
 
-        let selected = self.select_kernel(
+        let fusion_kernel = factory.create(
             &handles_input,
             &inputs_description_updated,
             &outputs_description_updated,
@@ -180,11 +162,11 @@ impl<R: Runtime> FusionKernelSet<R> {
         // We register the info and handles for the outputs.
         for (tensor, output_info) in outputs_description_updated
             .into_iter()
-            .zip(selected.info.iter())
+            .zip(fusion_kernel.runtime_info.iter())
         {
             match output_info {
                 // Use the input inplace for this output.
-                OutputInfo::Inplace { input_index } => {
+                OutputRuntimeInfo::Inplace { input_index } => {
                     let handle = handles.get(*input_index).unwrap().clone();
                     let handle_fusion = JitFusionHandle {
                         client: client.clone(),
@@ -195,7 +177,7 @@ impl<R: Runtime> FusionKernelSet<R> {
                     output_register.push((tensor.id, handle_fusion));
                 }
                 // Create a new buffer for this output.
-                OutputInfo::Array { size } => {
+                OutputRuntimeInfo::Array { size } => {
                     let handle_fusion = JitFusionHandle {
                         client: client.clone(),
                         device: device.clone(),
@@ -231,32 +213,24 @@ impl<R: Runtime> FusionKernelSet<R> {
             context.handles.register_handle(id, handle);
         }
 
-        ExecutableKernel::new(selected.kernel, handles, client)
+        ExecutableKernel::new(Box::new(fusion_kernel), handles, client)
+    }
+}
+
+impl<R: Runtime> Kernel for FusionKernel<R> {
+    fn source(&self) -> SourceTemplate {
+        let compiled = Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone());
+        let compiled = <R::Compiler as Compiler>::compile(compiled);
+
+        SourceTemplate::new(compiled.to_string())
     }
 
-    fn select_kernel(
-        &self,
-        handles_input: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-    ) -> SelectedKernel {
-        // For now we simply select the kernel with the highest priority.
-        let mut selected = self
-            .kernels
-            .iter()
-            .filter_map(
-                |source| match source.priority(handles_input, inputs, outputs) {
-                    Priority::Available(priority) => Some((source, priority)),
-                    Priority::Unavailable => None,
-                },
-            )
-            .collect::<Vec<_>>();
+    fn id(&self) -> String {
+        format!("{:?}", self.settings) + self.id.as_str()
+    }
 
-        selected.sort_by(|(_, priority_a), (_, priority_b)| priority_a.cmp(priority_b));
-
-        let selected = selected.pop().unwrap().0;
-
-        selected.kernel(handles_input, inputs, outputs)
+    fn workgroup(&self) -> crate::compute::WorkGroup {
+        self.workgroup.clone()
     }
 }
 

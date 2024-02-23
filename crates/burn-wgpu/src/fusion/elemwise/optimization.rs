@@ -1,15 +1,12 @@
+use std::sync::Arc;
+
 use super::{
-    kernel::{ScalarElementWise, VecElementWise},
-    tune::ElementWiseAutotuneOperationSet,
-    FusionElemWiseAutotuneKey,
+    kernel::ElementWiseKernelFactory, tune::ElementWiseAutotuneOperationSet, FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::{
-        dialect::gpu::{Vectorization, WorkgroupSize},
-        Compilation, CompilationInfo, CompilationSettings,
-    },
+    codegen::{dialect::gpu::WorkgroupSize, CompilationInfo},
     compute::JitAutotuneKey,
-    fusion::{kernel::FusionKernelSet, source::GpuKernelSource, tracing::Trace},
+    fusion::{kernel::FusionKernel, tracing::Trace},
     JitBackend, Runtime,
 };
 use burn_common::id::IdGenerator;
@@ -32,9 +29,9 @@ pub struct CompilationPhase;
 #[derive(new)]
 pub struct ExecutionPhase<R: Runtime> {
     /// Kernel set with default workgroup size.
-    pub(super) kernel_set_1: FusionKernelSet<R>,
+    pub(super) kernel_factory_1: ElementWiseKernelFactory<R>,
     /// Kernel set with custom workgroup size.
-    pub(super) kernel_set_2: FusionKernelSet<R>,
+    pub(super) kernel_factory_2: ElementWiseKernelFactory<R>,
 }
 
 #[derive(new, Serialize, Deserialize)]
@@ -45,10 +42,10 @@ pub struct ElementWiseState {
 
 impl<R: Runtime> ElementWise<R, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
-        let info = self.trace.compiling();
+        let info = Arc::new(self.trace.compiling());
 
-        let kernel_set_1 = build_kernel_set::<R>(&info, WorkgroupSize::default());
-        let kernel_set_2 = build_kernel_set::<R>(&info, WorkgroupSize::new(16, 16, 1));
+        let kernel_set_1 = build_kernel::<R>(info.clone(), WorkgroupSize::default());
+        let kernel_set_2 = build_kernel::<R>(info, WorkgroupSize::new(16, 16, 1));
 
         ElementWise {
             trace: self.trace,
@@ -83,12 +80,19 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     ) {
         let info = self.trace.running();
         let kernel_set = match fastest_set_index {
-            0 => &self.phase.kernel_set_1,
-            1 => &self.phase.kernel_set_2,
+            0 => &self.phase.kernel_factory_1,
+            1 => &self.phase.kernel_factory_2,
             _ => panic!("Should be 0 or 1, got {fastest_set_index}"),
         };
 
-        let kernel = kernel_set.select(&info, context, self.device.clone(), client, true);
+        let kernel = FusionKernel::create(
+            kernel_set,
+            &info,
+            context,
+            self.device.clone(),
+            client,
+            true,
+        );
 
         kernel.execute();
     }
@@ -101,26 +105,29 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     ) {
         let info = self.trace.running();
 
-        let kernel_1 = self.phase.kernel_set_1.select(
+        let kernel_1 = FusionKernel::create(
+            &self.phase.kernel_factory_1,
             &info,
             context,
             self.device.clone(),
             client.clone(),
-            false, // Should not mutate the context.
+            false,
         );
-        let kernel_2 = self.phase.kernel_set_1.select(
+        let kernel_2 = FusionKernel::create(
+            &self.phase.kernel_factory_2,
             &info,
             context,
             self.device.clone(),
             client.clone(),
-            false, // Should not mutate the context.
+            false,
         );
-        let kernel_default = self.phase.kernel_set_1.select(
+        let kernel_default = FusionKernel::create(
+            &self.phase.kernel_factory_1,
             &info,
             context,
             self.device.clone(),
             client.clone(),
-            true, // Can do whatever with the context.
+            false,
         );
 
         client.autotune_execute(Box::new(ElementWiseAutotuneOperationSet::new(
@@ -178,74 +185,11 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     }
 }
 
-fn build_kernel_set<R: Runtime>(
-    info: &CompilationInfo,
+fn build_kernel<R: Runtime>(
+    info: Arc<CompilationInfo>,
     workgroup_size: WorkgroupSize,
-) -> FusionKernelSet<R> {
-    let scalar = ScalarElementWise::<R>::new(
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone())
-                .compile(CompilationSettings::default().workgroup_size(workgroup_size)),
-        ),
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone()).compile(
-                CompilationSettings::default()
-                    .inplace(true)
-                    .workgroup_size(workgroup_size),
-            ),
-        ),
-        info.mappings.to_vec(),
-        info.outputs.len(),
-    );
-
-    let vec2 = VecElementWise::<R>::new(
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone()).compile(
-                CompilationSettings::default()
-                    .vectorize(Vectorization::Vec2)
-                    .workgroup_size(workgroup_size),
-            ),
-        ),
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone()).compile(
-                CompilationSettings::default()
-                    .inplace(true)
-                    .vectorize(Vectorization::Vec2)
-                    .workgroup_size(workgroup_size),
-            ),
-        ),
-        info.mappings.to_vec(),
-        info.outputs.len(),
-        2,
-    );
-    let vec4 = VecElementWise::<R>::new(
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone()).compile(
-                CompilationSettings::default()
-                    .vectorize(Vectorization::Vec4)
-                    .workgroup_size(workgroup_size),
-            ),
-        ),
-        GpuKernelSource::new(
-            IdGenerator::generate(),
-            Compilation::new(info.clone()).compile(
-                CompilationSettings::default()
-                    .inplace(true)
-                    .vectorize(Vectorization::Vec4)
-                    .workgroup_size(workgroup_size),
-            ),
-        ),
-        info.mappings.to_vec(),
-        info.outputs.len(),
-        4,
-    );
-
-    FusionKernelSet::new(vec![Box::new(scalar), Box::new(vec2), Box::new(vec4)])
+) -> ElementWiseKernelFactory<R> {
+    ElementWiseKernelFactory::new(IdGenerator::generate(), info, workgroup_size)
 }
 
 #[cfg(test)]

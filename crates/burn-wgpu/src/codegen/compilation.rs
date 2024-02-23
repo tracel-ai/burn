@@ -1,7 +1,10 @@
-use super::dialect::gpu;
-use crate::codegen::dialect::gpu::{
-    Binding, ComputeShader, Elem, Item, Location, Variable, Vectorization, Visibility,
-    WorkgroupSize,
+use super::{dialect::gpu, Compiler};
+use crate::{
+    codegen::dialect::gpu::{
+        Binding, ComputeShader, Elem, Item, Location, Variable, Vectorization, Visibility,
+        WorkgroupSize,
+    },
+    Runtime,
 };
 
 /// The compilation struct allows you to create a [compute shader](ComputeShader) based on
@@ -32,7 +35,7 @@ pub struct InplaceMapping {
     pub pos_output: usize,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug, Hash)]
 pub struct CompilationSettings {
     vectorization: Vectorization,
     inplace_available: bool,
@@ -85,6 +88,21 @@ pub enum OutputInfo {
     /// Useful when a [procedure](gpu::Procedure) writes to the output using
     /// [operations](gpu::Operation).
     Array { item: Item },
+}
+
+impl OutputInfo {
+    pub fn elem_size<R: Runtime>(&self) -> usize {
+        let elem = match self {
+            OutputInfo::ArrayWrite { item, local: _ } => bool_elem(item.elem()),
+            OutputInfo::InputArrayWrite {
+                item,
+                input: _,
+                local: _,
+            } => bool_elem(item.elem()),
+            OutputInfo::Array { item } => bool_elem(item.elem()),
+        };
+        <R::Compiler as Compiler>::elem_size(elem)
+    }
 }
 
 impl Compilation {
@@ -269,7 +287,7 @@ fn bool_item(ty: Item) -> Item {
     }
 }
 
-fn bool_elem(elem: Elem) -> Elem {
+pub fn bool_elem(elem: Elem) -> Elem {
     match elem {
         // U32 are used for bool tensors
         Elem::Bool => Elem::UInt,
