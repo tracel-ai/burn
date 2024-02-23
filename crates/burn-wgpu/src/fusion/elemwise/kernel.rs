@@ -2,7 +2,7 @@ use crate::{
     codegen::{
         calculate_num_elems_dyn_rank,
         dialect::gpu::{self, WorkgroupSize},
-        CompilationInfo, CompilationSettings, InplaceMapping,
+        CompilationInfo, CompilationSettings,
     },
     fusion::{
         kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},
@@ -44,16 +44,13 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         );
         let workgroup_size = workgroup_size_x as usize;
 
-        let inplace = inplace_available(&self.info.mappings, handles_inputs);
         let vectorize_4 = can_vectorize(handles_inputs, inputs, outputs, 4);
         let vectorize_2 = can_vectorize(handles_inputs, inputs, outputs, 2);
 
         let mut settings = CompilationSettings::default();
         let mut factor = 1;
 
-        if inplace {
-            settings = settings.inplace(true);
-        }
+        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs);
 
         if vectorize_4 {
             settings = settings.vectorize(gpu::Vectorization::Vec4);
@@ -65,9 +62,9 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
             factor = 2;
         }
 
-        match inplace {
+        match !settings.partial_inplace_mapping.is_empty() {
             true => {
-                let reference_tensor = inputs[self.info.mappings[0].pos_input];
+                let reference_tensor = inputs[settings.partial_inplace_mapping[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
                 let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
                 let output_infos =
@@ -151,33 +148,6 @@ fn can_vectorize<R: Runtime>(
             if is_unavailable_output(tensor) {
                 return false;
             }
-        }
-    }
-
-    true
-}
-
-fn inplace_available<R: Runtime>(
-    mappings: &[InplaceMapping],
-    handles_inputs: &[JitFusionHandle<R>],
-) -> bool {
-    if mappings.is_empty() {
-        return false;
-    }
-
-    for mapping in mappings.iter() {
-        let handle = &handles_inputs[mapping.pos_input];
-
-        if !handle.handle.can_mut() {
-            return false;
-        }
-
-        let mut current = 0;
-        for stride in handle.strides.iter().rev() {
-            if current > *stride {
-                return false;
-            }
-            current = *stride;
         }
     }
 

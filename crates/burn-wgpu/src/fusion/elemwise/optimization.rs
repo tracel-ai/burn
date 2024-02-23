@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use super::{
-    kernel::ElementWiseKernelFactory, tune::ElementWiseAutotuneOperationSet, FusionElemWiseAutotuneKey,
+    kernel::ElementWiseKernelFactory, tune::ElementWiseAutotuneOperationSet,
+    FusionElemWiseAutotuneKey,
 };
 use crate::{
     codegen::{dialect::gpu::WorkgroupSize, CompilationInfo},
