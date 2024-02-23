@@ -1,6 +1,8 @@
 mod abs;
 mod add;
 mod aggregation;
+mod all;
+mod any;
 mod arange;
 mod arange_step;
 mod arg;
