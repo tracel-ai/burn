@@ -1,5 +1,5 @@
 use crate::codegen::dialect::gpu::{gpu, Branch, Elem, Scope, Variable};
-use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
+use crate::kernel::{build_info, elemwise_workgroup, WORKGROUP_DEFAULT};
 use crate::{
     codegen::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
@@ -44,95 +44,85 @@ impl ScatterComputeShader {
         let indices = self.indices;
 
         let stride_input = scope.create_local(Elem::UInt);
-        let stride_value = scope.create_local(Elem::UInt);
-        let stride_indices = scope.create_local(Elem::UInt);
-
-        let shape_input = scope.zero(Elem::UInt);
         let shape_value = scope.create_local(Elem::UInt);
-        let shape_indices = scope.create_local(Elem::UInt);
-
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_value = scope.zero(Elem::UInt);
-        let offset_indices = scope.zero(Elem::UInt);
 
         gpu!(scope, stride_input = stride(input, self.dim));
-        gpu!(scope, stride_value = stride(value, self.dim));
-        gpu!(scope, stride_indices = stride(indices, self.dim));
-
-        gpu!(scope, shape_input = shape(input, self.dim));
         gpu!(scope, shape_value = shape(value, self.dim));
-        gpu!(scope, shape_indices = shape(indices, self.dim));
 
         let id = Variable::Id;
+        let offset_input = scope.zero(Elem::UInt);
+        let offset_value = scope.zero(Elem::UInt);
 
-        let should_stop = scope.create_local(Elem::Bool);
         let num_elems = scope.create_local(Elem::UInt);
-        let array_size = scope.create_local(Elem::UInt);
-
-        gpu!(scope, array_size = len(value));
-        gpu!(scope, num_elems = array_size / shape_value);
-        gpu!(scope, should_stop = id >= num_elems);
-        gpu!(scope, if (should_stop).then(|scope|{
-            scope.register(Branch::Return);
-        }));
-
-        let index_loop = scope.zero(Elem::UInt);
+        gpu!(scope, num_elems = cast(1usize));
         gpu!(
             scope,
             range(0u32, Variable::Rank).for_each(|i, scope| {
                 let should_skip = scope.create_local(Elem::Bool);
                 gpu!(scope, should_skip = i == self.dim);
-                let one: Variable = 0u32.into();
 
                 gpu!(scope, if(should_skip).then(|_| {
                     // Nothing to do.
                 }).else(|scope| {
-                    let shape = scope.create_local(Elem::UInt);
-                    let stride = scope.create_local(Elem::UInt);
-                    let stride_layout = scope.create_local(Elem::UInt);
+                    let shape_input = scope.create_local(Elem::UInt);
+                    let shape_value = scope.create_local(Elem::UInt);
+                    let stride_value = scope.create_local(Elem::UInt);
+                    let stride_tmp = scope.create_local(Elem::UInt);
                     let num_blocks = scope.create_local(Elem::UInt);
+                    let offset_tmp = scope.create_local(Elem::UInt);
 
-                    gpu!(scope, index_loop += one);
-                    gpu!(scope, stride_layout = stride(input, index_loop));
-                    gpu!(scope, stride = stride(input, i));
-                    gpu!(scope, shape = shape(input, i));
+                    gpu!(scope, stride_value = stride(value, i));
+                    gpu!(scope, stride_input = stride(input, i));
+                    gpu!(scope, stride_tmp = stride(indices, i));
 
-                    gpu!(scope, num_blocks = id / stride_layout);
-                    gpu!(scope, num_blocks = num_blocks % shape);
-                    gpu!(scope, num_blocks = num_blocks * stride_input);
-                    gpu!(scope, offset_input += num_blocks);
+                    gpu!(scope, shape_value = shape(value, i));
+                    gpu!(scope, shape_input = shape(input, i));
+
+                    gpu!(scope, num_blocks = id / stride_tmp);
+                    gpu!(scope, num_blocks = num_blocks % shape_input);
+
+                    gpu!(scope, offset_tmp = num_blocks * stride_input);
+                    gpu!(scope, offset_input += offset_tmp);
+
+                    gpu!(scope, offset_tmp = num_blocks * stride_value);
+                    gpu!(scope, offset_value += offset_tmp);
+
+                    gpu!(scope, num_elems = num_elems * shape_value);
                 }));
             })
         );
 
-        let index_input = scope.create_local(Elem::UInt);
-        let index_value = scope.create_local(Elem::UInt);
-        let index_indices = scope.create_local(Elem::UInt);
+        let should_stop = scope.create_local(Elem::Bool);
+        gpu!(scope, should_stop = id >= num_elems);
+        gpu!(scope, if (should_stop).then(|scope|{
+            scope.register(Branch::Return);
+        }));
 
-        let value_input = scope.create_local(Elem::UInt);
-        let value_value = scope.create_local(Elem::UInt);
-        let value_indices = scope.create_local(Elem::UInt);
+        let index_input = scope.create_local(Elem::UInt);
+        let index = scope.create_local(Elem::UInt);
+
+        let result_input = scope.create_local(Elem::UInt);
+        let result_value = scope.create_local(Elem::UInt);
+        let result_indices = scope.create_local(Elem::UInt);
 
         gpu!(
             scope,
             range(0u32, shape_value).for_each(|i, scope| {
-                gpu!(scope, index_value = stride_value * i);
-                gpu!(scope, index_value += offset_value);
+                gpu!(scope, index = stride_input * i);
+                gpu!(scope, index += offset_value);
 
-                gpu!(scope, index_indices = stride_indices * i);
-                gpu!(scope, index_indices += offset_indices);
+                gpu!(scope, result_value = value[index]);
+                gpu!(scope, result_indices = indices[index]);
 
-                gpu!(scope, value_value = value[index_value]);
-                gpu!(scope, value_indices = indices[index_indices]);
-
-                gpu!(scope, index_input = stride_input * value_indices);
+                gpu!(scope, index_input = stride_input * result_indices);
                 gpu!(scope, index_input += offset_input);
 
-                gpu!(scope, value_input = input[index_input]);
-                gpu!(scope, value_input += value_value);
-                gpu!(scope, input[offset_input] = index_indices);
+                gpu!(scope, result_input = input[index_input]);
+                gpu!(scope, result_input += result_value);
+                gpu!(scope, input[index_input] = result_input);
             })
         );
+        // gpu!(scope, input[id] = id);
     }
 }
 
@@ -193,7 +183,7 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     indices: JitTensor<R, I, D>,
     value: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    let indices = into_contiguous(indices);
+    let mut indices = into_contiguous(indices);
     let value = into_contiguous(value);
     let tensor = into_contiguous(tensor);
 
@@ -202,6 +192,9 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     } else {
         tensor
     };
+    let mut info = build_info(&[&tensor, &value]);
+    println!("Shape value {:?}", value.shape);
+    println!("Dim {dim}");
     let kernel = ScatterEagerKernel::new(dim);
     let mut current = 1;
     let mut strides = [0; D];
@@ -219,11 +212,19 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
             strides[index] = current;
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
+    strides
+        .into_iter()
+        .for_each(|stride| info.push(stride as u32));
 
-    println!("Strides {strides:?}");
-    println!("Strides Real {:?}", tensor.strides);
+    info.push(dim as u32);
+
     let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
 
+    // We will use the indices tensor's strides to store the virtal strides.
+    indices.strides = strides;
+    println!("Info {:?}", info);
+    println!("Strides {:?}", indices.strides);
+    println!("Strides Real {:?}", tensor.strides);
     execute_dynamic::<R, ScatterEagerKernel<R, E>, E>(
         &[
             EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
