@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Tensor operations that can't be executed with a simple [operator](super::super::Operator) should use a
 /// procedure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Procedure {
     ReadGlobalWithLayout(ReadGlobalWithLayout),
     IndexOffsetGlobalWithLayout(IndexOffsetGlobalWithLayout),

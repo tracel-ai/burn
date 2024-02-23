@@ -3,7 +3,7 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Read a global array.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobal {
     /// The array to be read.
     pub global: Variable,
@@ -12,7 +12,7 @@ pub struct ReadGlobal {
 }
 
 /// Read a global array with the given layout.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobalWithLayout {
     /// The array to be read.
     pub globals: Vec<Variable>,
@@ -106,7 +106,7 @@ impl ReadGlobalWithLayout {
 }
 
 /// Calculate the index offset for all tensor variables provided compatible with the given layout.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IndexOffsetGlobalWithLayout {
     /// Tensor [variables](Variable), same length as [indexes](Self::indexes).
     pub tensors: Vec<Variable>,

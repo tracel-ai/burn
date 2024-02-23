@@ -465,6 +465,7 @@ where
         F: FnOnce(Tensor<B, D, Int>, i64) -> Tensor<B, D, Bool>,
     {
         check!(TensorCheck::tri::<{ D }>());
+        println!("Compare");
 
         let shape = self.shape();
         let height = shape.dims[D - 2];

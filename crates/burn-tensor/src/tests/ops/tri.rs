@@ -23,6 +23,7 @@ mod tests {
             &Default::default(),
         );
 
+        println!("{tensor}");
         let output = tensor.triu(1);
         assert_eq!(
             output.to_data(),

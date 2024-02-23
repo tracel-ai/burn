@@ -1,5 +1,5 @@
 use crate::codegen::dialect::gpu::{gpu, Branch, Elem, Scope, Variable};
-use crate::kernel::{build_info, elemwise_workgroup, WORKGROUP_DEFAULT};
+use crate::kernel::{elemwise_workgroup, WORKGROUP_DEFAULT};
 use crate::{
     codegen::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,

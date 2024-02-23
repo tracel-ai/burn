@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This type isn't responsible for creating [shader bindings](super::Binding) and figuring out which
 /// variable can be written to.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
@@ -25,7 +25,7 @@ pub struct Scope {
     undeclared: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ReadingStrategy {
     /// Each element will be read in a way to be compatible with the output layout.
     OutputLayout,
@@ -283,9 +283,9 @@ impl Scope {
         let item_global = match item.elem() {
             Elem::Bool => match item {
                 Item::Vec4(_) => Item::Vec4(Elem::UInt),
-                Item::Vec3(_) => Item::Vec4(Elem::UInt),
-                Item::Vec2(_) => Item::Vec4(Elem::UInt),
-                Item::Scalar(_) => Item::Vec4(Elem::UInt),
+                Item::Vec3(_) => Item::Vec3(Elem::UInt),
+                Item::Vec2(_) => Item::Vec2(Elem::UInt),
+                Item::Scalar(_) => Item::Scalar(Elem::UInt),
             },
             _ => item,
         };
