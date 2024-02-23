@@ -251,8 +251,7 @@ fn burn_core_std() {
             "-p",
             "burn-core",
             "--features",
-            "test-tch",
-            "record-item-custom-serde",
+            "test-tch,record-item-custom-serde,",
         ]
         .into(),
     );
