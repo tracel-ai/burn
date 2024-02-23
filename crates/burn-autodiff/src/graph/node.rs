@@ -35,7 +35,7 @@ impl Node {
     }
 }
 
-/// Unique identifier generated for each [node](Node).
+/// Unique identifier generated for each node.
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct NodeID {
     /// The integer representation of the id

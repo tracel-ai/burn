@@ -82,10 +82,10 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
-    /// With the [BalancedCheckpointing] strategy, an operation marked as memory bound is memory bound.
+    /// With [Strategy::BalancedCheckpointing], an operation marked as memory bound is memory bound.
     /// When memory bound, an operation needs to save its RetroForward
     ///
-    /// With the [NoCheckpointing] strategy, an operation marked as memory bound is actually compute bound.
+    /// With the [Strategy::NoCheckpointing], an operation marked as memory bound is actually compute bound.
     pub fn retro_forward<R: RetroForward>(
         self,
         retro_forward: R,
@@ -113,11 +113,11 @@ where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
-    /// With the [BalancedCheckpointing] strategy, an operation marked as memory bound is memory bound.
+    /// With [Strategy::BalancedCheckpointing], an operation marked as memory bound is memory bound.
     /// Since the operation may not checkpoint its parents but may need them indirectly
     /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
     ///
-    /// With the [NoCheckpointing] strategy, an operation marked as memory bound is actually compute bound.
+    /// With [Strategy::NoCheckpointing], an operation marked as memory bound is actually compute bound.
     /// It's therefore useless to checkpoint the parents
     pub fn parents<'a, B2, const D2: usize, A>(
         mut self,
