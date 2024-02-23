@@ -35,7 +35,7 @@ impl RetroForwards {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "export_tests")]
     pub(crate) fn is_empty(&self) -> bool {
         self.map.is_empty()
     }

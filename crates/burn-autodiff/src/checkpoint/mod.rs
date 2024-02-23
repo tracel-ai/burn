@@ -5,5 +5,3 @@ pub(crate) mod retro_forward;
 pub(crate) mod state;
 /// CheckpointStrategy module
 pub mod strategy;
-#[cfg(test)]
-mod tests;

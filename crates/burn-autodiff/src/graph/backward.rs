@@ -41,7 +41,7 @@ fn execute_steps(
             .for_each(|step| step.step(&mut grads, &mut checkpointer))
     });
 
-    #[cfg(test)]
+    #[cfg(feature = "export_tests")]
     // For checkpointing tests
     assert!(checkpointer.is_empty());
 
