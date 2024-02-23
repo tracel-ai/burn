@@ -185,7 +185,7 @@ impl Scope {
             index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            layout_ref: self.layout_ref.clone(),
+            layout_ref: self.layout_ref,
             undeclared: 0,
         }
     }
