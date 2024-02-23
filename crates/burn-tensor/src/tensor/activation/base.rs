@@ -21,26 +21,22 @@ pub fn prelu<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     alpha: Tensor<B, 1>,
 ) -> Tensor<B, D> {
+    check!(TensorCheck::check_prelu_shape::<D>(
+        &tensor.shape(),
+        &alpha.shape()
+    ));
+
     let weight = if alpha.dims()[0] == 1 {
         // if there is only 1 weight, then reshape it to (1,1,1... D times) so that the rank is D
         alpha.reshape([1; D])
-    } else if D >= 2 {
+    } else {
+        // D>=2 because the case where D==1 and num_weights >1 is handled by check function
         // there is more than 1 weight and rank is more than 2
-        let channels = tensor.dims()[1];
         let num_weights = alpha.dims()[0];
-        assert_eq!(
-            num_weights, channels,
-            "Number of channels and weights must be equal. Got no. of channels: {}, no. of weights: {}",
-            channels, num_weights
-        );
         let mut s = [1; D];
         s[1] = num_weights;
         // reshape the weights to (1, channels,1 ...)
         alpha.reshape(s)
-    } else {
-        // if there is more than 1 weight, and the rank of input tensor is less than 2 (i.e rank is 1)
-        // reshape alpha to (1, channels,1,1...) so that the rank is D
-        panic!("Number of channels and weights must be equal. Got no. of channels: {}, no. of weights: {}", 1, alpha.dims()[0]);
     };
 
     Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))
