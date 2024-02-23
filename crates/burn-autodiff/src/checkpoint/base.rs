@@ -57,6 +57,7 @@ impl Checkpointer {
                         let parent_sorted = self.topological_sort(parent_node);
                         for ps in parent_sorted {
                             if !sorted.contains(&ps) {
+                                println!("yo");
                                 sorted.push(ps)
                             }
                         }

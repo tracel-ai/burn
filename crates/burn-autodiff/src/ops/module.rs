@@ -1,15 +1,17 @@
+use crate::checkpoint::base::Checkpointer;
+use crate::checkpoint::strategy::CheckpointStrategy;
 use crate::grads::Gradients;
 use crate::graph::NodeID;
 use crate::ops::{unary, Backward, Ops};
 use crate::tensor::AutodiffTensor;
-use crate::{Autodiff, Checkpointer};
+use crate::Autodiff;
 
 use burn_tensor::backend::Backend;
 use burn_tensor::ops::*;
 
 use super::OpsKind;
 
-impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B, C> {
     fn embedding(weights: AutodiffTensor<B, 2>, indices: IntTensor<B, 2>) -> AutodiffTensor<B, 3> {
         #[derive(Debug)]
         struct Embedding;
@@ -32,7 +34,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match Embedding
-            .prepare([weights.node], [weights.graph])
+            .prepare::<C>([weights.node], [weights.graph])
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
@@ -122,7 +124,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match Conv2DWithBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone(), bias.node.clone()],
                     [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
@@ -146,7 +148,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match Conv2DNoBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone()],
                     [x.graph.clone(), weight.graph.clone()],
                 )
@@ -240,7 +242,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match ConvTranspose2DWithBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone(), bias.node.clone()],
                     [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
@@ -270,7 +272,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match ConvTranspose2DNoBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone()],
                     [x.graph.clone(), weight.graph.clone()],
                 )
@@ -366,7 +368,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
         match bias {
             Some(bias) => match Conv1DWithBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone(), bias.node.clone()],
                     [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
@@ -390,7 +392,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match Conv1DNoBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone()],
                     [x.graph.clone(), weight.graph.clone()],
                 )
@@ -483,7 +485,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match ConvTranspose1DWithBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone(), bias.node.clone()],
                     [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
@@ -512,7 +514,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match ConvTranspose1DNoBias
-                .prepare(
+                .prepare::<C>(
                     [x.node.clone(), weight.node.clone()],
                     [x.graph.clone(), weight.graph.clone()],
                 )
@@ -591,7 +593,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match AvgPool1D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -657,7 +659,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match AvgPool2D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -703,7 +705,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         dilation: usize,
     ) -> AutodiffTensor<B, 3> {
         match MaxPool1D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -739,9 +741,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<Autodiff<B>> {
+    ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -782,7 +784,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         dilation: usize,
         output_grad: AutodiffTensor<B, 3>,
         indices: IntTensor<B, 3>,
-    ) -> MaxPool1dBackward<Autodiff<B>> {
+    ) -> MaxPool1dBackward<Self> {
         let output = B::max_pool1d_with_indices_backward(
             x.primitive,
             kernel_size,
@@ -803,7 +805,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         dilation: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
         match MaxPool2D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -839,9 +841,9 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<Autodiff<B>> {
+    ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -883,7 +885,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         _dilation: [usize; 2],
         _output_grad: AutodiffTensor<B, 4>,
         _indices: IntTensor<B, 4>,
-    ) -> MaxPool2dBackward<Autodiff<B>> {
+    ) -> MaxPool2dBackward<Self> {
         panic!("Can't differentiate max pool2d with indices backward.");
     }
     fn adaptive_avg_pool1d(x: AutodiffTensor<B, 3>, output_size: usize) -> AutodiffTensor<B, 3> {
@@ -911,7 +913,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match AdaptiveAvgPool1D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {
@@ -953,7 +955,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match AdaptiveAvgPool2D
-            .prepare([x.node.clone()], [x.graph.clone()])
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
             .compute_bound()
             .stateful()
         {

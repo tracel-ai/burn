@@ -1,5 +1,5 @@
 use super::{unary, Backward, Ops};
-use crate::{grads::Gradients, Checkpointer};
+use crate::{checkpoint::base::Checkpointer, grads::Gradients};
 use burn_tensor::{backend::Backend, Shape};
 
 #[derive(Debug)]

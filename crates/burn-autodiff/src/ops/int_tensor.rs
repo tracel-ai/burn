@@ -1,4 +1,4 @@
-use crate::{tensor::AutodiffTensor, Autodiff};
+use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Autodiff};
 
 use burn_tensor::{
     backend::Backend,
@@ -6,7 +6,7 @@ use burn_tensor::{
     Data, Device, Reader, Shape,
 };
 
-impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_from_data<const D: usize>(
         data: Data<B::IntElem, D>,
         device: &Device<Self>,

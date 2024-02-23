@@ -4,62 +4,28 @@ use crate::{
         base::Checkpointer,
         builder::{ActionType, CheckpointerBuilder},
         retro_forward::RetroForward,
+        strategy::{CheckpointStrategy, Strategy},
     },
     grads::Gradients,
     graph::{ComputingProperty, Graph, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
 use burn_tensor::{backend::Backend, Shape};
-use std::{any::Any, marker::PhantomData, sync::Arc};
-
-#[derive(Debug)]
-/// Determines if a node should checkpoint its computed output or its retro_forward for recomputation
-/// The action is normally created by the child of the node, once the node is determined to be needed
-pub enum CheckpointingAction {
-    /// The node's already computed output should be saved
-    Computed {
-        /// The node
-        node_ref: NodeRef,
-        /// The node's output
-        state_content: Box<dyn Any + Send + Sync>,
-    },
-    /// The node should recompute itself when asked
-    Recompute {
-        /// The node
-        node_ref: NodeRef,
-        /// How the node should recompute itself
-        retro_forward: Arc<dyn RetroForward>,
-    },
-}
-
-impl CheckpointingAction {
-    /// Utilitary function to access the id of the node of the checkpointing action
-    pub fn id(&self) -> NodeID {
-        match self {
-            CheckpointingAction::Computed {
-                node_ref,
-                state_content: _,
-            } => node_ref.id.clone(),
-            CheckpointingAction::Recompute {
-                node_ref,
-                retro_forward: _,
-            } => node_ref.id.clone(),
-        }
-    }
-}
+use std::{marker::PhantomData, sync::Arc};
 
 /// Operation in preparation.
 ///
 /// There are 3 different modes: 'Init', 'Tracked' and 'UnTracked'.
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
-pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {
+pub struct OpsPrep<Backward, B, S, C, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
     graphs: [Graph; N],
     requirement: Requirement,
     backward: Backward,
     compute_property: ComputingProperty,
     checkpointer_builder: CheckpointerBuilder,
+    checkpoint_strategy: PhantomData<C>,
     phantom_backend: PhantomData<B>,
     phantom_state: PhantomData<S>,
     marker: PhantomData<Mode>,
@@ -78,14 +44,14 @@ pub struct Tracked;
 /// Untracked operation tag.
 pub struct UnTracked;
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Init>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Init>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
     /// Indicates that the operation is compute bound, meaning its computation
     /// is heavy and should not be recomputed
-    pub fn compute_bound(self) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
+    pub fn compute_bound(self) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -98,8 +64,7 @@ where
 
     /// Indicates that the operation is memory bound, meaning its computation
     /// is light and can be recomputed
-    ///
-    pub fn memory_bound(self) -> OpsPrep<BO, B, S, D, N, MemoryBound> {
+    pub fn memory_bound(self) -> OpsPrep<BO, B, S, C, D, N, MemoryBound> {
         OpsPrep::new(
             self.nodes,
             self.graphs,
@@ -111,48 +76,62 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, MemoryBound>
+impl<BO, B, S, C: CheckpointStrategy, const D: usize, const N: usize>
+    OpsPrep<BO, B, S, C, D, N, MemoryBound>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
+    /// With the [BalancedCheckpointing] strategy, an operation marked as memory bound is memory bound.
     /// When memory bound, an operation needs to save its RetroForward
+    ///
+    /// With the [NoCheckpointing] strategy, an operation marked as memory bound is actually compute bound.
     pub fn retro_forward<R: RetroForward>(
         self,
         retro_forward: R,
-    ) -> OpsPrep<BO, B, S, D, N, MemoryBoundRetroForward> {
+    ) -> OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward> {
+        let compute_property = match C::as_enum() {
+            Strategy::NoCheckpointing => ComputingProperty::ComputeBound,
+            Strategy::BalancedCheckpointing => ComputingProperty::MemoryBound {
+                retro_forward: Arc::new(retro_forward),
+            },
+        };
         OpsPrep::new(
             self.nodes,
             self.graphs,
             self.requirement,
             self.backward,
-            ComputingProperty::MemoryBound {
-                retro_forward: Arc::new(retro_forward),
-            },
+            compute_property,
             self.checkpointer_builder,
         )
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, MemoryBoundRetroForward>
+impl<BO, B, S, C: CheckpointStrategy, const D: usize, const N: usize>
+    OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward>
 where
     B: Backend,
     BO: Backward<B, D, N, State = S>,
 {
+    /// With the [BalancedCheckpointing] strategy, an operation marked as memory bound is memory bound.
     /// Since the operation may not checkpoint its parents but may need them indirectly
     /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
-    pub fn parents<
-        'a,
-        B2: Backend,
-        const D2: usize,
-        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
-    >(
+    ///
+    /// With the [NoCheckpointing] strategy, an operation marked as memory bound is actually compute bound.
+    /// It's therefore useless to checkpoint the parents
+    pub fn parents<'a, B2, const D2: usize, A>(
         mut self,
         parents: A,
-    ) -> OpsPrep<BO, B, S, D, N, ComputePropertyDone> {
-        for tensor in parents.into_iter() {
-            self.checkpointer_builder
-                .checkpoint(tensor, ActionType::Backup);
+    ) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
+    where
+        B2: Backend,
+        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
+    {
+        if let Strategy::BalancedCheckpointing = C::as_enum() {
+            for tensor in parents.into_iter() {
+                self.checkpointer_builder
+                    .checkpoint(tensor, ActionType::Backup);
+            }
         }
 
         OpsPrep::new(
@@ -165,7 +144,8 @@ where
         )
     }
 }
-impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, ComputePropertyDone>
+
+impl<BO, B, C, const D: usize, const N: usize> OpsPrep<BO, B, (), C, D, N, ComputePropertyDone>
 where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
@@ -182,14 +162,14 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, ComputePropertyDone>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
-    pub fn stateful(self) -> OpsKind<BO, B, S, D, N> {
+    pub fn stateful(self) -> OpsKind<BO, B, S, C, D, N> {
         match self.requirement.is_none() {
             false => OpsKind::Tracked(OpsPrep::new(
                 self.nodes,
@@ -212,7 +192,7 @@ where
 }
 
 /// Duplicated for Init because we can choose to skip compute property chosen (defaults to ambiguous)
-impl<BO, B, const D: usize, const N: usize> OpsPrep<BO, B, (), D, N, Init>
+impl<BO, B, C, const D: usize, const N: usize> OpsPrep<BO, B, (), C, D, N, Init>
 where
     B: Backend,
     BO: Backward<B, D, N, State = ()>,
@@ -229,14 +209,14 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Init>
+impl<BO, B, C, S, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Init>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
     BO: Backward<B, D, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
-    pub fn stateful(self) -> OpsKind<BO, B, S, D, N> {
+    pub fn stateful(self) -> OpsKind<BO, B, S, C, D, N> {
         match self.requirement.is_none() {
             false => OpsKind::Tracked(OpsPrep::new(
                 self.nodes,
@@ -258,7 +238,7 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, UnTracked>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, UnTracked>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -281,7 +261,7 @@ where
     }
 }
 
-impl<BO, B, S, const D: usize, const N: usize> OpsPrep<BO, B, S, D, N, Tracked>
+impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Tracked>
 where
     B: Backend,
     S: Clone + Send + Sync + std::fmt::Debug + 'static,
@@ -317,11 +297,11 @@ where
 }
 
 /// Enum used before finishing tracked and untracked operations.
-pub enum OpsKind<BO, B, S, const D: usize, const N: usize> {
+pub enum OpsKind<BO, B, S, C, const D: usize, const N: usize> {
     /// Tracked operation preparation.
-    Tracked(OpsPrep<BO, B, S, D, N, Tracked>),
+    Tracked(OpsPrep<BO, B, S, C, D, N, Tracked>),
     /// Untracked operation preparation.
-    UnTracked(OpsPrep<BO, B, S, D, N, UnTracked>),
+    UnTracked(OpsPrep<BO, B, S, C, D, N, UnTracked>),
 }
 
 /// Operation containing its parent nodes, its own node and the backward step state.

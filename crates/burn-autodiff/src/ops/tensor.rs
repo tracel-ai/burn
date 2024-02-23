@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 
 use crate::{
     checkpoint::{
-        builder::CheckpointerBuilder, retro_forward::RetroForward, state::BackwardStates,
+        base::Checkpointer, builder::CheckpointerBuilder, retro_forward::RetroForward,
+        state::BackwardStates, strategy::CheckpointStrategy,
     },
     grads::Gradients,
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
@@ -10,7 +11,7 @@ use crate::{
     retro_binary, retro_unary, retro_unary_scalar,
     tensor::AutodiffTensor,
     utils::duplicate,
-    Autodiff, Checkpointer,
+    Autodiff,
 };
 
 use burn_tensor::{
@@ -21,7 +22,7 @@ use burn_tensor::{
 
 use super::maxmin::MaxMinDim;
 
-impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> {
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
         device: &Device<Self>,
@@ -88,7 +89,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match ToDevice
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -135,7 +136,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Add
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
@@ -181,7 +182,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         AddScalar
-            .prepare([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
             .memory_bound()
             .retro_forward(RetroAddScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -219,7 +220,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Sub
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
@@ -265,7 +266,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         SubScalar
-            .prepare([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSubScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -315,7 +316,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Mul
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
@@ -365,7 +366,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match MulScalar
-            .prepare([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
             .memory_bound()
             .retro_forward(RetroMulScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -427,7 +428,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Div
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
@@ -478,7 +479,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match DivScalar
-            .prepare([lhs.node.clone()], [lhs.graph.clone()])
+            .prepare::<C>([lhs.node.clone()], [lhs.graph.clone()])
             .memory_bound()
             .retro_forward(RetroDivScalar::<B, D>::new(lhs.node.id.clone(), rhs))
             .parents([&lhs])
@@ -534,7 +535,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match Matmul
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )
@@ -572,7 +573,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
 
-        Neg.prepare([tensor.node.clone()], [tensor.graph.clone()])
+        Neg.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroNeg::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -605,7 +606,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Recip
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroRecip::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -661,7 +662,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match SwapDim
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSwapDims::<B, D>::new(
                 tensor.node.id.clone(),
@@ -730,7 +731,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match ReshapeDim
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroReshape::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -774,7 +775,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Gather
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -831,7 +832,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Scatter
-            .prepare([tensor.node, value.node], [tensor.graph, value.graph])
+            .prepare::<C>([tensor.node, value.node], [tensor.graph, value.graph])
             .compute_bound()
             .stateful()
         {
@@ -896,7 +897,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Select
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSelect::<B, D>::new(
                 tensor.node.id.clone(),
@@ -976,7 +977,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match IndexSelectDimAssign::<D>
-            .prepare(
+            .prepare::<C>(
                 [tensor.node.clone(), value.node.clone()],
                 [tensor.graph.clone(), value.graph.clone()],
             )
@@ -1050,7 +1051,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Index
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSlice::<B, D1, D2>::new(
                 tensor.node.id.clone(),
@@ -1122,7 +1123,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match SliceAssign
-            .prepare(
+            .prepare::<C>(
                 [tensor.node.clone(), value.node.clone()],
                 [tensor.graph.clone(), value.graph.clone()],
             )
@@ -1192,7 +1193,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match MaskWhere
-            .prepare([tensor.node, source.node], [tensor.graph, source.graph])
+            .prepare::<C>([tensor.node, source.node], [tensor.graph, source.graph])
             .compute_bound()
             .stateful()
         {
@@ -1237,7 +1238,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match MaskFill
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -1376,7 +1377,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Mean
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -1413,7 +1414,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Sum
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -1455,7 +1456,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match MeanDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -1495,7 +1496,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match SumDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -1550,7 +1551,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let ops = ToFullPrecision::<B> {
             phantom: PhantomData,
         };
-        ops.prepare([tensor.node.clone()], [tensor.graph.clone()])
+        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroToFullPrecision::<B, D>::new(tensor.node.id.clone()))
             .parents([tensor])
@@ -1601,7 +1602,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             phantom: PhantomData,
         };
 
-        ops.prepare([tensor.node.clone()], [tensor.graph.clone()])
+        ops.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroFromFullPrecision::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1640,7 +1641,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Exp
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroExp::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1678,7 +1679,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Log
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroLog::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1718,7 +1719,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Log1P
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroLog1P::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1776,7 +1777,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match PowfScalar
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroPowfScalar::<B, D>::new(tensor.node.id.clone(), value))
             .parents([&tensor])
@@ -1815,7 +1816,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Sqrt
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSqrt::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1855,7 +1856,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Abs
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroAbs::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1894,7 +1895,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Cos
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroCos::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1932,7 +1933,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Sin
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSin::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -1974,7 +1975,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Tanh
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroTanh::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -2016,7 +2017,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         match Erf
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroErf::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -2122,7 +2123,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         dim: usize,
     ) -> FloatTensor<Self, D> {
         match MaxMinDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -2139,7 +2140,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -2163,7 +2164,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         dim: usize,
     ) -> FloatTensor<Self, D> {
         match MaxMinDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -2180,7 +2181,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         dim: usize,
     ) -> (FloatTensor<Self, D>, IntTensor<B, D>) {
         match MaxMinDim
-            .prepare([tensor.node], [tensor.graph])
+            .prepare::<C>([tensor.node], [tensor.graph])
             .compute_bound()
             .stateful()
         {
@@ -2270,7 +2271,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
 
         match PowF
-            .prepare(
+            .prepare::<C>(
                 [lhs.node.clone(), rhs.node.clone()],
                 [lhs.graph.clone(), rhs.graph.clone()],
             )

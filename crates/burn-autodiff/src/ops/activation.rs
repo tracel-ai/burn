@@ -1,18 +1,21 @@
 use std::marker::PhantomData;
 
 use crate::{
-    checkpoint::{retro_forward::RetroForward, state::BackwardStates},
+    checkpoint::{
+        base::Checkpointer, retro_forward::RetroForward, state::BackwardStates,
+        strategy::CheckpointStrategy,
+    },
     grads::Gradients,
     graph::NodeID,
     ops::{unary, Backward, Ops, OpsKind},
-    retro_unary, Autodiff, Checkpointer,
+    retro_unary, Autodiff,
 };
 use burn_tensor::{
     backend::Backend,
     ops::{ActivationOps, FloatTensor},
 };
 
-impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodiff<B, C> {
     fn gelu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Gelu<const D: usize>;
@@ -37,7 +40,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match Gelu::<D>
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroGelu::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -74,7 +77,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match Relu
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroRelu::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])
@@ -112,7 +115,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match Sigmoid
-            .prepare([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
             .memory_bound()
             .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id.clone()))
             .parents([&tensor])

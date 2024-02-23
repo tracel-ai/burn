@@ -1,6 +1,6 @@
 use super::{Ops, OpsPrep};
 use crate::{
-    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
+    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder, strategy::CheckpointStrategy},
     grads::Gradients,
     graph::{ComputingProperty, Graph, NodeRef, Requirement},
     utils::duplicate,
@@ -31,11 +31,11 @@ where
     );
 
     /// Prepare the backward ops.
-    fn prepare(
+    fn prepare<C: CheckpointStrategy>(
         self,
         nodes: [NodeRef; N],
         graphs: [Graph; N],
-    ) -> OpsPrep<Self, B, Self::State, D, N> {
+    ) -> OpsPrep<Self, B, Self::State, C, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         OpsPrep::new(
             nodes,

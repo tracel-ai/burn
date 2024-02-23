@@ -12,16 +12,16 @@ extern crate derive_new;
 
 extern crate alloc;
 
+/// Checkpoint module.
+pub mod checkpoint;
 /// Gradients module.
 pub mod grads;
 /// Operation module.
 pub mod ops;
 
-pub(crate) mod checkpoint;
-// Exposed for backend extension
-pub use checkpoint::base::Checkpointer;
-
 pub(crate) mod graph;
+// Exported for backend extension
+pub use graph::NodeID;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 

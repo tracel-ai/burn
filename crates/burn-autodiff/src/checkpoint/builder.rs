@@ -3,8 +3,7 @@ use std::{any::Any, collections::HashMap, sync::Arc};
 use burn_tensor::backend::Backend;
 
 use crate::{
-    graph::{ComputingProperty, NodeID, NodeSteps},
-    ops::CheckpointingAction,
+    graph::{ComputingProperty, NodeID, NodeRef, NodeSteps},
     tensor::AutodiffTensor,
 };
 
@@ -13,6 +12,42 @@ use super::{
     retro_forward::{RetroForward, RetroForwards},
     state::{BackwardStates, State},
 };
+
+#[derive(Debug)]
+/// Determines if a node should checkpoint its computed output or its retro_forward for recomputation
+/// The action is normally created by the child of the node, once the node is determined to be needed
+pub enum CheckpointingAction {
+    /// The node's already computed output should be saved
+    Computed {
+        /// The node
+        node_ref: NodeRef,
+        /// The node's output
+        state_content: Box<dyn Any + Send + Sync>,
+    },
+    /// The node should recompute itself when asked
+    Recompute {
+        /// The node
+        node_ref: NodeRef,
+        /// How the node should recompute itself
+        retro_forward: Arc<dyn RetroForward>,
+    },
+}
+
+impl CheckpointingAction {
+    /// Utilitary function to access the id of the node of the checkpointing action
+    pub fn id(&self) -> NodeID {
+        match self {
+            CheckpointingAction::Computed {
+                node_ref,
+                state_content: _,
+            } => node_ref.id.clone(),
+            CheckpointingAction::Recompute {
+                node_ref,
+                retro_forward: _,
+            } => node_ref.id.clone(),
+        }
+    }
+}
 
 #[derive(new, Debug, Default)]
 /// Accumulates checkpoints as checkpointing actions during the forward pass,
