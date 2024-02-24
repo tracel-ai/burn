@@ -1,5 +1,5 @@
-let low = args[0];
-let high = args[1];
+let low = u32(args[0]);
+let high = u32(args[1]);
 let range = high - low;
 
 for (var i = 0u; i < n_values_per_thread; i++) {
