@@ -898,7 +898,7 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_powf(lhs, B::int_into_float::<D>(rhs))
     }
 
-    /// raises a tensor to the power of a int scalar.
+    /// raises a tensor to the power of an int scalar.
     ///
     /// # Arguments
     ///
@@ -1178,5 +1178,79 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
     ) -> Vec<FloatTensor<B, D>> {
         chunk::<B, D, Float>(tensor, chunks, dim)
+    }
+
+    /// Tests if any element in the float `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
+    fn float_any<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum(B::bool_into_float(bool_tensor));
+        B::float_greater_elem(sum, 0.0f32.elem())
+    }
+
+    /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
+    /// input evaluates to True, False otherwise.
+
+    fn float_any_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
+        B::float_greater_elem(sum, 0.0f32.elem())
+    }
+
+    /// Tests if all elements in the float `tensor` evaluate to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// evaluate to True, False otherwise.
+    fn float_all<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
+        let num_elems = B::float_shape(&tensor).num_elements();
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum(B::bool_into_float(bool_tensor));
+        B::float_equal_elem(sum, (num_elems as f32).elem())
+    }
+
+    /// Tests if all elements in the float `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
+    /// evaluates to True, False otherwise.
+    fn float_all_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let num_elems = B::float_shape(&tensor).dims[dim];
+        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
+        B::float_equal_elem(sum, (num_elems as f32).elem())
     }
 }
