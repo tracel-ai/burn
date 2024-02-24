@@ -280,3 +280,4 @@ Those operations are only available for `Bool` tensors.
 | `activation::softmax(tensor, dim)`       | Similar to `nn.functional.softmax(tensor, dim)`       |
 | `activation::softplus(tensor, beta)`     | Similar to `nn.functional.softplus(tensor, beta)`     |
 | `activation::tanh(tensor)`               | Similar to `nn.functional.tanh(tensor)`               |
+| `activation::prelu(tensor,alpha)`        | Similar to `nn.functional.prelu(tensor,weight)`       |
