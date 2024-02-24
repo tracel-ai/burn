@@ -10,17 +10,17 @@ use crate::tensor::Tensor;
 #[derive(Config)]
 pub struct GroupNormConfig {
     /// The number of groups to separate the channels into
-    num_groups: usize,
+    pub num_groups: usize,
     /// The number of channels expected in the input
-    num_channels: usize,
+    pub num_channels: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    epsilon: f64,
+    pub epsilon: f64,
     /// A boolean value that when set to `true`, this module has learnable
     /// per-channel affine parameters initialized to ones (for weights)
     /// and zeros (for biases). Default: `true`
     #[config(default = true)]
-    affine: bool,
+    pub affine: bool,
 }
 
 /// Applies Group Normalization over a mini-batch of inputs.
