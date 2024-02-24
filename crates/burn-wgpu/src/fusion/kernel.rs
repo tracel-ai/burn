@@ -219,6 +219,7 @@ impl<R: Runtime> FusionKernel<R> {
 
 impl<R: Runtime> Kernel for FusionKernel<R> {
     fn source(&self) -> SourceTemplate {
+        log::info!("Compiling ... {:?}", self.id());
         let compiled = Compilation::new(self.info.as_ref().clone()).compile(self.settings.clone());
         let compiled = <R::Compiler as Compiler>::compile(compiled);
 
@@ -226,7 +227,7 @@ impl<R: Runtime> Kernel for FusionKernel<R> {
     }
 
     fn id(&self) -> String {
-        format!("{:?}", self.settings) + self.id.as_str()
+        format!("{}", self.settings) + self.id.as_str()
     }
 
     fn workgroup(&self) -> crate::compute::WorkGroup {

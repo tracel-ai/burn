@@ -40,13 +40,62 @@ pub struct InplaceMapping {
     pub pos_output: usize,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct CompilationSettings {
     pub partial_inplace_mapping: Vec<InplaceMapping>,
     full_inplace: bool,
     vectorization: Vectorization,
     workgroup_size: WorkgroupSize,
     reading_strategy: Vec<(u16, ReadingStrategy)>,
+}
+
+impl core::fmt::Display for CompilationSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The goal of this implementation is go generate a short id that won't have a clash with
+        // any other compilation setting.
+        //
+        // Each section start with a letter that can't be used for something else:
+        //
+        // * Mapping:          m
+        // * Reading Strategy: r
+        // * Vectorization:    v
+        // * Full Inplace:     f
+        // * Workgroup Size X: x
+        // * Workgroup Size Y: y
+        // * Workgroup Size Z: z
+        f.write_str("m")?;
+        for mapping in self.partial_inplace_mapping.iter() {
+            f.write_fmt(format_args!(
+                "i{}o{}",
+                mapping.pos_input, mapping.pos_output
+            ))?;
+        }
+
+        f.write_str("r")?;
+
+        for (input, strategy) in self.reading_strategy.iter() {
+            match strategy {
+                ReadingStrategy::OutputLayout => f.write_fmt(format_args!("i{}o", input)),
+                ReadingStrategy::Plain => f.write_fmt(format_args!("i{}p", input)),
+            }?;
+        }
+
+        match self.vectorization {
+            Vectorization::Vec4 => f.write_str("v4"),
+            Vectorization::Vec3 => f.write_str("v3"),
+            Vectorization::Vec2 => f.write_str("v2"),
+            Vectorization::Scalar => f.write_str("v1"),
+        }?;
+
+        match self.full_inplace {
+            true => f.write_str("f1"),
+            false => f.write_str("f0"),
+        }?;
+        f.write_fmt(format_args!(
+            "x{}y{}z{}",
+            self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.x
+        ))
+    }
 }
 
 impl CompilationSettings {
@@ -288,16 +337,18 @@ impl Compilation {
     fn register_outputs(&mut self, settings: &mut CompilationSettings) {
         let mut index = 0;
 
-        if settings.full_inplace {
+        if !settings.partial_inplace_mapping.is_empty() {
+            assert!(!settings.full_inplace);
+
             let mut mappings = Vec::new();
-            core::mem::swap(&mut self.info.mappings, &mut mappings);
+            core::mem::swap(&mut settings.partial_inplace_mapping, &mut mappings);
 
             for mapping in mappings {
                 self.register_inplace_mapping(mapping);
             }
-        } else if !settings.partial_inplace_mapping.is_empty() {
+        } else if settings.full_inplace {
             let mut mappings = Vec::new();
-            core::mem::swap(&mut settings.partial_inplace_mapping, &mut mappings);
+            core::mem::swap(&mut self.info.mappings, &mut mappings);
 
             for mapping in mappings {
                 self.register_inplace_mapping(mapping);

@@ -32,12 +32,6 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         let workgroup_size_x = self.grid.x;
         let workgroup_size_y = self.grid.y;
 
-        let mut inplace_output2input = vec![None; self.info.outputs.len()];
-
-        for mapping in self.info.mappings.iter() {
-            inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
-        }
-
         assert_eq!(
             workgroup_size_x, workgroup_size_y,
             "The grid must be a square"
@@ -64,6 +58,12 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
 
         match !settings.partial_inplace_mapping.is_empty() {
             true => {
+                let mut inplace_output2input = vec![None; self.info.outputs.len()];
+
+                for mapping in settings.partial_inplace_mapping.iter() {
+                    inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
+                }
+
                 let reference_tensor = inputs[settings.partial_inplace_mapping[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
                 let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
