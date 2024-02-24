@@ -72,6 +72,9 @@ impl Type {
 
 impl ScalarType {
     pub fn new<S: AsRef<str>>(name: S, kind: ScalarKind) -> Self {
+        if name.as_ref().is_empty() {
+            panic!("Scalar of Type {:?} was passed with empty name", kind);
+        }
         Self {
             name: Ident::new(name.as_ref(), Span::call_site()),
             kind,
@@ -95,6 +98,12 @@ impl TensorType {
         kind: TensorKind,
         shape: Option<Vec<usize>>,
     ) -> Self {
+        if name.as_ref().is_empty() {
+            panic!(
+                "Tensor of Kind {:?} with dim shape {:?} was passed with empty name",
+                kind, shape
+            );
+        }
         Self {
             name: Ident::new(name.as_ref(), Span::call_site()),
             dim,
@@ -141,6 +150,12 @@ impl TensorType {
 
 impl OtherType {
     pub fn new<S: AsRef<str>>(name: S, tokens: TokenStream) -> Self {
+        if name.as_ref().is_empty() {
+            panic!(
+                "Other type with tokens {:?} was passed with empty name",
+                tokens
+            );
+        }
         Self {
             name: Ident::new(name.as_ref(), Span::call_site()),
             ty: tokens,
