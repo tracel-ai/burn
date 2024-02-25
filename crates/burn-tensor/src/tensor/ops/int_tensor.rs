@@ -1,4 +1,5 @@
-use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use super::{BoolTensor, Device, FloatTensor, IntDynRankTensor, IntElem, IntTensor};
+use crate::DynRankData;
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -43,9 +44,9 @@ pub trait IntTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>>;
 
-    fn int_into_dyn_rank<const D: usize>(
-        tensor: IntTensor<B, D>,
-    ) -> Reader<B::DynRankIntTensorPrimitive>;
+    fn int_into_dyn_rank<const D: usize>(tensor: IntTensor<B, D>) -> Reader<IntDynRankTensor<B>>;
+
+    fn int_dyn_rank_into_data(tensor: IntDynRankTensor<B>) -> Reader<DynRankData<IntElem<B>>>;
 
     /// Gets the data from the tensor.
     ///
@@ -60,10 +61,12 @@ pub trait IntTensorOps<B: Backend> {
         Self::int_into_data(tensor.clone())
     }
 
-    fn int_to_dyn_rank<const D: usize>(
-        tensor: &IntTensor<B, D>,
-    ) -> Reader<B::DynRankIntTensorPrimitive> {
+    fn int_to_dyn_rank<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<IntDynRankTensor<B>> {
         Self::int_into_dyn_rank(tensor.clone())
+    }
+
+    fn int_dyn_rank_to_data(tensor: &IntDynRankTensor<B>) -> Reader<DynRankData<IntElem<B>>> {
+        Self::int_dyn_rank_into_data(tensor.clone())
     }
 
     /// Creates a tensor from the data structure.
@@ -83,8 +86,12 @@ pub trait IntTensorOps<B: Backend> {
 
     fn int_from_dyn_rank<const D: usize>(
         dyn_rank_primitive: B::DynRankIntTensorPrimitive,
-        device: &Device<B>,
     ) -> IntTensor<B, D>;
+
+    fn int_dyn_rank_from_data(
+        data: DynRankData<IntElem<B>>,
+        device: &Device<B>,
+    ) -> IntDynRankTensor<B>;
 
     /// Gets the device of the tensor.
     ///

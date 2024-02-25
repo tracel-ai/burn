@@ -3,7 +3,7 @@ use crate::burn::{ScalarKind, ScalarType, Scope, TensorType, ToTokens, Type};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
-    tensor::DataSerialize,
+    tensor::DynRankData,
 };
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
@@ -18,8 +18,8 @@ pub struct ConstantNode<PS: PrecisionSettings> {
 
 #[derive(Debug, Clone)]
 pub enum TensorValue<PS: PrecisionSettings> {
-    Float(DataSerialize<PS::FloatElem>),
-    Int(DataSerialize<PS::IntElem>),
+    Float(DynRankData<PS::FloatElem>),
+    Int(DynRankData<PS::IntElem>),
     // TODO Support bool serialization (@antimora 8/26/2023)
 }
 
@@ -173,7 +173,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode<PS> {
 
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if let ConstantValue::Tensor(_, ds) = &self.value {
-            let data: DataSerialize<PS::FloatElem> = match ds {
+            let data: DynRankData<PS::FloatElem> = match ds {
                 TensorValue::Float(data) => data.clone().convert(),
                 TensorValue::Int(data) => data.clone().convert(),
             };

@@ -6,7 +6,7 @@ use std::{
 
 use burn::{
     record::{FullPrecisionSettings, HalfPrecisionSettings, PrecisionSettings},
-    tensor::{DataSerialize, Element},
+    tensor::{DynRankData, Element},
 };
 
 use crate::{
@@ -700,7 +700,7 @@ impl OnnxGraph {
 /// * `input_index` - The index of the input originally from input.
 /// * `node` - The node where value are stored.
 #[track_caller]
-fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DataSerialize<E>> {
+fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option<DynRankData<E>> {
     if node.inputs.is_empty() {
         return None;
     }
@@ -725,13 +725,13 @@ fn extract_data_serialize<E: Element>(input_index: usize, node: &Node) -> Option
 }
 
 /// Convert data to `DataSerialize`.
-fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DataSerialize<E> {
+fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> DynRankData<E> {
     match data {
-        Data::Float16s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Float32s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Float64s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Int32s(val) => DataSerialize::new(val, shape).convert(),
-        Data::Int64s(val) => DataSerialize::new(val, shape).convert(),
+        Data::Float16s(val) => DynRankData::new(val, shape).convert(),
+        Data::Float32s(val) => DynRankData::new(val, shape).convert(),
+        Data::Float64s(val) => DynRankData::new(val, shape).convert(),
+        Data::Int32s(val) => DynRankData::new(val, shape).convert(),
+        Data::Int64s(val) => DynRankData::new(val, shape).convert(),
         // TODO support Bool tensor when it is supported by Burn
         _ => panic!("Unsupported tensor element type"),
     }

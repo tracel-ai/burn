@@ -9,7 +9,7 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Element, Int, Tensor};
+use burn_tensor::{backend::Backend, Bool, DynRankData, Element, Int, Tensor};
 
 use hashbrown::HashMap;
 use serde::{
@@ -145,12 +145,12 @@ where
     }
 }
 
-impl<E, B> Record<B> for DataSerialize<E>
+impl<E, B> Record<B> for DynRankData<E>
 where
     E: Element,
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = DataSerialize<S::FloatElem>;
+    type Item<S: PrecisionSettings> = DynRankData<S::FloatElem>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         self.convert()

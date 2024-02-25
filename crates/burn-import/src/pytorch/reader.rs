@@ -7,7 +7,7 @@ use super::{adapter::PyTorchAdapter, error::Error};
 use burn::{
     module::ParamId,
     record::{ParamSerde, PrecisionSettings},
-    tensor::{DataSerialize, Element, ElementConversion},
+    tensor::{DynRankData, Element, ElementConversion},
 };
 use burn::{
     record::serde::{
@@ -114,7 +114,7 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    ParamSerde::new(param_id, DataSerialize::new(data, shape)).serialize(serializer)
+    ParamSerde::new(param_id, DynRankData::new(data, shape)).serialize(serializer)
 }
 
 /// New type struct for Candle tensors because we need to implement the `Serializable` trait for it.

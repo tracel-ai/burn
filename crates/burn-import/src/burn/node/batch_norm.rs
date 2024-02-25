@@ -4,7 +4,7 @@ use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::{BatchNormConfig, BatchNormRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{DynRankData, Tensor},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -16,10 +16,10 @@ pub struct BatchNormNode<PS: PrecisionSettings> {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub gamma: DataSerialize<PS::FloatElem>,
-    pub beta: DataSerialize<PS::FloatElem>,
-    pub running_mean: DataSerialize<PS::FloatElem>,
-    pub running_var: DataSerialize<PS::FloatElem>,
+    pub gamma: DynRankData<PS::FloatElem>,
+    pub beta: DynRankData<PS::FloatElem>,
+    pub running_mean: DynRankData<PS::FloatElem>,
+    pub running_var: DynRankData<PS::FloatElem>,
     pub config: BatchNormConfig,
 }
 
@@ -30,10 +30,10 @@ impl<PS: PrecisionSettings> BatchNormNode<PS> {
         name: S,
         input: TensorType,
         output: TensorType,
-        gamma: DataSerialize<PS::FloatElem>,
-        beta: DataSerialize<PS::FloatElem>,
-        running_mean: DataSerialize<PS::FloatElem>,
-        running_var: DataSerialize<PS::FloatElem>,
+        gamma: DynRankData<PS::FloatElem>,
+        beta: DynRankData<PS::FloatElem>,
+        running_mean: DynRankData<PS::FloatElem>,
+        running_var: DynRankData<PS::FloatElem>,
         config: BatchNormConfig,
     ) -> Self {
         let dim_tokens = dim.to_tokens();

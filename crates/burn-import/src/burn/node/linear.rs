@@ -4,7 +4,7 @@ use burn::{
     module::{Param, ParamId},
     nn::{LinearConfig, LinearRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{DynRankData, Tensor},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -15,8 +15,8 @@ pub struct LinearNode<PS: PrecisionSettings> {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub data_weights: DataSerialize<PS::FloatElem>,
-    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
+    pub data_weights: DynRankData<PS::FloatElem>,
+    pub data_bias: Option<DynRankData<PS::FloatElem>>,
     pub config: LinearConfig,
 }
 
@@ -25,8 +25,8 @@ impl<PS: PrecisionSettings> LinearNode<PS> {
         name: S,
         input: TensorType,
         output: TensorType,
-        data_weights: DataSerialize<PS::FloatElem>,
-        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        data_weights: DynRankData<PS::FloatElem>,
+        data_bias: Option<DynRankData<PS::FloatElem>>,
         config: LinearConfig,
     ) -> Self {
         Self {

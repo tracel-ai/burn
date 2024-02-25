@@ -1,25 +1,25 @@
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Int, Tensor};
+use burn_tensor::{backend::Backend, Bool, DynRankData, Int, Tensor};
 use serde::{Deserialize, Serialize};
 
 /// This struct implements serde to lazily serialize and deserialize a float tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
 pub struct FloatTensorSerde<S: PrecisionSettings> {
-    data: DataSerialize<S::FloatElem>,
+    data: DynRankData<S::FloatElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an int tensor
 /// using the given [record settings](RecordSettings).
 #[derive(new, Clone, Debug)]
 pub struct IntTensorSerde<S: PrecisionSettings> {
-    data: DataSerialize<S::IntElem>,
+    data: DynRankData<S::IntElem>,
 }
 
 /// This struct implements serde to lazily serialize and deserialize an bool tensor.
 #[derive(new, Clone, Debug)]
 pub struct BoolTensorSerde {
-    data: DataSerialize<bool>,
+    data: DynRankData<bool>,
 }
 
 // --- SERDE IMPLEMENTATIONS --- //
@@ -38,7 +38,7 @@ impl<'de, S: PrecisionSettings> Deserialize<'de> for FloatTensorSerde<S> {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<S::FloatElem>::deserialize(deserializer)?;
+        let data = DynRankData::<S::FloatElem>::deserialize(deserializer)?;
 
         Ok(Self::new(data))
     }
@@ -58,7 +58,7 @@ impl<'de, S: PrecisionSettings> Deserialize<'de> for IntTensorSerde<S> {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<S::IntElem>::deserialize(deserializer)?;
+        let data = DynRankData::<S::IntElem>::deserialize(deserializer)?;
         Ok(Self::new(data))
     }
 }
@@ -77,7 +77,7 @@ impl<'de> Deserialize<'de> for BoolTensorSerde {
     where
         De: serde::Deserializer<'de>,
     {
-        let data = DataSerialize::<bool>::deserialize(deserializer)?;
+        let data = DynRankData::<bool>::deserialize(deserializer)?;
 
         Ok(Self::new(data))
     }

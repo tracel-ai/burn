@@ -1,5 +1,7 @@
-use super::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion};
+use super::{BoolDynRankTensor, BoolTensor, Device, FloatTensor, IntTensor};
+use crate::{
+    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, DynRankData, ElementConversion,
+};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -41,9 +43,10 @@ pub trait BoolTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>>;
 
-    fn bool_into_dyn_rank<const D: usize>(
-        tensor: BoolTensor<B, D>,
-    ) -> Reader<B::DynRankBoolTensorPrimitive>;
+    fn bool_into_dyn_rank<const D: usize>(tensor: BoolTensor<B, D>)
+        -> Reader<BoolDynRankTensor<B>>;
+
+    fn bool_dyn_rank_into_data(tensor: BoolDynRankTensor<B>) -> Reader<DynRankData<bool>>;
 
     /// Gets the data from the tensor.
     ///
@@ -59,10 +62,12 @@ pub trait BoolTensorOps<B: Backend> {
         Self::bool_into_data(tensor.clone())
     }
 
-    fn bool_to_dyn_rank<const D: usize>(
-        tensor: &BoolTensor<B, D>,
-    ) -> Reader<B::DynRankBoolTensorPrimitive> {
+    fn bool_to_dyn_rank<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<BoolDynRankTensor<B>> {
         Self::bool_into_dyn_rank(tensor.clone())
+    }
+
+    fn bool_dyn_rank_to_data(tensor: &BoolDynRankTensor<B>) -> Reader<DynRankData<bool>> {
+        Self::bool_dyn_rank_into_data(tensor.clone())
     }
 
     /// Creates a tensor from the data structure.
@@ -78,9 +83,13 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D>;
 
     fn bool_from_dyn_rank<const D: usize>(
-        dyn_rank_primitive: B::DynRankBoolTensorPrimitive,
-        device: &Device<B>,
+        dyn_rank_primitive: BoolDynRankTensor<B>,
     ) -> BoolTensor<B, D>;
+
+    fn bool_dyn_rank_from_data(
+        dyn_rank_primitive: DynRankData<bool>,
+        device: &Device<B>,
+    ) -> BoolDynRankTensor<B>;
 
     /// Converts bool tensor to int tensor.
     ///

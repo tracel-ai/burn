@@ -19,3 +19,10 @@ pub type FloatTensor<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D
 pub type IntTensor<B, const D: usize> = <B as Backend>::IntTensorPrimitive<D>;
 /// Boolean tensor primitive type used by the backend.
 pub type BoolTensor<B, const D: usize> = <B as Backend>::BoolTensorPrimitive<D>;
+
+/// Float dynamic-rank tensor primitive type used by the backend.
+pub type FloatDynRankTensor<B> = <B as Backend>::DynRankFloatTensorPrimitive;
+/// Integer dynamic-rank tensor primitive type used by the backend.
+pub type IntDynRankTensor<B> = <B as Backend>::DynRankIntTensorPrimitive;
+/// Boolean dynamic-rank tensor primitive type used by the backend.
+pub type BoolDynRankTensor<B> = <B as Backend>::DynRankBoolTensorPrimitive;

@@ -6,9 +6,10 @@ use crate::{tensor::Shape, Element, ElementConversion};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
-/// Data structure for serializing and deserializing tensor data.
+/// Data structure for serializing and deserializing tensor data. Essentially a version of [`Data`]
+/// without a rank known at compile-time.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
-pub struct DataSerialize<E> {
+pub struct DynRankData<E> {
     /// The values of the tensor.
     pub value: Vec<E>,
     /// The shape of the tensor.
@@ -164,12 +165,12 @@ impl<const D: usize, E: Element> Data<E, D> {
     }
 }
 
-impl<E: Element> DataSerialize<E> {
+impl<E: Element> DynRankData<E> {
     /// Converts the data to a different element type.
-    pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
+    pub fn convert<EOther: Element>(self) -> DynRankData<EOther> {
         let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
 
-        DataSerialize {
+        DynRankData {
             value,
             shape: self.shape,
         }
@@ -259,8 +260,8 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
     /// # Returns
     ///
     /// The serialized data.
-    pub fn serialize(&self) -> DataSerialize<E> {
-        DataSerialize {
+    pub fn serialize(&self) -> DynRankData<E> {
+        DynRankData {
             value: self.value.clone(),
             shape: self.shape.dims.to_vec(),
         }
@@ -365,16 +366,16 @@ impl<const D: usize> Data<usize, D> {
     }
 }
 
-impl<E: Clone, const D: usize> From<&DataSerialize<E>> for Data<E, D> {
-    fn from(data: &DataSerialize<E>) -> Self {
+impl<E: Clone, const D: usize> From<&DynRankData<E>> for Data<E, D> {
+    fn from(data: &DynRankData<E>) -> Self {
         let mut dims = [0; D];
         dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value.clone(), Shape::new(dims))
     }
 }
 
-impl<E, const D: usize> From<DataSerialize<E>> for Data<E, D> {
-    fn from(data: DataSerialize<E>) -> Self {
+impl<E, const D: usize> From<DynRankData<E>> for Data<E, D> {
+    fn from(data: DynRankData<E>) -> Self {
         let mut dims = [0; D];
         dims[..D].copy_from_slice(&data.shape[..D]);
         Data::new(data.value, Shape::new(dims))

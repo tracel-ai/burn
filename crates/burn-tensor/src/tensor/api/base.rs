@@ -16,7 +16,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Data, DataSerialize, Float, Int, Shape, TensorKind};
+use crate::{backend::Backend, check, Bool, Data, DynRankData, Float, Int, Shape, TensorKind};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1191,14 +1191,10 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    // TODO: Add docs
     fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive>;
 
-    // TODO: Add docs
-    fn from_dyn_rank<const D: usize>(
-        dyn_rank_tensor: Self::DynRankPrimitive,
-        device: &B::Device,
-    ) -> Self::Primitive<D>;
+    fn from_dyn_rank<const D: usize>(dyn_rank_tensor: Self::DynRankPrimitive)
+        -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1427,9 +1423,8 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn from_dyn_rank<const D: usize>(
         dyn_rank_tensor: Self::DynRankPrimitive,
-        device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::float_from_dyn_rank(dyn_rank_tensor, device)
+        B::float_from_dyn_rank(dyn_rank_tensor)
     }
 
     fn repeat<const D: usize>(
@@ -1541,9 +1536,8 @@ impl<B: Backend> BasicOps<B> for Int {
 
     fn from_dyn_rank<const D: usize>(
         dyn_rank_tensor: Self::DynRankPrimitive,
-        device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::int_from_dyn_rank(dyn_rank_tensor, device)
+        B::int_from_dyn_rank(dyn_rank_tensor)
     }
 
     fn repeat<const D: usize>(
@@ -1654,9 +1648,8 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
     fn from_dyn_rank<const D: usize>(
         dyn_rank_tensor: Self::DynRankPrimitive,
-        device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        B::bool_from_dyn_rank(dyn_rank_tensor, device)
+        B::bool_from_dyn_rank(dyn_rank_tensor)
     }
 
     fn repeat<const D: usize>(
@@ -1791,7 +1784,7 @@ where
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let data = self.to_data();
         // manually construct instead of calling `serialize` to move instead of clone value
-        let serialized: DataSerialize<K::Elem> = DataSerialize {
+        let serialized: DynRankData<K::Elem> = DynRankData {
             value: data.value,
             shape: data.shape.dims.to_vec(),
         };
@@ -1806,8 +1799,8 @@ where
     K::Elem: Debug + Copy + Deserialize<'de>,
 {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        let data_res: Result<DataSerialize<K::Elem>, De::Error> =
-            DataSerialize::deserialize(deserializer);
+        let data_res: Result<DynRankData<K::Elem>, De::Error> =
+            DynRankData::deserialize(deserializer);
         let tensor = Tensor::from_data(data_res?, &<B::Device as Default>::default());
         Ok(tensor)
     }
