@@ -2,10 +2,15 @@ use burn_compute::client::ComputeClient;
 use burn_tensor::Shape;
 
 use crate::{
-    compute::StaticKernel, element::JitElement, kernel::{
+    compute::StaticKernel,
+    element::JitElement,
+    kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
-    }, ops::numeric::empty_device, tensor::JitTensor, IntElement, Runtime
+    },
+    ops::numeric::empty_device,
+    tensor::JitTensor,
+    IntElement, Runtime,
 };
 
 use super::base::Prng;

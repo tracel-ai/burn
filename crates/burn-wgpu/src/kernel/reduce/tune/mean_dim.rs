@@ -2,13 +2,19 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::JitAutotuneKey, element::JitElement, kernel::{
+    compute::JitAutotuneKey,
+    element::JitElement,
+    kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
         reduce::{
             init_reduce_output, int_mean_dim, int_mean_dim_shared_memory, mean_dim,
             mean_dim_shared_memory,
         },
-    }, ops::numeric::empty_device, reduce_tune_ops, tensor::JitTensor, IntElement, Runtime
+    },
+    ops::numeric::empty_device,
+    reduce_tune_ops,
+    tensor::JitTensor,
+    IntElement, Runtime,
 };
 
 use super::ReduceAutotuneKey;
