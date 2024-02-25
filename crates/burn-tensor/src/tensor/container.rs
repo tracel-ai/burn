@@ -13,15 +13,6 @@ pub struct TensorContainer<Id, B: Backend> {
     tensors: HashMap<Id, DynRankTensor<B>>,
 }
 
-impl<Id, B: Backend> Default for TensorContainer<Id, B>
-where
-    Id: Hash + PartialEq + Eq + Debug,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<Id, B: Backend> TensorContainer<Id, B>
 where
     Id: Hash + PartialEq + Eq + Debug,
@@ -62,5 +53,25 @@ where
     /// If any tensor is contained.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Convert into the internal representation of the [`TensorContainer`].
+    pub fn into_inner(self) -> HashMap<Id, DynRankTensor<B>> {
+        self.tensors
+    }
+
+    /// Creates a new [`TensorContainer`] from a [`HashMap`] of [`DynRankTensor`]s, which is the
+    /// internal representation of it.
+    pub fn from_inner(tensors: HashMap<Id, DynRankTensor<B>>) -> Self {
+        Self { tensors }
+    }
+}
+
+impl<Id, B: Backend> Default for TensorContainer<Id, B>
+where
+    Id: Hash + PartialEq + Eq + Debug,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

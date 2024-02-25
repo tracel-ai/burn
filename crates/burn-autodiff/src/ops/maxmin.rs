@@ -8,7 +8,7 @@ pub(crate) struct MaxMinDim;
 impl<B: Backend, const D: usize> Backward<B, D, 1> for MaxMinDim {
     type State = (B::IntTensorPrimitive<D>, Shape<D>);
 
-    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
         unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
             let (indices, shape) = ops.state;
             let device = B::float_device(&grad);

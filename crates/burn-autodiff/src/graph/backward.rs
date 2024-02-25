@@ -4,7 +4,7 @@ use crate::{grads::Gradients, tensor::AutodiffTensor};
 
 use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
-pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients {
+pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients<B> {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
     let tape = build_tape(root.node, root.graph);
 
@@ -29,7 +29,7 @@ fn build_tape(root: NodeRef, graph: Graph) -> Vec<Vec<StepBoxed>> {
     tape
 }
 
-fn execute_steps(tape: Vec<Vec<StepBoxed>>, mut grads: Gradients) -> Gradients {
+fn execute_steps<B: Backend>(tape: Vec<Vec<StepBoxed>>, mut grads: Gradients<B>) -> Gradients<B> {
     tape.into_iter()
         .rev()
         .for_each(|steps| steps.into_iter().for_each(|step| step.step(&mut grads)));

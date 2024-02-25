@@ -18,12 +18,15 @@ impl<B: Backend> Backend for Autodiff<B> {
     type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
 
     type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
+    type DynRankFloatTensorPrimitive = B::DynRankFloatTensorPrimitive;
     type FloatElem = B::FloatElem;
 
     type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
+    type DynRankIntTensorPrimitive = B::DynRankIntTensorPrimitive;
     type IntElem = B::IntElem;
 
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
+    type DynRankBoolTensorPrimitive = B::DynRankBoolTensorPrimitive;
 
     fn ad_enabled() -> bool {
         true
@@ -44,22 +47,22 @@ impl<B: Backend> Backend for Autodiff<B> {
 
 impl<B: Backend> AutodiffBackend for Autodiff<B> {
     type InnerBackend = B;
-    type Gradients = Gradients;
+    type Gradients = Gradients<B>;
 
-    fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
+    fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Self::Gradients {
         backward(tensor)
     }
 
     fn grad<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
-        grads: &Gradients,
+        grads: &Self::Gradients,
     ) -> Option<B::FloatTensorPrimitive<D>> {
         grads.get(tensor)
     }
 
     fn grad_remove<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
-        grads: &mut Gradients,
+        grads: &mut Self::Gradients,
     ) -> Option<B::FloatTensorPrimitive<D>> {
         grads.remove(tensor)
     }

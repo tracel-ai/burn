@@ -20,7 +20,7 @@ struct RootStep {
 }
 
 impl Step for RootStep {
-    fn step(self: Box<Self>, _grads: &mut Gradients) {
+    fn step<B: Backend>(self: Box<Self>, _grads: &mut Gradients<B>) {
         // Nothing to do
     }
 

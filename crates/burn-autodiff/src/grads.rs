@@ -6,11 +6,11 @@ use crate::{
 };
 
 /// Gradient identifier.
-pub type GradID = u64;
+pub type GradId = u64;
 
 /// Gradients container used during the backward pass.
-pub struct Gradients {
-    container: TensorContainer<GradID>,
+pub struct Gradients<B: Backend> {
+    container: TensorContainer<GradId, B>,
 }
 
 type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;

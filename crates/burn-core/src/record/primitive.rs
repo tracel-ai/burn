@@ -9,7 +9,10 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, Bool, DynRankData, Element, Int, Tensor};
+use burn_tensor::{
+    backend::Backend, container::TensorContainer, Bool, DynRankData, DynRankTensor, Element, Int,
+    Tensor,
+};
 
 use hashbrown::HashMap;
 use serde::{
@@ -220,6 +223,21 @@ where
             ParamId::from(item.id),
             Tensor::from_item::<S>(item.param, device),
         )
+    }
+}
+
+impl<Id: Record<B>, B: Backend> Record<B> for TensorContainer<Id, B> {
+    type Item<S: PrecisionSettings> = HashMap<Id, DynRankTensor<B>>;
+
+    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
+        self.into_inner()
+    }
+
+    fn from_item<S: PrecisionSettings>(
+        item: Self::Item<S>,
+        device: &<B as Backend>::Device,
+    ) -> Self {
+        Self::from_inner(item)
     }
 }
 

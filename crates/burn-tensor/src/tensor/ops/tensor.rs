@@ -2,9 +2,9 @@ use super::{
     BoolTensor, Device, FloatDynRankTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntElem,
     IntTensor,
 };
-use crate::DynRankData;
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
+use crate::{DynRankData, DynRankTensor};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -51,7 +51,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     fn float_to_dyn_rank<const D: usize>(
         tensor: &FloatTensor<B, D>,
-    ) -> Reader<B::DynRankFloatTensorPrimitive> {
+    ) -> Reader<FloatDynRankTensor<B>> {
         Self::float_into_dyn_rank(tensor.clone())
     }
 
@@ -72,7 +72,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     fn float_into_dyn_rank<const D: usize>(
         tensor: FloatTensor<B, D>,
-    ) -> Reader<B::DynRankFloatTensorPrimitive>;
+    ) -> Reader<FloatDynRankTensor<B>>;
 
     fn float_dyn_rank_into_data(tensor: FloatDynRankTensor<B>)
         -> Reader<DynRankData<FloatElem<B>>>;

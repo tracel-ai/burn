@@ -1,3 +1,4 @@
+use burn_tensor::backend::Backend;
 use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
@@ -8,7 +9,7 @@ use super::{NodeID, NodeRef};
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + Sync + std::fmt::Debug {
     /// Executes the step and consumes it.
-    fn step(self: Box<Self>, grads: &mut Gradients);
+    fn step<B: Backend>(self: Box<Self>, grads: &mut Gradients<B>);
     /// The node associated to the step.
     fn node(&self) -> NodeRef;
 }

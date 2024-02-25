@@ -11,8 +11,11 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Data, Device, ElementConversion, Reader, Shape, Tensor,
+    ops::{
+        BoolTensor, FloatDynRankTensor, FloatElem, FloatTensor, FloatTensorOps,
+        FullPrecisionBackend, IntTensor,
+    },
+    Data, Device, DynRankData, ElementConversion, Reader, Shape, Tensor,
 };
 
 use super::maxmin::MaxMinDim;
@@ -23,6 +26,43 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_from_data(data, device))
+    }
+
+    fn float_from_dyn_rank<const D: usize>(
+        dyn_rank_primitive: FloatDynRankTensor<Self>,
+    ) -> FloatTensor<Self, D> {
+        B::float_from_dyn_rank(dyn_rank_primitive)
+    }
+
+    fn float_dyn_rank_from_data(
+        data: DynRankData<FloatElem<Self>>,
+        device: &Device<Self>,
+    ) -> FloatDynRankTensor<Self> {
+        B::float_dyn_rank_from_data(data, device)
+    }
+
+    fn float_to_data<const D: usize>(
+        tensor: &FloatTensor<Self, D>,
+    ) -> Reader<Data<FloatElem<B>, D>> {
+        B::float_to_data(&tensor.primitive)
+    }
+
+    fn float_into_data<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> Reader<Data<FloatElem<B>, D>> {
+        B::float_into_data(tensor.primitive)
+    }
+
+    fn float_into_dyn_rank<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> Reader<FloatDynRankTensor<B>> {
+        B::float_into_dyn_rank(tensor)
+    }
+
+    fn float_dyn_rank_into_data(
+        tensor: FloatDynRankTensor<Self>,
+    ) -> Reader<DynRankData<FloatElem<Self>>> {
+        B::float_dyn_rank_into_data(tensor)
     }
 
     fn float_random<const D: usize>(
@@ -43,18 +83,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
     fn float_shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
         B::float_shape(&tensor.primitive)
-    }
-
-    fn float_to_data<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
-        B::float_to_data(&tensor.primitive)
-    }
-
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<B>, D>> {
-        B::float_into_data(tensor.primitive)
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -85,6 +113,12 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_to_device(tensor.primitive, device)),
         }
+    }
+
+    fn float_into_int<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+        B::float_into_int(tensor.primitive)
     }
 
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
@@ -982,6 +1016,65 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         matches!(tensor.node.requirement, Requirement::Grad)
     }
 
+    fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+        #[derive(Debug)]
+        struct Sum<const D: usize>;
+
+        impl<B: Backend, const D: usize> Backward<B, 1, 1> for Sum<D> {
+            type State = Shape<D>;
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let val = B::float_ones(ops.state, &B::float_device(&grad));
+
+                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
+                    let val: Tensor<B, D> = Tensor::from_primitive(val);
+
+                    val.mul(grad.unsqueeze()).into_primitive()
+                });
+            }
+        }
+
+        match Sum.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => prep.finish(
+                B::float_shape(&tensor.primitive),
+                B::float_sum(tensor.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_sum(tensor.primitive)),
+        }
+    }
+
+    fn float_sum_dim<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dim: usize,
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct SumDim;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for SumDim {
+            type State = (Shape<D>, usize);
+
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+                let (shape, dim) = ops.state;
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    let ones = B::float_ones(shape, &B::float_device(&grad));
+                    let grad = B::float_sum_dim(grad, dim);
+
+                    B::float_mul(ones, grad)
+                });
+            }
+        }
+
+        match SumDim.prepare([tensor.node], [tensor.graph]).stateful() {
+            OpsKind::Tracked(prep) => prep.finish(
+                (B::float_shape(&tensor.primitive), dim),
+                B::float_sum_dim(tensor.primitive, dim),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_sum_dim(tensor.primitive, dim)),
+        }
+    }
+
     fn float_mean<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
         #[derive(Debug)]
         struct Mean<const D: usize>;
@@ -1010,34 +1103,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 B::float_mean(tensor.primitive),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_mean(tensor.primitive)),
-        }
-    }
-
-    fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        #[derive(Debug)]
-        struct Sum<const D: usize>;
-
-        impl<B: Backend, const D: usize> Backward<B, 1, 1> for Sum<D> {
-            type State = Shape<D>;
-
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let val = B::float_ones(ops.state, &B::float_device(&grad));
-
-                    let grad: Tensor<B, 1> = Tensor::from_primitive(grad);
-                    let val: Tensor<B, D> = Tensor::from_primitive(val);
-
-                    val.mul(grad.unsqueeze()).into_primitive()
-                });
-            }
-        }
-
-        match Sum.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                B::float_shape(&tensor.primitive),
-                B::float_sum(tensor.primitive),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_sum(tensor.primitive)),
         }
     }
 
@@ -1071,37 +1136,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 B::float_mean_dim(tensor.primitive, dim),
             ),
             OpsKind::UnTracked(prep) => prep.finish(B::float_mean_dim(tensor.primitive, dim)),
-        }
-    }
-
-    fn float_sum_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
-        #[derive(Debug)]
-        struct SumDim;
-
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for SumDim {
-            type State = (Shape<D>, usize);
-
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let (shape, dim) = ops.state;
-
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    let ones = B::float_ones(shape, &B::float_device(&grad));
-                    let grad = B::float_sum_dim(grad, dim);
-
-                    B::float_mul(ones, grad)
-                });
-            }
-        }
-
-        match SumDim.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                (B::float_shape(&tensor.primitive), dim),
-                B::float_sum_dim(tensor.primitive, dim),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_sum_dim(tensor.primitive, dim)),
         }
     }
 
@@ -1160,14 +1194,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
         ops.prepare([tensor.node.clone()], [tensor.graph])
             .stateless(B::float_from_full_precision(tensor.primitive))
-    }
-
-    fn float_argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
-        B::float_argmax(tensor.primitive, dim)
-    }
-
-    fn float_argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
-        B::float_argmin(tensor.primitive, dim)
     }
 
     fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -1237,6 +1263,75 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 prep.finish(tensor.primitive.clone(), B::float_log1p(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_log1p(tensor.primitive)),
+        }
+    }
+
+    fn float_powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct PowF;
+
+        impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
+            type State = (
+                B::FloatTensorPrimitive<D>,
+                B::FloatTensorPrimitive<D>,
+                BinaryOpsBroadcast<D>,
+            );
+
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+                let (lhs, rhs, broadcast) = ops.state;
+                // Both lhs and rhs are needed for both lhs and rhs gradients, but we clone them
+                // the number of times required by the parents specification.
+                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, Some(rhs));
+                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, Some(lhs));
+
+                binary::<B, D, D, D, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        //rhs*(lhs.val**(rhs-1))*grad
+                        let rhs1 = rhs_4lhs.unwrap();
+                        let rhs2 = rhs1.clone();
+                        let lhs = lhs_4lhs.unwrap();
+
+                        let tmp = B::float_powf(
+                            lhs,
+                            B::float_sub_scalar(rhs1, B::FloatElem::from_elem(1.0)),
+                        );
+                        let value = B::float_mul(tmp, rhs2);
+                        let grad = B::float_mul(grad, value);
+
+                        broadcast.backward_lhs::<B>(grad)
+                    },
+                    |grad| {
+                        //lhs**rhs * ln(lhs) * grad
+                        let rhs = rhs_4rhs.unwrap();
+                        let lhs1 = lhs_4rhs.unwrap();
+                        let lhs2 = lhs1.clone();
+                        let tmp = B::float_powf(lhs1, rhs);
+                        let value = B::float_mul(tmp, B::float_log(lhs2));
+                        let grad = B::float_mul(grad, value);
+
+                        broadcast.backward_rhs::<B>(grad)
+                    },
+                );
+            }
+        }
+
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+
+        match PowF
+            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (lhs.primitive.clone(), rhs.primitive.clone(), broadcast),
+                B::float_powf(lhs.primitive, rhs.primitive),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_powf(lhs.primitive, rhs.primitive)),
         }
     }
 
@@ -1367,7 +1462,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_sin(tensor.primitive)),
         }
     }
-
     fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Tanh;
@@ -1394,7 +1488,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_tanh(tensor.primitive)),
         }
     }
-
     fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Erf;
@@ -1421,7 +1514,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_erf(tensor.primitive)),
         }
     }
-
     fn float_cat<const D: usize>(
         tensors: Vec<FloatTensor<Self, D>>,
         dim: usize,
@@ -1491,6 +1583,14 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         output.register_step(ops)
     }
 
+    fn float_argmax<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
+        B::float_argmax(tensor.primitive, dim)
+    }
+
+    fn float_argmin<const D: usize>(tensor: FloatTensor<Self, D>, dim: usize) -> IntTensor<B, D> {
+        B::float_argmin(tensor.primitive, dim)
+    }
+
     fn float_max_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -1504,6 +1604,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_max_dim(tensor.primitive, dim)),
         }
     }
+
     fn float_max_dim_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -1524,6 +1625,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             }
         }
     }
+
     fn float_min_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -1537,6 +1639,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_min_dim(tensor.primitive, dim)),
         }
     }
+
     fn float_min_dim_with_indices<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
@@ -1555,81 +1658,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
 
                 (tensor, index)
             }
-        }
-    }
-
-    fn float_into_int<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
-        B::float_into_int(tensor.primitive)
-    }
-
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
-        #[derive(Debug)]
-        struct PowF;
-
-        impl<B: Backend, const D: usize> Backward<B, D, 2> for PowF {
-            type State = (
-                B::FloatTensorPrimitive<D>,
-                B::FloatTensorPrimitive<D>,
-                BinaryOpsBroadcast<D>,
-            );
-
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
-                let (lhs, rhs, broadcast) = ops.state;
-                // Both lhs and rhs are needed for both lhs and rhs gradients, but we clone them
-                // the number of times required by the parents specification.
-                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, Some(rhs));
-                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, Some(lhs));
-
-                binary::<B, D, D, D, _, _>(
-                    ops.parents,
-                    ops.node,
-                    grads,
-                    |grad| {
-                        //rhs*(lhs.val**(rhs-1))*grad
-                        let rhs1 = rhs_4lhs.unwrap();
-                        let rhs2 = rhs1.clone();
-                        let lhs = lhs_4lhs.unwrap();
-
-                        let tmp = B::float_powf(
-                            lhs,
-                            B::float_sub_scalar(rhs1, B::FloatElem::from_elem(1.0)),
-                        );
-                        let value = B::float_mul(tmp, rhs2);
-                        let grad = B::float_mul(grad, value);
-
-                        broadcast.backward_lhs::<B>(grad)
-                    },
-                    |grad| {
-                        //lhs**rhs * ln(lhs) * grad
-                        let rhs = rhs_4rhs.unwrap();
-                        let lhs1 = lhs_4rhs.unwrap();
-                        let lhs2 = lhs1.clone();
-                        let tmp = B::float_powf(lhs1, rhs);
-                        let value = B::float_mul(tmp, B::float_log(lhs2));
-                        let grad = B::float_mul(grad, value);
-
-                        broadcast.backward_rhs::<B>(grad)
-                    },
-                );
-            }
-        }
-
-        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
-
-        match PowF
-            .prepare([lhs.node, rhs.node], [lhs.graph, rhs.graph])
-            .stateful()
-        {
-            OpsKind::Tracked(prep) => prep.finish(
-                (lhs.primitive.clone(), rhs.primitive.clone(), broadcast),
-                B::float_powf(lhs.primitive, rhs.primitive),
-            ),
-            OpsKind::UnTracked(prep) => prep.finish(B::float_powf(lhs.primitive, rhs.primitive)),
         }
     }
 }
