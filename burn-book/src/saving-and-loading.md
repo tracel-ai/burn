@@ -44,7 +44,7 @@ model definition as a simple example.
 pub struct Model<B: Backend> {
     linear_in: Linear<B>,
     linear_out: Linear<B>,
-    activation: ReLU,
+    activation: Relu,
 }
 ```
 
@@ -59,7 +59,7 @@ impl<B: Backend> Model<B> {
         Model {
             linear_in: LinearConfig::new(10, 64).init_with(record.linear_in),
             linear_out: LinearConfig::new(64, 2).init_with(record.linear_out),
-            activation: ReLU::new(),
+            activation: Relu::new(),
         }
     }
 
@@ -70,7 +70,7 @@ impl<B: Backend> Model<B> {
         Model {
             linear_in: l1,
             linear_out: l2,
-            activation: ReLU::new(),
+            activation: Relu::new(),
         }
     }
 }

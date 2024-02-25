@@ -1,0 +1,17 @@
+[book]
+authors = [
+    "Wouter Doppenberg",
+    "Nathaniel Simard",
+    "Louis Fortier-Dubois",
+    "Dilshod Tadjibaev",
+    "Guillaume Lagrange",
+    "Joshua Ferguson",
+    "The Burn Community",
+]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Burn Contributor Book 🔥"
+
+[output.html]
+mathjax-support = true

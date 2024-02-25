@@ -10,8 +10,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
 version.workspace = true
 
 [features]
-default = ["std"]
-std = []
+default = ["burn/std"]
 candle-cpu = ["burn/candle"]
 candle-cuda = ["burn/candle", "burn/cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
@@ -22,19 +21,28 @@ ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
 ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu"]
-wgpu-fusion = ["burn/default", "burn/wgpu", "burn/fusion"]
+tui = ["ratatui", "crossterm"]
+wgpu = ["burn/wgpu", "burn/autotune"]
+wgpu-fusion = ["wgpu", "burn/fusion"]
 
 [dependencies]
-burn = { path = "../burn" }
+arboard = { workspace = true }
+burn = { path = "../crates/burn", default-features = false }
+burn-common = { path = "../crates/burn-common", version = "0.13.0" }
+clap = { workspace = true }
+crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
+dirs = { workspace = true }
+github-device-flow  = { workspace = true }
 rand = { workspace = true }
-burn-common = { path = "../burn-common", version = "0.13.0" }
+ratatui = { workspace = true, optional = true }
+reqwest = {workspace = true, features = ["blocking", "json"]}
 serde_json = { workspace = true }
-dirs = "5.0.1"
+strum = { workspace = true }
+strum_macros = { workspace = true }
 
 [dev-dependencies]
-
+serial_test = { workspace = true }
 
 [[bench]]
 name = "unary"
@@ -55,3 +63,7 @@ harness = false
 [[bench]]
 name = "custom_gelu"
 harness = false
+
+[[bin]]
+name = "burnbench"
+path = "src/bin/burnbench.rs"

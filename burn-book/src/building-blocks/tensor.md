@@ -144,6 +144,10 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.to_device(device)`            | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`           |
 | `tensor.equal(other)`                 | `x == y`                             |
+| `tensor.any()`                        | `tensor.any()`                       |
+| `tensor.any_dim(dim)`                 | `tensor.any(dim)`                    |
+| `tensor.all()`                        | `tensor.all()`                       |
+| `tensor.all_dim(dim)`                 | `tensor.all(dim)`                    |
 | `Tensor::cat(tensors, dim)`           | `torch.cat(tensors, dim)`            |
 | `tensor.into_data()`                  | N/A                                  |
 | `tensor.to_data()`                    | N/A                                  |
@@ -277,3 +281,4 @@ Those operations are only available for `Bool` tensors.
 | `activation::softmax(tensor, dim)`       | Similar to `nn.functional.softmax(tensor, dim)`       |
 | `activation::softplus(tensor, beta)`     | Similar to `nn.functional.softplus(tensor, beta)`     |
 | `activation::tanh(tensor)`               | Similar to `nn.functional.tanh(tensor)`               |
+| `activation::prelu(tensor,alpha)`        | Similar to `nn.functional.prelu(tensor,weight)`       |
