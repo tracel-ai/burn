@@ -14,9 +14,8 @@ for (var i = 0u; i < n_values_per_thread; i++) {
     let random_u32 = state[0u] ^ state[1u] ^ state[2u] ^ state[3u];
 
     // Modulus operation to fit within the range
-    let random_in_range = (random_u32 % safe_range) + low;
-    // Explicitly cast result to u32 to ensure type correctness
-    let final_value: u32 = random_in_range;
+    let mod_result: u32 = u32(random_u32 % safe_range);
+    let add_result: u32 = u32(mod_result + low);
 
-    output[write_index] = final_value;
+    output[write_index] = add_result;
 }
