@@ -143,7 +143,7 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
     }
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
-        let random_bounds: (I, I) = ((-10.0).elem::<I>(), (10.0).elem::<I>());
+        let random_bounds: (E, E) = ((-10.0).elem::<E>(), (10.0).elem::<E>());
         let input = random_like_uniform_int(&self.input, random_bounds.0, random_bounds.1);
 
         let output = empty_device(
@@ -153,12 +153,12 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
         );
 
         vec![
-            Box::new(MeanDimIntAutotune::<I, D>::new(
+            Box::new(MeanDimIntAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(MeanDimIntSharedMemoryAutotune::<I, D>::new(
+            Box::new(MeanDimIntSharedMemoryAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
@@ -170,12 +170,12 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
         // Warning: since AutotuneOperationSet shares his key with SumDimAutotuneOperationSet
         // we must make sure the order here is correlated with SumDim
         match fastest_index {
-            0 => Box::new(MeanDimIntAutotune::<I, D>::new(
+            0 => Box::new(MeanDimIntAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
             )),
-            1 => Box::new(MeanDimIntSharedMemoryAutotune::<I, D>::new(
+            1 => Box::new(MeanDimIntSharedMemoryAutotune::new(
                 self.input,
                 self.output,
                 self.reduce_dim,
@@ -194,7 +194,7 @@ pub fn int_mean_dim_autotune<R: Runtime, E: JitElement + Element, const D: usize
 
     let output = init_reduce_output(&input, reduce_dim);
 
-    let operation_set = Box::new(MeanDimIntAutotuneOperationSet::<I, D>::new(
+    let operation_set = Box::new(MeanDimIntAutotuneOperationSet::new(
         input,
         output.clone(),
         reduce_dim,

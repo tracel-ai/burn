@@ -142,8 +142,7 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
 
     fn autotunables(&self) -> Vec<Box<dyn AutotuneOperation>> {
         let random_bounds: (E, E) = ((-10).elem::<E>(), (10).elem::<E>());
-        let input: WgpuTensor<I, D> =
-            random_like_uniform_int(&self.input, random_bounds.0, random_bounds.1);
+        let input = random_like_uniform_int(&self.input, random_bounds.0, random_bounds.1);
 
         let output = empty_device(
             self.output.client.clone(),
@@ -152,12 +151,12 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
         );
 
         vec![
-            Box::new(SumDimIntAutotune::<I, D>::new(
+            Box::new(SumDimIntAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,
             )),
-            Box::new(SumDimIntSharedMemoryAutotune::<I, D>::new(
+            Box::new(SumDimIntSharedMemoryAutotune::new(
                 input.clone(),
                 output.clone(),
                 self.reduce_dim,

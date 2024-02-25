@@ -9,8 +9,8 @@ use crate::{
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
-    GraphicsApi, IntElement, WgpuDevice, JitTensor, Runtime
+    tensor::JitTensor, 
+    Runtime,
 };
 
 use super::base::Prng;
@@ -141,9 +141,7 @@ mod tests {
     use serial_test::serial;
 
     use crate::{
-        kernel::{cast, prng::base::tests::calculate_bin_stats},
-        tests::TestBackend,
-        WgpuDevice,
+        kernel::{cast, prng::base::tests::calculate_bin_stats}, tests::TestBackend, WgpuDevice
     };
 
     #[test]
@@ -232,7 +230,7 @@ mod tests {
         let tensor: IntTensor<TestBackend, 2> =
             TestBackend::int_random(shape, Distribution::Default, &device);
 
-        let tensor_float = cast::<i32, f32, 2>(tensor);
+        let tensor_float = cast(tensor);
         let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
 
         data_float.assert_within_range(0..255);
@@ -248,7 +246,7 @@ mod tests {
         let tensor: IntTensor<TestBackend, 2> =
             TestBackend::int_random(shape, Distribution::Uniform(-10.0, 10.0), &device);
 
-        let tensor_float = cast::<i32, f32, 2>(tensor);
+        let tensor_float = cast(tensor);
         let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
 
         let numbers = data_float.value;

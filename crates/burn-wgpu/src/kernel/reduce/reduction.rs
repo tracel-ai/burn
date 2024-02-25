@@ -97,12 +97,12 @@ pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
 }
 
 /// Execute the int sum dim kernel.
-pub fn int_sum_dim<I: IntElement, const D: usize>(
-    input: WgpuTensor<I, D>,
-    output: WgpuTensor<I, D>,
+pub fn int_sum_dim<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<I, D> {
-    reduction_dim::<SumDim, I, D>(input, output, dim)
+) -> JitTensor<R, E, D> {
+    reduction_dim::<SumDim, R, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.

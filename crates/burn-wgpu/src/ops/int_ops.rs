@@ -1,7 +1,8 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
-use crate::kernel::reduce::{self, init_reduce_output};
+use crate::kernel::reduce::{self};
 use crate::{kernel, unary, JitBackend, Runtime};
+use crate::kernel::prng::{random_uniform, random_bernoulli, random_normal};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
@@ -332,15 +333,15 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         let float_tensor = match distribution {
-            Distribution::Default => random_uniform::<G, F, D>(shape, device, 0.elem(), 255.elem()),
+            Distribution::Default => random_uniform(shape, device, 0.elem::<f32>(), 255.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform::<G, F, D>(shape, device, low.elem(), high.elem())
+                random_uniform(shape, device, low.elem(), high.elem())
             }
             Distribution::Bernoulli(prob) => {
-                random_bernoulli::<G, F, D>(shape, device, prob.elem())
+                random_bernoulli(shape, device, prob.elem())
             }
             Distribution::Normal(mean, std) => {
-                random_normal::<G, F, D>(shape, device, mean.elem(), std.elem())
+                random_normal(shape, device, mean.elem(), std.elem())
             }
         };
 

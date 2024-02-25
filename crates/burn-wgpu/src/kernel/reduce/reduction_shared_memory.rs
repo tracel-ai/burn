@@ -63,12 +63,12 @@ pub fn sum_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
 /// Execute the sum dim kernel leveraging shared memory on int tensors
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
-pub fn int_sum_dim_shared_memory<I: IntElement, const D: usize>(
-    input: WgpuTensor<I, D>,
-    output: WgpuTensor<I, D>,
+pub fn int_sum_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
     dim: usize,
-) -> WgpuTensor<I, D> {
-    reduction_dim_shared_memory::<SumDimSharedMemory, I, D>(input, output, dim)
+) -> JitTensor<R, E, D> {
+    reduction_dim_shared_memory::<SumDimSharedMemory, R, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel leveraging shared memory
