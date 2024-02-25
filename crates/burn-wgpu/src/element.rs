@@ -3,7 +3,7 @@ use burn_tensor::Element;
 
 /// The base element trait for the wgpu backend.
 pub trait JitElement:
-     burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
+    burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
 where
     Self: Sized,
 {

@@ -341,7 +341,7 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
     ) -> IntTensor<Self, D> {
         B::int_random(shape, distribution, device)
     }
-    
+
     fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
         B::int_arange(range, device)
     }

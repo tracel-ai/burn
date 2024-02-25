@@ -9,7 +9,7 @@ use crate::{
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
     },
     ops::numeric::empty_device,
-    tensor::JitTensor, 
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -141,7 +141,9 @@ mod tests {
     use serial_test::serial;
 
     use crate::{
-        kernel::{cast, prng::base::tests::calculate_bin_stats}, tests::TestBackend, WgpuDevice
+        kernel::{cast, prng::base::tests::calculate_bin_stats},
+        tests::TestBackend,
+        WgpuDevice,
     };
 
     #[test]

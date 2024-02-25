@@ -447,7 +447,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
             }
         }
     }
-    
+
     fn int_arange(range: Range<i64>, device: &LibTorchDevice) -> TchTensor<i64, 1> {
         let device: tch::Device = (*device).into();
         let mut tensor = tch::Tensor::arange(range.end - range.start, (tch::Kind::Int64, device));

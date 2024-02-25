@@ -974,7 +974,7 @@ pub trait IntTensorOps<B: Backend> {
         distribution: Distribution,
         device: &Device<B>,
     ) -> IntTensor<B, D>;
-    
+
     /// Creates a new tensor with values from the given range with the given step size.
     ///
     /// # Arguments

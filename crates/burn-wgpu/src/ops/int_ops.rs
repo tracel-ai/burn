@@ -1,8 +1,8 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
+use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::reduce::{self};
 use crate::{kernel, unary, JitBackend, Runtime};
-use crate::kernel::prng::{random_uniform, random_bernoulli, random_normal};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
@@ -337,9 +337,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
             Distribution::Uniform(low, high) => {
                 random_uniform(shape, device, low.elem(), high.elem())
             }
-            Distribution::Bernoulli(prob) => {
-                random_bernoulli(shape, device, prob.elem())
-            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem()),
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem(), std.elem())
             }
