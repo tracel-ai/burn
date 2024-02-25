@@ -66,23 +66,31 @@ pub trait Backend:
     /// Device type.
     type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
-    /// Pointer to another backend that have a full precision float element type
+    /// Pointer to another backend that has a full precision float element type.
     type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
     /// Full precision float element type.
     type FullPrecisionElem: Element;
 
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Tensor primitive storing floats with a runtime rank. Mainly used to provide
+    /// (de)serialization support for [`TensorContainer`].
+    type DynRankFloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
     type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Tensor primitive storing ints with a runtime rank.
+    type DynRankIntTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
+    /// There's no need for an [`Element`] type, as in Rust there is only one canonical boolean type, [`bool`].
     type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    /// Tensor primitive storing ints with a runtime rank.
+    type DynRankBoolTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {

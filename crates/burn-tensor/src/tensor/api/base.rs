@@ -1191,6 +1191,15 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
+    // TODO: Add docs
+    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive>;
+
+    // TODO: Add docs
+    fn from_dyn_rank<const D: usize>(
+        dyn_rank_tensor: Self::DynRankPrimitive,
+        device: &B::Device,
+    ) -> Self::Primitive<D>;
+
     /// Repeat the tensor along the given dimension.
     ///
     /// # Arguments
@@ -1412,6 +1421,17 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_from_data(data, device)
     }
 
+    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
+        B::float_into_dyn_rank(tensor)
+    }
+
+    fn from_dyn_rank<const D: usize>(
+        dyn_rank_tensor: Self::DynRankPrimitive,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::float_from_dyn_rank(dyn_rank_tensor, device)
+    }
+
     fn repeat<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
@@ -1508,11 +1528,22 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_into_data(tensor)
     }
 
+    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
+        B::int_into_dyn_rank(tensor)
+    }
+
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::int_from_data(data, device)
+    }
+
+    fn from_dyn_rank<const D: usize>(
+        dyn_rank_tensor: Self::DynRankPrimitive,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::int_from_dyn_rank(dyn_rank_tensor, device)
     }
 
     fn repeat<const D: usize>(
@@ -1611,11 +1642,21 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_into_data(tensor)
     }
 
+    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
+        B::bool_into_dyn_rank(tensor)
+    }
+
     fn from_data<const D: usize>(
         data: Data<Self::Elem, D>,
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::bool_from_data(data, device)
+    }
+    fn from_dyn_rank<const D: usize>(
+        dyn_rank_tensor: Self::DynRankPrimitive,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::bool_from_dyn_rank(dyn_rank_tensor, device)
     }
 
     fn repeat<const D: usize>(

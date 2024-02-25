@@ -73,12 +73,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type FullPrecisionElem = f32;
 
     type FloatTensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
+    type DynRankFloatTensorPrimitive = candle_core::Tensor;
     type FloatElem = F;
 
     type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
+    type DynRankIntTensorPrimitive = candle_core::Tensor;
     type IntElem = I;
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+    type DynRankBoolTensorPrimitive = candle_core::Tensor;
 
     fn ad_enabled() -> bool {
         false

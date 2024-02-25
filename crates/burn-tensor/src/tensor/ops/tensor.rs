@@ -23,6 +23,11 @@ pub trait FloatTensorOps<B: Backend> {
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
+    fn float_from_dyn_rank<const D: usize>(
+        dyn_rank_primitive: B::DynRankFloatTensorPrimitive,
+        device: &Device<B>,
+    ) -> FloatTensor<B, D>;
+
     /// Creates a new tensor with random values.
     ///
     /// # Arguments
@@ -111,6 +116,12 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_into_data(tensor.clone())
     }
 
+    fn float_to_dyn_rank<const D: usize>(
+        tensor: &FloatTensor<B, D>,
+    ) -> Reader<B::DynRankFloatTensorPrimitive> {
+        Self::float_into_dyn_rank(tensor.clone())
+    }
+
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -121,6 +132,10 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<Data<FloatElem<B>, D>>;
+
+    fn float_into_dyn_rank<const D: usize>(
+        tensor: FloatTensor<B, D>,
+    ) -> Reader<B::DynRankFloatTensorPrimitive>;
 
     /// Gets the device of the tensor.
     ///

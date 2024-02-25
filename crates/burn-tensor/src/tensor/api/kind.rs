@@ -17,12 +17,18 @@ pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
     type Primitive<const D: usize>: Clone + core::fmt::Debug + Sync + Send;
 
+    /// The runtime-rank primitive type of the tensor.
+    type DynRankPrimitive: Clone + core::fmt::Debug + Sync + Send;
+
     /// The name of the tensor kind.
     fn name() -> &'static str;
 }
 
 impl<B: Backend> TensorKind<B> for Float {
     type Primitive<const D: usize> = B::FloatTensorPrimitive<D>;
+
+    type DynRankPrimitive = B::DynRankFloatTensorPrimitive;
+
     fn name() -> &'static str {
         "Float"
     }
@@ -30,6 +36,9 @@ impl<B: Backend> TensorKind<B> for Float {
 
 impl<B: Backend> TensorKind<B> for Int {
     type Primitive<const D: usize> = B::IntTensorPrimitive<D>;
+
+    type DynRankPrimitive = B::DynRankIntTensorPrimitive;
+
     fn name() -> &'static str {
         "Int"
     }
@@ -37,6 +46,9 @@ impl<B: Backend> TensorKind<B> for Int {
 
 impl<B: Backend> TensorKind<B> for Bool {
     type Primitive<const D: usize> = B::BoolTensorPrimitive<D>;
+
+    type DynRankPrimitive = B::DynRankBoolTensorPrimitive;
+
     fn name() -> &'static str {
         "Bool"
     }
