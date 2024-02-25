@@ -118,7 +118,7 @@ fn uniform_int_kernel<R: Runtime, E: IntElement, const D: usize>(
     let args_handle = make_args_buffer::<R, E>(client.clone(), &[low, high]);
     let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
     let kernel = StaticKernel::<
-        KernelSettings<UniformIntPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        KernelSettings<UniformIntPrng, u32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
     >::new(workgroup);
 
     client.execute(
