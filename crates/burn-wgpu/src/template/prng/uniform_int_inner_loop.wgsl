@@ -15,7 +15,6 @@ for (var i = 0u; i < n_values_per_thread; i++) {
 
     // Modulus operation to fit within the range
     let mod_result: u32 = u32(random_u32 % safe_range);
-    let add_result: u32 = u32(mod_result + low);
 
-    output[write_index] = add_result;
+    output[write_index] = u32(mod_result + low);
 }
