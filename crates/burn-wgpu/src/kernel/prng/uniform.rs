@@ -2,15 +2,10 @@ use burn_compute::client::ComputeClient;
 use burn_tensor::Shape;
 
 use crate::{
-    compute::StaticKernel,
-    element::JitElement,
-    kernel::{
+    compute::StaticKernel, element::JitElement, kernel::{
         prng::base::{make_args_buffer, make_info_buffer},
         prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
-    },
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
+    }, ops::numeric::empty_device, tensor::JitTensor, IntElement, Runtime
 };
 
 use super::base::Prng;
@@ -65,7 +60,7 @@ pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(
 
 /// Pseudo-random generator for uniform int distribution, based on
 /// another tensor's client, device and shape.
-pub fn random_like_uniform_int<R: Runtime, E: JitElement, const D: usize>(
+pub fn random_like_uniform_int<R: Runtime, E: IntElement, const D: usize>(
     tensor: &JitTensor<R, E, D>,
     low: E,
     high: E,
@@ -104,7 +99,7 @@ fn uniform_kernel<R: Runtime, E: JitElement, const D: usize>(
     output
 }
 
-fn uniform_int_kernel<R: Runtime, E: JitElement, const D: usize>(
+fn uniform_int_kernel<R: Runtime, E: IntElement, const D: usize>(
     client: ComputeClient<R::Server, R::Channel>,
     device: &R::Device,
     shape: &Shape<D>,

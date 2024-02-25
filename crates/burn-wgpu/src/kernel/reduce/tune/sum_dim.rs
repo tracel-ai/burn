@@ -2,16 +2,10 @@ use burn_compute::tune::{AutotuneOperation, AutotuneOperationSet};
 use burn_tensor::{Element, ElementConversion};
 
 use crate::{
-    compute::JitAutotuneKey,
-    element::JitElement,
-    kernel::{
+    compute::JitAutotuneKey, element::JitElement, kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
         reduce::{init_reduce_output, int_sum_dim, sum_dim, sum_dim_shared_memory},
-    },
-    ops::numeric::empty_device,
-    reduce_tune_ops,
-    tensor::JitTensor,
-    Runtime,
+    }, ops::numeric::empty_device, reduce_tune_ops, tensor::JitTensor, IntElement, Runtime
 };
 
 use super::ReduceAutotuneKey;
@@ -133,7 +127,7 @@ impl<R: Runtime, E: JitElement, const D: usize> SumDimIntAutotuneOperationSet<R,
     }
 }
 
-impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<JitAutotuneKey>
+impl<R: Runtime, E: IntElement, const D: usize> AutotuneOperationSet<JitAutotuneKey>
     for SumDimIntAutotuneOperationSet<R, E, D>
 {
     fn key(&self) -> JitAutotuneKey {
@@ -184,7 +178,7 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
 }
 
 /// Executes autotune on sum_dim operation
-pub fn int_sum_dim_autotune<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn int_sum_dim_autotune<R: Runtime, E: IntElement, const D: usize>(
     input: JitTensor<R, E, D>,
     reduce_dim: usize,
 ) -> JitTensor<R, E, D> {
