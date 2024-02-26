@@ -10,18 +10,28 @@ use crate::{
     },
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    IntElement, Runtime,
 };
 
 use super::base::Prng;
 
 struct UniformPrng;
+struct UniformIntPrng;
 
 impl StaticKernelSource for UniformPrng {
     fn source() -> SourceTemplate {
         Prng::source().register("num_args", "2").register(
             "prng_loop",
             include_str!("../../template/prng/uniform_inner_loop.wgsl"),
+        )
+    }
+}
+
+impl StaticKernelSource for UniformIntPrng {
+    fn source() -> SourceTemplate {
+        Prng::source().register("num_args", "2").register(
+            "prng_loop",
+            include_str!("../../template/prng/uniform_int_inner_loop.wgsl"),
         )
     }
 }
@@ -45,6 +55,22 @@ pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(
     high: E,
 ) -> JitTensor<R, E, D> {
     uniform_kernel(
+        tensor.client.clone(),
+        &tensor.device,
+        &tensor.shape,
+        low,
+        high,
+    )
+}
+
+/// Pseudo-random generator for uniform int distribution, based on
+/// another tensor's client, device and shape.
+pub fn random_like_uniform_int<R: Runtime, E: IntElement, const D: usize>(
+    tensor: &JitTensor<R, E, D>,
+    low: E,
+    high: E,
+) -> JitTensor<R, E, D> {
+    uniform_int_kernel(
         tensor.client.clone(),
         &tensor.device,
         &tensor.shape,
@@ -78,14 +104,47 @@ fn uniform_kernel<R: Runtime, E: JitElement, const D: usize>(
     output
 }
 
+fn uniform_int_kernel<R: Runtime, E: IntElement, const D: usize>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: &R::Device,
+    shape: &Shape<D>,
+    low: E,
+    high: E,
+) -> JitTensor<R, E, D> {
+    const N_VALUES_PER_THREAD: usize = 128;
+
+    let output = empty_device(client.clone(), device.clone(), shape.clone());
+    let info_handle = make_info_buffer::<R>(client.clone(), N_VALUES_PER_THREAD);
+    let args_handle = make_args_buffer::<R, E>(client.clone(), &[low, high]);
+    let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
+    let kernel = StaticKernel::<
+        KernelSettings<UniformIntPrng, u32, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+    >::new(workgroup);
+
+    client.execute(
+        Box::new(kernel),
+        &[&output.handle, &info_handle, &args_handle],
+    );
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use core::f32;
 
-    use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
+    use burn_tensor::{
+        backend::Backend,
+        ops::{IntTensor, IntTensorOps},
+        Distribution, Shape, Tensor,
+    };
     use serial_test::serial;
 
-    use crate::{kernel::prng::base::tests::calculate_bin_stats, tests::TestBackend, WgpuDevice};
+    use crate::{
+        kernel::{cast, prng::base::tests::calculate_bin_stats},
+        tests::TestBackend,
+        WgpuDevice,
+    };
 
     #[test]
     #[serial]
@@ -162,5 +221,40 @@ mod tests {
         // below 2 means we can have good confidence in the randomness
         // we put 2.5 to make sure it passes even when very unlucky
         assert!(z.abs() < 2.5);
+    }
+
+    #[test]
+    #[serial]
+    fn int_values_all_within_interval_uniform() {
+        TestBackend::seed(0);
+        let shape = Shape::new([20, 20]);
+        let device = WgpuDevice::default();
+        let tensor: IntTensor<TestBackend, 2> =
+            TestBackend::int_random(shape, Distribution::Default, &device);
+
+        let tensor_float = cast(tensor);
+        let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
+
+        data_float.assert_within_range(0..255);
+    }
+
+    #[test]
+    #[serial]
+    fn at_least_one_value_per_bin_int_uniform() {
+        TestBackend::seed(0);
+        let shape = Shape::new([64, 64]);
+        let device = WgpuDevice::default();
+
+        let tensor: IntTensor<TestBackend, 2> =
+            TestBackend::int_random(shape, Distribution::Uniform(-10.0, 10.0), &device);
+
+        let tensor_float = cast(tensor);
+        let data_float = Tensor::<TestBackend, 2>::from_primitive(tensor_float).into_data();
+
+        let numbers = data_float.value;
+        let stats = calculate_bin_stats(numbers, 10, -10., 10.);
+        assert!(stats[0].count >= 1);
+        assert!(stats[1].count >= 1);
+        assert!(stats[2].count >= 1);
     }
 }

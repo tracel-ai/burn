@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Therefore, during tracing, only operators and procedures can be registered.
 ///
 /// [Procedure] expansions can safely use all operation variants.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operation {
     Operator(Operator),
@@ -19,7 +19,7 @@ pub enum Operation {
 }
 
 /// All operators that can be used in a GPU compute shader.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[allow(dead_code)] // Some variants might not be used with different flags
 pub enum Operator {
     Add(BinaryOperator),
@@ -50,7 +50,7 @@ pub enum Operator {
 }
 
 /// All metadata that can be access in a shader.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Metadata {
     /// The stride of an array at the given dimension.
     Stride {
@@ -64,22 +64,26 @@ pub enum Metadata {
         var: Variable,
         out: Variable,
     },
+    ArrayLength {
+        var: Variable,
+        out: Variable,
+    },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BinaryOperator {
     pub lhs: Variable,
     pub rhs: Variable,
     pub out: Variable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UnaryOperator {
     pub input: Variable,
     pub out: Variable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ClampOperator {
     pub input: Variable,
     pub min_value: Variable,
@@ -87,12 +91,12 @@ pub struct ClampOperator {
     pub out: Variable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobalOperator {
     pub variable: Variable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobalWithLayoutOperator {
     pub variable: Variable,
     pub tensor_read_pos: usize,

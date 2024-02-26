@@ -1,115 +1,61 @@
 use core::panic;
-use std::collections::HashMap;
 
 use protobuf::Enum;
 
 use super::{
-    ir::{ArgType, Argument, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
+    from_onnx::OnnxGraphIO,
+    ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
     op_configuration::flatten_config,
     protos::tensor_proto::DataType,
 };
 
-struct TensorDimUpdater {
-    arguments: HashMap<String, Argument>,
-}
-
-impl TensorDimUpdater {
-    fn new(inputs: &[Argument]) -> Self {
-        let mut arguments: HashMap<String, Argument> = HashMap::with_capacity(inputs.len());
-
-        inputs.iter().for_each(|input| {
-            arguments.insert(input.name.clone(), input.clone());
-        });
-
-        Self { arguments }
-    }
-    /// Update tensor inputs from the registered arguments and returns the number of input
-    /// updated.
-    fn update_tensor_inputs(&self, node: &mut Node) -> usize {
-        self.update_arguments(&mut node.inputs)
-    }
-
-    /// Update the arguments struct from the node output tensors and return the number of output
-    /// updated.
-    fn update_tensor_outputs(&mut self, node: &Node) -> usize {
-        node.outputs
-            .iter()
-            .map(|arg| {
-                self.arguments.insert(arg.name.clone(), arg.clone());
-            })
-            .count()
-    }
-
-    fn update_arguments(&self, arguments: &mut [Argument]) -> usize {
-        arguments
-            .iter_mut()
-            .filter_map(|input| self.arguments.get(&input.name).map(|arg| (arg, input)))
-            .map(|(arg, input)| {
-                input.ty = arg.ty.clone();
-            })
-            .count()
-    }
-}
-
 /// Infer the dimension of each output tensor and update them.
-pub fn dim_inference(
-    nodes: &mut Vec<Node>,
-    graph_inputs: &Vec<Argument>,
-    graph_outputs: &mut Vec<Argument>,
-) {
-    let mut updater = TensorDimUpdater::new(graph_inputs);
-
-    for node in nodes.iter_mut() {
-        updater.update_tensor_inputs(node);
-
-        match node.node_type {
-            NodeType::Add => same_as_input(node),
-            NodeType::AveragePool2d => same_as_input(node),
-            NodeType::BatchNormalization => same_as_input(node),
-            NodeType::Cast => cast_update_outputs(node),
-            NodeType::Clip => same_as_input(node),
-            NodeType::Concat => concat_update_outputs(node),
-            NodeType::Constant => constant_update_outputs(node),
-            NodeType::Conv1d => conv1d_update_outputs(node),
-            NodeType::Conv2d => conv2d_update_outputs(node),
-            NodeType::Cos => same_as_input(node),
-            NodeType::Div => same_as_input(node),
-            NodeType::Dropout => same_as_input(node),
-            NodeType::Equal => equal_update_outputs(node),
-            NodeType::Erf => same_as_input(node),
-            NodeType::Exp => same_as_input(node),
-            NodeType::Flatten => flatten_update_outputs(node),
-            NodeType::Gelu => same_as_input(node),
-            NodeType::GatherElements => same_as_input(node),
-            NodeType::GlobalAveragePool => same_as_input(node),
-            NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
-            NodeType::Linear => linear_update_outputs(node),
-            NodeType::Log => same_as_input(node),
-            NodeType::LogSoftmax => same_as_input(node),
-            NodeType::MaxPool2d => same_as_input(node),
-            NodeType::Mul => same_as_input(node),
-            NodeType::Neg => same_as_input(node),
-            NodeType::Reciprocal => same_as_input(node),
-            NodeType::ReduceMean => mean_update_outputs(node),
-            NodeType::Relu => same_as_input(node),
-            NodeType::Reshape => reshape_update_outputs(node),
-            NodeType::Shape => shape_update_outputs(node),
-            NodeType::Sigmoid => same_as_input(node),
-            NodeType::Softmax => same_as_input(node),
-            NodeType::Sqrt => same_as_input(node),
-            NodeType::Sub => same_as_input(node),
-            NodeType::Tanh => same_as_input(node),
-            NodeType::Transpose => same_as_input(node),
-            NodeType::Unsqueeze => unsqueeze_update_output_or_node(node),
-            NodeType::Pow => same_as_input(node),
-            // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
-            _ => temporary_pass_through_stub(node),
-        }
-
-        updater.update_tensor_outputs(node);
+pub fn dim_inference(node: &mut Node, graph_io: &mut OnnxGraphIO) {
+    match node.node_type {
+        NodeType::Add => same_as_input(node),
+        NodeType::AveragePool2d => same_as_input(node),
+        NodeType::BatchNormalization => same_as_input(node),
+        NodeType::Cast => cast_update_outputs(node),
+        NodeType::Clip => same_as_input(node),
+        NodeType::Concat => concat_update_outputs(node),
+        NodeType::Constant => constant_update_outputs(node),
+        NodeType::Conv1d => conv1d_update_outputs(node),
+        NodeType::Conv2d => conv2d_update_outputs(node),
+        NodeType::Cos => same_as_input(node),
+        NodeType::Div => same_as_input(node),
+        NodeType::Dropout => same_as_input(node),
+        NodeType::Equal => equal_update_outputs(node),
+        NodeType::Erf => same_as_input(node),
+        NodeType::Exp => same_as_input(node),
+        NodeType::Flatten => flatten_update_outputs(node),
+        NodeType::Gelu => same_as_input(node),
+        NodeType::GatherElements => same_as_input(node),
+        NodeType::GlobalAveragePool => same_as_input(node),
+        NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
+        NodeType::Linear => linear_update_outputs(node),
+        NodeType::Log => same_as_input(node),
+        NodeType::LogSoftmax => same_as_input(node),
+        NodeType::MaxPool2d => same_as_input(node),
+        NodeType::Mul => same_as_input(node),
+        NodeType::Neg => same_as_input(node),
+        NodeType::Reciprocal => same_as_input(node),
+        NodeType::ReduceMean => mean_update_outputs(node),
+        NodeType::Relu => same_as_input(node),
+        NodeType::Reshape => reshape_update_outputs(node),
+        NodeType::Shape => shape_update_outputs(node),
+        NodeType::Sigmoid => same_as_input(node),
+        NodeType::Softmax => same_as_input(node),
+        NodeType::Sqrt => same_as_input(node),
+        NodeType::Sub => same_as_input(node),
+        NodeType::Tanh => same_as_input(node),
+        NodeType::Transpose => same_as_input(node),
+        NodeType::Unsqueeze => unsqueeze_update_output(node),
+        NodeType::Pow => same_as_input(node),
+        // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
+        _ => temporary_pass_through_stub(node),
     }
 
-    updater.update_arguments(graph_outputs);
+    graph_io.update_tensor_output(node);
 }
 
 fn constant_update_outputs(node: &mut Node) {
@@ -287,9 +233,9 @@ fn mean_update_outputs(node: &mut Node) {
 }
 
 //fn __unsqueeze_shape
-/// Either it Infers the shape of the output of an Unsqueeze node, or it remaps the node to a reshape if the output is static
-/// providing an arg and inferring the dimensions at runtime isn't currently supported.
-fn unsqueeze_update_output_or_node(node: &mut Node) {
+/// Infers the shape of the output from the input and axes
+/// Right now, this should only be called if the rhs is a constant
+fn unsqueeze_update_output(node: &mut Node) {
     if node.inputs.len() != 2 {
         panic!("Unsqueeze: wrong number of inputs");
     }
@@ -308,14 +254,13 @@ fn unsqueeze_update_output_or_node(node: &mut Node) {
         _ => panic!("Unsqueeze: invalid input types"),
     };
     //need output way up here to avoid borrowing issues
-    let (mut tensor, output_shape) = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => (tensor.clone(), tensor.shape.clone()),
+    let mut tensor = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
         _ => panic!("Unsqueeze: invalid output types"),
     };
-    let mut remap_node = false;
-    match (&axes, tensor.shape) {
+    match &axes {
         //case 1: axes is constant -> output shape is input shape with 1s inserted at the axes
-        (Some(dim_indices), _) => {
+        Some(dim_indices) => {
             let output_rank = (dim_indices.len() + input.dim) as i64;
             let mut dim_indices = dim_indices
                 .to_vec()
@@ -368,41 +313,11 @@ fn unsqueeze_update_output_or_node(node: &mut Node) {
             tensor.shape = Some(new_dims);
             node.outputs[0].ty = ArgType::Tensor(tensor.clone());
         }
-        //case 2: output shape isn't dynamic -> map the node to a reshape
-        (None, Some(_)) => {
-            remap_node = true;
-        }
+
         //case 3: output shape is dynamic -> black magic or unsupported
-        (None, None) => {
+        None => {
             panic!("Unsqueeze: dynamic output shape is not currently supported");
         }
-    }
-    //need to move out of the match to avoid borrowing issues
-    if remap_node {
-        let mut new_node = node.clone();
-        let rhs_name = node.inputs[1].name.clone();
-        new_node.node_type = NodeType::Reshape;
-        let rhs_arg = Argument {
-            name: rhs_name, //need name to remain the same
-            ty: ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                dim: 1,
-                shape: Some(vec![output_shape.clone().unwrap().len()]),
-            }),
-            value: Some(Data::Int64s(
-                output_shape
-                    .unwrap()
-                    .into_iter()
-                    .map(|ax_len| ax_len as i64)
-                    .collect::<Vec<i64>>(),
-            )),
-
-            passed: false,
-        };
-        new_node.inputs = vec![node.inputs[0].clone(), rhs_arg];
-        new_node.outputs = vec![node.outputs[0].clone()];
-        reshape_update_outputs(&mut new_node);
-        *node = new_node;
     }
 }
 

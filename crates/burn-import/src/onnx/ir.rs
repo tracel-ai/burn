@@ -3,6 +3,8 @@ use half::f16;
 use std::{collections::HashMap, fmt::Formatter};
 use strum_macros::{Display, EnumString};
 
+use super::protos::TensorProto;
+
 pub type Dim = usize;
 pub type Shape = Vec<Dim>;
 
@@ -21,6 +23,48 @@ pub struct Argument {
     /// True if the argument is passed to node, false otherwise. We use it mainly for informational purposes.
     /// The argument should contain a value if passed is false.
     pub passed: bool,
+}
+
+impl Argument {
+    /// Copy everything except the name from the other argument
+    pub fn copy_value(&mut self, other_arg: &Argument) {
+        self.ty = other_arg.ty.clone();
+        self.value = other_arg.value.clone();
+    }
+
+    pub fn from_initializer(initializer: &TensorProto) -> Argument {
+        let name = initializer.name.clone();
+        let tensor = Tensor::try_from(initializer.clone())
+            .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
+
+        if tensor.dim == 0 {
+            // Convert zero dim tensor to scalar
+            let value = if tensor.data.is_some() {
+                Some(tensor.data.clone().unwrap().into_scalar())
+            } else {
+                None
+            };
+            let ty = ArgType::Scalar(tensor.elem_type);
+
+            Self {
+                name,
+                ty,
+                value,
+                passed: false,
+            }
+        } else {
+            Self {
+                name,
+                ty: ArgType::Tensor(TensorType {
+                    elem_type: tensor.elem_type,
+                    dim: tensor.dim,
+                    shape: tensor.shape,
+                }),
+                value: tensor.data.clone(),
+                passed: false,
+            }
+        }
+    }
 }
 
 /// The type of an argument.
@@ -138,12 +182,6 @@ pub struct OnnxGraph {
 
     /// The outputs of the graph.
     pub outputs: Vec<Argument>,
-
-    /// The original node names.
-    pub old_node_names: HashMap<String, String>,
-
-    /// The original input names.
-    pub old_input_names: HashMap<String, String>,
 }
 
 /// Nodes produced by the ONNX parser

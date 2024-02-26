@@ -254,6 +254,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.float()`                       | Similar to `tensor.to(torch.float)`                     |
 | `tensor.arange(5..10, device)       `  | `tensor.arange(start=5, end=10, device=device)`         |
 | `tensor.arange_step(5..10, 2, device)` | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `tensor.int_random(shape, distribution, device)`        | N/A                                |
 
 # Bool Operations
 
@@ -280,3 +281,4 @@ Those operations are only available for `Bool` tensors.
 | `activation::softmax(tensor, dim)`       | Similar to `nn.functional.softmax(tensor, dim)`       |
 | `activation::softplus(tensor, beta)`     | Similar to `nn.functional.softplus(tensor, beta)`     |
 | `activation::tanh(tensor)`               | Similar to `nn.functional.tanh(tensor)`               |
+| `activation::prelu(tensor,alpha)`        | Similar to `nn.functional.prelu(tensor,weight)`       |
