@@ -58,6 +58,18 @@ pub trait ActivationOps<B: Backend> {
 
         B::float_div_scalar(x, 2i32.elem())
     }
+    /// Applies the PReLu activation function.
+    /// # Arguments
+    /// * `tensor` - The input tensor
+    /// * `alpha` - The weight tensor
+    fn prelu<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        alpha: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(tensor.clone(), 0.elem());
+        let scaled_tensor = B::float_mul(tensor.clone(), alpha);
+        B::float_mask_where(tensor, mask, scaled_tensor)
+    }
 
     /// Applies the Gelu activation function backward.
     ///
