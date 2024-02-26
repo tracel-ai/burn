@@ -77,7 +77,7 @@ md5 = "0.7.0"
 serial_test = "3.0.0"
 web-time = "1.0.0"
 hound = "3.5.1"
-image = "0.24.7"
+image = "0.24.9"
 zip = "0.6.6"
 
 # Terminal UI

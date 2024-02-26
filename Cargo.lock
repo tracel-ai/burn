@@ -1565,6 +1565,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "float-cmp"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1905,9 +1914,9 @@ dependencies = [
 
 [[package]]
 name = "gif"
-version = "0.12.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80792593675e051cf94a4b111980da2ba60d4a83e43e0048c5693baab3977045"
+checksum = "3fb2d69b19215e18bb912fa30f7ce15846e301408695e44e0ef719f1da9e19f2"
 dependencies = [
  "color_quant",
  "weezl",
@@ -2418,9 +2427,9 @@ dependencies = [
 
 [[package]]
 name = "image"
-version = "0.24.8"
+version = "0.24.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "034bbe799d1909622a74d1193aa50147769440040ff36cb2baa947609b0a4e23"
+checksum = "5690139d2f55868e080017335e4b94cb7414274c74f1669c84fb5feba2c9f69d"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -3121,6 +3130,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "onnx-tests"
+version = "0.13.0"
+dependencies = [
+ "burn",
+ "burn-import",
+ "burn-ndarray",
+ "float-cmp",
+ "serde",
+]
+
+[[package]]
 name = "openblas-build"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3492,6 +3512,18 @@ dependencies = [
  "burn",
  "burn-import",
  "model",
+]
+
+[[package]]
+name = "pytorch-tests"
+version = "0.13.0"
+dependencies = [
+ "burn",
+ "burn-import",
+ "burn-ndarray",
+ "cfg-if",
+ "float-cmp",
+ "serde",
 ]
 
 [[package]]
