@@ -5,7 +5,7 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::{dialect::gpu::WorkgroupSize, CompilationInfo},
+    codegen::dialect::gpu::WorkgroupSize,
     compute::JitAutotuneKey,
     fusion::{kernel::FusionKernel, tracing::Trace},
     JitBackend, Runtime,
@@ -45,13 +45,21 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
         let info = Arc::new(self.trace.compiling());
 
-        let kernel_set_1 = build_kernel::<R>(info.clone(), WorkgroupSize::default());
-        let kernel_set_2 = build_kernel::<R>(info, WorkgroupSize::new(16, 16, 1));
+        let kernel_factory_1 = ElementWiseKernelFactory::new(
+            IdGenerator::generate(),
+            info.clone(),
+            WorkgroupSize::default(),
+        );
+        let kernel_factory_2 = ElementWiseKernelFactory::new(
+            IdGenerator::generate(),
+            info,
+            WorkgroupSize::new(16, 16, 1),
+        );
 
         ElementWise {
             trace: self.trace,
             device: self.device,
-            phase: ExecutionPhase::new(kernel_set_1, kernel_set_2),
+            phase: ExecutionPhase::new(kernel_factory_1, kernel_factory_2),
             num_operations: self.num_operations,
         }
     }
@@ -184,13 +192,6 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
             num_operations: self.num_operations,
         }
     }
-}
-
-fn build_kernel<R: Runtime>(
-    info: Arc<CompilationInfo>,
-    workgroup_size: WorkgroupSize,
-) -> ElementWiseKernelFactory<R> {
-    ElementWiseKernelFactory::new(IdGenerator::generate(), info, workgroup_size)
 }
 
 #[cfg(test)]

@@ -158,7 +158,7 @@ impl Scope {
         self.reads_global
             .iter()
             .map(|(var, strategy, _)| match var {
-                Variable::GlobalInputArray(id, _) => (*id, strategy.clone()),
+                Variable::GlobalInputArray(id, _) => (*id, *strategy),
                 _ => panic!("Wow this is not supposed to happen"),
             })
             .collect()
