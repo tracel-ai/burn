@@ -1,3 +1,6 @@
+#[cfg(feature = "fusion")]
+use crate::fusion::JitFusionHandle;
+#[cfg(feature = "fusion")]
 use burn_fusion::TensorDescription;
 
 use super::{dialect::gpu, Compiler};
@@ -6,7 +9,6 @@ use crate::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
         Visibility, WorkgroupSize,
     },
-    fusion::JitFusionHandle,
     Runtime,
 };
 
@@ -131,10 +133,11 @@ impl CompilationSettings {
         outputs: &[&TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
-        self.reading_strategy(info, inputs, outputs, handles_inputs)
+        self.dynamic_reading_strategy(info, inputs, outputs, handles_inputs)
             .dynamic_inplace(info, inputs, outputs, handles_inputs)
     }
 
+    #[cfg(feature = "fusion")]
     fn dynamic_inplace<R: Runtime>(
         self,
         info: &CompilationInfo,
@@ -194,7 +197,8 @@ impl CompilationSettings {
         self.inplace(mappings)
     }
 
-    fn reading_strategy<R: Runtime>(
+    #[cfg(feature = "fusion")]
+    fn dynamic_reading_strategy<R: Runtime>(
         mut self,
         info: &CompilationInfo,
         inputs: &[&TensorDescription],
