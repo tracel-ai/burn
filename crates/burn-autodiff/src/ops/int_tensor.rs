@@ -3,7 +3,7 @@ use crate::{tensor::AutodiffTensor, Autodiff};
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
-    Data, Device, Reader, Shape,
+    Data, Device, Distribution, Reader, Shape,
 };
 
 impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
@@ -332,6 +332,14 @@ impl<B: Backend> IntTensorOps<Autodiff<B>> for Autodiff<B> {
         dim: usize,
     ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
         B::int_chunk(tensor, chunks, dim)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        B::int_random(shape, distribution, device)
     }
 
     fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {

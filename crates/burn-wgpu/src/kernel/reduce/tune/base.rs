@@ -1,7 +1,7 @@
 #[macro_export]
 /// Generate an autotune operation for a reduce kernel
 macro_rules! reduce_tune_ops {
-    ($name:ident, $func:expr) => {
+    ($name:ident, $element_trait:ident, $func:expr) => {
         #[derive(new)]
         pub(crate) struct $name<R: Runtime, E: JitElement, const D: usize> {
             input: JitTensor<R, E, D>,
