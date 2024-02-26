@@ -50,7 +50,7 @@ pub struct CompilationSettings {
 impl core::fmt::Display for CompilationSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // The goal of this implementation is to generate the shortest representation
-        // that won't clash with any other compilation settings. This is crusial since we rely on
+        // that won't clash with any other compilation settings. This is crucial since we rely on
         // this representation to know when to compile a new version of a kernel.
         //
         // Each main section starts with a letter that can't be used by other main sections:
