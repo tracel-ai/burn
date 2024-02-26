@@ -26,24 +26,20 @@ pub struct CompilationInfo {
     pub inputs: Vec<InputInfo>,
     pub outputs: Vec<OutputInfo>,
     pub scope: gpu::Scope,
-    pub mappings: Vec<InplaceMapping>,
 }
 
 /// Simply indicate the output that can be replaced by the input.
 #[derive(new, Clone, Copy, Debug)]
 pub struct InplaceMapping {
     /// Input position.
-    pub pos_input: usize, // TODO: Add multiple possible inputs for each output and let the
-    // compilation process handle which input is used with partial dynamic
-    // inplace operations.
+    pub pos_input: usize,
     /// Output position.
     pub pos_output: usize,
 }
 
 #[derive(Default, Clone)]
 pub struct CompilationSettings {
-    pub partial_inplace_mapping: Vec<InplaceMapping>,
-    full_inplace: bool,
+    pub mappings: Vec<InplaceMapping>,
     vectorization: Vectorization,
     workgroup_size: WorkgroupSize,
     reading_strategy: Vec<(u16, ReadingStrategy)>,
@@ -51,20 +47,26 @@ pub struct CompilationSettings {
 
 impl core::fmt::Display for CompilationSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // The goal of this implementation is go generate a short id that won't have a clash with
-        // any other compilation setting.
+        // The goal of this implementation is to generate the shortest representation
+        // that won't clash with any other compilation settings. This is crusial since we rely on
+        // this representation to know when to compile a new version of a kernel.
         //
-        // Each section start with a letter that can't be used for something else:
+        // Each main section starts with a letter that can't be used by other main sections:
         //
         // * Mapping:          m
+        //   * Input:  i
+        //   * Output: o
+        //
         // * Reading Strategy: r
+        //   * Output layout: o
+        //   * Plain:         p
+        //
         // * Vectorization:    v
-        // * Full Inplace:     f
         // * Workgroup Size X: x
         // * Workgroup Size Y: y
         // * Workgroup Size Z: z
         f.write_str("m")?;
-        for mapping in self.partial_inplace_mapping.iter() {
+        for mapping in self.mappings.iter() {
             f.write_fmt(format_args!(
                 "i{}o{}",
                 mapping.pos_input, mapping.pos_output
@@ -87,10 +89,6 @@ impl core::fmt::Display for CompilationSettings {
             Vectorization::Scalar => f.write_str("v1"),
         }?;
 
-        match self.full_inplace {
-            true => f.write_str("f1"),
-            false => f.write_str("f0"),
-        }?;
         f.write_fmt(format_args!(
             "x{}y{}z{}",
             self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.x
@@ -106,17 +104,26 @@ impl CompilationSettings {
         self
     }
 
-    /// Compile the shader with inplace enabled.
+    /// Compile the shader with inplace enabled by the given [mapping](InplaceMapping).
     ///
     /// Notes:
     ///
-    /// This won't guarantee that the shader will use input arrays as outputs, since it is only
-    /// possible when [inplace mappings](InplaceMapping) are provided as [compilation info](CompilationInfo)
-    pub fn inplace(mut self, inplace_enabled: bool) -> Self {
-        self.full_inplace = inplace_enabled;
+    /// You should favor using `dynamic_settings` when using fusion, since the mapping is going to
+    /// be created from the runtime information.
+    pub fn inplace(mut self, mappings: Vec<InplaceMapping>) -> Self {
+        self.mappings = mappings;
         self
     }
 
+    #[cfg(feature = "fusion")]
+    /// Apply dynamic settings based on the runtime information captured by the `burn-fusion`
+    /// project.
+    ///
+    /// Two optimizations are done here:
+    ///
+    /// 1. Find and remove unnecessary broadcasting procedures based on runtime tensor layouts.
+    /// 2. Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
+    ///    descriptions.
     pub fn dynamic_settings<R: Runtime>(
         self,
         info: &CompilationInfo,
@@ -125,7 +132,66 @@ impl CompilationSettings {
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
         self.reading_strategy(info, inputs, outputs, handles_inputs)
-            .inplace_partial(&info.mappings, handles_inputs)
+            .dynamic_inplace(info, inputs, outputs, handles_inputs)
+    }
+
+    fn dynamic_inplace<R: Runtime>(
+        self,
+        info: &CompilationInfo,
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+        handles_inputs: &[JitFusionHandle<R>],
+    ) -> Self {
+        let mut potential_inplace = inputs
+            .iter()
+            .zip(info.inputs.iter())
+            .enumerate()
+            .filter(|(pos, (desc, _input))| {
+                let handle = &handles_inputs[*pos];
+
+                if !is_contiguous(&handle.strides) {
+                    return false;
+                }
+
+                match desc.status {
+                    burn_fusion::TensorStatus::ReadOnly => false,
+                    burn_fusion::TensorStatus::ReadWrite => true,
+                    burn_fusion::TensorStatus::NotInit => false,
+                }
+            })
+            .map(|(pos, (desc, input))| (pos, desc, input))
+            .collect::<Vec<_>>();
+
+        let mappings = outputs
+            .iter()
+            .zip(info.outputs.iter())
+            .enumerate()
+            .filter_map(|(pos, (desc, output))| {
+                if potential_inplace.is_empty() {
+                    return None;
+                }
+
+                let mut chosen = None;
+                for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
+                    if chosen.is_some() {
+                        break;
+                    }
+                    if desc.shape == desc_input.shape && input.item() == output.item() {
+                        chosen = Some(index);
+                    }
+                }
+
+                let index = match chosen {
+                    Some(index) => index,
+                    None => return None,
+                };
+
+                let input = potential_inplace.remove(index);
+                Some(InplaceMapping::new(input.0, pos))
+            })
+            .collect::<Vec<_>>();
+
+        self.inplace(mappings)
     }
 
     fn reading_strategy<R: Runtime>(
@@ -159,52 +225,11 @@ impl CompilationSettings {
                 continue;
             }
 
-            let mut is_contiguous = true;
-            let mut current = 0;
-
-            for stride in handle.strides.iter().rev() {
-                if current > *stride {
-                    is_contiguous = false;
-                }
-                current = *stride;
-            }
-
-            if is_contiguous {
+            if is_contiguous(&handle.strides) {
                 self.reading_strategy
                     .push((input_id, ReadingStrategy::Plain));
             }
         }
-        self
-    }
-
-    /// Compile the shader with partial inplace mappings.
-    fn inplace_partial<R: Runtime>(
-        mut self,
-        mappings: &[InplaceMapping],
-        handles_inputs: &[JitFusionHandle<R>],
-    ) -> Self {
-        for mapping in mappings.iter() {
-            let handle = &handles_inputs[mapping.pos_input];
-
-            if !handle.handle.can_mut() {
-                continue;
-            }
-
-            let mut is_contiguous = true;
-            let mut current = 0;
-
-            for stride in handle.strides.iter().rev() {
-                if current > *stride {
-                    is_contiguous = false;
-                }
-                current = *stride;
-            }
-
-            if is_contiguous {
-                self.partial_inplace_mapping.push(mapping.clone());
-            }
-        }
-
         self
     }
 
@@ -216,11 +241,52 @@ impl CompilationSettings {
     }
 }
 
+fn is_contiguous(strides: &[usize]) -> bool {
+    let mut current = 0;
+
+    for stride in strides.iter().rev() {
+        if current > *stride {
+            return false;
+        }
+        current = *stride;
+    }
+
+    true
+}
+
 /// Information related to an input.
 #[derive(Clone)]
 pub enum InputInfo {
     Array { item: Item, visibility: Visibility },
     Scalar { elem: Elem, size: usize },
+}
+
+impl InputInfo {
+    /// The item type of the input.
+    pub fn item(&self) -> Item {
+        match self {
+            InputInfo::Array {
+                item,
+                visibility: _,
+            } => *item,
+            InputInfo::Scalar { elem, size: _ } => Item::Scalar(*elem),
+        }
+    }
+}
+
+impl OutputInfo {
+    /// The item type of the input.
+    pub fn item(&self) -> Item {
+        match self {
+            OutputInfo::ArrayWrite { item, local: _ } => *item,
+            OutputInfo::InputArrayWrite {
+                item,
+                input: _,
+                local: _,
+            } => *item,
+            OutputInfo::Array { item } => *item,
+        }
+    }
 }
 
 /// Information related to an output.
@@ -337,18 +403,9 @@ impl Compilation {
     fn register_outputs(&mut self, settings: &mut CompilationSettings) {
         let mut index = 0;
 
-        if !settings.partial_inplace_mapping.is_empty() {
-            assert!(!settings.full_inplace);
-
+        if !settings.mappings.is_empty() {
             let mut mappings = Vec::new();
-            core::mem::swap(&mut settings.partial_inplace_mapping, &mut mappings);
-
-            for mapping in mappings {
-                self.register_inplace_mapping(mapping);
-            }
-        } else if settings.full_inplace {
-            let mut mappings = Vec::new();
-            core::mem::swap(&mut self.info.mappings, &mut mappings);
+            core::mem::swap(&mut settings.mappings, &mut mappings);
 
             for mapping in mappings {
                 self.register_inplace_mapping(mapping);

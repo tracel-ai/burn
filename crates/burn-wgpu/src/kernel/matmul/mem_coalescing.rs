@@ -55,7 +55,6 @@ impl<R: Runtime> DynamicKernelSource for MatmulMemCoalescing<R> {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
-            mappings: vec![],
         };
 
         let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(

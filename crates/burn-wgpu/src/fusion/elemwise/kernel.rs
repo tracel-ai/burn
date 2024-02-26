@@ -56,15 +56,15 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
             factor = 2;
         }
 
-        match !settings.partial_inplace_mapping.is_empty() {
+        match !settings.mappings.is_empty() {
             true => {
                 let mut inplace_output2input = vec![None; self.info.outputs.len()];
 
-                for mapping in settings.partial_inplace_mapping.iter() {
+                for mapping in settings.mappings.iter() {
                     inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
                 }
 
-                let reference_tensor = inputs[settings.partial_inplace_mapping[0].pos_input];
+                let reference_tensor = inputs[settings.mappings[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
                 let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
                 let output_infos =
