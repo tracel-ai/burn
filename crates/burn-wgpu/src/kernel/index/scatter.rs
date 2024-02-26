@@ -210,11 +210,10 @@ pub(crate) fn scatter<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
             current *= val;
             num_elems_per_workgroup *= tensor.shape.dims[index];
         });
-
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
-    // Fake strides.
+    // Fake strides of the virtual output where the strides of dim is hardcoded to one.
     indices.strides = strides;
 
+    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
     execute_dynamic::<R, ScatterEagerKernel<R, E>, E>(
         &[
             EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
