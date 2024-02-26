@@ -32,6 +32,7 @@ mod tests {
 
     // test activation
     burn_tensor::testgen_gelu!();
+    burn_tensor::testgen_prelu!();
     burn_tensor::testgen_relu!();
     burn_tensor::testgen_softmax!();
     burn_tensor::testgen_sigmoid!();

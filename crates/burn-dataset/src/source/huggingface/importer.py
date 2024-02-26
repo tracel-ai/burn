@@ -102,7 +102,7 @@ def blob_columns(dataset):
     """
     type_mapping = {}
     for name, value in dataset.features.items():
-        if pa.types.is_binary(value.pa_type):
+        if value.pa_type is not None and pa.types.is_binary(value.pa_type):
             type_mapping[name] = LargeBinary
     return type_mapping
 

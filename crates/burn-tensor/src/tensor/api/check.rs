@@ -694,6 +694,44 @@ impl TensorCheck {
 
         check
     }
+    pub(crate) fn check_prelu_shape<const D: usize>(
+        shape_tensor: &Shape<D>,
+        shape_weight: &Shape<1>,
+    ) -> Self {
+        let mut check = Self::Ok;
+        if shape_weight.dims[0] == 1 {
+            check
+        } else if D >= 2 {
+            let channels = shape_tensor.dims[1];
+            let num_weights = shape_weight.dims[0];
+            if channels != num_weights {
+                check = check.register(
+                    "PReLu",
+                    TensorError::new(
+                        "Number of channels in input tensor and  number of weights must be equal",
+                    )
+                    .details(format!(
+                        "Got no. of channels: {}, no. of weights: {}",
+                        channels, num_weights
+                    )),
+                );
+                return check;
+            }
+            check
+        } else {
+            check = check.register(
+                "PReLu",
+                TensorError::new(
+                    "Number of channels in input tensor and  number of weights must be equal",
+                )
+                .details(format!(
+                    "Got no. of channels: {}, no. of weights: {}",
+                    1, shape_weight.dims[0]
+                )),
+            );
+            check
+        }
+    }
 
     /// Checks aggregate dimension such as mean and sum.
     pub(crate) fn aggregate_dim<const D: usize>(ops: &str, dim: usize) -> Self {

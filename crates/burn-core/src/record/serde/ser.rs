@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(
             serialized_str.len(),
             concat!(
-            r#"Map({"b": Map({"a": I32(1), "c": String("Hello"), "b": Default, "d": String("World")}),"#,
+            r#"Map({"b": Map({"a": I32(1), "c": String("Hello"), "b": Default(None), "d": String("World")}),"#,
             r#" "a": Map({"x": String("Hello"), "y": String("World")})})"#
             ).len()
         );
