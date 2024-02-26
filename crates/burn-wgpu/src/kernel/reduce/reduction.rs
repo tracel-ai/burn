@@ -203,6 +203,28 @@ mod tests {
     }
 
     #[test]
+    fn reduction_sum_should_work_with_multiple_partial_workgroups() {
+        const X_MAX: usize = 5;
+        const Y_MAX: usize = 256;
+
+        let mut array_2d = [[0f32; Y_MAX]; X_MAX];
+        for i in 0..X_MAX {
+            for j in 0..Y_MAX {
+                array_2d[X_MAX - 1 - i][Y_MAX - 1 - j] = i as f32 * (Y_MAX as f32) + j as f32;
+            }
+        }
+
+        let tensor = Tensor::<TestBackend, 2>::from_data(array_2d, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+
+        let val = Tensor::<TestBackend, 1>::from_primitive(sum(tensor.into_primitive()));
+        let val_ref = tensor_ref.sum();
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+    }
+
+    #[test]
     fn reduction_sum_dim_should_work_with_multiple_invocations() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
