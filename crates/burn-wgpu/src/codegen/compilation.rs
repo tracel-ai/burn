@@ -148,9 +148,15 @@ impl CompilationSettings {
         outputs: &[&TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
+        let input_arrays = info.inputs.iter().filter(|input| match &input {
+            InputInfo::Array { item:_ , visibility:_ } => true,
+            InputInfo::Scalar { elem:_, size:_ } => false,
+        });
+        let output_arrays = info.outputs.iter(); // All arrays
+
         let mut potential_inplace = inputs
             .iter()
-            .zip(info.inputs.iter())
+            .zip(input_arrays)
             .enumerate()
             .filter(|(pos, (desc, _input))| {
                 let handle = &handles_inputs[*pos];
@@ -170,7 +176,7 @@ impl CompilationSettings {
 
         let mappings = outputs
             .iter()
-            .zip(info.outputs.iter())
+            .zip(output_arrays)
             .enumerate()
             .filter_map(|(pos, (desc, output))| {
                 if potential_inplace.is_empty() {
@@ -262,7 +268,7 @@ fn is_contiguous(strides: &[usize]) -> bool {
 }
 
 /// Information related to an input.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum InputInfo {
     Array { item: Item, visibility: Visibility },
     Scalar { elem: Elem, size: usize },
@@ -297,7 +303,7 @@ impl OutputInfo {
 }
 
 /// Information related to an output.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
@@ -483,17 +489,23 @@ impl Compilation {
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
         let output = match self.info.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
-            None => return, // No output to update.
+            None => panic!("No output found."),
         };
 
         let (item, local) = match output {
             OutputInfo::ArrayWrite { item, local } => (item, local),
             OutputInfo::InputArrayWrite {
                 item: _,
-                input: _,
+                input,
                 local: _,
-            } => return,
-            OutputInfo::Array { item: _ } => return,
+            } => {
+                assert_eq!(
+                    *input, mapping.pos_input as u16,
+                    "Can't use different inputs for the same output."
+                );
+                return;
+            }
+            OutputInfo::Array { item: _ } => panic!("Can't register an inplace operation for an array that isn't using a defined writing strategy."),
         };
 
         let item = match self.input_bindings.get_mut(mapping.pos_input) {
