@@ -23,7 +23,6 @@ derive-new = { workspace = true }
 spin = { workspace = true }
 
 [dev-dependencies]
-burn-wgpu = { path = "../burn-wgpu", version = "0.13.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false, features = [
   "export_tests",
 ] }

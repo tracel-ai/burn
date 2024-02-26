@@ -356,7 +356,6 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "burn-tensor-testgen",
- "burn-wgpu",
  "derive-new",
  "spin",
 ]

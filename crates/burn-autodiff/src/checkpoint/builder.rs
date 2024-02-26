@@ -53,14 +53,20 @@ impl CheckpointingAction {
 /// Accumulates checkpoints as checkpointing actions during the forward pass,
 /// and builds a checkpointer right before the backward pass
 pub struct CheckpointerBuilder {
-    main_actions: Vec<CheckpointingAction>,
+    explicit_actions: Vec<CheckpointingAction>,
     backup_actions: Vec<CheckpointingAction>,
 }
 
 /// Determines if a checkpoint should impact the n_required values (Main)
 /// or if it should just keep the state in case it's required (Backup)
+///
 pub(crate) enum ActionType {
-    Main,
+    /// Explicit actions have been explicitly requested by some operation to retrieve their state
+    Explicit,
+    /// Backup actions are not always needed. They exist to save the output of an operation
+    /// whose child is memory bound, in case the state is indirectly needed when computing
+    /// the child's retro_forward. If no explicit action ever asks for the child's output, then
+    /// the backup output will go out of scope when the checkpointer is built.
     Backup,
 }
 
@@ -71,7 +77,7 @@ impl CheckpointerBuilder {
         action_type: ActionType,
     ) {
         let action_list = match action_type {
-            ActionType::Main => &mut self.main_actions,
+            ActionType::Explicit => &mut self.explicit_actions,
             ActionType::Backup => &mut self.backup_actions,
         };
         match &tensor.node.properties {
@@ -91,8 +97,8 @@ impl CheckpointerBuilder {
     }
 
     pub(crate) fn extend(&mut self, other: CheckpointerBuilder) {
-        for other_action in other.main_actions {
-            self.main_actions.push(other_action)
+        for other_action in other.explicit_actions {
+            self.explicit_actions.push(other_action)
         }
         for other_unsure in other.backup_actions {
             self.backup_actions.push(other_unsure)
@@ -100,7 +106,7 @@ impl CheckpointerBuilder {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.main_actions.len() + self.backup_actions.len()
+        self.explicit_actions.len() + self.backup_actions.len()
     }
 
     pub(crate) fn build(self, graph: &NodeSteps) -> Checkpointer {
@@ -130,7 +136,11 @@ impl CheckpointerBuilder {
 
     fn find_stop_nodes(&self) -> Vec<NodeID> {
         let mut stop_nodes = Vec::default();
-        for action in self.main_actions.iter().chain(self.backup_actions.iter()) {
+        for action in self
+            .explicit_actions
+            .iter()
+            .chain(self.backup_actions.iter())
+        {
             match action {
                 CheckpointingAction::Computed {
                     node_ref,
@@ -152,7 +162,7 @@ impl CheckpointerBuilder {
     ) -> HashMap<NodeID, usize> {
         let mut n_required_map = HashMap::<NodeID, usize>::default();
 
-        for action in self.main_actions.iter() {
+        for action in self.explicit_actions.iter() {
             match action {
                 CheckpointingAction::Computed {
                     node_ref,
@@ -173,7 +183,7 @@ impl CheckpointerBuilder {
                     retro_forward: _,
                 } => {
                     let id = node_ref.id.clone();
-                    Self::find_n_required_of_parents(
+                    Self::update_n_required_of_parents(
                         id,
                         &mut n_required_map,
                         node_tree,
@@ -193,18 +203,19 @@ impl CheckpointerBuilder {
         n_required_map: HashMap<NodeID, usize>,
     ) {
         // We do not loop over checkpointing actions anymore because they can contain
-        // duplicates or miss some that are in backup
+        // duplicates or miss some that are in backup. We loop over the n_required_map
+        // from which we use the ids to find them again in the checkpointing actions
         for (node_id, n_required) in n_required_map {
             // We find the checkpointing action for node_id. It's likely in checkpointing_actions
             // so we check there first, otherwise it will be in backup.
             // Technically it can be there several times but can never be of both types, so we can assume the first we find is fine
 
             let action = match self
-                .main_actions
+                .explicit_actions
                 .iter()
                 .position(|action| action.id() == node_id)
             {
-                Some(pos) => self.main_actions.remove(pos),
+                Some(pos) => self.explicit_actions.remove(pos),
                 None => {
                     let pos = self
                         .backup_actions
@@ -245,7 +256,7 @@ impl CheckpointerBuilder {
         NodeTree::new(tree)
     }
 
-    fn find_n_required_of_parents(
+    fn update_n_required_of_parents(
         id: NodeID,
         n_required_map: &mut HashMap<NodeID, usize>,
         node_tree: &NodeTree,
@@ -260,7 +271,7 @@ impl CheckpointerBuilder {
                 if !stop_nodes.contains(&id) {
                     if let Some(parents) = node_tree.parents(&id) {
                         for p in parents {
-                            Self::find_n_required_of_parents(
+                            Self::update_n_required_of_parents(
                                 p,
                                 n_required_map,
                                 node_tree,

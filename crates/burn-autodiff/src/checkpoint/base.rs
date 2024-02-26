@@ -47,6 +47,10 @@ impl Checkpointer {
 
     /// Sorts the ancestors of NodeID in a way such that all parents come before their children
     /// Useful to avoid recursivity later when mutating the states
+    ///
+    /// The sort on a compute bound state or a memory bound that is already computed is trivial.
+    /// The match on State::Computed also serves as a stopping criterion for the sort,
+    /// we don't need to look higher than that during recursivity.
     fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
         match self.backward_states.get_state_ref(&node_id) {
             Some(state) => match state {
@@ -57,7 +61,6 @@ impl Checkpointer {
                         let parent_sorted = self.topological_sort(parent_node);
                         for ps in parent_sorted {
                             if !sorted.contains(&ps) {
-                                println!("yo");
                                 sorted.push(ps)
                             }
                         }

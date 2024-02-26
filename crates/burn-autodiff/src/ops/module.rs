@@ -35,6 +35,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
         match Embedding
             .prepare::<C>([weights.node], [weights.graph])
+            .compute_bound()
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(

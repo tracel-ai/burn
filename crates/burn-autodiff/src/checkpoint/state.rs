@@ -81,9 +81,7 @@ impl BackwardStates {
         // If still needed after giving ownership, we copy it back to the hashmap
         if remaining_n_required > 0 {
             let new_stored_state = match state {
-                State::Recompute { n_required: _ } => State::Recompute {
-                    n_required: remaining_n_required,
-                },
+                State::Recompute { n_required: _ } => unreachable!(),
                 State::Computed {
                     state_content,
                     n_required: _,
