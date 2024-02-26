@@ -182,7 +182,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.sum()`                                                   | `tensor.sum()`                                 |
 | `tensor.mean_dim(dim)`                                           | `tensor.mean(dim)`                             |
 | `tensor.sum_dim(dim)`                                            | `tensor.sum(dim)`                              |
-| `tensor.equal_elem(other)`                                       | `tensor.eq(other)`                             |
+| `tensor.equal_elem(scalar)`                                      | `tensor.eq(scalar)`                            |
 | `tensor.greater(other)`                                          | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                    | `tensor.gt(scalar)`                            |
 | `tensor.greater_equal(other)`                                    | `tensor.ge(other)`                             |
