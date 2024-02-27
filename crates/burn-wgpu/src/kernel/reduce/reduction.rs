@@ -12,7 +12,7 @@ use crate::{
 };
 use burn_tensor::Shape;
 
-use super::ReduceDimEagerKernel;
+use super::{ReduceDim, ReduceDimEagerKernel, SumDim};
 
 kernel_wgsl!(
     RecursiveSumRaw,
@@ -23,14 +23,7 @@ kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
 
 pub(crate) struct ArgsMax;
 pub(crate) struct ArgsMin;
-pub(crate) struct SumDim;
 pub(crate) struct MeanDim;
-
-impl StaticKernelSource for SumDim {
-    fn source() -> SourceTemplate {
-        ReductionDimRaw::source().register("assign", "output[id] = sum;")
-    }
-}
 
 impl StaticKernelSource for MeanDim {
     fn source() -> SourceTemplate {
@@ -96,9 +89,18 @@ pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
+    reduce_dim_new::<SumDim, R, E, D>(input, output, dim)
+}
+
+/// Execute the sum dim kernel.
+pub(crate) fn reduce_dim_new<RD: ReduceDim, R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
     let kernel = ReduceDimEagerKernel::new(dim);
 
-    execute_dynamic::<R, ReduceDimEagerKernel<R, E>, E>(
+    execute_dynamic::<R, ReduceDimEagerKernel<RD, R, E>, E>(
         &[EagerHandle::new(
             &input.handle,
             &input.strides,
@@ -124,7 +126,7 @@ pub fn int_sum_dim<R: Runtime, E: JitElement, const D: usize>(
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduction_dim::<SumDim, R, E, D>(input, output, dim)
+    reduce_dim_new::<SumDim, R, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
@@ -252,11 +254,13 @@ mod tests {
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val =
-            Tensor::<TestBackend, 2>::from_primitive(reduction_dim::<SumDim, TestRuntime, f32, 2>(
-                tensor.into_primitive(),
-                output,
-                reduce_dim,
-            ));
+            Tensor::<TestBackend, 2>::from_primitive(
+                reduce_dim_new::<SumDim, TestRuntime, f32, 2>(
+                    tensor.into_primitive(),
+                    output,
+                    reduce_dim,
+                ),
+            );
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);

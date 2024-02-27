@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
         Compilation, CompilationInfo, CompilationSettings, Compiler, InputInfo, OutputInfo,
     },
     element::JitElement,
@@ -10,20 +10,82 @@ use crate::{
     Runtime,
 };
 
-pub(crate) struct ReduceDimComputeShader {
+pub(crate) trait ReduceDim: Send + Sync + 'static {
+    fn initialize(scope: &mut Scope, output_item: Item) -> Variable;
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, current_value: Variable);
+    fn assign(
+        scope: &mut Scope,
+        output: Variable,
+        accumulator: Variable,
+        shape_reduce_dim: Variable,
+    );
+}
+
+pub(crate) struct SumDim;
+
+impl ReduceDim for SumDim {
+    fn initialize(scope: &mut Scope, output_item: Item) -> Variable {
+        scope.zero(output_item)
+    }
+
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable) {
+        gpu!(scope, accumulator += value);
+    }
+
+    fn assign(
+        scope: &mut Scope,
+        output: Variable,
+        accumulator: Variable,
+        _shape_reduce_dim: Variable,
+    ) {
+        let id = Variable::Id;
+        gpu!(scope, output[id] = accumulator);
+    }
+}
+
+pub(crate) struct MeanDim;
+
+impl ReduceDim for MeanDim {
+    fn initialize(scope: &mut Scope, output_item: Item) -> Variable {
+        scope.zero(output_item)
+    }
+
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable) {
+        gpu!(scope, accumulator += value);
+    }
+
+    fn assign(
+        scope: &mut Scope,
+        output: Variable,
+        accumulator: Variable,
+        shape_reduce_dim: Variable,
+    ) {
+        let id = Variable::Id;
+        let denominator = scope.create_local(accumulator.item());
+        gpu!(scope, denominator = cast(shape_reduce_dim));
+        gpu!(scope, accumulator = accumulator / denominator);
+        gpu!(scope, output[id] = accumulator);
+    }
+}
+
+pub(crate) struct ReduceDimComputeShader<RD: ReduceDim> {
     tensor: Variable,
     dim: usize,
     output: Variable,
+    reduce_dim: PhantomData<RD>,
 }
 
 #[derive(new)]
-pub(crate) struct ReduceDimEagerKernel<R: Runtime, E: JitElement> {
+pub(crate) struct ReduceDimEagerKernel<RD: ReduceDim, R: Runtime, E: JitElement> {
     dim: usize,
+    reduce_dim: PhantomData<RD>,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for ReduceDimEagerKernel<R, E> {
+impl<RD: ReduceDim, R: Runtime, E: JitElement> DynamicKernelSource
+    for ReduceDimEagerKernel<RD, R, E>
+{
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
@@ -36,6 +98,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for ReduceDimEagerKernel<R, 
             tensor,
             dim: self.dim,
             output,
+            reduce_dim: PhantomData::<RD>,
         }
         .expand(&mut scope);
 
@@ -65,7 +128,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for ReduceDimEagerKernel<R, 
     }
 }
 
-impl ReduceDimComputeShader {
+impl<RD: ReduceDim> ReduceDimComputeShader<RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();
@@ -105,7 +168,7 @@ impl ReduceDimComputeShader {
             })
         );
 
-        let sum = scope.zero(tensor.item());
+        let accumulator = RD::initialize(scope, output.item());
 
         gpu!(
             scope,
@@ -115,10 +178,10 @@ impl ReduceDimComputeShader {
                 gpu!(scope, index += offset_input);
                 let value = scope.create_local(tensor.item());
                 gpu!(scope, value = tensor[index]);
-                gpu!(scope, sum += value);
+                RD::inner_loop(scope, accumulator, value);
             })
         );
 
-        gpu!(scope, output[id] = sum);
+        RD::assign(scope, output, accumulator, shape_input_dim);
     }
 }
