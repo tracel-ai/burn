@@ -354,6 +354,22 @@ mod tests {
     }
 
     #[test]
+    fn should_support_bool_not_equal() {
+        let data_1 = Data::from([[false, true, true], [true, false, true]]);
+        let data_2 = Data::from([[false, false, true], [false, true, true]]);
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &device);
+        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2, &device);
+
+        let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
+        let data_actual_inplace = tensor_1.not_equal(tensor_2);
+
+        let data_expected = Data::from([[false, true, false], [true, true, false]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
+    #[test]
     fn should_support_bool_not() {
         let data_1 = Data::from([[false, true, true], [true, true, false]]);
         let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &Default::default());
