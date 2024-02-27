@@ -1,7 +1,17 @@
+use std::marker::PhantomData;
+
 use crate::{
+    codegen::{
+        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
+        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        InputInfo, OutputInfo, WorkgroupLaunch,
+    },
     compute::StaticKernel,
     element::JitElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
+    kernel::{
+        build_info, elemwise_workgroup, into_contiguous, DynamicKernelSource, KernelSettings,
+        SourceTemplate, WORKGROUP_DEFAULT,
+    },
     kernel_wgsl,
     ops::numeric::empty_device,
     tensor::JitTensor,
@@ -14,33 +24,141 @@ kernel_wgsl!(
     "../../template/index/select_assign_inplace.wgsl"
 );
 
+#[derive(new)]
+struct SelectEagerKernel<R: Runtime, E: JitElement> {
+    dim: usize,
+    _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
+}
+
+pub struct SelectComputeShader {
+    input: Variable,
+    indices: Variable,
+    output: Variable,
+    dim: usize,
+}
+
+impl SelectComputeShader {
+    pub fn expand(self, scope: &mut Scope) {
+        let input = self.input;
+        let indices = self.indices;
+        let output = self.output;
+        let id = Variable::Id;
+        let offset_input = scope.zero(Elem::UInt);
+
+        gpu!(
+            scope,
+            range(0u32, Variable::Rank).for_each(|i, scope| {
+                let stride_input = scope.create_local(Elem::UInt);
+                let stride_output = scope.create_local(Elem::UInt);
+                let shape_output = scope.create_local(Elem::UInt);
+
+                gpu!(scope, stride_input = stride(input, i));
+                gpu!(scope, stride_output = stride(output, i));
+                gpu!(scope, shape_output = shape(output, i));
+
+                let offset_local = scope.create_local(Elem::UInt);
+                gpu!(scope, offset_local = id / stride_output);
+                gpu!(scope, offset_local = offset_local % shape_output);
+
+                let dim_index = scope.create_local(Elem::Bool);
+                gpu!(scope, dim_index = i == self.dim);
+
+                gpu!(scope, if(dim_index).then(|scope| {
+                    gpu!(scope, offset_local = indices[offset_local]);
+                    gpu!(scope, offset_local = offset_local * stride_input);
+                }).else(|scope| {
+                    gpu!(scope, offset_local = offset_local * stride_input);
+                }));
+
+                gpu!(scope, offset_input += offset_local);
+            })
+        );
+
+        let value = scope.create_local(input.item());
+        gpu!(scope, value = input[offset_input]);
+        gpu!(scope, output[id] = value);
+    }
+}
+
+impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectEagerKernel<R, E> {
+    fn source(&self) -> crate::kernel::SourceTemplate {
+        let mut scope = Scope::root();
+        let item = E::gpu_elem().into();
+        let item_indices: Item = Elem::Int.into();
+
+        let input = Variable::GlobalInputArray(0, item);
+        let indices = Variable::GlobalInputArray(1, item_indices);
+        let output = Variable::GlobalOutputArray(0, item);
+
+        scope.write_global_custom(output);
+
+        SelectComputeShader {
+            input,
+            indices,
+            output,
+            dim: self.dim,
+        }
+        .expand(&mut scope);
+
+        let input = InputInfo::Array {
+            item,
+            visibility: Visibility::Read,
+        };
+        let indices = InputInfo::Array {
+            item: item_indices,
+            visibility: Visibility::Read,
+        };
+        let output = OutputInfo::Array { item };
+
+        let info = CompilationInfo {
+            inputs: vec![input, indices],
+            outputs: vec![output],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    }
+}
+
 pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,
 ) -> JitTensor<R, E, D> {
-    let mut output_shape = tensor.shape.clone();
-    output_shape.dims[dim] = indices.shape.dims[0];
+    let mut shape_output = tensor.shape.clone();
+    shape_output.dims[dim] = indices.shape.dims[0];
 
-    let num_elems = output_shape.num_elements();
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), output_shape);
+    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let kernel = SelectEagerKernel::new(dim);
+    println!("output {:?} - {:?}", output.strides, output.shape);
 
-    let mut info = build_info(&[&tensor, &output]);
-    info.push(dim as u32);
-
-    let info_handle = output.client.create(bytemuck::cast_slice(&info));
-    let kernel = StaticKernel::<
-        KernelSettings<IndexSelect, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-
-    tensor.client.execute(
-        Box::new(kernel),
+    execute_dynamic::<R, SelectEagerKernel<R, E>, E>(
         &[
-            &tensor.handle,
-            &indices.handle,
-            &output.handle,
-            &info_handle,
+            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
+            EagerHandle::new(&indices.handle, &[1; D], &[1; D]), // This is a current hacks because
+                                                                 // the info buffer that contains
+                                                                 // the strides and shapes is
+                                                                 // hardcoded to only contains
+                                                                 // information about tensors of
+                                                                 // the same rank.
         ],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        None,
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        tensor.client,
     );
 
     output
