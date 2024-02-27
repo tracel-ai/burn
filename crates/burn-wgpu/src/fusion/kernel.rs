@@ -31,11 +31,13 @@ pub struct FusionKernel<R: Runtime> {
 }
 
 pub trait FusionKernelFactory<R: Runtime> {
+    /// Create a new kernel.
     fn create(
         &self,
         handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
+        stateful: bool, // Should be set to false when running autotune.
     ) -> FusionKernel<R>;
 }
 
@@ -123,6 +125,7 @@ impl<R: Runtime> FusionKernel<R> {
             &handles_input,
             &inputs_description_updated,
             &outputs_description_updated,
+            stateful,
         );
 
         let rank_input = running_info

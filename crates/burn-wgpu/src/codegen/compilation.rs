@@ -127,17 +127,24 @@ impl CompilationSettings {
     /// Two optimizations are done here:
     ///
     /// 1. Find and remove unnecessary broadcasting procedures based on runtime tensor layouts.
-    /// 2. Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
-    ///    descriptions.
+    ///
+    /// 2. (Optional) Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
+    ///    descriptions. This is enabled only when stateful is set to true.
     pub fn dynamic_settings<R: Runtime>(
         self,
         info: &CompilationInfo,
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
+        stateful: bool,
     ) -> Self {
-        self.dynamic_reading_strategy(info, inputs, outputs, handles_inputs)
-            .dynamic_inplace(info, inputs, outputs, handles_inputs)
+        let mut settings = self.dynamic_reading_strategy(info, inputs, outputs, handles_inputs);
+
+        if stateful {
+            settings = settings.dynamic_inplace(info, inputs, outputs, handles_inputs);
+        }
+
+        settings
     }
 
     #[cfg(feature = "fusion")]
@@ -148,35 +155,30 @@ impl CompilationSettings {
         outputs: &[&TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
-        let input_arrays = info.inputs.iter().filter(|input| match &input {
-            InputInfo::Array { item:_ , visibility:_ } => true,
-            InputInfo::Scalar { elem:_, size:_ } => false,
-        });
-        let output_arrays = info.outputs.iter(); // All arrays
-
         let mut potential_inplace = inputs
             .iter()
-            .zip(input_arrays)
+            .zip(info.inputs.iter())
             .enumerate()
-            .filter(|(pos, (desc, _input))| {
-                let handle = &handles_inputs[*pos];
+            .filter_map(|(pos, (desc, input))| {
+                let handle = &handles_inputs[pos];
 
                 if !is_contiguous(&handle.strides) {
-                    return false;
+                    return None;
                 }
 
                 match desc.status {
-                    burn_fusion::TensorStatus::ReadOnly => false,
-                    burn_fusion::TensorStatus::ReadWrite => true,
-                    burn_fusion::TensorStatus::NotInit => false,
-                }
+                    burn_fusion::TensorStatus::ReadOnly => return None,
+                    burn_fusion::TensorStatus::NotInit => return None,
+                    burn_fusion::TensorStatus::ReadWrite => (),
+                };
+
+                Some((pos, desc, input))
             })
-            .map(|(pos, (desc, input))| (pos, desc, input))
             .collect::<Vec<_>>();
 
         let mappings = outputs
             .iter()
-            .zip(output_arrays)
+            .zip(info.outputs.iter())
             .enumerate()
             .filter_map(|(pos, (desc, output))| {
                 if potential_inplace.is_empty() {
@@ -198,8 +200,8 @@ impl CompilationSettings {
                     None => return None,
                 };
 
-                let input = potential_inplace.remove(index);
-                Some(InplaceMapping::new(input.0, pos))
+                let (pos_input, _desc, _info) = potential_inplace.remove(index);
+                Some(InplaceMapping::new(pos_input, pos))
             })
             .collect::<Vec<_>>();
 

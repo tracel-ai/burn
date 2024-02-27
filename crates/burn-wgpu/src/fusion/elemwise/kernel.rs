@@ -28,6 +28,7 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
+        stateful: bool,
     ) -> FusionKernel<R> {
         let workgroup_size_x = self.grid.x;
         let workgroup_size_y = self.grid.y;
@@ -44,7 +45,7 @@ impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
         let mut settings = CompilationSettings::default();
         let mut factor = 1;
 
-        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs);
+        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs, stateful);
 
         if vectorize_4 {
             settings = settings.vectorize(gpu::Vectorization::Vec4);
