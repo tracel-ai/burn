@@ -218,7 +218,7 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_equal<const D: usize>(lhs: BoolTensor<B, D>, rhs: BoolTensor<B, D>)
         -> BoolTensor<B, D>;
 
-    /// Elementwise non-equality comparison.
+    /// Element-wise non-equality comparison.
     ///
     /// # Arguments
     ///

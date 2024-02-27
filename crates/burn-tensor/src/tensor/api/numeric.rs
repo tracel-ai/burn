@@ -1641,7 +1641,7 @@ where
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a float tensor
+    /// Element-wise power of a tensor to a float tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1649,7 +1649,7 @@ where
     fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor
+    /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1657,7 +1657,7 @@ where
     fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar float
+    /// Element-wise power of a tensor to a scalar float
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1667,7 +1667,7 @@ where
         rhs: E,
     ) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar int
+    /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.

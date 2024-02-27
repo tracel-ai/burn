@@ -400,7 +400,7 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
     }
 
-    /// Calculates the reciprocals elementwise
+    /// Calculates the reciprocals element-wise
     fn float_recip<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Transposes a tensor.
@@ -602,7 +602,7 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatTensor<B, D>,
     ) -> BoolTensor<B, D>;
 
-    /// Elementwise non-equality comparison.
+    /// Element-wise non-equality comparison.
     ///
     /// # Arguments
     ///
@@ -635,7 +635,7 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D>;
 
-    /// Elementwise non-equality comparison with a scalar.
+    /// Element-wise non-equality comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -902,7 +902,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
     fn float_log1p<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Elementwise power with a FloatTensor.
+    /// Element-wise power with a FloatTensor.
     ///
     /// # Arguments
     ///
@@ -917,7 +917,7 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatTensor<B, D>,
     ) -> FloatTensor<B, D>;
 
-    /// Elementwise power with an IntTensor.
+    /// Element-wise power with an IntTensor.
     ///
     /// # Arguments
     ///
