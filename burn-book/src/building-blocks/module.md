@@ -14,7 +14,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     linear_inner: Linear<B>,
     linear_outer: Linear<B>,
     dropout: Dropout,
-    gelu: GELU,
+    gelu: Gelu,
 }
 
 impl<B: Backend> PositionWiseFeedForward<B> {
@@ -112,8 +112,10 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `BatchNorm` | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc. |
 | `LayerNorm` | `nn.LayerNorm`                          |
 | `GroupNorm` | `nn.GroupNorm`                          |
+| `InstanceNorm` | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `Dropout`   | `nn.Dropout`                            |
-| `GELU`      | `nn.GELU`                               |
+| `Gelu`      | `nn.Gelu`                               |
+| `Prelu`     | `nn.PReLu`                              |
 | `Linear`    | `nn.Linear`                             |
 | `Embedding` | `nn.Embedding`                          |
 | `Relu`      | `nn.ReLU`                               |
@@ -160,4 +162,4 @@ Burn comes with built-in modules that you can use to build your own modules.
 | Burn API           | PyTorch Equivalent    |
 | ------------------ | --------------------- |
 | `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
-| `MSELoss`          | `nn.MSELoss`          |
+| `MseLoss`          | `nn.MSELoss`          |
