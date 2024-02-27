@@ -1,12 +1,12 @@
 use std::env::args;
 use std::path::Path;
 
-use burn::backend::ndarray::NdArray;
-use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
-use burn::tensor::Tensor;
-
-use burn::data::dataset::vision::MnistDataset;
-use burn::data::dataset::Dataset;
+use burn::{
+    backend::ndarray::NdArray,
+    data::dataset::{vision::MnistDataset, Dataset},
+    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
+    tensor::Tensor,
+};
 
 use model::Model;
 

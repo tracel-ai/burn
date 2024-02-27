@@ -8,17 +8,12 @@ use burn::train::{
     ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 };
 use burn::{
-    self,
-    config::Config,
     data::dataloader::DataLoaderBuilder,
-    module::Module,
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
+    prelude::*,
     record::CompactRecorder,
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Int, Tensor,
-    },
+    tensor::{backend::AutodiffBackend, Int},
 };
 
 impl<B: Backend> Model<B> {

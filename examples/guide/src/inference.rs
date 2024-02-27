@@ -1,10 +1,9 @@
 use crate::{data::MnistBatcher, training::TrainingConfig};
 use burn::data::dataset::vision::MnistItem;
 use burn::{
-    config::Config,
     data::dataloader::batcher::Batcher,
+    prelude::*,
     record::{CompactRecorder, Recorder},
-    tensor::backend::Backend,
 };
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {

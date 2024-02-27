@@ -1,4 +1,4 @@
-use burn::tensor::{backend::Backend, Tensor};
+use burn::prelude::*;
 
 // Values are taken from the [ONNX SqueezeNet]
 // (https://github.com/onnx/models/tree/main/vision/classification/squeezenet#preprocessing)

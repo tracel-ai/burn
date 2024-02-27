@@ -3,7 +3,8 @@ use burn::{
         dataloader::batcher::Batcher,
         dataset::vision::{Annotation, ImageDatasetItem, PixelDepth},
     },
-    tensor::{backend::Backend, Data, Device, ElementConversion, Int, Shape, Tensor},
+    prelude::*,
+    tensor::{Int, Shape},
 };
 
 // CIFAR-10 mean and std values

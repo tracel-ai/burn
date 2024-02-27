@@ -10,10 +10,9 @@ use crate::{
     training::ExperimentConfig,
 };
 use burn::{
-    config::Config,
     data::dataloader::batcher::Batcher,
+    prelude::*,
     record::{CompactRecorder, Recorder},
-    tensor::backend::Backend,
 };
 use std::sync::Arc;
 

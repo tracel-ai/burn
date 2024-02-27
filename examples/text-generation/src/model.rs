@@ -1,15 +1,13 @@
 use crate::data::TrainingTextGenerationBatch;
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         attention::generate_autoregressive_mask,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{AutodiffBackend, Backend},
-    tensor::Tensor,
+    prelude::*,
+    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 

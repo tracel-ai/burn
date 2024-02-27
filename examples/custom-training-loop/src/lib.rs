@@ -2,15 +2,12 @@ use std::marker::PhantomData;
 
 use burn::data::dataset::vision::MnistDataset;
 use burn::{
-    config::Config,
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
     optim::{AdamConfig, GradientsParams, Optimizer},
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        ElementConversion, Int, Tensor,
-    },
+    prelude::*,
+    tensor::{backend::AutodiffBackend, Int},
 };
 use guide::{
     data::{MnistBatch, MnistBatcher},

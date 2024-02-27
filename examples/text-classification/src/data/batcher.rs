@@ -14,7 +14,8 @@ use super::{dataset::TextClassificationItem, tokenizer::Tokenizer};
 use burn::{
     data::dataloader::batcher::Batcher,
     nn::attention::generate_padding_mask,
-    tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Tensor},
+    prelude::*,
+    tensor::{Bool, Int},
 };
 use std::sync::Arc;
 

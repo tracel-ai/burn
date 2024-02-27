@@ -1,6 +1,7 @@
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-    tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
+    prelude::*,
+    tensor::Int,
 };
 
 pub struct MnistBatcher<B: Backend> {
