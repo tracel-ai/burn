@@ -879,36 +879,35 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
     }
 
     fn interpolate(
-        _x: AutodiffTensor<B, 4>,
-        _output_size: [usize; 2],
-        _options: InterpolateOptions,
+        x: AutodiffTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
     ) -> AutodiffTensor<B, 4> {
         #[derive(Debug)]
         struct Interpolate;
-        impl<B: Backend> Backward<B, 4, 3> for Interpolate {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<1>,
-                ConvOptions<2>,
-            );
+        impl<B: Backend> Backward<B, 4, 1> for Interpolate {
+            type State = B::FloatTensorPrimitive<4>;
 
             fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
-                let [node_x, node_weight, node_bias] = ops.parents;
+                let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, options) = ops.state;
-                let backward = B::conv2d_backward(x, weight, Some(bias), grad, options);
+                let (x, output_size, options) = ops.state;
 
-                if let Some(node) = node_x {
-                    grads.register::<B, 4>(node, backward.x_grad)
+                if let Some(node) = node_parent {
+                    let grad = B::interpolate_backward(x, grad, output_size, options);
+                    grads.register::<B, 4>(node, grad);
                 }
-                if let Some(node) = node_weight {
-                    grads.register::<B, 4>(node, backward.weights_grad)
-                }
-                if let Some(node) = node_bias {
-                    grads.register::<B, 1>(node, backward.bias_grad.unwrap())
-                }
+            }
+        }
+
+        match Interpolate.prepare([x.node], [x.graph]).stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::interpolate(x.primitive.clone(), output_size, options.clone());
+                prep.finish((x.primitive, output_size, options), output)
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::interpolate(x.primitive, output_size, options))
             }
         }
     }
