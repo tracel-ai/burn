@@ -261,7 +261,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         #[cfg(not(feature = "autotune"))]
         {
             let output = init_reduce_output(&tensor, dim);
-            reduce::sum_dim(tensor, output, dim)
+            reduce::sum_dim_naive(tensor, output, dim)
         }
     }
 
@@ -274,7 +274,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         #[cfg(not(feature = "autotune"))]
         {
             let output = init_reduce_output(&tensor, dim);
-            reduce::int_mean_dim(tensor, output, dim)
+            reduce::int_mean_dim_naive(tensor, output, dim)
         }
     }
 

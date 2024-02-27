@@ -1,106 +1,78 @@
 use crate::{
     codegen::{execute_dynamic, EagerHandle, WorkgroupLaunch},
-    compute::StaticKernel,
     element::JitElement,
-    kernel::{
-        build_info, elemwise_workgroup, KernelSettings, SourceTemplate, StaticKernelSource,
-        WORKGROUP_DEFAULT,
-    },
-    kernel_wgsl,
+    kernel::reduce,
     tensor::JitTensor,
     Runtime,
 };
 use burn_tensor::Shape;
 
-use super::{ReduceDim, ReduceDimEagerKernel, SumDim};
-
-kernel_wgsl!(
-    RecursiveSumRaw,
-    "../../template/reduction/recursive_sum.wgsl"
-);
-kernel_wgsl!(ReductionDimRaw, "../../template/reduction/reduce_dim.wgsl");
-kernel_wgsl!(ReductionArgsRaw, "../../template/reduction/args.wgsl");
-
-pub(crate) struct ArgsMax;
-pub(crate) struct ArgsMin;
-pub(crate) struct MeanDim;
-
-impl StaticKernelSource for MeanDim {
-    fn source() -> SourceTemplate {
-        ReductionDimRaw::source()
-            .add_template(
-                "fn mean_dim(sum: {{ elem }}, dim: u32) -> {{ elem }} { 
-    return sum / {{ elem }}(dim);
-}",
-            )
-            .register("assign", "output[id] = mean_dim(sum, shape_dim);")
-    }
-}
-
-impl StaticKernelSource for ArgsMax {
-    fn source() -> SourceTemplate {
-        ReductionArgsRaw::source()
-            .register("cmp", ">")
-            .register("initial", (-32767).to_string())
-    }
-}
-
-impl StaticKernelSource for ArgsMin {
-    fn source() -> SourceTemplate {
-        ReductionArgsRaw::source()
-            .register("cmp", "<")
-            .register("initial", 32767.to_string())
-    }
-}
+use super::{init_reduce_output, ArgMax, ArgMin, MeanDim, ReduceDim, ReduceDimEagerKernel, SumDim};
 
 /// Sum all elements in the input buffer.
 pub fn sum<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, 1> {
-    let mut input_handle = input.handle;
-    let mut workgroup = elemwise_workgroup(input.shape.num_elements(), WORKGROUP_DEFAULT);
+    let shape = Shape::new([input.shape.num_elements()]);
+    let input: JitTensor<R, E, 1> = JitTensor::new(input.client, input.device, shape, input.handle);
+    sum_dim(input, 0)
+}
 
-    loop {
-        let num_invocations = workgroup.num_invocations();
-        let handle = input
-            .client
-            .empty(core::mem::size_of::<E>() * num_invocations);
+pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    #[cfg(feature = "autotune")]
+    {
+        reduce::sum_dim_autotune(tensor, dim)
+    }
 
-        let kernel = StaticKernel::<
-            KernelSettings<RecursiveSumRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-        >::new(workgroup);
+    #[cfg(not(feature = "autotune"))]
+    {
+        let output = init_reduce_output(&tensor, dim);
+        reduce::sum_dim_naive(tensor, output, dim)
+    }
+}
 
-        input
-            .client
-            .execute(Box::new(kernel), &[&input_handle, &handle]);
+pub fn mean_dim<R: Runtime, E: JitElement, const D: usize>(
+    tensor: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    #[cfg(feature = "autotune")]
+    {
+        reduce::mean_dim_autotune(tensor, dim)
+    }
 
-        if num_invocations <= 1 {
-            return JitTensor::new(input.client, input.device, Shape::new([1]), handle);
-        }
-
-        input_handle = handle;
-        workgroup = elemwise_workgroup(num_invocations, WORKGROUP_DEFAULT);
+    #[cfg(not(feature = "autotune"))]
+    {
+        let output = init_reduce_output(&tensor, dim);
+        reduce::mean_dim_naive(tensor, output, dim)
     }
 }
 
 /// Execute the sum dim kernel.
-pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
+pub fn sum_dim_naive<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduce_dim_new::<SumDim, R, E, D>(input, output, dim)
+    reduce_dim_naive::<SumDim, R, E, E, D>(input, output, dim)
 }
 
-/// Execute the sum dim kernel.
-pub(crate) fn reduce_dim_new<RD: ReduceDim, R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
+pub(crate) fn reduce_dim_naive<
+    RD: ReduceDim,
+    R: Runtime,
+    EI: JitElement,
+    EO: JitElement,
+    const D: usize,
+>(
+    input: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
     dim: usize,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, EO, D> {
     let kernel = ReduceDimEagerKernel::new(dim);
 
-    execute_dynamic::<R, ReduceDimEagerKernel<RD, R, E>, E>(
+    execute_dynamic::<R, ReduceDimEagerKernel<RD, R, EI, EO>, EI>(
         &[EagerHandle::new(
             &input.handle,
             &input.strides,
@@ -121,77 +93,34 @@ pub(crate) fn reduce_dim_new<RD: ReduceDim, R: Runtime, E: JitElement, const D: 
 }
 
 /// Execute the int sum dim kernel.
-pub fn int_sum_dim<R: Runtime, E: JitElement, const D: usize>(
+pub fn int_sum_dim_naive<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduce_dim_new::<SumDim, R, E, D>(input, output, dim)
+    reduce_dim_naive::<SumDim, R, E, E, D>(input, output, dim)
 }
 
 /// Execute the mean dim kernel.
-pub fn mean_dim<R: Runtime, E: JitElement, const D: usize>(
+pub fn mean_dim_naive<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduction_dim::<MeanDim, R, E, D>(input, output, dim)
+    reduce_dim_naive::<MeanDim, R, E, E, D>(input, output, dim)
 }
 
 /// Execute the int mean dim kernel.
-pub fn int_mean_dim<R: Runtime, E: JitElement, const D: usize>(
+pub fn int_mean_dim_naive<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduction_dim::<MeanDim, R, E, D>(input, output, dim)
-}
-
-fn reduction_dim<K: StaticKernelSource, R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, E, D> {
-    let kernel =
-        StaticKernel::<KernelSettings<K, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
-            elemwise_workgroup(output.shape.num_elements(), WORKGROUP_DEFAULT),
-        );
-
-    let mut info = build_info(&[&input, &output]);
-    info.push(dim as u32);
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
-
-    input.client.execute(
-        Box::new(kernel),
-        &[&input.handle, &output.handle, &info_handle],
-    );
-
-    output
+    reduce_dim_naive::<MeanDim, R, E, E, D>(input, output, dim)
 }
 
 /// Execute the argmax kernel.
 pub fn argmax<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, I, D> {
-    reduction_args_dim::<ArgsMax, R, E, I, D>(input, dim)
-}
-
-/// Execute the argmin kernel.
-pub fn argmin<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, I, D> {
-    reduction_args_dim::<ArgsMin, R, E, I, D>(input, dim)
-}
-
-fn reduction_args_dim<
-    K: StaticKernelSource,
-    R: Runtime,
-    E: JitElement,
-    I: JitElement,
-    const D: usize,
->(
     input: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, I, D> {
@@ -205,21 +134,25 @@ fn reduction_args_dim<
         shape_out,
         buffer,
     );
+    reduce_dim_naive::<ArgMax, R, E, I, D>(input, output, dim)
+}
 
-    let kernel =
-        StaticKernel::<KernelSettings<K, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>>::new(
-            elemwise_workgroup(num_elems, WORKGROUP_DEFAULT),
-        );
-    let mut info = build_info(&[&input, &output]);
-    info.push(dim as u32);
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
-
-    input.client.execute(
-        Box::new(kernel),
-        &[&input.handle, &output.handle, &info_handle],
+/// Execute the argmin kernel.
+pub fn argmin<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, I, D> {
+    let mut shape_out = input.shape.clone();
+    shape_out.dims[dim] = 1;
+    let num_elems = shape_out.num_elements();
+    let buffer = input.client.empty(num_elems * core::mem::size_of::<I>());
+    let output = JitTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out,
+        buffer,
     );
-
-    JitTensor::new(output.client, output.device, output.shape, output.handle)
+    reduce_dim_naive::<ArgMin, R, E, I, D>(input, output, dim)
 }
 
 #[cfg(test)]
@@ -254,13 +187,15 @@ mod tests {
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val =
-            Tensor::<TestBackend, 2>::from_primitive(
-                reduce_dim_new::<SumDim, TestRuntime, f32, 2>(
-                    tensor.into_primitive(),
-                    output,
-                    reduce_dim,
-                ),
-            );
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_naive::<
+                SumDim,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.sum_dim(1);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -287,8 +222,11 @@ mod tests {
 
         let summed_tensor = TestBackend::int_empty(summed_shape, &Default::default());
 
-        let val =
-            Tensor::<TestBackend, 1, Int>::from_primitive(int_sum_dim(tensor, summed_tensor, 0));
+        let val = Tensor::<TestBackend, 1, Int>::from_primitive(int_sum_dim_naive(
+            tensor,
+            summed_tensor,
+            0,
+        ));
 
         let sum_as_data = Data::from([10]);
         val.into_data().assert_approx_eq(&sum_as_data, 1);
@@ -302,8 +240,11 @@ mod tests {
 
         let mean_tensor = TestBackend::int_empty(mean_shape, &Default::default());
 
-        let val =
-            Tensor::<TestBackend, 1, Int>::from_primitive(int_mean_dim(tensor, mean_tensor, 0));
+        let val = Tensor::<TestBackend, 1, Int>::from_primitive(int_mean_dim_naive(
+            tensor,
+            mean_tensor,
+            0,
+        ));
 
         // Mean calculation truncates to an integer
         let mean_as_data = Data::from([2]);

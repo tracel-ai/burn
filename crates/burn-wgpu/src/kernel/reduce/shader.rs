@@ -11,12 +11,19 @@ use crate::{
 };
 
 pub(crate) trait ReduceDim: Send + Sync + 'static {
-    fn initialize(scope: &mut Scope, output_item: Item) -> Variable;
-    fn inner_loop(scope: &mut Scope, accumulator: Variable, current_value: Variable);
+    type Accumulator: Copy;
+
+    fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator;
+    fn inner_loop(
+        scope: &mut Scope,
+        accumulator: Self::Accumulator,
+        current_value: Variable,
+        i: Variable,
+    );
     fn assign(
         scope: &mut Scope,
         output: Variable,
-        accumulator: Variable,
+        accumulator: Self::Accumulator,
         shape_reduce_dim: Variable,
     );
 }
@@ -24,11 +31,13 @@ pub(crate) trait ReduceDim: Send + Sync + 'static {
 pub(crate) struct SumDim;
 
 impl ReduceDim for SumDim {
-    fn initialize(scope: &mut Scope, output_item: Item) -> Variable {
+    type Accumulator = Variable;
+
+    fn initialize(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
         scope.zero(output_item)
     }
 
-    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable) {
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable, i: Variable) {
         gpu!(scope, accumulator += value);
     }
 
@@ -46,11 +55,13 @@ impl ReduceDim for SumDim {
 pub(crate) struct MeanDim;
 
 impl ReduceDim for MeanDim {
-    fn initialize(scope: &mut Scope, output_item: Item) -> Variable {
+    type Accumulator = Variable;
+
+    fn initialize(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
         scope.zero(output_item)
     }
 
-    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable) {
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
         gpu!(scope, accumulator += value);
     }
 
@@ -68,6 +79,80 @@ impl ReduceDim for MeanDim {
     }
 }
 
+pub(crate) struct ArgMax;
+
+impl ReduceDim for ArgMax {
+    type Accumulator = (Variable, Variable);
+
+    fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator {
+        let max = scope.create_local(input_item);
+        let index = scope.create_local(Elem::UInt);
+        gpu!(scope, max = cast(-32767.0));
+        (max, index)
+    }
+
+    fn inner_loop(
+        scope: &mut Scope,
+        (max, index): Self::Accumulator,
+        value: Variable,
+        i: Variable,
+    ) {
+        let condition = scope.create_local(Elem::Bool);
+        gpu!(scope, condition = value > max);
+        gpu!(scope, if(condition).then(|scope| {
+            gpu!(scope, max = value);
+            gpu!(scope, index = i);
+        }));
+    }
+
+    fn assign(
+        scope: &mut Scope,
+        output: Variable,
+        (_max, index): Self::Accumulator,
+        _shape_reduce_dim: Variable,
+    ) {
+        let id = Variable::Id;
+        gpu!(scope, output[id] = index);
+    }
+}
+
+pub(crate) struct ArgMin;
+
+impl ReduceDim for ArgMin {
+    type Accumulator = (Variable, Variable);
+
+    fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator {
+        let min = scope.create_local(input_item);
+        let index = scope.create_local(Elem::UInt);
+        gpu!(scope, min = cast(32767.0));
+        (min, index)
+    }
+
+    fn inner_loop(
+        scope: &mut Scope,
+        (min, index): Self::Accumulator,
+        value: Variable,
+        i: Variable,
+    ) {
+        let condition = scope.create_local(Elem::Bool);
+        gpu!(scope, condition = value < min);
+        gpu!(scope, if(condition).then(|scope| {
+            gpu!(scope, min = value);
+            gpu!(scope, index = i);
+        }));
+    }
+
+    fn assign(
+        scope: &mut Scope,
+        output: Variable,
+        (_min, index): Self::Accumulator,
+        _shape_reduce_dim: Variable,
+    ) {
+        let id = Variable::Id;
+        gpu!(scope, output[id] = index);
+    }
+}
+
 pub(crate) struct ReduceDimComputeShader<RD: ReduceDim> {
     tensor: Variable,
     dim: usize,
@@ -76,23 +161,24 @@ pub(crate) struct ReduceDimComputeShader<RD: ReduceDim> {
 }
 
 #[derive(new)]
-pub(crate) struct ReduceDimEagerKernel<RD: ReduceDim, R: Runtime, E: JitElement> {
+pub(crate) struct ReduceDimEagerKernel<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> {
     dim: usize,
     reduce_dim: PhantomData<RD>,
     _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
+    _elem_in: PhantomData<EI>,
+    _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDim, R: Runtime, E: JitElement> DynamicKernelSource
-    for ReduceDimEagerKernel<RD, R, E>
+impl<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+    for ReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item_input = EI::gpu_elem().into();
+        let item_output = EO::gpu_elem().into();
 
-        let tensor = Variable::GlobalInputArray(0, item);
-
-        let output = Variable::GlobalOutputArray(0, item);
+        let tensor = Variable::GlobalInputArray(0, item_input);
+        let output = Variable::GlobalOutputArray(0, item_output);
 
         ReduceDimComputeShader {
             tensor,
@@ -105,11 +191,11 @@ impl<RD: ReduceDim, R: Runtime, E: JitElement> DynamicKernelSource
         scope.write_global_custom(output);
 
         let tensor = InputInfo::Array {
-            item,
+            item: item_input,
             visibility: Visibility::Read,
         };
 
-        let out = OutputInfo::Array { item };
+        let out = OutputInfo::Array { item: item_output };
 
         let info = CompilationInfo {
             inputs: vec![tensor],
@@ -168,7 +254,7 @@ impl<RD: ReduceDim> ReduceDimComputeShader<RD> {
             })
         );
 
-        let accumulator = RD::initialize(scope, output.item());
+        let accumulator = RD::initialize(scope, tensor.item(), output.item());
 
         gpu!(
             scope,
@@ -178,7 +264,7 @@ impl<RD: ReduceDim> ReduceDimComputeShader<RD> {
                 gpu!(scope, index += offset_input);
                 let value = scope.create_local(tensor.item());
                 gpu!(scope, value = tensor[index]);
-                RD::inner_loop(scope, accumulator, value);
+                RD::inner_loop(scope, accumulator, value, i);
             })
         );
 

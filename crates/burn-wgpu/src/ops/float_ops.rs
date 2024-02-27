@@ -316,32 +316,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        // #[cfg(feature = "autotune")]
-        // {
-        // reduce::sum_dim_autotune(tensor, dim)
-        // }
-
-        // #[cfg(not(feature = "autotune"))]
-        // {
-        let output = init_reduce_output(&tensor, dim);
-        reduce::sum_dim(tensor, output, dim)
-        // }
+        reduce::sum_dim(tensor, dim)
     }
 
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::mean_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::mean_dim(tensor, output, dim)
-        }
+        reduce::mean_dim(tensor, dim)
     }
 
     fn float_to_full_precision<const D: usize>(
