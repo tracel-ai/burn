@@ -138,13 +138,13 @@ impl CompilationSettings {
         handles_inputs: &[JitFusionHandle<R>],
         stateful: bool,
     ) -> Self {
-        let mut settings = self.dynamic_reading_strategy(info, inputs, outputs, handles_inputs);
+        let mut settings = self;
 
         if stateful {
             settings = settings.dynamic_inplace(info, inputs, outputs, handles_inputs);
         }
 
-        settings
+        settings.dynamic_reading_strategy(info, inputs, outputs, handles_inputs)
     }
 
     #[cfg(feature = "fusion")]
@@ -216,16 +216,9 @@ impl CompilationSettings {
         outputs: &[&TensorDescription],
         handles_inputs: &[JitFusionHandle<R>],
     ) -> Self {
-        let layout_ref = match info.scope.layout_ref {
-            Some(val) => val,
-            None => return self,
-        };
-
-        let layout_description = match layout_ref {
-            Variable::GlobalInputArray(id, _) => &inputs[id as usize],
-            Variable::GlobalOutputArray(id, _) => &outputs[id as usize],
-            _ => return self,
-        };
+        // First output is chosen for the layout reference.
+        // but all outputs should have the same shape anyways.
+        let layout_shape = &outputs[0].shape;
 
         for (input_id, strategy) in info.scope.read_globals() {
             if let ReadingStrategy::Plain = strategy {
@@ -236,7 +229,7 @@ impl CompilationSettings {
             let handle = &handles_inputs[index];
             let description_input = &inputs[index];
 
-            if description_input.shape != layout_description.shape {
+            if &description_input.shape != layout_shape {
                 continue;
             }
 
