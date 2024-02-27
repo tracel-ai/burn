@@ -1,4 +1,5 @@
 use crate::{
+    codegen::{execute_dynamic, EagerHandle, WorkgroupLaunch},
     compute::StaticKernel,
     element::JitElement,
     kernel::{
@@ -10,6 +11,8 @@ use crate::{
     Runtime,
 };
 use burn_tensor::Shape;
+
+use super::ReduceDimEagerKernel;
 
 kernel_wgsl!(
     RecursiveSumRaw,
@@ -93,7 +96,26 @@ pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
     output: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
-    reduction_dim::<SumDim, R, E, D>(input, output, dim)
+    let kernel = ReduceDimEagerKernel::new(dim);
+
+    execute_dynamic::<R, ReduceDimEagerKernel<R, E>, E>(
+        &[EagerHandle::new(
+            &input.handle,
+            &input.strides,
+            &input.shape.dims,
+        )],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        None,
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        input.client,
+    );
+
+    output
 }
 
 /// Execute the int sum dim kernel.

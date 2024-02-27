@@ -7,7 +7,7 @@ use crate::kernel::matmul::matmul_autotune;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-#[cfg(not(feature = "autotune"))]
+// #[cfg(not(feature = "autotune"))]
 use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
 use crate::tensor::JitTensor;
@@ -316,16 +316,16 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::sum_dim_autotune(tensor, dim)
-        }
+        // #[cfg(feature = "autotune")]
+        // {
+        // reduce::sum_dim_autotune(tensor, dim)
+        // }
 
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::sum_dim(tensor, output, dim)
-        }
+        // #[cfg(not(feature = "autotune"))]
+        // {
+        let output = init_reduce_output(&tensor, dim);
+        reduce::sum_dim(tensor, output, dim)
+        // }
     }
 
     fn float_mean_dim<const D: usize>(
