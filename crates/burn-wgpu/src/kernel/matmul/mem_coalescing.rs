@@ -185,7 +185,6 @@ impl<R: Runtime> DynamicKernelSource for MatmulEagerKernel<R> {
             inputs: vec![lhs, rhs],
             outputs: vec![out],
             scope,
-            mappings: vec![],
         };
 
         let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(

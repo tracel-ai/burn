@@ -21,11 +21,11 @@ pub struct Scope {
     index_offset_with_output_layout_position: Vec<usize>,
     writes_global: Vec<(Variable, Variable)>,
     reads_scalar: Vec<(Variable, Variable)>,
-    layout_ref: Option<Variable>,
+    pub layout_ref: Option<Variable>,
     undeclared: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum ReadingStrategy {
     /// Each element will be read in a way to be compatible with the output layout.
     OutputLayout,
@@ -168,6 +168,16 @@ impl Scope {
         {
             *strategy_old = strategy;
         }
+    }
+
+    pub(crate) fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
+        self.reads_global
+            .iter()
+            .map(|(var, strategy, _)| match var {
+                Variable::GlobalInputArray(id, _) => (*id, *strategy),
+                _ => panic!("Can only read global input arrays."),
+            })
+            .collect()
     }
 
     /// Register an [operation](Operation) into the scope.

@@ -110,7 +110,6 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for GatherEagerKernel<R, E> 
             inputs: vec![tensor, indices],
             outputs: vec![out],
             scope,
-            mappings: vec![],
         };
 
         let settings = CompilationSettings::default();

@@ -164,7 +164,6 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for ScatterEagerKernel<R, E>
             inputs: vec![input_output, indices, value],
             outputs: vec![],
             scope,
-            mappings: vec![],
         };
 
         let settings = CompilationSettings::default();

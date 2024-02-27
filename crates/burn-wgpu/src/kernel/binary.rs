@@ -52,7 +52,6 @@ macro_rules! binary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, I, O>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -81,7 +80,6 @@ macro_rules! binary {
                 inputs: vec![lhs, rhs],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -98,7 +96,7 @@ macro_rules! binary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, I, O>(settings, Vec::new())
+                compile::<C, I, O>(settings)
             }
         }
 
@@ -111,13 +109,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, I, O>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, I, O>(settings)
             }
         }
 
@@ -130,13 +128,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
                 };
-                compile::<C, I, O>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, I, O>(settings)
             }
         }
     };
