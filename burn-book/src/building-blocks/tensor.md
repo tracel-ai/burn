@@ -144,6 +144,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.to_device(device)`            | `tensor.to(device)`                  |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`           |
 | `tensor.equal(other)`                 | `x == y`                             |
+| `tensor.not_equal(other)`             | `x != y`                             |
 | `tensor.any()`                        | `tensor.any()`                       |
 | `tensor.any_dim(dim)`                 | `tensor.any(dim)`                    |
 | `tensor.all()`                        | `tensor.all()`                       |
@@ -183,6 +184,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mean_dim(dim)`                                           | `tensor.mean(dim)`                             |
 | `tensor.sum_dim(dim)`                                            | `tensor.sum(dim)`                              |
 | `tensor.equal_elem(scalar)`                                      | `tensor.eq(scalar)`                            |
+| `tensor.not_equal_elem(scalar)`                                  | `tensor.ne(scalar)`                            |
 | `tensor.greater(other)`                                          | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                    | `tensor.gt(scalar)`                            |
 | `tensor.greater_equal(other)`                                    | `tensor.ge(other)`                             |

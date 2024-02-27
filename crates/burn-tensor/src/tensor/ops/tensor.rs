@@ -602,6 +602,24 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatTensor<B, D>,
     ) -> BoolTensor<B, D>;
 
+    /// Elementwise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal<const D: usize>(
+        lhs: FloatTensor<B, D>,
+        rhs: FloatTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::float_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Equal comparison of a tensor and a scalar.
     ///
     /// # Arguments
@@ -616,6 +634,24 @@ pub trait FloatTensorOps<B: Backend> {
         lhs: FloatTensor<B, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D>;
+
+    /// Elementwise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal_elem<const D: usize>(
+        lhs: FloatTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::float_equal_elem(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
 
     /// Greater than comparison of two tensors.
     ///

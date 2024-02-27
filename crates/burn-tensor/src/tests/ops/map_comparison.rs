@@ -17,6 +17,15 @@ mod tests {
     fn test_int_equal() {
         equal::<Int, IntElem>()
     }
+    #[test]
+    fn test_not_equal() {
+        not_equal::<Float, FloatElem>()
+    }
+
+    #[test]
+    fn test_int_not_equal() {
+        not_equal::<Int, IntElem>()
+    }
 
     #[test]
     fn test_equal_elem() {
@@ -26,6 +35,16 @@ mod tests {
     #[test]
     fn test_int_equal_elem() {
         equal_elem::<Int, IntElem>()
+    }
+
+    #[test]
+    fn test_not_equal_elem() {
+        not_equal_elem::<Float, FloatElem>()
+    }
+
+    #[test]
+    fn test_int_not_equal_elem() {
+        not_equal_elem::<Int, IntElem>()
     }
 
     #[test]
@@ -127,6 +146,25 @@ mod tests {
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
 
+    fn not_equal<K, E>()
+    where
+        K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
+        E: Element,
+    {
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert();
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
+        let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
+
+        let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
+        let data_actual_inplace = tensor_1.not_equal(tensor_2);
+
+        let data_expected = Data::from([[true, false, true], [true, true, false]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
     fn equal_elem<K, E>()
     where
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
@@ -139,6 +177,22 @@ mod tests {
         let data_actual_inplace = tensor_1.equal_elem(2);
 
         let data_expected = Data::from([[false, false, true], [false, true, false]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
+    fn not_equal_elem<K, E>()
+    where
+        K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
+        E: Element,
+    {
+        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert();
+        let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
+
+        let data_actual_cloned = tensor_1.clone().not_equal_elem(2);
+        let data_actual_inplace = tensor_1.not_equal_elem(2);
+
+        let data_expected = Data::from([[true, true, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }

@@ -313,6 +313,24 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_equal<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D>;
 
+    /// Elementwise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn int_not_equal<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::int_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Elementwise equality comparison with a scalar.
     ///
     /// # Arguments
@@ -324,6 +342,24 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The boolean tensor with the result of the comparison.
     fn int_equal_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> BoolTensor<B, D>;
+
+    /// Elementwise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn int_not_equal_elem<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntElem<B>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::int_equal_elem(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
 
     /// Elementwise greater than comparison.
     ///
