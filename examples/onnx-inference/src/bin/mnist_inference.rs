@@ -1,10 +1,10 @@
 use std::env::args;
 
-use burn::backend::ndarray::NdArray;
-use burn::tensor::Tensor;
-
-use burn::data::dataset::vision::MnistDataset;
-use burn::data::dataset::Dataset;
+use burn::{
+    backend::ndarray::NdArray,
+    data::dataset::{vision::MnistDataset, Dataset},
+    tensor::Tensor,
+};
 
 use onnx_inference::mnist::Model;
 

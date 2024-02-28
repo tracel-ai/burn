@@ -17,7 +17,7 @@ at `examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/exa
 ```rust , ignore
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-    tensor::{backend::Backend, Data, ElementConversion, Int, Tensor},
+    prelude::*,
 };
 
 pub struct MnistBatcher<B: Backend> {
