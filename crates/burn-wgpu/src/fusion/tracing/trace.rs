@@ -1,5 +1,5 @@
 use super::Scalars;
-use crate::codegen::{dialect::gpu, CompilationInfo, InplaceMapping, InputInfo, OutputInfo};
+use crate::codegen::{dialect::gpu, CompilationInfo, InputInfo, OutputInfo};
 use burn_fusion::TensorDescription;
 use serde::{Deserialize, Serialize};
 
@@ -78,56 +78,10 @@ impl Trace {
             })
         }
 
-        let mut potential_inplace = self
-            .inputs
-            .iter()
-            .zip(inputs.iter())
-            .enumerate()
-            .filter(|(_pos, ((desc, _elem), _input))| match desc.status {
-                burn_fusion::TensorStatus::ReadOnly => false,
-                burn_fusion::TensorStatus::ReadWrite => true,
-                burn_fusion::TensorStatus::NotInit => false,
-            })
-            .map(|(pos, ((desc, elem), input))| (pos, desc, elem, input))
-            .collect::<Vec<_>>();
-
-        let mappings = self
-            .outputs
-            .iter()
-            .zip(outputs.iter())
-            .enumerate()
-            .filter_map(|(pos, ((desc, elem), _output))| {
-                if potential_inplace.is_empty() {
-                    return None;
-                }
-
-                let mut chosen = None;
-                for (index, (_pos_input, desc_input, elem_input, _input)) in
-                    potential_inplace.iter().enumerate()
-                {
-                    if chosen.is_some() {
-                        break;
-                    }
-                    if desc.shape == desc_input.shape && *elem_input == elem {
-                        chosen = Some(index);
-                    }
-                }
-
-                match chosen {
-                    Some(index) => {
-                        let input = potential_inplace.remove(index);
-                        Some(InplaceMapping::new(input.0, pos))
-                    }
-                    None => None,
-                }
-            })
-            .collect::<Vec<_>>();
-
         CompilationInfo {
             inputs,
             outputs,
             scope: self.scope.clone(),
-            mappings,
         }
     }
 }

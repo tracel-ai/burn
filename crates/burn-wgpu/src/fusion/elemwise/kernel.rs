@@ -1,238 +1,154 @@
 use crate::{
-    codegen::{calculate_num_elems_dyn_rank, Compiler, InplaceMapping},
-    compute::DynamicKernel,
+    codegen::{
+        calculate_num_elems_dyn_rank,
+        dialect::gpu::{self, WorkgroupSize},
+        CompilationInfo, CompilationSettings,
+    },
     fusion::{
-        kernel::{FusionKernel, OutputInfo, Priority, SelectedKernel},
-        source::GpuKernelSource,
+        kernel::{FusionKernel, FusionKernelFactory, OutputRuntimeInfo},
         JitFusionHandle,
     },
     kernel::elemwise_workgroup,
     Runtime,
 };
 use burn_fusion::TensorDescription;
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
-pub struct ScalarElementWise<R: Runtime> {
-    source: ElementWiseSource<R>,
+#[derive(new)]
+pub struct ElementWiseKernelFactory<R: Runtime> {
+    id: String,
+    info: Arc<CompilationInfo>,
+    grid: WorkgroupSize,
+    _runtime: PhantomData<R>,
 }
 
-pub struct VecElementWise<R: Runtime> {
-    source: ElementWiseSource<R>,
-}
-
-impl<R: Runtime> FusionKernel<R> for ScalarElementWise<R> {
-    fn kernel(
+impl<R: Runtime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
+    fn create(
         &self,
         handles_inputs: &[JitFusionHandle<R>],
         inputs: &[&TensorDescription],
         outputs: &[&TensorDescription],
-    ) -> SelectedKernel {
-        self.source.kernel(handles_inputs, inputs, outputs)
-    }
+        stateful: bool,
+    ) -> FusionKernel<R> {
+        let workgroup_size_x = self.grid.x;
+        let workgroup_size_y = self.grid.y;
 
-    fn priority(
-        &self,
-        _handles_inputs: &[JitFusionHandle<R>],
-        _inputs: &[&TensorDescription],
-        _outputs: &[&TensorDescription],
-    ) -> Priority {
-        Priority::Available(0)
-    }
-}
-
-impl<R: Runtime> FusionKernel<R> for VecElementWise<R> {
-    fn kernel(
-        &self,
-        handles_inputs: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-    ) -> SelectedKernel {
-        self.source.kernel(handles_inputs, inputs, outputs)
-    }
-
-    fn priority(
-        &self,
-        handles_inputs: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        _outputs: &[&TensorDescription],
-    ) -> Priority {
-        let is_unavailable_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
-            let rank = handle.strides.len();
-
-            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-            if handle.strides[rank - 1] != 1 {
-                return true;
-            }
-
-            // The last dimension should be a multiple of the vector size.
-            desc.shape[rank - 1] % self.source.factor != 0
-        };
-        let is_unavailable_output = |desc: &TensorDescription| {
-            let rank = desc.shape.len();
-
-            // The last dimension should be a multiple of the vector size.
-            desc.shape[rank - 1] % self.source.factor != 0
-        };
-
-        for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
-            if is_unavailable_input(handle, tensor) {
-                return Priority::Unavailable;
-            }
-        }
-
-        // Only need to check when there is no input.
-        if handles_inputs.is_empty() {
-            for tensor in _outputs.iter() {
-                if is_unavailable_output(tensor) {
-                    return Priority::Unavailable;
-                }
-            }
-        }
-
-        Priority::Available(self.source.factor as u8)
-    }
-}
-
-impl<R: Runtime> ElementWiseSource<R> {
-    fn kernel(
-        &self,
-        handles_inputs: &[JitFusionHandle<R>],
-        inputs: &[&TensorDescription],
-        outputs: &[&TensorDescription],
-    ) -> SelectedKernel {
-        let workgroup_size_x = self.source_normal.shader.workgroup_size.x;
-        let workgroup_size_y = self.source_normal.shader.workgroup_size.y;
         assert_eq!(
             workgroup_size_x, workgroup_size_y,
             "The grid must be a square"
         );
         let workgroup_size = workgroup_size_x as usize;
 
-        match inplace_available(&self.mappings, handles_inputs) {
+        let vectorize_4 = can_vectorize(handles_inputs, inputs, outputs, 4);
+        let vectorize_2 = can_vectorize(handles_inputs, inputs, outputs, 2);
+
+        let mut settings = CompilationSettings::default();
+        let mut factor = 1;
+
+        settings = settings.dynamic_settings(&self.info, inputs, outputs, handles_inputs, stateful);
+
+        if vectorize_4 {
+            settings = settings.vectorize(gpu::Vectorization::Vec4);
+            factor = 4;
+        }
+
+        if !vectorize_4 && vectorize_2 {
+            settings = settings.vectorize(gpu::Vectorization::Vec2);
+            factor = 2;
+        }
+
+        match !settings.mappings.is_empty() {
             true => {
-                let reference_tensor = inputs[self.mappings[0].pos_input];
+                let mut inplace_output2input = vec![None; self.info.outputs.len()];
+
+                for mapping in settings.mappings.iter() {
+                    inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
+                }
+
+                let reference_tensor = inputs[settings.mappings[0].pos_input];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
-                let kernel = Box::new(DynamicKernel::new(self.source_inplace.clone(), workgroup));
+                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
                 let output_infos =
-                    self.inplace_output2input
+                    inplace_output2input
                         .iter()
                         .enumerate()
                         .map(|(output_pos, input_pos)| match input_pos {
-                            Some(input_index) => OutputInfo::Inplace {
+                            Some(input_index) => OutputRuntimeInfo::Inplace {
                                 input_index: *input_index,
                             },
                             None => {
-                                // Always use the source normal, since the inplace will not have
-                                // binding alignment.
-                                let elem =
-                                    self.source_normal.shader.outputs[output_pos].item.elem();
                                 let size = calculate_num_elems_dyn_rank(&outputs[output_pos].shape)
-                                    * <R::Compiler as Compiler>::elem_size(elem);
-                                OutputInfo::Array { size }
+                                    * self.info.outputs[output_pos].elem_size::<R>();
+                                OutputRuntimeInfo::Array { size }
                             }
                         });
 
-                SelectedKernel::new(kernel, output_infos.collect())
+                FusionKernel::new(
+                    self.id.clone(),
+                    self.info.clone(),
+                    settings,
+                    output_infos.collect(),
+                    workgroup,
+                )
             }
             false => {
                 let reference_tensor = outputs[0];
                 let num_elems = calculate_num_elems_dyn_rank(&reference_tensor.shape);
-                let workgroup = elemwise_workgroup(num_elems / self.factor, workgroup_size);
-                let kernel = Box::new(DynamicKernel::new(self.source_normal.clone(), workgroup));
+                let workgroup = elemwise_workgroup(num_elems / factor, workgroup_size);
                 let output_infos = outputs.iter().enumerate().map(|(pos, tensor)| {
-                    let elem = self.source_normal.shader.outputs[pos].item.elem();
                     let size = calculate_num_elems_dyn_rank(&tensor.shape)
-                        * <R::Compiler as Compiler>::elem_size(elem);
-                    OutputInfo::Array { size }
+                        * self.info.outputs[pos].elem_size::<R>();
+                    OutputRuntimeInfo::Array { size }
                 });
 
-                SelectedKernel::new(kernel, output_infos.collect())
+                FusionKernel::new(
+                    self.id.clone(),
+                    self.info.clone(),
+                    settings,
+                    output_infos.collect(),
+                    workgroup,
+                )
             }
         }
     }
 }
 
-struct ElementWiseSource<R: Runtime> {
-    source_normal: Arc<GpuKernelSource<R::Compiler>>,
-    source_inplace: Arc<GpuKernelSource<R::Compiler>>,
-    mappings: Vec<InplaceMapping>,
-    inplace_output2input: Vec<Option<usize>>,
-    factor: usize,
-}
-
-impl<R: Runtime> ElementWiseSource<R> {
-    pub fn new(
-        normal: GpuKernelSource<R::Compiler>,
-        inplace: GpuKernelSource<R::Compiler>,
-        mappings: Vec<InplaceMapping>,
-        num_output: usize,
-        factor: usize,
-    ) -> Self {
-        let mut inplace_output2input = vec![None; num_output];
-
-        for mapping in mappings.iter() {
-            inplace_output2input[mapping.pos_output] = Some(mapping.pos_input);
-        }
-
-        Self {
-            source_normal: Arc::new(normal),
-            source_inplace: Arc::new(inplace),
-            mappings,
-            inplace_output2input,
-            factor,
-        }
-    }
-}
-
-impl<R: Runtime> ScalarElementWise<R> {
-    pub fn new(
-        normal: GpuKernelSource<R::Compiler>,
-        inplace: GpuKernelSource<R::Compiler>,
-        mappings: Vec<InplaceMapping>,
-        num_output: usize,
-    ) -> Self {
-        Self {
-            source: ElementWiseSource::new(normal, inplace, mappings, num_output, 1),
-        }
-    }
-}
-
-impl<R: Runtime> VecElementWise<R> {
-    pub fn new(
-        normal: GpuKernelSource<R::Compiler>,
-        inplace: GpuKernelSource<R::Compiler>,
-        mappings: Vec<InplaceMapping>,
-        num_output: usize,
-        factor: usize,
-    ) -> Self {
-        Self {
-            source: ElementWiseSource::new(normal, inplace, mappings, num_output, factor),
-        }
-    }
-}
-
-fn inplace_available<R: Runtime>(
-    mappings: &[InplaceMapping],
+fn can_vectorize<R: Runtime>(
     handles_inputs: &[JitFusionHandle<R>],
+    inputs: &[&TensorDescription],
+    outputs: &[&TensorDescription],
+    factor: usize,
 ) -> bool {
-    if mappings.is_empty() {
-        return false;
-    }
+    let is_unavailable_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+        let rank = handle.strides.len();
 
-    for mapping in mappings.iter() {
-        let handle = &handles_inputs[mapping.pos_input];
+        // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+        if handle.strides[rank - 1] != 1 {
+            return true;
+        }
 
-        if !handle.handle.can_mut() {
+        // The last dimension should be a multiple of the vector size.
+        desc.shape[rank - 1] % factor != 0
+    };
+    let is_unavailable_output = |desc: &TensorDescription| {
+        let rank = desc.shape.len();
+
+        // The last dimension should be a multiple of the vector size.
+        desc.shape[rank - 1] % factor != 0
+    };
+
+    for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
+        if is_unavailable_input(handle, tensor) {
             return false;
         }
+    }
 
-        let mut current = 0;
-        for stride in handle.strides.iter().rev() {
-            if current > *stride {
+    // Only need to check when there is no input.
+    if handles_inputs.is_empty() {
+        for tensor in outputs.iter() {
+            if is_unavailable_output(tensor) {
                 return false;
             }
-            current = *stride;
         }
     }
 

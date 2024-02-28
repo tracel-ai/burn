@@ -2,7 +2,7 @@ use crate::codegen::dialect::gpu::{macros::gpu, Scope, Variable, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Write to a global array.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WriteGlobal {
     pub input: Variable,
     pub global: Variable,
