@@ -5,21 +5,16 @@ use crate::{
     dataset::CIFAR10Loader,
     model::Cnn,
 };
-use burn::data::{dataloader::DataLoaderBuilder, dataset::vision::ImageFolderDataset};
-use burn::train::{
-    metric::{AccuracyMetric, LossMetric},
-    ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
-};
 use burn::{
-    self,
-    config::Config,
-    module::Module,
+    data::{dataloader::DataLoaderBuilder, dataset::vision::ImageFolderDataset},
     nn::loss::CrossEntropyLossConfig,
     optim::SgdConfig,
+    prelude::*,
     record::CompactRecorder,
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Int, Tensor,
+    tensor::backend::AutodiffBackend,
+    train::{
+        metric::{AccuracyMetric, LossMetric},
+        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
 

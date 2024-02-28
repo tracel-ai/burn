@@ -1,8 +1,13 @@
-use burn::data::dataloader::batcher::Batcher;
-use burn::data::dataset::transform::{PartialDataset, ShuffledDataset};
-use burn::data::dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset};
-use burn::tensor::backend::Backend;
-use burn::tensor::Tensor;
+use burn::{
+    data::{
+        dataloader::batcher::Batcher,
+        dataset::{
+            transform::{PartialDataset, ShuffledDataset},
+            Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+        },
+    },
+    prelude::*,
+};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DiabetesItem {

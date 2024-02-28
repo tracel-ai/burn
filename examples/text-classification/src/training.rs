@@ -10,12 +10,11 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 use burn::{
-    config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
-    module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
