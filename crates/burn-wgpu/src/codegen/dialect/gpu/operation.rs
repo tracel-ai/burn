@@ -49,6 +49,7 @@ pub enum Operator {
     IndexAssign(BinaryOperator),
     And(BinaryOperator),
     Or(BinaryOperator),
+    Not(UnaryOperator),
 }
 
 /// All metadata that can be access in a shader.

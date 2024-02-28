@@ -68,6 +68,7 @@ impl Operator {
             Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
             Operator::And(op) => Operator::And(op.vectorize(vectorization)),
             Operator::Or(op) => Operator::Or(op.vectorize(vectorization)),
+            Operator::Not(op) => Operator::Not(op.vectorize(vectorization)),
         }
     }
 }

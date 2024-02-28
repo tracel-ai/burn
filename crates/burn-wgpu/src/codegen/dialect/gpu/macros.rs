@@ -85,6 +85,16 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = !input
+    ($scope:expr, $out:ident = !$input:expr) => {
+        gpu!($scope, $out = not($input))
+    };
+    // out = not(input)
+    ($scope:expr, $out:ident = not($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Not(
+            gpu!(unary $input, $out)
+        ));
+    };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
         gpu!($scope, $out = equal($lhs, $rhs))

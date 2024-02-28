@@ -167,6 +167,10 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Not {
+        input: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -185,6 +189,7 @@ impl Display for Instruction {
             Instruction::Or { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} || {rhs};\n"))
             }
+            Instruction::Not { input, out } => f.write_fmt(format_args!("{out} = !{input};\n")),
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))

@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
-
 use burn_tensor::Shape;
+use std::marker::PhantomData;
 
 use crate::{
     codegen::{
@@ -105,6 +104,9 @@ impl MaxPool2dComputeShader {
         let iw_pad = scope.create_local(Elem::UInt);
         let result = scope.create_local(x.item());
 
+        let cond = scope.create_local(Elem::Bool);
+        let cond_tmp = scope.create_local(Elem::Bool);
+
         let index_input = scope.create_local(Elem::UInt);
         let index_input_1 = scope.create_local(Elem::UInt);
         let index_input_2 = scope.create_local(Elem::UInt);
@@ -116,42 +118,33 @@ impl MaxPool2dComputeShader {
         gpu!(scope, max_val = cast(-32767.0));
 
         (0..kernel_size_0).for_each(|kh| {
-            let cond_1 = scope.create_local(Elem::Bool);
-            let cond_tmp_1 = scope.create_local(Elem::Bool);
-
             gpu!(scope, ih = oh * pool_stride_0);
             gpu!(scope, tmp = kh * dilation_0);
             gpu!(scope, ih += tmp);
 
-            // Left
-            gpu!(scope, cond_1 = ih < padding_0);
-            // Right
+            // Up
+            gpu!(scope, cond = ih < padding_0);
+            // Down
             gpu!(scope, tmp = input_shape_2 + padding_0);
-            gpu!(scope, cond_tmp_1 = ih >= tmp);
-            gpu!(scope, cond_1 = cond_1 || cond_tmp_1);
+            gpu!(scope, cond_tmp = ih >= tmp);
+            gpu!(scope, cond = cond || cond_tmp);
+            gpu!(scope, cond = !cond);
 
-            gpu!(scope, if (cond_1).then(|_scope| {
-                // Stop
-            }).else(|scope| {
+            gpu!(scope, if (cond).then(|scope| {
                 (0..kernel_size_1).for_each(|kw| {
                     gpu!(scope, iw = ow * pool_stride_1);
                     gpu!(scope, tmp = kw * dilation_1);
                     gpu!(scope, iw = iw + tmp);
 
-
-                    let cond_2 = scope.create_local(Elem::Bool);
-                    let cond_tmp_2 = scope.create_local(Elem::Bool);
-
-                    // Up
-                    gpu!(scope, cond_2 = iw < padding_1);
-                    // Down
+                    // Left
+                    gpu!(scope, cond = iw < padding_1);
+                    // Right
                     gpu!(scope, tmp = input_shape_3 + padding_1);
-                    gpu!(scope, cond_tmp_2 = iw >= tmp);
-                    gpu!(scope, cond_2 = cond_2 || cond_tmp_2);
+                    gpu!(scope, cond_tmp = iw >= tmp);
+                    gpu!(scope, cond = cond || cond_tmp);
+                    gpu!(scope, cond = !cond);
 
-                    gpu!(scope, if (cond_2).then(|_scope| {
-                        // Stop
-                    }).else(|scope| {
+                    gpu!(scope, if (cond).then(|scope| {
                         gpu!(scope, ih_pad = ih - padding_0);
                         gpu!(scope, iw_pad = iw - padding_1);
 

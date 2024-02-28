@@ -438,6 +438,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                 rhs: self.compile_variable(op.rhs),
                 out: self.compile_variable(op.out),
             },
+            gpu::Operator::Not(op) => wgsl::Instruction::Not {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
         }
     }
 
