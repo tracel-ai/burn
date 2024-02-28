@@ -1,14 +1,16 @@
 use burn_tensor::backend::Backend;
 
-use crate::{grads::Gradients, tensor::AutodiffTensor};
+use crate::{checkpoint::base::Checkpointer, grads::Gradients, tensor::AutodiffTensor};
 
 use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
 pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients<B> {
-    let grads = Gradients::new::<D>(root.node.clone(), root.primitive);
+    let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
+    let checkpointer = root.graph.build_checkpointer();
+
     let tape = build_tape(root.node, root.graph);
 
-    execute_steps(tape, grads)
+    execute_steps(tape, grads, checkpointer)
 }
 
 fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B>>> {
@@ -32,9 +34,17 @@ fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B
 fn execute_steps<B: Backend>(
     tape: Vec<Vec<StepBoxed<B>>>,
     mut grads: Gradients<B>,
+    mut checkpointer: Checkpointer,
 ) -> Gradients<B> {
-    tape.into_iter()
-        .rev()
-        .for_each(|steps| steps.into_iter().for_each(|step| step.step(&mut grads)));
+    tape.into_iter().rev().for_each(|steps| {
+        steps
+            .into_iter()
+            .for_each(|step| step.step(&mut grads, &mut checkpointer))
+    });
+
+    #[cfg(feature = "export_tests")]
+    // For checkpointing tests
+    assert!(checkpointer.is_empty());
+
     grads
 }

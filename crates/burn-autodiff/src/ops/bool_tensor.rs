@@ -1,4 +1,4 @@
-use crate::{tensor::AutodiffTensor, Autodiff};
+use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Autodiff};
 
 use burn_tensor::{
     backend::Backend,
@@ -6,7 +6,7 @@ use burn_tensor::{
     Data, Device, Reader, Shape,
 };
 
-impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     fn bool_from_dyn<const D: usize>(
         dyn_tensor: <Self as Backend>::DynTensorPrimitive,
     ) -> BoolTensor<Self, D> {
@@ -19,6 +19,10 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
         B::bool_into_dyn(tensor)
     }
 
+    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
+        B::bool_from_data(data, device)
+    }
+    
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> BoolTensor<B, D> {
         B::bool_empty(shape, device)
     }

@@ -3,10 +3,9 @@ use std::marker::PhantomData;
 use burn_tensor::backend::Backend;
 
 use crate::{
+    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{
-        Node, NodeID, NodeRef, Requirement, {Graph, Step},
-    },
+    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
 };
 
 #[derive(Debug, Clone)]
@@ -25,7 +24,7 @@ struct RootStep<B: Backend> {
 impl<B: Backend> Step for RootStep<B> {
     type Backend = B;
 
-    fn step(self: Box<Self>, _grads: &mut Gradients<Self::Backend>) {
+    fn step(self: Box<Self>, _grads: &mut Gradients<Self::Backend>, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 
@@ -38,11 +37,18 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive<D>) -> Self {
         let id = NodeID::new();
-        let node = Node::new(vec![], 0, id, Requirement::None);
+        let node: NodeRef = Node::new(
+            vec![],
+            0,
+            id,
+            Requirement::None,
+            ComputingProperty::Ambiguous,
+        )
+        .into();
 
         Self {
             primitive,
-            node: node.into(),
+            node,
             graph: Graph::new(),
         }
     }
@@ -51,11 +57,11 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         !self.node.requirement.is_none()
     }
 
-    /// Mark the tensor as requirering gradients.
+    /// Mark the tensor as requiring gradients.
     ///
     /// # Panics
     ///
-    /// It panics if the tensor is non a leaf.
+    /// It panics if the tensor is not a leaf.
     pub fn require_grad(mut self) -> Self {
         match self.node.requirement {
             Requirement::Grad => self,
@@ -63,7 +69,14 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 panic!("Can't convert a non leaf tensor into a tracked tensor")
             }
             Requirement::None => {
-                self.node = Node::new(vec![], 0, self.node.id.clone(), Requirement::Grad).into();
+                self.node = Node::new(
+                    vec![],
+                    0,
+                    self.node.id.clone(),
+                    Requirement::Grad,
+                    self.node.properties.clone(),
+                )
+                .into();
                 let ops = RootStep::new(self.node.clone());
 
                 self.register_step(ops)
@@ -77,10 +90,14 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,
+        computing_properties: ComputingProperty,
+        checkpointer_builder: CheckpointerBuilder,
     ) -> Self {
         let graph = parent_graphs
             .reduce(|acc, graph| acc.merge(graph))
             .unwrap_or_else(Graph::new);
+
+        graph.extend_checkpointer_builder(checkpointer_builder);
 
         let order = parent_nodes
             .iter()
@@ -89,16 +106,18 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             .unwrap_or(0)
             + 1;
 
-        let node = Node::new(
+        let node: NodeRef = Node::new(
             parent_nodes.iter().map(|node| node.id.clone()).collect(),
             order,
             NodeID::new(),
             requirement,
-        );
+            computing_properties,
+        )
+        .into();
 
         Self {
-            primitive: output,
-            node: node.into(),
+            primitive,
+            node,
             graph,
         }
     }

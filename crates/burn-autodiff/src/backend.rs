@@ -3,6 +3,13 @@ use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     DynData,
 };
+use crate::{
+    checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
+    grads::Gradients,
+    graph::backward::backward,
+    tensor::AutodiffTensor,
+};
+use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 
 /// Enable auto-differentiation on a backend.
@@ -10,11 +17,12 @@ use core::marker::PhantomData;
 /// This works as a backend decorator, extending the functionality of any backend with
 /// backpropagation.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Autodiff<B> {
+pub struct Autodiff<B, C = NoCheckpointing> {
     _b: PhantomData<B>,
+    _checkpoint_strategy: PhantomData<C>,
 }
 
-impl<B: Backend> Backend for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type Device = B::Device;
 
     type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
@@ -54,7 +62,7 @@ impl<B: Backend> Backend for Autodiff<B> {
     }
 }
 
-impl<B: Backend> AutodiffBackend for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type InnerBackend = B;
     type Gradients = Gradients<B>;
 
