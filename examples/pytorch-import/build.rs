@@ -3,8 +3,10 @@
 /// 2. Saves the model record to a file using the `NamedMpkFileRecorder`.
 use std::path::Path;
 
-use burn::backend::NdArray;
-use burn::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+use burn::{
+    backend::NdArray,
+    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
+};
 use burn_import::pytorch::PyTorchFileRecorder;
 
 // Basic backend type (not used directly here).

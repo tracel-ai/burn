@@ -1,16 +1,18 @@
 use crate::FloatTensor;
 
 use super::Backend;
-use burn::backend::wgpu::{
-    compute::{DynamicKernel, WgpuRuntime, WorkGroup},
-    kernel::{
-        build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+use burn::{
+    backend::wgpu::{
+        compute::{DynamicKernel, WgpuRuntime, WorkGroup},
+        kernel::{
+            build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+        },
+        kernel_wgsl,
+        tensor::JitTensor,
+        FloatElement, GraphicsApi, IntElement, JitBackend,
     },
-    kernel_wgsl,
-    tensor::JitTensor,
-    FloatElement, GraphicsApi, IntElement, JitBackend,
+    tensor::Shape,
 };
-use burn::tensor::Shape;
 use derive_new::new;
 use std::marker::PhantomData;
 

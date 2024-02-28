@@ -1,9 +1,12 @@
-use burn::data::dataset::vision::MnistDataset;
-use burn::train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
-use burn::train::LearnerBuilder;
 use burn::{
-    config::Config, data::dataloader::DataLoaderBuilder, optim::AdamConfig,
+    config::Config,
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+    optim::AdamConfig,
     tensor::backend::AutodiffBackend,
+    train::{
+        renderer::{MetricState, MetricsRenderer, TrainingProgress},
+        LearnerBuilder,
+    },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
 

@@ -1,9 +1,12 @@
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
-    use burn::optim::momentum::MomentumConfig;
-    use burn::optim::SgdConfig;
+    use burn::{
+        backend::{
+            libtorch::{LibTorch, LibTorchDevice},
+            Autodiff,
+        },
+        optim::{momentum::MomentumConfig, SgdConfig},
+    };
     use custom_image_dataset::training::{train, TrainingConfig};
 
     pub fn run() {
@@ -25,10 +28,13 @@ mod tch_gpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{Wgpu, WgpuDevice};
-    use burn::backend::Autodiff;
-    use burn::optim::momentum::MomentumConfig;
-    use burn::optim::SgdConfig;
+    use burn::{
+        backend::{
+            wgpu::{Wgpu, WgpuDevice},
+            Autodiff,
+        },
+        optim::{momentum::MomentumConfig, SgdConfig},
+    };
     use custom_image_dataset::training::{train, TrainingConfig};
 
     pub fn run() {
