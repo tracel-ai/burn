@@ -136,7 +136,6 @@ fn execute_settings<'a, R: Runtime, E: JitElement>(
         handles.push(output.handle);
     }
 
-    println!("Info {:?}", info);
     let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.
