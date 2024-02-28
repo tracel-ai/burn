@@ -1,15 +1,18 @@
 use crate::FloatTensor;
 
 use super::{AutodiffBackend, Backend};
-use burn::backend::autodiff::{
-    checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
-    grads::Gradients,
-    ops::{broadcast_shape, Backward, Ops, OpsKind},
-    Autodiff, NodeID,
+use burn::{
+    backend::{
+        autodiff::{
+            checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
+            grads::Gradients,
+            ops::{broadcast_shape, Backward, Ops, OpsKind},
+            Autodiff, NodeID,
+        },
+        wgpu::{compute::WgpuRuntime, FloatElement, GraphicsApi, IntElement, JitBackend},
+    },
+    tensor::Shape,
 };
-use burn::backend::wgpu::compute::WgpuRuntime;
-use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend};
-use burn::tensor::Shape;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
     for Autodiff<JitBackend<WgpuRuntime<G, F, I>>>

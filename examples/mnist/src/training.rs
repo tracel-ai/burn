@@ -1,20 +1,17 @@
-use crate::data::MnistBatcher;
-use crate::model::Model;
+use crate::{data::MnistBatcher, model::Model};
 
-use burn::module::Module;
-use burn::optim::decay::WeightDecayConfig;
-use burn::optim::AdamConfig;
-use burn::record::{CompactRecorder, NoStdTrainingRecorder};
-use burn::train::metric::store::{Aggregate, Direction, Split};
-use burn::train::metric::{CpuMemory, CpuTemperature, CpuUse};
-use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
-    config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
+    optim::{decay::WeightDecayConfig, AdamConfig},
+    prelude::*,
+    record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, LossMetric},
-        LearnerBuilder,
+        metric::{
+            store::{Aggregate, Direction, Split},
+            AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric,
+        },
+        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
     },
 };
 

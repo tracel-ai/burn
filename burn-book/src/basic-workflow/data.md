@@ -18,7 +18,6 @@ at `examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/exa
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
-    tensor::Int,
 };
 
 pub struct MnistBatcher<B: Backend> {

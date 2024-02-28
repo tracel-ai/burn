@@ -1,10 +1,5 @@
 use super::{dataset::TextGenerationItem, tokenizer::Tokenizer};
-use burn::{
-    data::dataloader::batcher::Batcher,
-    nn::attention::generate_padding_mask,
-    prelude::*,
-    tensor::{Bool, Int},
-};
+use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
 use std::sync::Arc;
 
 #[derive(new)]

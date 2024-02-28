@@ -4,7 +4,6 @@ use burn::{
         dataset::vision::{Annotation, ImageDatasetItem, PixelDepth},
     },
     prelude::*,
-    tensor::{Int, Shape},
 };
 
 // CIFAR-10 mean and std values

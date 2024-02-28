@@ -1,7 +1,6 @@
 use crate::{data::MnistBatcher, training::TrainingConfig};
-use burn::data::dataset::vision::MnistItem;
 use burn::{
-    data::dataloader::batcher::Batcher,
+    data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
     record::{CompactRecorder, Recorder},
 };

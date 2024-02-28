@@ -11,7 +11,7 @@ use burn::{
     optim::SgdConfig,
     prelude::*,
     record::CompactRecorder,
-    tensor::{backend::AutodiffBackend, Int},
+    tensor::backend::AutodiffBackend,
     train::{
         metric::{AccuracyMetric, LossMetric},
         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
