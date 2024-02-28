@@ -10,16 +10,18 @@ use crate::{
     Runtime,
 };
 
-pub(crate) trait ReduceDim: Send + Sync + 'static {
+pub(crate) trait NaiveReduceDim: Send + Sync + 'static {
     type Accumulator: Copy;
 
     fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator;
+
     fn inner_loop(
         scope: &mut Scope,
         accumulator: Self::Accumulator,
         current_value: Variable,
         i: Variable,
     );
+
     fn assign(
         scope: &mut Scope,
         output: Variable,
@@ -30,14 +32,14 @@ pub(crate) trait ReduceDim: Send + Sync + 'static {
 
 pub(crate) struct SumDim;
 
-impl ReduceDim for SumDim {
+impl NaiveReduceDim for SumDim {
     type Accumulator = Variable;
 
     fn initialize(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
         scope.zero(output_item)
     }
 
-    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable, i: Variable) {
+    fn inner_loop(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
         gpu!(scope, accumulator += value);
     }
 
@@ -54,7 +56,7 @@ impl ReduceDim for SumDim {
 
 pub(crate) struct MeanDim;
 
-impl ReduceDim for MeanDim {
+impl NaiveReduceDim for MeanDim {
     type Accumulator = Variable;
 
     fn initialize(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
@@ -81,10 +83,10 @@ impl ReduceDim for MeanDim {
 
 pub(crate) struct ArgMax;
 
-impl ReduceDim for ArgMax {
+impl NaiveReduceDim for ArgMax {
     type Accumulator = (Variable, Variable);
 
-    fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator {
+    fn initialize(scope: &mut Scope, input_item: Item, _output_item: Item) -> Self::Accumulator {
         let max = scope.create_local(input_item);
         let index = scope.create_local(Elem::UInt);
         gpu!(scope, max = cast(-32767.0));
@@ -118,10 +120,10 @@ impl ReduceDim for ArgMax {
 
 pub(crate) struct ArgMin;
 
-impl ReduceDim for ArgMin {
+impl NaiveReduceDim for ArgMin {
     type Accumulator = (Variable, Variable);
 
-    fn initialize(scope: &mut Scope, input_item: Item, output_item: Item) -> Self::Accumulator {
+    fn initialize(scope: &mut Scope, input_item: Item, _output_item: Item) -> Self::Accumulator {
         let min = scope.create_local(input_item);
         let index = scope.create_local(Elem::UInt);
         gpu!(scope, min = cast(32767.0));
@@ -153,15 +155,20 @@ impl ReduceDim for ArgMin {
     }
 }
 
-pub(crate) struct ReduceDimComputeShader<RD: ReduceDim> {
+pub(crate) struct NaiveReduceDimComputeShader<RD: NaiveReduceDim> {
     tensor: Variable,
     dim: usize,
     output: Variable,
-    reduce_dim: PhantomData<RD>,
+    _reduce_dim: PhantomData<RD>,
 }
 
 #[derive(new)]
-pub(crate) struct ReduceDimEagerKernel<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> {
+pub(crate) struct NaiveReduceDimEagerKernel<
+    RD: NaiveReduceDim,
+    R: Runtime,
+    EI: JitElement,
+    EO: JitElement,
+> {
     dim: usize,
     reduce_dim: PhantomData<RD>,
     _runtime: PhantomData<R>,
@@ -169,8 +176,8 @@ pub(crate) struct ReduceDimEagerKernel<RD: ReduceDim, R: Runtime, EI: JitElement
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
-    for ReduceDimEagerKernel<RD, R, EI, EO>
+impl<RD: NaiveReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+    for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
@@ -180,11 +187,11 @@ impl<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSou
         let tensor = Variable::GlobalInputArray(0, item_input);
         let output = Variable::GlobalOutputArray(0, item_output);
 
-        ReduceDimComputeShader {
+        NaiveReduceDimComputeShader {
             tensor,
             dim: self.dim,
             output,
-            reduce_dim: PhantomData::<RD>,
+            _reduce_dim: PhantomData::<RD>,
         }
         .expand(&mut scope);
 
@@ -214,7 +221,7 @@ impl<RD: ReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSou
     }
 }
 
-impl<RD: ReduceDim> ReduceDimComputeShader<RD> {
+impl<RD: NaiveReduceDim> NaiveReduceDimComputeShader<RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();

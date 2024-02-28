@@ -232,6 +232,10 @@ macro_rules! gpu {
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
     };
+    // while (cond).then(|scope| { ... })
+    ($scope:expr, while ($cond:expr).then($arg:expr)) => {
+        $crate::codegen::dialect::gpu::WhileLoop::register($scope, $cond.into(), $arg);
+    };
     // if (cond).then(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg:expr)) => {
         $crate::codegen::dialect::gpu::If::register($scope, $cond.into(), $arg);

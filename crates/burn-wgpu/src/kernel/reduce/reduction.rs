@@ -1,13 +1,16 @@
 use crate::{
     codegen::{execute_dynamic, EagerHandle, WorkgroupLaunch},
     element::JitElement,
-    kernel::reduce,
     tensor::JitTensor,
     Runtime,
 };
 use burn_tensor::Shape;
 
-use super::{init_reduce_output, ArgMax, ArgMin, MeanDim, ReduceDim, ReduceDimEagerKernel, SumDim};
+#[cfg(not(feature = "autotune"))]
+use super::init_reduce_output;
+#[cfg(feature = "autotune")]
+use super::tune::{mean_dim_autotune, sum_dim_autotune};
+use super::{ArgMax, ArgMin, MeanDim, NaiveReduceDim, NaiveReduceDimEagerKernel, SumDim};
 
 /// Sum all elements in the input buffer.
 pub fn sum<R: Runtime, E: JitElement, const D: usize>(
@@ -18,13 +21,14 @@ pub fn sum<R: Runtime, E: JitElement, const D: usize>(
     sum_dim(input, 0)
 }
 
+/// Sum all elements on one dimension. Autotunable
 pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
     #[cfg(feature = "autotune")]
     {
-        reduce::sum_dim_autotune(tensor, dim)
+        sum_dim_autotune(tensor, dim)
     }
 
     #[cfg(not(feature = "autotune"))]
@@ -34,13 +38,14 @@ pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
+/// Mean of all elements on one dimension. Autotunable
 pub fn mean_dim<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
 ) -> JitTensor<R, E, D> {
     #[cfg(feature = "autotune")]
     {
-        reduce::mean_dim_autotune(tensor, dim)
+        mean_dim_autotune(tensor, dim)
     }
 
     #[cfg(not(feature = "autotune"))]
@@ -60,7 +65,7 @@ pub fn sum_dim_naive<R: Runtime, E: JitElement, const D: usize>(
 }
 
 pub(crate) fn reduce_dim_naive<
-    RD: ReduceDim,
+    RD: NaiveReduceDim,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,
@@ -70,9 +75,9 @@ pub(crate) fn reduce_dim_naive<
     output: JitTensor<R, EO, D>,
     dim: usize,
 ) -> JitTensor<R, EO, D> {
-    let kernel = ReduceDimEagerKernel::new(dim);
+    let kernel = NaiveReduceDimEagerKernel::new(dim);
 
-    execute_dynamic::<R, ReduceDimEagerKernel<RD, R, EI, EO>, EI>(
+    execute_dynamic::<R, NaiveReduceDimEagerKernel<RD, R, EI, EO>, EI>(
         &[EagerHandle::new(
             &input.handle,
             &input.strides,

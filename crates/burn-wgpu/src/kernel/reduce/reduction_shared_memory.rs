@@ -116,6 +116,7 @@ fn reduction_dim_shared_memory<K: StaticKernelSource, R: Runtime, E: JitElement,
     let n_invocation_per_workgroup = WORKGROUP_DEFAULT * WORKGROUP_DEFAULT;
     let n_reduce_elements_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_workgroup as f32) as u32;
+    // n_reduce_elements_per_thread: u32(ceil(f32(shape_dim)/f32(WGD*WGD)))
 
     // Add dimension of reduction and how many reduce elements are treated per thread
     info.push(reduce_dim as u32);

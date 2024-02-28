@@ -10,6 +10,8 @@ pub enum Branch {
     IfElse(IfElse),
     // A range loop.
     RangeLoop(RangeLoop),
+    // A while loop.
+    WhileLoop(WhileLoop),
     // A return statement.
     Return,
     // A break statement.
@@ -34,6 +36,12 @@ pub struct RangeLoop {
     pub i: Variable,
     pub start: Variable,
     pub end: Variable,
+    pub scope: Scope,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WhileLoop {
+    pub cond: Variable,
     pub scope: Scope,
 }
 
@@ -94,5 +102,17 @@ impl RangeLoop {
             end,
             scope,
         }));
+    }
+}
+
+impl WhileLoop {
+    /// Registers a while loop to the given scope.
+    pub fn register<F: Fn(&mut Scope)>(parent_scope: &mut Scope, cond: Variable, func: F) {
+        let mut scope = parent_scope.child();
+
+        func(&mut scope);
+
+        let op = Self { cond, scope };
+        parent_scope.register(Branch::WhileLoop(op));
     }
 }

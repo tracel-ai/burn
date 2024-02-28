@@ -7,7 +7,7 @@ use crate::{
     kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
         reduce::{
-            init_reduce_output, int_mean_dim_naive, int_mean_dim_shared_memory, mean_dim, mean_dim_naive,
+            init_reduce_output, int_mean_dim_naive, int_mean_dim_shared_memory, mean_dim_naive,
             mean_dim_shared_memory,
         },
     },
