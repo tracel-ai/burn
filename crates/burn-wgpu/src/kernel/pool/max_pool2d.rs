@@ -22,7 +22,7 @@ kernel_wgsl!(
     "../../template/pool/max_pool2d_with_indices.wgsl"
 );
 
-pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn max_pool2d_old<R: Runtime, E: JitElement>(
     x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],

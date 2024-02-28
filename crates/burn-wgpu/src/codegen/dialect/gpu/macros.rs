@@ -65,6 +65,26 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = lhs && rhs
+    ($scope:expr, $out:ident = $lhs:ident && $rhs:expr) => {
+        gpu!($scope, $out = and($lhs, $rhs))
+    };
+    // out = and(lhs, rhs)
+    ($scope:expr, $out:ident = and($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::And(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = lhs || rhs
+    ($scope:expr, $out:ident = $lhs:ident || $rhs:expr) => {
+        gpu!($scope, $out = or($lhs, $rhs))
+    };
+    // out = or(lhs, rhs)
+    ($scope:expr, $out:ident = or($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Or(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
         gpu!($scope, $out = equal($lhs, $rhs))

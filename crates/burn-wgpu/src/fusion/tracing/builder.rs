@@ -186,6 +186,16 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::And(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Or(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     gpu::Operator::Index(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,

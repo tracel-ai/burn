@@ -157,6 +157,16 @@ pub enum Instruction {
         end: Variable,
         instructions: Vec<Instruction>,
     },
+    And {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Or {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -168,6 +178,12 @@ impl Display for Instruction {
             }
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
+            }
+            Instruction::And { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} && {rhs};\n"))
+            }
+            Instruction::Or { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} || {rhs};\n"))
             }
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
