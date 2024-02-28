@@ -382,6 +382,10 @@ pub enum NumericOperationDescription<E> {
     Clamp(ClampOperationDescription<E>),
     /// Operation corresponding to:
     ///
+    /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
+    IntRandom(RandomOperationDescription),
+    /// Operation corresponding to:
+    ///
     /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
     /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
     Powf(BinaryOperationDescription),
@@ -1120,6 +1124,9 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
+            NumericOperationDescription::IntRandom(desc) => {
+                vec![&desc.out]
+            }
             NumericOperationDescription::Powf(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
@@ -1329,6 +1336,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::MaxDim(desc) => desc.hash(state),
             NumericOperationDescription::MinDim(desc) => desc.hash(state),
             NumericOperationDescription::Clamp(desc) => desc.hash(state),
+            NumericOperationDescription::IntRandom(desc) => desc.hash(state),
             NumericOperationDescription::Powf(desc) => desc.hash(state),
         }
     }

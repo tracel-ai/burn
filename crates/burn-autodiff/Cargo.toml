@@ -26,5 +26,3 @@ spin = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "0.13.0", default-features = false, features = [
   "export_tests",
 ] }
-
-

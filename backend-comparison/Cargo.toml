@@ -10,7 +10,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/backend-comparison"
 version.workspace = true
 
 [features]
-default = ["burn/std"]
+default = ["burn/std", "burn/autodiff"]
 candle-cpu = ["burn/candle"]
 candle-cuda = ["burn/candle", "burn/cuda"]
 candle-metal = ["burn/candle", "burn/metal"]

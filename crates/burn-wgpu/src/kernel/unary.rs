@@ -58,7 +58,6 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -83,7 +82,6 @@ macro_rules! unary {
                 inputs: vec![input],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -99,7 +97,7 @@ macro_rules! unary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings, Vec::new())
+                compile::<C, E>(settings)
             }
         }
 
@@ -110,13 +108,13 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, E>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, E>(settings)
             }
         }
     };
@@ -137,7 +135,6 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -166,7 +163,6 @@ macro_rules! unary {
                 inputs: vec![input, scalars],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -182,7 +178,7 @@ macro_rules! unary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings, Vec::new())
+                compile::<C, E>(settings)
             }
         }
 
@@ -193,13 +189,13 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, E>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, E>(settings)
             }
         }
     };

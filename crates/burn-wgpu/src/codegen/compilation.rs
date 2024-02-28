@@ -1,7 +1,15 @@
-use super::dialect::gpu;
-use crate::codegen::dialect::gpu::{
-    Binding, ComputeShader, Elem, Item, Location, Variable, Vectorization, Visibility,
-    WorkgroupSize,
+#[cfg(feature = "fusion")]
+use crate::fusion::JitFusionHandle;
+#[cfg(feature = "fusion")]
+use burn_fusion::TensorDescription;
+
+use super::{dialect::gpu, Compiler};
+use crate::{
+    codegen::dialect::gpu::{
+        Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
+        Visibility, WorkgroupSize,
+    },
+    Runtime,
 };
 
 /// The compilation struct allows you to create a [compute shader](ComputeShader) based on
@@ -20,11 +28,10 @@ pub struct CompilationInfo {
     pub inputs: Vec<InputInfo>,
     pub outputs: Vec<OutputInfo>,
     pub scope: gpu::Scope,
-    pub mappings: Vec<InplaceMapping>,
 }
 
 /// Simply indicate the output that can be replaced by the input.
-#[derive(new, Clone, Copy)]
+#[derive(new, Clone, Copy, Debug)]
 pub struct InplaceMapping {
     /// Input position.
     pub pos_input: usize,
@@ -32,30 +39,208 @@ pub struct InplaceMapping {
     pub pos_output: usize,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CompilationSettings {
-    vectorization: Vectorization,
-    inplace_available: bool,
+    pub mappings: Vec<InplaceMapping>,
+    vectorization: Option<Vectorization>,
     workgroup_size: WorkgroupSize,
+    reading_strategy: Vec<(u16, ReadingStrategy)>,
+}
+
+impl core::fmt::Display for CompilationSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The goal of this implementation is to generate the shortest representation
+        // that won't clash with any other compilation settings. This is crucial since we rely on
+        // this representation to know when to compile a new version of a kernel.
+        //
+        // Each main section starts with a letter that can't be used by other main sections:
+        //
+        // * Mapping:          m
+        //   * Input:  i
+        //   * Output: o
+        //
+        // * Reading Strategy: r
+        //   * Output layout: o
+        //   * Plain:         p
+        //
+        // * Vectorization:    v
+        // * Workgroup Size X: x
+        // * Workgroup Size Y: y
+        // * Workgroup Size Z: z
+        f.write_str("m")?;
+        for mapping in self.mappings.iter() {
+            f.write_fmt(format_args!(
+                "i{}o{}",
+                mapping.pos_input, mapping.pos_output
+            ))?;
+        }
+
+        f.write_str("r")?;
+
+        for (input, strategy) in self.reading_strategy.iter() {
+            match strategy {
+                ReadingStrategy::OutputLayout => f.write_fmt(format_args!("i{}o", input)),
+                ReadingStrategy::Plain => f.write_fmt(format_args!("i{}p", input)),
+            }?;
+        }
+
+        match self.vectorization {
+            Some(vectorization) => match vectorization {
+                Vectorization::Vec4 => f.write_str("v4"),
+                Vectorization::Vec3 => f.write_str("v3"),
+                Vectorization::Vec2 => f.write_str("v2"),
+                Vectorization::Scalar => f.write_str("v1"),
+            }?,
+            None => f.write_str("vn")?,
+        };
+
+        f.write_fmt(format_args!(
+            "x{}y{}z{}",
+            self.workgroup_size.x, self.workgroup_size.y, self.workgroup_size.x
+        ))
+    }
 }
 
 impl CompilationSettings {
     /// Compile the shader with vectorization enabled.
     #[allow(dead_code)]
     pub fn vectorize(mut self, vectorization: Vectorization) -> Self {
-        self.vectorization = vectorization;
+        self.vectorization = Some(vectorization);
         self
     }
-    /// Compile the shader with inplace enabled.
+
+    /// Compile the shader with inplace enabled by the given [mapping](InplaceMapping).
     ///
     /// Notes:
     ///
-    /// This won't guarantee that the shader will use input arrays as outputs, since it is only
-    /// possible when [inplace mappings](InplaceMapping) are provided as [compilation info](CompilationInfo)
-    pub fn inplace(mut self, available: bool) -> Self {
-        self.inplace_available = available;
+    /// You should favor using `dynamic_settings` when using fusion, since the mapping is going to
+    /// be created from the runtime information.
+    pub fn inplace(mut self, mappings: Vec<InplaceMapping>) -> Self {
+        self.mappings = mappings;
         self
     }
+
+    #[cfg(feature = "fusion")]
+    /// Apply dynamic settings based on the runtime information captured by the `burn-fusion`
+    /// project.
+    ///
+    /// Two optimizations are done here:
+    ///
+    /// 1. Find and remove unnecessary broadcasting procedures based on runtime tensor layouts.
+    ///
+    /// 2. (Optional) Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
+    ///    descriptions. This is enabled only when stateful is set to true.
+    pub fn dynamic_settings<R: Runtime>(
+        self,
+        info: &CompilationInfo,
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+        handles_inputs: &[JitFusionHandle<R>],
+        stateful: bool,
+    ) -> Self {
+        let mut settings = self;
+
+        if stateful {
+            settings = settings.dynamic_inplace(info, inputs, outputs, handles_inputs);
+        }
+
+        settings.dynamic_reading_strategy(info, inputs, outputs, handles_inputs)
+    }
+
+    #[cfg(feature = "fusion")]
+    fn dynamic_inplace<R: Runtime>(
+        self,
+        info: &CompilationInfo,
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+        handles_inputs: &[JitFusionHandle<R>],
+    ) -> Self {
+        let mut potential_inplace = inputs
+            .iter()
+            .zip(info.inputs.iter())
+            .enumerate()
+            .filter_map(|(pos, (desc, input))| {
+                let handle = &handles_inputs[pos];
+
+                if !is_contiguous(&handle.strides) {
+                    return None;
+                }
+
+                match desc.status {
+                    burn_fusion::TensorStatus::ReadOnly => return None,
+                    burn_fusion::TensorStatus::NotInit => return None,
+                    burn_fusion::TensorStatus::ReadWrite => (),
+                };
+
+                Some((pos, desc, input))
+            })
+            .collect::<Vec<_>>();
+
+        let mappings = outputs
+            .iter()
+            .zip(info.outputs.iter())
+            .enumerate()
+            .filter_map(|(pos, (desc, output))| {
+                if potential_inplace.is_empty() {
+                    return None;
+                }
+
+                let mut chosen = None;
+                for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
+                    if chosen.is_some() {
+                        break;
+                    }
+                    if desc.shape == desc_input.shape && input.item() == output.item() {
+                        chosen = Some(index);
+                    }
+                }
+
+                let index = match chosen {
+                    Some(index) => index,
+                    None => return None,
+                };
+
+                let (pos_input, _desc, _info) = potential_inplace.remove(index);
+                Some(InplaceMapping::new(pos_input, pos))
+            })
+            .collect::<Vec<_>>();
+
+        self.inplace(mappings)
+    }
+
+    #[cfg(feature = "fusion")]
+    fn dynamic_reading_strategy<R: Runtime>(
+        mut self,
+        info: &CompilationInfo,
+        inputs: &[&TensorDescription],
+        outputs: &[&TensorDescription],
+        handles_inputs: &[JitFusionHandle<R>],
+    ) -> Self {
+        // First output is chosen for the layout reference.
+        // but all outputs should have the same shape anyways.
+        let layout_shape = &outputs[0].shape;
+
+        for (input_id, strategy) in info.scope.read_globals() {
+            if let ReadingStrategy::Plain = strategy {
+                continue;
+            };
+
+            let index = input_id as usize;
+            let handle = &handles_inputs[index];
+            let description_input = &inputs[index];
+
+            if &description_input.shape != layout_shape {
+                continue;
+            }
+
+            if is_contiguous(&handle.strides) {
+                self.reading_strategy
+                    .push((input_id, ReadingStrategy::Plain));
+            }
+        }
+        self
+    }
+
     /// Set the grid size.
     #[allow(dead_code)] // Only used for fusion for now.
     pub fn workgroup_size(mut self, workgroup_size: WorkgroupSize) -> Self {
@@ -64,15 +249,56 @@ impl CompilationSettings {
     }
 }
 
+fn is_contiguous(strides: &[usize]) -> bool {
+    let mut current = 0;
+
+    for stride in strides.iter().rev() {
+        if current > *stride {
+            return false;
+        }
+        current = *stride;
+    }
+
+    true
+}
+
 /// Information related to an input.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum InputInfo {
     Array { item: Item, visibility: Visibility },
     Scalar { elem: Elem, size: usize },
 }
 
+impl InputInfo {
+    /// The item type of the input.
+    pub fn item(&self) -> Item {
+        match self {
+            InputInfo::Array {
+                item,
+                visibility: _,
+            } => *item,
+            InputInfo::Scalar { elem, size: _ } => Item::Scalar(*elem),
+        }
+    }
+}
+
+impl OutputInfo {
+    /// The item type of the input.
+    pub fn item(&self) -> Item {
+        match self {
+            OutputInfo::ArrayWrite { item, local: _ } => *item,
+            OutputInfo::InputArrayWrite {
+                item,
+                input: _,
+                local: _,
+            } => *item,
+            OutputInfo::Array { item } => *item,
+        }
+    }
+}
+
 /// Information related to an output.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum OutputInfo {
     /// Write the local variable to a new array.
     ///
@@ -87,6 +313,21 @@ pub enum OutputInfo {
     Array { item: Item },
 }
 
+impl OutputInfo {
+    pub fn elem_size<R: Runtime>(&self) -> usize {
+        let elem = match self {
+            OutputInfo::ArrayWrite { item, local: _ } => bool_elem(item.elem()),
+            OutputInfo::InputArrayWrite {
+                item,
+                input: _,
+                local: _,
+            } => bool_elem(item.elem()),
+            OutputInfo::Array { item } => bool_elem(item.elem()),
+        };
+        <R::Compiler as Compiler>::elem_size(elem)
+    }
+}
+
 impl Compilation {
     /// Starts a new compilation.
     pub fn new(info: CompilationInfo) -> Self {
@@ -99,11 +340,13 @@ impl Compilation {
     }
 
     /// Performs the compilation with the provided [settings](CompilationSettings).
-    pub fn compile(mut self, settings: CompilationSettings) -> ComputeShader {
-        self.info.scope.vectorize(settings.vectorization);
+    pub fn compile(mut self, mut settings: CompilationSettings) -> ComputeShader {
+        if let Some(vectorization) = settings.vectorization {
+            self.info.scope.vectorize(vectorization);
+        }
 
         self.register_inputs(&settings);
-        self.register_outputs(&settings);
+        self.register_outputs(&mut settings);
 
         let inputs = self.input_bindings;
         let outputs = self.output_bindings;
@@ -134,10 +377,18 @@ impl Compilation {
     }
 
     fn register_inputs(&mut self, settings: &CompilationSettings) {
+        for (id, strategy) in settings.reading_strategy.iter() {
+            self.info.scope.update_read(*id, *strategy);
+        }
+
         for input in self.info.inputs.drain(..) {
             match input {
                 InputInfo::Array { item, visibility } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
 
                     self.input_bindings.push(Binding {
                         item: bool_item(item),
@@ -163,12 +414,12 @@ impl Compilation {
         }
     }
 
-    fn register_outputs(&mut self, settings: &CompilationSettings) {
+    fn register_outputs(&mut self, settings: &mut CompilationSettings) {
         let mut index = 0;
 
-        if settings.inplace_available {
+        if !settings.mappings.is_empty() {
             let mut mappings = Vec::new();
-            core::mem::swap(&mut self.info.mappings, &mut mappings);
+            core::mem::swap(&mut settings.mappings, &mut mappings);
 
             for mapping in mappings {
                 self.register_inplace_mapping(mapping);
@@ -178,7 +429,11 @@ impl Compilation {
         for array in self.info.outputs.drain(..) {
             match array {
                 OutputInfo::ArrayWrite { item, local } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
                     let elem_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {
@@ -194,7 +449,11 @@ impl Compilation {
                     index += 1;
                 }
                 OutputInfo::InputArrayWrite { item, input, local } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
 
                     self.info.scope.write_global(
                         Variable::Local(local, item, self.info.scope.depth),
@@ -202,7 +461,11 @@ impl Compilation {
                     );
                 }
                 OutputInfo::Array { item } => {
-                    let item = item.vectorize(settings.vectorization);
+                    let item = if let Some(vectorization) = settings.vectorization {
+                        item.vectorize(vectorization)
+                    } else {
+                        item
+                    };
                     let elem_adapted = bool_item(item);
 
                     self.output_bindings.push(Binding {
@@ -221,17 +484,23 @@ impl Compilation {
     fn register_inplace_mapping(&mut self, mapping: InplaceMapping) {
         let output = match self.info.outputs.get_mut(mapping.pos_output) {
             Some(output) => output,
-            None => return, // No output to update.
+            None => panic!("No output found."),
         };
 
         let (item, local) = match output {
             OutputInfo::ArrayWrite { item, local } => (item, local),
             OutputInfo::InputArrayWrite {
                 item: _,
-                input: _,
+                input,
                 local: _,
-            } => return,
-            OutputInfo::Array { item: _ } => return,
+            } => {
+                assert_eq!(
+                    *input, mapping.pos_input as u16,
+                    "Can't use different inputs for the same output."
+                );
+                return;
+            }
+            OutputInfo::Array { item: _ } => panic!("Can't register an inplace operation for an array that isn't using a defined writing strategy."),
         };
 
         let item = match self.input_bindings.get_mut(mapping.pos_input) {
@@ -269,7 +538,7 @@ fn bool_item(ty: Item) -> Item {
     }
 }
 
-fn bool_elem(elem: Elem) -> Elem {
+pub fn bool_elem(elem: Elem) -> Elem {
     match elem {
         // U32 are used for bool tensors
         Elem::Bool => Elem::UInt,

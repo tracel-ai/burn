@@ -1,11 +1,10 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
-use crate::kernel::reduce::{self, init_reduce_output};
+use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
+use crate::kernel::reduce::{self};
 use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-
-use burn_tensor::Reader;
-use burn_tensor::{ops::IntTensorOps, Data, Shape};
+use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
 use std::ops::Range;
 
 impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
@@ -254,13 +253,29 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        let output = init_reduce_output(&tensor, dim);
-        reduce::sum_dim(tensor, output, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::int_sum_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::sum_dim(tensor, output, dim)
+        }
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        let output = init_reduce_output(&tensor, dim);
-        reduce::mean_dim(tensor, output, dim)
+        #[cfg(feature = "autotune")]
+        {
+            reduce::int_mean_dim_autotune(tensor, dim)
+        }
+
+        #[cfg(not(feature = "autotune"))]
+        {
+            let output = init_reduce_output(&tensor, dim);
+            reduce::int_mean_dim(tensor, output, dim)
+        }
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
@@ -312,5 +327,24 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         times: usize,
     ) -> IntTensor<Self, D> {
         kernel::repeat(tensor, dim, times)
+    }
+
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<Self>,
+    ) -> IntTensor<Self, D> {
+        let float_tensor = match distribution {
+            Distribution::Default => random_uniform(shape, device, 0.elem::<f32>(), 255.elem()),
+            Distribution::Uniform(low, high) => {
+                random_uniform(shape, device, low.elem(), high.elem())
+            }
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem()),
+            Distribution::Normal(mean, std) => {
+                random_normal(shape, device, mean.elem(), std.elem())
+            }
+        };
+
+        kernel::cast(float_tensor)
     }
 }

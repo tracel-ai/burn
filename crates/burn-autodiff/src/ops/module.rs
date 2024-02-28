@@ -1,4 +1,7 @@
+use crate::checkpoint::base::Checkpointer;
+use crate::checkpoint::strategy::CheckpointStrategy;
 use crate::grads::Gradients;
+use crate::graph::NodeID;
 use crate::ops::{unary, Backward, Ops};
 use crate::tensor::AutodiffTensor;
 use crate::Autodiff;
@@ -8,7 +11,7 @@ use burn_tensor::ops::*;
 
 use super::OpsKind;
 
-impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B, C> {
     fn embedding(weights: AutodiffTensor<B, 2>, indices: IntTensor<B, 2>) -> AutodiffTensor<B, 3> {
         #[derive(Debug)]
         struct Embedding;
@@ -16,7 +19,12 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend> Backward<B, 3, 1> for Embedding {
             type State = (B::FloatTensorPrimitive<2>, IntTensor<B, 2>);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
                 let (weights, indices) = ops.state;
 
                 unary::<B, 3, 2, _>(ops.parents, ops.node, grads, |grad| {
@@ -26,7 +34,8 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         match Embedding
-            .prepare([weights.node], [weights.graph])
+            .prepare::<C>([weights.node], [weights.graph])
+            .compute_bound()
             .stateful()
         {
             OpsKind::Tracked(prep) => prep.finish(
@@ -57,19 +66,23 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct Conv2DNoBias;
 
         impl<B: Backend> Backward<B, 4, 3> for Conv2DWithBias {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<1>,
-                ConvOptions<2>,
-            );
+            type State = (NodeID, NodeID, NodeID, ConvOptions<2>);
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, options) = ops.state;
-                let backward = B::conv2d_backward(x, weight, Some(bias), grad, options);
+                let (x_state, weight_state, bias_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward = B::conv2d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -84,17 +97,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<4>,
-                ConvOptions<2>,
-            );
+            type State = (NodeID, NodeID, ConvOptions<2>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, options) = ops.state;
+                let (x_state, weight_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+
                 let backward = B::conv2d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
@@ -108,21 +125,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match Conv2DWithBias
-                .prepare(
-                    [x.node, weight.node, bias.node],
-                    [x.graph, weight.graph, bias.graph],
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
+                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv2d(x.primitive, weight.primitive, Some(bias.primitive), options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    let bias_state = prep.checkpoint(&bias);
+                    prep.finish(
+                        (x_state, weight_state, bias_state, options.clone()),
+                        B::conv2d(x.primitive, weight.primitive, Some(bias.primitive), options),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv2d(
                     x.primitive,
                     weight.primitive,
@@ -131,17 +149,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match Conv2DNoBias
-                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone()],
+                    [x.graph.clone(), weight.graph.clone()],
+                )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv2d(x.primitive, weight.primitive, None, options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, weight_state, options.clone()),
+                        B::conv2d(x.primitive, weight.primitive, None, options),
+                    )
+                }
+
                 OpsKind::UnTracked(prep) => {
                     prep.finish(B::conv2d(x.primitive, weight.primitive, None, options))
                 }
@@ -161,19 +184,23 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct ConvTranspose2DNoBias;
 
         impl<B: Backend> Backward<B, 4, 3> for ConvTranspose2DWithBias {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<1>,
-                ConvTransposeOptions<2>,
-            );
+            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<2>);
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, bias, options) = ops.state;
-                let backward = B::conv_transpose2d_backward(x, weight, Some(bias), grad, options);
+                let (x_state, weight_state, bias_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward = B::conv_transpose2d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 4>(node, backward.x_grad)
@@ -188,17 +215,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 4, 2> for ConvTranspose2DNoBias {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                B::FloatTensorPrimitive<4>,
-                ConvTransposeOptions<2>,
-            );
+            type State = (NodeID, NodeID, ConvTransposeOptions<2>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
-                let (x, weight, options) = ops.state;
+                let (x_state, weight_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+
                 let backward = B::conv_transpose2d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
@@ -212,26 +243,28 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match ConvTranspose2DWithBias
-                .prepare(
-                    [x.node, weight.node, bias.node],
-                    [x.graph, weight.graph, bias.graph],
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
+                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv_transpose2d(
-                        x.primitive,
-                        weight.primitive,
-                        Some(bias.primitive),
-                        options,
-                    ),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    let bias_state = prep.checkpoint(&bias);
+
+                    prep.finish(
+                        (x_state, weight_state, bias_state, options.clone()),
+                        B::conv_transpose2d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
                     x.primitive,
                     weight.primitive,
@@ -240,17 +273,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match ConvTranspose2DNoBias
-                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone()],
+                    [x.graph.clone(), weight.graph.clone()],
+                )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv_transpose2d(x.primitive, weight.primitive, None, options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+
+                    prep.finish(
+                        (x_state, weight_state, options.clone()),
+                        B::conv_transpose2d(x.primitive, weight.primitive, None, options),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose2d(
                     x.primitive,
                     weight.primitive,
@@ -273,19 +311,23 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct Conv1DNoBias;
 
         impl<B: Backend> Backward<B, 3, 3> for Conv1DWithBias {
-            type State = (
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<1>,
-                ConvOptions<1>,
-            );
+            type State = (NodeID, NodeID, NodeID, ConvOptions<1>);
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, bias, options) = ops.state;
-                let backward = B::conv1d_backward(x, weight, Some(bias), grad, options);
+                let (x_state, weight_state, bias_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward = B::conv1d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -300,17 +342,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
-            type State = (
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<3>,
-                ConvOptions<1>,
-            );
+            type State = (NodeID, NodeID, ConvOptions<1>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, options) = ops.state;
+                let (x_state, weight_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+
                 let backward = B::conv1d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
@@ -323,21 +369,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
         match bias {
             Some(bias) => match Conv1DWithBias
-                .prepare(
-                    [x.node, weight.node, bias.node],
-                    [x.graph, weight.graph, bias.graph],
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
+                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv1d(x.primitive, weight.primitive, Some(bias.primitive), options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    let bias_state = prep.checkpoint(&bias);
+                    prep.finish(
+                        (x_state, weight_state, bias_state, options.clone()),
+                        B::conv1d(x.primitive, weight.primitive, Some(bias.primitive), options),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv1d(
                     x.primitive,
                     weight.primitive,
@@ -346,17 +393,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match Conv1DNoBias
-                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone()],
+                    [x.graph.clone(), weight.graph.clone()],
+                )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv1d(x.primitive, weight.primitive, None, options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, weight_state, options.clone()),
+                        B::conv1d(x.primitive, weight.primitive, None, options),
+                    )
+                }
                 OpsKind::UnTracked(prep) => {
                     prep.finish(B::conv1d(x.primitive, weight.primitive, None, options))
                 }
@@ -376,19 +427,23 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct ConvTranspose1DNoBias;
 
         impl<B: Backend> Backward<B, 3, 3> for ConvTranspose1DWithBias {
-            type State = (
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<1>,
-                ConvTransposeOptions<1>,
-            );
+            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<1>);
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, bias, options) = ops.state;
-                let backward = B::conv_transpose1d_backward(x, weight, Some(bias), grad, options);
+                let (x_state, weight_state, bias_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward = B::conv_transpose1d_backward(x, weight, bias, grad, options);
 
                 if let Some(node) = node_x {
                     grads.register::<B, 3>(node, backward.x_grad)
@@ -403,17 +458,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         }
 
         impl<B: Backend> Backward<B, 3, 2> for ConvTranspose1DNoBias {
-            type State = (
-                B::FloatTensorPrimitive<3>,
-                B::FloatTensorPrimitive<3>,
-                ConvTransposeOptions<1>,
-            );
+            type State = (NodeID, NodeID, ConvTransposeOptions<1>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
-                let (x, weight, options) = ops.state;
+                let (x_state, weight_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+
                 let backward = B::conv_transpose1d_backward(x, weight, None, grad, options);
 
                 if let Some(node) = node_x {
@@ -427,26 +486,27 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 
         match bias {
             Some(bias) => match ConvTranspose1DWithBias
-                .prepare(
-                    [x.node, weight.node, bias.node],
-                    [x.graph, weight.graph, bias.graph],
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone(), bias.node.clone()],
+                    [x.graph.clone(), weight.graph.clone(), bias.graph.clone()],
                 )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        bias.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv_transpose1d(
-                        x.primitive,
-                        weight.primitive,
-                        Some(bias.primitive),
-                        options,
-                    ),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    let bias_state = prep.checkpoint(&bias);
+                    prep.finish(
+                        (x_state, weight_state, bias_state, options.clone()),
+                        B::conv_transpose1d(
+                            x.primitive,
+                            weight.primitive,
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
                     x.primitive,
                     weight.primitive,
@@ -455,17 +515,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 )),
             },
             None => match ConvTranspose1DNoBias
-                .prepare([x.node, weight.node], [x.graph, weight.graph])
+                .prepare::<C>(
+                    [x.node.clone(), weight.node.clone()],
+                    [x.graph.clone(), weight.graph.clone()],
+                )
+                .compute_bound()
                 .stateful()
             {
-                OpsKind::Tracked(prep) => prep.finish(
-                    (
-                        x.primitive.clone(),
-                        weight.primitive.clone(),
-                        options.clone(),
-                    ),
-                    B::conv_transpose1d(x.primitive, weight.primitive, None, options),
-                ),
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, weight_state, options.clone()),
+                        B::conv_transpose1d(x.primitive, weight.primitive, None, options),
+                    )
+                }
                 OpsKind::UnTracked(prep) => prep.finish(B::conv_transpose1d(
                     x.primitive,
                     weight.primitive,
@@ -502,12 +566,18 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
-            type State = (B::FloatTensorPrimitive<3>, usize, usize, usize, bool);
+            type State = (NodeID, usize, usize, usize, bool);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
-                let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let (x_state, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
 
                 if let Some(node) = node_parent {
                     let grad = B::avg_pool1d_backward(
@@ -523,18 +593,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AvgPool1D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::avg_pool1d(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                );
+        match AvgPool1D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
                 prep.finish(
-                    (x.primitive, kernel_size, stride, padding, count_include_pad),
-                    output,
+                    (x_state, kernel_size, stride, padding, count_include_pad),
+                    B::avg_pool1d(
+                        x.primitive.clone(),
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                    ),
                 )
             }
             OpsKind::UnTracked(prep) => prep.finish(B::avg_pool1d(
@@ -558,18 +632,18 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AvgPool2D {
-            type State = (
-                B::FloatTensorPrimitive<4>,
-                [usize; 2],
-                [usize; 2],
-                [usize; 2],
-                bool,
-            );
+            type State = (NodeID, [usize; 2], [usize; 2], [usize; 2], bool);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
-                let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let (x_state, kernel_size, stride, padding, count_include_pad) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
 
                 if let Some(node) = node_parent {
                     let grad = B::avg_pool2d_backward(
@@ -585,18 +659,22 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match AvgPool2D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::avg_pool2d(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    count_include_pad,
-                );
+        match AvgPool2D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
                 prep.finish(
-                    (x.primitive, kernel_size, stride, padding, count_include_pad),
-                    output,
+                    (x_state, kernel_size, stride, padding, count_include_pad),
+                    B::avg_pool2d(
+                        x.primitive.clone(),
+                        kernel_size,
+                        stride,
+                        padding,
+                        count_include_pad,
+                    ),
                 )
             }
             OpsKind::UnTracked(prep) => prep.finish(B::avg_pool2d(
@@ -627,18 +705,18 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: usize,
         dilation: usize,
     ) -> AutodiffTensor<B, 3> {
-        match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::max_pool1d_with_indices(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                );
+        match MaxPool1D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let output =
+                    B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
                 prep.finish(
                     (
-                        x.primitive,
+                        x_state,
                         output.indices,
                         kernel_size,
                         stride,
@@ -664,20 +742,20 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<Autodiff<B>> {
-        match MaxPool1D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::max_pool1d_with_indices(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                );
+    ) -> MaxPool1dWithIndices<Self> {
+        match MaxPool1D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let output =
+                    B::max_pool1d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
 
                 let output_tensor = prep.finish(
                     (
-                        x.primitive,
+                        x_state,
                         output.indices.clone(),
                         kernel_size,
                         stride,
@@ -707,7 +785,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         dilation: usize,
         output_grad: AutodiffTensor<B, 3>,
         indices: IntTensor<B, 3>,
-    ) -> MaxPool1dBackward<Autodiff<B>> {
+    ) -> MaxPool1dBackward<Self> {
         let output = B::max_pool1d_with_indices_backward(
             x.primitive,
             kernel_size,
@@ -727,18 +805,18 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> AutodiffTensor<B, 4> {
-        match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::max_pool2d_with_indices(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                );
+        match MaxPool2D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let output =
+                    B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
                 prep.finish(
                     (
-                        x.primitive,
+                        x_state,
                         output.indices,
                         kernel_size,
                         stride,
@@ -764,20 +842,21 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<Autodiff<B>> {
-        match MaxPool2D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::max_pool2d_with_indices(
-                    x.primitive.clone(),
-                    kernel_size,
-                    stride,
-                    padding,
-                    dilation,
-                );
+    ) -> MaxPool2dWithIndices<Self> {
+        match MaxPool2D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+
+                let output =
+                    B::max_pool2d_with_indices(x.primitive, kernel_size, stride, padding, dilation);
 
                 let output_tensor = prep.finish(
                     (
-                        x.primitive,
+                        x_state,
                         output.indices.clone(),
                         kernel_size,
                         stride,
@@ -807,7 +886,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         _dilation: [usize; 2],
         _output_grad: AutodiffTensor<B, 4>,
         _indices: IntTensor<B, 4>,
-    ) -> MaxPool2dBackward<Autodiff<B>> {
+    ) -> MaxPool2dBackward<Self> {
         panic!("Can't differentiate max pool2d with indices backward.");
     }
     fn adaptive_avg_pool1d(x: AutodiffTensor<B, 3>, output_size: usize) -> AutodiffTensor<B, 3> {
@@ -815,24 +894,34 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AdaptiveAvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AdaptiveAvgPool1D {
-            type State = B::FloatTensorPrimitive<3>;
+            type State = NodeID;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
+                let state = checkpointer.retrieve_node_output(ops.state);
 
                 if let Some(node) = node_parent {
-                    let grad = B::adaptive_avg_pool1d_backward(ops.state, grad);
+                    let grad = B::adaptive_avg_pool1d_backward(state, grad);
                     grads.register::<B, 3>(node, grad);
                 }
             }
         }
 
-        match AdaptiveAvgPool1D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                x.primitive.clone(),
-                B::adaptive_avg_pool1d(x.primitive, output_size),
-            ),
+        match AdaptiveAvgPool1D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                prep.finish(x_state, B::adaptive_avg_pool1d(x.primitive, output_size))
+            }
             OpsKind::UnTracked(prep) => {
                 prep.finish(B::adaptive_avg_pool1d(x.primitive, output_size))
             }
@@ -847,24 +936,34 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         struct AdaptiveAvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AdaptiveAvgPool2D {
-            type State = B::FloatTensorPrimitive<4>;
+            type State = NodeID;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
+                let state = checkpointer.retrieve_node_output(ops.state);
 
                 if let Some(node) = node_parent {
-                    let grad = B::adaptive_avg_pool2d_backward(ops.state, grad);
+                    let grad = B::adaptive_avg_pool2d_backward(state, grad);
                     grads.register::<B, 4>(node, grad);
                 }
             }
         }
 
-        match AdaptiveAvgPool2D.prepare([x.node], [x.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(
-                x.primitive.clone(),
-                B::adaptive_avg_pool2d(x.primitive, output_size),
-            ),
+        match AdaptiveAvgPool2D
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                prep.finish(x_state, B::adaptive_avg_pool2d(x.primitive, output_size))
+            }
             OpsKind::UnTracked(prep) => {
                 prep.finish(B::adaptive_avg_pool2d(x.primitive, output_size))
             }
@@ -891,19 +990,18 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
 struct MaxPool1D;
 
 impl<B: Backend> Backward<B, 3, 1> for MaxPool1D {
-    type State = (
-        B::FloatTensorPrimitive<3>,
-        IntTensor<B, 3>,
-        usize,
-        usize,
-        usize,
-        usize,
-    );
+    type State = (NodeID, IntTensor<B, 3>, usize, usize, usize, usize);
 
-    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+    fn backward(
+        self,
+        ops: Ops<Self::State, 1>,
+        grads: &mut Gradients,
+        checkpointer: &mut Checkpointer,
+    ) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B, 3>(&ops.node);
-        let (x, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let (x_state, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let x = checkpointer.retrieve_node_output(x_state);
 
         if let Some(node) = node_parent {
             let grad = B::max_pool1d_with_indices_backward(
@@ -926,7 +1024,7 @@ struct MaxPool2D;
 
 impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     type State = (
-        B::FloatTensorPrimitive<4>,
+        NodeID,
         IntTensor<B, 4>,
         [usize; 2],
         [usize; 2],
@@ -934,10 +1032,16 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
         [usize; 2],
     );
 
-    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+    fn backward(
+        self,
+        ops: Ops<Self::State, 1>,
+        grads: &mut Gradients,
+        checkpointer: &mut Checkpointer,
+    ) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B, 4>(&ops.node);
-        let (x, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let (x_state, indices, kernel_size, stride, padding, dilation) = ops.state;
+        let x = checkpointer.retrieve_node_output(x_state);
 
         if let Some(node) = node_parent {
             let grad = B::max_pool2d_with_indices_backward(
