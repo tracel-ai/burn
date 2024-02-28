@@ -1,20 +1,15 @@
-use std::marker::PhantomData;
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Branch, Elem, Item, Scope, Variable, Visibility},
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        InputInfo, WorkgroupLaunch,
     },
-    compute::StaticKernel,
     element::JitElement,
-    kernel::{
-        build_info, elemwise_workgroup, DynamicKernelSource, KernelSettings, SourceTemplate,
-        WORKGROUP_DEFAULT,
-    },
-    ops::numeric::empty_device,
+    kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
+use std::marker::PhantomData;
 
 pub struct SelectAssignComputeShader {
     tensor: Variable,
@@ -132,49 +127,6 @@ impl SelectAssignComputeShader {
     }
 }
 
-impl SelectComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        let input = self.input;
-        let indices = self.indices;
-        let output = self.output;
-        let id = Variable::Id;
-        let offset_input = scope.zero(Elem::UInt);
-
-        gpu!(
-            scope,
-            range(0u32, Variable::Rank).for_each(|i, scope| {
-                let stride_input = scope.create_local(Elem::UInt);
-                let stride_output = scope.create_local(Elem::UInt);
-                let shape_output = scope.create_local(Elem::UInt);
-
-                gpu!(scope, stride_input = stride(input, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
-
-                let offset_local = scope.create_local(Elem::UInt);
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
-
-                let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
-
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, offset_local = indices[offset_local]);
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                }).else(|scope| {
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                }));
-
-                gpu!(scope, offset_input += offset_local);
-            })
-        );
-
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[offset_input]);
-        gpu!(scope, output[id] = value);
-    }
-}
-
 impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectAssignEagerKernel<R, E> {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
@@ -274,84 +226,11 @@ pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: u
     tensor
 }
 
-pub(crate) fn select_assign_old<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    dim: usize,
-    indices: JitTensor<R, I, 1>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    let tensor = match tensor.can_mut() {
-        true => tensor,
-        false => tensor.copy(),
-    };
-
-    let mut info = build_info(&[&tensor, &value]);
-    let mut strides = [0; D];
-    let mut current = 1;
-    let mut num_elems_per_workgroup = 1;
-
-    tensor
-        .shape
-        .dims
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(index, _val)| *index != dim)
-        .for_each(|(index, val)| {
-            strides[index] = current;
-            current *= val;
-            num_elems_per_workgroup *= tensor.shape.dims[index];
-        });
-
-    strides
-        .into_iter()
-        .for_each(|stride| info.push(stride as u32));
-
-    info.push(dim as u32);
-
-    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = StaticKernel::<
-        KernelSettings<SelectAssignInplace, E, I, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(
-        num_elems_per_workgroup,
-        WORKGROUP_DEFAULT,
-    ));
-
-    tensor.client.execute(
-        Box::new(kernel),
-        &[&tensor.handle, &indices.handle, &value.handle, &info_handle],
-    );
-
-    tensor
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
     use burn_tensor::{backend::Backend, Distribution, Int, Tensor};
-
-    #[test]
-    fn select_should_work_with_multiple_workgroups() {
-        let tensor =
-            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
-        let indices = Tensor::<TestBackend, 1, Int>::arange(0..100, &Default::default());
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
-            &Default::default(),
-        );
-
-        let actual = select(tensor.into_primitive(), 1, indices.into_primitive());
-        let expected = tensor_ref.select(1, indices_ref);
-
-        expected.into_data().assert_approx_eq(
-            &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
-            3,
-        );
-    }
 
     #[test]
     fn select_assign_should_work_with_multiple_workgroups_2d_dim0() {

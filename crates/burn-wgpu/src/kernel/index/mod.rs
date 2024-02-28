@@ -1,8 +1,8 @@
 mod gather;
-mod select_assign;
 mod repeat;
 mod scatter;
 mod select;
+mod select_assign;
 mod slice;
 
 pub use repeat::*;
