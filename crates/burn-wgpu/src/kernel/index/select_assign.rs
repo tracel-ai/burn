@@ -16,20 +16,6 @@ use crate::{
     Runtime,
 };
 
-#[derive(new)]
-struct SelectEagerKernel<R: Runtime, E: JitElement> {
-    dim: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
-
-pub struct SelectComputeShader {
-    input: Variable,
-    indices: Variable,
-    output: Variable,
-    dim: usize,
-}
-
 pub struct SelectAssignComputeShader {
     tensor: Variable,
     indices: Variable,
@@ -239,86 +225,6 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectAssignEagerKernel<
     }
 }
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-        let item_indices: Item = Elem::Int.into();
-
-        let input = Variable::GlobalInputArray(0, item);
-        let indices = Variable::GlobalInputArray(1, item_indices);
-        let output = Variable::GlobalOutputArray(0, item);
-
-        scope.write_global_custom(output);
-
-        SelectComputeShader {
-            input,
-            indices,
-            output,
-            dim: self.dim,
-        }
-        .expand(&mut scope);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let indices = InputInfo::Array {
-            item: item_indices,
-            visibility: Visibility::Read,
-        };
-        let output = OutputInfo::Array { item };
-
-        let info = CompilationInfo {
-            inputs: vec![input, indices],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
-    }
-}
-
-pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    dim: usize,
-    indices: JitTensor<R, I, 1>,
-) -> JitTensor<R, E, D> {
-    let mut shape_output = tensor.shape.clone();
-    shape_output.dims[dim] = indices.shape.dims[0];
-
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    let kernel = SelectEagerKernel::new(dim);
-
-    execute_dynamic::<R, SelectEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            // This is a current hacks because the info buffer that contains the strides and shapes is
-            // hardcoded to only contains information about tensors of the same rank. Howver, since
-            // we don't rely on the shape and stride of the indices tensors, it doesn't matter
-            // which value we put, it just needs to be of the same rank.
-            EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
-        ],
-        &[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
-
-    output
-}
 pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
