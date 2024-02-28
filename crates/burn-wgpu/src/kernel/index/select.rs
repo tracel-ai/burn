@@ -131,7 +131,7 @@ pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
         &[
             EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
             // This is a current hacks because the info buffer that contains the strides and shapes is
-            // hardcoded to only contains information about tensors of the same rank. Howver, since
+            // hardcoded to only contains information about tensors of the same rank. However, since
             // we don't rely on the shape and stride of the indices tensors, it doesn't matter
             // which value we put, it just needs to be of the same rank.
             EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
