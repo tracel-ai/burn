@@ -5,12 +5,12 @@ use core::{fmt::Debug, hash::Hash};
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 
-use crate::{backend::Backend, DynRankTensor, Tensor};
+use crate::{backend::Backend, DynTensor, Tensor};
 
-/// Contains tensors of arbitrary dimension, as [`DynRankTensor`]s.
+/// Contains tensors of arbitrary dimension, as [`DynTensor`]s.
 #[derive(Debug)]
 pub struct TensorContainer<Id, B: Backend> {
-    tensors: HashMap<Id, DynRankTensor<B>>,
+    tensors: HashMap<Id, DynTensor<B>>,
 }
 
 impl<Id, B: Backend> TensorContainer<Id, B>
@@ -25,10 +25,13 @@ where
     }
 
     /// Get a tensor with the given ID.
-    pub fn get<const D: usize>(&self, id: &Id) -> Option<Tensor<B, D>> {
-        let dyn_rank_tensor = self.tensors.get(id)?.clone();
+    pub fn get<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+        &self,
+        id: &Id,
+    ) -> Option<Tensor<BOut, D>> {
+        let dyn_tensor = self.tensors.get(id)?.clone();
 
-        Some(dyn_rank_tensor.into())
+        Some(dyn_tensor.as_backend::<BOut>().into())
     }
 
     /// Register a new tensor for the given ID.
@@ -36,12 +39,20 @@ where
     /// # Notes
     ///
     /// If a tensor is already registered for the given ID, it will be replaced.
-    pub fn register<const D: usize>(&mut self, id: Id, value: Tensor<B, D>) {
-        self.tensors.insert(id, value.into());
+    pub fn register<BIn: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+        &mut self,
+        id: Id,
+        value: Tensor<BIn, D>,
+    ) {
+        self.tensors
+            .insert(id, DynTensor::<BIn>::from(value).as_backend::<B>());
     }
 
     /// Remove a tensor for the given ID and returns it.
-    pub fn remove<const D: usize>(&mut self, id: &Id) -> Option<Tensor<B, D>> {
+    pub fn remove<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+        &mut self,
+        id: &Id,
+    ) -> Option<Tensor<BOut, D>> {
         self.tensors.remove(id).map(Into::into)
     }
 
@@ -56,13 +67,13 @@ where
     }
 
     /// Convert into the internal representation of the [`TensorContainer`].
-    pub fn into_inner(self) -> HashMap<Id, DynRankTensor<B>> {
+    pub fn into_inner(self) -> HashMap<Id, DynTensor<B>> {
         self.tensors
     }
 
     /// Creates a new [`TensorContainer`] from a [`HashMap`] of [`DynRankTensor`]s, which is the
     /// internal representation of it.
-    pub fn from_inner(tensors: HashMap<Id, DynRankTensor<B>>) -> Self {
+    pub fn from_inner(tensors: HashMap<Id, DynTensor<B>>) -> Self {
         Self { tensors }
     }
 }

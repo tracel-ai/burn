@@ -16,7 +16,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let input = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -41,7 +41,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::relu_backward(ops.state, grad)
                 });
@@ -62,7 +62,7 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::sigmoid_backward(ops.state, grad)
                 });

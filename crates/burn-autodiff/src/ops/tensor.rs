@@ -11,34 +11,30 @@ use crate::{
 
 use burn_tensor::{
     backend::Backend,
-    ops::{
-        BoolTensor, FloatDynRankTensor, FloatElem, FloatTensor, FloatTensorOps,
-        FullPrecisionBackend, IntTensor,
-    },
-    Data, Device, DynRankData, ElementConversion, Reader, Shape, Tensor,
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    Data, Device, ElementConversion, Reader, Shape, Tensor,
 };
 
 use super::maxmin::MaxMinDim;
 
 impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
+    fn float_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> FloatTensor<Self, D> {
+        B::float_from_dyn(dyn_tensor)
+    }
+
+    fn float_into_dyn<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
+        B::float_into_dyn(tensor)
+    }
+
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<B>, D>,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         AutodiffTensor::new(B::float_from_data(data, device))
-    }
-
-    fn float_from_dyn_rank<const D: usize>(
-        dyn_rank_primitive: FloatDynRankTensor<Self>,
-    ) -> FloatTensor<Self, D> {
-        B::float_from_dyn_rank(dyn_rank_primitive)
-    }
-
-    fn float_dyn_rank_from_data(
-        data: DynRankData<FloatElem<Self>>,
-        device: &Device<Self>,
-    ) -> FloatDynRankTensor<Self> {
-        B::float_dyn_rank_from_data(data, device)
     }
 
     fn float_to_data<const D: usize>(
@@ -51,18 +47,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         tensor: FloatTensor<Self, D>,
     ) -> Reader<Data<FloatElem<B>, D>> {
         B::float_into_data(tensor.primitive)
-    }
-
-    fn float_into_dyn_rank<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<FloatDynRankTensor<B>> {
-        B::float_into_dyn_rank(tensor)
-    }
-
-    fn float_dyn_rank_into_data(
-        tensor: FloatDynRankTensor<Self>,
-    ) -> Reader<DynRankData<FloatElem<Self>>> {
-        B::float_dyn_rank_into_data(tensor)
     }
 
     fn float_random<const D: usize>(
@@ -99,7 +83,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for ToDevice {
             type State = B::Device;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_to_device(grad, &ops.state)
                 });
@@ -135,7 +119,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Add {
             type State = (Shape<D>, Shape<D>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (shape_lhs, shape_rhs) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
@@ -173,7 +157,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for AddScalar {
             type State = ();
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| grad);
             }
         }
@@ -193,7 +177,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Sub {
             type State = (Shape<D>, Shape<D>);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (shape_lhs, shape_rhs) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
@@ -231,7 +215,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for SubScalar {
             type State = ();
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| grad);
             }
         }
@@ -255,7 +239,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 BinaryOpsBroadcast<D>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
@@ -304,7 +288,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for MulScalar {
             type State = FloatElem<B>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_mul_scalar(grad, ops.state)
                 });
@@ -331,7 +315,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 BinaryOpsBroadcast<D>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (lhs, rhs, broadcast) = ops.state;
                 let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, rhs);
 
@@ -388,7 +372,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for DivScalar {
             type State = FloatElem<B>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let tmp = 1.0 / ops.state.elem::<f32>();
                     B::float_mul_scalar(grad, tmp.elem())
@@ -416,7 +400,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 BinaryOpsBroadcast<D>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (lhs, rhs, broadcast) = ops.state;
 
                 binary::<B, D, D, D, _, _>(
@@ -466,7 +450,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Neg {
             type State = ();
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| B::float_neg(grad));
             }
         }
@@ -482,7 +466,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Recip {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let tensor = ops.state;
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let tmp = B::float_powf_scalar(tensor, -2.0);
@@ -512,7 +496,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for SwapDim {
             type State = (usize, usize);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (dim1, dim2) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -539,7 +523,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D2, 1> for ReshapeDim<D1> {
             type State = (Shape<D1>, Shape<D2>);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (shape_original, shape) = ops.state;
 
                 unary::<B, D2, D1, _>(ops.parents, ops.node, grads, |grad| {
@@ -577,7 +561,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Gather {
             type State = (usize, IntTensor<B, D>, Shape<D>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (dim, indices, shape, device) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -615,7 +599,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 2> for Scatter {
             type State = (usize, IntTensor<B, D>, Shape<D>, Shape<D>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (dim, indices, shape_lhs, shape_rhs, device) = ops.state;
                 let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
@@ -669,7 +653,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for IndexSelectDim {
             type State = (usize, IntTensor<B, 1>, Shape<D>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (dim, indices, shape, device) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -710,7 +694,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 2> for IndexSelectDimAssign<D> {
             type State = (usize, IntTensor<B, 1>, Shape<D>, Shape<D>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (dim, indices, shape_lhs, shape_rhs, device) = ops.state;
                 let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
@@ -763,7 +747,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D1, 1> for Index<D2> {
             type State = ([std::ops::Range<usize>; D2], Shape<D1>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (ranges, shape, device) = ops.state;
 
                 unary::<B, D1, D1, _>(ops.parents, ops.node, grads, |grad| {
@@ -797,7 +781,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D1: usize, const D2: usize> Backward<B, D1, 2> for IndexAssign<D2> {
             type State = ([std::ops::Range<usize>; D2], Shape<D1>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (ranges, shape_rhs, device) = ops.state;
                 let [ranges_4lhs, ranges_4rhs] = duplicate(&ops.parents, Some(ranges));
 
@@ -845,7 +829,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 2> for MaskWhere {
             type State = (BoolTensor<B, D>, Shape<D>, Shape<D>, B::Device);
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (mask, shape_lhs, shape_rhs, device) = ops.state;
                 let [mask_4lhs, mask_4rhs] = duplicate(&ops.parents, Some(mask));
 
@@ -901,7 +885,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for MaskFill {
             type State = BoolTensor<B, D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_mask_fill(grad, ops.state, 0.elem())
                 });
@@ -1023,7 +1007,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, 1, 1> for Sum<D> {
             type State = Shape<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
                     let val = B::float_ones(ops.state, &B::float_device(&grad));
 
@@ -1054,7 +1038,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for SumDim {
             type State = (Shape<D>, usize);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (shape, dim) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1082,7 +1066,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, 1, 1> for Mean<D> {
             type State = Shape<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, 1, D, _>(ops.parents, ops.node, grads, |grad| {
                     let shape = ops.state;
                     let val = 1_f64 / shape.num_elements() as f64;
@@ -1116,7 +1100,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for MeamDim {
             type State = (Shape<D>, usize);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (shape, dim) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1150,7 +1134,11 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B::FullPrecisionBackend, D, 1> for ToFullPrecision<B> {
             type State = ();
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients<B::FullPrecisionBackend>,
+            ) {
                 unary_different_backend::<B, B::FullPrecisionBackend, D, D, _>(
                     ops.parents,
                     ops.node,
@@ -1178,7 +1166,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for FromFullPrecision<B::FullPrecisionBackend> {
             type State = ();
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary_different_backend::<B::FullPrecisionBackend, B, D, D, _>(
                     ops.parents,
                     ops.node,
@@ -1203,7 +1191,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Exp {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_mul(grad, ops.state)
                 });
@@ -1225,7 +1213,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_powf_scalar(ops.state, -1.0);
                     B::float_mul(grad, value)
@@ -1248,7 +1236,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Log1P {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_add_scalar(ops.state, 1.elem());
                     let value = B::float_powf_scalar(value, -1.0);
@@ -1280,7 +1268,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
                 BinaryOpsBroadcast<D>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let (lhs, rhs, broadcast) = ops.state;
                 // Both lhs and rhs are needed for both lhs and rhs gradients, but we clone them
                 // the number of times required by the parents specification.
@@ -1345,7 +1333,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for PowFScalar {
             type State = (B::FloatTensorPrimitive<D>, f32);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (tensor, value) = ops.state;
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
@@ -1373,7 +1361,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sqrt {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let input = ops.state;
                     let value = B::float_div_scalar(B::float_powf_scalar(input, -0.5), 2.elem());
@@ -1398,7 +1386,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Abs {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_mul(grad, ops.state)
                 });
@@ -1422,7 +1410,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Cos {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let input = ops.state;
                     let value = B::float_neg(B::float_sin(input));
@@ -1439,7 +1427,6 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_cos(tensor.primitive)),
         }
     }
-
     fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Sin;
@@ -1447,7 +1434,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Sin {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_cos(ops.state);
                     B::float_mul(grad, value)
@@ -1469,7 +1456,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Tanh {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let value = B::float_add_scalar(
                         B::float_neg(B::float_powf_scalar(ops.state, 2.0)),
@@ -1495,7 +1482,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         impl<B: Backend, const D: usize> Backward<B, D, 1> for Erf {
             type State = B::FloatTensorPrimitive<D>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     let exponent = B::float_neg(B::float_powf_scalar(ops.state, 2.0));
                     let numerator = B::float_mul_scalar(B::float_exp(exponent), 2.0.elem());
@@ -1514,6 +1501,7 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
             OpsKind::UnTracked(prep) => prep.finish(B::float_erf(tensor.primitive)),
         }
     }
+
     fn float_cat<const D: usize>(
         tensors: Vec<FloatTensor<Self, D>>,
         dim: usize,
@@ -1530,7 +1518,9 @@ impl<B: Backend> FloatTensorOps<Self> for Autodiff<B> {
         }
 
         impl<B: Backend, const D: usize> Step for CatStep<B, D> {
-            fn step(self: Box<Self>, grads: &mut Gradients) {
+            type Backend = B;
+
+            fn step(self: Box<Self>, grads: &mut Gradients<Self::Backend>) {
                 let grad = grads.consume::<B, D>(&self.output);
                 let ranges: Vec<_> = B::float_shape(&grad).dims.iter().map(|v| 0..*v).collect();
                 let ranges: [std::ops::Range<usize>; D] = ranges.try_into().unwrap();

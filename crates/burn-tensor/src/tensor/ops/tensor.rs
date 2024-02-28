@@ -1,10 +1,6 @@
-use super::{
-    BoolTensor, Device, FloatDynRankTensor, FloatElem, FloatTensor, FullPrecisionBackend, IntElem,
-    IntTensor,
-};
+use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Float};
 use crate::{tensor::api::chunk, tensor::api::narrow};
-use crate::{DynRankData, DynRankTensor};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -12,6 +8,18 @@ use num_traits::ToPrimitive;
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
+    /// Converts from a dynamic tensor, which should contain floats, into the backend's float
+    /// tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// To implementors and users, this function should panic when the dynamic tensor provided
+    /// doesn't have float elements as needed.
+    fn float_from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> FloatTensor<B, D>;
+
+    /// Converts from the backend's float tensor primitive, to a dynamic tensor primitive.
+    fn float_into_dyn<const D: usize>(tensor: FloatTensor<B, D>) -> B::DynTensorPrimitive;
+
     /// Creates a new tensor from the data structure.
     ///
     /// # Arguments
@@ -27,15 +35,6 @@ pub trait FloatTensorOps<B: Backend> {
         device: &Device<B>,
     ) -> FloatTensor<B, D>;
 
-    fn float_from_dyn_rank<const D: usize>(
-        dyn_rank_primitive: FloatDynRankTensor<B>,
-    ) -> FloatTensor<B, D>;
-
-    fn float_dyn_rank_from_data(
-        data: DynRankData<FloatElem<B>>,
-        device: &Device<B>,
-    ) -> FloatDynRankTensor<B>;
-
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -49,16 +48,6 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_into_data(tensor.clone())
     }
 
-    fn float_to_dyn_rank<const D: usize>(
-        tensor: &FloatTensor<B, D>,
-    ) -> Reader<FloatDynRankTensor<B>> {
-        Self::float_into_dyn_rank(tensor.clone())
-    }
-
-    fn float_dyn_rank_to_data(tensor: &FloatDynRankTensor<B>) -> Reader<DynRankData<FloatElem<B>>> {
-        Self::float_dyn_rank_into_data(tensor.clone())
-    }
-
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -69,13 +58,6 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The data structure with the tensor's data.
     fn float_into_data<const D: usize>(tensor: FloatTensor<B, D>) -> Reader<Data<FloatElem<B>, D>>;
-
-    fn float_into_dyn_rank<const D: usize>(
-        tensor: FloatTensor<B, D>,
-    ) -> Reader<FloatDynRankTensor<B>>;
-
-    fn float_dyn_rank_into_data(tensor: FloatDynRankTensor<B>)
-        -> Reader<DynRankData<FloatElem<B>>>;
 
     /// Creates a new tensor with random values.
     ///

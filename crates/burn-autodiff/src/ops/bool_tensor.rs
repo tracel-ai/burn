@@ -7,24 +7,50 @@ use burn_tensor::{
 };
 
 impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
-    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
-        B::bool_from_data(data, device)
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
+        B::bool_from_dyn(dyn_tensor)
+    }
+
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
+        B::bool_into_dyn(tensor)
+    }
+
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> BoolTensor<B, D> {
+        B::bool_empty(shape, device)
     }
 
     fn bool_shape<const D: usize>(tensor: &BoolTensor<B, D>) -> Shape<D> {
         B::bool_shape(tensor)
     }
 
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
-        B::bool_to_data(tensor)
-    }
-
     fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>> {
         B::bool_into_data(tensor)
     }
 
+    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
+        B::bool_to_data(tensor)
+    }
+
+    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D> {
+        B::bool_from_data(data, device)
+    }
+
     fn bool_into_int<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, D> {
         B::bool_into_int(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
+        AutodiffTensor::new(B::bool_into_float(tensor))
+    }
+
+    fn bool_device<const D: usize>(tensor: &BoolTensor<B, D>) -> Device<B> {
+        B::bool_device(tensor)
     }
 
     fn bool_to_device<const D: usize>(
@@ -32,10 +58,6 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
         device: &Device<B>,
     ) -> BoolTensor<B, D> {
         B::bool_to_device(tensor, device)
-    }
-
-    fn bool_device<const D: usize>(tensor: &BoolTensor<B, D>) -> Device<B> {
-        B::bool_device(tensor)
     }
 
     fn bool_reshape<const D1: usize, const D2: usize>(
@@ -50,10 +72,6 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
         ranges: [std::ops::Range<usize>; D2],
     ) -> BoolTensor<B, D1> {
         B::bool_slice(tensor, ranges)
-    }
-
-    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> BoolTensor<B, D> {
-        B::bool_empty(shape, device)
     }
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
@@ -77,12 +95,6 @@ impl<B: Backend> BoolTensorOps<Self> for Autodiff<B> {
 
     fn bool_not<const D: usize>(tensor: BoolTensor<B, D>) -> BoolTensor<B, D> {
         B::bool_not(tensor)
-    }
-
-    fn bool_into_float<const D: usize>(
-        tensor: BoolTensor<B, D>,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
-        AutodiffTensor::new(B::bool_into_float(tensor))
     }
 
     fn bool_swap_dims<const D: usize>(

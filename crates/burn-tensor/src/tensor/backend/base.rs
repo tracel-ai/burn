@@ -1,7 +1,7 @@
 use alloc::string::String;
 
-use crate::ops::*;
 use crate::tensor::Element;
+use crate::{ops::*, DynData};
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
 ///
@@ -67,30 +67,30 @@ pub trait Backend:
     type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
 
     /// Pointer to another backend that has a full precision float element type.
-    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
+    type FullPrecisionBackend: Backend<
+        FloatElem = Self::FullPrecisionElem,
+        Device = Self::Device,
+        DynTensorPrimitive = Self::DynTensorPrimitive,
+    >;
     /// Full precision float element type.
     type FullPrecisionElem: Element;
 
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
-    /// Tensor primitive storing floats with a runtime rank. Mainly used to provide
-    /// (de)serialization support for [`TensorContainer`].
-    type DynRankFloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
     type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
-    /// Tensor primitive storing ints with a runtime rank.
-    type DynRankIntTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
     /// There's no need for an [`Element`] type, as in Rust there is only one canonical boolean type, [`bool`].
     type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
-    /// Tensor primitive storing ints with a runtime rank.
-    type DynRankBoolTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+
+    /// Tensor primitive with a runtime rank, and runtime element type.
+    type DynTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {
@@ -105,6 +105,14 @@ pub trait Backend:
 
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) {}
+
+    /// Converts [`DynData`] into the backend's [`DynTensorPrimitive`](Backend::DynTensorPrimitive).
+    /// Useful for deserialization.
+    fn dyn_from_data(data: DynData, device: &Self::Device) -> Self::DynTensorPrimitive;
+
+    /// Converts a [`DynTensorPrimitive`](Backend::DynTensorPrimitive) into [`DynData`]. Useful
+    /// for serialization.
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData;
 }
 
 /// Trait that allows a backend to support autodiff.

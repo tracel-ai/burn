@@ -16,7 +16,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend> Backward<B, 3, 1> for Embedding {
             type State = (B::FloatTensorPrimitive<2>, IntTensor<B, 2>);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let (weights, indices) = ops.state;
 
                 unary::<B, 3, 2, _>(ops.parents, ops.node, grads, |grad| {
@@ -64,7 +64,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvOptions<2>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
@@ -90,7 +90,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvOptions<2>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
@@ -168,7 +168,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvTransposeOptions<2>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
@@ -194,7 +194,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvTransposeOptions<2>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
@@ -280,7 +280,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvOptions<1>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
@@ -306,7 +306,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvOptions<1>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
@@ -383,7 +383,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvTransposeOptions<1>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 3>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight, node_bias] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
@@ -409,7 +409,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 ConvTransposeOptions<1>,
             );
 
-            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 2>, grads: &mut Gradients<B>) {
                 let [node_x, node_weight] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
@@ -504,7 +504,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
             type State = (B::FloatTensorPrimitive<3>, usize, usize, usize, bool);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
                 let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
@@ -566,7 +566,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
                 bool,
             );
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
                 let (x, kernel_size, stride, padding, count_include_pad) = ops.state;
@@ -817,7 +817,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend> Backward<B, 3, 1> for AdaptiveAvgPool1D {
             type State = B::FloatTensorPrimitive<3>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 3>(&ops.node);
 
@@ -849,7 +849,7 @@ impl<B: Backend> ModuleOps<Autodiff<B>> for Autodiff<B> {
         impl<B: Backend> Backward<B, 4, 1> for AdaptiveAvgPool2D {
             type State = B::FloatTensorPrimitive<4>;
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
                 let [node_parent] = ops.parents;
                 let grad = grads.consume::<B, 4>(&ops.node);
 
@@ -892,7 +892,7 @@ impl<B: Backend> Backward<B, 3, 1> for MaxPool1D {
         usize,
     );
 
-    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B, 3>(&ops.node);
         let (x, indices, kernel_size, stride, padding, dilation) = ops.state;
@@ -926,7 +926,7 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
         [usize; 2],
     );
 
-    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+    fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients<B>) {
         let [node_parent] = ops.parents;
         let grad = grads.consume::<B, 4>(&ops.node);
         let (x, indices, kernel_size, stride, padding, dilation) = ops.state;

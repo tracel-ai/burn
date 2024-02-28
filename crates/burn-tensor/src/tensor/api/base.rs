@@ -1191,10 +1191,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         device: &B::Device,
     ) -> Self::Primitive<D>;
 
-    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive>;
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive>;
 
-    fn from_dyn_rank<const D: usize>(dyn_rank_tensor: Self::DynRankPrimitive)
-        -> Self::Primitive<D>;
+    fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1417,14 +1416,12 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_from_data(data, device)
     }
 
-    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
-        B::float_into_dyn_rank(tensor)
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
+        Reader::Concrete(B::float_into_dyn(tensor))
     }
 
-    fn from_dyn_rank<const D: usize>(
-        dyn_rank_tensor: Self::DynRankPrimitive,
-    ) -> Self::Primitive<D> {
-        B::float_from_dyn_rank(dyn_rank_tensor)
+    fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {
+        B::float_from_dyn(dyn_tensor)
     }
 
     fn repeat<const D: usize>(
@@ -1519,12 +1516,16 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::int_into_data(tensor)
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
+        Reader::Concrete(B::int_into_dyn(tensor))
     }
 
-    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
-        B::int_into_dyn_rank(tensor)
+    fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {
+        B::int_from_dyn(dyn_tensor)
+    }
+
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
+        B::int_into_data(tensor)
     }
 
     fn from_data<const D: usize>(
@@ -1532,12 +1533,6 @@ impl<B: Backend> BasicOps<B> for Int {
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::int_from_data(data, device)
-    }
-
-    fn from_dyn_rank<const D: usize>(
-        dyn_rank_tensor: Self::DynRankPrimitive,
-    ) -> Self::Primitive<D> {
-        B::int_from_dyn_rank(dyn_rank_tensor)
     }
 
     fn repeat<const D: usize>(
@@ -1632,12 +1627,16 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_to_device(tensor, device)
     }
 
-    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
-        B::bool_into_data(tensor)
+    fn into_dyn<const D: usize>(tensor: Self::Primitive<D>) -> Reader<B::DynTensorPrimitive> {
+        Reader::Concrete(B::bool_into_dyn(tensor))
     }
 
-    fn into_dyn_rank<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Self::DynRankPrimitive> {
-        B::bool_into_dyn_rank(tensor)
+    fn from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> Self::Primitive<D> {
+        B::bool_from_dyn(dyn_tensor)
+    }
+
+    fn into_data<const D: usize>(tensor: Self::Primitive<D>) -> Reader<Data<Self::Elem, D>> {
+        B::bool_into_data(tensor)
     }
 
     fn from_data<const D: usize>(
@@ -1645,11 +1644,6 @@ impl<B: Backend> BasicOps<B> for Bool {
         device: &B::Device,
     ) -> Self::Primitive<D> {
         B::bool_from_data(data, device)
-    }
-    fn from_dyn_rank<const D: usize>(
-        dyn_rank_tensor: Self::DynRankPrimitive,
-    ) -> Self::Primitive<D> {
-        B::bool_from_dyn_rank(dyn_rank_tensor)
     }
 
     fn repeat<const D: usize>(

@@ -22,13 +22,13 @@ where
     type State: Clone + Send + Sync + std::fmt::Debug + 'static;
 
     /// The backward pass.
-    fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients);
+    fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients<B>);
 
     /// Prepare the backward ops.
     fn prepare(
         self,
         nodes: [NodeRef; N],
-        graphs: [Graph; N],
+        graphs: [Graph<B>; N],
     ) -> OpsPrep<Self, B, Self::State, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         OpsPrep::new(nodes, graphs, requirement, self)
@@ -39,7 +39,7 @@ where
 pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLhs, FRhs>(
     parents: [Option<NodeRef>; 2],
     node: NodeRef,
-    grads: &mut Gradients,
+    grads: &mut Gradients<B>,
     func_lhs: FLhs,
     func_rhs: FRhs,
 ) where
@@ -65,7 +65,7 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
 pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
     parents: [Option<NodeRef>; 1],
     node: NodeRef,
-    grads: &mut Gradients,
+    grads: &mut Gradients<B>,
     func: F,
 ) where
     B: Backend,
@@ -85,11 +85,11 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
 pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize, F>(
     parents: [Option<NodeRef>; 1],
     node: NodeRef,
-    grads: &mut Gradients,
+    grads: &mut Gradients<BOut>,
     func: F,
 ) where
-    BIn: Backend,
     BOut: Backend,
+    BIn: Backend<DynTensorPrimitive = BOut::DynTensorPrimitive>,
     F: FnOnce(BOut::FloatTensorPrimitive<D_OUT>) -> BIn::FloatTensorPrimitive<D_IN>,
 {
     let [parent_node] = parents;

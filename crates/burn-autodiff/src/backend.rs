@@ -1,5 +1,8 @@
 use crate::{grads::Gradients, graph::backward::backward, tensor::AutodiffTensor};
-use burn_tensor::backend::{AutodiffBackend, Backend};
+use burn_tensor::{
+    backend::{AutodiffBackend, Backend},
+    DynData,
+};
 use core::marker::PhantomData;
 
 /// Enable auto-differentiation on a backend.
@@ -14,24 +17,22 @@ pub struct Autodiff<B> {
 impl<B: Backend> Backend for Autodiff<B> {
     type Device = B::Device;
 
-    type FullPrecisionElem = B::FullPrecisionElem;
     type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
+    type FullPrecisionElem = B::FullPrecisionElem;
 
     type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
-    type DynRankFloatTensorPrimitive = B::DynRankFloatTensorPrimitive;
     type FloatElem = B::FloatElem;
 
     type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
-    type DynRankIntTensorPrimitive = B::DynRankIntTensorPrimitive;
     type IntElem = B::IntElem;
 
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
-    type DynRankBoolTensorPrimitive = B::DynRankBoolTensorPrimitive;
+
+    type DynTensorPrimitive = B::DynTensorPrimitive;
 
     fn ad_enabled() -> bool {
         true
     }
-
     fn name() -> String {
         format!("autodiff<{}>", B::name())
     }
@@ -42,6 +43,14 @@ impl<B: Backend> Backend for Autodiff<B> {
 
     fn sync(device: &B::Device) {
         B::sync(device);
+    }
+
+    fn dyn_from_data(data: DynData, device: &Self::Device) -> Self::DynTensorPrimitive {
+        B::dyn_from_data(data, device)
+    }
+
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData {
+        B::dyn_into_data(dyn_tensor)
     }
 }
 

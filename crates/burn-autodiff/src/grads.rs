@@ -1,4 +1,4 @@
-use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
+use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, Tensor};
 
 use crate::{
     graph::{NodeRef, Requirement},
@@ -13,14 +13,9 @@ pub struct Gradients<B: Backend> {
     container: TensorContainer<GradId, B>,
 }
 
-type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
-
-impl Gradients {
+impl<B: Backend> Gradients<B> {
     /// Creates a new gradients container.
-    pub fn new<B: Backend, const D: usize>(
-        root_node: NodeRef,
-        root_tensor: TensorPrimitive<B, D>,
-    ) -> Self {
+    pub fn new<const D: usize>(root_node: NodeRef, root_tensor: FloatTensor<B, D>) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
         };
@@ -35,16 +30,19 @@ impl Gradients {
     ///
     /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
     /// backward pass, otherwise, it may be consume multiple times.
-    pub fn consume<B: Backend, const D: usize>(&mut self, node: &NodeRef) -> TensorPrimitive<B, D> {
+    pub fn consume<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+        &mut self,
+        node: &NodeRef,
+    ) -> FloatTensor<BOut, D> {
         match node.requirement {
             Requirement::Grad => self
                 .container
-                .get::<B, D>(&node.id.value)
+                .get::<BOut, D>(&node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
-                .remove::<B, D>(&node.id.value)
+                .remove::<BOut, D>(&node.id.value)
                 .map(|tensor| tensor.into_primitive())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
@@ -52,39 +50,39 @@ impl Gradients {
     }
 
     /// Removes a grad tensor from the container.
-    pub fn remove<B: Backend, const D: usize>(
+    pub fn remove<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
         &mut self,
-        tensor: &AutodiffTensor<B, D>,
-    ) -> Option<TensorPrimitive<B, D>> {
+        tensor: &AutodiffTensor<BOut, D>,
+    ) -> Option<FloatTensor<BOut, D>> {
         self.container
-            .remove::<B, D>(&tensor.node.id.value)
+            .remove::<BOut, D>(&tensor.node.id.value)
             .map(|tensor| tensor.into_primitive())
     }
 
     /// Gets a grad tensor from the container.
-    pub fn get<B: Backend, const D: usize>(
+    pub fn get<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
         &self,
-        tensor: &AutodiffTensor<B, D>,
-    ) -> Option<TensorPrimitive<B, D>> {
+        tensor: &AutodiffTensor<BOut, D>,
+    ) -> Option<FloatTensor<BOut, D>> {
         self.container
-            .get::<B, D>(&tensor.node.id.value)
+            .get::<BOut, D>(&tensor.node.id.value)
             .map(|tensor| tensor.into_primitive())
     }
 
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
-    pub fn register<B: Backend, const D: usize>(
+    pub fn register<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
         &mut self,
         node: NodeRef,
-        value: TensorPrimitive<B, D>,
+        value: FloatTensor<BOut, D>,
     ) {
-        if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
+        if let Some(tensor_old) = self.container.remove::<BOut, D>(&node.id.value) {
             self.container
                 .register(node.id.value, Tensor::from_primitive(value).add(tensor_old));
         } else {
             self.container
-                .register::<B, D>(node.id.value, Tensor::from_primitive(value));
+                .register::<BOut, D>(node.id.value, Tensor::from_primitive(value));
         }
     }
 }

@@ -1,5 +1,4 @@
-use super::{BoolTensor, Device, FloatTensor, IntDynRankTensor, IntElem, IntTensor};
-use crate::DynRankData;
+use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
@@ -10,6 +9,18 @@ use num_traits::ToPrimitive;
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
 pub trait IntTensorOps<B: Backend> {
+    /// Converts from a dynamic tensor, which should contain integers, into the backend's integer
+    /// tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// To implementors and users, this function should panic when the dynamic tensor provided
+    /// doesn't have integer elements as needed.
+    fn int_from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> IntTensor<B, D>;
+
+    /// Converts from the backend's int tensor primitive, to a dynamic tensor primitive.
+    fn int_into_dyn<const D: usize>(tensor: IntTensor<B, D>) -> B::DynTensorPrimitive;
+
     /// Creates a new int tensor.
     ///
     /// # Arguments
@@ -44,10 +55,6 @@ pub trait IntTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>>;
 
-    fn int_into_dyn_rank<const D: usize>(tensor: IntTensor<B, D>) -> Reader<IntDynRankTensor<B>>;
-
-    fn int_dyn_rank_into_data(tensor: IntDynRankTensor<B>) -> Reader<DynRankData<IntElem<B>>>;
-
     /// Gets the data from the tensor.
     ///
     /// # Arguments
@@ -59,14 +66,6 @@ pub trait IntTensorOps<B: Backend> {
     /// The data cloned from the data structure.
     fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>> {
         Self::int_into_data(tensor.clone())
-    }
-
-    fn int_to_dyn_rank<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<IntDynRankTensor<B>> {
-        Self::int_into_dyn_rank(tensor.clone())
-    }
-
-    fn int_dyn_rank_to_data(tensor: &IntDynRankTensor<B>) -> Reader<DynRankData<IntElem<B>>> {
-        Self::int_dyn_rank_into_data(tensor.clone())
     }
 
     /// Creates a tensor from the data structure.
@@ -83,15 +82,6 @@ pub trait IntTensorOps<B: Backend> {
         data: Data<IntElem<B>, D>,
         device: &Device<B>,
     ) -> IntTensor<B, D>;
-
-    fn int_from_dyn_rank<const D: usize>(
-        dyn_rank_primitive: B::DynRankIntTensorPrimitive,
-    ) -> IntTensor<B, D>;
-
-    fn int_dyn_rank_from_data(
-        data: DynRankData<IntElem<B>>,
-        device: &Device<B>,
-    ) -> IntDynRankTensor<B>;
 
     /// Gets the device of the tensor.
     ///

@@ -1,7 +1,5 @@
-use super::{BoolDynRankTensor, BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{
-    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, DynRankData, ElementConversion,
-};
+use super::{BoolTensor, Device, FloatTensor, IntTensor};
+use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -9,6 +7,18 @@ use core::ops::Range;
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
 pub trait BoolTensorOps<B: Backend> {
+    /// Converts from a dynamic tensor, which should contain booleans, into the backend's boolean
+    /// tensor primitive.
+    ///
+    /// # Panics
+    ///
+    /// To implementors and users, this function should panic when the dynamic tensor provided
+    /// doesn't have boolean elements.
+    fn bool_from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> BoolTensor<B, D>;
+
+    /// Converts from the backend's boolean tensor primitive, to a dynamic tensor primitive.
+    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<B, D>) -> B::DynTensorPrimitive;
+
     /// Creates a new bool tensor.
     ///
     /// # Arguments
@@ -43,11 +53,6 @@ pub trait BoolTensorOps<B: Backend> {
     /// The data structure with the tensor's data.
     fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>>;
 
-    fn bool_into_dyn_rank<const D: usize>(tensor: BoolTensor<B, D>)
-        -> Reader<BoolDynRankTensor<B>>;
-
-    fn bool_dyn_rank_into_data(tensor: BoolDynRankTensor<B>) -> Reader<DynRankData<bool>>;
-
     /// Gets the data from the tensor.
     ///
     ///
@@ -62,14 +67,6 @@ pub trait BoolTensorOps<B: Backend> {
         Self::bool_into_data(tensor.clone())
     }
 
-    fn bool_to_dyn_rank<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<BoolDynRankTensor<B>> {
-        Self::bool_into_dyn_rank(tensor.clone())
-    }
-
-    fn bool_dyn_rank_to_data(tensor: &BoolDynRankTensor<B>) -> Reader<DynRankData<bool>> {
-        Self::bool_dyn_rank_into_data(tensor.clone())
-    }
-
     /// Creates a tensor from the data structure.
     ///
     /// # Arguments
@@ -81,15 +78,6 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the data.
     fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D>;
-
-    fn bool_from_dyn_rank<const D: usize>(
-        dyn_rank_primitive: BoolDynRankTensor<B>,
-    ) -> BoolTensor<B, D>;
-
-    fn bool_dyn_rank_from_data(
-        dyn_rank_primitive: DynRankData<bool>,
-        device: &Device<B>,
-    ) -> BoolDynRankTensor<B>;
 
     /// Converts bool tensor to int tensor.
     ///

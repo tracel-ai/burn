@@ -14,9 +14,9 @@ use std::marker::PhantomData;
 /// There are 3 different modes: 'Init', 'Tracked' and 'UnTracked'.
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
-pub struct OpsPrep<Backward, B, S, const D: usize, const N: usize, Mode = Init> {
+pub struct OpsPrep<Backward, B: Backend, S, const D: usize, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
-    graphs: [Graph; N],
+    graphs: [Graph<B>; N],
     requirement: Requirement,
     backward: Backward,
     phantom_backend: PhantomData<B>,
@@ -116,7 +116,7 @@ where
 }
 
 /// Enum used before finishing tracked and untracked operations.
-pub enum OpsKind<BO, B, S, const D: usize, const N: usize> {
+pub enum OpsKind<BO, B: Backend, S, const D: usize, const N: usize> {
     /// Tracked operation preparation.
     Tracked(OpsPrep<BO, B, S, D, N, Tracked>),
     /// Untracked operation preparation.
@@ -153,7 +153,9 @@ where
     T: Backward<B, D, N, State = SB>,
     SB: Clone + Send + Sync + std::fmt::Debug + 'static,
 {
-    fn step(self: Box<Self>, grads: &mut Gradients) {
+    type Backend = B;
+
+    fn step(self: Box<Self>, grads: &mut Gradients<Self::Backend>) {
         self.backward.backward(self.ops, grads);
     }
 

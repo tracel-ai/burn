@@ -8,24 +8,27 @@ use super::{NodeID, NodeRef};
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + Sync + std::fmt::Debug {
+    type Backend: Backend;
+
     /// Executes the step and consumes it.
-    fn step<B: Backend>(self: Box<Self>, grads: &mut Gradients<B>);
+    fn step(self: Box<Self>, grads: &mut Gradients<Self::Backend>);
+
     /// The node associated to the step.
     fn node(&self) -> NodeRef;
 }
 
-pub type StepBoxed = Box<dyn Step>;
-pub type NodeSteps = HashMap<NodeID, StepBoxed>;
+pub type StepBoxed<B> = Box<dyn Step<Backend = B>>;
+pub type NodeSteps<B> = HashMap<NodeID, StepBoxed<B>>;
 
 /// Graph data structure.
 ///
 /// The graph contains the [node steps](Step), which can be access by [node id](NodeID).
 #[derive(Default, Clone, Debug)]
-pub struct Graph {
-    steps: Arc<Mutex<NodeSteps>>,
+pub struct Graph<B: Backend> {
+    steps: Arc<Mutex<NodeSteps<B>>>,
 }
 
-impl Graph {
+impl<B: Backend> Graph<B> {
     /// Create a new graph.
     pub fn new() -> Self {
         Self::default()
@@ -40,7 +43,7 @@ impl Graph {
     ///
     /// This is useful, since the graph is supposed to be consumed only once for backprop, and
     /// keeping all the tensors alive for multiple backward call is a heavy waste of resources.
-    pub fn steps(self) -> NodeSteps {
+    pub fn steps(self) -> NodeSteps<B> {
         let mut map_drain = HashMap::new();
         self.execute_mut(|map| {
             std::mem::swap(&mut *map, &mut map_drain);
@@ -49,7 +52,7 @@ impl Graph {
     }
 
     /// Register a new step into the graph.
-    pub fn register(self, id: &NodeID, ops: StepBoxed) -> Self {
+    pub fn register(self, id: &NodeID, ops: StepBoxed<B>) -> Self {
         self.execute_mut(|map| {
             map.insert(id.clone(), ops);
         })
@@ -64,7 +67,7 @@ impl Graph {
         self.merge_different(other)
     }
 
-    fn execute_mut<F: FnOnce(&mut NodeSteps)>(mut self, func: F) -> Self {
+    fn execute_mut<F: FnOnce(&mut NodeSteps<B>)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
                 let map = mutex.get_mut();

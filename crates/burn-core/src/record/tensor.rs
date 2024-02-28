@@ -1,6 +1,32 @@
 use super::{PrecisionSettings, Record};
-use burn_tensor::{backend::Backend, Bool, DynRankData, DynRankTensor, Int, Tensor};
+use burn_tensor::{backend::Backend, Bool, DynData, DynRankData, DynTensor, Int, Tensor};
 use serde::{Deserialize, Serialize};
+
+pub enum DynTensorSerde<S: PrecisionSettings> {
+    Float(FloatTensorSerde<S>),
+    Int(IntTensorSerde<S>),
+    Bool(BoolTensorSerde),
+}
+
+impl<S: PrecisionSettings> From<DynData> for DynTensorSerde<S> {
+    fn from(value: DynData) -> Self {
+        match value {
+            DynData::Float(data) => Self::Float(FloatTensorSerde::new(data.convert())),
+            DynData::Int(data) => Self::Int(IntTensorSerde::new(data.convert())),
+            DynData::Bool(data) => Self::Bool(BoolTensorSerde::new(data)),
+        }
+    }
+}
+
+impl<S: PrecisionSettings> From<DynTensorSerde<S>> for DynData {
+    fn from(value: DynTensorSerde<S>) -> Self {
+        match value {
+            DynTensorSerde::Float(tensor) => Self::Float(tensor.data.convert()),
+            DynTensorSerde::Int(tensor) => Self::Int(tensor.data.convert()),
+            DynTensorSerde::Bool(tensor) => Self::Bool(tensor.data),
+        }
+    }
+}
 
 /// This struct implements serde to lazily serialize and deserialize a float tensor
 /// using the given [record settings](RecordSettings).
@@ -133,50 +159,18 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
     }
 }
 
-impl<B: Backend> Record<B> for DynRankTensor<B> {
-    type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
+impl<B: Backend> Record<B> for DynTensor<B> {
+    type Item<S: PrecisionSettings> = DynTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording float dynamic-rank tensors isn't yet supported on wasm.");
+        todo!("Recording dynamic tensors isn't yet supported on wasm.");
 
         #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        FloatTensorSerde::new(self.into_data().convert())
+        self.into_data().into()
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data.convert(), device)
-    }
-}
-
-impl<B: Backend> Record<B> for DynRankTensor<B, Int> {
-    type Item<S: PrecisionSettings> = IntTensorSerde<S>;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording int dynamic-rank tensors isn't yet supported on wasm.");
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        IntTensorSerde::new(self.into_data().convert())
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data.convert(), device)
-    }
-}
-
-impl<B: Backend> Record<B> for DynRankTensor<B, Bool> {
-    type Item<S: PrecisionSettings> = BoolTensorSerde;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-        todo!("Recording bool dynamic-rank tensors isn't yet supported on wasm.");
-
-        #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        BoolTensorSerde::new(self.into_data())
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data, device)
+        Tensor::from_data(item.into(), device)
     }
 }

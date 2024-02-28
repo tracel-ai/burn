@@ -2,12 +2,18 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::{tensor::Shape, Element, ElementConversion};
+use crate::{tensor::Shape, Element, ElementConversion, Float, Int};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
-/// Data structure for serializing and deserializing tensor data. Essentially a version of [`Data`]
-/// without a rank known at compile-time.
+/// A version of [`DynRankData`] without an explicit element type. Used for serializing [`DynTensor`].
+pub enum DynData {
+    Float(DynRankData<Float>),
+    Int(DynRankData<Int>),
+    Bool(DynRankData<bool>),
+}
+
+/// A version of [`Data`] without a rank known at compile-time.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
 pub struct DynRankData<E> {
     /// The values of the tensor.

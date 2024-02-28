@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use burn_tensor::backend::Backend;
 
 use crate::{
@@ -11,16 +13,19 @@ use crate::{
 pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
-    pub graph: Graph,
+    pub graph: Graph<B>,
 }
 
 #[derive(new, Debug)]
-struct RootStep {
+struct RootStep<B: Backend> {
     node: NodeRef,
+    phantom_backend: PhantomData<B>,
 }
 
-impl Step for RootStep {
-    fn step<B: Backend>(self: Box<Self>, _grads: &mut Gradients<B>) {
+impl<B: Backend> Step for RootStep<B> {
+    type Backend = B;
+
+    fn step(self: Box<Self>, _grads: &mut Gradients<Self::Backend>) {
         // Nothing to do
     }
 
@@ -67,7 +72,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     }
 
     /// Create a tensor from parent infos.
-    pub fn from_parents<I: Iterator<Item = Graph>>(
+    pub fn from_parents<I: Iterator<Item = Graph<B>>>(
         output: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
         parent_graphs: I,

@@ -10,7 +10,7 @@ use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
 use burn_tensor::{
-    backend::Backend, container::TensorContainer, Bool, DynRankData, DynRankTensor, Element, Int,
+    backend::Backend, container::TensorContainer, Bool, DynRankData, DynTensor, Element, Int,
     Tensor,
 };
 
@@ -227,7 +227,7 @@ where
 }
 
 impl<Id: Record<B>, B: Backend> Record<B> for TensorContainer<Id, B> {
-    type Item<S: PrecisionSettings> = HashMap<Id, DynRankTensor<B>>;
+    type Item<S: PrecisionSettings> = HashMap<Id, DynTensor<B>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         self.into_inner()
