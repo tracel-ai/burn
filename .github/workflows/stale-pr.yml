@@ -1,0 +1,42 @@
+name: Stale Pull Requests
+
+on:
+  schedule:
+    - cron: '0 12 * * *' # Run every day at 12:00 (UTC)
+
+# The minimum permissions required to run this Action
+permissions:
+  contents: write # only for delete-branch option
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale-pr:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Stale pull requests
+      uses: actions/stale@v9
+      with:
+        # The idle number of days before marking issues stale.
+        #
+        #  With a negative number like -1, no issues
+        #  will be marked as stale automatically.
+        days-before-issue-stale: -1
+        # The idle number of days before marking pull requests stale
+        days-before-pr-stale: 30
+        # The idle number of days before closing
+        # the stale pull requests (due to the stale label).
+        #
+        # With a negative number like -1, the pull requests
+        # will never be closed automatically.
+        days-before-pr-close: -1
+        # Label to apply on staled pull requests
+        stale-pr-label: 'stale'
+        # The message that will be added as a comment to the pull request
+        stale-pr-message: 'This PR has been marked as stale because it has not been updated for over a month'
+        # Remove `stale` label from pull requests on updates/comments
+        remove-pr-stale-when-updated: true
