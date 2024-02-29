@@ -1,8 +1,8 @@
 use crate::model::Model;
-use burn::module::Module;
-use burn::record::BinBytesRecorder;
-use burn::record::FullPrecisionSettings;
-use burn::record::Recorder;
+use burn::{
+    module::Module,
+    record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+};
 
 #[cfg(feature = "wgpu")]
 use burn::backend::wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};

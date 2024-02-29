@@ -48,9 +48,8 @@ something like this:
 
    ```rust
    use burn::{
-       module::Module,
        nn::conv::{Conv2d, Conv2dConfig},
-       tensor::{backend::Backend, Tensor},
+       prelude::*,
    };
 
    #[derive(Module, Debug)]

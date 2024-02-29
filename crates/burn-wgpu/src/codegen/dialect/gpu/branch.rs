@@ -2,7 +2,7 @@ use super::{Elem, Item, Scope, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All branching types.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Branch {
     // An if statement.
     If(If),
@@ -16,20 +16,20 @@ pub enum Branch {
     Break,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct If {
     pub cond: Variable,
     pub scope: Scope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IfElse {
     pub cond: Variable,
     pub scope_if: Scope,
     pub scope_else: Scope,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RangeLoop {
     pub i: Variable,
     pub start: Variable,

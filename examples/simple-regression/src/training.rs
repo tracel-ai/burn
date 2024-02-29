@@ -1,16 +1,16 @@
 use crate::dataset::{DiabetesBatcher, DiabetesDataset};
 use crate::model::RegressionModelConfig;
-use burn::data::dataset::Dataset;
-use burn::module::Module;
-use burn::optim::SgdConfig;
-use burn::record::{CompactRecorder, NoStdTrainingRecorder};
-use burn::train::metric::store::{Aggregate, Direction, Split};
-use burn::train::{MetricEarlyStoppingStrategy, StoppingCondition};
 use burn::{
-    config::Config,
-    data::dataloader::DataLoaderBuilder,
+    data::{dataloader::DataLoaderBuilder, dataset::Dataset},
+    optim::SgdConfig,
+    prelude::*,
+    record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
-    train::{metric::LossMetric, LearnerBuilder},
+    train::{
+        metric::store::{Aggregate, Direction, Split},
+        metric::LossMetric,
+        LearnerBuilder, MetricEarlyStoppingStrategy, StoppingCondition,
+    },
 };
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";

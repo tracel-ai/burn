@@ -3,9 +3,8 @@
 // Originally copied from the burn/examples/mnist package
 
 use burn::{
-    module::Module,
-    nn::{self, BatchNorm, PaddingConfig2d},
-    tensor::{backend::Backend, Tensor},
+    nn::{BatchNorm, PaddingConfig2d},
+    prelude::*,
 };
 
 #[derive(Module, Debug)]

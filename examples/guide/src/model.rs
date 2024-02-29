@@ -1,12 +1,10 @@
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         conv::{Conv2d, Conv2dConfig},
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
         Dropout, DropoutConfig, Linear, LinearConfig, Relu,
     },
-    tensor::{backend::Backend, Tensor},
+    prelude::*,
 };
 
 #[derive(Module, Debug)]

@@ -2,14 +2,15 @@ use crate::{
     data::{Gpt2Tokenizer, TextGenerationBatcher, TextGenerationItem, Tokenizer},
     model::TextGenerationModelConfig,
 };
-use burn::data::dataset::transform::SamplerDataset;
 use burn::{
-    config::Config,
-    data::{dataloader::DataLoaderBuilder, dataset::Dataset},
+    data::{
+        dataloader::DataLoaderBuilder,
+        dataset::{transform::SamplerDataset, Dataset},
+    },
     lr_scheduler::noam::NoamLrSchedulerConfig,
-    module::Module,
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
+    prelude::*,
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
