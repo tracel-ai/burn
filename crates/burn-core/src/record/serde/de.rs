@@ -458,7 +458,7 @@ impl<A: BurnModuleAdapter> IntoDeserializer<'_, Error> for NestedValueWrapper<A>
 
 /// A default deserializer that always returns the default value.
 struct DefaultDeserializer {
-    /// The originator field name (the top level missing field name)
+    /// The originator field name (the top-level missing field name)
     originator_field_name: Option<String>,
 }
 
