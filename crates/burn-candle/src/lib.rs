@@ -79,6 +79,7 @@ mod tests {
     burn_tensor::testgen_maxmin!();
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
+    burn_tensor::testgen_argwhere_nonzero!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //
