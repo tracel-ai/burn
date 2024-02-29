@@ -72,6 +72,8 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, output_shape_2 = shape(output, 2u32));
         gpu!(scope, output_shape_3 = shape(output, 3u32));
 
+        let [kernel_size_0, kernel_size_1] = self.kernel_size;
+
         let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
         let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
         let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
@@ -79,12 +81,32 @@ impl MaxPool2dBackwardComputeShader {
         let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
         let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
 
-        let [kernel_size_0, kernel_size_1] = self.kernel_size;
+        let signed_pool_stride_0 = scope.create_local(Elem::Int);
+        let signed_pool_stride_1 = scope.create_local(Elem::Int);
+        let signed_dilation_0 = scope.create_local(Elem::Int);
+        let signed_dilation_1 = scope.create_local(Elem::Int);
+        let signed_padding_0 = scope.create_local(Elem::Int);
+        let signed_padding_1 = scope.create_local(Elem::Int);
+        let signed_kernel_size_0 = scope.create_local(Elem::Int);
+        let signed_kernel_size_1 = scope.create_local(Elem::Int);
+
+        gpu!(scope, signed_pool_stride_0 = cast(pool_stride_0));
+        gpu!(scope, signed_pool_stride_1 = cast(pool_stride_1));
+        gpu!(scope, signed_dilation_0 = cast(dilation_0));
+        gpu!(scope, signed_dilation_1 = cast(dilation_1));
+        gpu!(scope, signed_padding_0 = cast(padding_0));
+        gpu!(scope, signed_padding_1 = cast(padding_1));
+
+        gpu!(scope, signed_kernel_size_0 = cast(kernel_size_0));
+        gpu!(scope, signed_kernel_size_1 = cast(kernel_size_1));
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let ih = scope.create_local(Elem::UInt);
         let iw = scope.create_local(Elem::UInt);
+
+        let signed_ih = scope.create_local(Elem::Int);
+        let signed_iw = scope.create_local(Elem::Int);
 
         gpu!(scope, b = id / output_stride_0);
         gpu!(scope, b = b % output_shape_0);
@@ -98,25 +120,30 @@ impl MaxPool2dBackwardComputeShader {
         gpu!(scope, iw = id / output_stride_3);
         gpu!(scope, iw = iw % output_shape_3);
 
+        gpu!(scope, signed_ih = cast(ih));
+        gpu!(scope, signed_iw = cast(iw));
+
         let kms_0 = scope.create_local(Elem::Int);
         let kms_1 = scope.create_local(Elem::Int);
 
-        gpu!(scope, kms_0 = dilation_0 * kernel_size_0);
-        gpu!(scope, kms_0 = kms_0 - pool_stride_0);
+        gpu!(scope, kms_0 = signed_dilation_0 * signed_kernel_size_0);
+        gpu!(scope, kms_0 = kms_0 - signed_pool_stride_0);
 
-        gpu!(scope, kms_1 = dilation_1 * kernel_size_1);
-        gpu!(scope, kms_1 = kms_1 + pool_stride_1);
+        gpu!(scope, kms_1 = signed_dilation_1 * signed_kernel_size_1);
+        gpu!(scope, kms_1 = kms_1 + signed_pool_stride_1);
 
-        let oh_start_tmp = scope.create_local(Elem::UInt);
-        let ow_start_tmp = scope.create_local(Elem::UInt);
+        let oh_start_tmp = scope.create_local(Elem::Int);
+        let ow_start_tmp = scope.create_local(Elem::Int);
+        let oh_end_tmp = scope.create_local(Elem::Int);
+        let ow_end_tmp = scope.create_local(Elem::Int);
 
-        gpu!(scope, oh_start_tmp = ih + padding_0);
+        gpu!(scope, oh_start_tmp = signed_ih + signed_padding_0);
         gpu!(scope, oh_start_tmp = oh_start_tmp - kms_0);
-        gpu!(scope, oh_start_tmp = oh_start_tmp / pool_stride_0);
+        gpu!(scope, oh_start_tmp = oh_start_tmp / signed_pool_stride_0);
 
-        gpu!(scope, ow_start_tmp = iw + padding_1);
+        gpu!(scope, ow_start_tmp = signed_iw + signed_padding_1);
         gpu!(scope, ow_start_tmp = ow_start_tmp - kms_1);
-        gpu!(scope, ow_start_tmp = ow_start_tmp / pool_stride_1);
+        gpu!(scope, ow_start_tmp = ow_start_tmp / signed_pool_stride_1);
     }
 }
 
