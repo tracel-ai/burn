@@ -1,6 +1,7 @@
 use super::{
-    Algorithm, Elem, Item, Operation, Operator, ReadGlobalAlgo, ReadGlobalWithLayoutAlgo,
-    UnaryOperator, Variable, Vectorization,
+    gpu, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
+    Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
+    WriteGlobal,
 };
 use serde::{Deserialize, Serialize};
 
@@ -11,32 +12,25 @@ use serde::{Deserialize, Serialize};
 ///
 /// This type isn't responsible for creating [shader bindings](super::Binding) and figuring out which
 /// variable can be written to.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
+    index_offset_with_output_layout_position: Vec<usize>,
     writes_global: Vec<(Variable, Variable)>,
     reads_scalar: Vec<(Variable, Variable)>,
-    output_ref: Option<Variable>,
+    pub layout_ref: Option<Variable>,
     undeclared: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum ReadingStrategy {
     /// Each element will be read in a way to be compatible with the output layout.
     OutputLayout,
     /// Keep the current layout.
     Plain,
-}
-
-/// Information necessary when compiling a scope.
-pub struct ScopeProcessing {
-    /// The variable declarations.
-    pub variables: Vec<Variable>,
-    /// The operations.
-    pub operations: Vec<Operation>,
 }
 
 impl Scope {
@@ -50,13 +44,20 @@ impl Scope {
             operations: Vec::new(),
             locals: Vec::new(),
             reads_global: Vec::new(),
+            index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            output_ref: None,
+            layout_ref: None,
             undeclared: 0,
         }
     }
 
+    pub fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
+        let local = self.create_local(item);
+        let zero: Variable = 0u32.into();
+        gpu!(self, local = zero);
+        local
+    }
     /// Create a local variable of the given [item type](Item).
     pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
@@ -69,7 +70,7 @@ impl Scope {
     /// Create a new local variable, but doesn't perform the declaration.
     ///
     /// Useful for _for loops_ and other algorithms that require the control over initialization.
-    pub fn create_local_undeclare(&mut self, item: Item) -> Variable {
+    pub fn create_local_undeclared(&mut self, item: Item) -> Variable {
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.undeclared += 1;
@@ -81,6 +82,13 @@ impl Scope {
     /// The index refers to the argument position of the array in the compute shader.
     pub fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
         self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
+    }
+
+    pub fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
+        self.index_offset_with_output_layout_position
+            .push(self.operations.len());
+        self.operations
+            .push(Procedure::IndexOffsetGlobalWithLayout(proc).into());
     }
 
     /// Reads an input scalar to a local variable.
@@ -128,10 +136,23 @@ impl Scope {
     ///
     /// This should only be used when doing compilation.
     pub(crate) fn write_global(&mut self, input: Variable, output: Variable) {
-        if self.output_ref.is_none() {
-            self.output_ref = Some(output);
+        // This assumes that all outputs have the same layout
+        if self.layout_ref.is_none() {
+            self.layout_ref = Some(output);
         }
         self.writes_global.push((input, output));
+    }
+
+    /// Writes a variable to given output.
+    ///
+    /// Notes:
+    ///
+    /// This should only be used when doing compilation.
+    pub(crate) fn write_global_custom(&mut self, output: Variable) {
+        // This assumes that all outputs have the same layout
+        if self.layout_ref.is_none() {
+            self.layout_ref = Some(output);
+        }
     }
 
     /// Update the [reading strategy](ReadingStrategy) for an input array.
@@ -149,6 +170,16 @@ impl Scope {
         }
     }
 
+    pub(crate) fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
+        self.reads_global
+            .iter()
+            .map(|(var, strategy, _)| match var {
+                Variable::GlobalInputArray(id, _) => (*id, *strategy),
+                _ => panic!("Can only read global input arrays."),
+            })
+            .collect()
+    }
+
     /// Register an [operation](Operation) into the scope.
     pub fn register<T: Into<Operation>>(&mut self, operation: T) {
         self.operations.push(operation.into())
@@ -161,9 +192,10 @@ impl Scope {
             operations: Vec::new(),
             locals: Vec::new(),
             reads_global: Vec::new(),
+            index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
             reads_scalar: Vec::new(),
-            output_ref: None,
+            layout_ref: self.layout_ref,
             undeclared: 0,
         }
     }
@@ -180,34 +212,44 @@ impl Scope {
         let mut variables = Vec::new();
         core::mem::swap(&mut self.locals, &mut variables);
 
+        for index in self.index_offset_with_output_layout_position.drain(..) {
+            if let Some(Operation::Procedure(Procedure::IndexOffsetGlobalWithLayout(proc))) =
+                self.operations.get_mut(index)
+            {
+                proc.layout = self.layout_ref.expect(
+                    "Output should be set when processing an index offset with output layout.",
+                );
+            }
+        }
+
         let mut operations = Vec::new();
 
         for (input, strategy, local) in self.reads_global.drain(..) {
             match strategy {
                 ReadingStrategy::OutputLayout => {
-                    let output = self.output_ref.expect(
+                    let output = self.layout_ref.expect(
                         "Output should be set when processing an input with output layout.",
                     );
-                    operations.push(Operation::Algorithm(Algorithm::ReadGlobalWithLayout(
-                        ReadGlobalWithLayoutAlgo {
-                            global: input,
+                    operations.push(Operation::Procedure(Procedure::ReadGlobalWithLayout(
+                        ReadGlobalWithLayout {
+                            globals: vec![input],
                             layout: output,
-                            out: local,
+                            outs: vec![local],
                         },
                     )));
                 }
-                ReadingStrategy::Plain => operations.push(Operation::Algorithm(
-                    Algorithm::ReadGlobal(ReadGlobalAlgo {
+                ReadingStrategy::Plain => {
+                    operations.push(Operation::Procedure(Procedure::ReadGlobal(ReadGlobal {
                         global: input,
                         out: local,
-                    }),
-                )),
+                    })))
+                }
             }
         }
 
         for (local, scalar) in self.reads_scalar.drain(..) {
             operations.push(
-                Operator::AssignLocal(UnaryOperator {
+                Operator::Assign(UnaryOperator {
                     input: scalar,
                     out: local,
                 })
@@ -220,10 +262,10 @@ impl Scope {
             operations.push(op);
         }
 
-        for (input, out) in self.writes_global.drain(..) {
-            operations.push(Operation::Operator(Operator::AssignGlobal(UnaryOperator {
+        for (input, global) in self.writes_global.drain(..) {
+            operations.push(Operation::Procedure(Procedure::WriteGlobal(WriteGlobal {
                 input,
-                out,
+                global,
             })))
         }
 
@@ -231,6 +273,7 @@ impl Scope {
             variables,
             operations,
         }
+        .optimize()
     }
 
     fn new_local_index(&self) -> u16 {
@@ -247,7 +290,16 @@ impl Scope {
         item: Item,
         strategy: ReadingStrategy,
     ) -> Variable {
-        let input = Variable::GlobalInputArray(index, item);
+        let item_global = match item.elem() {
+            Elem::Bool => match item {
+                Item::Vec4(_) => Item::Vec4(Elem::UInt),
+                Item::Vec3(_) => Item::Vec3(Elem::UInt),
+                Item::Vec2(_) => Item::Vec2(Elem::UInt),
+                Item::Scalar(_) => Item::Scalar(Elem::UInt),
+            },
+            _ => item,
+        };
+        let input = Variable::GlobalInputArray(index, item_global);
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.reads_global.push((input, strategy, local));

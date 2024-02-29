@@ -1,11 +1,8 @@
-use super::{
-    Algorithm, BinaryOperator, ClampOperator, ConditionalAssignOperator, Item, Operation, Operator,
-    ReadGlobalAlgo, ReadGlobalWithLayoutAlgo, UnaryOperator, Variable,
-};
+use super::{BinaryOperator, ClampOperator, Item, Operation, Operator, UnaryOperator, Variable};
 
 /// Define a vectorization scheme.
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, Hash)]
 pub enum Vectorization {
     /// Use vec4 for vectorization.
     Vec4,
@@ -22,43 +19,13 @@ impl Operation {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
-            Operation::Algorithm(op) => Operation::Algorithm(op.vectorize(vectorization)),
+            Operation::Procedure(op) => Operation::Procedure(op.vectorize(vectorization)),
             Operation::Metadata(_) => panic!(
                 "Metadata can't be vectorized, they should only be generated after vectorization."
             ),
-            Operation::Loop(_) => panic!(
-                "Loops can't be vectorized, they should only be generated after vectorization."
+            Operation::Branch(_) => panic!(
+                "A branch can't be vectorized, they should only be generated after vectorization."
             ),
-        }
-    }
-}
-
-impl Algorithm {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        match self {
-            Algorithm::ReadGlobalWithLayout(op) => {
-                Algorithm::ReadGlobalWithLayout(op.vectorize(vectorization))
-            }
-            Algorithm::ReadGlobal(op) => Algorithm::ReadGlobal(op.vectorize(vectorization)),
-        }
-    }
-}
-
-impl ReadGlobalWithLayoutAlgo {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            global: self.global.vectorize(vectorization),
-            layout: self.layout.vectorize(vectorization),
-            out: self.out.vectorize(vectorization),
-        }
-    }
-}
-
-impl ReadGlobalAlgo {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        Self {
-            global: self.global.vectorize(vectorization),
-            out: self.out.vectorize(vectorization),
         }
     }
 }
@@ -88,20 +55,17 @@ impl Operator {
             Operator::Greater(op) => Operator::Greater(op.vectorize(vectorization)),
             Operator::LowerEqual(op) => Operator::LowerEqual(op.vectorize(vectorization)),
             Operator::GreaterEqual(op) => Operator::GreaterEqual(op.vectorize(vectorization)),
-            Operator::ConditionalAssign(op) => {
-                Operator::ConditionalAssign(op.vectorize(vectorization))
-            }
-            Operator::AssignGlobal(op) => Operator::AssignGlobal(op.vectorize(vectorization)),
-            Operator::AssignLocal(op) => {
+            Operator::Assign(op) => {
                 if let Variable::GlobalScalar(_, _) = op.input {
                     // Assign will not change the type of the output if the input can't be
                     // vectorized.
-                    return Operator::AssignLocal(op.clone());
+                    return Operator::Assign(op.clone());
                 }
 
-                Operator::AssignLocal(op.vectorize(vectorization))
+                Operator::Assign(op.vectorize(vectorization))
             }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
+            Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
         }
     }
 }
@@ -127,32 +91,11 @@ impl UnaryOperator {
 
 impl ClampOperator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let input = self.input.vectorize(vectorization);
-        let out = self.out.vectorize(vectorization);
-        let min_value = self.min_value.vectorize(vectorization);
-        let max_value = self.max_value.vectorize(vectorization);
-
         Self {
-            input,
-            out,
-            min_value,
-            max_value,
-        }
-    }
-}
-
-impl ConditionalAssignOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
-        let cond = self.cond.vectorize(vectorization);
-        let lhs = self.lhs.vectorize(vectorization);
-        let rhs = self.rhs.vectorize(vectorization);
-        let out = self.out.vectorize(vectorization);
-
-        Self {
-            cond,
-            lhs,
-            rhs,
-            out,
+            input: self.input.vectorize(vectorization),
+            out: self.out.vectorize(vectorization),
+            min_value: self.min_value.vectorize(vectorization),
+            max_value: self.max_value.vectorize(vectorization),
         }
     }
 }
@@ -174,6 +117,13 @@ impl Variable {
             Variable::Id => *self,
             Variable::Rank => *self,
             Variable::LocalScalar(_, _, _) => *self,
+            Variable::InvocationIndex => *self,
+            Variable::WorkgroupIdX => *self,
+            Variable::WorkgroupIdY => *self,
+            Variable::WorkgroupIdZ => *self,
+            Variable::GlobalInvocationIdX => *self,
+            Variable::GlobalInvocationIdY => *self,
+            Variable::GlobalInvocationIdZ => *self,
         }
     }
 }

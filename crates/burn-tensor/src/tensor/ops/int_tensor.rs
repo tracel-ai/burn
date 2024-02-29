@@ -1,5 +1,5 @@
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{backend::Backend, tensor::Shape, Data, ElementConversion, Int};
+use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
@@ -959,6 +959,22 @@ pub trait IntTensorOps<B: Backend> {
         chunk::<B, D, Int>(tensor, chunks, dim)
     }
 
+    /// Creates a new int tensor with random values.
+    ///
+    ///  # Arguments
+    ///  * `shape` - The shape of the tensor.
+    ///  * `distribution` - The distribution to sample from.
+    ///  * `device` - The device to create the tensor on.
+    ///
+    ///  # Returns
+    ///
+    ///  The tensor with the given shape and random values.
+    fn int_random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &Device<B>,
+    ) -> IntTensor<B, D>;
+
     /// Creates a new tensor with values from the given range with the given step size.
     ///
     /// # Arguments
@@ -996,5 +1012,81 @@ pub trait IntTensorOps<B: Backend> {
     /// Uses `arange_step` with a step size of 1 under the hood.
     fn int_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B, 1> {
         Self::int_arange_step(range, 1, device)
+    }
+
+    /// Tests if any element in the int `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
+    fn int_any<const D: usize>(tensor: IntTensor<B, D>) -> BoolTensor<B, 1> {
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::int_sum(B::bool_into_int(bool_tensor));
+        B::int_greater_elem(sum, 0.elem())
+    }
+
+    /// Tests if any element in the int `tensor` evaluates to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
+    /// evaluates to True, False otherwise.
+
+    fn int_any_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
+        B::int_greater_elem(sum, 0.elem())
+    }
+
+    /// Tests if all elements in the int `tensor` evaluate to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// evaluate to True, False otherwise.
+
+    fn int_all<const D: usize>(tensor: IntTensor<B, D>) -> BoolTensor<B, 1> {
+        let num_elems = B::int_shape(&tensor).num_elements();
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::int_sum(B::bool_into_int(bool_tensor));
+        B::int_equal_elem(sum, (num_elems as i32).elem())
+    }
+
+    /// Tests if all elements in the int `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
+    /// evaluates to True, False otherwise.
+
+    fn int_all_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+        let num_elems = B::int_shape(&tensor).dims[dim];
+        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
+        B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 }

@@ -69,7 +69,7 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub struct WorkgroupSize {
     pub x: u32,
     pub y: u32,
@@ -92,7 +92,5 @@ pub struct ComputeShader {
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
     pub workgroup_size: WorkgroupSize,
-    pub global_invocation_id: bool,
-    pub num_workgroups: bool,
     pub body: Scope,
 }

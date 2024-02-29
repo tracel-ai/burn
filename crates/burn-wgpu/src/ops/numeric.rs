@@ -23,7 +23,7 @@ pub fn full_device<R: Runtime, E: JitElement, const D: usize>(
     let empty = empty_device(client, device, shape);
 
     unary!(
-        operation: |scope: &mut Scope, elem: Elem| Operator::AssignLocal(UnaryOperator {
+        operation: |scope: &mut Scope, elem: Elem| Operator::Assign(UnaryOperator {
             input: scope.read_scalar(0, elem),
             out: scope.create_local(elem),
         }),

@@ -5,6 +5,10 @@ macro_rules! gpu {
     ($scope:expr, $out:ident = $lhs:ident + $rhs:expr) => {
         gpu!($scope, $out = add($lhs, $rhs))
     };
+    // out += input
+    ($scope:expr, $out:ident += $input:ident) => {
+        gpu!($scope, $out = add($out, $input))
+    };
     // out = add(lhs, rhs)
     ($scope:expr, $out:ident = add($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Add(
@@ -121,6 +125,12 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out[lhs] = rhs
+    ($scope:expr, $out:ident[$lhs:ident] = $rhs:expr) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::IndexAssign(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out = |input|
     ($scope:expr, $out:ident = |$input:ident|) => {
         gpu!($scope, $out = abs($input))
@@ -180,37 +190,55 @@ macro_rules! gpu {
         ));
     };
     // out = input
-    ($scope:expr, eval $arg:expr) => {
-        gpu!($scope, $arg);
-    };
-    // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        $scope.register($crate::codegen::dialect::gpu::Operator::AssignLocal(
+        $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
         ));
     };
     // out = input
     ($scope:expr, $out:ident = $input:ident) => {
-        $scope.register($crate::codegen::dialect::gpu::Operator::AssignLocal(
+        gpu!($scope, $out = cast($input))
+    };
+    // out = cast(input)
+    ($scope:expr, $out:ident = cast($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Assign(
             gpu!(unary $input, $out)
         ));
     };
+    // out = shape(tensor, dim)
     ($scope:expr, $out:ident = shape($input:expr, $dim:expr)) => {
-        $scope.register(Metadata::Shape {
-            dim: $dim,
-            var: $input,
-            out: $out,
+        $scope.register($crate::codegen::dialect::gpu::Metadata::Shape {
+            dim: $dim.into(),
+            var: $input.into(),
+            out: $out.into(),
         });
     };
+    // out = stride(tensor, dim)
     ($scope:expr, $out:ident = stride($input:expr, $dim:expr)) => {
-        $scope.register(Metadata::Stride {
-            dim: $dim,
-            var: $input,
-            out: $out,
+        $scope.register($crate::codegen::dialect::gpu::Metadata::Stride {
+            dim: $dim.into(),
+            var: $input.into(),
+            out: $out.into(),
         });
     };
+    // out = len(array)
+    ($scope:expr, $out:ident = len($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Metadata::ArrayLength {
+            var: $input.into(),
+            out: $out.into(),
+        });
+    };
+    // range(start, end).for_each(|scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+    };
+    // if (cond).then(|scope| { ... })
+    ($scope:expr, if ($cond:expr).then($arg:expr)) => {
+        $crate::codegen::dialect::gpu::If::register($scope, $cond.into(), $arg);
+    };
+    // if (cond).then(|scope| { ... }).else(|scope| { ... })
+    ($scope:expr, if ($cond:expr).then($arg_if:expr).else($arg_else:expr)) => {
+        $crate::codegen::dialect::gpu::IfElse::register($scope, $cond.into(), $arg_if, $arg_else);
     };
     (binary $lhs:expr, $rhs:expr, $out:expr) => {
         $crate::codegen::dialect::gpu::BinaryOperator {

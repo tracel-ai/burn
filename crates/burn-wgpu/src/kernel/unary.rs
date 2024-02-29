@@ -1,6 +1,6 @@
 use super::StaticKernelSource;
 use crate::{
-    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
+    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
@@ -58,7 +58,6 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -75,7 +74,7 @@ macro_rules! unary {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -83,7 +82,6 @@ macro_rules! unary {
                 inputs: vec![input],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -99,7 +97,7 @@ macro_rules! unary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings, Vec::new())
+                compile::<C, E>(settings)
             }
         }
 
@@ -110,13 +108,13 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, E>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, E>(settings)
             }
         }
     };
@@ -137,7 +135,6 @@ macro_rules! unary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, E>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -158,7 +155,7 @@ macro_rules! unary {
                 elem: E::gpu_elem(),
                 size: $num,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(E::gpu_elem()),
                 local,
             };
@@ -166,7 +163,6 @@ macro_rules! unary {
                 inputs: vec![input, scalars],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -182,7 +178,7 @@ macro_rules! unary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, E>(settings, Vec::new())
+                compile::<C, E>(settings)
             }
         }
 
@@ -193,13 +189,13 @@ macro_rules! unary {
             E: $crate::element::JitElement,
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, E>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, E>(settings)
             }
         }
     };
@@ -218,7 +214,7 @@ where
 {
     if inplace_enabled && tensor.can_mut() {
         execute_static::<R, KernelInplace, E>(
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &tensor.handle,
                 &tensor.strides,
                 &tensor.shape.dims,
@@ -241,12 +237,12 @@ where
         );
 
         execute_static::<R, Kernel, E>(
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &tensor.handle,
                 &tensor.strides,
                 &tensor.shape.dims,
             )],
-            &[StaticHandle::new(
+            &[EagerHandle::new(
                 &output.handle,
                 &output.strides,
                 &output.shape.dims,

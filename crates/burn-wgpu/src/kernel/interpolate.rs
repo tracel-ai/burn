@@ -1,10 +1,11 @@
 use crate::{
     compute::{Kernel, StaticKernel},
-    element::WgpuElement,
+    element::JitElement,
     kernel::{self, build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
     kernel_wgsl,
     ops::numeric::empty_device,
-    tensor::WgpuTensor,
+    tensor::JitTensor,
+    Runtime,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},
@@ -13,12 +14,13 @@ use burn_tensor::{
 
 kernel_wgsl!(Nearest, "../template/interpolate/nearest.wgsl");
 kernel_wgsl!(Bilinear, "../template/interpolate/bilinear.wgsl");
+kernel_wgsl!(Bicubic, "../template/interpolate/bicubic.wgsl");
 
-pub(crate) fn interpolate<E: WgpuElement + Element>(
-    input: WgpuTensor<E, 4>,
+pub(crate) fn interpolate<R: Runtime, E: JitElement + Element>(
+    input: JitTensor<R, E, 4>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> WgpuTensor<E, 4> {
+) -> JitTensor<R, E, 4> {
     let input = kernel::into_contiguous(input);
     let [batch_size, channels, _, _] = input.shape.dims;
     let [out_height, out_width] = output_size;
@@ -26,7 +28,7 @@ pub(crate) fn interpolate<E: WgpuElement + Element>(
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
     let output = empty_device(input.client.clone(), input.device.clone(), shape_out);
 
-    let info = build_info::<E, 4>(&[&input, &output]);
+    let info = build_info(&[&input, &output]);
 
     let info_handle = input.client.create(bytemuck::cast_slice(&info));
 
@@ -43,9 +45,12 @@ pub(crate) fn interpolate<E: WgpuElement + Element>(
             output.shape.num_elements(),
             WORKGROUP_DEFAULT,
         ))),
-        InterpolateMode::Bicubic => {
-            todo!()
-        }
+        InterpolateMode::Bicubic => Box::new(StaticKernel::<
+            KernelSettings<Bicubic, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
+        >::new(elemwise_workgroup(
+            output.shape.num_elements(),
+            WORKGROUP_DEFAULT,
+        ))),
     };
 
     input

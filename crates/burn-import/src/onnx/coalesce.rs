@@ -1,32 +1,32 @@
-use std::{iter::Peekable, slice::IterMut};
+use std::{iter::Peekable, slice::Iter};
 
-use super::ir::{AttributeValue, Node, NodeType};
+use super::{
+    from_onnx::OnnxGraphIO,
+    ir::{AttributeValue, Node, NodeType},
+    proto_conversion::convert_node_proto,
+    protos::NodeProto,
+};
 use crate::onnx::ir::{ArgType, Data, TensorType};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
-pub fn coalesce(nodes: &mut Vec<Node>) {
-    let mut iter_mut = nodes.iter_mut().peekable();
-    let mut nodes_to_remove: Vec<String> = vec![];
-    while let Some(node) = iter_mut.next() {
-        match node.node_type {
-            NodeType::Gemm => convert_gemm_to_linear(node),
-            NodeType::MatMul => {
-                convert_matmul_to_linear(node, &mut iter_mut, &mut nodes_to_remove);
-            }
-            _ => {}
+pub fn coalesce(
+    node: &mut Node,
+    nodes_iter: &mut Peekable<Iter<NodeProto>>,
+    graph_io: &OnnxGraphIO,
+) {
+    match node.node_type {
+        NodeType::Gemm => convert_gemm_to_linear(node),
+        NodeType::MatMul => {
+            convert_matmul_to_linear(node, nodes_iter, graph_io);
         }
-    }
-
-    // Remove nodes instructed by conversation functions
-    for node_to_remove in nodes_to_remove {
-        nodes.retain(|n| n.name != node_to_remove);
+        _ => {}
     }
 }
 
 /// This function converts a Gemm node into a Linear node
 ///
 /// PyTorch and other frameworks use Gemm node to represent Linear layer.
-fn convert_gemm_to_linear(node: &mut Node) {
+pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
     if node.outputs.len() != 1 {
         panic!("Gemm node must have 1 output");
     }
@@ -117,10 +117,10 @@ fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec
 ///
 /// This function also converts the following Add node into a Linear node if possible.
 /// Add node is used to represent bias in PyTorch.
-fn convert_matmul_to_linear(
+pub(crate) fn convert_matmul_to_linear(
     node: &mut Node,
-    iter_mut: &mut Peekable<IterMut<Node>>,
-    nodes_to_remove: &mut Vec<String>,
+    iter_mut: &mut Peekable<Iter<NodeProto>>,
+    graph_io: &OnnxGraphIO,
 ) {
     if node.inputs.len() != 2 {
         panic!("MatMul node must have 2 inputs");
@@ -143,8 +143,12 @@ fn convert_matmul_to_linear(
 
     // Check the next node for potential conversion
     if let Some(peek_node) = iter_mut.peek() {
-        if is_add_node_with_bias(peek_node, node) {
-            convert_and_remove_add_node(iter_mut, nodes_to_remove, node);
+        let peek_node = convert_node_proto(peek_node, graph_io).clone();
+        if is_add_node_with_bias(&peek_node, node) {
+            convert_and_remove_add_node(&peek_node, node);
+
+            // You don't have to remove it if it's never stored in the first place
+            let _ = iter_mut.next();
         }
     }
 }
@@ -160,13 +164,7 @@ fn is_add_node_with_bias(peek_node: &Node, current_node: &Node) -> bool {
 }
 
 /// Helper function to convert and remove the Add node
-fn convert_and_remove_add_node(
-    iter_mut: &mut Peekable<IterMut<Node>>,
-    nodes_to_remove: &mut Vec<String>,
-    current_node: &mut Node,
-) {
-    let bias_node = iter_mut.next().unwrap();
-
+fn convert_and_remove_add_node(bias_node: &Node, current_node: &mut Node) {
     let bias_input = if bias_node.inputs[0].value.is_some() {
         bias_node.inputs[0].clone()
     } else {
@@ -176,7 +174,4 @@ fn convert_and_remove_add_node(
     // Push the bias input and update the output name
     current_node.inputs.push(bias_input);
     current_node.outputs[0].name = bias_node.outputs[0].name.clone();
-
-    // Remove the Add node
-    nodes_to_remove.push(bias_node.name.clone());
 }

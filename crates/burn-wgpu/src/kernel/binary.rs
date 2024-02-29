@@ -1,5 +1,5 @@
 use crate::{
-    codegen::{execute_static, StaticHandle, WorkgroupLaunch},
+    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
@@ -52,7 +52,6 @@ macro_rules! binary {
         #[allow(clippy::redundant_closure_call)]
         fn compile<C, I, O>(
             settings: $crate::codegen::CompilationSettings,
-            mappings: Vec<$crate::codegen::InplaceMapping>,
         ) -> $crate::kernel::SourceTemplate
         where
             C: $crate::codegen::Compiler,
@@ -73,7 +72,7 @@ macro_rules! binary {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
                 visibility: $crate::codegen::dialect::gpu::Visibility::Read,
             };
-            let out = $crate::codegen::OutputInfo::Array {
+            let out = $crate::codegen::OutputInfo::ArrayWrite {
                 item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
                 local,
             };
@@ -81,7 +80,6 @@ macro_rules! binary {
                 inputs: vec![lhs, rhs],
                 outputs: vec![out],
                 scope,
-                mappings,
             };
             let shader = $crate::codegen::Compilation::new(info).compile(settings);
 
@@ -98,7 +96,7 @@ macro_rules! binary {
         {
             fn source() -> $crate::kernel::SourceTemplate {
                 let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, I, O>(settings, Vec::new())
+                compile::<C, I, O>(settings)
             }
         }
 
@@ -111,13 +109,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 0,
                     pos_output: 0,
                 };
-                compile::<C, I, O>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, I, O>(settings)
             }
         }
 
@@ -130,13 +128,13 @@ macro_rules! binary {
             O: $crate::element::JitElement
         {
             fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(true);
                 let mapping = $crate::codegen::InplaceMapping {
                     pos_input: 1,
                     pos_output: 0,
                 };
-                compile::<C, I, O>(settings, vec![mapping])
+                let settings = $crate::codegen::CompilationSettings::default()
+                    .inplace(vec![mapping]);
+                compile::<C, I, O>(settings)
             }
         }
     };
@@ -157,8 +155,8 @@ where
     if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
         execute_static::<R, KernelInplaceLhs, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
             &[],
             None,
@@ -170,8 +168,8 @@ where
     } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
         execute_static::<R, KernelInplaceRhs, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
             &[],
             None,
@@ -198,14 +196,10 @@ where
 
         execute_static::<R, Kernel, E>(
             &[
-                StaticHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                StaticHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
+                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
+                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
             ],
-            &[StaticHandle::new(
-                &out.handle,
-                &out.strides,
-                &out.shape.dims,
-            )],
+            &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
             None,
             WorkgroupLaunch::Output { pos: 0 },
             lhs.client,

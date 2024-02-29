@@ -60,10 +60,32 @@ pub fn sum_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
     reduction_dim_shared_memory::<SumDimSharedMemory, R, E, D>(input, output, dim)
 }
 
+/// Execute the sum dim kernel leveraging shared memory on int tensors
+/// Probably more efficient on tensors where the dimension to reduced
+/// is much larger than the others
+pub fn int_sum_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    reduction_dim_shared_memory::<SumDimSharedMemory, R, E, D>(input, output, dim)
+}
+
 /// Execute the mean dim kernel leveraging shared memory
 /// Probably more efficient on tensors where the dimension to reduced
 /// is much larger than the others
 pub fn mean_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    reduction_dim_shared_memory::<MeanDimSharedMemory, R, E, D>(input, output, dim)
+}
+
+/// Execute the mean dim kernel leveraging shared memory on int tensors
+/// Probably more efficient on tensors where the dimension to reduced
+/// is much larger than the others
+pub fn int_mean_dim_shared_memory<R: Runtime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
     dim: usize,

@@ -1,7 +1,8 @@
 use super::{Ops, OpsPrep};
 use crate::{
+    checkpoint::{base::Checkpointer, builder::CheckpointerBuilder, strategy::CheckpointStrategy},
     grads::Gradients,
-    graph::{Graph, NodeRef, Requirement},
+    graph::{ComputingProperty, Graph, NodeRef, Requirement},
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
@@ -22,16 +23,28 @@ where
     type State: Clone + Send + Sync + std::fmt::Debug + 'static;
 
     /// The backward pass.
-    fn backward(self, ops: Ops<Self::State, N>, grads: &mut Gradients);
+    fn backward(
+        self,
+        ops: Ops<Self::State, N>,
+        grads: &mut Gradients,
+        checkpointer: &mut Checkpointer,
+    );
 
     /// Prepare the backward ops.
-    fn prepare(
+    fn prepare<C: CheckpointStrategy>(
         self,
         nodes: [NodeRef; N],
         graphs: [Graph; N],
-    ) -> OpsPrep<Self, B, Self::State, D, N> {
+    ) -> OpsPrep<Self, B, Self::State, C, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
-        OpsPrep::new(nodes, graphs, requirement, self)
+        OpsPrep::new(
+            nodes,
+            graphs,
+            requirement,
+            self,
+            ComputingProperty::Ambiguous, // If not specified we start with ambiguous
+            CheckpointerBuilder::default(),
+        )
     }
 }
 

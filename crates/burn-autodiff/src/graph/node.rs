@@ -1,7 +1,18 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::checkpoint::retro_forward::RetroForward;
+
 use super::Requirement;
+
+#[derive(Debug, Clone)]
+pub enum ComputingProperty {
+    ComputeBound,
+    MemoryBound {
+        retro_forward: Arc<dyn RetroForward>,
+    },
+    Ambiguous, // Maybe autotune someday
+}
 
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
@@ -10,6 +21,7 @@ pub struct Node {
     pub order: usize,
     pub id: NodeID,
     pub requirement: Requirement,
+    pub properties: ComputingProperty,
 }
 pub type NodeRef = Arc<Node>;
 
@@ -23,9 +35,10 @@ impl Node {
     }
 }
 
-/// Unique identifier generated for each [node](Node).
+/// Unique identifier generated for each node.
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct NodeID {
+    /// The integer representation of the id
     pub value: u64,
 }
 
