@@ -486,5 +486,5 @@ pub trait ModuleOps<B: Backend> {
         grad: FloatTensor<B, 4>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<B, 4> {}
+    ) -> FloatTensor<B, 4>;
 }

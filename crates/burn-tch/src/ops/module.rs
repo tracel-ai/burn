@@ -1,7 +1,7 @@
 use crate::{element::TchElement, LibTorch, TchTensor};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
-    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, FloatTensor, InterpolateMode, InterpolateOptions,
+    MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 
 impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
@@ -301,6 +301,45 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             InterpolateMode::Bicubic => {
                 tch::Tensor::upsample_bicubic2d(&x.tensor, output_size, true, None, None)
             }
+        };
+
+        TchTensor::new(tensor)
+    }
+
+    fn interpolate_backward(
+        x: TchTensor<E, 4>,
+        grad: TchTensor<E, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> TchTensor<E, 4> {
+        let output_size = output_size.map(|e| e as i64);
+        let [_n, _c, h_in, w_in] = x.shape().dims;
+        let input_size = [h_in as i64, w_in as i64];
+
+        let tensor = match options.mode {
+            InterpolateMode::Nearest => tch::Tensor::internal_upsample_nearest_exact2d_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                None,
+                None,
+            ),
+            InterpolateMode::Bilinear => tch::Tensor::internal_upsample_bilinear2d_aa_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                true,
+                None,
+                None,
+            ),
+            InterpolateMode::Bicubic => tch::Tensor::internal_upsample_bicubic2d_aa_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                true,
+                None,
+                None,
+            ),
         };
 
         TchTensor::new(tensor)

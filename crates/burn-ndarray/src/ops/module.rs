@@ -112,4 +112,17 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
             InterpolateMode::Bicubic => todo!(),
         }
     }
+
+    fn interpolate_backward(
+        x: NdArrayTensor<E, 4>,
+        grad: NdArrayTensor<E, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> NdArrayTensor<Self, 4> {
+        match options.mode {
+            InterpolateMode::Nearest => nearest_interpolate_backward(x, grad, output_size),
+            InterpolateMode::Bilinear => bilinear_interpolate_backward(x, grad, output_size),
+            InterpolateMode::Bicubic => bicubic_interpolate_backward(x, grad, output_size),
+        }
+    }
 }

@@ -1,5 +1,5 @@
 use burn_tensor::ElementConversion;
-use ndarray::Array4;
+use ndarray::{Array4, Dim};
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
@@ -47,6 +47,51 @@ pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
+}
+
+pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
+    x: NdArrayTensor<E, 4>,
+    grad: NdArrayTensor<E, 4>,
+    output_size: [usize; 2],
+) -> NdArrayTensor<E, 4> {
+    let parent_grad = grad.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+
+    let [batch_size, channels, in_height, in_width] = x.shape().dims;
+    let [out_height, out_width] = output_size;
+
+    let y_ratio = (in_height as f64) / (out_height as f64);
+    let x_ratio = (in_width as f64) / (out_width as f64);
+
+    let out_element_num = batch_size * channels * out_height * out_width;
+    let strides = (
+        channels * out_height * out_width,
+        out_height * out_width,
+        out_width,
+    );
+
+    let mut x_grad = Array4::zeros(Dim([batch_size, channels, in_height, in_width]));
+    let unsafe_shared_x_grad = UnsafeSharedRef::new(&mut x_grad);
+
+    run_par!(|| {
+        iter_range_par!(0, out_element_num).for_each(|id| {
+            let (b, c, h, w) = (
+                id / strides.0,
+                id % strides.0 / strides.1,
+                id % strides.1 / strides.2,
+                id % strides.2,
+            );
+
+            let y_in = (y_ratio * h as f64).floor() as usize;
+            let x_in = (x_ratio * w as f64).floor() as usize;
+
+            unsafe {
+                let x_grad = unsafe_shared_x_grad.get();
+                x_grad[(b, c, y_in, x_in)] += parent_grad[(b, c, h, w)];
+            }
+        });
+    });
+
+    NdArrayTensor::new(x_grad.into_dyn().into_shared())
 }
 
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
@@ -106,4 +151,67 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
+}
+
+pub(crate) fn bilinear_interpolate_backward<E: FloatNdArrayElement>(
+    x: NdArrayTensor<E, 4>,
+    grad: NdArrayTensor<E, 4>,
+    output_size: [usize; 2],
+) -> NdArrayTensor<E, 4> {
+    let parent_grad = grad.array.into_dimensionality::<ndarray::Ix4>().unwrap();
+
+    let [batch_size, channels, in_height, in_width] = x.shape().dims;
+    let [out_height, out_width] = output_size;
+
+    let y_ratio = (in_height as f64) / (out_height as f64);
+    let x_ratio = (in_width as f64) / (out_width as f64);
+
+    let out_element_num = batch_size * channels * out_height * out_width;
+    let strides = (
+        channels * out_height * out_width,
+        out_height * out_width,
+        out_width,
+    );
+
+    let mut x_grad = Array4::zeros(Dim([batch_size, channels, in_height, in_width]));
+    let unsafe_shared_x_grad = UnsafeSharedRef::new(&mut x_grad);
+
+    run_par!(|| {
+        iter_range_par!(0, out_element_num).for_each(|id| {
+            let (b, c, h, w) = (
+                id / strides.0,
+                id % strides.0 / strides.1,
+                id % strides.1 / strides.2,
+                id % strides.2,
+            );
+
+            // We convert everything to `f64` for calculations and then back to `E` at the end.
+            let y_frac = y_ratio * h as f64;
+            let y0 = y_frac.floor();
+            let y1 = y_frac.ceil();
+            let yw = y_frac - y0;
+
+            let x_frac = x_ratio * w as f64;
+            let x0 = x_frac.floor();
+            let x1 = x_frac.ceil();
+            let xw = x_frac - x0;
+
+            let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
+
+            let p_a = x[(b, c, y0, x0)].elem::<f64>() * (1.0 - xw) * (1.0 - yw);
+            let p_b = x[(b, c, y0, x1)].elem::<f64>() * xw * (1.0 - yw);
+            let p_c = x[(b, c, y1, x0)].elem::<f64>() * (1.0 - xw) * yw;
+            let p_d = x[(b, c, y1, x1)].elem::<f64>() * xw * yw;
+
+            unsafe {
+                let x_grad = unsafe_shared_x_grad.get();
+                x_grad[(b, c, y0, x0)] += parent_grad[(b, c, h, w)] * (1.0 - xw) * (1.0 - yw);
+                x_grad[(b, c, y0, x1)] += parent_grad[(b, c, h, w)] * xw * (1.0 - yw);
+                x_grad[(b, c, y1, x0)] += parent_grad[(b, c, h, w)] * (1.0 - xw) * yw;
+                x_grad[(b, c, y1, x1)] += parent_grad[(b, c, h, w)] * xw * yw;
+            }
+        });
+    });
+
+    NdArrayTensor::new(x_grad.into_dyn().into_shared())
 }
