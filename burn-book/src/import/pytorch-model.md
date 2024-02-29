@@ -30,7 +30,7 @@ class Net(nn.Module):
         x = self.conv2(x)
         return x
 
-def main():
+if __name__ == "__main__":
     torch.manual_seed(42)  # To make it reproducible
     model = Net().to(torch.device("cpu"))
     model_weights = model.state_dict()
@@ -272,5 +272,4 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 
 ## Current known issues
 
-1. [Candle's pickle library does not currently function on Windows due to a Candle bug](https://github.com/tracel-ai/burn/issues/1178).
-2. [Candle's pickle does not currently unpack boolean tensors](https://github.com/tracel-ai/burn/issues/1179).
+1. [Candle's pickle does not currently unpack boolean tensors](https://github.com/tracel-ai/burn/issues/1179).
