@@ -201,10 +201,12 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.max()`                                                   | `tensor.max()`                                 |
 | `tensor.max_dim(dim)`                                            | `tensor.max(dim)`                              |
 | `tensor.max_dim_with_indices(dim)`                               | N/A                                            |
+| `tensor.max_pair(other)`                                         | `torch.Tensor.max(a,b)`                        |
 | `tensor.argmin(dim)`                                             | `tensor.argmin(dim)`                           |
 | `tensor.min()`                                                   | `tensor.min()`                                 |
 | `tensor.min_dim(dim)`                                            | `tensor.min(dim)`                              |
 | `tensor.min_dim_with_indices(dim)`                               | N/A                                            |
+| `tensor.min_pair(other)`                                         | `torch.Tensor.min(a,b)`                        |
 | `tensor.clamp(min, max)`                                         | `torch.clamp(tensor, min=min, max=max)`        |
 | `tensor.clamp_min(min)`                                          | `torch.clamp(tensor, min=min)`                 |
 | `tensor.clamp_max(max)`                                          | `torch.clamp(tensor, max=max)`                 |
