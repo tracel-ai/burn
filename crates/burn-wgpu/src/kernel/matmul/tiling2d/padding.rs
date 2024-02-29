@@ -1,7 +1,3 @@
-use std::ops::Range;
-
-use burn_tensor::{Element, Shape};
-
 use crate::{
     element::JitElement,
     kernel::{slice_assign, slice_on_output},
@@ -9,6 +5,8 @@ use crate::{
     tensor::JitTensor,
     Runtime,
 };
+use burn_tensor::{Element, Shape};
+use std::ops::Range;
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
 pub(super) enum PaddingOutput<R: Runtime, E: JitElement, const D: usize> {

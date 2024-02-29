@@ -1,23 +1,37 @@
+use std::marker::PhantomData;
+
 use crate::{
+    checkpoint::{
+        base::Checkpointer, retro_forward::RetroForward, state::BackwardStates,
+        strategy::CheckpointStrategy,
+    },
     grads::Gradients,
+    graph::NodeID,
     ops::{unary, Backward, Ops, OpsKind},
-    Autodiff,
+    retro_unary, Autodiff,
 };
 use burn_tensor::{
     backend::Backend,
     ops::{ActivationOps, FloatTensor},
 };
 
-impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
+impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodiff<B, C> {
     fn gelu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
         #[derive(Debug)]
         struct Gelu<const D: usize>;
 
-        impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
-            type State = B::FloatTensorPrimitive<D>;
+        retro_unary!(RetroGelu, B::gelu);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
-                let input = ops.state;
+        impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
+            type State = NodeID;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
 
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::gelu_backward(input, grad)
@@ -25,10 +39,16 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
             }
         }
 
-        match Gelu::<D>.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::gelu(tensor.primitive.clone());
-                prep.finish(tensor.primitive, output)
+        match Gelu::<D>
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::gelu(tensor.primitive.clone()))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::gelu(tensor.primitive)),
         }
@@ -38,20 +58,36 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         #[derive(Debug)]
         struct Relu;
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
-            type State = B::FloatTensorPrimitive<D>;
+        retro_unary!(RetroRelu, B::relu);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
+            type State = NodeID;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let state = checkpointer.retrieve_node_output(ops.state);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    B::relu_backward(ops.state, grad)
+                    B::relu_backward(state, grad)
                 });
             }
         }
-        let output = B::relu(tensor.primitive);
 
-        match Relu.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => prep.finish(output.clone(), output),
-            OpsKind::UnTracked(prep) => prep.finish(output),
+        match Relu
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::relu(tensor.primitive))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::relu(tensor.primitive)),
         }
     }
 
@@ -59,20 +95,35 @@ impl<B: Backend> ActivationOps<Autodiff<B>> for Autodiff<B> {
         #[derive(Debug)]
         struct Sigmoid;
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
-            type State = B::FloatTensorPrimitive<D>;
+        retro_unary!(RetroSigmoid, B::sigmoid);
 
-            fn backward(self, ops: Ops<Self::State, 1>, grads: &mut Gradients) {
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
+            type State = NodeID;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+                let output = B::sigmoid(input);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
-                    B::sigmoid_backward(ops.state, grad)
+                    B::sigmoid_backward(output, grad)
                 });
             }
         }
 
-        match Sigmoid.prepare([tensor.node], [tensor.graph]).stateful() {
-            OpsKind::Tracked(prep) => {
-                let output = B::sigmoid(tensor.primitive);
-                prep.finish(output.clone(), output)
+        match Sigmoid
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::sigmoid(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::sigmoid(tensor.primitive)),
         }

@@ -69,7 +69,7 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
-#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub struct WorkgroupSize {
     pub x: u32,
     pub y: u32,

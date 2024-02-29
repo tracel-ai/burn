@@ -168,6 +168,37 @@ While the previous example is somewhat trivial, the upcoming
 basic workflow section will walk you through a much more relevant example for
 deep learning applications.
 
+## Using `prelude`
+
+Burn comes with a variety of things in its core library. 
+When creating a new model or using an existing one for inference,
+you may need to import every single component you used, which could be a little verbose.
+
+To address it, a `prelude` module is provided, allowing you to easily import commonly used structs and macros as a group:
+
+```rust, ignore
+use burn::prelude::*;
+```
+
+which is equal to:
+
+```rust, ignore
+use burn::{
+    config::Config,
+    module::Module,
+    nn,
+    tensor::{
+        backend::Backend, Bool, Data, Device, ElementConversion, Float, Int, Shape, Tensor,
+    },
+};
+```
+
+<div class="warning">
+
+For the sake of simplicity, the subsequent chapters of this book will all use this form of importing. However, this does not include the content in the [Building Blocks](./building-blocks) chapter, as explicit importing aids users in grasping the usage of particular structures and macros.
+
+</div>
+
 ## Running examples
 
 Many additional Burn examples available in the

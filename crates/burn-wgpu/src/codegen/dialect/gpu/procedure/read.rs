@@ -3,7 +3,7 @@ use crate::codegen::dialect::gpu::{BinaryOperator, Vectorization};
 use serde::{Deserialize, Serialize};
 
 /// Read a global array.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobal {
     /// The array to be read.
     pub global: Variable,
@@ -12,7 +12,7 @@ pub struct ReadGlobal {
 }
 
 /// Read a global array with the given layout.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReadGlobalWithLayout {
     /// The array to be read.
     pub globals: Vec<Variable>,
@@ -74,7 +74,8 @@ impl ReadGlobalWithLayout {
             layout: self.layout,
             indexes: indexes.clone(),
             index_ref: Variable::Id,
-            end_dim: Variable::Rank,
+            dim_start: 0u32.into(),
+            dim_end: Variable::Rank,
         }
         .expand(scope);
 
@@ -105,7 +106,7 @@ impl ReadGlobalWithLayout {
 }
 
 /// Calculate the index offset for all tensor variables provided compatible with the given layout.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IndexOffsetGlobalWithLayout {
     /// Tensor [variables](Variable), same length as [indexes](Self::indexes).
     pub tensors: Vec<Variable>,
@@ -117,10 +118,8 @@ pub struct IndexOffsetGlobalWithLayout {
     ///
     /// All other indexes will be made to be compatible with this one.
     pub index_ref: Variable,
-    /// The number of dimensions to consider.
-    ///
-    /// For all dimensions to be considerred, use [rank](Variable::Rank).
-    pub end_dim: Variable,
+    pub dim_start: Variable,
+    pub dim_end: Variable,
 }
 
 impl IndexOffsetGlobalWithLayout {
@@ -140,9 +139,10 @@ impl IndexOffsetGlobalWithLayout {
         for index in self.indexes.iter() {
             gpu!(scope, index = zero);
         }
+
         gpu!(
             scope,
-            range(zero, self.end_dim).for_each(|i, scope| {
+            range(self.dim_start, self.dim_end).for_each(|i, scope| {
                 let stride_layout = scope.create_local(index_item_ty);
                 let ogwl = scope.create_local(index_item_ty);
 
@@ -167,6 +167,25 @@ impl IndexOffsetGlobalWithLayout {
 
         for index in self.indexes {
             gpu!(scope, index = index / vectorization_factor);
+        }
+    }
+
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
+        Self {
+            tensors: self
+                .tensors
+                .iter()
+                .map(|t| t.vectorize(vectorization))
+                .collect(),
+            indexes: self
+                .indexes
+                .iter()
+                .map(|t| t.vectorize(vectorization))
+                .collect(),
+            layout: self.layout.vectorize(vectorization),
+            index_ref: self.index_ref.vectorize(vectorization),
+            dim_start: self.dim_start,
+            dim_end: self.dim_end,
         }
     }
 }

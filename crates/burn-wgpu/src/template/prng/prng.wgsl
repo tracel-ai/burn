@@ -55,6 +55,7 @@ fn lcg_step(z: u32) -> u32 {
     return (1664525u * z + 1013904223u);
 }
 
-fn cast_float(number: u32) -> {{ elem }} {
-   return 2.3283064365387e-10 * {{ elem }}(number);
+fn cast_u32_to_float(number: u32) -> {{ elem }} {
+   let tmp = 2.3283064365387e-10 * f32(number);
+   return {{ elem }}(tmp);
 }

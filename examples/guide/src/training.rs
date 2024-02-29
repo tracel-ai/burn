@@ -2,22 +2,16 @@ use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
 };
-use burn::data::dataset::vision::MnistDataset;
-use burn::train::{
-    metric::{AccuracyMetric, LossMetric},
-    ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
-};
 use burn::{
-    self,
-    config::Config,
-    data::dataloader::DataLoaderBuilder,
-    module::Module,
+    data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
+    prelude::*,
     record::CompactRecorder,
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Int, Tensor,
+    tensor::backend::AutodiffBackend,
+    train::{
+        metric::{AccuracyMetric, LossMetric},
+        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
     },
 };
 

@@ -1,20 +1,14 @@
 use std::env;
 use std::path::Path;
 
-use burn::nn::conv::Conv2d;
-use burn::nn::conv::Conv2dConfig;
-use burn::nn::BatchNorm;
-use burn::nn::BatchNormConfig;
-use burn::nn::Linear;
-use burn::nn::LinearConfig;
-use burn::record::FullPrecisionSettings;
-use burn::record::NamedMpkFileRecorder;
-use burn::record::Recorder;
-use burn::tensor::activation::log_softmax;
-use burn::tensor::activation::relu;
 use burn::{
-    module::Module,
-    tensor::{backend::Backend, Tensor},
+    nn::{
+        conv::{Conv2d, Conv2dConfig},
+        BatchNorm, BatchNormConfig, Linear, LinearConfig,
+    },
+    prelude::*,
+    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
+    tensor::activation::{log_softmax, relu},
 };
 
 #[derive(Module, Debug)]

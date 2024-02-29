@@ -18,6 +18,10 @@ impl Requirement {
     }
     /// Returns the right requirement from a list of nodes.
     pub fn from_nodes(nodes: &[NodeRef]) -> Self {
+        if nodes.len() == 1 {
+            return nodes[0].requirement.infer(&Requirement::None);
+        }
+
         nodes
             .iter()
             .map(|node| node.requirement)

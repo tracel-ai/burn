@@ -11,7 +11,6 @@ to your types, allowing you to define default values with ease. Additionally, al
 serialized, reducing potential bugs when upgrading versions and improving reproducibility.
 
 ```rust , ignore
-#[derive(Config)]
 use burn::config::Config;
 
 #[derive(Config)]
