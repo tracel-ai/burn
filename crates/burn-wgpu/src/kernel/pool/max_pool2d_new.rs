@@ -1,9 +1,9 @@
-use burn_tensor::Shape;
+use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 use std::marker::PhantomData;
 
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
         InputInfo, OutputInfo, WorkgroupLaunch,
     },
@@ -14,11 +14,16 @@ use crate::{
     Runtime,
 };
 
+#[derive(new)]
 pub struct MaxPool2dEagerKernel<R: Runtime, E: JitElement> {
     kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
+    _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
+}
+
+#[derive(new)]
+pub struct MaxPool2dWithIndicesEagerKernel<R: Runtime, E: JitElement> {
+    kernel_size: [usize; 2],
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -27,9 +32,7 @@ pub struct MaxPool2dComputeShader {
     x: Variable,
     output: Variable,
     kernel_size: [usize; 2],
-    stride: [usize; 2],
-    padding: [usize; 2],
-    dilation: [usize; 2],
+    indices: Option<Variable>,
 }
 
 impl MaxPool2dComputeShader {
@@ -74,10 +77,14 @@ impl MaxPool2dComputeShader {
         gpu!(scope, output_shape_2 = shape(output, 2u32));
         gpu!(scope, output_shape_3 = shape(output, 3u32));
 
+        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
+        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
+        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
+        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
+        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
+        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
-        let [pool_stride_0, pool_stride_1] = self.stride;
-        let [padding_0, padding_1] = self.padding;
-        let [dilation_0, dilation_1] = self.dilation;
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
@@ -115,6 +122,10 @@ impl MaxPool2dComputeShader {
 
         let is_max = scope.create_local(Elem::Bool);
         let max_val = scope.create_local(x.item());
+        let max_index = match self.indices {
+            Some(_) => Some(scope.create_local(Elem::UInt)),
+            None => None,
+        };
         gpu!(scope, max_val = cast(-32767.0));
 
         (0..kernel_size_0).for_each(|kh| {
@@ -164,6 +175,10 @@ impl MaxPool2dComputeShader {
 
                         gpu!(scope, if(is_max).then(|scope|{
                             gpu!(scope, max_val = result);
+                            if let Some(max_index) = max_index {
+                                gpu!(scope, max_index = ih_pad * input_shape_2);
+                                gpu!(scope, max_index += iw_pad);
+                            }
                         }));
                     }));
                 });
@@ -171,6 +186,11 @@ impl MaxPool2dComputeShader {
         });
 
         gpu!(scope, output[id] = max_val);
+
+        if let Some(indices) = self.indices {
+            let max_index = max_index.unwrap();
+            gpu!(scope, indices[id] = max_index);
+        }
     }
 }
 
@@ -188,9 +208,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dEagerKernel<R, 
             x,
             output,
             kernel_size: self.kernel_size,
-            stride: self.stride,
-            padding: self.padding,
-            dilation: self.dilation,
+            indices: None,
         }
         .expand(&mut scope);
 
@@ -198,10 +216,14 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dEagerKernel<R, 
             item,
             visibility: Visibility::Read,
         };
+        let scalars = InputInfo::Scalar {
+            elem: Elem::UInt,
+            size: 6,
+        };
         let output = OutputInfo::Array { item };
 
         let info = CompilationInfo {
-            inputs: vec![input],
+            inputs: vec![input, scalars],
             outputs: vec![output],
             scope,
         };
@@ -214,14 +236,116 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dEagerKernel<R, 
 
     fn id(&self) -> String {
         format!(
-            "{:?}-k={:?}p={:?}d={:?}s{:?}",
+            "{:?}k={:?}",
             core::any::TypeId::of::<Self>(),
             self.kernel_size,
-            self.padding,
-            self.dilation,
-            self.stride
         )
     }
+}
+
+impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dWithIndicesEagerKernel<R, E> {
+    fn source(&self) -> crate::kernel::SourceTemplate {
+        let mut scope = Scope::root();
+        let item = E::gpu_elem().into();
+
+        let x = Variable::GlobalInputArray(0, item);
+        let output = Variable::GlobalOutputArray(0, item);
+        let indices = Variable::GlobalOutputArray(1, Item::Scalar(Elem::Int));
+
+        scope.write_global_custom(output);
+
+        MaxPool2dComputeShader {
+            x,
+            output,
+            kernel_size: self.kernel_size,
+            indices: Some(indices),
+        }
+        .expand(&mut scope);
+
+        let input = InputInfo::Array {
+            item,
+            visibility: Visibility::Read,
+        };
+        let scalars = InputInfo::Scalar {
+            elem: Elem::UInt,
+            size: 6,
+        };
+        let output = OutputInfo::Array { item };
+        let indices = OutputInfo::Array {
+            item: Item::Scalar(Elem::Int),
+        };
+
+        let info = CompilationInfo {
+            inputs: vec![input, scalars],
+            outputs: vec![output, indices],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!(
+            "{:?}k={:?}",
+            core::any::TypeId::of::<Self>(),
+            self.kernel_size,
+        )
+    }
+}
+type IntType<R> = <<R as Runtime>::Compiler as Compiler>::Int;
+
+pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
+    x: JitTensor<R, E, 4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    dilation: [usize; 2],
+) -> (JitTensor<R, E, 4>, JitTensor<R, I, 4>) {
+    let [batch_size, channels, _, _] = x.shape.dims;
+
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation[0],
+        x.shape.dims[2],
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation[1],
+        x.shape.dims[3],
+    );
+
+    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
+    let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
+    let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
+
+    let kernel = MaxPool2dWithIndicesEagerKernel::new(kernel_size);
+    execute_dynamic::<R, MaxPool2dWithIndicesEagerKernel<R, E>, IntType<R>>(
+        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
+        &[
+            EagerHandle::new(&output.handle, &output.strides, &output.shape.dims),
+            EagerHandle::new(&indices.handle, &indices.strides, &indices.shape.dims),
+        ],
+        Some(&[
+            (stride[0] as i32).elem(),
+            (stride[1] as i32).elem(),
+            (dilation[0] as i32).elem(),
+            (dilation[1] as i32).elem(),
+            (padding[0] as i32).elem(),
+            (padding[1] as i32).elem(),
+        ]),
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        x.client,
+    );
+
+    (output, indices)
 }
 
 pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
@@ -231,39 +355,43 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> JitTensor<R, E, 4> {
-    let [kernel_height, kernel_width] = kernel_size;
-    let [padding_height, padding_width] = padding;
-    let [stride_height, stride_width] = stride;
-    let [dilation_height, dilation_width] = dilation;
-    let [batch_size, channels, x_height, x_width] = x.shape.dims;
+    let [batch_size, channels, _, _] = x.shape.dims;
 
-    let out_height = ((x_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
-        / stride_height)
-        + 1;
-    let out_width = ((x_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
-        / stride_width)
-        + 1;
+    let size_0 = calculate_pool_output_size(
+        kernel_size[0],
+        stride[0],
+        padding[0],
+        dilation[0],
+        x.shape.dims[2],
+    );
+    let size_1 = calculate_pool_output_size(
+        kernel_size[1],
+        stride[1],
+        padding[1],
+        dilation[1],
+        x.shape.dims[3],
+    );
 
-    let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
+    let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = MaxPool2dEagerKernel {
-        kernel_size,
-        stride,
-        padding,
-        dilation,
-        _runtime: PhantomData,
-        _elem: PhantomData,
-    };
+    let kernel = MaxPool2dEagerKernel::new(kernel_size);
 
-    execute_dynamic::<R, MaxPool2dEagerKernel<R, E>, E>(
+    execute_dynamic::<R, MaxPool2dEagerKernel<R, E>, IntType<R>>(
         &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
         &[EagerHandle::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
         )],
-        None,
+        Some(&[
+            (stride[0] as i32).elem(),
+            (stride[1] as i32).elem(),
+            (dilation[0] as i32).elem(),
+            (dilation[1] as i32).elem(),
+            (padding[0] as i32).elem(),
+            (padding[1] as i32).elem(),
+        ]),
         kernel,
         WorkgroupLaunch::Output { pos: 0 },
         x.client,
@@ -275,7 +403,7 @@ pub(crate) fn max_pool2d<R: Runtime, E: JitElement>(
 #[cfg(test)]
 mod tests {
     use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{module, Distribution, Tensor};
+    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor};
 
     #[test]
     pub fn max_pool2d_should_work_with_multiple_invocations() {
@@ -297,5 +425,84 @@ mod tests {
         pooled
             .into_data()
             .assert_approx_eq(&pooled_ref.into_data(), 3);
+    }
+
+    #[test]
+    pub fn max_pool2d_with_indices_should_work_with_multiple_invocations() {
+        let tensor = Tensor::<TestBackend, 4>::random(
+            [32, 32, 32, 32],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+        let kernel_size = [3, 3];
+        let stride = [2, 2];
+        let padding = [1, 1];
+        let dilation = [1, 1];
+
+        let (pooled, indices) =
+            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation);
+        let (pooled_ref, indices_ref) =
+            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding, dilation);
+
+        pooled
+            .into_data()
+            .assert_approx_eq(&pooled_ref.into_data(), 3);
+        assert_eq!(indices.into_data(), indices_ref.into_data().convert());
+    }
+
+    #[test]
+    pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
+        let test_device = Default::default();
+        let tensor =
+            Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &test_device);
+        let grad_output =
+            Tensor::<TestBackend, 4>::random([32, 32, 16, 16], Distribution::Default, &test_device);
+        let ref_device = Default::default();
+        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &ref_device);
+        let grad_output_ref =
+            Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data(), &ref_device);
+        let kernel_size = [3, 3];
+        let stride = [2, 2];
+        let padding = [1, 1];
+        let dilation = [1, 1];
+
+        let (_, indices) =
+            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding, dilation);
+        let (_, indices_ref) = module::max_pool2d_with_indices(
+            tensor_ref.clone(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+        );
+        let grad = TestBackend::max_pool2d_with_indices_backward(
+            tensor.into_primitive(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            grad_output.into_primitive(),
+            indices.into_primitive(),
+        )
+        .x_grad;
+        let grad_ref = ReferenceBackend::max_pool2d_with_indices_backward(
+            tensor_ref.into_primitive(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            grad_output_ref.into_primitive(),
+            indices_ref.into_primitive(),
+        )
+        .x_grad;
+
+        Tensor::<TestBackend, 4>::from_primitive(grad)
+            .into_data()
+            .assert_approx_eq(
+                &Tensor::<ReferenceBackend, 4>::from_primitive(grad_ref).into_data(),
+                3,
+            );
     }
 }

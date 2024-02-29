@@ -44,7 +44,7 @@ pub(crate) fn max_pool2d_old<R: Runtime, E: JitElement>(
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<R: Runtime, E: JitElement, I: JitElement>(
+pub(crate) fn max_pool2d_with_indices_old<R: Runtime, E: JitElement, I: JitElement>(
     x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -100,111 +100,4 @@ pub(crate) fn max_pool2d_with_indices_backward<R: Runtime, E: JitElement, I: Jit
         &[&indices.handle, &grad.handle, &output.handle, &info_handle],
     );
     output
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor};
-
-    #[test]
-    pub fn max_pool2d_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random(
-            [32, 32, 32, 32],
-            Distribution::Default,
-            &Default::default(),
-        );
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
-        let kernel_size = [3, 3];
-        let stride = [2, 2];
-        let padding = [1, 1];
-        let dilation = [1, 1];
-
-        let pooled = module::max_pool2d(tensor, kernel_size, stride, padding, dilation);
-        let pooled_ref = module::max_pool2d(tensor_ref, kernel_size, stride, padding, dilation);
-
-        pooled
-            .into_data()
-            .assert_approx_eq(&pooled_ref.into_data(), 3);
-    }
-
-    #[test]
-    pub fn max_pool2d_with_indices_should_work_with_multiple_invocations() {
-        let tensor = Tensor::<TestBackend, 4>::random(
-            [32, 32, 32, 32],
-            Distribution::Default,
-            &Default::default(),
-        );
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
-        let kernel_size = [3, 3];
-        let stride = [2, 2];
-        let padding = [1, 1];
-        let dilation = [1, 1];
-
-        let (pooled, indices) =
-            module::max_pool2d_with_indices(tensor, kernel_size, stride, padding, dilation);
-        let (pooled_ref, indices_ref) =
-            module::max_pool2d_with_indices(tensor_ref, kernel_size, stride, padding, dilation);
-
-        pooled
-            .into_data()
-            .assert_approx_eq(&pooled_ref.into_data(), 3);
-        assert_eq!(indices.into_data(), indices_ref.into_data().convert());
-    }
-
-    #[test]
-    pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
-        let test_device = Default::default();
-        let tensor =
-            Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &test_device);
-        let grad_output =
-            Tensor::<TestBackend, 4>::random([32, 32, 16, 16], Distribution::Default, &test_device);
-        let ref_device = Default::default();
-        let tensor_ref = Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &ref_device);
-        let grad_output_ref =
-            Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data(), &ref_device);
-        let kernel_size = [3, 3];
-        let stride = [2, 2];
-        let padding = [1, 1];
-        let dilation = [1, 1];
-
-        let (_, indices) =
-            module::max_pool2d_with_indices(tensor.clone(), kernel_size, stride, padding, dilation);
-        let (_, indices_ref) = module::max_pool2d_with_indices(
-            tensor_ref.clone(),
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-        );
-        let grad = TestBackend::max_pool2d_with_indices_backward(
-            tensor.into_primitive(),
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            grad_output.into_primitive(),
-            indices.into_primitive(),
-        )
-        .x_grad;
-        let grad_ref = ReferenceBackend::max_pool2d_with_indices_backward(
-            tensor_ref.into_primitive(),
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            grad_output_ref.into_primitive(),
-            indices_ref.into_primitive(),
-        )
-        .x_grad;
-
-        Tensor::<TestBackend, 4>::from_primitive(grad)
-            .into_data()
-            .assert_approx_eq(
-                &Tensor::<ReferenceBackend, 4>::from_primitive(grad_ref).into_data(),
-                3,
-            );
-    }
 }
