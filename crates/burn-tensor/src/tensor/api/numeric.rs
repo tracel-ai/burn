@@ -357,7 +357,7 @@ where
         (tensor, index)
     }
 
-    /// Find the maximum pair wise values with another Tensor
+    /// Finds the maximum pair wise values with another Tensor
     ///
     /// # Arguments
     ///
@@ -365,7 +365,7 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor `Tensor<B, D, Float>` with the same shape as the input tensors containing the maximum value found
+    /// A tensor with the same shape as the input tensors containing the maximum value found
     /// in the input tensors.
     pub fn max_pair(self, other: Self) -> Self {
         let mask = self.clone().lower(other.clone());
@@ -417,7 +417,7 @@ where
         (tensor, index)
     }
 
-    /// Find the minimum pair wise values with another Tensor
+    /// Finds the minimum pair wise values with another Tensor
     ///
     /// # Arguments
     ///
@@ -425,7 +425,7 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor `Tensor<B, D, K>` with the same shape as the input tensors containing the minimum value found
+    /// A tensor with the same shape as the input tensors containing the minimum value found
     /// between each element of the two source tensors.
     pub fn min_pair(self, other: Self) -> Self {
         let mask = other.clone().lower(self.clone());
