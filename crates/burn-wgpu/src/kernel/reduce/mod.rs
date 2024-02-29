@@ -1,5 +1,6 @@
 mod base;
 mod naive_reduce_shader;
+mod shared_reduce_shader;
 mod reduction;
 mod reduction_shared_memory;
 mod tune;

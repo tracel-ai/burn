@@ -26,7 +26,7 @@ pub struct Binding {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SharedMemory {
     location: Location,
-    index: u16,
+    pub index: u16,
     item: Item,
     size: u32,
 }

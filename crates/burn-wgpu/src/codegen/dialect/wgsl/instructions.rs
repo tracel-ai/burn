@@ -158,8 +158,7 @@ pub enum Instruction {
         end: Variable,
         instructions: Vec<Instruction>,
     },
-    WhileLoop {
-        cond: Variable,
+    Loop {
         instructions: Vec<Instruction>,
     },
 }
@@ -380,8 +379,8 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             Instruction::ArrayLength { var, out } => {
                 f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
             }
-            Instruction::WhileLoop { cond, instructions } => {
-                f.write_fmt(format_args!("while {cond} {{\n"))?;
+            Instruction::Loop { instructions } => {
+                f.write_fmt(format_args!("loop {{\n"))?;
                 for i in instructions {
                     f.write_fmt(format_args!("{i}"))?;
                 }

@@ -157,8 +157,10 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             }
             gpu::Variable::SharedMemory(index, item, size) => {
                 let item = Self::compile_item(item);
-                self.shared_memories
-                    .push(SharedMemory::new(index, item, size));
+                if !self.shared_memories.iter().any(|s| s.index == index) {
+                    self.shared_memories
+                        .push(SharedMemory::new(index, item, size));
+                }
                 wgsl::Variable::SharedMemory(index, item, size)
             }
             gpu::Variable::Id => {
@@ -281,8 +283,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
                     instructions: self.compile_scope(&mut range_loop.scope),
                 })
             }
-            gpu::Branch::WhileLoop(mut op) => instructions.push(wgsl::Instruction::WhileLoop {
-                cond: self.compile_variable(op.cond),
+            gpu::Branch::Loop(mut op) => instructions.push(wgsl::Instruction::Loop {
                 instructions: self.compile_scope(&mut op.scope),
             }),
         };
