@@ -425,7 +425,7 @@ where
     ///
     /// # Returns
     ///
-    /// A tensor `Tensor<B, D, K>` with the same shape as the input tensors containing the minium value found
+    /// A tensor `Tensor<B, D, K>` with the same shape as the input tensors containing the minimum value found
     /// between each element of the two source tensors.
     pub fn min_pair(self, other: Self) -> Self {
         let mask = other.clone().lower(self.clone());
