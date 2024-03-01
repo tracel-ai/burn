@@ -127,6 +127,11 @@ where
         K::equal_elem::<D>(self.primitive, other.elem())
     }
 
+    /// Applies element wise non-equality comparison and returns a boolean tensor.
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        K::not_equal_elem::<D>(self.primitive, other.elem())
+    }
+
     /// Applies element wise greater comparison and returns a boolean tensor.
     ///
     /// # Panics
@@ -1003,8 +1008,34 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem) function,
+    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem)
+    /// function, which is more high-level and designed for public use.
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+
+    /// Element-wise non-equality between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding elements of the input tensors are equal, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise non-equality between two tensors, users should prefer the [Tensor::not_equal_elem](Tensor::not_equal_elem)
+    /// function, which is more high-level and designed for public use.
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool>;
 
     /// Element-wise greater than comparison between two tensors.
     ///
@@ -1647,7 +1678,7 @@ where
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a float tensor
+    /// Element-wise power of a tensor to a float tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1655,7 +1686,7 @@ where
     fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor
+    /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1663,7 +1694,7 @@ where
     fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar float
+    /// Element-wise power of a tensor to a scalar float
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1673,7 +1704,7 @@ where
         rhs: E,
     ) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar int
+    /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1764,6 +1795,12 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_equal_elem(lhs, rhs))
+    }
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_not_equal_elem(lhs, rhs))
     }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -2046,6 +2083,12 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::float_equal_elem(lhs, rhs))
+    }
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_not_equal_elem(lhs, rhs))
     }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
