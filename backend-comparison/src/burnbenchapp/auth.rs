@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(crate) static CLIENT_ID: &str = "Iv1.84002254a02791f3";
+pub(crate) static CLIENT_ID: &str = "Iv1.692f6a61b6086810";
 static GITHUB_API_VERSION_HEADER: &str = "X-GitHub-Api-Version";
 static GITHUB_API_VERSION: &str = "2022-11-28";
 
