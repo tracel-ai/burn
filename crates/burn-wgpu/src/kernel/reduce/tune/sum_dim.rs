@@ -6,7 +6,7 @@ use crate::{
     element::JitElement,
     kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
-        reduce::{init_reduce_output, sum_dim_naive, sum_dim_shared},
+        reduce::init_reduce_output,
     },
     ops::numeric::empty_device,
     reduce_tune_ops,
@@ -28,7 +28,7 @@ pub struct SumDimAutotuneOperationSet<R: Runtime, E: JitElement, const D: usize>
 impl<R: Runtime, E: JitElement, const D: usize> SumDimAutotuneOperationSet<R, E, D> {
     fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: JitAutotuneKey::SumDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::ReduceDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,
@@ -121,7 +121,7 @@ pub struct SumDimIntAutotuneOperationSet<R: Runtime, E: JitElement, const D: usi
 impl<R: Runtime, E: JitElement, const D: usize> SumDimIntAutotuneOperationSet<R, E, D> {
     fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: JitAutotuneKey::SumDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::ReduceDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,

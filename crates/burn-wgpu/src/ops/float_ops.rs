@@ -475,14 +475,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        reduce::argmax_naive(tensor, dim)
+        reduce::argmax(tensor, dim)
     }
 
     fn float_argmin<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        reduce::argmin_naive(tensor, dim)
+        reduce::argmin(tensor, dim)
     }
 
     fn float_into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {

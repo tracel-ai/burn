@@ -1,7 +1,6 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::reduce::{self};
 use crate::{kernel, unary, JitBackend, Runtime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
@@ -253,37 +252,19 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::int_sum_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::sum_dim_naive(tensor, output, dim)
-        }
+        kernel::reduce::sum_dim(tensor, dim)
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::int_mean_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::int_mean_dim_naive(tensor, output, dim)
-        }
+        kernel::reduce::mean_dim(tensor, dim)
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmax_naive(tensor, dim)
+        kernel::reduce::argmax(tensor, dim)
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmin_naive(tensor, dim)
+        kernel::reduce::argmin(tensor, dim)
     }
 
     fn int_clamp<const D: usize>(

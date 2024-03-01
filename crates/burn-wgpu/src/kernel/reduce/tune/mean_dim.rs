@@ -28,7 +28,7 @@ pub struct MeanDimAutotuneOperationSet<R: Runtime, E: JitElement, const D: usize
 impl<R: Runtime, E: JitElement, const D: usize> MeanDimAutotuneOperationSet<R, E, D> {
     fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: JitAutotuneKey::MeanDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::ReduceDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,
@@ -120,7 +120,7 @@ pub struct MeanDimIntAutotuneOperationSet<R: Runtime, E: JitElement, const D: us
 impl<R: Runtime, E: JitElement, const D: usize> MeanDimIntAutotuneOperationSet<R, E, D> {
     fn new(input: JitTensor<R, E, D>, output: JitTensor<R, E, D>, reduce_dim: usize) -> Self {
         Self {
-            key: JitAutotuneKey::MeanDim(ReduceAutotuneKey::new(
+            key: JitAutotuneKey::ReduceDim(ReduceAutotuneKey::new(
                 &input.shape,
                 &input.strides,
                 reduce_dim,

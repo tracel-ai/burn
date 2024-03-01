@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{
         dialect::gpu::{
-            gpu, Branch, Elem, Item, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
+            gpu, Branch, Elem, Scope, Synchronization, Variable, Visibility, WorkgroupSize,
         },
         execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
         InputInfo, OutputInfo, WorkgroupLaunch,
@@ -15,328 +15,9 @@ use crate::{
     Runtime,
 };
 
-pub(crate) trait SharedReduceDim: Send + Sync + 'static {
-    type Accumulator: Copy;
+use super::{ArgMax, ArgMin, MeanDim, ReduceDimAlgorithm, SumDim};
 
-    fn initialize(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator;
-
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        value: Self::Accumulator,
-    );
-
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        i: Variable,
-    ) -> Self::Accumulator;
-
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Self::Accumulator;
-
-    fn assign(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        shape_reduce_dim: Variable,
-    );
-}
-
-pub(crate) struct SumDim;
-
-impl SharedReduceDim for SumDim {
-    type Accumulator = Variable;
-
-    fn initialize(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator {
-        let shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let neutral_element = scope.zero(shared_memory.item());
-        gpu!(scope, shared_memory[write_position] = neutral_element);
-        shared_memory
-    }
-
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        value: Self::Accumulator,
-    ) {
-        let current_value = scope.create_local(value.item());
-        let computed = scope.create_local(value.item());
-        gpu!(scope, current_value = shared_memory[write_position]);
-        gpu!(scope, computed = current_value + value);
-        gpu!(scope, shared_memory[write_position] = computed);
-    }
-
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        _i: Variable,
-    ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
-        value
-    }
-
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Self::Accumulator {
-        let read_value = scope.create_local(shared_memory.item());
-        gpu!(scope, read_value = shared_memory[read_position]);
-        read_value
-    }
-
-    fn assign(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        _shape_reduce_dim: Variable,
-    ) {
-        let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
-    }
-}
-
-pub(crate) struct MeanDim;
-
-impl SharedReduceDim for MeanDim {
-    type Accumulator = Variable;
-
-    fn initialize(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator {
-        let shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let neutral_element = scope.zero(shared_memory.item());
-        gpu!(scope, shared_memory[write_position] = neutral_element);
-        shared_memory
-    }
-
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        value: Self::Accumulator,
-    ) {
-        let current_value = scope.create_local(value.item());
-        let computed = scope.create_local(value.item());
-        gpu!(scope, current_value = shared_memory[write_position]);
-        gpu!(scope, computed = current_value + value);
-        gpu!(scope, shared_memory[write_position] = computed);
-    }
-
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        _i: Variable,
-    ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
-        value
-    }
-
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Variable {
-        let read_value = scope.create_local(shared_memory.item());
-        gpu!(scope, read_value = shared_memory[read_position]);
-        read_value
-    }
-
-    fn assign(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        shape_reduce_dim: Variable,
-    ) {
-        let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = shared_memory[0]);
-
-        let denominator = scope.create_local(output.item());
-        gpu!(scope, denominator = cast(shape_reduce_dim));
-        gpu!(scope, final_value = final_value / denominator);
-        gpu!(scope, output[write_position] = final_value);
-    }
-}
-
-pub(crate) struct ArgMin;
-
-impl SharedReduceDim for ArgMin {
-    type Accumulator = (Variable, Variable);
-
-    fn initialize(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator {
-        let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
-        let min = scope.create_local(input_item);
-        gpu!(scope, min = cast(32767.0));
-        gpu!(scope, value_shared_memory[write_position] = min);
-        (value_shared_memory, index_shared_memory)
-    }
-
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        (value, index): Self::Accumulator,
-    ) {
-        let (value_shared_memory, index_shared_memory) = shared_memory;
-        let current_value = scope.create_local(value.item());
-        gpu!(scope, current_value = value_shared_memory[write_position]);
-
-        let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value < current_value);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, value_shared_memory[write_position] = value);
-            gpu!(scope, index_shared_memory[write_position] = index);
-        }));
-    }
-
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        i: Variable,
-    ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
-        (value, i)
-    }
-
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Self::Accumulator {
-        let (value_shared_memory, index_shared_memory) = shared_memory;
-        let value = scope.create_local(value_shared_memory.item());
-        gpu!(scope, value = value_shared_memory[read_position]);
-        let index = scope.create_local(index_shared_memory.item());
-        gpu!(scope, index = index_shared_memory[read_position]);
-        (value, index)
-    }
-
-    fn assign(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        _shape_reduce_dim: Variable,
-    ) {
-        let (_, index_shared_memory) = shared_memory;
-        let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = index_shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
-    }
-}
-
-pub(crate) struct ArgMax;
-
-impl SharedReduceDim for ArgMax {
-    type Accumulator = (Variable, Variable);
-
-    fn initialize(
-        scope: &mut Scope,
-        shared_memory_size: u32,
-        write_position: Variable,
-        input_item: Item,
-    ) -> Self::Accumulator {
-        let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
-        let max = scope.create_local(input_item);
-        gpu!(scope, max = cast(-32767.0));
-        gpu!(scope, value_shared_memory[write_position] = max);
-        (value_shared_memory, index_shared_memory)
-    }
-
-    fn write_to_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        write_position: Variable,
-        (value, index): Self::Accumulator,
-    ) {
-        let (value_shared_memory, index_shared_memory) = shared_memory;
-        let current_value = scope.create_local(value.item());
-        gpu!(scope, current_value = value_shared_memory[write_position]);
-
-        let condition = scope.create_local(Elem::Bool);
-        gpu!(scope, condition = value > current_value);
-        gpu!(scope, if(condition).then(|scope| {
-            gpu!(scope, value_shared_memory[write_position] = value);
-            gpu!(scope, index_shared_memory[write_position] = index);
-        }));
-    }
-
-    fn read_from_input(
-        scope: &mut Scope,
-        input: Variable,
-        read_position: Variable,
-        i: Variable,
-    ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[read_position]);
-        (value, i)
-    }
-
-    fn read_from_shared(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        read_position: Variable,
-    ) -> Self::Accumulator {
-        let (value_shared_memory, index_shared_memory) = shared_memory;
-        let value = scope.create_local(value_shared_memory.item());
-        gpu!(scope, value = value_shared_memory[read_position]);
-        let index = scope.create_local(index_shared_memory.item());
-        gpu!(scope, index = index_shared_memory[read_position]);
-        (value, index)
-    }
-
-    fn assign(
-        scope: &mut Scope,
-        shared_memory: Self::Accumulator,
-        output: Variable,
-        write_position: Variable,
-        _shape_reduce_dim: Variable,
-    ) {
-        let (_, index_shared_memory) = shared_memory;
-        let final_value = scope.create_local(output.item());
-        gpu!(scope, final_value = index_shared_memory[0]);
-        gpu!(scope, output[write_position] = final_value);
-    }
-}
-
-pub(crate) struct SharedReduceDimComputeShader<RD: SharedReduceDim> {
+pub(crate) struct SharedReduceDimComputeShader<RD: ReduceDimAlgorithm> {
     tensor: Variable,
     dim: usize,
     shared_memory_size: usize,
@@ -347,7 +28,7 @@ pub(crate) struct SharedReduceDimComputeShader<RD: SharedReduceDim> {
 
 #[derive(new)]
 pub(crate) struct SharedReduceDimEagerKernel<
-    RD: SharedReduceDim,
+    RD: ReduceDimAlgorithm,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,
@@ -362,7 +43,7 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: SharedReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
@@ -421,7 +102,7 @@ impl<RD: SharedReduceDim, R: Runtime, EI: JitElement, EO: JitElement> DynamicKer
     }
 }
 
-impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
+impl<RD: ReduceDimAlgorithm> SharedReduceDimComputeShader<RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let output = self.output;
@@ -476,7 +157,7 @@ impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
             })
         );
 
-        let shared_memory = RD::initialize(
+        let shared_memory = RD::initialize_shared(
             scope,
             self.shared_memory_size as u32,
             local_id,
@@ -530,13 +211,13 @@ impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
         let is_first_thread = scope.create_local(Elem::Bool);
         gpu!(scope, is_first_thread = local_id == 0u32);
         gpu!(scope, if(is_first_thread).then(|scope|{
-            RD::assign(scope, shared_memory, output, reduce_group_id, shape_reduce_dim_input);
+            RD::assign_shared(scope, shared_memory, output, reduce_group_id, shape_reduce_dim_input);
         }));
     }
 }
 
 pub(crate) fn reduce_dim_shared<
-    RD: SharedReduceDim,
+    RD: ReduceDimAlgorithm,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,

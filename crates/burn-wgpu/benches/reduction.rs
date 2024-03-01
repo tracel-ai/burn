@@ -2,7 +2,7 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::compute::WgpuRuntime;
-use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim_naive};
+use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim_naive, sum_dim_shared};
 use burn_wgpu::GraphicsApi;
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, JitBackend};
@@ -79,7 +79,7 @@ bench_reduce!(SumDimBenchmark, SumDim, sum_dim_naive);
 bench_reduce!(
     SumDimSharedMemoryBenchmark,
     SumDimSharedMemory,
-    shared_sum_dim
+    sum_dim_shared
 );
 
 #[allow(dead_code)]
