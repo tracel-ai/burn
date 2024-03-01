@@ -168,81 +168,60 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
-| <<<<<<< HEAD                                                       | Burn                                             | PyTorch Equivalent                               |                                                  |
-| ------------------------------------------------------------------ | ------------------------------------------------ | ------------------------------------------------ | ------------------------------------------------ | ------------------------------ | --------------------------- |
-| ----------------------------------------------                     |                                                  | `Tensor::full(shape, fill_value, device)`        |
-| `torch.full(shape, fill_value, device=device)`                     |                                                  | `Tensor::ones(shape, device)`                    |
-| `torch.ones(shape, device=device)`                                 |                                                  | `Tensor::zeros(shape)`                           | `torch.zeros(shape)`                             |                                |
-| `Tensor::zeros(shape, device)`                                     | `torch.zeros(shape, device=device)`              |                                                  | `tensor.abs()`                                   |
-| `torch.abs(tensor)`                                                |                                                  | `tensor.add(other)` or `tensor + other`          | `tensor + other`                                 |                                |
-| `tensor.add_scalar(scalar)` or `tensor + scalar`                   | `tensor + scalar`                                |                                                  |
-| `tensor.all_close(other, atol, rtol)`                              | `torch.allclose(tensor, other, atol, rtol)`      |                                                  |
-| `tensor.argmax(dim)`                                               | `tensor.argmax(dim)`                             |                                                  | `tensor.argmin(dim)`                             | `tensor.argmin(dim)`           |                             |
-| `tensor.clamp(min, max)`                                           | `torch.clamp(tensor, min=min, max=max)`          |                                                  | `tensor.clamp_max(max)`                          |
-| `torch.clamp(tensor, max=max)`                                     |                                                  | `tensor.clamp_min(min)`                          | `torch.clamp(tensor, min=min)`                   |                                |
-| `tensor.div(other)` or `tensor / other`                            | `tensor / other`                                 |                                                  | `tensor.div_scalar(scalar)` or                   |
-| `tensor / scalar`                                                  | `tensor / scalar`                                |                                                  | `tensor.equal_elem(other)`                       | `tensor.eq(other)`             |                             |
-| `tensor.gather(dim, indices)`                                      | `torch.gather(tensor, dim, indices)`             |                                                  | `tensor.greater(other)`                          |
-| `tensor.gt(other)`                                                 |                                                  | `tensor.greater_elem(scalar)`                    | `tensor.gt(scalar)`                              |                                |
-| `tensor.greater_equal(other)`                                      | `tensor.ge(other)`                               |                                                  | `tensor.greater_equal_elem(scalar)`              |
-| `tensor.ge(scalar)`                                                |                                                  | `tensor.into_scalar()`                           | `tensor.item()` (for single-element tensors)     |                                |
-| `tensor.is_close(other, atol, rtol)`                               | `torch.isclose(tensor, other, atol, rtol)`       |                                                  |
-| `tensor.lower(other)`                                              | `tensor.lt(other)`                               |                                                  | `tensor.lower_elem(scalar)`                      | `tensor.lt(scalar)`            |                             |
-| `tensor.lower_equal(other)`                                        | `tensor.le(other)`                               |                                                  | `tensor.lower_equal_elem(scalar)`                |
-| `tensor.le(scalar)`                                                |                                                  | `tensor.mask_fill(mask, value)`                  | `tensor.masked_fill(mask, value)`                |                                |
-| `tensor.mask_where(mask, value_tensor)`                            | `torch.where(mask, value_tensor, tensor)`        |                                                  |
-| `tensor.max()`                                                     | `tensor.max()`                                   |                                                  | `tensor.max_dim(dim)`                            | `tensor.max(dim)`              |                             |
-| `tensor.max_dim_with_indices(dim)`                                 | N/A                                              |                                                  | `tensor.mean()`                                  | `tensor.mean()`                |                             |
-| `tensor.mean_dim(dim)`                                             | `tensor.mean(dim)`                               |                                                  | `tensor.min()`                                   | `tensor.min()`                 |                             |
-| `tensor.min_dim(dim)`                                              | `tensor.min(dim)`                                |                                                  | `tensor.min_dim_with_indices(dim)`               | N/A                            |                             |
-| `tensor.mul(other)` or `tensor * other`                            | `tensor * other`                                 |                                                  | `tensor.mul_scalar(scalar)` or                   |
-| `tensor * scalar`                                                  | `tensor * scalar`                                |                                                  | `tensor.neg()` or `-tensor`                      | `-tensor`                      |                             |
-| `tensor.powf(other)` or `tensor.powi(intother)`                    | `tensor.pow(other)`                              |                                                  |
-| `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)`    | `tensor.pow(scalar)`                             |                                                  |
-| `tensor.scatter(dim, indices, values)`                             | `tensor.scatter_add(dim, indices, values)`       |                                                  |
-| `tensor.select(dim, indices)`                                      | `tensor.index_select(dim, indices)`              |                                                  |
-| `tensor.select_assign(dim, indices, values)`                       | N/A                                              |                                                  | `tensor.sub(other)` or `tensor - other`          |
-| `tensor - other`                                                   |                                                  | `tensor.sub_scalar(scalar)` or `tensor - scalar` | `tensor - scalar`                                |                                |
-| `tensor.sum()`                                                     | `tensor.sum()`                                   |                                                  | `tensor.sum_dim(dim)`                            | `tensor.sum(dim)`              |                             |
-| `tensor.tril(diagonal)`                                            | `torch.tril(tensor, diagonal)`                   |                                                  | `tensor.triu(diagonal)`                          |
-| `torch.triu(tensor, diagonal)`                                     | =======                                          | Burn                                             | PyTorch Equivalent                               |
-| ------------------------------------------------------------------ | ------------------------------------------------ |
-| `tensor.into_scalar()`                                             | `tensor.item()` (for single-element tensors)     |                                                  | `tensor + other` or                              |
-| `tensor.add(other)`                                                | `tensor + other`                                 |                                                  | `tensor + scalar` or `tensor.add_scalar(scalar)` |
-| `tensor + scalar`                                                  |                                                  | `tensor - other` or `tensor.sub(other)`          | `tensor - other`                                 |                                |
-| `tensor - scalar` or `tensor.sub_scalar(scalar)`                   | `tensor - scalar`                                |                                                  | `tensor / other` or                              |
-| `tensor.div(other)`                                                | `tensor / other`                                 |                                                  | `tensor / scalar` or `tensor.div_scalar(scalar)` |
-| `tensor / scalar`                                                  |                                                  | `tensor * other` or `tensor.mul(other)`          | `tensor * other`                                 |                                |
-| `tensor * scalar` or `tensor.mul_scalar(scalar)`                   | `tensor * scalar`                                |                                                  | `tensor.powf(other)` or                          |
-| `tensor.powi(intother)`                                            | `tensor.pow(other)`                              |                                                  | `tensor.powf_scalar(scalar)` or                  |
-| `tensor.powi_scalar(intscalar)`                                    | `tensor.pow(scalar)`                             |                                                  | `-tensor` or `tensor.neg()`                      | `-tensor`                      |
-| `Tensor::zeros(shape)`                                             | `torch.zeros(shape)`                             |                                                  | `Tensor::zeros(shape, device)`                   |
-| `torch.zeros(shape, device=device)`                                |                                                  | `Tensor::ones(shape, device)`                    |
-| `torch.ones(shape, device=device)`                                 |                                                  | `Tensor::full(shape, fill_value, device)`        |
-| `torch.full(shape, fill_value, device=device)`                     |                                                  | `tensor.mean()`                                  | `tensor.mean()`                                  |                                |
-| `tensor.sum()`                                                     | `tensor.sum()`                                   |                                                  | `tensor.mean_dim(dim)`                           | `tensor.mean(dim)`             |                             |
-| `tensor.sum_dim(dim)`                                              | `tensor.sum(dim)`                                |                                                  | `tensor.equal_elem(scalar)`                      | `tensor.eq(scalar)`            |                             |
-| `tensor.not_equal_elem(scalar)`                                    | `tensor.ne(scalar)`                              |                                                  | `tensor.greater(other)`                          |
-| `tensor.gt(other)`                                                 |                                                  | `tensor.greater_elem(scalar)`                    | `tensor.gt(scalar)`                              |                                |
-| `tensor.greater_equal(other)`                                      | `tensor.ge(other)`                               |                                                  | `tensor.greater_equal_elem(scalar)`              |
-| `tensor.ge(scalar)`                                                |                                                  | `tensor.lower(other)`                            | `tensor.lt(other)`                               |                                | `tensor.lower_elem(scalar)` |
-| `tensor.lt(scalar)`                                                |                                                  | `tensor.lower_equal(other)`                      | `tensor.le(other)`                               |                                |
-| `tensor.lower_equal_elem(scalar)`                                  | `tensor.le(scalar)`                              |                                                  | `tensor.mask_where(mask, value_tensor)`          |
-| `torch.where(mask, value_tensor, tensor)`                          |                                                  | `tensor.mask_fill(mask, value)`                  |
-| `tensor.masked_fill(mask, value)`                                  |                                                  | `tensor.gather(dim, indices)`                    |
-| `torch.gather(tensor, dim, indices)`                               |                                                  | `tensor.scatter(dim, indices, values)`           |
-| `tensor.scatter_add(dim, indices, values)`                         |                                                  | `tensor.select(dim, indices)`                    |
-| `tensor.index_select(dim, indices)`                                |                                                  | `tensor.select_assign(dim, indices, values)`     | N/A                                              |                                |
-| `tensor.argmax(dim)`                                               | `tensor.argmax(dim)`                             |                                                  | `tensor.max()`                                   | `tensor.max()`                 |                             |
-| `tensor.max_dim(dim)`                                              | `tensor.max(dim)`                                |                                                  | `tensor.max_dim_with_indices(dim)`               | N/A                            |                             |
-| `tensor.argmin(dim)`                                               | `tensor.argmin(dim)`                             |                                                  | `tensor.min()`                                   | `tensor.min()`                 |                             |
-| `tensor.min_dim(dim)`                                              | `tensor.min(dim)`                                |                                                  | `tensor.min_dim_with_indices(dim)`               | N/A                            |                             |
-| `tensor.clamp(min, max)`                                           | `torch.clamp(tensor, min=min, max=max)`          |                                                  | `tensor.clamp_min(min)`                          |
-| `torch.clamp(tensor, min=min)`                                     |                                                  | `tensor.clamp_max(max)`                          | `torch.clamp(tensor, max=max)`                   |                                |
-| `tensor.abs()`                                                     | `torch.abs(tensor)`                              |                                                  | `tensor.triu(diagonal)`                          | `torch.triu(tensor, diagonal)` |
-| `tensor.tril(diagonal)`                                            | `torch.tril(tensor, diagonal)`                   |
-
-> > > > > > > upstream/main
+| Burn                                                            | PyTorch Equivalent                             |
+| --------------------------------------------------------------- | ---------------------------------------------- |
+| `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
+| `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
+| `Tensor::zeros(shape)`                                          | `torch.zeros(shape)`                           |
+| `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
+| `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
+| `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
+| `tensor.add_scalar(scalar)` or `tensor + scalar`                | `tensor + scalar`                              |
+| `tensor.all_close(other, atol, rtol)`                           | `torch.allclose(tensor, other, atol, rtol)`    |
+| `tensor.argmax(dim)`                                            | `tensor.argmax(dim)`                           |
+| `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                           |
+| `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`        |
+| `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
+| `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
+| `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
+| `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
+| `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
+| `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
+| `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
+| `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
+| `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                             |
+| `tensor.greater_equal_elem(scalar)`                             | `tensor.ge(scalar)`                            |
+| `tensor.into_scalar()`                                          | `tensor.item()` (for single-element tensors)   |
+| `tensor.is_close(other, atol, rtol)`                            | `torch.isclose(tensor, other, atol, rtol)`     |
+| `tensor.lower(other)`                                           | `tensor.lt(other)`                             |
+| `tensor.lower_elem(scalar)`                                     | `tensor.lt(scalar)`                            |
+| `tensor.lower_equal(other)`                                     | `tensor.le(other)`                             |
+| `tensor.lower_equal_elem(scalar)`                               | `tensor.le(scalar)`                            |
+| `tensor.mask_fill(mask, value)`                                 | `tensor.masked_fill(mask, value)`              |
+| `tensor.mask_where(mask, value_tensor)`                         | `torch.where(mask, value_tensor, tensor)`      |
+| `tensor.max()`                                                  | `tensor.max()`                                 |
+| `tensor.max_dim(dim)`                                           | `tensor.max(dim)`                              |
+| `tensor.max_dim_with_indices(dim)`                              | N/A                                            |
+| `tensor.mean()`                                                 | `tensor.mean()`                                |
+| `tensor.mean_dim(dim)`                                          | `tensor.mean(dim)`                             |
+| `tensor.min()`                                                  | `tensor.min()`                                 |
+| `tensor.min_dim(dim)`                                           | `tensor.min(dim)`                              |
+| `tensor.min_dim_with_indices(dim)`                              | N/A                                            |
+| `tensor.mul(other)` or `tensor * other`                         | `tensor * other`                               |
+| `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
+| `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
+| `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
+| `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
+| `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
+| `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
+| `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
+| `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
+| `tensor.sub(other)` or `tensor - other`                         | `tensor - other`                               |
+| `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
+| `tensor.sum()`                                                  | `tensor.sum()`                                 |
+| `tensor.sum_dim(dim)`                                           | `tensor.sum(dim)`                              |
+| `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
+| `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
 
 ### Float Operations
 
