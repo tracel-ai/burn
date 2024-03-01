@@ -3,10 +3,12 @@ use std::marker::PhantomData;
 use crate::{
     codegen::{
         dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        Compilation, CompilationInfo, CompilationSettings, Compiler, InputInfo, OutputInfo,
+        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
     kernel::{DynamicKernelSource, SourceTemplate},
+    tensor::JitTensor,
     Runtime,
 };
 
@@ -276,5 +278,167 @@ impl<RD: NaiveReduceDim> NaiveReduceDimComputeShader<RD> {
         );
 
         RD::assign(scope, output, accumulator, shape_input_dim);
+    }
+}
+
+pub(crate) fn reduce_dim_naive<
+    RD: NaiveReduceDim,
+    R: Runtime,
+    EI: JitElement,
+    EO: JitElement,
+    const D: usize,
+>(
+    input: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    let kernel = NaiveReduceDimEagerKernel::new(dim);
+
+    execute_dynamic::<R, NaiveReduceDimEagerKernel<RD, R, EI, EO>, EI>(
+        &[EagerHandle::new(
+            &input.handle,
+            &input.strides,
+            &input.shape.dims,
+        )],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        None,
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        input.client,
+    );
+
+    output
+}
+
+/// Execute the sum dim kernel.
+pub fn sum_dim_naive<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    reduce_dim_naive::<SumDim, R, E, E, D>(input, output, dim)
+}
+
+/// Execute the mean dim kernel.
+pub fn mean_dim_naive<R: Runtime, E: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    output: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, E, D> {
+    reduce_dim_naive::<MeanDim, R, E, E, D>(input, output, dim)
+}
+
+/// Execute the argmax kernel.
+pub fn argmax_naive<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, I, D> {
+    let mut shape_out = input.shape.clone();
+    shape_out.dims[dim] = 1;
+    let num_elems = shape_out.num_elements();
+    let buffer = input.client.empty(num_elems * core::mem::size_of::<I>());
+    let output = JitTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out,
+        buffer,
+    );
+    reduce_dim_naive::<ArgMax, R, E, I, D>(input, output, dim)
+}
+
+/// Execute the argmin kernel.
+pub fn argmin_naive<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+    input: JitTensor<R, E, D>,
+    dim: usize,
+) -> JitTensor<R, I, D> {
+    let mut shape_out = input.shape.clone();
+    shape_out.dims[dim] = 1;
+    let num_elems = shape_out.num_elements();
+    let buffer = input.client.empty(num_elems * core::mem::size_of::<I>());
+    let output = JitTensor::new(
+        input.client.clone(),
+        input.device.clone(),
+        shape_out,
+        buffer,
+    );
+    reduce_dim_naive::<ArgMin, R, E, I, D>(input, output, dim)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        kernel::reduce::{argmax_naive, init_reduce_output, mean_dim_naive},
+        tests::{ReferenceBackend, TestBackend},
+    };
+    use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
+
+    use super::sum_dim_naive;
+
+    #[test]
+    fn reduction_sum_dim_should_work_with_multiple_invocations() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim_naive(
+            tensor.into_primitive(),
+            output,
+            reduce_dim,
+        ));
+        let val_ref = tensor_ref.sum_dim(1);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+    }
+
+    #[test]
+    fn reduction_args_dim_should_work_with_multiple_invocations() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+
+        let val =
+            Tensor::<TestBackend, 2, Int>::from_primitive(argmax_naive(tensor.into_primitive(), 1));
+        let val_ref = tensor_ref.argmax(1);
+
+        assert_eq!(val_ref.into_data().convert(), val.into_data());
+    }
+
+    #[test]
+    fn sum_dim_should_work_with_int() {
+        let summed_shape = Shape::new([1]);
+        let data = Data::from([1, 2, 3, 4]);
+        let tensor = TestBackend::int_from_data(data, &Default::default());
+
+        let summed_tensor = TestBackend::int_empty(summed_shape, &Default::default());
+
+        let val =
+            Tensor::<TestBackend, 1, Int>::from_primitive(sum_dim_naive(tensor, summed_tensor, 0));
+
+        let sum_as_data = Data::from([10]);
+        val.into_data().assert_approx_eq(&sum_as_data, 1);
+    }
+
+    #[test]
+    fn mean_dim_should_work_with_int() {
+        let mean_shape = Shape::new([1]);
+        let data = Data::from([1, 2, 3, 4]);
+        let tensor = TestBackend::int_from_data(data, &Default::default());
+
+        let mean_tensor = TestBackend::int_empty(mean_shape, &Default::default());
+
+        let val =
+            Tensor::<TestBackend, 1, Int>::from_primitive(mean_dim_naive(tensor, mean_tensor, 0));
+
+        // Mean calculation truncates to an integer
+        let mean_as_data = Data::from([2]);
+        val.into_data().assert_approx_eq(&mean_as_data, 1);
     }
 }

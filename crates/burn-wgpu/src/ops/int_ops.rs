@@ -279,11 +279,11 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmax(tensor, dim)
+        kernel::reduce::argmax_naive(tensor, dim)
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmin(tensor, dim)
+        kernel::reduce::argmin_naive(tensor, dim)
     }
 
     fn int_clamp<const D: usize>(

@@ -6,10 +6,7 @@ use crate::{
     element::JitElement,
     kernel::{
         prng::{random_like_uniform, random_like_uniform_int},
-        reduce::{
-            init_reduce_output, int_mean_dim_naive, int_mean_dim_shared_memory, mean_dim_naive,
-            mean_dim_shared_memory,
-        },
+        reduce::{init_reduce_output, mean_dim_naive, mean_dim_shared},
     },
     ops::numeric::empty_device,
     reduce_tune_ops,
@@ -207,16 +204,8 @@ pub fn int_mean_dim_autotune<R: Runtime, E: IntElement, const D: usize>(
 
 // Probably better on balanced tensor shapes
 reduce_tune_ops!(MeanDimAutotune, WgpuElement, mean_dim_naive);
-reduce_tune_ops!(MeanDimIntAutotune, IntElement, int_mean_dim_naive);
+reduce_tune_ops!(MeanDimIntAutotune, IntElement, mean_dim_naive);
 
 // Probably better on tensors large along reduce dim
-reduce_tune_ops!(
-    MeanDimSharedMemoryAutotune,
-    WgpuElement,
-    mean_dim_shared_memory
-);
-reduce_tune_ops!(
-    MeanDimIntSharedMemoryAutotune,
-    IntElement,
-    int_mean_dim_shared_memory
-);
+reduce_tune_ops!(MeanDimSharedMemoryAutotune, WgpuElement, mean_dim_shared);
+reduce_tune_ops!(MeanDimIntSharedMemoryAutotune, IntElement, mean_dim_shared);

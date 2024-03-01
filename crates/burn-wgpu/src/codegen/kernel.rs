@@ -70,7 +70,6 @@ pub fn execute_dynamic<R, K, E>(
     let settings = execute_settings(inputs, outputs, scalar_elems, launch, &client);
     let mut handles = settings.handles_tensors;
     let workgroup = settings.workgroup;
-    println!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAa {:?}", workgroup);
 
     handles.push(&settings.handle_info);
     if let Some(handle) = settings.handle_scalars.as_ref() {
