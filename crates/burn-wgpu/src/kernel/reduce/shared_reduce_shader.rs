@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use serde::de::value;
-
 use crate::{
     codegen::{
         dialect::gpu::{
@@ -38,6 +36,7 @@ pub(crate) trait SharedReduceDim: Send + Sync + 'static {
         scope: &mut Scope,
         input: Variable,
         read_position: Variable,
+        i: Variable,
     ) -> Self::Accumulator;
 
     fn read_from_shared(
@@ -89,6 +88,7 @@ impl SharedReduceDim for SumDim {
         scope: &mut Scope,
         input: Variable,
         read_position: Variable,
+        _i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
         gpu!(scope, value = input[read_position]);
@@ -152,6 +152,7 @@ impl SharedReduceDim for MeanDim {
         scope: &mut Scope,
         input: Variable,
         read_position: Variable,
+        _i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
         gpu!(scope, value = input[read_position]);
@@ -226,13 +227,86 @@ impl SharedReduceDim for ArgMin {
         scope: &mut Scope,
         input: Variable,
         read_position: Variable,
+        i: Variable,
     ) -> Self::Accumulator {
         let value = scope.create_local(input.item());
         gpu!(scope, value = input[read_position]);
-        todo!()
-        // let index = // TODO modulo other shapes??
-        // (value, index)
-        
+        (value, i)
+    }
+
+    fn read_from_shared(
+        scope: &mut Scope,
+        shared_memory: Self::Accumulator,
+        read_position: Variable,
+    ) -> Self::Accumulator {
+        let (value_shared_memory, index_shared_memory) = shared_memory;
+        let value = scope.create_local(value_shared_memory.item());
+        gpu!(scope, value = value_shared_memory[read_position]);
+        let index = scope.create_local(index_shared_memory.item());
+        gpu!(scope, index = index_shared_memory[read_position]);
+        (value, index)
+    }
+
+    fn assign(
+        scope: &mut Scope,
+        shared_memory: Self::Accumulator,
+        output: Variable,
+        write_position: Variable,
+        _shape_reduce_dim: Variable,
+    ) {
+        let (_, index_shared_memory) = shared_memory;
+        let final_value = scope.create_local(output.item());
+        gpu!(scope, final_value = index_shared_memory[0]);
+        gpu!(scope, output[write_position] = final_value);
+    }
+}
+
+pub(crate) struct ArgMax;
+
+impl SharedReduceDim for ArgMax {
+    type Accumulator = (Variable, Variable);
+
+    fn initialize(
+        scope: &mut Scope,
+        shared_memory_size: u32,
+        write_position: Variable,
+        input_item: Item,
+    ) -> Self::Accumulator {
+        let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
+        let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
+        let max = scope.create_local(input_item);
+        gpu!(scope, max = cast(-32767.0));
+        gpu!(scope, value_shared_memory[write_position] = max);
+        (value_shared_memory, index_shared_memory)
+    }
+
+    fn write_to_shared(
+        scope: &mut Scope,
+        shared_memory: Self::Accumulator,
+        write_position: Variable,
+        (value, index): Self::Accumulator,
+    ) {
+        let (value_shared_memory, index_shared_memory) = shared_memory;
+        let current_value = scope.create_local(value.item());
+        gpu!(scope, current_value = value_shared_memory[write_position]);
+
+        let condition = scope.create_local(Elem::Bool);
+        gpu!(scope, condition = value > current_value);
+        gpu!(scope, if(condition).then(|scope| {
+            gpu!(scope, value_shared_memory[write_position] = value);
+            gpu!(scope, index_shared_memory[write_position] = index);
+        }));
+    }
+
+    fn read_from_input(
+        scope: &mut Scope,
+        input: Variable,
+        read_position: Variable,
+        i: Variable,
+    ) -> Self::Accumulator {
+        let value = scope.create_local(input.item());
+        gpu!(scope, value = input[read_position]);
+        (value, i)
     }
 
     fn read_from_shared(
@@ -355,9 +429,6 @@ impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
         let rank = Variable::Rank;
         let dim: Variable = self.dim.into();
 
-        // threads are responsible of how many inputs in one reduce_group
-        let n_input_values_per_thread: Variable = self.n_input_values_per_thread.into();
-
         let workgroup_id_x = Variable::WorkgroupIdX;
         let workgroup_id_y = Variable::WorkgroupIdY;
         let num_workgroups_x = Variable::NumWorkgroupsX;
@@ -384,7 +455,6 @@ impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
         let n_threads = scope.create_local(Elem::UInt);
         gpu!(scope, n_threads = workgroup_size_x * workgroup_size_y);
 
-        // let offset_tensor = scope.create_local(Elem::UInt);
         let index_offset = scope.zero(Elem::UInt);
 
         gpu!(
@@ -413,34 +483,28 @@ impl<RD: SharedReduceDim> SharedReduceDimComputeShader<RD> {
             tensor.item(),
         );
 
-        // Load to shared memory
-        gpu!(
-            // TODO UNROLLABLE, then maybe don't even need n_input__vpt in kernel
-            scope,
-            range(0u32, n_input_values_per_thread).for_each(|i, scope| {
-                let nth = scope.create_local(Elem::UInt);
-                gpu!(scope, nth = i * n_threads);
-                gpu!(scope, nth += local_id);
+        // Load to shared memory, unrolled
+        for i in 0..self.n_input_values_per_thread {
+            let nth = scope.create_local(Elem::UInt);
+            gpu!(scope, nth = i * n_threads);
+            gpu!(scope, nth += local_id);
 
-                let within_shape = scope.create_local(Elem::Bool);
-                gpu!(scope, within_shape = nth < shape_reduce_dim_input);
-                gpu!(scope, if(within_shape).then(|scope|{
-                    let current_position = scope.create_local(Elem::UInt);
-                    gpu!(scope, current_position = nth * stride_reduce_dim_input);
-                    gpu!(scope, current_position += index_offset);
+            let within_shape = scope.create_local(Elem::Bool);
 
+            gpu!(scope, within_shape = nth < shape_reduce_dim_input);
+            gpu!(scope, if(within_shape).then(|scope|{
+                let current_position = scope.create_local(Elem::UInt);
+                gpu!(scope, current_position = nth * stride_reduce_dim_input);
+                gpu!(scope, current_position += index_offset);
 
-                    let new_value = RD::read_from_input(scope, tensor, current_position);
-                    RD::write_to_shared(scope, shared_memory, local_id, new_value);
-                }));
-            })
-        );
+                let new_value = RD::read_from_input(scope, tensor, current_position, nth);
+                RD::write_to_shared(scope, shared_memory, local_id, new_value);
+            }));
+        }
 
         scope.register(Synchronization::WorkgroupBarrier);
 
         let several_threads_active = scope.create_local(Elem::Bool);
-
-        // TODO remove an if when n_input_values_per_thread arrive just
 
         gpu!(scope, loop(|scope|{
             gpu!(scope, several_threads_active = n_threads <= 1u32);
@@ -546,6 +610,15 @@ pub fn argmin_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>
     reduce_dim_shared::<ArgMin, R, EI, EO, D>(input, output, dim)
 }
 
+/// Execute the argmax dim kernel using shared strategy.
+pub fn argmax_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+    input: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    reduce_dim_shared::<ArgMax, R, EI, EO, D>(input, output, dim)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,11 +710,10 @@ mod tests {
     #[test]
     fn reduction_argmin_shared_memory_medium() {
         let tensor =
-            Tensor::<TestBackend, 2>::random([2, 2], Distribution::Default, &Default::default());
-        println!("{:?}", tensor.to_data());
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let reduce_dim = 0;
+        let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
         let val = Tensor::<TestBackend, 2>::from_primitive(argmin_shared(
@@ -650,6 +722,28 @@ mod tests {
             reduce_dim,
         ));
         let val_ref = tensor_ref.argmin(reduce_dim);
+
+        assert_eq!(val_ref.into_data().convert(), val.into_data());
+    }
+
+    #[test]
+    fn reduction_argmax_shared_memory_medium() {
+        let tensor = Tensor::<TestBackend, 2>::random(
+            [10, 3000],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(argmax_shared(
+            tensor.into_primitive(),
+            output,
+            reduce_dim,
+        ));
+        let val_ref = tensor_ref.argmax(reduce_dim);
 
         assert_eq!(val_ref.into_data().convert(), val.into_data());
     }
