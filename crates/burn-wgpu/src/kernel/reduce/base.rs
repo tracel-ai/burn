@@ -1,9 +1,13 @@
+#[cfg(feature = "autotune")]
+use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{
     codegen::dialect::gpu::{Item, Scope, Variable},
     element::JitElement,
     tensor::JitTensor,
     Runtime,
 };
+
+use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, SumDim};
 
 /// Specifies the reduce dim algorithm in use
 pub trait ReduceDimAlgorithm: Send + Sync + 'static {
@@ -93,4 +97,49 @@ pub fn init_reduce_output<R: Runtime, EI: JitElement, EO: JitElement, const D: u
         shape_out.clone(),
         handle,
     )
+}
+
+macro_rules! reduce_operation {
+    ($name:ident, $ops:ty) => {
+        /// Executes $name operation, autotunable
+        pub fn $name<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+            tensor: JitTensor<R, EI, D>,
+            dim: usize,
+        ) -> JitTensor<R, EO, D> {
+            #[cfg(feature = "autotune")]
+            {
+                reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim)
+            }
+
+            #[cfg(not(feature = "autotune"))]
+            {
+                let output = init_reduce_output(&tensor, dim);
+                reduce_dim_naive::<$ops, R, ER, EO, D>(tensor, output, dim)
+            }
+        }
+    };
+}
+
+// Autotunable reduce operation variants
+reduce_operation!(sum_dim, SumDim);
+reduce_operation!(mean_dim, MeanDim);
+reduce_operation!(argmin, ArgMin);
+reduce_operation!(argmax, ArgMax);
+
+/// Exposed for benchmarks. Prefer the autotunable version for other uses
+pub fn sum_dim_naive<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+    tensor: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    reduce_dim_naive::<SumDim, R, EI, EO, D>(tensor, output, dim)
+}
+
+/// Exposed for benchmarks. Prefer the autotunable version for other uses
+pub fn sum_dim_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+    tensor: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    reduce_dim_shared::<SumDim, R, EI, EO, D>(tensor, output, dim)
 }

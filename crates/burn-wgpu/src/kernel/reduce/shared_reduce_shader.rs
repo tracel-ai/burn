@@ -23,6 +23,7 @@ pub(crate) struct SharedReduceDimComputeShader<RD: ReduceDimAlgorithm> {
     shared_memory_size: usize,
     n_input_values_per_thread: u32,
     output: Variable,
+    divisible_shape: bool,
     _reduce_dim: PhantomData<RD>,
 }
 
@@ -37,6 +38,7 @@ pub(crate) struct SharedReduceDimEagerKernel<
     workgroup_size_x: usize,
     workgroup_size_y: usize,
     n_input_values_per_thread: u32,
+    divisible_shape: bool,
     _reduce_dim: PhantomData<RD>,
     _runtime: PhantomData<R>,
     _elem_in: PhantomData<EI>,
@@ -61,6 +63,7 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
             shared_memory_size: self.workgroup_size_x * self.workgroup_size_y,
             n_input_values_per_thread: self.n_input_values_per_thread,
             output,
+            divisible_shape: self.divisible_shape,
             _reduce_dim: PhantomData::<RD>,
         }
         .expand(&mut scope);
@@ -92,12 +95,13 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
 
     fn id(&self) -> String {
         format!(
-            "{:?}dim={}x={}y={}n={}",
+            "{:?}dim={}x={}y={}n={}divshape={}",
             core::any::TypeId::of::<Self>(),
             self.dim,
             self.workgroup_size_x,
             self.workgroup_size_y,
-            self.n_input_values_per_thread
+            self.n_input_values_per_thread,
+            self.divisible_shape
         )
     }
 }
@@ -172,15 +176,24 @@ impl<RD: ReduceDimAlgorithm> SharedReduceDimComputeShader<RD> {
 
             let within_shape = scope.create_local(Elem::Bool);
 
-            gpu!(scope, within_shape = nth < shape_reduce_dim_input);
-            gpu!(scope, if(within_shape).then(|scope|{
+            if self.divisible_shape {
                 let current_position = scope.create_local(Elem::UInt);
                 gpu!(scope, current_position = nth * stride_reduce_dim_input);
                 gpu!(scope, current_position += index_offset);
 
                 let new_value = RD::read_from_input(scope, tensor, current_position, nth);
                 RD::write_to_shared(scope, shared_memory, local_id, new_value);
-            }));
+            } else {
+                gpu!(scope, within_shape = nth < shape_reduce_dim_input);
+                gpu!(scope, if(within_shape).then(|scope|{
+                    let current_position = scope.create_local(Elem::UInt);
+                    gpu!(scope, current_position = nth * stride_reduce_dim_input);
+                    gpu!(scope, current_position += index_offset);
+
+                    let new_value = RD::read_from_input(scope, tensor, current_position, nth);
+                    RD::write_to_shared(scope, shared_memory, local_id, new_value);
+                }));
+            }
         }
 
         scope.register(Synchronization::WorkgroupBarrier);
@@ -238,11 +251,15 @@ pub fn reduce_dim_shared<
     let n_input_values_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_workgroup as f32) as u32;
 
+    let divisible_shape =
+        n_invocation_per_workgroup as u32 * n_input_values_per_thread == reduce_group_size as u32;
+
     let kernel = SharedReduceDimEagerKernel::new(
         dim,
         WORKGROUP_DEFAULT,
         WORKGROUP_DEFAULT,
         n_input_values_per_thread,
+        divisible_shape,
     );
 
     execute_dynamic::<R, SharedReduceDimEagerKernel<RD, R, EI, EO>, EI>(
@@ -299,9 +316,33 @@ mod tests {
     }
 
     #[test]
-    fn reduction_sum_dim_shared_memory_medium() {
+    fn reduction_sum_dim_shared_memory_medium_divisible() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+        let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
+
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_shared::<
+                SumDim,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
+    }
+
+    #[test]
+    fn reduction_sum_dim_shared_memory_medium_not_divisible() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1025], Distribution::Default, &Default::default());
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;

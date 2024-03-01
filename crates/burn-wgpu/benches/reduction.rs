@@ -82,8 +82,8 @@ bench_reduce!(SumDimSharedBenchmark, SumDimShared, sum_dim_shared);
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
     let num_repeats = 3;
-    let shape = Shape::new([32, 2048, 32]);
-    let dim = 2;
+    let shape = Shape::new([20, 10240]);
+    let dim = 1;
 
     macro_rules! run_reduce_benchmark {
         ($benchmark:ident) => {
