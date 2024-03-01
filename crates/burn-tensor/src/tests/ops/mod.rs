@@ -10,6 +10,7 @@ mod cast;
 mod cat;
 mod chunk;
 mod clamp;
+mod close;
 mod cos;
 mod create_like;
 mod div;

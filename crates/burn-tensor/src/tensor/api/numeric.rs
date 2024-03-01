@@ -9,30 +9,6 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Convert the tensor into a scalar.
-    ///
-    /// # Panics
-    ///
-    /// If the tensor doesn't have one element.
-    pub fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data();
-        data.value[0]
-    }
-
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Convert the tensor into a scalar.
-    ///
-    /// # Panics
-    ///
-    /// If the tensor doesn't have one element.
-    pub async fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data().await;
-        data.value[0]
-    }
-
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
@@ -362,6 +338,21 @@ where
         (tensor, index)
     }
 
+    /// Finds the maximum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find maximum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the maximum value found
+    /// in the input tensors.
+    pub fn max_pair(self, other: Self) -> Self {
+        let mask = self.clone().lower(other.clone());
+        self.mask_where(mask, other)
+    }
+
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -405,6 +396,21 @@ where
         let index = Tensor::new(index);
 
         (tensor, index)
+    }
+
+    /// Finds the minimum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find minimum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the minimum value found
+    /// between each element of the two source tensors.
+    pub fn min_pair(self, other: Self) -> Self {
+        let mask = other.clone().lower(self.clone());
+        self.mask_where(mask, other)
     }
 
     /// Clamp the tensor between the given min and max values.
@@ -572,6 +578,67 @@ where
     /// Applies element wise power operation with a integer scalar
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
         Self::new(K::powi_scalar(self.primitive, other))
+    }
+
+    /// Checks element wise if the tensor is close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors.
+    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
+        let rtol = rtol.unwrap_or(1e-5);
+        let atol = atol.unwrap_or(1e-8);
+
+        K::lower_equal(
+            K::abs(K::sub(self.primitive, other.primitive.clone())),
+            K::add_scalar(K::mul_scalar(K::abs(other.primitive), rtol), atol),
+        )
+    }
+
+    /// Checks if all elements are close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    ///
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    ///
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    ///
+    /// # Returns
+    ///
+    /// A boolean scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This method is only available for non-wasm targets or when the `wasm-sync` feature is enabled.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
+        self.is_close(other, rtol, atol).all().into_scalar()
     }
 }
 
