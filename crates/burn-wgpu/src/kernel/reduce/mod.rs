@@ -8,12 +8,12 @@ mod shared_reduce_shader;
 mod sum_dim;
 mod tune;
 
+pub(crate) use argmax_dim::*;
+pub(crate) use argmin_dim::*;
 pub use base::*;
-pub use naive_reduce_shader::*;
+pub(crate) use mean_dim::*;
+pub(crate) use naive_reduce_shader::*;
 pub use reduction::*;
 pub use shared_reduce_shader::*;
+pub(crate) use sum_dim::*;
 pub use tune::*;
-pub use sum_dim::*;
-pub use mean_dim::*;
-pub use argmin_dim::*;
-pub use argmax_dim::*;

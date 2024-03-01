@@ -1,9 +1,13 @@
 use crate::{element::JitElement, tensor::JitTensor, Runtime};
 use burn_tensor::Shape;
 
-// #[cfg(feature = "autotune")]
-// use super::tune::{mean_dim_autotune, sum_dim_autotune};
-use super::{init_reduce_output, reduce_dim_naive, ArgMax, ArgMin, MeanDim, SumDim};
+#[cfg(feature = "autotune")]
+use crate::kernel::reduce::reduce_dim_autotune;
+
+#[cfg(not(feature = "autotune"))]
+use super::{init_reduce_output, reduce_dim_naive};
+
+use super::{ArgMax, ArgMin, MeanDim, SumDim};
 
 /// Sum all elements in the input buffer.
 pub fn sum<R: Runtime, E: JitElement, const D: usize>(
@@ -14,57 +18,31 @@ pub fn sum<R: Runtime, E: JitElement, const D: usize>(
     sum_dim(input, 0)
 }
 
-/// Sum all elements on one dimension. Autotunable
-pub fn sum_dim<R: Runtime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, E, D> {
-    // #[cfg(feature = "autotune")]
-    // {
-    //     sum_dim_autotune(tensor, dim)
-    // }
+macro_rules! reduce_operation {
+    ($name:ident, $ops:ty) => {
+        /// Executes $name operation, autotunable
+        pub fn $name<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+            tensor: JitTensor<R, EI, D>,
+            dim: usize,
+        ) -> JitTensor<R, EO, D> {
+            #[cfg(feature = "autotune")]
+            {
+                reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim)
+            }
 
-    // #[cfg(not(feature = "autotune"))]
-    // {
-    let output = init_reduce_output(&tensor, dim);
-    reduce_dim_naive::<SumDim, R, E, E, D>(tensor, output, dim)
-    // }
+            #[cfg(not(feature = "autotune"))]
+            {
+                let output = init_reduce_output(&tensor, dim);
+                reduce_dim_naive::<$ops, R, EI, EO, D>(tensor, output, dim)
+            }
+        }
+    };
 }
 
-/// Mean of all elements on one dimension. Autotunable
-pub fn mean_dim<R: Runtime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, E, D> {
-    // #[cfg(feature = "autotune")]
-    // {
-    //     mean_dim_autotune(tensor, dim)
-    // }
-
-    // #[cfg(not(feature = "autotune"))]
-    // {
-    let output = init_reduce_output(&tensor, dim);
-    reduce_dim_naive::<MeanDim, R, E, E, D>(tensor, output, dim)
-    // }
-}
-
-/// Execute the argmax kernel.
-pub fn argmax<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    tensor: JitTensor<R, EI, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    let output = init_reduce_output(&tensor, dim);
-    reduce_dim_naive::<ArgMax, R, EI, EO, D>(tensor, output, dim)
-}
-
-/// Execute the argmin kernel.
-pub fn argmin<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    tensor: JitTensor<R, EI, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    let output = init_reduce_output(&tensor, dim);
-    reduce_dim_naive::<ArgMin, R, EI, EO, D>(tensor, output, dim)
-}
+reduce_operation!(sum_dim, SumDim);
+reduce_operation!(mean_dim, MeanDim);
+reduce_operation!(argmin, ArgMin);
+reduce_operation!(argmax, ArgMax);
 
 #[cfg(test)]
 mod tests {
