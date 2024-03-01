@@ -338,6 +338,21 @@ where
         (tensor, index)
     }
 
+    /// Finds the maximum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find maximum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the maximum value found
+    /// in the input tensors.
+    pub fn max_pair(self, other: Self) -> Self {
+        let mask = self.clone().lower(other.clone());
+        self.mask_where(mask, other)
+    }
+
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -381,6 +396,21 @@ where
         let index = Tensor::new(index);
 
         (tensor, index)
+    }
+
+    /// Finds the minimum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find minimum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the minimum value found
+    /// between each element of the two source tensors.
+    pub fn min_pair(self, other: Self) -> Self {
+        let mask = other.clone().lower(self.clone());
+        self.mask_where(mask, other)
     }
 
     /// Clamp the tensor between the given min and max values.
