@@ -115,6 +115,7 @@ pub struct UnfoldOptions {
 }
 
 /// Algorithm used for upsampling.
+#[derive(new, Debug, Clone)]
 pub enum InterpolateMode {
     /// Nearest-neighbor interpolation.
     /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
@@ -130,7 +131,7 @@ pub enum InterpolateMode {
 }
 
 /// Interpolation options.
-#[derive(new)]
+#[derive(new, Debug, Clone)]
 pub struct InterpolateOptions {
     /// Algorithm used for upsampling.
     pub mode: InterpolateMode,

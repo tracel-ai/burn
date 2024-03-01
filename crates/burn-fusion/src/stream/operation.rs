@@ -122,6 +122,8 @@ pub enum ModuleOperationDescription {
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
     /// Operation corresponding to [interpolate](burn_tensor::ops::ModuleOps::interpolate).
     Interpolate(InterpolateDescription),
+    /// Operation corresponding to [interpolate backward](burn_tensor::ops::ModuleOps::interpolate_backward).
+    InterpolateBackward(InterpolateBackwardDescription),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -963,6 +965,16 @@ impl From<InterpolateOptions> for InterpolateOptionsDescription {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct InterpolateBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub output_size: [usize; 2],
+    pub options: InterpolateOptionsDescription,
+    pub out: TensorDescription,
+}
+
 impl OperationDescription {
     /// Cleanup the remaining tensor handles that have not been used.
     pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
@@ -1256,9 +1268,13 @@ impl ModuleOperationDescription {
             ModuleOperationDescription::Interpolate(desc) => {
                 vec![&desc.x, &desc.out]
             }
+            ModuleOperationDescription::InterpolateBackward(desc) => {
+                vec![&desc.x, &desc.out, &desc.grad]
+            }
         }
     }
 }
+
 impl core::hash::Hash for RandomOperationDescription {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
@@ -1271,6 +1287,7 @@ impl core::hash::Hash for RandomOperationDescription {
         }
     }
 }
+
 impl<E> core::hash::Hash for ScalarOperationDescription<E> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);

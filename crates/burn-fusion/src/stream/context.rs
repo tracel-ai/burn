@@ -5,10 +5,10 @@ use super::{
     BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
     Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
     EmbeddingBackwardDescription, EmbeddingDescription, FloatOperationDescription,
-    GatherOperationDescription, IntOperationDescription, InterpolateDescription,
-    MaskFillOperationDescription, MaskWhereOperationDescription, MaxPool1dDescription,
-    MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription, MaxPool2dDescription,
-    MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
+    GatherOperationDescription, IntOperationDescription, InterpolateBackwardDescription,
+    InterpolateDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
+    MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
+    MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
     ModuleOperationDescription, NumericOperationDescription, OperationDescription,
     RandomOperationDescription, ReduceDimWithIndicesDescription, ReshapeDescription,
     ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
@@ -317,6 +317,15 @@ impl ModuleOperationDescription {
             ModuleOperationDescription::Interpolate(desc) => {
                 ModuleOperationDescription::Interpolate(InterpolateDescription {
                     x: desc.x.to_relative(converter),
+                    output_size: desc.output_size,
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationDescription::InterpolateBackward(desc) => {
+                ModuleOperationDescription::InterpolateBackward(InterpolateBackwardDescription {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
                     output_size: desc.output_size,
                     options: desc.options.clone(),
                     out: desc.out.to_relative(converter),
@@ -885,7 +894,7 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![0, 1, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
             }
         );
         assert_eq!(
@@ -893,7 +902,7 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(1),
                 shape: vec![0, 3, 2],
-                status: TensorStatus::ReadOnly
+                status: TensorStatus::ReadOnly,
             }
         );
     }
