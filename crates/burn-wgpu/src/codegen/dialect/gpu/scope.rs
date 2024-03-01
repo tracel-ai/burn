@@ -315,7 +315,7 @@ impl Scope {
         local
     }
 
-    /// Create a local variable of the given [item type](Item).
+    /// Create a shared variable of the given [item type](Item).
     pub fn create_shared<I: Into<Item>>(&mut self, item: I, shared_memory_size: u32) -> Variable {
         let item = item.into();
         let index = self.new_shared_index();
