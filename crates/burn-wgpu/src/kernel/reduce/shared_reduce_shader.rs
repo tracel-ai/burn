@@ -15,7 +15,7 @@ use crate::{
     Runtime,
 };
 
-use super::{ArgMax, ArgMin, MeanDim, ReduceDimAlgorithm, SumDim};
+use super::ReduceDimAlgorithm;
 
 pub(crate) struct SharedReduceDimComputeShader<RD: ReduceDimAlgorithm> {
     tensor: Variable,
@@ -216,7 +216,8 @@ impl<RD: ReduceDimAlgorithm> SharedReduceDimComputeShader<RD> {
     }
 }
 
-pub(crate) fn reduce_dim_shared<
+/// Executes the shared memory kernel for reduce dim
+pub fn reduce_dim_shared<
     RD: ReduceDimAlgorithm,
     R: Runtime,
     EI: JitElement,
@@ -264,48 +265,12 @@ pub(crate) fn reduce_dim_shared<
     output
 }
 
-/// Execute the sum dim kernel using shared strategy.
-pub fn sum_dim_shared<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, E, D> {
-    reduce_dim_shared::<SumDim, R, E, E, D>(input, output, dim)
-}
-
-/// Execute the mean dim kernel using shared strategy.
-pub fn mean_dim_shared<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
-    dim: usize,
-) -> JitTensor<R, E, D> {
-    reduce_dim_shared::<MeanDim, R, E, E, D>(input, output, dim)
-}
-
-/// Execute the argmin dim kernel using shared strategy.
-pub fn argmin_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    reduce_dim_shared::<ArgMin, R, EI, EO, D>(input, output, dim)
-}
-
-/// Execute the argmax dim kernel using shared strategy.
-pub fn argmax_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    reduce_dim_shared::<ArgMax, R, EI, EO, D>(input, output, dim)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        kernel::reduce::init_reduce_output,
-        tests::{ReferenceBackend, TestBackend},
+        kernel::reduce::{init_reduce_output, ArgMax, ArgMin, MeanDim, SumDim},
+        tests::{ReferenceBackend, TestBackend, TestRuntime},
     };
     use burn_tensor::{Distribution, Tensor};
 
@@ -318,11 +283,16 @@ mod tests {
         let reduce_dim = 0;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(sum_dim_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 1>::from_primitive(reduce_dim_shared::<
+                SumDim,
+                TestRuntime,
+                f32,
+                f32,
+                1,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -337,11 +307,16 @@ mod tests {
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(sum_dim_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_shared::<
+                SumDim,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -359,11 +334,16 @@ mod tests {
         let reduce_dim = 2;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 3>::from_primitive(sum_dim_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 3>::from_primitive(reduce_dim_shared::<
+                SumDim,
+                TestRuntime,
+                f32,
+                f32,
+                3,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -378,11 +358,16 @@ mod tests {
         let reduce_dim = 0;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(mean_dim_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_shared::<
+                MeanDim,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.mean_dim(reduce_dim);
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
@@ -397,11 +382,16 @@ mod tests {
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(argmin_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_shared::<
+                ArgMin,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.argmin(reduce_dim);
 
         assert_eq!(val_ref.into_data().convert(), val.into_data());
@@ -419,11 +409,16 @@ mod tests {
         let reduce_dim = 1;
         let output = init_reduce_output(&tensor.clone().into_primitive(), reduce_dim);
 
-        let val = Tensor::<TestBackend, 2>::from_primitive(argmax_shared(
-            tensor.into_primitive(),
-            output,
-            reduce_dim,
-        ));
+        let val =
+            Tensor::<TestBackend, 2>::from_primitive(reduce_dim_shared::<
+                ArgMax,
+                TestRuntime,
+                f32,
+                f32,
+                2,
+            >(
+                tensor.into_primitive(), output, reduce_dim
+            ));
         let val_ref = tensor_ref.argmax(reduce_dim);
 
         assert_eq!(val_ref.into_data().convert(), val.into_data());

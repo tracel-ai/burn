@@ -12,7 +12,7 @@ pub(crate) use argmax_dim::*;
 pub(crate) use argmin_dim::*;
 pub use base::*;
 pub(crate) use mean_dim::*;
-pub(crate) use naive_reduce_shader::*;
+pub use naive_reduce_shader::*;
 pub use reduction::*;
 pub use shared_reduce_shader::*;
 pub(crate) use sum_dim::*;

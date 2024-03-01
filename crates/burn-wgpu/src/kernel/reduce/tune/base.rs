@@ -129,8 +129,8 @@ pub(crate) fn reduce_dim_autotune<
     output
 }
 
-// Probably better on balanced tensor shapes
 #[derive(new)]
+// Probably better on balanced tensor shapes
 pub(crate) struct ReduceDimNaiveAutotune<
     RD: ReduceDimAlgorithm,
     R: Runtime,
@@ -160,14 +160,14 @@ where
         Box::new(Self {
             input: self.input.clone(),
             output: self.output.clone(),
-            reduce_dim: self.reduce_dim.clone(),
+            reduce_dim: self.reduce_dim,
             _algorithm: PhantomData,
         })
     }
 }
 
-// Probably better on tensors large along reduce dim
 #[derive(new)]
+// Probably better on tensors large along reduce dim
 pub(crate) struct ReduceDimSharedAutotune<
     RD: ReduceDimAlgorithm,
     R: Runtime,
@@ -197,7 +197,7 @@ where
         Box::new(Self {
             input: self.input.clone(),
             output: self.output.clone(),
-            reduce_dim: self.reduce_dim.clone(),
+            reduce_dim: self.reduce_dim,
             _algorithm: PhantomData,
         })
     }

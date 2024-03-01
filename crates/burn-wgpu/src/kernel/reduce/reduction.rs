@@ -5,9 +5,9 @@ use burn_tensor::Shape;
 use crate::kernel::reduce::reduce_dim_autotune;
 
 #[cfg(not(feature = "autotune"))]
-use super::{init_reduce_output, reduce_dim_naive};
+use super::init_reduce_output;
 
-use super::{ArgMax, ArgMin, MeanDim, SumDim};
+use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, SumDim};
 
 /// Sum all elements in the input buffer.
 pub fn sum<R: Runtime, E: JitElement, const D: usize>(
@@ -33,7 +33,7 @@ macro_rules! reduce_operation {
             #[cfg(not(feature = "autotune"))]
             {
                 let output = init_reduce_output(&tensor, dim);
-                reduce_dim_naive::<$ops, R, EI, EO, D>(tensor, output, dim)
+                reduce_dim_naive::<$ops, R, ER, EO, D>(tensor, output, dim)
             }
         }
     };
@@ -43,6 +43,24 @@ reduce_operation!(sum_dim, SumDim);
 reduce_operation!(mean_dim, MeanDim);
 reduce_operation!(argmin, ArgMin);
 reduce_operation!(argmax, ArgMax);
+
+/// Exposed for benchmarks. Prefer the autotunable version for other uses
+pub fn sum_dim_naive<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+    tensor: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    reduce_dim_naive::<SumDim, R, EI, EO, D>(tensor, output, dim)
+}
+
+/// Exposed for benchmarks. Prefer the autotunable version for other uses
+pub fn sum_dim_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
+    tensor: JitTensor<R, EI, D>,
+    output: JitTensor<R, EO, D>,
+    dim: usize,
+) -> JitTensor<R, EO, D> {
+    reduce_dim_shared::<SumDim, R, EI, EO, D>(tensor, output, dim)
+}
 
 #[cfg(test)]
 mod tests {

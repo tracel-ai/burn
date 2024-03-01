@@ -138,7 +138,8 @@ impl<RD: ReduceDimAlgorithm> NaiveReduceDimComputeShader<RD> {
     }
 }
 
-pub(crate) fn reduce_dim_naive<
+/// Executes the naive kernel for reduce dim
+pub fn reduce_dim_naive<
     RD: ReduceDimAlgorithm,
     R: Runtime,
     EI: JitElement,

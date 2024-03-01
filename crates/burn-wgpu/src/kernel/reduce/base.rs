@@ -5,15 +5,19 @@ use crate::{
     Runtime,
 };
 
-pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
+/// Specifies the reduce dim algorithm in use
+pub trait ReduceDimAlgorithm: Send + Sync + 'static {
+    /// The reduction accumulator
     type Accumulator: Copy;
 
+    /// Initialization for naive algorithm
     fn initialize_naive(
         scope: &mut Scope,
         input_item: Item,
         output_item: Item,
     ) -> Self::Accumulator;
 
+    /// Inner loop for naive algorithm
     fn inner_loop_naive(
         scope: &mut Scope,
         accumulator: Self::Accumulator,
@@ -21,6 +25,7 @@ pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
         i: Variable,
     );
 
+    /// Assignation for naive algorithm
     fn assign_naive(
         scope: &mut Scope,
         output: Variable,
@@ -28,6 +33,7 @@ pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
         shape_reduce_dim: Variable,
     );
 
+    /// Initialization for shared algorithm
     fn initialize_shared(
         scope: &mut Scope,
         shared_memory_size: u32,
@@ -35,6 +41,7 @@ pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
         input_item: Item,
     ) -> Self::Accumulator;
 
+    /// How to write to shared memory
     fn write_to_shared(
         scope: &mut Scope,
         shared_memory: Self::Accumulator,
@@ -42,6 +49,7 @@ pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
         value: Self::Accumulator,
     );
 
+    /// How to read from input in shared algorithm
     fn read_from_input(
         scope: &mut Scope,
         input: Variable,
@@ -49,12 +57,14 @@ pub(crate) trait ReduceDimAlgorithm: Send + Sync + 'static {
         i: Variable,
     ) -> Self::Accumulator;
 
+    /// How to read from shared memory
     fn read_from_shared(
         scope: &mut Scope,
         shared_memory: Self::Accumulator,
         read_position: Variable,
     ) -> Self::Accumulator;
 
+    /// How to assign from shared memory
     fn assign_shared(
         scope: &mut Scope,
         shared_memory: Self::Accumulator,
