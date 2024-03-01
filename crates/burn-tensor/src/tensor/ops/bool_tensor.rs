@@ -389,6 +389,7 @@ pub trait BoolTensorOps<B: Backend> {
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero, grouped by element.
     ///
     /// # Arguments
@@ -403,6 +404,7 @@ pub trait BoolTensorOps<B: Backend> {
         argwhere::<B, D>(tensor)
     }
 
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero.
     ///
     /// # Arguments
