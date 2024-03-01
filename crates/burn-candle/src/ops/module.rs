@@ -83,10 +83,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvTransposeOptions<1>,
     ) -> FloatTensor<Self, 3> {
-        assert!(
-            options.groups == 1,
-            "Candle does not support groups in transposed convolutions"
-        );
         let conv_transpose = x
             .tensor
             .conv_transpose1d(
@@ -95,6 +91,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 options.padding_out[0],
                 options.stride[0],
                 options.dilation[0],
+                options.groups,
             )
             .unwrap();
         CandleTensor::new(match bias {

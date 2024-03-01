@@ -1,14 +1,11 @@
 use crate::dataset::DiabetesBatch;
-use burn::config::Config;
-use burn::nn::loss::Reduction::Mean;
-use burn::nn::Relu;
 use burn::{
-    module::Module,
-    nn::{loss::MseLoss, Linear, LinearConfig},
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Tensor,
+    nn::{
+        loss::{MseLoss, Reduction::Mean},
+        Linear, LinearConfig, Relu,
     },
+    prelude::*,
+    tensor::backend::AutodiffBackend,
     train::{RegressionOutput, TrainOutput, TrainStep, ValidStep},
 };
 

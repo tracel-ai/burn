@@ -1,11 +1,8 @@
 use crate::data::MnistBatch;
 use burn::{
-    module::Module,
-    nn::{self, loss::CrossEntropyLossConfig, BatchNorm, PaddingConfig2d},
-    tensor::{
-        backend::{AutodiffBackend, Backend},
-        Tensor,
-    },
+    nn::{loss::CrossEntropyLossConfig, BatchNorm, PaddingConfig2d},
+    prelude::*,
+    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 
