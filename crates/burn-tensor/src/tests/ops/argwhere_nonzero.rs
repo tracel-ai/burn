@@ -1,6 +1,7 @@
 #[burn_tensor_testgen::testgen(argwhere_nonzero)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
     use burn_tensor::{Data, Tensor};
 
     #[test]
