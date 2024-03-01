@@ -607,7 +607,6 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
-
     pub fn any(self) -> Tensor<B, 1, Bool> {
         K::any(self.primitive)
     }
@@ -654,9 +653,32 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-
     pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
         K::all_dim(self.primitive, dim)
+    }
+
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    pub fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data();
+        data.value[0]
+    }
+
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    pub async fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data().await;
+        data.value[0]
     }
 }
 
@@ -958,7 +980,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
-    type Elem: 'static;
+    type Elem: 'static + Copy;
 
     /// Creates an empty tensor with the given shape.
     ///
