@@ -597,6 +597,11 @@ where
     /// # Returns
     ///
     /// A boolean scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This method is only available for non-wasm targets or when the `wasm-sync` feature is enabled.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol).all().into_scalar()
     }

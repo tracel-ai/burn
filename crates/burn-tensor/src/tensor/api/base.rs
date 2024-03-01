@@ -11,7 +11,10 @@ use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer};
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
@@ -657,24 +660,24 @@ where
         K::all_dim(self.primitive, dim)
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn into_scalar(self) -> K::Elem {
         check!(TensorCheck::into_scalar(&self.shape()));
         let data = self.into_data();
         data.value[0]
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Convert the tensor into a scalar.
     ///
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     pub async fn into_scalar(self) -> K::Elem {
         check!(TensorCheck::into_scalar(&self.shape()));
         let data = self.into_data().await;

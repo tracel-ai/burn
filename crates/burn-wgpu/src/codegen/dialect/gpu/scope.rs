@@ -170,6 +170,7 @@ impl Scope {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn read_globals(&self) -> Vec<(u16, ReadingStrategy)> {
         self.reads_global
             .iter()
