@@ -1,7 +1,7 @@
-use crate::{kernel, tensor::JitTensor, JitBackend, Runtime};
-use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use crate::{kernel, JitBackend, Runtime};
+use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
+use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
-use burn_tensor::{ops::IntTensorOps, Reader};
 use std::ops::Range;
 
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
@@ -35,17 +35,7 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     }
 
     fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
-        if std::mem::size_of::<IntElem<Self>>() == std::mem::size_of::<u32>() {
-            return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
-        }
-
-        let device = Self::bool_device(&tensor);
-        let data = Self::bool_into_data(tensor)
-            .read_sync()
-            .expect("Can't convert bool to int with a different type size async")
-            .convert::<IntElem<Self>>();
-
-        Self::int_from_data(data, &device)
+        kernel::bool_cast(tensor)
     }
 
     fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
@@ -100,7 +90,7 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     }
 
     fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
-        kernel::cast(tensor)
+        kernel::bool_cast(tensor)
     }
 
     fn bool_swap_dims<const D: usize>(

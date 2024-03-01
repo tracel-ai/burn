@@ -400,7 +400,7 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
     }
 
-    /// Calculates the reciprocals elementwise
+    /// Calculates the reciprocals element-wise
     fn float_recip<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
     /// Transposes a tensor.
@@ -602,6 +602,24 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatTensor<B, D>,
     ) -> BoolTensor<B, D>;
 
+    /// Element-wise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal<const D: usize>(
+        lhs: FloatTensor<B, D>,
+        rhs: FloatTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::float_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Equal comparison of a tensor and a scalar.
     ///
     /// # Arguments
@@ -616,6 +634,24 @@ pub trait FloatTensorOps<B: Backend> {
         lhs: FloatTensor<B, D>,
         rhs: FloatElem<B>,
     ) -> BoolTensor<B, D>;
+
+    /// Element-wise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal_elem<const D: usize>(
+        lhs: FloatTensor<B, D>,
+        rhs: FloatElem<B>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::float_equal_elem(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
 
     /// Greater than comparison of two tensors.
     ///
@@ -866,7 +902,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
     fn float_log1p<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
 
-    /// Elementwise power with a FloatTensor.
+    /// Element-wise power with a FloatTensor.
     ///
     /// # Arguments
     ///
@@ -881,7 +917,7 @@ pub trait FloatTensorOps<B: Backend> {
         rhs: FloatTensor<B, D>,
     ) -> FloatTensor<B, D>;
 
-    /// Elementwise power with an IntTensor.
+    /// Element-wise power with an IntTensor.
     ///
     /// # Arguments
     ///
