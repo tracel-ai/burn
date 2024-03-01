@@ -58,4 +58,15 @@ mod tests {
         let data_expected = Data::from([[false], [true]]);
         assert_eq!(data_expected, data_actual);
     }
+
+    #[test]
+    fn test_all_with_bool_from_lower_equal() {
+        let tensor1 = TestTensor::from([[0.0, 1.0, 0.0], [1.0, -1.0, 1.0]]) + 1e-6;
+        let tensor2 = TestTensor::from([[0.0, 1.0, 0.0], [1.0, -1.0, 1.0]]) + 1e-6;
+
+        let ge = tensor1.lower_equal(tensor2);
+        let all = ge.clone().all();
+
+        assert_eq!(Data::from([true]), all.clone().into_data());
+    }
 }

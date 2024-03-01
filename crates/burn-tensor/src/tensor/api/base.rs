@@ -511,7 +511,7 @@ where
         Self::new(K::repeat(self.primitive, dim, times))
     }
 
-    /// Applies element wise equal comparison and returns a boolean tensor.
+    /// Applies element-wise equal comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -519,6 +519,16 @@ where
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
+    }
+
+    /// Applies element-wise non-equality comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
+        K::not_equal(self.primitive, other.primitive)
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
@@ -1262,6 +1272,30 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
 
+    /// Applies element-wise non-equality comparison between the given tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor of booleans indicating whether the corresponding elements are equal.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For non-equality comparison of tensors, users should prefer the [Tensor::not_equal](Tensor::not_equal)
+    /// function, which is more high-level and designed for public use.
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
@@ -1431,6 +1465,13 @@ impl<B: Backend> BasicOps<B> for Float {
         Tensor::new(B::float_equal(lhs, rhs))
     }
 
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_not_equal(lhs, rhs))
+    }
+
     fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
         Tensor::new(B::float_any(tensor))
     }
@@ -1528,6 +1569,13 @@ impl<B: Backend> BasicOps<B> for Int {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_equal(lhs, rhs))
+    }
+
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_not_equal(lhs, rhs))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
@@ -1631,6 +1679,13 @@ impl<B: Backend> BasicOps<B> for Bool {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_equal(lhs, rhs))
+    }
+
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_not_equal(lhs, rhs))
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {

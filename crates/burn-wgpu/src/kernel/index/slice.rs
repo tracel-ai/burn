@@ -1,20 +1,111 @@
 use crate::{
-    compute::StaticKernel,
+    codegen::{
+        dialect::gpu::{gpu, Elem, Scope, Variable, Visibility},
+        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        InputInfo, OutputInfo, WorkgroupLaunch,
+    },
     element::JitElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
-    kernel_wgsl,
+    kernel::{DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
 };
-use burn_tensor::Shape;
-use std::ops::Range;
+use burn_tensor::{ElementConversion, Shape};
+use std::{marker::PhantomData, ops::Range};
 
-kernel_wgsl!(IndexRaw, "../../template/index/slice.wgsl");
-kernel_wgsl!(
-    IndexAssignInplaceRaw,
-    "../../template/index/slice_assign_inplace.wgsl"
-);
+#[derive(new)]
+struct SliceEagerKernel<R: Runtime, E: JitElement> {
+    rank: usize,
+    _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
+}
+
+pub struct SliceComputeShader {
+    input: Variable,
+    output: Variable,
+    rank: usize,
+}
+
+impl SliceComputeShader {
+    pub fn expand(self, scope: &mut Scope) {
+        let input = self.input;
+        let output = self.output;
+        let id = Variable::Id;
+
+        let offset_input = scope.zero(Elem::UInt);
+        let offset_local = scope.create_local(Elem::UInt);
+
+        let stride_input = scope.create_local(Elem::UInt);
+        let stride_output = scope.create_local(Elem::UInt);
+        let shape_output = scope.create_local(Elem::UInt);
+        let range_start = scope.create_local(Elem::UInt);
+
+        for i in 0..self.rank {
+            gpu!(scope, stride_input = stride(input, i));
+            gpu!(scope, stride_output = stride(output, i));
+            gpu!(scope, shape_output = shape(output, i));
+            gpu!(
+                scope,
+                range_start = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
+            );
+
+            gpu!(scope, offset_local = id / stride_output);
+            gpu!(scope, offset_local = offset_local % shape_output);
+            gpu!(scope, offset_local = offset_local + range_start);
+            gpu!(scope, offset_local = offset_local * stride_input);
+
+            gpu!(scope, offset_input += offset_local);
+        }
+
+        let result = scope.create_local(input.item());
+        gpu!(scope, result = input[offset_input]);
+        gpu!(scope, output[id] = result);
+    }
+}
+
+impl<R: Runtime, E: JitElement> DynamicKernelSource for SliceEagerKernel<R, E> {
+    fn source(&self) -> crate::kernel::SourceTemplate {
+        let mut scope = Scope::root();
+        let item = E::gpu_elem().into();
+
+        let input = Variable::GlobalInputArray(0, item);
+        let output = Variable::GlobalOutputArray(0, item);
+
+        scope.write_global_custom(output);
+
+        SliceComputeShader {
+            input,
+            output,
+            rank: self.rank,
+        }
+        .expand(&mut scope);
+
+        let input = InputInfo::Array {
+            item,
+            visibility: Visibility::Read,
+        };
+        let ranges = InputInfo::Scalar {
+            elem: Elem::UInt,
+            size: self.rank,
+        };
+        let output = OutputInfo::Array { item };
+
+        let info = CompilationInfo {
+            inputs: vec![input, ranges],
+            outputs: vec![output],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}-rank={:?}", core::any::TypeId::of::<Self>(), self.rank)
+    }
+}
 
 pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
@@ -29,70 +120,46 @@ pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>
     slice_on_output(tensor, output, indices)
 }
 
+type IntType<R> = <<R as Runtime>::Compiler as Compiler>::Int;
+
 pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     output: JitTensor<R, E, D1>,
     indices: [Range<usize>; D2],
 ) -> JitTensor<R, E, D1> {
-    let mut info = build_info(&[&tensor, &output]);
+    let mut scalars = Vec::with_capacity(D1);
 
     for i in 0..D1 {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        info.push(start as u32);
+        scalars.push((start as i32).elem());
     }
 
-    let info_handle = output.client.create(bytemuck::cast_slice(&info));
+    let kernel = SliceEagerKernel::new(D1);
 
-    let kernel = StaticKernel::<
-        KernelSettings<IndexRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(
-        output.shape.num_elements(),
-        WORKGROUP_DEFAULT,
-    ));
-
-    tensor.client.execute(
-        Box::new(kernel),
-        &[&tensor.handle, &output.handle, &info_handle],
+    execute_dynamic::<R, SliceEagerKernel<R, E>, IntType<R>>(
+        &[EagerHandle::new(
+            &tensor.handle,
+            &tensor.strides,
+            &tensor.shape.dims,
+        )],
+        &[EagerHandle::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )],
+        Some(&scalars),
+        kernel,
+        WorkgroupLaunch::Output { pos: 0 },
+        tensor.client,
     );
 
     output
 }
 
-pub(crate) fn slice_assign<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
-    tensor: JitTensor<R, E, D1>,
-    indices: [Range<usize>; D2],
-    value: JitTensor<R, E, D1>,
-) -> JitTensor<R, E, D1> {
-    let tensor = match tensor.can_mut() {
-        true => tensor,
-        false => tensor.copy(),
-    };
-    let num_elems = tensor.shape.num_elements();
-    let mut info = build_info(&[&tensor, &value]);
-
-    for i in 0..D1 {
-        let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        info.push(start as u32);
-    }
-
-    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = StaticKernel::<
-        KernelSettings<IndexAssignInplaceRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-
-    tensor.client.execute(
-        Box::new(kernel),
-        &[&tensor.handle, &value.handle, &info_handle],
-    );
-
-    tensor
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend, TestRuntime};
+    use crate::tests::{ReferenceBackend, TestBackend};
     use burn_tensor::{Distribution, Tensor};
 
     #[test]
@@ -105,31 +172,6 @@ mod tests {
 
         let actual = slice(tensor.into_primitive(), indices.clone());
         let expected = tensor_ref.slice(indices);
-
-        expected.into_data().assert_approx_eq(
-            &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
-            3,
-        );
-    }
-
-    #[test]
-    fn slice_assign_should_work_with_multiple_workgroups() {
-        let tensor =
-            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
-        let value =
-            Tensor::<TestBackend, 2>::random([2, 211], Distribution::Default, &Default::default());
-        let indices = [3..5, 45..256];
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let value_ref =
-            Tensor::<ReferenceBackend, 2>::from_data(value.to_data(), &Default::default());
-
-        let actual = slice_assign::<TestRuntime, _, 2, 2>(
-            tensor.into_primitive(),
-            indices.clone(),
-            value.into_primitive(),
-        );
-        let expected = tensor_ref.slice_assign(indices, value_ref);
 
         expected.into_data().assert_approx_eq(
             &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),

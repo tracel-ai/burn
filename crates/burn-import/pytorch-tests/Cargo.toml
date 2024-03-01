@@ -10,7 +10,6 @@ burn-ndarray = { path = "../../burn-ndarray" }
 serde = { workspace = true }
 float-cmp = { workspace = true }
 burn-import = { path = "../", features = ["pytorch"] }
-cfg-if = "1.0.0"
 
 
 [build-dependencies]
