@@ -249,6 +249,7 @@ impl CompilationSettings {
     }
 }
 
+#[allow(dead_code)]
 fn is_contiguous(strides: &[usize]) -> bool {
     let mut current = 0;
 
@@ -271,6 +272,7 @@ pub enum InputInfo {
 
 impl InputInfo {
     /// The item type of the input.
+    #[allow(dead_code)]
     pub fn item(&self) -> Item {
         match self {
             InputInfo::Array {
@@ -284,6 +286,7 @@ impl InputInfo {
 
 impl OutputInfo {
     /// The item type of the input.
+    #[allow(dead_code)]
     pub fn item(&self) -> Item {
         match self {
             OutputInfo::ArrayWrite { item, local: _ } => *item,
@@ -314,6 +317,7 @@ pub enum OutputInfo {
 }
 
 impl OutputInfo {
+    #[allow(dead_code)]
     pub fn elem_size<R: Runtime>(&self) -> usize {
         let elem = match self {
             OutputInfo::ArrayWrite { item, local: _ } => bool_elem(item.elem()),
