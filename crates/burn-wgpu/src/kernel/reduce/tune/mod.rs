@@ -1,5 +1,5 @@
-mod key;
 mod base;
+mod key;
 
-pub use key::*;
 pub(crate) use base::*;
+pub use key::*;
