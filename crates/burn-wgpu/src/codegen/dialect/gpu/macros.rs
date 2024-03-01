@@ -145,6 +145,18 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = max(lhs, rhs)
+    ($scope:expr, $out:ident = max($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Max(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = min(lhs, rhs)
+    ($scope:expr, $out:ident = min($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Min(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
     // out = lhs[rhs]
     ($scope:expr, $out:ident = $lhs:ident[$rhs:expr]) => {
         gpu!($scope, $out = index($lhs, $rhs))

@@ -8,6 +8,16 @@ pub enum Instruction {
     DeclareVariable {
         var: Variable,
     },
+    Max {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Min {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -182,6 +192,12 @@ impl Display for Instruction {
             }
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
+            }
+            Instruction::Min { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = min({lhs}, {rhs});\n"))
+            }
+            Instruction::Max { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = max({lhs}, {rhs});\n"))
             }
             Instruction::And { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} && {rhs};\n"))

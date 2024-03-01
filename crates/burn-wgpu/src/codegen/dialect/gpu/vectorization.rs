@@ -33,6 +33,8 @@ impl Operation {
 impl Operator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
+            Operator::Max(op) => Operator::Max(op.vectorize(vectorization)),
+            Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
             Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
             Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),

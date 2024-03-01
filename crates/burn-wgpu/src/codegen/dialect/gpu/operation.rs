@@ -50,6 +50,8 @@ pub enum Operator {
     And(BinaryOperator),
     Or(BinaryOperator),
     Not(UnaryOperator),
+    Max(BinaryOperator),
+    Min(BinaryOperator),
 }
 
 /// All metadata that can be access in a shader.

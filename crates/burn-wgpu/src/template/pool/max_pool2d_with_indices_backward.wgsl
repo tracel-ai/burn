@@ -73,18 +73,36 @@ fn main(
     let index_current = ih * input_stride_2 + iw * input_stride_3;
     var grad_acc = 0.0;
 
+    var index: u32;
+    var index_0: u32;
+    var index_1: u32;
+    var index_2: u32;
+    var index_3: u32;
+    var index_max: u32;
+
     // We iterate over each potentially resulting overlapping filters and check
     // if their max index is the current one.
     for (var oh = oh_start; oh <= oh_end; oh++) {
         for (var ow = ow_start; ow <= ow_end; ow++) {
-            let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
-            let index_max = u32(indices[index]);
+            index_0 = b * grad_stride_0;
+            index_1 = c * grad_stride_1;
+            index_2 = oh * grad_stride_2;
+            index_3 = ow * grad_stride_3;
+
+            index = index_0;
+            index += index_1;
+            index += index_2;
+            index += index_3;
+
+
+            index_max = u32(indices[index]);
 
             if index_max == index_current {
                 grad_acc += grad[index];
             }
+            output[id] = f32(id);
         }
     }
 
-    output[id] = grad_acc;
+//    output[id] = f32(grad_stride_3);
 }
