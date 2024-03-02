@@ -218,6 +218,24 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_equal<const D: usize>(lhs: BoolTensor<B, D>, rhs: BoolTensor<B, D>)
         -> BoolTensor<B, D>;
 
+    /// Element-wise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the comparison.
+    fn bool_not_equal<const D: usize>(
+        lhs: BoolTensor<B, D>,
+        rhs: BoolTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::bool_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Inverses boolean values.
     ///
     /// # Arguments

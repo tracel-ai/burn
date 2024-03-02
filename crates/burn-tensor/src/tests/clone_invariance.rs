@@ -293,6 +293,10 @@ mod tests {
             ops_float: |tensor: TestTensor<2>| tensor.equal_elem(0.5)
         );
         clone_invariance_test!(
+            unary: NotEqualElem,
+            ops_float: |tensor: TestTensor<2>| tensor.not_equal_elem(0.5)
+        );
+        clone_invariance_test!(
             unary: GreaterElem,
             ops_float: |tensor: TestTensor<2>| tensor.greater_elem(0.5)
         );
@@ -573,6 +577,10 @@ mod tests {
             ops_int: |tensor: TestTensorInt<2>| tensor.equal_elem(25)
         );
         clone_invariance_test!(
+            unary: NotEqualElem,
+            ops_int: |tensor: TestTensorInt<2>| tensor.not_equal_elem(25)
+        );
+        clone_invariance_test!(
             unary: GreaterElem,
             ops_int: |tensor: TestTensorInt<2>| tensor.greater_elem(25)
         );
@@ -677,6 +685,10 @@ mod tests {
         clone_invariance_test!(
             binary: Equal,
             ops_int: |lhs: TestTensorInt<2>, rhs: TestTensorInt<2>| lhs.equal(rhs)
+        );
+        clone_invariance_test!(
+            binary: NotEqual,
+            ops_int: |lhs: TestTensorInt<2>, rhs: TestTensorInt<2>| lhs.not_equal(rhs)
         );
         clone_invariance_test!(
             binary: Greater,
