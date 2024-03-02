@@ -207,6 +207,7 @@ dependencies = [
  "rand",
  "ratatui",
  "reqwest",
+ "rstest",
  "serde_json",
  "serial_test",
  "strum",
