@@ -1,6 +1,7 @@
 use crate::{kernel, JitBackend, Runtime};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    ConvOptions, ConvTransposeOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+    ModuleOps,
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
@@ -99,5 +100,13 @@ impl<R: Runtime> ModuleOps<Self> for JitBackend<R> {
         grad: FloatTensor<Self, 4>,
     ) -> FloatTensor<Self, 4> {
         kernel::pool::adaptive_avg_pool2d_backward(x, grad)
+    }
+
+    fn interpolate(
+        x: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        kernel::interpolate::interpolate(x, output_size, options)
     }
 }

@@ -31,6 +31,9 @@ macro_rules! testgen_all {
         burn_tensor::testgen_module_avg_pool2d!();
         burn_tensor::testgen_module_adaptive_avg_pool1d!();
         burn_tensor::testgen_module_adaptive_avg_pool2d!();
+        burn_tensor::testgen_module_nearest_interpolate!();
+        burn_tensor::testgen_module_bilinear_interpolate!();
+        burn_tensor::testgen_module_bicubic_interpolate!();
 
         // test ops
         burn_tensor::testgen_add!();
