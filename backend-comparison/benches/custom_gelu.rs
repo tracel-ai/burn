@@ -114,7 +114,7 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device) {
+fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
 
@@ -145,6 +145,8 @@ fn bench<B: Backend>(device: &B::Device) {
                 run_benchmark(custom_erf_gelu),
             ],
             device,
+            url,
+            token,
         )
         .unwrap();
     };
