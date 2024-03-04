@@ -9,7 +9,7 @@ pub fn sum<R: Runtime, E: JitElement, const D: usize>(
 ) -> JitTensor<R, E, 1> {
     let shape = Shape::new([input.shape.num_elements()]);
     let input: JitTensor<R, E, 1> = JitTensor::new(input.client, input.device, shape, input.handle);
-    sum_dim(input, 0)
+    sum_dim(input, 0, Default::default())
 }
 
 #[cfg(test)]

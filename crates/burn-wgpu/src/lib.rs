@@ -84,8 +84,13 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G,
 #[macro_export]
 macro_rules! testgen_all {
     () => {
-        burn_wgpu::testgen_jit!();
-        burn_wgpu::testgen_jit_fusion!();
+        mod jit {
+            burn_wgpu::testgen_jit!();
+            burn_wgpu::testgen_reduction!();
+        }
+        mod jit_fusion {
+            burn_wgpu::testgen_jit_fusion!();
+        }
     };
 }
 

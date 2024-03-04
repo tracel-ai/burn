@@ -14,6 +14,7 @@ pub use operation::*;
 pub use procedure::*;
 pub use scope::*;
 pub use shader::*;
+pub use synchronization::*;
 pub use variable::*;
 pub use vectorization::*;
 

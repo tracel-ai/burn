@@ -314,14 +314,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        reduce::sum_dim(tensor, dim)
+        reduce::sum_dim(tensor, dim, Default::default())
     }
 
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        reduce::mean_dim(tensor, dim)
+        reduce::mean_dim(tensor, dim, Default::default())
     }
 
     fn float_to_full_precision<const D: usize>(
@@ -475,14 +475,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        reduce::argmax(tensor, dim)
+        reduce::argmax(tensor, dim, Default::default())
     }
 
     fn float_argmin<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> IntTensor<Self, D> {
-        reduce::argmin(tensor, dim)
+        reduce::argmin(tensor, dim, Default::default())
     }
 
     fn float_into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {

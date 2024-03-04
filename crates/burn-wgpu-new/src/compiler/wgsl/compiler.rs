@@ -1,6 +1,7 @@
-use super::{shader::WgslComputeShader, Item};
-use crate::{compiler::wgsl, FloatElement, IntElement};
-use burn_wgpu::{gpu, Compiler};
+use super::{shader::ComputeShader, Item, SharedMemory};
+use crate::compiler::wgsl;
+use crate::{FloatElement, IntElement};
+use burn_wgpu::gpu;
 use std::marker::PhantomData;
 
 /// Wgsl Compiler.
@@ -8,13 +9,16 @@ use std::marker::PhantomData;
 pub struct WgslCompiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
-    invocation_index: bool,
+    local_invocation_index: bool,
+    local_invocation_id: bool,
     global_invocation_id: bool,
     workgroup_id: bool,
     rank: bool,
     id: bool,
     stride: bool,
     shape: bool,
+    num_workgroups: bool,
+    shared_memories: Vec<SharedMemory>,
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
@@ -30,21 +34,24 @@ impl<F: FloatElement, I: IntElement> Default for WgslCompiler<F, I> {
         Self {
             num_inputs: 0,
             num_outputs: 0,
-            invocation_index: false,
+            local_invocation_index: false,
+            local_invocation_id: false,
             global_invocation_id: false,
             workgroup_id: false,
             rank: false,
             id: false,
             stride: false,
             shape: false,
+            num_workgroups: false,
+            shared_memories: Vec::default(),
             _float: PhantomData,
             _int: PhantomData,
         }
     }
 }
 
-impl<F: FloatElement, I: IntElement> Compiler for WgslCompiler<F, I> {
-    type Representation = WgslComputeShader;
+impl<F: FloatElement, I: IntElement> burn_wgpu::Compiler for WgslCompiler<F, I> {
+    type Representation = ComputeShader;
     type Float = F;
     type Int = I;
     type FullPrecisionCompiler = WgslCompiler<f32, i32>;
@@ -60,7 +67,7 @@ impl<F: FloatElement, I: IntElement> Compiler for WgslCompiler<F, I> {
 }
 
 impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
-    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::WgslComputeShader {
+    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
@@ -74,7 +81,7 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             shape: self.shape,
         };
 
-        wgsl::WgslComputeShader {
+        wgsl::ComputeShader {
             inputs: value
                 .inputs
                 .into_iter()
@@ -90,10 +97,12 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 .into_iter()
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
+            shared_memories: self.shared_memories.clone(),
             workgroup_size: value.workgroup_size,
             global_invocation_id: self.global_invocation_id || self.id,
-            local_invocation_index: self.invocation_index,
-            num_workgroups: self.id,
+            local_invocation_index: self.local_invocation_index,
+            local_invocation_id: self.local_invocation_id,
+            num_workgroups: self.id || self.num_workgroups,
             workgroup_id: self.workgroup_id,
             body,
             extensions,
@@ -142,6 +151,14 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             gpu::Variable::ConstantScalar(index, elem) => {
                 wgsl::Variable::ConstantScalar(index, Self::compile_elem(elem))
             }
+            gpu::Variable::SharedMemory(index, item, size) => {
+                let item = Self::compile_item(item);
+                if !self.shared_memories.iter().any(|s| s.index == index) {
+                    self.shared_memories
+                        .push(SharedMemory::new(index, item, size));
+                }
+                wgsl::Variable::SharedMemory(index, item, size)
+            }
             gpu::Variable::Id => {
                 self.id = true;
                 wgsl::Variable::Id
@@ -150,9 +167,21 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 self.rank = true;
                 wgsl::Variable::Rank
             }
-            gpu::Variable::InvocationIndex => {
-                self.invocation_index = true;
+            gpu::Variable::LocalInvocationIndex => {
+                self.local_invocation_index = true;
                 wgsl::Variable::LocalInvocationIndex
+            }
+            gpu::Variable::LocalInvocationIdX => {
+                self.local_invocation_id = true;
+                wgsl::Variable::LocalInvocationIdX
+            }
+            gpu::Variable::LocalInvocationIdY => {
+                self.local_invocation_id = true;
+                wgsl::Variable::LocalInvocationIdY
+            }
+            gpu::Variable::LocalInvocationIdZ => {
+                self.local_invocation_id = true;
+                wgsl::Variable::LocalInvocationIdZ
             }
             gpu::Variable::WorkgroupIdX => {
                 self.workgroup_id = true;
@@ -177,6 +206,21 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             gpu::Variable::GlobalInvocationIdZ => {
                 self.global_invocation_id = true;
                 wgsl::Variable::GlobalInvocationIdZ
+            }
+            gpu::Variable::WorkgroupSizeX => wgsl::Variable::WorkgroupSizeX,
+            gpu::Variable::WorkgroupSizeY => wgsl::Variable::WorkgroupSizeY,
+            gpu::Variable::WorkgroupSizeZ => wgsl::Variable::WorkgroupSizeZ,
+            gpu::Variable::NumWorkgroupsX => {
+                self.num_workgroups = true;
+                wgsl::Variable::NumWorkgroupsX
+            }
+            gpu::Variable::NumWorkgroupsY => {
+                self.num_workgroups = true;
+                wgsl::Variable::NumWorkgroupsY
+            }
+            gpu::Variable::NumWorkgroupsZ => {
+                self.num_workgroups = true;
+                wgsl::Variable::NumWorkgroupsZ
             }
         }
     }
@@ -210,6 +254,7 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             gpu::Operation::Procedure(proc) => self.compile_procedure(instructions, proc, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
+            gpu::Operation::Synchronization(val) => self.compile_synchronization(instructions, val),
         }
     }
 
@@ -233,6 +278,21 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                     end: self.compile_variable(range_loop.end),
                     instructions: self.compile_scope(&mut range_loop.scope),
                 })
+            }
+            gpu::Branch::Loop(mut op) => instructions.push(wgsl::Instruction::Loop {
+                instructions: self.compile_scope(&mut op.scope),
+            }),
+        };
+    }
+
+    fn compile_synchronization(
+        &mut self,
+        instructions: &mut Vec<wgsl::Instruction>,
+        synchronization: gpu::Synchronization,
+    ) {
+        match synchronization {
+            gpu::Synchronization::WorkgroupBarrier => {
+                instructions.push(wgsl::Instruction::WorkgroupBarrier)
             }
         };
     }
@@ -308,6 +368,16 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
 
     fn compile_instruction(&mut self, value: gpu::Operator) -> wgsl::Instruction {
         match value {
+            gpu::Operator::Max(op) => wgsl::Instruction::Max {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Min(op) => wgsl::Instruction::Min {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Add(op) => wgsl::Instruction::Add {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
@@ -421,6 +491,20 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
             gpu::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::And(op) => wgsl::Instruction::And {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Or(op) => wgsl::Instruction::Or {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Not(op) => wgsl::Instruction::Not {
+                input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
         }

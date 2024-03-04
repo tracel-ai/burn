@@ -210,7 +210,7 @@ macro_rules! testgen_jit_fusion {
     () => {
         use super::*;
 
-        pub type TestBackend = Fusion<JitBackend<TestRuntime>>;
+        pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime>>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
@@ -225,5 +225,3 @@ macro_rules! testgen_jit_fusion {
         burn_autodiff::testgen_all!();
     };
 }
-
-

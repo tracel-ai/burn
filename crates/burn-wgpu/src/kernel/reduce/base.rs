@@ -99,22 +99,48 @@ pub fn init_reduce_output<R: Runtime, EI: JitElement, EO: JitElement, const D: u
     )
 }
 
+/// This is some anazing doc.
+#[derive(Copy, Clone, Debug)]
+pub enum ReduceStrategy {
+    Naive,
+    SharedMemory,
+    #[cfg(feature = "autotune")]
+    Autotune,
+}
+
+#[cfg(feature = "autotune")]
+impl Default for ReduceStrategy {
+    fn default() -> Self {
+        ReduceStrategy::Autotune
+    }
+}
+
+#[cfg(not(feature = "autotune"))]
+impl Default for ReduceStrategy {
+    fn default() -> Self {
+        ReduceStrategy::Naive
+    }
+}
+
 macro_rules! reduce_operation {
     ($name:ident, $ops:ty) => {
-        /// Executes $name operation, autotunable
+        /// Executes the reduce operation with the given strategy.
         pub fn $name<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
             tensor: JitTensor<R, EI, D>,
             dim: usize,
+            strategy: ReduceStrategy,
         ) -> JitTensor<R, EO, D> {
-            #[cfg(feature = "autotune")]
-            {
-                reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim)
-            }
-
-            #[cfg(not(feature = "autotune"))]
-            {
-                let output = init_reduce_output(&tensor, dim);
-                reduce_dim_naive::<$ops, R, ER, EO, D>(tensor, output, dim)
+            match strategy {
+                ReduceStrategy::Naive => {
+                    let output = init_reduce_output(&tensor, dim);
+                    reduce_dim_naive::<$ops, R, EI, EO, D>(tensor, output, dim)
+                }
+                ReduceStrategy::SharedMemory => {
+                    let output = init_reduce_output(&tensor, dim);
+                    reduce_dim_shared::<$ops, R, EI, EO, D>(tensor, output, dim)
+                }
+                #[cfg(feature = "autotune")]
+                ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim),
             }
         }
     };

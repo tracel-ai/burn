@@ -23,21 +23,42 @@ pub struct Binding {
     pub size: Option<usize>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct SharedMemory {
+    location: Location,
+    pub index: u16,
+    item: Item,
+    size: u32,
+}
+
+impl SharedMemory {
+    pub fn new(index: u16, item: Item, size: u32) -> Self {
+        Self {
+            location: Location::Workgroup,
+            index,
+            item,
+            size,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct WgslComputeShader {
+pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
+    pub shared_memories: Vec<SharedMemory>,
     pub workgroup_size: WorkgroupSize,
     pub global_invocation_id: bool,
     pub local_invocation_index: bool,
+    pub local_invocation_id: bool,
     pub num_workgroups: bool,
     pub workgroup_id: bool,
     pub body: Body,
     pub extensions: Vec<Extension>,
 }
 
-impl Display for WgslComputeShader {
+impl Display for ComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
@@ -49,6 +70,13 @@ impl Display for WgslComputeShader {
                 binding,
                 self.inputs.len() + self.outputs.len() + i,
             )?;
+        }
+
+        for shared_memory in self.shared_memories.iter() {
+            f.write_fmt(format_args!(
+                "var<{}> shared_memory_{}: array<{}, {}>;\n\n",
+                shared_memory.location, shared_memory.index, shared_memory.item, shared_memory.size
+            ))?;
         }
 
         f.write_fmt(format_args!(
@@ -75,6 +103,10 @@ fn main(
             f.write_str("    @builtin(local_invocation_index) local_idx: u32,\n")?;
         }
 
+        if self.local_invocation_id {
+            f.write_str("    @builtin(local_invocation_id) local_invocation_id: vec3<u32>,\n")?;
+        }
+
         if self.num_workgroups {
             f.write_str("    @builtin(num_workgroups) num_workgroups: vec3<u32>,\n")?;
         }
@@ -98,7 +130,7 @@ fn main(
     }
 }
 
-impl WgslComputeShader {
+impl ComputeShader {
     fn format_bindings(
         f: &mut core::fmt::Formatter<'_>,
         prefix: &str,

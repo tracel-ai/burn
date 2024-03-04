@@ -252,19 +252,19 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::sum_dim(tensor, dim)
+        kernel::reduce::sum_dim(tensor, dim, Default::default())
     }
 
     fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::mean_dim(tensor, dim)
+        kernel::reduce::mean_dim(tensor, dim, Default::default())
     }
 
     fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmax(tensor, dim)
+        kernel::reduce::argmax(tensor, dim, Default::default())
     }
 
     fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
-        kernel::reduce::argmin(tensor, dim)
+        kernel::reduce::argmin(tensor, dim, Default::default())
     }
 
     fn int_clamp<const D: usize>(

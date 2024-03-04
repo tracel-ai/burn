@@ -8,6 +8,16 @@ pub enum Instruction {
     DeclareVariable {
         var: Variable,
     },
+    Max {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Min {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -24,6 +34,7 @@ pub enum Instruction {
     },
     Return,
     Break,
+    WorkgroupBarrier,
     // Index handles casting to correct local variable.
     Index {
         lhs: Variable,
@@ -157,6 +168,23 @@ pub enum Instruction {
         end: Variable,
         instructions: Vec<Instruction>,
     },
+    And {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Or {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Not {
+        input: Variable,
+        out: Variable,
+    },
+    Loop {
+        instructions: Vec<Instruction>,
+    },
 }
 
 impl Display for Instruction {
@@ -169,6 +197,19 @@ impl Display for Instruction {
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
+            Instruction::Min { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = min({lhs}, {rhs});\n"))
+            }
+            Instruction::Max { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = max({lhs}, {rhs});\n"))
+            }
+            Instruction::And { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} && {rhs};\n"))
+            }
+            Instruction::Or { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} || {rhs};\n"))
+            }
+            Instruction::Not { input, out } => f.write_fmt(format_args!("{out} = !{input};\n")),
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
@@ -371,8 +412,16 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::Return => f.write_str("return;\n"),
             Instruction::Break => f.write_str("break;\n"),
+            Instruction::WorkgroupBarrier => f.write_str("workgroupBarrier();\n"),
             Instruction::ArrayLength { var, out } => {
                 f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
+            }
+            Instruction::Loop { instructions } => {
+                f.write_fmt(format_args!("loop {{\n"))?;
+                for i in instructions {
+                    f.write_fmt(format_args!("{i}"))?;
+                }
+                f.write_str("}\n")
             }
         }
     }
