@@ -1,0 +1,32 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "WGPU backend for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "gpu", "wgpu", "webgpu"]
+license.workspace = true
+name = "burn-wgpu-new"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu-new"
+version.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+burn-wgpu = { path = "../burn-wgpu", version = "0.13.0" }
+burn-compute = { path = "../burn-compute", version = "0.13.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.13.0" }
+burn-common = { path = "../burn-common", version = "0.13.0" }
+burn-fusion = { path = "../burn-fusion", version = "0.13.0" }
+
+bytemuck = { workspace = true }
+wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
+pollster = { workspace = true }
+
+log = { workspace = true }
+futures-intrusive = { workspace = true }
+derive-new = { workspace = true }
+hashbrown = { workspace = true }
+
+[dev-dependencies]

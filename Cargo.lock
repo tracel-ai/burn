@@ -631,6 +631,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-wgpu-new"
+version = "0.13.0"
+dependencies = [
+ "burn-common",
+ "burn-compute",
+ "burn-fusion",
+ "burn-tensor",
+ "burn-wgpu",
+ "bytemuck",
+ "derive-new",
+ "futures-intrusive",
+ "hashbrown 0.14.3",
+ "log",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

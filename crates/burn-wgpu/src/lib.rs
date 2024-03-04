@@ -19,9 +19,12 @@ pub(crate) mod codegen;
 pub(crate) mod tune;
 
 mod element;
+pub use codegen::compiler::Compiler;
+pub use codegen::dialect::gpu;
 pub use codegen::dialect::wgsl;
+
 use compute::WgpuRuntime;
-pub use element::{FloatElement, IntElement};
+pub use element::{FloatElement, IntElement, JitElement};
 
 mod device;
 pub use device::*;
