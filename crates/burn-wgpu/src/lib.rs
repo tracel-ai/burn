@@ -16,12 +16,12 @@ pub use element::*;
 pub use graphics::*;
 pub use runtime::*;
 
-pub use burn_jit::{JitBackend, tensor::JitTensor};
 pub use burn_jit::compute::{DynamicKernel, WorkGroup};
 pub use burn_jit::kernel::{
     build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
 };
 pub use burn_jit::kernel_wgsl;
+pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.

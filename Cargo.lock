@@ -536,17 +536,14 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "derive-new",
- "futures-intrusive",
  "hashbrown 0.14.3",
  "log",
  "num-traits",
- "pollster",
  "rand",
  "serde",
  "serial_test",
  "spin",
  "text_placeholder",
- "wgpu",
 ]
 
 [[package]]
