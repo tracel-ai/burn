@@ -4,27 +4,29 @@ use serde::{Deserialize, Serialize};
 /// All branching types.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Branch {
-    // An if statement.
+    /// An if statement.
     If(If),
-    // An if else statement.
+    /// An if else statement.
     IfElse(IfElse),
-    // A range loop.
+    /// A range loop.
     RangeLoop(RangeLoop),
-    // A loop.
+    /// A loop.
     Loop(Loop),
-    // A return statement.
+    /// A return statement.
     Return,
-    // A break statement.
+    /// A break statement.
     Break,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct If {
     pub cond: Variable,
     pub scope: Scope,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct IfElse {
     pub cond: Variable,
     pub scope_if: Scope,
@@ -32,6 +34,7 @@ pub struct IfElse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct RangeLoop {
     pub i: Variable,
     pub start: Variable,
@@ -40,6 +43,7 @@ pub struct RangeLoop {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct Loop {
     pub scope: Scope,
 }

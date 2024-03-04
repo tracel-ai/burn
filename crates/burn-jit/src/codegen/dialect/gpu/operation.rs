@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// [Procedure] expansions can safely use all operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[allow(dead_code)] // Some variants might not be used with different flags
+#[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Operation {
     Operator(Operator),
     Procedure(Procedure),
@@ -21,7 +21,7 @@ pub enum Operation {
 
 /// All operators that can be used in a GPU compute shader.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[allow(dead_code)] // Some variants might not be used with different flags
+#[allow(dead_code, missing_docs)] // Some variants might not be used with different flags
 pub enum Operator {
     Add(BinaryOperator),
     Sub(BinaryOperator),
@@ -57,6 +57,7 @@ pub enum Operator {
 
 /// All metadata that can be access in a shader.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub enum Metadata {
     /// The stride of an array at the given dimension.
     Stride {
@@ -77,6 +78,7 @@ pub enum Metadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct BinaryOperator {
     pub lhs: Variable,
     pub rhs: Variable,
@@ -84,12 +86,14 @@ pub struct BinaryOperator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct UnaryOperator {
     pub input: Variable,
     pub out: Variable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct ClampOperator {
     pub input: Variable,
     pub min_value: Variable,
@@ -98,11 +102,13 @@ pub struct ClampOperator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct ReadGlobalOperator {
     pub variable: Variable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct ReadGlobalWithLayoutOperator {
     pub variable: Variable,
     pub tensor_read_pos: usize,

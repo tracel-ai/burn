@@ -7,9 +7,13 @@ pub trait JitElement:
 where
     Self: Sized,
 {
+    /// TODO: Remove when all wgsl static kernels are migrated.
     fn type_name() -> &'static str;
+    /// Convert a slice of elements to a slice of bytes.
     fn as_bytes(slice: &[Self]) -> &[u8];
+    /// Convert a slice of bytes to a slice of elements.
     fn from_bytes(bytes: &[u8]) -> &[Self];
+    /// Element representation for `gpu`.
     fn gpu_elem() -> gpu::Elem;
 }
 

@@ -23,6 +23,7 @@ pub struct ReadGlobalWithLayout {
 }
 
 impl ReadGlobal {
+    #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         scope.register(Operator::Index(BinaryOperator {
             lhs: self.global,
@@ -61,6 +62,7 @@ impl ReadGlobalWithLayout {
         })
     }
 
+    #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         let outputs = self.outs;
         let tensors = self.globals;
@@ -107,6 +109,7 @@ impl ReadGlobalWithLayout {
 
 /// Calculate the index offset for all tensor variables provided compatible with the given layout.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct IndexOffsetGlobalWithLayout {
     /// Tensor [variables](Variable), same length as [indexes](Self::indexes).
     pub tensors: Vec<Variable>,
@@ -123,6 +126,7 @@ pub struct IndexOffsetGlobalWithLayout {
 }
 
 impl IndexOffsetGlobalWithLayout {
+    #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         let layout = self.layout;
         let index_item_ty = Item::Scalar(Elem::UInt);
