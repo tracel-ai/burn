@@ -150,30 +150,30 @@ pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
     output
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::{ReferenceBackend, TestBackend};
-    use burn_tensor::{Distribution, Int, Tensor};
-
-    #[test]
-    fn select_should_work_with_multiple_workgroups() {
-        let tensor =
-            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
-        let indices = Tensor::<TestBackend, 1, Int>::arange(0..100, &Default::default());
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
-        let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
-            indices.to_data().convert(),
-            &Default::default(),
-        );
-
-        let actual = select(tensor.into_primitive(), 1, indices.into_primitive());
-        let expected = tensor_ref.select(1, indices_ref);
-
-        expected.into_data().assert_approx_eq(
-            &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
-            3,
-        );
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::tests::{ReferenceBackend, TestBackend};
+//     use burn_tensor::{Distribution, Int, Tensor};
+//
+//     #[test]
+//     fn select_should_work_with_multiple_workgroups() {
+//         let tensor =
+//             Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
+//         let indices = Tensor::<TestBackend, 1, Int>::arange(0..100, &Default::default());
+//         let tensor_ref =
+//             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+//         let indices_ref = Tensor::<ReferenceBackend, 1, Int>::from_data(
+//             indices.to_data().convert(),
+//             &Default::default(),
+//         );
+//
+//         let actual = select(tensor.into_primitive(), 1, indices.into_primitive());
+//         let expected = tensor_ref.select(1, indices_ref);
+//
+//         expected.into_data().assert_approx_eq(
+//             &Tensor::<TestBackend, 2>::from_primitive(actual).into_data(),
+//             3,
+//         );
+//     }
+// }

@@ -5,6 +5,3 @@
 /// [Compilers](crate::codegen::Compiler) can be used to transform that representation into a lower
 /// level one, such as [wgsl](crate::codegen::dialect::wgsl).
 pub mod gpu;
-/// WGSL dialect module that contains a representation that can be compiled to WebGPU shading
-/// language (wgsl).
-pub mod wgsl;

@@ -4,7 +4,7 @@ use crate::{
         BinaryOperator, ConditionalAssign, Elem, Operator, Procedure, UnaryOperator, Variable,
     },
     element::JitElement,
-    fusion::{tracing::TraceBuilder, WgpuOptimization},
+    fusion::{tracing::TraceBuilder, JitOptimization},
     JitBackend, Runtime,
 };
 use burn_fusion::{
@@ -29,7 +29,7 @@ pub(crate) struct ElementWiseBuilder<R: Runtime> {
     device: R::Device,
 }
 
-impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder<R> {
+impl<R: Runtime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -76,7 +76,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
         self.num_added += 1;
     }
 
-    fn build(&self) -> WgpuOptimization<R> {
+    fn build(&self) -> JitOptimization<R> {
         let op = ElementWise::new(
             self.builder.clone().build(),
             self.num_added,
@@ -84,7 +84,7 @@ impl<R: Runtime> OptimizationBuilder<WgpuOptimization<R>> for ElementWiseBuilder
             CompilationPhase,
         );
 
-        WgpuOptimization::ElementWise(op.compile())
+        JitOptimization::ElementWise(op.compile())
     }
 
     fn len(&self) -> usize {
