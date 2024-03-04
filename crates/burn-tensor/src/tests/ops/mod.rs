@@ -6,6 +6,7 @@ mod any;
 mod arange;
 mod arange_step;
 mod arg;
+mod bool;
 mod cast;
 mod cat;
 mod chunk;

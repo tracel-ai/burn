@@ -2,6 +2,7 @@ use crate::{
     backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
     Int, Shape, Tensor, TensorKind,
 };
+use num_traits::Zero;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -639,6 +640,15 @@ where
     #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol).all().into_scalar()
+    }
+
+    /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor.
+    pub fn bool(self) -> Tensor<B, D, Bool> {
+        K::not_equal_elem::<D>(self.primitive, K::Elem::zero())
     }
 }
 
