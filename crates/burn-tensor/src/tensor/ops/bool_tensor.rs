@@ -389,7 +389,6 @@ pub trait BoolTensorOps<B: Backend> {
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero, grouped by element.
     ///
     /// # Arguments
@@ -400,11 +399,11 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
         argwhere::<B, D>(tensor)
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero.
     ///
     /// # Arguments
@@ -415,6 +414,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
         let indices = B::bool_argwhere(tensor);
         let dims = B::int_shape(&indices).dims;

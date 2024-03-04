@@ -28,13 +28,13 @@ where
         Tensor::new(B::bool_not(self.primitive))
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero.
     ///
     /// # Returns
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
         B::bool_nonzero(self.primitive)
             .into_iter()
@@ -42,13 +42,13 @@ where
             .collect()
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Compute the indices of the elements that are non-zero.
     ///
     /// # Returns
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     pub async fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
         let indices = self.argwhere().await.primitive;
         let dims = B::int_shape(&indices).dims;
@@ -59,24 +59,24 @@ where
             .collect()
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     /// Compute the indices of the elements that are non-zero, grouped by element.
     ///
     /// # Returns
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn argwhere(self) -> Tensor<B, 2, Int> {
         Tensor::new(B::bool_argwhere(self.primitive))
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     /// Compute the indices of the elements that are non-zero, grouped by element.
     ///
     /// # Returns
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
     pub async fn argwhere(self) -> Tensor<B, 2, Int> {
         Tensor::new(argwhere::<B, D>(self.primitive).await)
     }

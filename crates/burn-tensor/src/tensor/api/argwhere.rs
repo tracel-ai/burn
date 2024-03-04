@@ -5,7 +5,6 @@ use crate::{
 };
 use alloc::vec::Vec;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 /// Compute the indices of the elements that are non-zero, grouped by element.
 ///
 /// # Arguments
@@ -23,6 +22,7 @@ use alloc::vec::Vec;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 pub fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
     // Size of each output tensor is variable (= number of nonzero elements in the tensor).
     // Reading the data to count the number of truth values might cause sync but is required.
@@ -33,7 +33,6 @@ pub fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTens
     argwhere_data::<B, D>(data, &device)
 }
 
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
 /// Compute the indices of the elements that are non-zero, grouped by element.
 ///
 /// # Arguments
@@ -51,6 +50,7 @@ pub fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTens
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
+#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
 pub async fn argwhere<B: Backend, const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
     // Size of each output tensor is variable (= number of nonzero elements in the tensor).
     // Reading the data to count the number of truth values might cause sync but is required.
