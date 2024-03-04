@@ -1,5 +1,3 @@
-use burn_fusion::{DeviceId, FusionDevice};
-
 /// The device struct when using the `wgpu` backend.
 ///
 /// Note that you need to provide the device index when using a GPU backend.
@@ -48,18 +46,5 @@ pub enum WgpuDevice {
 impl Default for WgpuDevice {
     fn default() -> Self {
         Self::BestAvailable
-    }
-}
-
-
-impl FusionDevice for WgpuDevice {
-    fn id(&self) -> DeviceId {
-        match self {
-            WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
-            WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
-            WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
-            WgpuDevice::Cpu => DeviceId::new(3, 0),
-            WgpuDevice::BestAvailable => DeviceId::new(4, 0),
-        }
     }
 }

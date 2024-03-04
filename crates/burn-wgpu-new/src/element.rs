@@ -21,7 +21,7 @@ impl WgpuElement for u32 {
 
 impl WgpuElement for i32 {
     fn c_elem() -> wgsl::Elem {
-        wgsl::Elem::U32
+        wgsl::Elem::I32
     }
 }
 

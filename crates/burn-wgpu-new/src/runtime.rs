@@ -194,9 +194,9 @@ fn select_adapter<G: GraphicsApi>(device: &WgpuDevice) -> wgpu::Adapter {
                         .map(|adapter| adapter.get_info())
                         .collect::<Vec<_>>(),
                 );
-            } else {
-                return adapters_other.remove(num);
             }
+
+            return adapters_other.remove(num);
         }
 
         adapters.remove(num)

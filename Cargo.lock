@@ -634,6 +634,7 @@ dependencies = [
 name = "burn-wgpu-new"
 version = "0.13.0"
 dependencies = [
+ "burn-autodiff",
  "burn-common",
  "burn-compute",
  "burn-fusion",
