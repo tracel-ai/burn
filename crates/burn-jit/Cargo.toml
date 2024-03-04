@@ -3,11 +3,11 @@ authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "WGPU backend for the Burn framework"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "gpu", "wgpu", "webgpu"]
+keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
 name = "burn-jit"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu"
+repository = "https://github.com/tracel-ai/burn/tree/main/burn-jit"
 version.workspace = true
 
 [features]
@@ -29,11 +29,6 @@ log = { workspace = true }
 num-traits = { workspace = true }
 rand = { workspace = true }
 spin = { workspace = true }
-
-# WGPU stuff
-futures-intrusive = { workspace = true }
-pollster = { workspace = true }
-wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
 
 # Template
 serde = { workspace = true }

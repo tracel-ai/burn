@@ -177,8 +177,8 @@ mod tests {
     #[burn_tensor_testgen::testgen(reduction)]
     mod reduction {
         use super::*;
-        use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
         use burn_jit::kernel::reduce::{sum_dim, ReduceStrategy};
+        use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
 
         #[test]
         fn reduction_sum_dim_should_work_with_multiple_invocations() {

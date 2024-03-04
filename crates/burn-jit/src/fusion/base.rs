@@ -1,10 +1,9 @@
 use super::{ElementWise, ElementWiseState};
 use crate::{
     element::JitElement, fusion::ElementWiseBuilder, tensor::JitTensor, JitBackend, Runtime,
-    WgpuDevice,
 };
 use burn_compute::client::ComputeClient;
-use burn_fusion::{client::MutexFusionClient, DeviceId, FusionBackend, FusionDevice};
+use burn_fusion::{client::MutexFusionClient, FusionBackend};
 use burn_tensor::Shape;
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
@@ -12,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for WGPU.
 ///
 /// More optimization variants should be added here.
-pub enum WgpuOptimization<R: Runtime> {
+pub enum JitOptimization<R: Runtime> {
     /// Element wise optimization.
     ElementWise(ElementWise<R>),
 }
@@ -21,12 +20,12 @@ pub enum WgpuOptimization<R: Runtime> {
 ///
 /// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
-pub enum WgpuOptimizationState {
+pub enum JitOptimizationState {
     /// Element wise state.
     ElementWise(ElementWiseState),
 }
 
-impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for WgpuOptimization<R> {
+impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for JitOptimization<R> {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitBackend<R>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
@@ -39,36 +38,24 @@ impl<R: Runtime> burn_fusion::Optimization<JitBackend<R>> for WgpuOptimization<R
         }
     }
 
-    fn to_state(&self) -> WgpuOptimizationState {
+    fn to_state(&self) -> JitOptimizationState {
         match self {
-            Self::ElementWise(value) => WgpuOptimizationState::ElementWise(value.to_state()),
+            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
         }
     }
 
-    fn from_state(device: &R::Device, state: WgpuOptimizationState) -> Self {
+    fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
         match state {
-            WgpuOptimizationState::ElementWise(state) => {
+            JitOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElementWise::from_state(device, state))
             }
         }
     }
 }
 
-impl FusionDevice for WgpuDevice {
-    fn id(&self) -> DeviceId {
-        match self {
-            WgpuDevice::DiscreteGpu(index) => DeviceId::new(0, *index as u32),
-            WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
-            WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
-            WgpuDevice::Cpu => DeviceId::new(3, 0),
-            WgpuDevice::BestAvailable => DeviceId::new(4, 0),
-        }
-    }
-}
-
 impl<R: Runtime> FusionBackend for JitBackend<R> {
-    type OptimizationState = WgpuOptimizationState;
-    type Optimization = WgpuOptimization<R>;
+    type OptimizationState = JitOptimizationState;
+    type Optimization = JitOptimization<R>;
     type FusionDevice = R::Device;
     type Handle = JitFusionHandle<R>;
     type FusionClient = MutexFusionClient<Self>;
@@ -185,22 +172,6 @@ impl<R: Runtime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for Jit
             strides: value.strides.into(),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::TestRuntime;
-    use burn_fusion::Fusion;
-
-    pub type TestBackend = Fusion<JitBackend<TestRuntime>>;
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
 }
 
 #[cfg(feature = "export_tests")]

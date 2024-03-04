@@ -1,4 +1,4 @@
-use crate::codegen::dialect::{gpu, wgsl};
+use crate::codegen::dialect::gpu;
 use burn_tensor::Element;
 
 /// The base element trait for the wgpu backend.
@@ -11,7 +11,6 @@ where
     fn as_bytes(slice: &[Self]) -> &[u8];
     fn from_bytes(bytes: &[u8]) -> &[Self];
     fn gpu_elem() -> gpu::Elem;
-    fn wgsl_elem() -> wgsl::Elem;
 }
 
 /// The float element type for the wgpu backend.
@@ -33,9 +32,6 @@ impl JitElement for u32 {
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::UInt
     }
-    fn wgsl_elem() -> wgsl::Elem {
-        wgsl::Elem::U32
-    }
 }
 
 impl JitElement for i32 {
@@ -50,9 +46,6 @@ impl JitElement for i32 {
     }
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Int
-    }
-    fn wgsl_elem() -> wgsl::Elem {
-        wgsl::Elem::I32
     }
 }
 
@@ -69,9 +62,6 @@ impl JitElement for f32 {
 
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Float
-    }
-    fn wgsl_elem() -> wgsl::Elem {
-        wgsl::Elem::F32
     }
 }
 
