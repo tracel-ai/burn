@@ -138,4 +138,21 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
         TchOps::permute(tensor, axes)
     }
+
+    fn bool_argwhere<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> TchTensor<i64, 2> {
+        TchTensor::new(tensor.tensor.argwhere())
+    }
+
+    fn bool_nonzero<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> Vec<TchTensor<i64, 1>> {
+        tensor
+            .tensor
+            .nonzero_numpy()
+            .into_iter()
+            .map(TchTensor::new)
+            .collect()
+    }
 }

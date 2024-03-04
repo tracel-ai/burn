@@ -65,6 +65,36 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
+    // out = lhs && rhs
+    ($scope:expr, $out:ident = $lhs:ident && $rhs:expr) => {
+        gpu!($scope, $out = and($lhs, $rhs))
+    };
+    // out = and(lhs, rhs)
+    ($scope:expr, $out:ident = and($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::And(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = lhs || rhs
+    ($scope:expr, $out:ident = $lhs:ident || $rhs:expr) => {
+        gpu!($scope, $out = or($lhs, $rhs))
+    };
+    // out = or(lhs, rhs)
+    ($scope:expr, $out:ident = or($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Or(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = !input
+    ($scope:expr, $out:ident = !$input:expr) => {
+        gpu!($scope, $out = not($input))
+    };
+    // out = not(input)
+    ($scope:expr, $out:ident = not($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Not(
+            gpu!(unary $input, $out)
+        ));
+    };
     // out = lhs == rhs
     ($scope:expr, $out:ident = $lhs:ident == $rhs:expr) => {
         gpu!($scope, $out = equal($lhs, $rhs))
@@ -112,6 +142,18 @@ macro_rules! gpu {
     // out = lower_equal(lhs, rhs)
     ($scope:expr, $out:ident = lower_equal($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::LowerEqual(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = max(lhs, rhs)
+    ($scope:expr, $out:ident = max($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Max(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = min(lhs, rhs)
+    ($scope:expr, $out:ident = min($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Min(
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
@@ -183,6 +225,12 @@ macro_rules! gpu {
             gpu!(unary $input, $out)
         ));
     };
+    // out = ceil(input)
+    ($scope:expr, $out:ident = ceil($input:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::Ceil(
+            gpu!(unary $input, $out)
+        ));
+    };
     // out = erf(input)
     ($scope:expr, $out:ident = erf($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Erf(
@@ -231,6 +279,10 @@ macro_rules! gpu {
     // range(start, end).for_each(|scope| { ... })
     ($scope:expr, range($start:expr, $end:expr).for_each($arg:expr)) => {
         $crate::codegen::dialect::gpu::RangeLoop::register($scope, $start.into(), $end.into(), $arg);
+    };
+    // loop(|scope| { ... })
+    ($scope:expr, loop($arg:expr)) => {
+        $crate::codegen::dialect::gpu::Loop::register($scope, $arg);
     };
     // if (cond).then(|scope| { ... })
     ($scope:expr, if ($cond:expr).then($arg:expr)) => {

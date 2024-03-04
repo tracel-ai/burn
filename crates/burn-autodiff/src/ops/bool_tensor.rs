@@ -116,4 +116,12 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     ) -> BoolTensor<Self, D> {
         B::bool_permute(tensor, axes)
     }
+
+    fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
+        B::bool_argwhere(tensor)
+    }
+
+    fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
+        B::bool_nonzero(tensor)
+    }
 }
