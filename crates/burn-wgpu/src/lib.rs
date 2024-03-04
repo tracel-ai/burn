@@ -79,6 +79,39 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 /// performance.
 pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
 
+#[cfg(feature = "export_tests")]
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! testgen_all {
+    () => {
+        burn_wgpu::testgen_jit!();
+        burn_wgpu::testgen_jit_fusion!();
+    };
+}
+
+#[cfg(feature = "export_tests")]
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! testgen_jit {
+    () => {
+        use super::*;
+
+        pub type TestBackend = JitBackend<TestRuntime>;
+        pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
+
+        pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+        pub type TestTensorInt<const D: usize> =
+            burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+        pub type TestTensorBool<const D: usize> =
+            burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+
+        pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
+
+        burn_tensor::testgen_all!();
+        burn_autodiff::testgen_all!();
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

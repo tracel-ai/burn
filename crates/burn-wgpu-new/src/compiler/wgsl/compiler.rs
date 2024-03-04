@@ -1,11 +1,11 @@
-use super::{shader::ComputeShader, Item};
+use super::{shader::WgslComputeShader, Item};
 use crate::{compiler::wgsl, FloatElement, IntElement};
-use burn_wgpu::gpu;
+use burn_wgpu::{gpu, Compiler};
 use std::marker::PhantomData;
 
 /// Wgsl Compiler.
 #[derive(Clone)]
-pub struct Compiler<F: FloatElement, I: IntElement> {
+pub struct WgslCompiler<F: FloatElement, I: IntElement> {
     num_inputs: usize,
     num_outputs: usize,
     invocation_index: bool,
@@ -19,13 +19,13 @@ pub struct Compiler<F: FloatElement, I: IntElement> {
     _int: PhantomData<I>,
 }
 
-impl<F: FloatElement, I: IntElement> core::fmt::Debug for Compiler<F, I> {
+impl<F: FloatElement, I: IntElement> core::fmt::Debug for WgslCompiler<F, I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("WgslCompiler")
     }
 }
 
-impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
+impl<F: FloatElement, I: IntElement> Default for WgslCompiler<F, I> {
     fn default() -> Self {
         Self {
             num_inputs: 0,
@@ -43,11 +43,11 @@ impl<F: FloatElement, I: IntElement> Default for Compiler<F, I> {
     }
 }
 
-impl<F: FloatElement, I: IntElement> burn_wgpu::Compiler for Compiler<F, I> {
-    type Representation = ComputeShader;
+impl<F: FloatElement, I: IntElement> Compiler for WgslCompiler<F, I> {
+    type Representation = WgslComputeShader;
     type Float = F;
     type Int = I;
-    type FullPrecisionCompiler = Compiler<f32, i32>;
+    type FullPrecisionCompiler = WgslCompiler<f32, i32>;
 
     fn compile(shader: gpu::ComputeShader) -> Self::Representation {
         let mut compiler = Self::default();
@@ -59,8 +59,8 @@ impl<F: FloatElement, I: IntElement> burn_wgpu::Compiler for Compiler<F, I> {
     }
 }
 
-impl<F: FloatElement, I: IntElement> Compiler<F, I> {
-    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::ComputeShader {
+impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
+    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> wgsl::WgslComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
@@ -74,7 +74,7 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             shape: self.shape,
         };
 
-        wgsl::ComputeShader {
+        wgsl::WgslComputeShader {
             inputs: value
                 .inputs
                 .into_iter()

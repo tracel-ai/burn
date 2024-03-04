@@ -61,15 +61,8 @@ mod tests {
     use super::*;
     use crate::WgpuRuntime;
 
-    pub type TestCompiler = crate::compiler::wgsl::Compiler<f32, i32>;
+    pub type TestCompiler = crate::compiler::wgsl::WgslCompiler<f32, i32>;
     pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
-    pub type TestBackend = JitBackend<TestRuntime>;
 
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    burn_wgpu::testgen_all!();
 }

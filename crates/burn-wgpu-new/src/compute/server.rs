@@ -5,10 +5,7 @@ use burn_compute::{
     server::{self, ComputeServer},
 };
 use burn_tensor::Reader;
-use burn_wgpu::{
-    compute::{JitAutotuneKey, Kernel, WorkGroup},
-    kernel::SourceTemplate,
-};
+use burn_wgpu::compute::{JitAutotuneKey, Kernel, WorkGroup};
 use hashbrown::HashMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},

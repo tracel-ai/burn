@@ -34,7 +34,7 @@ type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> Runtime for WgpuRuntime<G, F, I> {
     type FullPrecisionRuntime = WgpuRuntime<G, f32, i32>;
-    type Compiler = wgsl::Compiler<F, I>;
+    type Compiler = wgsl::WgslCompiler<F, I>;
     type Server = WgpuServer<SimpleMemoryManagement<WgpuStorage>>;
 
     type Channel = MutexComputeChannel<WgpuServer<SimpleMemoryManagement<WgpuStorage>>>;

@@ -24,7 +24,7 @@ pub struct Binding {
 }
 
 #[derive(Debug, Clone)]
-pub struct ComputeShader {
+pub struct WgslComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
@@ -37,7 +37,7 @@ pub struct ComputeShader {
     pub extensions: Vec<Extension>,
 }
 
-impl Display for ComputeShader {
+impl Display for WgslComputeShader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Self::format_bindings(f, "input", &self.inputs, 0)?;
         Self::format_bindings(f, "output", &self.outputs, self.inputs.len())?;
@@ -98,7 +98,7 @@ fn main(
     }
 }
 
-impl ComputeShader {
+impl WgslComputeShader {
     fn format_bindings(
         f: &mut core::fmt::Formatter<'_>,
         prefix: &str,

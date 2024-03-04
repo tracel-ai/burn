@@ -202,3 +202,28 @@ mod tests {
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();
 }
+
+#[cfg(feature = "export_tests")]
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! testgen_jit_fusion {
+    () => {
+        use super::*;
+
+        pub type TestBackend = Fusion<JitBackend<TestRuntime>>;
+        pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
+
+        pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+        pub type TestTensorInt<const D: usize> =
+            burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+        pub type TestTensorBool<const D: usize> =
+            burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+
+        pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
+
+        burn_tensor::testgen_all!();
+        burn_autodiff::testgen_all!();
+    };
+}
+
+
