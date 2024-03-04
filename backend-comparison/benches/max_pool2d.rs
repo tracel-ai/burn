@@ -42,7 +42,7 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device) {
+fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
     let benchmark = MaxPool2dBenchmark::<B> {
         shape: [32, 32, 512, 512].into(),
         kernel_size: [5, 5],
@@ -52,7 +52,7 @@ fn bench<B: Backend>(device: &B::Device) {
         device: device.clone(),
     };
 
-    save::<B>(vec![run_benchmark(benchmark)], device).unwrap();
+    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
 }
 
 fn main() {
