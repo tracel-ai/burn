@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 /// Assign value to a variable based on a given condition.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct ConditionalAssign {
     pub cond: Variable,
     pub lhs: Variable,
@@ -11,6 +12,7 @@ pub struct ConditionalAssign {
 }
 
 impl ConditionalAssign {
+    #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         let cond = self.cond;
         let lhs = self.lhs;

@@ -4,18 +4,21 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum Location {
     Storage,
     Workgroup,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum Visibility {
     Read,
     ReadWrite,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Hash, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum Elem {
     Float,
     Int,
@@ -41,6 +44,7 @@ impl Display for Elem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub enum Item {
     Vec4(Elem),
     Vec3(Elem),
@@ -49,7 +53,7 @@ pub enum Item {
 }
 
 impl Item {
-    pub fn elem(&self) -> Elem {
+    pub(crate) fn elem(&self) -> Elem {
         match self {
             Self::Vec4(elem) => *elem,
             Self::Vec3(elem) => *elem,
@@ -60,6 +64,7 @@ impl Item {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Binding {
     pub location: Location,
     pub visibility: Visibility,
@@ -68,6 +73,7 @@ pub struct Binding {
 }
 
 #[derive(new, Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
 pub struct WorkgroupSize {
     pub x: u32,
     pub y: u32,
@@ -84,13 +90,8 @@ impl Default for WorkgroupSize {
     }
 }
 
-impl WorkgroupSize {
-    pub fn num_elements(&self) -> u32 {
-        self.x * self.y * self.z
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,

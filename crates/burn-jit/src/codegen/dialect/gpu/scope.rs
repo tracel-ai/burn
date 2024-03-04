@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// This type isn't responsible for creating [shader bindings](super::Binding) and figuring out which
 /// variable can be written to.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
@@ -27,6 +28,7 @@ pub struct Scope {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub enum ReadingStrategy {
     /// Each element will be read in a way to be compatible with the output layout.
     OutputLayout,
@@ -39,7 +41,7 @@ impl Scope {
     /// [compute shader](crate::codegen::dialect::gpu::ComputeShader).
     ///
     /// A local scope can be created with the [child](Self::child) method.
-    pub fn root() -> Self {
+    pub(crate) fn root() -> Self {
         Self {
             depth: 0,
             operations: Vec::new(),
@@ -54,7 +56,8 @@ impl Scope {
         }
     }
 
-    pub fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
+    /// Create a variable initialized at zero.
+    pub(crate) fn zero<I: Into<Item>>(&mut self, item: I) -> Variable {
         let local = self.create_local(item);
         let zero: Variable = 0u32.into();
         gpu!(self, local = zero);
@@ -62,7 +65,7 @@ impl Scope {
     }
 
     /// Create a local variable of the given [item type](Item).
-    pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
+    pub(crate) fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
@@ -73,7 +76,7 @@ impl Scope {
     /// Create a new local variable, but doesn't perform the declaration.
     ///
     /// Useful for _for loops_ and other algorithms that require the control over initialization.
-    pub fn create_local_undeclared(&mut self, item: Item) -> Variable {
+    pub(crate) fn create_local_undeclared(&mut self, item: Item) -> Variable {
         let index = self.new_local_index();
         let local = Variable::Local(index, item, self.depth);
         self.undeclared += 1;
@@ -83,11 +86,12 @@ impl Scope {
     /// Reads an input array to a local variable.
     ///
     /// The index refers to the argument position of the array in the compute shader.
-    pub fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
+    pub(crate) fn read_array<I: Into<Item>>(&mut self, index: u16, item: I) -> Variable {
         self.read_input_strategy(index, item.into(), ReadingStrategy::OutputLayout)
     }
 
-    pub fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
+    /// Add the procedure into the scope.
+    pub(crate) fn index_offset_with_output_layout(&mut self, proc: IndexOffsetGlobalWithLayout) {
         self.index_offset_with_output_layout_position
             .push(self.operations.len());
         self.operations
@@ -97,7 +101,7 @@ impl Scope {
     /// Reads an input scalar to a local variable.
     ///
     /// The index refers to the scalar position for the same [element](Elem) type.
-    pub fn read_scalar(&mut self, index: u16, elem: Elem) -> Variable {
+    pub(crate) fn read_scalar(&mut self, index: u16, elem: Elem) -> Variable {
         let local = Variable::LocalScalar(self.new_local_scalar_index(), elem, self.depth);
         let scalar = Variable::GlobalScalar(index, elem);
 
@@ -107,7 +111,7 @@ impl Scope {
     }
 
     /// Retrieve the last local variable that was created.
-    pub fn last_local_index(&self) -> Option<&Variable> {
+    pub(crate) fn last_local_index(&self) -> Option<&Variable> {
         self.locals.last()
     }
 
@@ -116,7 +120,7 @@ impl Scope {
     /// Notes:
     ///
     /// Scopes created _during_ compilation (after the tracing is done) should not be vectorized.
-    pub fn vectorize(&mut self, vectorization: Vectorization) {
+    pub(crate) fn vectorize(&mut self, vectorization: Vectorization) {
         self.operations
             .iter_mut()
             .for_each(|op| *op = op.vectorize(vectorization));
@@ -185,12 +189,12 @@ impl Scope {
     }
 
     /// Register an [operation](Operation) into the scope.
-    pub fn register<T: Into<Operation>>(&mut self, operation: T) {
+    pub(crate) fn register<T: Into<Operation>>(&mut self, operation: T) {
         self.operations.push(operation.into())
     }
 
     /// Create an empty child scope.
-    pub fn child(&mut self) -> Self {
+    pub(crate) fn child(&mut self) -> Self {
         Self {
             depth: self.depth + 1,
             operations: Vec::new(),

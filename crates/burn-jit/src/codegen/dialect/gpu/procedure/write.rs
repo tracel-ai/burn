@@ -3,12 +3,14 @@ use serde::{Deserialize, Serialize};
 
 /// Write to a global array.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub struct WriteGlobal {
     pub input: Variable,
     pub global: Variable,
 }
 
 impl WriteGlobal {
+    #[allow(missing_docs)]
     pub fn expand(self, scope: &mut Scope) {
         let output = self.global;
         let input = self.input;

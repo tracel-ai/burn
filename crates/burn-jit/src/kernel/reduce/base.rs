@@ -101,6 +101,7 @@ pub fn init_reduce_output<R: Runtime, EI: JitElement, EO: JitElement, const D: u
 
 /// This is some anazing doc.
 #[derive(Copy, Clone, Debug)]
+#[allow(missing_docs)]
 pub enum ReduceStrategy {
     Naive,
     SharedMemory,

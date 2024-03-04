@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Tensor operations that can't be executed with a simple [operator](super::super::Operator) should use a
 /// procedure.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub enum Procedure {
     ReadGlobalWithLayout(ReadGlobalWithLayout),
     IndexOffsetGlobalWithLayout(IndexOffsetGlobalWithLayout),
@@ -16,7 +17,7 @@ pub enum Procedure {
 }
 
 impl Procedure {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Procedure::ReadGlobalWithLayout(op) => {
                 Procedure::ReadGlobalWithLayout(op.vectorize(vectorization))

@@ -2,6 +2,7 @@ use super::{Elem, Item};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[allow(missing_docs)]
 pub enum Variable {
     GlobalInputArray(u16, Item),
     GlobalScalar(u16, Elem),
@@ -31,13 +32,7 @@ pub enum Variable {
 }
 
 impl Variable {
-    pub fn const_value(&self) -> Option<f64> {
-        match self {
-            Variable::ConstantScalar(value, _) => Some(*value),
-            _ => None,
-        }
-    }
-    pub fn index(&self) -> Option<u16> {
+    pub(crate) fn index(&self) -> Option<u16> {
         match self {
             Variable::GlobalInputArray(idx, _) => Some(*idx),
             Variable::GlobalScalar(idx, _) => Some(*idx),
@@ -66,7 +61,7 @@ impl Variable {
             Variable::NumWorkgroupsZ => None,
         }
     }
-    pub fn item(&self) -> Item {
+    pub(crate) fn item(&self) -> Item {
         match self {
             Variable::GlobalInputArray(_, item) => *item,
             Variable::GlobalOutputArray(_, item) => *item,

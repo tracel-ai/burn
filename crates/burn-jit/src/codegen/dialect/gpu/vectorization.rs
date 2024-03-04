@@ -16,7 +16,7 @@ pub enum Vectorization {
 }
 
 impl Operation {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Operation::Operator(op) => Operation::Operator(op.vectorize(vectorization)),
             Operation::Procedure(op) => Operation::Procedure(op.vectorize(vectorization)),
@@ -34,7 +34,7 @@ impl Operation {
 }
 
 impl Operator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
             Operator::Max(op) => Operator::Max(op.vectorize(vectorization)),
             Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
@@ -79,7 +79,7 @@ impl Operator {
 }
 
 impl BinaryOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         let lhs = self.lhs.vectorize(vectorization);
         let rhs = self.rhs.vectorize(vectorization);
         let out = self.out.vectorize(vectorization);
@@ -89,7 +89,7 @@ impl BinaryOperator {
 }
 
 impl UnaryOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         let input = self.input.vectorize(vectorization);
         let out = self.out.vectorize(vectorization);
 
@@ -98,7 +98,7 @@ impl UnaryOperator {
 }
 
 impl ClampOperator {
-    pub fn vectorize(&self, vectorization: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorization: Vectorization) -> Self {
         Self {
             input: self.input.vectorize(vectorization),
             out: self.out.vectorize(vectorization),
@@ -109,7 +109,7 @@ impl ClampOperator {
 }
 
 impl Variable {
-    pub fn vectorize(&self, vectorize: Vectorization) -> Self {
+    pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Self {
         match self {
             Variable::GlobalInputArray(index, item) => {
                 Variable::GlobalInputArray(*index, item.vectorize(vectorize))
@@ -151,7 +151,7 @@ impl Variable {
 }
 
 impl Item {
-    pub fn vectorize(&self, vectorize: Vectorization) -> Item {
+    pub(crate) fn vectorize(&self, vectorize: Vectorization) -> Item {
         match vectorize {
             Vectorization::Vec4 => Item::Vec4(self.elem()),
             Vectorization::Vec3 => Item::Vec3(self.elem()),
@@ -160,7 +160,7 @@ impl Item {
         }
     }
 
-    pub fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
+    pub(crate) fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
         match vectorize {
             Vectorization::Vec4 => size / 4,
             Vectorization::Vec3 => size / 3,
