@@ -154,7 +154,7 @@ where
     ///
     /// The tensor with the dimensions permuted.
     pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
-        // Convert the axes to usize and handle negative values without usinv vector
+        // Convert the axes to usize and handle negative values without using vector
         let mut transformed_axes: [usize; D] = [0; D];
         for (i, &x) in axes.iter().enumerate() {
             transformed_axes[i] = if x < 0 {
