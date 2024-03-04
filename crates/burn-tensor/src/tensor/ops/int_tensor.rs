@@ -301,7 +301,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The concatenated tensor.
     fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D>;
 
-    /// Elementwise equality comparison.
+    /// Element-wise equality comparison.
     ///
     /// # Arguments
     ///
@@ -313,7 +313,25 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_equal<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D>;
 
-    /// Elementwise equality comparison with a scalar.
+    /// Element-wise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn int_not_equal<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::int_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
+    /// Element-wise equality comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -325,7 +343,25 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_equal_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> BoolTensor<B, D>;
 
-    /// Elementwise greater than comparison.
+    /// Element-wise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The boolean tensor with the result of the comparison.
+    fn int_not_equal_elem<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntElem<B>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::int_equal_elem(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
+    /// Element-wise greater than comparison.
     ///
     /// # Arguments
     ///
@@ -337,7 +373,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_greater<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D>;
 
-    /// Elementwise greater than comparison with a scalar.
+    /// Element-wise greater than comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -349,7 +385,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_greater_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> BoolTensor<B, D>;
 
-    /// Elementwise greater than or equal comparison.
+    /// Element-wise greater than or equal comparison.
     ///
     /// # Arguments
     ///
@@ -364,7 +400,7 @@ pub trait IntTensorOps<B: Backend> {
         rhs: IntTensor<B, D>,
     ) -> BoolTensor<B, D>;
 
-    /// Elementwise greater than or equal comparison with a scalar.
+    /// Element-wise greater than or equal comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -379,7 +415,7 @@ pub trait IntTensorOps<B: Backend> {
         rhs: IntElem<B>,
     ) -> BoolTensor<B, D>;
 
-    /// Elementwise less than comparison.
+    /// Element-wise less than comparison.
     ///
     /// # Arguments
     ///
@@ -391,7 +427,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_lower<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D>;
 
-    /// Elementwise less than comparison with a scalar.
+    /// Element-wise less than comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -403,7 +439,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The boolean tensor with the result of the comparison.
     fn int_lower_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> BoolTensor<B, D>;
 
-    /// Elementwise less than or equal comparison.
+    /// Element-wise less than or equal comparison.
     ///
     /// # Arguments
     ///
@@ -418,7 +454,7 @@ pub trait IntTensorOps<B: Backend> {
         rhs: IntTensor<B, D>,
     ) -> BoolTensor<B, D>;
 
-    /// Elementwise less than or equal comparison with a scalar.
+    /// Element-wise less than or equal comparison with a scalar.
     ///
     /// # Arguments
     ///
@@ -435,7 +471,7 @@ pub trait IntTensorOps<B: Backend> {
 
     // ====  NUMERIC ==== //
 
-    /// Elementwise addition.
+    /// Element-wise addition.
     ///
     /// # Arguments
     ///
@@ -447,7 +483,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the addition.
     fn int_add<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
 
-    /// Elementwise addition with a scalar.
+    /// Element-wise addition with a scalar.
     ///
     /// # Arguments
     ///
@@ -459,7 +495,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the addition.
     fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
-    /// Elementwise power with a IntTensor.
+    /// Element-wise power with a IntTensor.
     ///
     /// # Arguments
     ///
@@ -476,7 +512,7 @@ pub trait IntTensorOps<B: Backend> {
         ))
     }
 
-    /// Elementwise power with a floatTensor.
+    /// Element-wise power with a floatTensor.
     ///
     /// # Arguments
     ///
@@ -490,7 +526,7 @@ pub trait IntTensorOps<B: Backend> {
         B::float_into_int(B::float_powf(B::int_into_float(lhs), rhs))
     }
 
-    /// Elementwise power with a scalar.
+    /// Element-wise power with a scalar.
     ///
     /// # Arguments
     ///
@@ -507,7 +543,7 @@ pub trait IntTensorOps<B: Backend> {
         ))
     }
 
-    /// Elementwise power with a floatTensor.
+    /// Element-wise power with a floatTensor.
     ///
     /// # Arguments
     ///
@@ -570,7 +606,7 @@ pub trait IntTensorOps<B: Backend> {
         Self::int_clamp_min(Self::int_clamp_max(tensor, max), min)
     }
 
-    /// Elementwise subtraction.
+    /// Element-wise subtraction.
     ///
     /// # Arguments
     ///
@@ -582,7 +618,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the subtraction.
     fn int_sub<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
 
-    /// Elementwise subtraction with a scalar.
+    /// Element-wise subtraction with a scalar.
     ///
     /// # Arguments
     ///
@@ -594,7 +630,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the subtraction.
     fn int_sub_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
-    /// Elementwise multiplication.
+    /// Element-wise multiplication.
     ///
     /// # Arguments
     ///
@@ -606,7 +642,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the multiplication.
     fn int_mul<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
 
-    /// Elementwise multiplication with a scalar.
+    /// Element-wise multiplication with a scalar.
     ///
     /// # Arguments
     ///
@@ -618,7 +654,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the multiplication.
     fn int_mul_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
-    /// Elementwise division.
+    /// Element-wise division.
     ///
     /// # Arguments
     ///
@@ -630,7 +666,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the division.
     fn int_div<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D>;
 
-    /// Elementwise division with a scalar.
+    /// Element-wise division with a scalar.
     ///
     /// # Arguments
     ///
@@ -642,7 +678,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the division.
     fn int_div_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
 
-    /// Elementwise negation.
+    /// Element-wise negation.
     ///
     /// # Arguments
     ///

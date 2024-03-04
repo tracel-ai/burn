@@ -34,6 +34,7 @@ pub enum Instruction {
     },
     Return,
     Break,
+    WorkgroupBarrier,
     // Index handles casting to correct local variable.
     Index {
         lhs: Variable,
@@ -180,6 +181,9 @@ pub enum Instruction {
     Not {
         input: Variable,
         out: Variable,
+    },
+    Loop {
+        instructions: Vec<Instruction>,
     },
 }
 
@@ -408,8 +412,16 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
             }
             Instruction::Return => f.write_str("return;\n"),
             Instruction::Break => f.write_str("break;\n"),
+            Instruction::WorkgroupBarrier => f.write_str("workgroupBarrier();\n"),
             Instruction::ArrayLength { var, out } => {
                 f.write_fmt(format_args!("{out} = arrayLength(&{var});\n"))
+            }
+            Instruction::Loop { instructions } => {
+                f.write_fmt(format_args!("loop {{\n"))?;
+                for i in instructions {
+                    f.write_fmt(format_args!("{i}"))?;
+                }
+                f.write_str("}\n")
             }
         }
     }

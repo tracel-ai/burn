@@ -355,6 +355,9 @@ impl TraceBuilder {
                 Operation::Branch(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
+                Operation::Synchronization(_) => {
+                    // Nothing to do, should never impact read-write access to bindings.
+                }
             }
         }
 

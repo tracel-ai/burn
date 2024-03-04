@@ -26,6 +26,9 @@ impl Operation {
             Operation::Branch(_) => panic!(
                 "A branch can't be vectorized, they should only be generated after vectorization."
             ),
+            Operation::Synchronization(_) => panic!(
+                "Synchronization instructions can't be vectorized, they should only be generated after vectorization."
+            ),
         }
     }
 }
@@ -117,18 +120,32 @@ impl Variable {
             Variable::GlobalOutputArray(index, item) => {
                 Variable::GlobalOutputArray(*index, item.vectorize(vectorize))
             }
+            Variable::SharedMemory(index, item, size) => Variable::SharedMemory(
+                *index,
+                item.vectorize(vectorize),
+                item.vectorized_size(vectorize, *size),
+            ),
             Variable::ConstantScalar(_, _) => *self,
             Variable::GlobalScalar(_, _) => *self,
             Variable::Id => *self,
             Variable::Rank => *self,
             Variable::LocalScalar(_, _, _) => *self,
-            Variable::InvocationIndex => *self,
+            Variable::LocalInvocationIndex => *self,
+            Variable::LocalInvocationIdX => *self,
+            Variable::LocalInvocationIdY => *self,
+            Variable::LocalInvocationIdZ => *self,
             Variable::WorkgroupIdX => *self,
             Variable::WorkgroupIdY => *self,
             Variable::WorkgroupIdZ => *self,
             Variable::GlobalInvocationIdX => *self,
             Variable::GlobalInvocationIdY => *self,
             Variable::GlobalInvocationIdZ => *self,
+            Variable::WorkgroupSizeX => *self,
+            Variable::WorkgroupSizeY => *self,
+            Variable::WorkgroupSizeZ => *self,
+            Variable::NumWorkgroupsX => *self,
+            Variable::NumWorkgroupsY => *self,
+            Variable::NumWorkgroupsZ => *self,
         }
     }
 }
@@ -140,6 +157,15 @@ impl Item {
             Vectorization::Vec3 => Item::Vec3(self.elem()),
             Vectorization::Vec2 => Item::Vec2(self.elem()),
             Vectorization::Scalar => Item::Scalar(self.elem()),
+        }
+    }
+
+    pub fn vectorized_size(&self, vectorize: Vectorization, size: u32) -> u32 {
+        match vectorize {
+            Vectorization::Vec4 => size / 4,
+            Vectorization::Vec3 => size / 3,
+            Vectorization::Vec2 => size / 2,
+            Vectorization::Scalar => size,
         }
     }
 }

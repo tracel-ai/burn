@@ -3,7 +3,10 @@ use crate::fusion::JitFusionHandle;
 #[cfg(feature = "fusion")]
 use burn_fusion::TensorDescription;
 
-use super::{dialect::gpu, Compiler};
+use super::{
+    dialect::gpu::{self},
+    Compiler,
+};
 use crate::{
     codegen::dialect::gpu::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
@@ -249,6 +252,7 @@ impl CompilationSettings {
     }
 }
 
+#[allow(dead_code)]
 fn is_contiguous(strides: &[usize]) -> bool {
     let mut current = 0;
 
@@ -271,6 +275,7 @@ pub enum InputInfo {
 
 impl InputInfo {
     /// The item type of the input.
+    #[allow(dead_code)]
     pub fn item(&self) -> Item {
         match self {
             InputInfo::Array {
@@ -284,6 +289,7 @@ impl InputInfo {
 
 impl OutputInfo {
     /// The item type of the input.
+    #[allow(dead_code)]
     pub fn item(&self) -> Item {
         match self {
             OutputInfo::ArrayWrite { item, local: _ } => *item,
@@ -314,6 +320,7 @@ pub enum OutputInfo {
 }
 
 impl OutputInfo {
+    #[allow(dead_code)]
     pub fn elem_size<R: Runtime>(&self) -> usize {
         let elem = match self {
             OutputInfo::ArrayWrite { item, local: _ } => bool_elem(item.elem()),

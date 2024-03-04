@@ -1,7 +1,7 @@
 use burn_tensor::{
     ops::{
-        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateMode,
+        InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
     },
     Shape,
 };
@@ -83,10 +83,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         bias: Option<FloatTensor<Self, 1>>,
         options: ConvTransposeOptions<1>,
     ) -> FloatTensor<Self, 3> {
-        assert!(
-            options.groups == 1,
-            "Candle does not support groups in transposed convolutions"
-        );
         let conv_transpose = x
             .tensor
             .conv_transpose1d(
@@ -95,6 +91,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 options.padding_out[0],
                 options.stride[0],
                 options.dilation[0],
+                options.groups,
             )
             .unwrap();
         CandleTensor::new(match bias {
@@ -238,5 +235,26 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         grad: FloatTensor<Self, 4>,
     ) -> FloatTensor<Self, 4> {
         panic!("adaptive_avg_pool2d_backward is not supported by Candle")
+    }
+
+    fn interpolate(
+        x: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        let tensor = match options.mode {
+            InterpolateMode::Nearest => x
+                .tensor
+                .upsample_nearest2d(output_size[0], output_size[1])
+                .unwrap(),
+            InterpolateMode::Bilinear => {
+                panic!("bilinear interpolation is not supported by Candle")
+            }
+            InterpolateMode::Bicubic => {
+                panic!("bicubic interpolation is not supported by Candle")
+            }
+        };
+
+        CandleTensor::new(tensor)
     }
 }
