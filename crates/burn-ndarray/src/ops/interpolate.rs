@@ -1,5 +1,5 @@
 use burn_tensor::ElementConversion;
-use ndarray::{Array4, Dim};
+use ndarray::Array4;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
@@ -143,59 +143,6 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     });
 
     NdArrayTensor::new(output.into_dyn().into_shared())
-}
-
-pub(crate) fn bilinear_interpolate_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
-    grad: NdArrayTensor<E, 4>,
-    output_size: [usize; 2],
-) -> NdArrayTensor<E, 4> {
-    // let grad = grad.array.into_dimensionality::<ndarray::Ix4>().unwrap();
-    let [batch_size, channels, in_height, in_width] = x.shape().dims;
-    let [out_height, out_width] = output_size;
-
-    let y_ratio = (in_height as f64) / (out_height as f64);
-    let x_ratio = (in_width as f64) / (out_width as f64);
-
-    let mut output_grad = Array4::zeros(Dim([batch_size, channels, in_height, in_width]));
-    let unsafe_shared_out = UnsafeSharedRef::new(&mut output_grad);
-
-    run_par!(|| {
-        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
-            let b = k / channels;
-            let c = k % channels;
-
-            let output_grad = unsafe_shared_out.get();
-
-            for oh in 0..out_height {
-                for ow in 0..out_width {
-                    let y_frac = y_ratio * oh as f64;
-                    let y0 = y_frac.floor();
-                    let y1 = libm::fmin(y_frac.ceil(), (in_height - 1) as f64);
-                    let yw = y_frac - y0;
-
-                    let x_frac = x_ratio * ow as f64;
-                    let x0 = x_frac.floor();
-                    let x1 = libm::fmin(x_frac.ceil(), (in_width - 1) as f64);
-                    let xw = x_frac - x0;
-
-                    let (x0, x1, y0, y1) = (x0 as usize, x1 as usize, y0 as usize, y1 as usize);
-
-                    let p_a = (1.0 - xw) * (1.0 - yw);
-                    let p_b = xw * (1.0 - yw);
-                    let p_c = (1.0 - xw) * yw;
-                    let p_d = xw * yw;
-
-                    output_grad[[b, c, y0, x0]] += grad.array[[b, c, oh, ow]] * p_a.elem();
-                    output_grad[[b, c, y0, x1]] += grad.array[[b, c, oh, ow]] * p_b.elem();
-                    output_grad[[b, c, y1, x0]] += grad.array[[b, c, oh, ow]] * p_c.elem();
-                    output_grad[[b, c, y1, x1]] += grad.array[[b, c, oh, ow]] * p_d.elem();
-                }
-            }
-        });
-    });
-
-    NdArrayTensor::new(output_grad.into_dyn().into_shared())
 }
 
 pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(

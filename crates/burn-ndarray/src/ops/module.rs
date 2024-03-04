@@ -5,7 +5,7 @@ use super::{
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
-use crate::ops::interpolate::{bilinear_interpolate_backward, nearest_interpolate_backward};
+use crate::ops::interpolate::nearest_interpolate_backward;
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
 use burn_tensor::ops::*;
 
@@ -122,9 +122,11 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
     ) -> NdArrayTensor<E, 4> {
         match options.mode {
             InterpolateMode::Nearest => nearest_interpolate_backward(x, grad, output_size),
-            InterpolateMode::Bilinear => bilinear_interpolate_backward(x, grad, output_size),
+            InterpolateMode::Bilinear => {
+                panic!("bilinear interpolation backward is not supported for ndarray backend")
+            }
             InterpolateMode::Bicubic => {
-                panic!("bicubic interpolation backward is not supported for ndaray backend")
+                panic!("bicubic interpolation backward is not supported for ndarray backend")
             }
         }
     }

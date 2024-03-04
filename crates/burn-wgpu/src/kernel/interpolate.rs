@@ -82,7 +82,6 @@ pub(crate) fn interpolate_backward<R: Runtime, E: JitElement + Element>(
     );
 
     let info = build_info(&[&input, &out_grad]);
-    println!("{:?}", info);
 
     let info_handle = out_grad.client.create(bytemuck::cast_slice(&info));
 
