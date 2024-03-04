@@ -10,7 +10,7 @@ pub enum Branch {
     IfElse(IfElse),
     // A range loop.
     RangeLoop(RangeLoop),
-    // A while loop.
+    // A loop.
     Loop(Loop),
     // A return statement.
     Return,
@@ -105,7 +105,7 @@ impl RangeLoop {
 }
 
 impl Loop {
-    /// Registers a while loop to the given scope.
+    /// Registers a loop to the given scope.
     pub fn register<F: Fn(&mut Scope)>(parent_scope: &mut Scope, func: F) {
         let mut scope = parent_scope.child();
 
