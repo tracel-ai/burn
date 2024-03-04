@@ -7,7 +7,6 @@ use super::Scope;
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Location {
     Storage,
-    #[allow(dead_code)]
     Workgroup,
 }
 
@@ -83,6 +82,12 @@ impl Default for WorkgroupSize {
             y: WORKGROUP_DEFAULT as u32,
             z: 1,
         }
+    }
+}
+
+impl WorkgroupSize {
+    pub fn num_elements(&self) -> u32 {
+        self.x * self.y * self.z
     }
 }
 
