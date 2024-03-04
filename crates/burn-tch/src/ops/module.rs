@@ -317,14 +317,14 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         let input_size = [n as i64, c as i64, h_in as i64, w_in as i64];
 
         let tensor = match options.mode {
-            InterpolateMode::Nearest => tch::Tensor::internal_upsample_nearest_exact2d_backward(
+            InterpolateMode::Nearest => tch::Tensor::upsample_nearest2d_backward(
                 &grad.tensor,
                 output_size,
                 input_size,
                 None,
                 None,
             ),
-            InterpolateMode::Bilinear => tch::Tensor::internal_upsample_bilinear2d_aa_backward(
+            InterpolateMode::Bilinear => tch::Tensor::upsample_bilinear2d_backward(
                 &grad.tensor,
                 output_size,
                 input_size,
@@ -332,7 +332,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
                 None,
                 None,
             ),
-            InterpolateMode::Bicubic => tch::Tensor::internal_upsample_bicubic2d_aa_backward(
+            InterpolateMode::Bicubic => tch::Tensor::upsample_bicubic2d_backward(
                 &grad.tensor,
                 output_size,
                 input_size,

@@ -20,40 +20,40 @@ fn main(
 ) {
     let id = global_id.y * (num_workgroups.x * WORKGROUP_SIZE_X) + global_id.x;
 
-    let input_stride_0 = info[1];
-    let input_stride_1 = info[2];
-    let input_stride_2 = info[3];
-    let input_stride_3 = info[4];
+    let output_stride_0 = info[1];
+    let output_stride_1 = info[2];
+    let output_stride_2 = info[3];
+    let output_stride_3 = info[4];
     let grad_stride_0 = info[5];
     let grad_stride_1 = info[6];
     let grad_stride_2 = info[7];
     let grad_stride_3 = info[8];
 
-    let input_shape_0 = info[9];
-    let input_shape_1 = info[10];
-    let input_shape_2 = info[11];
-    let input_shape_3 = info[12];
+    let output_shape_0 = info[9];
+    let output_shape_1 = info[10];
+    let output_shape_2 = info[11];
+    let output_shape_3 = info[12];
     let grad_shape_0 = info[13];
     let grad_shape_1 = info[14];
     let grad_shape_2 = info[15];
     let grad_shape_3 = info[16];
 
-    let b = id / input_stride_0 % input_shape_0;
-    let c = id / input_stride_1 % input_shape_1;
-    let ih = id / input_stride_2 % input_shape_2;
-    let iw = id / input_stride_3 % input_shape_3;
+    let b = (id / output_stride_0) % output_shape_0;
+    let c = (id / output_stride_1) % output_shape_1;
+    let oh = (id / output_stride_2) % output_shape_2;
+    let ow = (id / output_stride_3) % output_shape_3;
 
-    let oh_start = start_index(ih, input_shape_2, grad_shape_2);
-    let oh_end = end_index(ih, input_shape_2, grad_shape_2);
+    let gh_start = start_index(oh, grad_shape_2, output_shape_2);
+    let gh_end = end_index(oh, grad_shape_2, output_shape_2);
 
-    let ow_start = start_index(iw, input_shape_3, grad_shape_3);
-    let ow_end = end_index(iw, input_shape_3, grad_shape_3);
+    let gw_start = start_index(ow, grad_shape_3, output_shape_3);
+    let gw_end = end_index(ow, grad_shape_3, output_shape_3);
 
     var grad_acc = 0.0;
 
-    for (var oh = oh_start; oh < oh_end; oh++) {
-        for (var ow = ow_start; ow < ow_end; ow++) {
-            let index = b * grad_stride_0 + c * grad_stride_1 + oh * grad_stride_2 + ow * grad_stride_3;
+    for (var gh = gh_start; gh < gh_end; gh++) {
+        for (var gw = gw_start; gw < gw_end; gw++) {
+            let index = b * grad_stride_0 + c * grad_stride_1 + gh * grad_stride_2 + gw * grad_stride_3;
             grad_acc += grad[index];
         }
     }
@@ -61,12 +61,11 @@ fn main(
     output[id] = grad_acc;
 }
 
-fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
-    return u32(floor((f32(output_size_index) * f32(input_size)) / f32(output_size)));
+fn start_index(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+    return u32(ceil(f32(input_index) * (f32(output_size) / f32(input_size))));
 }
 
-fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
-    let index = u32(ceil((f32(output_size_index + 1u) * f32(input_size)) / f32(output_size)));
-
-    return min(index, input_size);
+fn end_index(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+    let index = u32(ceil(f32(input_index + 1u) * (f32(output_size) / f32(input_size))));
+    return min(index, output_size);
 }
