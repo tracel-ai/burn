@@ -131,4 +131,11 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> Vec<TchTensor<bool, D>> {
         TchOps::chunk(tensor, chunks, dim)
     }
+
+    fn bool_permute<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        TchOps::permute(tensor, axes)
+    }
 }

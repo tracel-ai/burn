@@ -7,6 +7,7 @@ use burn_tensor::{Distribution, Reader};
 
 use burn_tensor::ElementConversion;
 use core::ops::Range;
+use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::ExpElement;
@@ -424,5 +425,13 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         rhs: f32,
     ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::elementwise_op_scalar(lhs, |a: i64| a.pow(rhs as u32))
+    }
+
+    fn int_permute<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
+        NdArrayTensor { array }
     }
 }

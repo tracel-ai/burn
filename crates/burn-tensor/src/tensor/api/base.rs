@@ -141,6 +141,35 @@ where
         Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
     }
 
+    /// Permute the dimensions of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `axes` - The new order of the dimensions. The length of the axes
+    ///            must be equal to the number of dimensions of the tensor.
+    ///            The values must be unique and in the range of the number of dimensions.
+    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
+        // Convert the axes to usize and handle negative values without usinv vector
+        let mut transformed_axes: [usize; D] = [0; D];
+        for (i, &x) in axes.iter().enumerate() {
+            transformed_axes[i] = if x < 0 {
+                (D as isize + x) as usize
+            } else {
+                x as usize
+            };
+        }
+
+        // Check if the axes are valid after the transformation
+        check!(TensorCheck::permute(transformed_axes));
+
+        Tensor::new(K::permute(self.primitive, transformed_axes))
+    }
+
     /// Flatten the tensor along a given range of dimensions.
     ///
     /// This function collapses the specified range of dimensions into a single dimension,
@@ -309,7 +338,8 @@ where
 
     /// Creates a new tensor with added dimensions of size one inserted at the specified indices.
     /// The indices can be negative, in which case they are counted from the last to the first dimension.
-    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index is the number of duplicates.
+    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index
+    /// is the number of duplicates.
     /// # Example
     ///
     /// ```rust
@@ -1088,6 +1118,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim2: usize,
     ) -> Self::Primitive<D>;
 
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `permutation` - The permutation of the dimensions.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
+
     ///  Select tensor elements corresponding for the given ranges.
     ///
     /// # Arguments
@@ -1512,6 +1554,10 @@ impl<B: Backend> BasicOps<B> for Float {
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::float_all_dim(tensor, dim))
     }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::float_permute(tensor, axes)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -1622,6 +1668,10 @@ impl<B: Backend> BasicOps<B> for Int {
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_all_dim(tensor, dim))
     }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::int_permute(tensor, axes)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -1731,6 +1781,10 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_all_dim(tensor, dim))
+    }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::bool_permute(tensor, axes)
     }
 }
 

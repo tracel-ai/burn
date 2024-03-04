@@ -277,6 +277,18 @@ pub trait BoolTensorOps<B: Backend> {
         dim2: usize,
     ) -> BoolTensor<B, D>;
 
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `axes` - The new order of the dimensions.
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn bool_permute<const D: usize>(tensor: BoolTensor<B, D>, axes: [usize; D])
+        -> BoolTensor<B, D>;
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments

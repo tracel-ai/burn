@@ -109,4 +109,11 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     ) -> Vec<BoolTensor<B, D>> {
         B::bool_chunk(tensor, chunks, dim)
     }
+
+    fn bool_permute<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> BoolTensor<Self, D> {
+        B::bool_permute(tensor, axes)
+    }
 }

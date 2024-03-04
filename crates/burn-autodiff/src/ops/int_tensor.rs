@@ -345,4 +345,11 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
         B::int_arange(range, device)
     }
+
+    fn int_permute<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        axes: [usize; D],
+    ) -> IntTensor<Self, D> {
+        B::int_permute(tensor, axes)
+    }
 }

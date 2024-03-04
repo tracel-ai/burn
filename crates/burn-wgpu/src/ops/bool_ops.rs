@@ -4,6 +4,8 @@ use burn_tensor::Reader;
 use burn_tensor::{ops::BoolTensorOps, Data, Shape};
 use std::ops::Range;
 
+use super::permute;
+
 impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::empty(shape, device)
@@ -110,5 +112,12 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         times: usize,
     ) -> BoolTensor<Self, D> {
         kernel::repeat(tensor, dim, times)
+    }
+
+    fn bool_permute<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> BoolTensor<Self, D> {
+        permute(tensor, axes)
     }
 }

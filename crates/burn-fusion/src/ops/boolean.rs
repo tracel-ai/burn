@@ -4,9 +4,9 @@ use crate::{
     ops::binary::binary_ops_shape,
     stream::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-        CatOperationDescription, Operation, OperationDescription, ReshapeDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
+        CatOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
+        ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription, StreamId,
+        SwapDimsDescription, UnaryOperationDescription,
     },
     Fusion, FusionBackend,
 };
@@ -422,6 +422,46 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseBool(BaseOperationDescription::SwapDims(desc.clone())),
             SwapDimsOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_permute<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> BoolTensor<Self, D> {
+        #[derive(new)]
+        struct PermuteDimsOps<const D: usize> {
+            desc: PermuteOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_bool_tensor::<D>(&self.desc.input);
+                let axes: [usize; D] = self.desc.axes.try_into().unwrap();
+                let output = B::bool_permute(input, axes);
+                handles.register_bool_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        // Change the shape of the tensor to match the new axes
+        let shape = axes.into_iter().map(|x| tensor.shape[x]).collect();
+
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = PermuteOperationDescription {
+            input: tensor.into_description(),
+            axes: axes.to_vec(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
+            PermuteDimsOps::<D>::new(desc),
         );
 
         out
