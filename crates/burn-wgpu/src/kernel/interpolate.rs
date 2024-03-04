@@ -93,8 +93,12 @@ pub(crate) fn interpolate_backward<R: Runtime, E: JitElement + Element>(
             output.shape.num_elements(),
             WORKGROUP_DEFAULT,
         ))),
-        InterpolateMode::Bilinear => panic!("bilinear interpolation backward is not supported by WGPU backend"),
-        InterpolateMode::Bicubic => panic!("bicubic interpolation backward is not supported by WGPU backend"),
+        InterpolateMode::Bilinear => {
+            panic!("bilinear interpolation backward is not supported by WGPU backend")
+        }
+        InterpolateMode::Bicubic => {
+            panic!("bicubic interpolation backward is not supported by WGPU backend")
+        }
     };
 
     input
