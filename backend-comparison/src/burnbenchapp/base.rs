@@ -97,6 +97,8 @@ pub(crate) enum BenchmarkValues {
     Matmul,
     #[strum(to_string = "unary")]
     Unary,
+    #[strum(to_string = "max_pool2d")]
+    MaxPool2d,
 }
 
 pub fn execute() {
