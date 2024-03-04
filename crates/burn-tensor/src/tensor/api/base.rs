@@ -1123,7 +1123,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to permute the dimensions of.
-    /// * `permutation` - The permutation of the dimensions.
+    /// * `axes` - The new order of the dimensions.
     ///
     /// # Returns
     ///
