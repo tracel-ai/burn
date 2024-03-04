@@ -2,7 +2,7 @@ use burn_common::benchmark::{run_benchmark, Benchmark};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Distribution, Shape, Tensor};
 use burn_wgpu::compute::WgpuRuntime;
-use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim, sum_dim_shared_memory};
+use burn_wgpu::kernel::reduce::{init_reduce_output, sum_dim_naive, sum_dim_shared};
 use burn_wgpu::GraphicsApi;
 use burn_wgpu::WgpuDevice;
 use burn_wgpu::{AutoGraphicsApi, JitBackend};
@@ -75,19 +75,15 @@ macro_rules! bench_reduce {
     };
 }
 
-bench_reduce!(SumDimBenchmark, SumDim, sum_dim);
-bench_reduce!(
-    SumDimSharedMemoryBenchmark,
-    SumDimSharedMemory,
-    sum_dim_shared_memory
-);
+bench_reduce!(SumDimBenchmark, SumDimNaive, sum_dim_naive);
+bench_reduce!(SumDimSharedBenchmark, SumDimShared, sum_dim_shared);
 
 #[allow(dead_code)]
 /// Runs the benchmarks for wgpu matmul implementations
 pub fn bench(device: &WgpuDevice) {
     let num_repeats = 3;
-    let shape = Shape::new([32, 2048, 32]);
-    let dim = 2;
+    let shape = Shape::new([20, 10240]);
+    let dim = 1;
 
     macro_rules! run_reduce_benchmark {
         ($benchmark:ident) => {
@@ -103,7 +99,7 @@ pub fn bench(device: &WgpuDevice) {
         };
     }
 
-    run_reduce_benchmark!(SumDimSharedMemoryBenchmark);
+    run_reduce_benchmark!(SumDimSharedBenchmark);
     run_reduce_benchmark!(SumDimBenchmark);
 }
 

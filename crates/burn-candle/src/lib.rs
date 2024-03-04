@@ -41,6 +41,7 @@ mod tests {
     // test module
     burn_tensor::testgen_module_forward!();
     burn_tensor::testgen_module_conv1d!();
+    burn_tensor::testgen_module_nearest_interpolate!();
     // burn_tensor::testgen_module_conv2d!();
     // burn_tensor::testgen_module_conv_transpose1d!();
     // burn_tensor::testgen_module_conv_transpose2d!();
@@ -78,6 +79,7 @@ mod tests {
     burn_tensor::testgen_maxmin!();
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
+    burn_tensor::testgen_argwhere_nonzero!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //

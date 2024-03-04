@@ -5,6 +5,7 @@ mod procedure;
 mod processing;
 mod scope;
 mod shader;
+mod synchronization;
 mod variable;
 mod vectorization;
 
