@@ -8,6 +8,16 @@ pub enum Instruction {
     DeclareVariable {
         var: Variable,
     },
+    Max {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Min {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
     Add {
         lhs: Variable,
         rhs: Variable,
@@ -158,6 +168,20 @@ pub enum Instruction {
         end: Variable,
         instructions: Vec<Instruction>,
     },
+    And {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Or {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Not {
+        input: Variable,
+        out: Variable,
+    },
     Loop {
         instructions: Vec<Instruction>,
     },
@@ -173,6 +197,19 @@ impl Display for Instruction {
             Instruction::Add { lhs, rhs, out } => {
                 f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
             }
+            Instruction::Min { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = min({lhs}, {rhs});\n"))
+            }
+            Instruction::Max { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = max({lhs}, {rhs});\n"))
+            }
+            Instruction::And { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} && {rhs};\n"))
+            }
+            Instruction::Or { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} || {rhs};\n"))
+            }
+            Instruction::Not { input, out } => f.write_fmt(format_args!("{out} = !{input};\n")),
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))

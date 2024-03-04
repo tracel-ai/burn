@@ -372,6 +372,16 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
 
     fn compile_instruction(&mut self, value: gpu::Operator) -> wgsl::Instruction {
         match value {
+            gpu::Operator::Max(op) => wgsl::Instruction::Max {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Min(op) => wgsl::Instruction::Min {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Add(op) => wgsl::Instruction::Add {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
@@ -485,6 +495,20 @@ impl<F: FloatElement, I: IntElement> Compiler<F, I> {
             gpu::Operator::IndexAssign(op) => wgsl::Instruction::IndexAssign {
                 lhs: self.compile_variable(op.lhs),
                 rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::And(op) => wgsl::Instruction::And {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Or(op) => wgsl::Instruction::Or {
+                lhs: self.compile_variable(op.lhs),
+                rhs: self.compile_variable(op.rhs),
+                out: self.compile_variable(op.out),
+            },
+            gpu::Operator::Not(op) => wgsl::Instruction::Not {
+                input: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
             },
         }

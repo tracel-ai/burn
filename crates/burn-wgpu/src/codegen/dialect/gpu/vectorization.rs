@@ -36,6 +36,8 @@ impl Operation {
 impl Operator {
     pub fn vectorize(&self, vectorization: Vectorization) -> Self {
         match self {
+            Operator::Max(op) => Operator::Max(op.vectorize(vectorization)),
+            Operator::Min(op) => Operator::Min(op.vectorize(vectorization)),
             Operator::Add(op) => Operator::Add(op.vectorize(vectorization)),
             Operator::Index(op) => Operator::Index(op.vectorize(vectorization)),
             Operator::Sub(op) => Operator::Sub(op.vectorize(vectorization)),
@@ -69,6 +71,9 @@ impl Operator {
             }
             Operator::Modulo(op) => Operator::Modulo(op.vectorize(vectorization)),
             Operator::IndexAssign(op) => Operator::IndexAssign(op.vectorize(vectorization)),
+            Operator::And(op) => Operator::And(op.vectorize(vectorization)),
+            Operator::Or(op) => Operator::Or(op.vectorize(vectorization)),
+            Operator::Not(op) => Operator::Not(op.vectorize(vectorization)),
         }
     }
 }

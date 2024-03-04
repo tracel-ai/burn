@@ -48,6 +48,11 @@ pub enum Operator {
     Modulo(BinaryOperator),
     Index(BinaryOperator),
     IndexAssign(BinaryOperator),
+    And(BinaryOperator),
+    Or(BinaryOperator),
+    Not(UnaryOperator),
+    Max(BinaryOperator),
+    Min(BinaryOperator),
 }
 
 /// All metadata that can be access in a shader.

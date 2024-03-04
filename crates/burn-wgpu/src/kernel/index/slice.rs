@@ -8,7 +8,7 @@ use crate::{
     kernel::{DynamicKernelSource, SourceTemplate},
     ops::numeric::empty_device,
     tensor::JitTensor,
-    Runtime,
+    Runtime, RuntimeInt,
 };
 use burn_tensor::{ElementConversion, Shape};
 use std::{marker::PhantomData, ops::Range};
@@ -120,8 +120,6 @@ pub(crate) fn slice<R: Runtime, E: JitElement, const D1: usize, const D2: usize>
     slice_on_output(tensor, output, indices)
 }
 
-type IntType<R> = <<R as Runtime>::Compiler as Compiler>::Int;
-
 pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     output: JitTensor<R, E, D1>,
@@ -136,7 +134,7 @@ pub(crate) fn slice_on_output<R: Runtime, E: JitElement, const D1: usize, const 
 
     let kernel = SliceEagerKernel::new(D1);
 
-    execute_dynamic::<R, SliceEagerKernel<R, E>, IntType<R>>(
+    execute_dynamic::<R, SliceEagerKernel<R, E>, RuntimeInt<R>>(
         &[EagerHandle::new(
             &tensor.handle,
             &tensor.strides,

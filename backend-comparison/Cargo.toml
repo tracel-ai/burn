@@ -54,6 +54,10 @@ name = "binary"
 harness = false
 
 [[bench]]
+name = "max_pool2d"
+harness = false
+
+[[bench]]
 name = "matmul"
 harness = false
 
