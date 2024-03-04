@@ -67,7 +67,7 @@ fn argwhere_data<B: Backend, const D: usize>(
     let dims = data.shape.dims;
     let count_nonzero = data.value.iter().filter(|&v| *v).count();
 
-    /// Converts a flat index into a vector of indices for the
+    /// Converts a flat index into a vector of indices for the specified tensor shape
     fn unravel_index<B: Backend, const D: usize>(
         index: usize,
         shape: &[usize; D],
