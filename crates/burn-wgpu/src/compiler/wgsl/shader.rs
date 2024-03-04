@@ -1,5 +1,5 @@
 use super::{Body, Extension, Item};
-use burn_wgpu::gpu::WorkgroupSize;
+use burn_jit::gpu::WorkgroupSize;
 use std::fmt::Display;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

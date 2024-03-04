@@ -1,7 +1,7 @@
 use super::{shader::ComputeShader, Item, SharedMemory};
 use crate::compiler::wgsl;
 use crate::{FloatElement, IntElement};
-use burn_wgpu::gpu;
+use burn_jit::gpu;
 use std::marker::PhantomData;
 
 /// Wgsl Compiler.
@@ -50,7 +50,7 @@ impl<F: FloatElement, I: IntElement> Default for WgslCompiler<F, I> {
     }
 }
 
-impl<F: FloatElement, I: IntElement> burn_wgpu::Compiler for WgslCompiler<F, I> {
+impl<F: FloatElement, I: IntElement> burn_jit::Compiler for WgslCompiler<F, I> {
     type Representation = ComputeShader;
     type Float = F;
     type Int = I;

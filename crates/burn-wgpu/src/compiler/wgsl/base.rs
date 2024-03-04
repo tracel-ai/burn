@@ -1,4 +1,4 @@
-use burn_wgpu::gpu;
+use burn_jit::gpu;
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]

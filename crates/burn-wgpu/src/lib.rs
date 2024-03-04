@@ -1,44 +1,27 @@
-#![warn(missing_docs)]
-
-//! Burn WGPU Backend
-
 #[macro_use]
 extern crate derive_new;
+
 extern crate alloc;
 
-mod ops;
-
-/// Compute related module.
-pub mod compute;
-/// Kernel module
-pub mod kernel;
-/// Tensor module.
-pub mod tensor;
-
-pub(crate) mod codegen;
-pub(crate) mod tune;
-
-mod element;
-pub use codegen::compiler::Compiler;
-pub use codegen::dialect::gpu;
-pub use codegen::dialect::wgsl;
-
-use compute::WgpuRuntime;
-pub use element::{FloatElement, IntElement, JitElement};
-
+mod compiler;
+mod compute;
 mod device;
-pub use device::*;
-
-mod backend;
-pub use backend::*;
+mod element;
+mod fusion;
+mod graphics;
 mod runtime;
+
+pub use device::*;
+pub use element::*;
+pub use graphics::*;
 pub use runtime::*;
 
-mod graphics;
-pub use graphics::*;
-
-#[cfg(any(feature = "fusion", test))]
-mod fusion;
+pub use burn_jit::{JitBackend, tensor::JitTensor};
+pub use burn_jit::compute::{DynamicKernel, WorkGroup};
+pub use burn_jit::kernel::{
+    build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+};
+pub use burn_jit::kernel_wgsl;
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -79,61 +62,13 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 /// performance.
 pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
 
-#[cfg(feature = "export_tests")]
-#[allow(missing_docs)]
-#[macro_export]
-macro_rules! testgen_all {
-    () => {
-        mod jit {
-            burn_wgpu::testgen_jit!();
-            burn_wgpu::testgen_reduction!();
-        }
-        mod jit_fusion {
-            burn_wgpu::testgen_jit_fusion!();
-        }
-    };
-}
-
-#[cfg(feature = "export_tests")]
-#[allow(missing_docs)]
-#[macro_export]
-macro_rules! testgen_jit {
-    () => {
-        use super::*;
-
-        pub type TestBackend = JitBackend<TestRuntime>;
-        pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
-
-        pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        pub type TestTensorInt<const D: usize> =
-            burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-        pub type TestTensorBool<const D: usize> =
-            burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-        pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
-
-        burn_tensor::testgen_all!();
-        burn_autodiff::testgen_all!();
-    };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::WgpuRuntime;
+    use crate::WgpuRuntime;
 
-    pub type TestCompiler = wgsl::Compiler<f32, i32>;
+    pub type TestCompiler = crate::compiler::wgsl::WgslCompiler<f32, i32>;
     pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
-    pub type TestBackend = JitBackend<TestRuntime>;
-    pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
-
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    burn_jit::testgen_all!();
 }

@@ -9,7 +9,7 @@ use burn::{
             ops::{broadcast_shape, Backward, Ops, OpsKind},
             Autodiff, NodeID,
         },
-        wgpu::{compute::WgpuRuntime, FloatElement, GraphicsApi, IntElement, JitBackend},
+        wgpu::{WgpuRuntime, FloatElement, GraphicsApi, IntElement, JitBackend},
     },
     tensor::Shape,
 };
