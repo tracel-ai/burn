@@ -178,7 +178,7 @@ mod tests {
     mod reduction {
         use super::*;
         use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
-        use burn_wgpu::kernel::reduce::{sum_dim, ReduceStrategy};
+        use burn_jit::kernel::reduce::{sum_dim, ReduceStrategy};
 
         #[test]
         fn reduction_sum_dim_should_work_with_multiple_invocations() {
