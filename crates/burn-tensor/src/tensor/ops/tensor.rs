@@ -433,6 +433,20 @@ pub trait FloatTensorOps<B: Backend> {
         dim2: usize,
     ) -> FloatTensor<B, D>;
 
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `axes` - The new order of the dimensions.
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<B, D>;
+
     /// Reshapes a tensor.
     ///
     /// # Arguments

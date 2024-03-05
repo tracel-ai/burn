@@ -951,6 +951,17 @@ pub trait IntTensorOps<B: Backend> {
         dim2: usize,
     ) -> IntTensor<B, D>;
 
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `axes` - The new order of the dimensions.
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn int_permute<const D: usize>(tensor: IntTensor<B, D>, axes: [usize; D]) -> IntTensor<B, D>;
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments

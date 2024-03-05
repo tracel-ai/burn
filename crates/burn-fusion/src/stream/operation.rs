@@ -145,6 +145,14 @@ pub enum BaseOperationDescription {
     /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
     /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [permute](burn_tensor::ops::FloatTensorOps::float_permute).
+    /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
+    /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
+    Permute(PermuteOperationDescription),
+
     /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
@@ -409,8 +417,8 @@ pub enum BoolOperationDescription {
     Not(UnaryOperationDescription),
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 /// Swap dim operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsDescription {
     /// Input tensor description.
     pub input: TensorDescription,
@@ -420,6 +428,17 @@ pub struct SwapDimsDescription {
     pub dim1: usize,
     /// The second dim to swap.
     pub dim2: usize,
+}
+
+/// Permute operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct PermuteOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// output tensor description.
+    pub out: TensorDescription,
+    /// The first dim to swap.
+    pub axes: Vec<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -988,6 +1007,10 @@ impl BaseOperationDescription {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::SwapDims(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+
+            BaseOperationDescription::Permute(desc) => {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::Slice(desc) => {
