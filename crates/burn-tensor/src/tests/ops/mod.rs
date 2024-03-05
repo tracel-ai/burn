@@ -33,6 +33,7 @@ mod mul;
 mod narrow;
 mod neg;
 mod one_hot;
+mod permute;
 mod powf;
 mod powf_scalar;
 mod random;

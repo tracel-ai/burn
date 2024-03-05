@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
 use burn_tensor::{ElementConversion, Reader};
 use core::ops::Range;
+use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::FloatNdArrayElement;
@@ -127,5 +128,13 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         dim2: usize,
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
+    }
+
+    fn bool_permute<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
+        NdArrayTensor { array }
     }
 }

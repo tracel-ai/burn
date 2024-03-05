@@ -323,6 +323,32 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn permute<const D: usize>(axes: [usize; D]) -> Self {
+        let check = Self::Ok;
+
+        // Check if the axes are within the tensor dimensions
+        if let Some(axis) = axes.iter().find(|&x| *x >= D) {
+            return check.register(
+                "permute",
+                TensorError::new("The axes must be smaller than the tensor dimension.")
+                    .details(format!("The '{axis}' axis is greater than {D} dimensions.")),
+            );
+        }
+
+        // Check if the axes are unique
+        let mut seen = [false; D];
+        axes.iter().for_each(|&x| seen[x] = true);
+        if seen.iter().any(|&x| !x) {
+            return check.register(
+                "permute",
+                TensorError::new("The axes must be unique.")
+                    .details(format!("The axes '{axes:?}' are not unique.")),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn matmul<B: Backend, const D: usize>(
         lhs: &Tensor<B, D>,
         rhs: &Tensor<B, D>,
