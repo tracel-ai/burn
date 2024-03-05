@@ -1,13 +1,9 @@
 #[burn_tensor_testgen::testgen(normal)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
-
-    // Use the reexported test dependency.
-    use burn_jit::tests::serial_test;
-    use serial_test::serial;
-
     use burn_jit::kernel::prng::tests_utils::calculate_bin_stats;
+    use burn_tensor::{backend::Backend, Data, Distribution, Shape, Tensor};
+    use serial_test::serial;
 
     #[test]
     #[serial]

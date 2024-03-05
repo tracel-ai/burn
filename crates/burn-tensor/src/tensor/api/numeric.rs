@@ -1,6 +1,6 @@
 use crate::{
-    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
-    Int, Shape, Tensor, TensorKind,
+    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
+    ElementConversion, Float, Int, Shape, Tensor, TensorKind,
 };
 use num_traits::Zero;
 
@@ -649,6 +649,16 @@ where
     /// A boolean tensor with the same shape as the input tensor.
     pub fn bool(self) -> Tensor<B, D, Bool> {
         K::not_equal_elem::<D>(self.primitive, K::Elem::zero())
+    }
+
+    /// Create a random tensor of the given shape on the given device where each element is
+    /// sampled from the given distribution.
+    pub fn random<S: Into<Shape<D>>>(
+        shape: S,
+        distribution: Distribution,
+        device: &B::Device,
+    ) -> Self {
+        Self::new(K::random(shape.into(), distribution, device))
     }
 }
 
@@ -1753,6 +1763,32 @@ where
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D>;
+
+    /// Create a random tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the output tensor.
+    /// * `distribution` - The distribution used to sample.
+    /// * `device` - The device to use.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// Users should prefer the [Tensor::random](Tensor::random) function,
+    /// which is more high-level and designed for public use.
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &B::Device,
+    ) -> Self::Primitive<D>;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -2040,6 +2076,14 @@ impl<B: Backend> Numeric<B> for Int {
         rhs: E,
     ) -> Self::Primitive<D> {
         B::int_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::int_random(shape, distribution, device)
     }
 }
 
@@ -2329,6 +2373,14 @@ impl<B: Backend> Numeric<B> for Float {
         rhs: E,
     ) -> Self::Primitive<D> {
         B::float_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::float_random(shape, distribution, device)
     }
 }
 

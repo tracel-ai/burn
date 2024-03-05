@@ -17,6 +17,7 @@ mod select;
 mod select_assign;
 mod slice;
 mod slice_assign;
+mod uniform;
 
 // Re-export dependencies for tests
 pub use burn_autodiff;
@@ -57,6 +58,7 @@ macro_rules! testgen_all {
 
                 burn_jit::testgen_bernoulli!();
                 burn_jit::testgen_normal!();
+                burn_jit::testgen_uniform!();
             }
         }
         mod jit_fusion {
@@ -69,7 +71,7 @@ macro_rules! testgen_all {
 macro_rules! testgen_jit {
     () => {
         use super::*;
-        use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor};
+        use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
         pub type TestBackend = JitBackend<TestRuntime>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
