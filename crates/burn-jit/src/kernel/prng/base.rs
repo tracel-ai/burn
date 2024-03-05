@@ -35,8 +35,9 @@ pub(crate) fn make_args_buffer<R: Runtime, E: JitElement>(
     client.create(E::as_bytes(args))
 }
 
-#[cfg(test)]
-pub mod tests {
+#[cfg(feature = "export_tests")]
+#[allow(missing_docs)]
+pub mod tests_utils {
     use burn_tensor::Element;
 
     #[derive(Default, Copy, Clone)]

@@ -633,12 +633,10 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.13.0"
 dependencies = [
- "burn-autodiff",
  "burn-common",
  "burn-compute",
  "burn-fusion",
  "burn-jit",
- "burn-ndarray",
  "burn-tensor",
  "bytemuck",
  "derive-new",
