@@ -2,6 +2,9 @@
 
 mod avg_pool2d;
 mod bernoulli;
+mod cast;
+mod cat;
+mod clamp;
 mod conv2d;
 mod conv_transpose2d;
 mod gather;
@@ -17,6 +20,7 @@ mod select;
 mod select_assign;
 mod slice;
 mod slice_assign;
+mod unary;
 mod uniform;
 
 // Re-export dependencies for tests
@@ -59,6 +63,11 @@ macro_rules! testgen_all {
                 burn_jit::testgen_bernoulli!();
                 burn_jit::testgen_normal!();
                 burn_jit::testgen_uniform!();
+
+                burn_jit::testgen_cast!();
+                burn_jit::testgen_cat!();
+                burn_jit::testgen_clamp!();
+                burn_jit::testgen_unary!();
             }
         }
         mod jit_fusion {
