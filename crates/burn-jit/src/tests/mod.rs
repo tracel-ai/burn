@@ -3,6 +3,8 @@
 mod conv2d;
 mod conv_transpose2d;
 mod gather;
+mod mask_fill;
+mod mask_where;
 mod reduce;
 mod repeat;
 mod scatter;
@@ -31,6 +33,8 @@ macro_rules! testgen_all {
                 burn_jit::testgen_select_assign!();
                 burn_jit::testgen_slice!();
                 burn_jit::testgen_slice_assign!();
+                burn_jit::testgen_mask_where!();
+                burn_jit::testgen_mask_fill!();
             }
         }
         mod jit_fusion {

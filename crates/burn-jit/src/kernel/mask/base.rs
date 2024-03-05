@@ -1,30 +1,34 @@
+use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
 use crate::{element::JitElement, tensor::JitTensor, Runtime};
 
 /// Execute the mask fill kernel.
-pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn mask_fill_auto<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: E,
 ) -> JitTensor<R, E, D> {
-    if tensor.can_mut() {
-        return super::mask_fill::mask_fill_inplace(tensor, mask, value);
-    }
+    let strategy = if tensor.can_mut() {
+        MaskFillStrategy::Inplace
+    } else {
+        MaskFillStrategy::Readonly
+    };
 
-    super::mask_fill::mask_fill(tensor, mask, value)
+    super::mask_fill(tensor, mask, value, strategy)
 }
 
 /// Execute the mask where kernel.
-pub fn mask_where<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn mask_where_auto<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     mask: JitTensor<R, u32, D>,
     value: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    if tensor.can_mut_broadcast(&value) {
-        return super::mask_where::mask_where_inplace(tensor, mask, value, false);
-    }
-    if value.can_mut_broadcast(&tensor) {
-        return super::mask_where::mask_where_inplace(value, mask, tensor, true);
-    }
+    let strategy = if tensor.can_mut_broadcast(&value) {
+        MaskWhereStrategy::InplaceLhs
+    } else if value.can_mut_broadcast(&tensor) {
+        MaskWhereStrategy::InplaceRhs
+    } else {
+        MaskWhereStrategy::Readonly
+    };
 
-    super::mask_where::mask_where(tensor, mask, value)
+    super::mask_where(tensor, mask, value, strategy)
 }

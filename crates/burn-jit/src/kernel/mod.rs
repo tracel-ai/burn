@@ -12,6 +12,7 @@ mod unary;
 pub use base::*;
 pub use binary::*;
 pub use cast::*;
+pub use mask::*;
 pub use source::*;
 pub use unary::*;
 
@@ -32,4 +33,3 @@ pub(crate) use cat::*;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;
-pub(crate) use mask::*;

@@ -225,7 +225,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         mask: BoolTensor<Self, D>,
         value: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        kernel::mask_where(tensor, mask, value)
+        kernel::mask_where_auto(tensor, mask, value)
     }
 
     fn float_mask_fill<const D: usize>(
@@ -233,7 +233,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         mask: BoolTensor<Self, D>,
         value: FloatElem<Self>,
     ) -> FloatTensor<Self, D> {
-        kernel::mask_fill(tensor, mask, value)
+        kernel::mask_fill_auto(tensor, mask, value)
     }
 
     fn float_equal<const D: usize>(

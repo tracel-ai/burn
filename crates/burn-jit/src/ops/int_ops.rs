@@ -64,7 +64,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         mask: BoolTensor<Self, D>,
         value: IntTensor<Self, D>,
     ) -> IntTensor<Self, D> {
-        kernel::mask_where(tensor, mask, value)
+        kernel::mask_where_auto(tensor, mask, value)
     }
 
     fn int_mask_fill<const D: usize>(
@@ -72,7 +72,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         mask: BoolTensor<Self, D>,
         value: IntElem<Self>,
     ) -> IntTensor<Self, D> {
-        kernel::mask_fill(tensor, mask, value)
+        kernel::mask_fill_auto(tensor, mask, value)
     }
 
     fn int_gather<const D: usize>(
