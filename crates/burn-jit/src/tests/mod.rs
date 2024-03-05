@@ -1,10 +1,13 @@
 #![allow(missing_docs)]
 
+mod avg_pool2d;
 mod conv2d;
 mod conv_transpose2d;
 mod gather;
 mod mask_fill;
 mod mask_where;
+mod max_pool2d;
+mod max_pool2d_backward;
 mod reduce;
 mod repeat;
 mod scatter;
@@ -35,6 +38,9 @@ macro_rules! testgen_all {
                 burn_jit::testgen_slice_assign!();
                 burn_jit::testgen_mask_where!();
                 burn_jit::testgen_mask_fill!();
+                burn_jit::testgen_avg_pool2d!();
+                burn_jit::testgen_max_pool2d!();
+                burn_jit::testgen_max_pool2d_backward!();
             }
         }
         mod jit_fusion {
