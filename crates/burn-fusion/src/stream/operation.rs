@@ -422,7 +422,7 @@ pub enum BoolOperationDescription {
 pub struct SwapDimsDescription {
     /// Input tensor description.
     pub input: TensorDescription,
-    /// output tensor description.
+    /// Output tensor description.
     pub out: TensorDescription,
     /// The first dim to swap.
     pub dim1: usize,
@@ -435,9 +435,9 @@ pub struct SwapDimsDescription {
 pub struct PermuteOperationDescription {
     /// Input tensor description.
     pub input: TensorDescription,
-    /// output tensor description.
+    /// Output tensor description.
     pub out: TensorDescription,
-    /// The first dim to swap.
+    /// The new order of the dimensions.
     pub axes: Vec<usize>,
 }
 
