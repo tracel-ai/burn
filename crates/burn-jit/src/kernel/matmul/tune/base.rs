@@ -70,11 +70,6 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
         ]
     }
 
@@ -88,9 +83,6 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
             )),
             2 => Box::new(Vec4TilingMatmulDefault::new(self.lhs, self.rhs, self.out)),
             3 => Box::new(Vec4TilingMatmulUnpaddedDefault::new(
-                self.lhs, self.rhs, self.out,
-            )),
-            4 => Box::new(Vec4LhsOnlyTilingMatmulDefault::new(
                 self.lhs, self.rhs, self.out,
             )),
             _ => panic!("Fastest index is out of bound"),
@@ -150,12 +142,6 @@ matmul_tune_ops!(
 matmul_tune_ops!(MemoryCoalescingMatmulW16x16, |lhs, rhs, out| {
     crate::kernel::matmul::matmul_mem_coalescing(lhs, rhs, out, 16, 16)
 });
-
-// Maybe the fastest on MacOS.
-matmul_tune_ops!(
-    Vec4LhsOnlyTilingMatmulDefault,
-    crate::kernel::matmul::vec4_lhs::matmul_tiling_2d_vec4_lhs
-);
 
 // Probably the fastest when fixed sizes.
 matmul_tune_ops!(

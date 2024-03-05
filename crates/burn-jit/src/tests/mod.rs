@@ -10,6 +10,7 @@ mod conv_transpose2d;
 mod gather;
 mod mask_fill;
 mod mask_where;
+mod matmul;
 mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
@@ -68,6 +69,7 @@ macro_rules! testgen_all {
                 burn_jit::testgen_cat!();
                 burn_jit::testgen_clamp!();
                 burn_jit::testgen_unary!();
+                burn_jit::testgen_matmul!();
             }
         }
         mod jit_fusion {

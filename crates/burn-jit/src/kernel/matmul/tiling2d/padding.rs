@@ -9,7 +9,7 @@ use burn_tensor::{Element, Shape};
 use std::ops::Range;
 
 // Output of the pad_round function. Allows to know explicitly if early return occurred
-pub(super) enum PaddingOutput<R: Runtime, E: JitElement, const D: usize> {
+pub enum PaddingOutput<R: Runtime, E: JitElement, const D: usize> {
     Padded(JitTensor<R, E, D>),
     Unchanged(JitTensor<R, E, D>),
 }
@@ -27,7 +27,7 @@ impl<R: Runtime, E: JitElement, const D: usize> PaddingOutput<R, E, D> {
 /// divisible by some quantity.
 /// For instance tensor of shape [1000, 1000] with divisors 64 and 64
 /// will be padded to [1024, 1024] with the last 24 elements being zeros
-pub(super) fn pad_round<R: Runtime, E: JitElement, const D: usize>(
+pub fn pad_round<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     row_divisor: usize,
     col_divisor: usize,
@@ -60,7 +60,7 @@ pub(super) fn pad_round<R: Runtime, E: JitElement, const D: usize>(
 }
 
 /// Pads tensor by adding zeros when padded dim is larger than tensor dim
-fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
     tensor: JitTensor<R, E, D>,
     padded_shape: Shape<D>,
 ) -> JitTensor<R, E, D> {
@@ -80,7 +80,7 @@ fn padding<R: Runtime, E: JitElement + Element, const D: usize>(
 }
 
 /// Crops tensor by deleting values when cropped dim is smaller than tensor dim
-pub(super) fn crop<R: Runtime, E: JitElement, const D: usize>(
+pub fn crop<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     output: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
@@ -94,250 +94,3 @@ pub(super) fn crop<R: Runtime, E: JitElement, const D: usize>(
         .unwrap();
     slice_on_output::<R, E, D, D>(tensor, output, ranges)
 }
-
-// #[cfg(test)]
-// mod tests {
-//
-//     use super::*;
-//     use crate::tests::TestTensor;
-//
-//     #[test]
-//     fn padding_already_round_should_have_same_shape() {
-//         let row = 10;
-//         let row_divisor = 5;
-//         let col = 12;
-//         let col_divisor = 3;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//         let expected_shape = [row, col].into();
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         assert!(padded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn padding_already_round_should_have_same_values() {
-//         let row = 10;
-//         let row_divisor = 5;
-//         let col = 12;
-//         let col_divisor = 3;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//
-//         let padded = pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor);
-//
-//         let padded = TestTensor::from_primitive(padded.into_tensor());
-//         padded.into_data().assert_approx_eq(&tensor.into_data(), 3);
-//     }
-//
-//     #[test]
-//     fn padding_not_round_should_have_rounded_shape() {
-//         let row = 10;
-//         let row_divisor = 6;
-//         let col = 12;
-//         let col_divisor = 5;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//         let expected_shape = [12, 15].into();
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         assert!(padded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn padding_not_round_should_have_same_values() {
-//         let row = 10;
-//         let row_divisor = 6;
-//         let col = 12;
-//         let col_divisor = 5;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//
-//         let padded =
-//             pad_round(tensor.clone().into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         let padded = TestTensor::from_primitive(padded).to_data();
-//         let tensor = tensor.into_data();
-//         for i in 0..row {
-//             for j in 0..col {
-//                 assert!(padded.value[i * 15 + j] == tensor.value[i * col + j]);
-//             }
-//         }
-//     }
-//
-//     #[test]
-//     fn padding_not_round_should_have_zero_padding() {
-//         let row = 10;
-//         let row_divisor = 6;
-//         let col = 12;
-//         let col_divisor = 5;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//         let padded = TestTensor::from_primitive(padded).to_data();
-//
-//         // check right of matrix
-//         for i in 0..row {
-//             for j in col..15 {
-//                 assert!(padded.value[i * 15 + j] == 0.0);
-//             }
-//         }
-//         // check below matrix, including bottom right
-//         for i in row..12 {
-//             for j in 0..15 {
-//                 assert!(padded.value[i * 15 + j] == 0.0);
-//             }
-//         }
-//     }
-//
-//     #[test]
-//     fn padding_works_with_batch() {
-//         let row = 10;
-//         let row_divisor = 4;
-//         let col = 12;
-//         let col_divisor = 5;
-//         let tensor = TestTensor::random(
-//             [2, 3, row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//         let expected_shape = [2, 3, 12, 15].into();
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         assert!(padded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn padding_with_row_divisor_larger_than_row() {
-//         let row = 10;
-//         let row_divisor = 32;
-//         let col = 4;
-//         let col_divisor = 3;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//         let expected_shape = [row_divisor, 2 * col_divisor].into();
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         assert!(padded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn padding_with_row_divisor_equal_to_row_but_col_must_be_padded() {
-//         let row = 32;
-//         let row_divisor = 32;
-//         let col = 4;
-//         let col_divisor = 64;
-//         let tensor = TestTensor::random(
-//             [row, col],
-//             burn_tensor::Distribution::Default,
-//             &Default::default(),
-//         );
-//         let expected_shape = [32, 64].into();
-//
-//         let padded = pad_round(tensor.into_primitive(), row_divisor, col_divisor).into_tensor();
-//
-//         assert!(padded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn crop_same_shape_should_be_unchanged_shape() {
-//         let row = 10;
-//         let col = 12;
-//         let device = Default::default();
-//         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
-//         let expected_shape = [row, col].into();
-//
-//         let unpadded = crop(
-//             tensor.clone().into_primitive(),
-//             TestTensor::empty([row, col], &device).into_primitive(),
-//         );
-//
-//         assert!(unpadded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn crop_same_shape_should_have_unchanged_values() {
-//         let row = 10;
-//         let col = 12;
-//         let device = Default::default();
-//         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
-//
-//         let unpadded = crop(
-//             tensor.clone().into_primitive(),
-//             TestTensor::empty([row, col], &device).into_primitive(),
-//         );
-//
-//         let unpadded = TestTensor::from_primitive(unpadded).to_data();
-//         let tensor = tensor.into_data();
-//         for i in 0..row {
-//             for j in 0..col {
-//                 assert!(unpadded.value[i * col + j] == tensor.value[i * col + j]);
-//             }
-//         }
-//     }
-//
-//     #[test]
-//     fn crop_should_decrease_shape() {
-//         let row = 10;
-//         let keep_rows = 8;
-//         let col = 12;
-//         let keep_cols = 10;
-//         let device = Default::default();
-//         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
-//         let expected_shape = [keep_rows, keep_cols].into();
-//
-//         let unpadded = crop(
-//             tensor.clone().into_primitive(),
-//             TestTensor::empty([keep_rows, keep_cols], &device).into_primitive(),
-//         );
-//
-//         assert!(unpadded.shape == expected_shape);
-//     }
-//
-//     #[test]
-//     fn crop_should_keep_same_values() {
-//         let row = 4;
-//         let keep_rows = 3;
-//         let col = 4;
-//         let keep_cols = 3;
-//         let device = Default::default();
-//         let tensor = TestTensor::random([row, col], burn_tensor::Distribution::Default, &device);
-//
-//         let unpadded = crop(
-//             tensor.clone().into_primitive(),
-//             TestTensor::empty([keep_rows, keep_cols], &device).into_primitive(),
-//         );
-//
-//         let unpadded = TestTensor::from_primitive(unpadded).to_data();
-//         let tensor = tensor.into_data();
-//
-//         for i in 0..keep_rows {
-//             for j in 0..keep_cols {
-//                 assert!(unpadded.value[i * keep_cols + j] == tensor.value[i * col + j]);
-//             }
-//         }
-//     }
-// }

@@ -1,11 +1,6 @@
 use super::numeric;
 use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
-#[cfg(not(feature = "autotune"))]
-use crate::kernel::matmul::init_matmul_output;
-#[cfg(feature = "autotune")]
-use crate::kernel::matmul::matmul_autotune;
-#[cfg(not(feature = "autotune"))]
-use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
+use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, reduce};
 use crate::tensor::JitTensor;
@@ -144,16 +139,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            matmul_autotune(lhs, rhs)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let out = init_matmul_output(&lhs, &rhs);
-            matmul_tiling_2d_vec4(lhs, rhs, out)
-        }
+        matmul(lhs, rhs, MatmulStrategy::default())
     }
 
     fn float_swap_dims<const D: usize>(

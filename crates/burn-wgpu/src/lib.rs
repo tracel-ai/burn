@@ -65,10 +65,8 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WgpuRuntime;
 
-    pub type TestCompiler = crate::compiler::wgsl::WgslCompiler<f32, i32>;
-    pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
+    pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi, f32, i32>;
 
     burn_jit::testgen_all!();
 }

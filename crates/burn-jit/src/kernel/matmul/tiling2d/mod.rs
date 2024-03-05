@@ -1,4 +1,10 @@
 mod base;
+
+#[cfg(feature = "export_tests")]
+#[allow(missing_docs)]
+pub mod padding;
+
+#[cfg(not(feature = "export_tests"))]
 mod padding;
 
 /// WGSL vec4 primitives are used on left and right hand tensor,
@@ -6,5 +12,3 @@ mod padding;
 pub mod unpadded;
 /// WGSL vec4 primitives are used on left and right hand tensor
 pub mod vec4;
-/// WGSL vec4 primitives are used on left hand tensor
-pub mod vec4_lhs;
