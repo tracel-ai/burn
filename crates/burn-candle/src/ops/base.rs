@@ -53,6 +53,13 @@ pub fn swap_dims<E: CandleElement, const D: usize>(
     CandleTensor::new(tensor.tensor.transpose(dim1, dim2).unwrap())
 }
 
+pub fn permute<E: CandleElement, const D: usize>(
+    tensor: CandleTensor<E, D>,
+    axes: [usize; D],
+) -> CandleTensor<E, D> {
+    CandleTensor::new(tensor.tensor.permute(axes).unwrap())
+}
+
 pub fn reshape<E: CandleElement, const D1: usize, const D2: usize>(
     tensor: CandleTensor<E, D1>,
     shape: Shape<D2>,

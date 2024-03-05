@@ -3,7 +3,10 @@ use crate::fusion::JitFusionHandle;
 #[cfg(feature = "fusion")]
 use burn_fusion::TensorDescription;
 
-use super::{dialect::gpu, Compiler};
+use super::{
+    dialect::gpu::{self},
+    Compiler,
+};
 use crate::{
     codegen::dialect::gpu::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,

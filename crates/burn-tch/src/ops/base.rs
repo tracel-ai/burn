@@ -429,6 +429,11 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor)
     }
 
+    pub fn permute<const D: usize>(tensor: TchTensor<E, D>, axes: [usize; D]) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.permute(axes.map(|x| x as i64));
+        TchTensor::new(tensor)
+    }
+
     pub fn narrow<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,

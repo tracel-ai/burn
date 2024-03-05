@@ -8,6 +8,8 @@ use crate::{
     Candle, CandleTensor,
 };
 
+use super::base::permute;
+
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::base::empty(shape, device)
@@ -409,5 +411,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
                     .unwrap(),
             ),
         }
+    }
+
+    fn int_permute<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        axes: [usize; D],
+    ) -> IntTensor<Self, D> {
+        permute(tensor, axes)
     }
 }

@@ -17,6 +17,7 @@ pub struct Scope {
     pub depth: u8,
     pub operations: Vec<Operation>,
     locals: Vec<Variable>,
+    shared: Vec<Variable>,
     reads_global: Vec<(Variable, ReadingStrategy, Variable)>,
     index_offset_with_output_layout_position: Vec<usize>,
     writes_global: Vec<(Variable, Variable)>,
@@ -43,6 +44,7 @@ impl Scope {
             depth: 0,
             operations: Vec::new(),
             locals: Vec::new(),
+            shared: Vec::new(),
             reads_global: Vec::new(),
             index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
@@ -58,6 +60,7 @@ impl Scope {
         gpu!(self, local = zero);
         local
     }
+
     /// Create a local variable of the given [item type](Item).
     pub fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();
@@ -192,6 +195,7 @@ impl Scope {
             depth: self.depth + 1,
             operations: Vec::new(),
             locals: Vec::new(),
+            shared: Vec::new(),
             reads_global: Vec::new(),
             index_offset_with_output_layout_position: Vec::new(),
             writes_global: Vec::new(),
@@ -285,6 +289,10 @@ impl Scope {
         self.reads_scalar.len() as u16
     }
 
+    fn new_shared_index(&self) -> u16 {
+        self.shared.len() as u16
+    }
+
     fn read_input_strategy(
         &mut self,
         index: u16,
@@ -306,5 +314,14 @@ impl Scope {
         self.reads_global.push((input, strategy, local));
         self.locals.push(local);
         local
+    }
+
+    /// Create a shared variable of the given [item type](Item).
+    pub fn create_shared<I: Into<Item>>(&mut self, item: I, shared_memory_size: u32) -> Variable {
+        let item = item.into();
+        let index = self.new_shared_index();
+        let shared_memory = Variable::SharedMemory(index, item, shared_memory_size);
+        self.shared.push(shared_memory);
+        shared_memory
     }
 }

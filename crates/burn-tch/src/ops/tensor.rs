@@ -467,4 +467,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
         TchOps::powf(lhs, rhs)
     }
+
+    fn float_permute<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        TchOps::permute(tensor, axes)
+    }
 }

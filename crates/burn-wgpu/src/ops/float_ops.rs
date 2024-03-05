@@ -1,4 +1,4 @@
-use super::numeric;
+use super::{numeric, permute};
 use crate::codegen::dialect::gpu::{BinaryOperator, Elem, Operator, Scope, UnaryOperator};
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::init_matmul_output;
@@ -7,8 +7,6 @@ use crate::kernel::matmul::matmul_autotune;
 #[cfg(not(feature = "autotune"))]
 use crate::kernel::matmul::vec4::matmul_tiling_2d_vec4;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-#[cfg(not(feature = "autotune"))]
-use crate::kernel::reduce::init_reduce_output;
 use crate::kernel::{self, reduce};
 use crate::tensor::JitTensor;
 use crate::Runtime;
@@ -316,32 +314,14 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::sum_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::sum_dim(tensor, output, dim)
-        }
+        reduce::sum_dim(tensor, dim)
     }
 
     fn float_mean_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
     ) -> FloatTensor<Self, D> {
-        #[cfg(feature = "autotune")]
-        {
-            reduce::mean_dim_autotune(tensor, dim)
-        }
-
-        #[cfg(not(feature = "autotune"))]
-        {
-            let output = init_reduce_output(&tensor, dim);
-            reduce::mean_dim(tensor, output, dim)
-        }
+        reduce::mean_dim(tensor, dim)
     }
 
     fn float_to_full_precision<const D: usize>(
@@ -542,5 +522,12 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
         numeric::pow(lhs, rhs)
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        permute(tensor, axes)
     }
 }
