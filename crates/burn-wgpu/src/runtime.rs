@@ -1,6 +1,9 @@
 use crate::{codegen::Compiler, compute::JitAutotuneKey};
 use burn_compute::{channel::ComputeChannel, client::ComputeClient, server::ComputeServer};
 
+/// Type alias to the runtime signed int element type.
+pub type RuntimeInt<R> = <<R as Runtime>::Compiler as Compiler>::Int;
+
 /// Runtime for the [just-in-time backend](crate::JitBackend).
 pub trait Runtime: Send + Sync + 'static {
     /// The compiler used to compile the inner representation into tokens.

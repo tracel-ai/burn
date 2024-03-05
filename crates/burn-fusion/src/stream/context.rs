@@ -894,7 +894,7 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![0, 1, 2],
-                status: TensorStatus::ReadOnly,
+                status: TensorStatus::ReadOnly
             }
         );
         assert_eq!(
@@ -902,7 +902,7 @@ mod tests {
             TensorDescription {
                 id: TensorId::new(1),
                 shape: vec![0, 3, 2],
-                status: TensorStatus::ReadOnly,
+                status: TensorStatus::ReadOnly
             }
         );
     }

@@ -30,14 +30,19 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// * `path` - A string slice that holds the path of the file to read.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-pub fn from_file<PS, D, B>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
+/// * `top_level_key` - An optional top-level key to load state_dict from a dictionary.
+pub fn from_file<PS, D, B>(
+    path: &Path,
+    key_remap: Vec<(Regex, String)>,
+    top_level_key: Option<&str>,
+) -> Result<D, Error>
 where
     D: DeserializeOwned,
     PS: PrecisionSettings,
     B: Backend,
 {
     // Read the pickle file and return a vector of Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all(path)?
+    let tensors: HashMap<String, CandleTensor> = pickle::read_all_with_key(path, top_level_key)?
         .into_iter()
         .map(|(key, tensor)| (key, CandleTensor(tensor)))
         .collect();

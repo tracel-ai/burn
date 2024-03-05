@@ -1,5 +1,7 @@
 use super::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion};
+use crate::{
+    argwhere, backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion,
+};
 use alloc::vec::Vec;
 use burn_common::reader::Reader;
 use core::ops::Range;
@@ -218,6 +220,24 @@ pub trait BoolTensorOps<B: Backend> {
     fn bool_equal<const D: usize>(lhs: BoolTensor<B, D>, rhs: BoolTensor<B, D>)
         -> BoolTensor<B, D>;
 
+    /// Element-wise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the comparison.
+    fn bool_not_equal<const D: usize>(
+        lhs: BoolTensor<B, D>,
+        rhs: BoolTensor<B, D>,
+    ) -> BoolTensor<B, D> {
+        let equal_tensor = B::bool_equal(lhs, rhs);
+        B::bool_not(equal_tensor)
+    }
+
     /// Inverses boolean values.
     ///
     /// # Arguments
@@ -294,7 +314,6 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A vectors of tensors
-    ///
     fn bool_chunk<const D: usize>(
         tensor: BoolTensor<B, D>,
         chunks: usize,
@@ -368,5 +387,40 @@ pub trait BoolTensorOps<B: Backend> {
         let num_elems = B::bool_shape(&tensor).dims[dim];
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())
+    }
+
+    /// Compute the indices of the elements that are non-zero, grouped by element.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
+    /// the non-zero elements in that dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
+        argwhere::<B, D>(tensor)
+    }
+
+    /// Compute the indices of the elements that are non-zero.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
+    /// the non-zero elements in that dimension.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
+        let indices = B::bool_argwhere(tensor);
+        let dims = B::int_shape(&indices).dims;
+        B::int_chunk(indices, dims[1], 1)
+            .into_iter()
+            .map(|t| B::int_reshape(t, Shape::new([dims[0]])))
+            .collect()
     }
 }

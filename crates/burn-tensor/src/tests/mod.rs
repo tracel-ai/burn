@@ -45,6 +45,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_cat!();
         burn_tensor::testgen_chunk!();
         burn_tensor::testgen_clamp!();
+        burn_tensor::testgen_close!();
         burn_tensor::testgen_cos!();
         burn_tensor::testgen_create_like!();
         burn_tensor::testgen_div!();
@@ -84,6 +85,8 @@ macro_rules! testgen_all {
         burn_tensor::testgen_powf!();
         burn_tensor::testgen_any!();
         burn_tensor::testgen_all_op!();
+        burn_tensor::testgen_bool!();
+        burn_tensor::testgen_argwhere_nonzero!();
 
         // test stats
         burn_tensor::testgen_var!();
