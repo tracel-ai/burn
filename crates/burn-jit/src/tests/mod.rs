@@ -1,6 +1,15 @@
 #![allow(missing_docs)]
 
+mod conv2d;
+mod conv_transpose2d;
+mod gather;
 mod reduce;
+mod repeat;
+mod scatter;
+mod select;
+mod select_assign;
+mod slice;
+mod slice_assign;
 
 #[cfg(feature = "export_tests")]
 #[macro_export]
@@ -8,7 +17,21 @@ macro_rules! testgen_all {
     () => {
         mod jit {
             burn_jit::testgen_jit!();
-            burn_jit::testgen_reduction!();
+
+            mod kernel {
+                use super::*;
+
+                burn_jit::testgen_reduction!();
+                burn_jit::testgen_conv2d!();
+                burn_jit::testgen_conv_transpose2d!();
+                burn_jit::testgen_gather!();
+                burn_jit::testgen_repeat!();
+                burn_jit::testgen_scatter!();
+                burn_jit::testgen_select!();
+                burn_jit::testgen_select_assign!();
+                burn_jit::testgen_slice!();
+                burn_jit::testgen_slice_assign!();
+            }
         }
         mod jit_fusion {
             burn_jit::testgen_jit_fusion!();
