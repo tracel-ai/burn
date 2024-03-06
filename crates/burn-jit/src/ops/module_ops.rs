@@ -109,4 +109,13 @@ impl<R: Runtime> ModuleOps<Self> for JitBackend<R> {
     ) -> FloatTensor<Self, 4> {
         kernel::interpolate::interpolate(x, output_size, options)
     }
+
+    fn interpolate_backward(
+        x: FloatTensor<Self, 4>,
+        grad: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        kernel::interpolate::interpolate_backward(x, grad, output_size, options)
+    }
 }

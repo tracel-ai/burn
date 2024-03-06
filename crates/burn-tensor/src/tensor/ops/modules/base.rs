@@ -115,6 +115,7 @@ pub struct UnfoldOptions {
 }
 
 /// Algorithm used for upsampling.
+#[derive(new, Debug, Clone)]
 pub enum InterpolateMode {
     /// Nearest-neighbor interpolation.
     /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
@@ -130,10 +131,17 @@ pub enum InterpolateMode {
 }
 
 /// Interpolation options.
-#[derive(new)]
+#[derive(new, Debug, Clone)]
 pub struct InterpolateOptions {
     /// Algorithm used for upsampling.
     pub mode: InterpolateMode,
+}
+
+/// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
+#[derive(new)]
+pub struct InterpolateBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B, 4>,
 }
 
 /// Module operations trait.
@@ -469,6 +477,14 @@ pub trait ModuleOps<B: Backend> {
     /// x: `[batch_size, channels, height, width]`,
     fn interpolate(
         x: FloatTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<B, 4>;
+
+    /// Backward pass for the [interpolate](ModuleOps::interpolate) operation.
+    fn interpolate_backward(
+        x: FloatTensor<B, 4>,
+        grad: FloatTensor<B, 4>,
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B, 4>;
