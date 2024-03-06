@@ -236,4 +236,64 @@ mod reduction {
 
         val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
     }
+
+    #[test]
+    fn reduction_argmax_shared_memory_extreme_values_float() {
+        let data: Data<f32, 1> = Data::from([-999999., -999997., -999998.]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+
+        let val_shared =
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, f32, i32, 1>(
+                tensor.into_primitive(),
+                0,
+                ReduceStrategy::SharedMemory,
+            ));
+
+        assert_eq!(1, val_shared.into_data().value[0]);
+    }
+
+    #[test]
+    fn reduction_argmin_shared_memory_extreme_values_float() {
+        let data: Data<f32, 1> = Data::from([999999., 999998., 999997.]);
+        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+
+        let val_shared =
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, f32, i32, 1>(
+                tensor.into_primitive(),
+                0,
+                ReduceStrategy::SharedMemory,
+            ));
+
+        assert_eq!(2, val_shared.into_data().value[0]);
+    }
+
+    #[test]
+    fn reduction_argmin_shared_memory_extreme_values_i32() {
+        let data: Data<i32, 1> = Data::from([999999, 999998, 999997]);
+        let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
+
+        let val_shared =
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, i32, i32, 1>(
+                tensor.into_primitive(),
+                0,
+                ReduceStrategy::SharedMemory,
+            ));
+
+        assert_eq!(2, val_shared.into_data().value[0]);
+    }
+
+    #[test]
+    fn reduction_argmax_shared_memory_extreme_values_i32() {
+        let data: Data<i32, 1> = Data::from([-999999, -999997, -999998]);
+        let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
+
+        let val_shared =
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, i32, i32, 1>(
+                tensor.into_primitive(),
+                0,
+                ReduceStrategy::SharedMemory,
+            ));
+
+        assert_eq!(1, val_shared.into_data().value[0]);
+    }
 }

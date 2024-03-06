@@ -17,7 +17,7 @@ use crate::{
 
 use super::ReduceDimAlgorithm;
 
-pub(crate) struct SharedReduceDimComputeShader<RD: ReduceDimAlgorithm> {
+pub(crate) struct SharedReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgorithm<E>> {
     tensor: Variable,
     dim: usize,
     shared_memory_size: usize,
@@ -25,11 +25,12 @@ pub(crate) struct SharedReduceDimComputeShader<RD: ReduceDimAlgorithm> {
     output: Variable,
     divisible_shape: bool,
     _reduce_dim: PhantomData<RD>,
+    _elem: PhantomData<E>,
 }
 
 #[derive(new)]
 pub(crate) struct SharedReduceDimEagerKernel<
-    RD: ReduceDimAlgorithm,
+    RD: ReduceDimAlgorithm<EI>,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,
@@ -45,7 +46,7 @@ pub(crate) struct SharedReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
     for SharedReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
@@ -65,6 +66,7 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
             output,
             divisible_shape: self.divisible_shape,
             _reduce_dim: PhantomData::<RD>,
+            _elem: PhantomData::<EI>,
         }
         .expand(&mut scope);
 
@@ -106,7 +108,7 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
     }
 }
 
-impl<RD: ReduceDimAlgorithm> SharedReduceDimComputeShader<RD> {
+impl<E: JitElement, RD: ReduceDimAlgorithm<E>> SharedReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let output = self.output;
@@ -231,7 +233,7 @@ impl<RD: ReduceDimAlgorithm> SharedReduceDimComputeShader<RD> {
 
 /// Executes the shared memory kernel for reduce dim
 pub fn reduce_dim_shared<
-    RD: ReduceDimAlgorithm,
+    RD: ReduceDimAlgorithm<EI>,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,
