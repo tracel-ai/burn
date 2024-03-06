@@ -4,7 +4,7 @@ use crate::compiler::wgsl;
 
 /// The base element trait for the wgpu backend.
 pub trait WgpuElement: JitElement {
-    fn c_elem() -> wgsl::Elem;
+    fn wgpu_elem() -> wgsl::Elem;
 }
 
 /// The float element type for the wgpu backend.
@@ -14,19 +14,19 @@ pub trait FloatElement: WgpuElement + burn_jit::FloatElement {}
 pub trait IntElement: WgpuElement + burn_jit::IntElement {}
 
 impl WgpuElement for u32 {
-    fn c_elem() -> wgsl::Elem {
+    fn wgpu_elem() -> wgsl::Elem {
         wgsl::Elem::U32
     }
 }
 
 impl WgpuElement for i32 {
-    fn c_elem() -> wgsl::Elem {
+    fn wgpu_elem() -> wgsl::Elem {
         wgsl::Elem::I32
     }
 }
 
 impl WgpuElement for f32 {
-    fn c_elem() -> wgsl::Elem {
+    fn wgpu_elem() -> wgsl::Elem {
         wgsl::Elem::F32
     }
 }

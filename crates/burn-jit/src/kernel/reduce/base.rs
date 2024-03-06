@@ -99,7 +99,6 @@ pub fn init_reduce_output<R: Runtime, EI: JitElement, EO: JitElement, const D: u
     )
 }
 
-/// This is some anazing doc.
 #[derive(Copy, Clone, Debug)]
 #[allow(missing_docs)]
 pub enum ReduceStrategy {
@@ -152,21 +151,3 @@ reduce_operation!(sum_dim, SumDim);
 reduce_operation!(mean_dim, MeanDim);
 reduce_operation!(argmin, ArgMin);
 reduce_operation!(argmax, ArgMax);
-
-/// Exposed for benchmarks. Prefer the autotunable version for other uses
-pub fn sum_dim_naive<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    tensor: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    reduce_dim_naive::<SumDim, R, EI, EO, D>(tensor, output, dim)
-}
-
-/// Exposed for benchmarks. Prefer the autotunable version for other uses
-pub fn sum_dim_shared<R: Runtime, EI: JitElement, EO: JitElement, const D: usize>(
-    tensor: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    reduce_dim_shared::<SumDim, R, EI, EO, D>(tensor, output, dim)
-}

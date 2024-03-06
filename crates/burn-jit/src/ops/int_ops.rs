@@ -248,7 +248,7 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
-        kernel::reduce::sum(tensor)
+        kernel::reduce::sum(tensor, Default::default())
     }
 
     fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {

@@ -293,7 +293,7 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
     }
 
     fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
-        reduce::sum(tensor)
+        reduce::sum(tensor, Default::default())
     }
 
     fn float_sum_dim<const D: usize>(

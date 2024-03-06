@@ -120,8 +120,8 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
 
     fn compile_elem(value: gpu::Elem) -> wgsl::Elem {
         match value {
-            gpu::Elem::Float => F::c_elem(),
-            gpu::Elem::Int => I::c_elem(),
+            gpu::Elem::Float => F::wgpu_elem(),
+            gpu::Elem::Int => I::wgpu_elem(),
             gpu::Elem::UInt => wgsl::Elem::U32,
             gpu::Elem::Bool => wgsl::Elem::Bool,
         }

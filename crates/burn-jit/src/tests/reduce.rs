@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(reduction)]
 mod reduction {
     use super::*;
-    use burn_jit::kernel::reduce::{argmax, argmin, mean_dim, sum_dim, ReduceStrategy};
+    use burn_jit::kernel::reduce::{argmax, argmin, mean_dim, sum, sum_dim, ReduceStrategy};
     use burn_tensor::{ops::IntTensorOps, Data, Distribution, Int, Shape, Tensor};
 
     #[test]
@@ -219,5 +219,21 @@ mod reduction {
         let val_ref = tensor_ref.argmax(reduce_dim);
 
         assert_eq!(val_ref.into_data().convert(), val.into_data());
+    }
+
+    #[test]
+    fn reduction_sum_should_work_with_multiple_invocations() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+
+        let val = Tensor::<TestBackend, 1>::from_primitive(sum(
+            tensor.into_primitive(),
+            ReduceStrategy::default(),
+        ));
+        let val_ref = tensor_ref.sum();
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 3);
     }
 }
