@@ -55,13 +55,20 @@ where
     if debug {
         let mut remapped_keys = remapped_keys;
         remapped_keys.sort();
-        println!("Printing keys ...");
-        for (old_key, new_key) in remapped_keys {
+        println!("Printing keys ...\n---");
+        for (new_key, old_key) in remapped_keys {
             if old_key != new_key {
-                println!("\"{new_key}\" (Remapped from \"{old_key}\")");
+                println!("Original Key: {old_key}");
+                println!("Remapped Key: {new_key}");
             } else {
-                println!("\"{new_key}\"");
+                println!("Key: {}", new_key);
             }
+
+            let shape = tensors[&new_key].shape();
+            let dtype = tensors[&new_key].dtype();
+            println!("Shape: {shape:?}");
+            println!("Dtype: {dtype:?}");
+            println!("---");
         }
         println!("Done printing keys");
     }

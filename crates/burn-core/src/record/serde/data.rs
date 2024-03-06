@@ -185,7 +185,7 @@ impl NestedValue {
 /// # Returns
 ///
 /// A map of tensors with the remapped keys and
-/// a vector of tuples containing the original and remapped keys.
+/// a vector of tuples containing the remapped and original.
 pub fn remap<T>(
     mut tensors: HashMap<String, T>,
     key_remap: Vec<(Regex, String)>,

@@ -141,9 +141,9 @@ impl LoadArgs {
         self
     }
 
-    /// Sets whether to print debug information.
-    pub fn with_debug(mut self, debug: bool) -> Self {
-        self.debug = debug;
+    /// Sets printing debug information on.
+    pub fn with_debug_on(mut self) -> Self {
+        self.debug = true;
         self
     }
 }
