@@ -49,6 +49,43 @@ pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
     NdArrayTensor::new(output.into_dyn().into_shared())
 }
 
+pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
+    x: NdArrayTensor<E, 4>,
+    grad: NdArrayTensor<E, 4>,
+    output_size: [usize; 2],
+) -> NdArrayTensor<E, 4> {
+    let [batch_size, channels, input_height, input_width] = x.shape().dims;
+    let [output_height, output_width] = output_size;
+
+    let mut output_grad =
+        Array4::from_elem((batch_size, channels, input_height, input_width), 0.elem());
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut output_grad);
+
+    run_par!(|| {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
+            let b = k / channels;
+            let c = k % channels;
+
+            let output_grad = unsafe_shared_out.get();
+
+            for oh in 0..output_height {
+                for ow in 0..output_width {
+                    let ih = start_index(oh, output_height, input_height);
+                    let iw = start_index(ow, output_width, input_width);
+
+                    output_grad[[b, c, ih, iw]] += grad.array[[b, c, oh, ow]]
+                }
+            }
+        })
+    });
+
+    NdArrayTensor::new(output_grad.into_dyn().into_shared())
+}
+
+fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
+    libm::floorf((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+}
+
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
     output_size: [usize; 2],

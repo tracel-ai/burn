@@ -305,4 +305,43 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
 
         TchTensor::new(tensor)
     }
+
+    fn interpolate_backward(
+        x: TchTensor<E, 4>,
+        grad: TchTensor<E, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> TchTensor<E, 4> {
+        let output_size = output_size.map(|e| e as i64);
+        let [n, c, h_in, w_in] = x.shape().dims;
+        let input_size = [n as i64, c as i64, h_in as i64, w_in as i64];
+
+        let tensor = match options.mode {
+            InterpolateMode::Nearest => tch::Tensor::upsample_nearest2d_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                None,
+                None,
+            ),
+            InterpolateMode::Bilinear => tch::Tensor::upsample_bilinear2d_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                true,
+                None,
+                None,
+            ),
+            InterpolateMode::Bicubic => tch::Tensor::upsample_bicubic2d_backward(
+                &grad.tensor,
+                output_size,
+                input_size,
+                true,
+                None,
+                None,
+            ),
+        };
+
+        TchTensor::new(tensor)
+    }
 }

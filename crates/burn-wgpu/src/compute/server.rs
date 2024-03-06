@@ -1,10 +1,10 @@
-use super::{JitAutotuneKey, WgpuStorage, WorkGroup};
-use crate::kernel::SourceTemplate;
+use super::WgpuStorage;
 use alloc::{borrow::Cow, sync::Arc};
 use burn_compute::{
     memory_management::MemoryManagement,
     server::{self, ComputeServer},
 };
+use burn_jit::compute::{JitAutotuneKey, Kernel, WorkGroup};
 use burn_tensor::Reader;
 use hashbrown::HashMap;
 use wgpu::{
@@ -31,47 +31,6 @@ struct ComputeTask {
     pipeline: Arc<ComputePipeline>,
     bind_group: BindGroup,
     work_group: WorkGroup,
-}
-
-/// Kernel trait with the [source](SourceTemplate) that will be compiled and cached based on the
-/// provided id.
-///
-/// The kernel will be launched with the given [workgroup](WorkGroup).
-pub trait Kernel: 'static + Send + Sync {
-    /// Source template for the kernel.
-    fn source(&self) -> SourceTemplate;
-    /// Identifier for the kernel, used for caching kernel compilation.
-    fn id(&self) -> String;
-    /// Launch information.
-    fn workgroup(&self) -> WorkGroup;
-}
-
-impl Kernel for Arc<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
-    }
-
-    fn id(&self) -> String {
-        self.as_ref().id()
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.as_ref().workgroup()
-    }
-}
-
-impl Kernel for Box<dyn Kernel> {
-    fn source(&self) -> SourceTemplate {
-        self.as_ref().source()
-    }
-
-    fn id(&self) -> String {
-        self.as_ref().id()
-    }
-
-    fn workgroup(&self) -> WorkGroup {
-        self.as_ref().workgroup()
-    }
 }
 
 impl<MM> WgpuServer<MM>

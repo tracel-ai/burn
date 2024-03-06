@@ -1,3 +1,4 @@
+use crate::stream::InterpolateBackwardDescription;
 use crate::{
     client::FusionClient,
     stream::{
@@ -1011,6 +1012,46 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             InterpolateOps::new(desc),
         );
 
+        out
+    }
+
+    fn interpolate_backward(
+        x: FloatTensor<Self, 4>,
+        grad: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        make_ops!(
+            InterpolateBackwardOps,
+            InterpolateBackwardDescription,
+            |args: InterpolateBackwardDescription, handles: &mut HandleContainer<B>| {
+                let x = handles.get_float_tensor(&args.x);
+                let grad = handles.get_float_tensor(&args.grad);
+                let output =
+                    B::interpolate_backward(x, grad, args.output_size, args.options.clone().into());
+
+                handles.register_float_tensor(&args.out.id, output);
+            }
+        );
+
+        let stream_1 = x.stream;
+        let stream_2 = grad.stream;
+        let out = x.client.tensor_uninitialized(x.shape.clone());
+
+        let desc = InterpolateBackwardDescription {
+            x: x.into_description(),
+            grad: grad.into_description(),
+            output_size,
+            options: options.into(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationDescription::Module(
+                crate::stream::ModuleOperationDescription::InterpolateBackward(desc.clone()),
+            ),
+            InterpolateBackwardOps::new(desc),
+        );
         out
     }
 }

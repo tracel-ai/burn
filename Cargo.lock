@@ -524,6 +524,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-jit"
+version = "0.13.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-common",
+ "burn-compute",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-tensor-testgen",
+ "bytemuck",
+ "derive-new",
+ "hashbrown 0.14.3",
+ "log",
+ "num-traits",
+ "rand",
+ "serde",
+ "serial_test",
+ "spin",
+ "text_placeholder",
+]
+
+[[package]]
 name = "burn-ndarray"
 version = "0.13.0"
 dependencies = [
@@ -610,24 +633,17 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.13.0"
 dependencies = [
- "burn-autodiff",
  "burn-common",
  "burn-compute",
  "burn-fusion",
- "burn-ndarray",
+ "burn-jit",
  "burn-tensor",
  "bytemuck",
  "derive-new",
  "futures-intrusive",
  "hashbrown 0.14.3",
  "log",
- "num-traits",
  "pollster",
- "rand",
- "serde",
- "serial_test",
- "spin",
- "text_placeholder",
  "wgpu",
 ]
 

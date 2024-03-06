@@ -3,13 +3,9 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        compute::{DynamicKernel, WgpuRuntime, WorkGroup},
-        kernel::{
-            build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
-        },
-        kernel_wgsl,
-        tensor::JitTensor,
-        FloatElement, GraphicsApi, IntElement, JitBackend,
+        build_info, into_contiguous, kernel_wgsl, DynamicKernel, DynamicKernelSource, FloatElement,
+        GraphicsApi, IntElement, JitBackend, JitTensor, SourceTemplate, StaticKernelSource,
+        WgpuRuntime, WorkGroup,
     },
     tensor::Shape,
 };
