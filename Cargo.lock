@@ -441,6 +441,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-cuda"
+version = "0.13.0"
+dependencies = [
+ "burn-common",
+ "burn-compute",
+ "burn-fusion",
+ "burn-jit",
+ "burn-tensor",
+ "bytemuck",
+ "cudarc",
+ "derive-new",
+ "log",
+]
+
+[[package]]
 name = "burn-dataset"
 version = "0.13.0"
 dependencies = [

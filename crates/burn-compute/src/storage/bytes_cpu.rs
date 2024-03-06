@@ -54,9 +54,9 @@ impl BytesResource {
 }
 
 impl ComputeStorage for BytesStorage {
-    type Resource = BytesResource;
+    type Resource<'a> = BytesResource;
 
-    fn get(&mut self, handle: &StorageHandle) -> Self::Resource {
+    fn get<'a>(&'a mut self, handle: &StorageHandle) -> Self::Resource<'a> {
         let allocated_bytes = self.memory.get_mut(&handle.id).unwrap();
 
         BytesResource {

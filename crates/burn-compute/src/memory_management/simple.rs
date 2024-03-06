@@ -159,7 +159,7 @@ impl<Storage: ComputeStorage> MemoryManagement<Storage> for SimpleMemoryManageme
     type Handle = SimpleHandle;
 
     /// Returns the resource from the storage, for the specified handle.
-    fn get(&mut self, handle: &Self::Handle) -> Storage::Resource {
+    fn get<'a>(&'a mut self, handle: &Self::Handle) -> Storage::Resource<'a> {
         let resource = match &handle {
             SimpleHandle::Chunk(id) => &self.chunks.get(id).unwrap().0,
             SimpleHandle::Slice(id) => &self.slices.get(id).unwrap().0,
