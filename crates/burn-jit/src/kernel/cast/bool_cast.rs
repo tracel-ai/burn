@@ -1,74 +1,15 @@
-use super::{
-    DynamicKernelSource, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
-};
+use std::marker::PhantomData;
+
 use crate::{
     codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
+        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        OutputInfo, WorkgroupLaunch,
     },
-    compute::StaticKernel,
-    element::JitElement,
-    kernel::elemwise_workgroup,
-    kernel_wgsl,
+    gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
+    kernel::{DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
-    Runtime,
+    Compiler, JitElement, Runtime,
 };
-use std::{any::TypeId, marker::PhantomData};
-
-kernel_wgsl!(CastRaw, "../template/cast.wgsl");
-
-struct Cast<InputElem: JitElement, OutputElem: JitElement> {
-    _i: PhantomData<InputElem>,
-    _o: PhantomData<OutputElem>,
-}
-
-impl<InputElem: JitElement, OutputElem: JitElement> StaticKernelSource
-    for Cast<InputElem, OutputElem>
-{
-    fn source() -> SourceTemplate {
-        CastRaw::source()
-            .register("input_elem", InputElem::type_name())
-            .register("output_elem", OutputElem::type_name())
-    }
-}
-
-/// Cast a tensor to the given element type.
-pub fn cast<R: Runtime, InputElem: JitElement, OutputElem: JitElement, const D: usize>(
-    tensor: JitTensor<R, InputElem, D>,
-) -> JitTensor<R, OutputElem, D> {
-    if TypeId::of::<InputElem>() == TypeId::of::<OutputElem>() {
-        return JitTensor::new(tensor.client, tensor.device, tensor.shape, tensor.handle);
-    }
-
-    let num_elems = tensor.shape.num_elements();
-    let kernel = StaticKernel::<
-        KernelSettings<
-            Cast<InputElem, OutputElem>,
-            f32,
-            i32,
-            WORKGROUP_DEFAULT,
-            WORKGROUP_DEFAULT,
-            1,
-        >,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-
-    let handle = tensor
-        .client
-        .empty(num_elems * core::mem::size_of::<OutputElem>());
-    let output = JitTensor::new(
-        tensor.client.clone(),
-        tensor.device,
-        tensor.shape.clone(),
-        handle,
-    );
-
-    tensor
-        .client
-        .execute(Box::new(kernel), &[&tensor.handle, &output.handle]);
-
-    output
-}
 
 /// Cast a bool tensor to the given element type.
 ///
