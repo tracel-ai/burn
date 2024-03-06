@@ -59,14 +59,28 @@ unsafe impl DeviceRepr for Binding {
 impl<'a> CudaResource<'a> {
     /// Return the binding view of the buffer.
     pub fn as_binding(&self) -> Binding {
-        let view = &self.view();
-        Binding::new(DeviceRepr::as_kernel_param(&view))
+        let ptr = DeviceRepr::as_kernel_param(&self.buffer);
+
+        let ptr = match self.kind {
+            CudaResourceKind::Full { size: _ } => ptr,
+            CudaResourceKind::Slice { size: _, offset } => {
+                panic!("NOOOOOOOOOoo");
+                ptr.wrapping_add(offset * std::mem::size_of::<u8>())
+            }
+        };
+        Binding::new(ptr)
     }
     /// Return the binding view of the buffer.
     pub fn view(&'a self) -> cudarc::driver::CudaView<'a, u8> {
         match &self.kind {
-            CudaResourceKind::Full { size } => self.buffer.slice(0..*size),
-            CudaResourceKind::Slice { size, offset } => self.buffer.slice(*offset..*size),
+            CudaResourceKind::Full { size } => {
+                println!("Here");
+                self.buffer.slice(0..*size)
+            }
+            CudaResourceKind::Slice { size, offset } => {
+                panic!("NOOOOOOOOOoo view");
+                self.buffer.slice(*offset..*size + *offset)
+            },
         }
     }
 
@@ -81,8 +95,8 @@ impl<'a> CudaResource<'a> {
     /// Return the buffer offset.
     pub fn offset(&self) -> u64 {
         match self.kind {
-            CudaResourceKind::Full { size } => 0,
-            CudaResourceKind::Slice { size, offset } => offset as u64,
+            CudaResourceKind::Full { size: _ } => 0,
+            CudaResourceKind::Slice { size: _, offset } => offset as u64,
         }
     }
 }

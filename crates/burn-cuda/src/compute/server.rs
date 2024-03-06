@@ -28,7 +28,7 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         self.sync();
 
         let resource = self.memory_management.get(&handle.memory);
-        let data = self.device.dtoh_sync_copy(&resource.view()).unwrap();
+        let data = self.device.dtoh_sync_copy(resource.buffer).unwrap();
         burn_tensor::Reader::Concrete(data)
     }
 
@@ -50,10 +50,13 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         let kernel_id = kernel.id();
 
         if !self.module_names.contains_key(&kernel_id) {
-            let name = format!("{}", self.module_names.len());
-            let kernel = compile_ptx(kernel.source().complete()).unwrap();
+            let name = format!("m{}", self.module_names.len());
+            let source = kernel.source().complete();
+            println!("{source}");
+            let kernel = compile_ptx(source).unwrap();
+            println!("compiled {name}");
 
-            self.device.load_ptx(kernel, &name, &["main"]).unwrap();
+            self.device.load_ptx(kernel, &name, &["kernel"]).unwrap();
             self.module_names.insert(kernel_id.clone(), name);
         }
 
@@ -68,7 +71,6 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         );
 
         self.execute_task(task);
-
         self.free_manual_allocations();
         self.memory_management.storage().perform_deallocations();
     }
@@ -136,15 +138,16 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
     fn execute_task(&mut self, task: ComputeTask) {
         let workgroup = task.workgroup;
         let cfg = LaunchConfig {
-            block_dim: (workgroup.x, workgroup.y, workgroup.z),
-            grid_dim: task.grid,
+            grid_dim: (workgroup.x, workgroup.y, workgroup.z),
+            block_dim: task.grid,
             shared_mem_bytes: 0,
         };
         let module_name = self.module_names.get(&task.kernel_id).unwrap();
 
         unsafe {
-            let func = self.device.get_func(module_name, "main").unwrap();
+            let func = self.device.get_func(module_name, "kernel").unwrap();
             let bindings = task.bindings;
+            println!("Execute task {module_name} - {bindings:?}");
 
             match bindings.len() {
                 1 => func.launch(cfg, (bindings[0],)),
@@ -164,7 +167,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
                 6 => func.launch(
                     cfg,
                     (
-                        bindings[1],
+                        bindings[0],
                         bindings[1],
                         bindings[2],
                         bindings[3],
@@ -187,12 +190,13 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
                 8 => func.launch(
                     cfg,
                     (
-                        bindings[1],
+                        bindings[0],
                         bindings[1],
                         bindings[2],
                         bindings[3],
                         bindings[4],
                         bindings[5],
+                        bindings[6],
                         bindings[7],
                     ),
                 ),
@@ -205,6 +209,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
                         bindings[3],
                         bindings[4],
                         bindings[5],
+                        bindings[6],
                         bindings[7],
                         bindings[8],
                     ),

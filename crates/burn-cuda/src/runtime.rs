@@ -41,7 +41,7 @@ impl<F: FloatElement, I: IntElement> Runtime for CudaRuntime<F, I> {
             let memory_management = SimpleMemoryManagement::new(
                 storage,
                 DeallocStrategy::new_period_tick(100),
-                SliceStrategy::Ratio(0.8),
+                SliceStrategy::Never,
             );
             let server = CudaServer::new(device, memory_management);
 
