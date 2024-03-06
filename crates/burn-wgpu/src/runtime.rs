@@ -16,7 +16,7 @@ use burn_jit::Runtime;
 use std::marker::PhantomData;
 use wgpu::{AdapterInfo, DeviceDescriptor};
 
-/// Runtime that uses the [wgpu] crate with the [wgsl compiler](wgsl::Compiler).
+/// Runtime that uses the [wgpu] crate with the wgsl compiler.
 ///
 /// The [graphics api](GraphicsApi), the [float element](FloatElement) and the
 /// [int element](IntElement) types are passed as generic.

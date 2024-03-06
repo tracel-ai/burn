@@ -3,5 +3,5 @@
 /// This dialect should be used to perform most GPU-related optimizations, such as vectorization.
 ///
 /// [Compilers](crate::codegen::Compiler) can be used to transform that representation into a lower
-/// level one, such as [wgsl](crate::codegen::dialect::wgsl).
+/// level one.
 pub mod gpu;
