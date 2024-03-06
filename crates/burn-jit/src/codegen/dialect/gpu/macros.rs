@@ -29,6 +29,10 @@ macro_rules! gpu {
     ($scope:expr, $out:ident = $lhs:ident * $rhs:expr) => {
         gpu!($scope, $out = mul($lhs, $rhs))
     };
+    // out += input
+    ($scope:expr, $out:ident *= $input:ident) => {
+        gpu!($scope, $out = mul($out, $input))
+    };
     // out = mul(lhs, rhs)
     ($scope:expr, $out:ident = mul($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Mul(

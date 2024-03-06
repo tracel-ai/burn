@@ -5,7 +5,7 @@ use rand::Rng;
 
 kernel_wgsl!(Prng, "../../template/prng/prng.wgsl");
 
-pub(crate) fn get_seeds() -> [u32; 4] {
+pub(crate) fn get_seeds() -> Vec<u32> {
     let mut seed = SEED.lock().unwrap();
     let mut rng = match seed.as_ref() {
         Some(rng_seeded) => rng_seeded.clone(),
@@ -16,18 +16,17 @@ pub(crate) fn get_seeds() -> [u32; 4] {
         seeds.push(rng.gen());
     }
     *seed = Some(rng);
-
-    seeds.try_into().unwrap()
+    seeds
 }
 
-// pub(crate) fn make_info_buffer<R: Runtime>(
-//     client: ComputeClient<R::Server, R::Channel>,
-//     n_values_per_thread: usize,
-// ) -> Handle<R::Server> {
-//     let mut info = get_seeds();
-//     info.insert(0, n_values_per_thread as u32);
-//     client.create(bytemuck::cast_slice(&info))
-// }
+pub(crate) fn make_info_buffer<R: Runtime>(
+    client: ComputeClient<R::Server, R::Channel>,
+    n_values_per_thread: usize,
+) -> Handle<R::Server> {
+    let mut info = get_seeds();
+    info.insert(0, n_values_per_thread as u32);
+    client.create(bytemuck::cast_slice(&info))
+}
 
 pub(crate) fn make_args_buffer<R: Runtime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
