@@ -55,7 +55,7 @@ where
     if debug {
         let mut remapped_keys = remapped_keys;
         remapped_keys.sort();
-        println!("Printing keys ...\n---");
+        println!("Debug information of keys and tensor shapes:\n---");
         for (new_key, old_key) in remapped_keys {
             if old_key != new_key {
                 println!("Original Key: {old_key}");
@@ -70,7 +70,7 @@ where
             println!("Dtype: {dtype:?}");
             println!("---");
         }
-        println!("Done printing keys");
+        println!("End of debug information.");
     }
 
     // Convert the vector of Candle tensors to a nested value data structure

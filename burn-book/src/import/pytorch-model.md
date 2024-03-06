@@ -267,7 +267,7 @@ let model = Net::<Backend>::new_with(record);
 Here is an example of the output:
 
 ```text
-Printing keys ...
+Debug information of keys and tensor shapes:
 ---
 Original Key: conv.conv1.bias
 Remapped Key: conv1.bias
@@ -284,7 +284,7 @@ Remapped Key: conv2.weight
 Shape: [2, 2, 2, 2]
 Dtype: F32
 ---
-Done printing keys
+End of debug information.
 ```
 
 ### Loading the model weights to a partial model
