@@ -1,41 +1,29 @@
-#![warn(missing_docs)]
-
-//! Burn WGPU Backend
-
 #[macro_use]
 extern crate derive_new;
+
 extern crate alloc;
 
-mod ops;
-
-/// Compute related module.
-pub mod compute;
-/// Kernel module
-pub mod kernel;
-/// Tensor module.
-pub mod tensor;
-
-pub(crate) mod codegen;
-pub(crate) mod tune;
-
-mod element;
-pub use codegen::dialect::wgsl;
-use compute::WgpuRuntime;
-pub use element::{FloatElement, IntElement};
-
+mod compiler;
+mod compute;
 mod device;
-pub use device::*;
-
-mod backend;
-pub use backend::*;
+mod element;
+mod graphics;
 mod runtime;
+
+#[cfg(feature = "fusion")]
+mod fusion;
+
+pub use device::*;
+pub use element::*;
+pub use graphics::*;
 pub use runtime::*;
 
-mod graphics;
-pub use graphics::*;
-
-#[cfg(any(feature = "fusion", test))]
-mod fusion;
+pub use burn_jit::compute::{DynamicKernel, WorkGroup};
+pub use burn_jit::kernel::{
+    build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+};
+pub use burn_jit::kernel_wgsl;
+pub use burn_jit::{tensor::JitTensor, JitBackend};
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
@@ -79,20 +67,8 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::WgpuRuntime;
 
-    pub type TestCompiler = wgsl::Compiler<f32, i32>;
-    pub type TestRuntime = WgpuRuntime<AutoGraphicsApi, f32, i32>;
-    pub type TestBackend = JitBackend<TestRuntime>;
-    pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
+    pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi, f32, i32>;
 
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
-
-    burn_tensor::testgen_all!();
-    burn_autodiff::testgen_all!();
+    burn_jit::testgen_all!();
 }

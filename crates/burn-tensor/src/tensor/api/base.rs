@@ -1802,7 +1802,7 @@ impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
         self,
         tensor: &Tensor<B, D, K>,
     ) -> Shape<D2> {
-        check!(TensorCheck::reshape_args_usize(&self, &tensor.shape()));
+        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &self));
 
         self
     }
@@ -1814,7 +1814,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     ) -> Shape<D2> {
         let shape = Shape::from(self);
 
-        check!(TensorCheck::reshape_args_usize(&shape, &tensor.shape()));
+        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &shape));
 
         shape
     }
