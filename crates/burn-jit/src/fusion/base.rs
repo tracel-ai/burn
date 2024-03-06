@@ -8,7 +8,7 @@ use burn_tensor::Shape;
 use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
-/// Fusion optimization type for WGPU.
+/// Fusion optimization type for JIT.
 ///
 /// More optimization variants should be added here.
 pub enum JitOptimization<R: Runtime> {
@@ -16,7 +16,7 @@ pub enum JitOptimization<R: Runtime> {
     ElementWise(ElementWise<R>),
 }
 
-/// Fusion optimization state type for WGPU.
+/// Fusion optimization state type for JIT.
 ///
 /// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
@@ -114,7 +114,7 @@ pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 
 /// Handle to be used when fusing operations.
 pub struct JitFusionHandle<R: Runtime> {
-    /// Compute client for wgpu.
+    /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
     pub handle: burn_compute::server::Handle<R::Server>,

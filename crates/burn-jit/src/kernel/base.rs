@@ -15,13 +15,13 @@ pub(crate) const WORKGROUP_DEFAULT: usize = 16;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) const WORKGROUP_DEFAULT: usize = 32;
 
-/// Static wgpu kernel to create a [source template](SourceTemplate).
+/// Static jit kernel to create a [source template](SourceTemplate).
 pub trait StaticKernelSource: Send + 'static + Sync {
     /// Source template for the kernel.
     fn source() -> SourceTemplate;
 }
 
-/// Dynamic wgpu kernel to create a [source template](SourceTemplate).
+/// Dynamic jit kernel to create a [source template](SourceTemplate).
 pub trait DynamicKernelSource: Send + Sync {
     /// Source template for the kernel.
     fn source(&self) -> SourceTemplate;
@@ -50,7 +50,7 @@ macro_rules! kernel_wgsl {
 
 kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
 
-/// Make a wgpu tensor contiguous.
+/// Make a jit tensor contiguous.
 pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {

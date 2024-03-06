@@ -5,7 +5,7 @@ use std::{marker::PhantomData, sync::Mutex};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
-/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+/// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
 pub struct JitBackend<R: Runtime> {
     _runtime: PhantomData<R>,

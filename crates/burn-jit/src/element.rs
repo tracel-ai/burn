@@ -1,7 +1,7 @@
 use crate::codegen::dialect::gpu;
 use burn_tensor::Element;
 
-/// The base element trait for the wgpu backend.
+/// The base element trait for the jit backend.
 pub trait JitElement:
     burn_tensor::Element + core::fmt::Debug + Send + Sync + 'static + Clone + bytemuck::Pod
 where
@@ -17,10 +17,10 @@ where
     fn gpu_elem() -> gpu::Elem;
 }
 
-/// The float element type for the wgpu backend.
+/// The float element type for the jit backend.
 pub trait FloatElement: JitElement + Element {}
 
-/// The int element type for the wgpu backend.
+/// The int element type for the jit backend.
 pub trait IntElement: JitElement + Element {}
 
 impl JitElement for u32 {

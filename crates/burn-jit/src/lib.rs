@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 
-//! Burn WGPU Backend
+//! Burn JIT Backend
 
 #[macro_use]
 extern crate derive_new;

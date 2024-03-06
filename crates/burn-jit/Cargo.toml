@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "WGPU backend for the Burn framework"
+description = "Generic backend that can be compiled just-in-time to any shader language target"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
@@ -17,12 +17,12 @@ doc = ["default"]
 autotune = []
 fusion = ["burn-fusion"]
 export_tests = [
-    "burn-tensor-testgen",
-    "serial_test",
-    "burn-autodiff/export_tests",
-    "burn-tensor/export_tests",
-    "burn-ndarray",
-    "fusion",
+  "burn-tensor-testgen",
+  "serial_test",
+  "burn-autodiff/export_tests",
+  "burn-tensor/export_tests",
+  "burn-ndarray",
+  "fusion",
 ]
 
 [dependencies]
@@ -50,7 +50,7 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.13.0", opt
 
 # When exporting tests
 serial_test = { workspace = true, optional = true }
-burn-autodiff = { path = "../burn-autodiff", version = "0.13.0", default-features = false , optional = true }
+burn-autodiff = { path = "../burn-autodiff", version = "0.13.0", default-features = false, optional = true }
 burn-ndarray = { path = "../burn-ndarray", version = "0.13.0", optional = true }
 
 [package.metadata.docs.rs]
