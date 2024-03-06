@@ -16,7 +16,7 @@ kernel_wgsl!(MaskFillInplace, "../../template/mask/fill_inplace.wgsl");
 ///
 /// # Notes
 ///
-/// All assertions should be done before chosing the strategy.
+/// All assertions should be done before choosing the strategy.
 pub enum MaskFillStrategy {
     /// Don't mutate any input.
     Readonly,

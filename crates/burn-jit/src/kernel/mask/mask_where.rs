@@ -16,7 +16,7 @@ kernel_wgsl!(MaskWhereInplace, "../../template/mask/where_inplace.wgsl");
 ///
 /// # Notes
 ///
-/// All assertions should be done before chosing the strategy.
+/// All assertions should be done before choosing the strategy.
 pub enum MaskWhereStrategy {
     /// Don't mutate any input.
     Readonly,
