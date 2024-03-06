@@ -255,7 +255,7 @@ let device = Default::default();
 let load_args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
     // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
     .with_key_remap("conv\\.(.*)", "$1")
-    .with_debug_on(); // Print the keys and remapped keys
+    .with_debug_print(); // Print the keys and remapped keys
 
 let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
@@ -284,7 +284,6 @@ Remapped Key: conv2.weight
 Shape: [2, 2, 2, 2]
 Dtype: F32
 ---
-End of debug information.
 ```
 
 ### Loading the model weights to a partial model

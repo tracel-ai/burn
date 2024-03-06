@@ -142,7 +142,7 @@ impl LoadArgs {
     }
 
     /// Sets printing debug information on.
-    pub fn with_debug_on(mut self) -> Self {
+    pub fn with_debug_print(mut self) -> Self {
         self.debug = true;
         self
     }

@@ -70,7 +70,6 @@ where
             println!("Dtype: {dtype:?}");
             println!("---");
         }
-        println!("End of debug information.");
     }
 
     // Convert the vector of Candle tensors to a nested value data structure
