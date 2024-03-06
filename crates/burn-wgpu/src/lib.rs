@@ -7,9 +7,11 @@ mod compiler;
 mod compute;
 mod device;
 mod element;
-mod fusion;
 mod graphics;
 mod runtime;
+
+#[cfg(feature = "fusion")]
+mod fusion;
 
 pub use device::*;
 pub use element::*;
