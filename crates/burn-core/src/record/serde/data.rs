@@ -182,19 +182,25 @@ impl NestedValue {
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
 ///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
 ///                for more information.
-///
 /// # Returns
 ///
-/// A map of tensors with the remapped keys.
+/// A map of tensors with the remapped keys and
+/// a vector of tuples containing the remapped and original.
 pub fn remap<T>(
     mut tensors: HashMap<String, T>,
     key_remap: Vec<(Regex, String)>,
-) -> HashMap<String, T> {
+) -> (HashMap<String, T>, Vec<(String, String)>) {
     if key_remap.is_empty() {
-        return tensors;
+        let remapped_names = tensors
+            .keys()
+            .cloned()
+            .map(|s| (s.clone(), s)) // Name is the same as the remapped name
+            .collect();
+        return (tensors, remapped_names);
     }
 
     let mut remapped = HashMap::new();
+    let mut remapped_names = Vec::new();
 
     for (name, tensor) in tensors.drain() {
         let mut new_name = name.clone();
@@ -205,10 +211,12 @@ pub fn remap<T>(
                     .to_string();
             }
         }
+
+        remapped_names.push((new_name.clone(), name));
         remapped.insert(new_name, tensor);
     }
 
-    remapped
+    (remapped, remapped_names)
 }
 
 /// Helper function to insert a value into a nested map/vector of tensors.
