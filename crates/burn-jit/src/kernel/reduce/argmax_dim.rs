@@ -16,7 +16,10 @@ impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMax {
         _output_item: Item,
     ) -> Self::Accumulator {
         let index = scope.create_local(Elem::UInt);
-        let max = Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
+        let max = scope.create_local(input_item);
+        let max_initial =
+            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), input_item.elem());
+        gpu!(scope, max = max_initial);
 
         (max, index)
     }
