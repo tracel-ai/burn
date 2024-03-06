@@ -131,6 +131,10 @@ pub trait Benchmark {
     /// Name of the benchmark, should be short and it should match the name
     /// defined in the crate Cargo.toml
     fn name(&self) -> String;
+
+    /// Name of the backend as appears in burnbench CLI
+    fn backend_config_name(&self) -> Option<String>;
+
     /// The options passed to the benchmark.
     fn options(&self) -> Option<String> {
         None
@@ -185,6 +189,8 @@ pub struct BenchmarkResult {
     pub git_hash: String,
     /// Name of the benchmark
     pub name: String,
+    /// Name of the backend as appears in burnbench CLI
+    pub backend_config_name: Option<String>,
     /// Options passed to the benchmark
     pub options: Option<String>,
     /// Shape dimensions
@@ -230,6 +236,7 @@ where
         computed: BenchmarkComputations::new(&durations),
         git_hash,
         name: benchmark.name(),
+        backend_config_name: benchmark.backend_config_name(),
         options: benchmark.options(),
         shapes: benchmark.shapes(),
         timestamp,

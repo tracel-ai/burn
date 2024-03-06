@@ -101,6 +101,15 @@ impl<E: TchElement> Backend for LibTorch<E> {
         "tch".to_string()
     }
 
+    fn config_name(device: &Self::Device) -> Option<String> {
+        match device {
+            LibTorchDevice::Cpu => Some(String::from("tch-cpu")),
+            LibTorchDevice::Cuda(_) | LibTorchDevice::Mps | LibTorchDevice::Vulkan => {
+                Some(String::from("tch-gpu"))
+            }
+        }
+    }
+
     fn sync(device: &Self::Device) {
         if let LibTorchDevice::Cuda(index) = device {
             tch::Cuda::synchronize(*index as i64);

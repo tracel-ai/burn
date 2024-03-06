@@ -39,6 +39,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         format!("autodiff<{}>", B::name())
     }
 
+    fn config_name(device: &Self::Device) -> Option<String> {
+        match B::config_name(device) {
+            Some(name) => Some(format!("{}-autodiff", name)),
+            None => None,
+        }
+    }
+
     fn seed(seed: u64) {
         B::seed(seed)
     }

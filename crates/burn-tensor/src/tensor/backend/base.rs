@@ -92,6 +92,9 @@ pub trait Backend:
     /// Name of the backend.
     fn name() -> String;
 
+    /// Name of the backend configuration (i.e. as used in burnbench CLI).
+    fn config_name(device: &Self::Device) -> Option<String>;
+
     /// Seed the backend.
     fn seed(seed: u64);
 

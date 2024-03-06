@@ -32,6 +32,10 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
         }
     }
 
+    fn backend_config_name(&self) -> Option<String> {
+        B::config_name(&self.device)
+    }
+
     fn options(&self) -> Option<String> {
         Some(format!("{:?}", self.kind))
     }

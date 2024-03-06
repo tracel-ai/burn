@@ -16,6 +16,10 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
         "to_data".into()
     }
 
+    fn backend_config_name(&self) -> Option<String> {
+        B::config_name(&self.device)
+    }
+
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape.dims.into()]
     }
@@ -44,6 +48,10 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
 
     fn name(&self) -> String {
         "from_data".into()
+    }
+
+    fn backend_config_name(&self) -> Option<String> {
+        B::config_name(&self.device)
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {

@@ -28,6 +28,7 @@ pub struct BenchmarkRecord {
 ///  [
 ///    {
 ///      "backend": "backend name",
+///      "backendConfigName": "backend config name as appers in burnbench flag",
 ///      "device": "device name",
 ///      "gitHash": "hash",
 ///      "max": "duration in microseconds",
@@ -68,7 +69,7 @@ pub fn save<B: Backend>(
 
     let records: Vec<BenchmarkRecord> = benches
         .into_iter()
-        .map(|bench| BenchmarkRecord {
+        .map(|bench: BenchmarkResult| BenchmarkRecord {
             backend: B::name().to_string(),
             device: format!("{:?}", device),
             system_info: BenchmarkSystemInfo::new(),
@@ -157,6 +158,7 @@ impl Serialize for BenchmarkRecord {
             self,
             ("backend", &self.backend),
             ("device", &self.device),
+            ("backendConfigName", &self.results.backend_config_name),
             ("gitHash", &self.results.git_hash),
             ("max", &self.results.computed.max.as_micros()),
             ("mean", &self.results.computed.mean.as_micros()),
@@ -190,6 +192,7 @@ impl<'de> Visitor<'de> for BenchmarkRecordVisitor {
             match key.as_str() {
                 "backend" => br.backend = map.next_value::<String>()?,
                 "device" => br.device = map.next_value::<String>()?,
+                "backendConfigName" => br.results.backend_config_name = Some(map.next_value::<String>()?),
                 "gitHash" => br.results.git_hash = map.next_value::<String>()?,
                 "name" => br.results.name = map.next_value::<String>()?,
                 "max" => {
@@ -282,6 +285,7 @@ mod tests {
         let sample_result = r#"{
             "backend": "candle",
             "device": "Cuda(0)",
+            "backendConfigName": "candle-cuda",
             "gitHash": "02d37011ab4dc773286e5983c09cde61f95ba4b5",
             "name": "unary",
             "max": 8858,
@@ -345,6 +349,7 @@ mod tests {
         let record = serde_json::from_str::<BenchmarkRecord>(sample_result).unwrap();
         assert!(record.backend == "candle");
         assert!(record.device == "Cuda(0)");
+        assert!(record.results.backend_config_name == "candle-cuda");
         assert!(record.results.git_hash == "02d37011ab4dc773286e5983c09cde61f95ba4b5");
         assert!(record.results.name == "unary");
         assert!(record.results.computed.max.as_micros() == 8858);

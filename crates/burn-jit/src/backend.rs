@@ -26,6 +26,11 @@ impl<R: Runtime> Backend for JitBackend<R> {
         format!("jit<{}>", R::name())
     }
 
+    fn config_name(_device: &Self::Device) -> Option<String> {
+        // There is currently only one implementation where name returns "wgpu"
+        Some(format!("{}-jit", R::name()))
+    }
+
     fn seed(seed: u64) {
         let rng = StdRng::seed_from_u64(seed);
         let mut seed = SEED.lock().unwrap();

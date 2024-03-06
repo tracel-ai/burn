@@ -38,6 +38,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         format!("fusion<{}>", B::name())
     }
 
+    fn config_name(device: &Self::Device) -> Option<String> {
+        match B::config_name(device) {
+            Some(name) => Some(format!("{}-fusion", name)),
+            None => None,
+        }
+    }
+
     fn seed(seed: u64) {
         B::seed(seed);
     }
