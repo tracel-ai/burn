@@ -29,7 +29,7 @@ macro_rules! gpu {
     ($scope:expr, $out:ident = $lhs:ident * $rhs:expr) => {
         gpu!($scope, $out = mul($lhs, $rhs))
     };
-    // out += input
+    // out *= input
     ($scope:expr, $out:ident *= $input:ident) => {
         gpu!($scope, $out = mul($out, $input))
     };
@@ -97,6 +97,46 @@ macro_rules! gpu {
     ($scope:expr, $out:ident = not($input:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Not(
             gpu!(unary $input, $out)
+        ));
+    };
+    // out = lhs & rhs
+    ($scope:expr, $out: ident = $lhs:ident & $rhs:ident) => {
+        gpu!($scope, $out = bitwise_and($lhs, $rhs))
+    };
+    // out = bitwise_and(lhs, rhs)
+    ($scope:expr, $out:ident = bitwise_and($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::BitwiseAnd(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = lhs ^ rhs
+    ($scope:expr, $out: ident = $lhs:ident ^ $rhs:ident) => {
+        gpu!($scope, $out = bitwise_xor($lhs, $rhs))
+    };
+    // out = bitwise_xor(lhs, rhs)
+    ($scope:expr, $out:ident = bitwise_xor($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::BitwiseXor(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = lhs << rhs
+    ($scope:expr, $out: ident = $lhs:ident << $rhs:ident) => {
+        gpu!($scope, $out = shift_left($lhs, $rhs))
+    };
+    // out = shift_left(lhs, rhs)
+    ($scope:expr, $out:ident = shift_left($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::ShiftLeft(
+            gpu!(binary $lhs, $rhs, $out)
+        ));
+    };
+    // out = lhs >> rhs
+    ($scope:expr, $out: ident = $lhs:ident >> $rhs:ident) => {
+        gpu!($scope, $out = shift_right($lhs, $rhs))
+    };
+    // out = shift_right(lhs, rhs)
+    ($scope:expr, $out:ident = shift_right($lhs:expr, $rhs:expr)) => {
+        $scope.register($crate::codegen::dialect::gpu::Operator::ShiftRight(
+            gpu!(binary $lhs, $rhs, $out)
         ));
     };
     // out = lhs == rhs

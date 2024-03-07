@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
 use burn_tensor::Shape;
+use num_traits::float;
 
 use crate::{
     codegen::{
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, EagerHandle, InputInfo,
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
         OutputInfo, WorkgroupLaunch,
     },
     gpu::{gpu, Elem, Scope, Variable},
@@ -20,23 +21,21 @@ pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
     prob: E,
 ) -> JitTensor<R, E, D> {
     let client = R::client(device);
-    let kernel = BernoulliEagerKernel::new();
+    let kernel: BernoulliEagerKernel<R, E> = BernoulliEagerKernel::new();
     let num_elems = shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
     let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
+    let seeds = get_seeds();
 
-    execute_dynamic::<R, BernoulliEagerKernel<R, E>, E>(
-        &[],
-        &[EagerHandle::new(
+    Execution::start(kernel, client)
+        .outputs(&[EagerHandle::<R>::new(
             &output.handle,
             &output.strides,
             &output.shape.dims,
-        )],
-        Some(&[prob]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        client,
-    );
+        )])
+        .with_scalars(&[prob])
+        .with_scalars(&seeds)
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }
@@ -45,17 +44,13 @@ pub(crate) struct BernoulliShader {
     output: Variable,
     n_values_per_thread: usize,
     probability: Variable,
-    seeds: [u32; 4],
+    seeds: [Variable; 4],
 }
 
+#[derive(new)]
 pub(crate) struct BernoulliEagerKernel<R: Runtime, E: JitElement> {
-    seeds: [u32; 4],
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
-}
-
-impl<R: Runtime, E: JitElement> BernoulliEagerKernel<R, E> {
-
 }
 
 impl<R: Runtime, E: JitElement> DynamicKernelSource for BernoulliEagerKernel<R, E> {
@@ -66,7 +61,11 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for BernoulliEagerKernel<R, 
         let output = Variable::GlobalOutputArray(0, item);
         const N_VALUES_PER_THREAD: usize = 128;
         let probability = Variable::GlobalScalar(0, E::gpu_elem());
-        let seeds = get_seeds();
+        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
+        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
+        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
+        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
+        let seeds = [seed0, seed1, seed2, seed3];
 
         BernoulliShader {
             output,
@@ -78,14 +77,18 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for BernoulliEagerKernel<R, 
 
         scope.write_global_custom(output);
 
-        let input = InputInfo::Scalar {
+        let prob = InputInfo::Scalar {
             elem: E::gpu_elem(),
             size: 1,
+        };
+        let seeds = InputInfo::Scalar {
+            elem: Elem::UInt,
+            size: 4,
         };
         let out = OutputInfo::Array { item };
 
         let info = CompilationInfo {
-            inputs: vec![input],
+            inputs: vec![prob, seeds],
             outputs: vec![out],
             scope,
         };
@@ -97,11 +100,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for BernoulliEagerKernel<R, 
     }
 
     fn id(&self) -> String {
-        format!(
-            "{:?} seeds={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.seeds
-        )
+        format!("{:?}", core::any::TypeId::of::<Self>(),)
     }
 }
 
@@ -109,8 +108,7 @@ impl BernoulliShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let id = Variable::Id;
         let output = self.output;
-        let n_values_per_thread: Variable = self.n_values_per_thread.into();
-        let probability = self.probability;
+        let [seed_0, seed_1, seed_2, seed_3] = self.seeds;
 
         let workgroup_size_y = Variable::WorkgroupSizeY;
         let workgroup_id_x = Variable::WorkgroupIdX;
@@ -130,6 +128,7 @@ impl BernoulliShader {
         gpu!(scope, write_index_base = workgroup_offset);
         gpu!(scope, write_index_base += local_index);
 
+        // Set state with unique seeds
         let thread_seed = scope.create_local(Elem::UInt);
         gpu!(scope, thread_seed = cast(1000000007));
         let thread_seed_index = scope.create_local(Elem::UInt);
@@ -137,8 +136,99 @@ impl BernoulliShader {
         gpu!(scope, thread_seed *= thread_seed_index);
 
         let state_0 = scope.create_local(Elem::UInt);
+        gpu!(scope, state_0 = thread_seed);
+        gpu!(scope, state_0 += seed_0);
+
         let state_1 = scope.create_local(Elem::UInt);
+        gpu!(scope, state_1 = thread_seed);
+        gpu!(scope, state_1 += seed_1);
+
         let state_2 = scope.create_local(Elem::UInt);
+        gpu!(scope, state_2 = thread_seed);
+        gpu!(scope, state_2 += seed_2);
+
         let state_3 = scope.create_local(Elem::UInt);
+        gpu!(scope, state_3 = thread_seed);
+        gpu!(scope, state_3 += seed_3);
+
+        // Creation of n_values_per_thread values, specific to the distribution
+
+        ///////////////////////
+        // BERNOULLI specific
+        let prob = self.probability;
+        for i in 0..self.n_values_per_thread {
+            taus_step(
+                scope,
+                state_0,
+                13.into(),
+                19.into(),
+                12.into(),
+                4294967294u32.into(),
+            );
+            taus_step(
+                scope,
+                state_1,
+                2.into(),
+                25.into(),
+                4.into(),
+                4294967288u32.into(),
+            );
+            taus_step(
+                scope,
+                state_2,
+                3.into(),
+                11.into(),
+                17.into(),
+                4294967280u32.into(),
+            );
+            lcg_step(scope, state_3);
+
+            let int_random = scope.create_local(Elem::UInt);
+            let float_random = scope.create_local(Elem::Float);
+            cast_uint_to_float(scope, int_random, float_random);
+
+            let bernoulli = scope.create_local(Elem::Bool);
+            let bernoulli_casted = scope.create_local(output.item());
+            gpu!(scope, bernoulli = float_random < prob);
+            gpu!(scope, bernoulli_casted = cast(bernoulli));
+
+            let i: Variable = i.into();
+            let write_index = scope.create_local(Elem::UInt);
+            gpu!(scope, write_index = i * n_invocations);
+            gpu!(scope, write_index += write_index_base);
+            gpu!(scope, output[write_index] = bernoulli_casted);
+        }
+        //
+        //////////////////////////
     }
+}
+
+fn taus_step(
+    scope: &mut Scope,
+    z: Variable,
+    s1: Variable,
+    s2: Variable,
+    s3: Variable,
+    m: Variable,
+) {
+    let b = scope.create_local(Elem::UInt);
+    gpu!(scope, b = z << s1);
+    gpu!(scope, b = b ^ z);
+    gpu!(scope, b = b >> s2);
+    gpu!(scope, z = z & m);
+    gpu!(scope, z = z << s3);
+    gpu!(scope, z = z ^ b);
+}
+
+fn lcg_step(scope: &mut Scope, z: Variable) {
+    let a: Variable = 1664525.into();
+    let b: Variable = 1013904223.into();
+    gpu!(scope, z *= a);
+    gpu!(scope, z += b);
+}
+
+fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_random: Variable) {
+    let tmp: Variable = 2.3283064365387e-10.into();
+    gpu!(scope, float_random = cast(int_random));
+    gpu!(scope, float_random *= tmp);
 }
