@@ -286,6 +286,42 @@ Dtype: F32
 ---
 ```
 
+### Non-contiguous indices in the source model
+
+Sometimes the indices of the source model are non-contiguous. For example, the source model has:
+
+```
+"model.ax.0.weight",
+"model.ax.0.bias",
+"model.ax.2.weight",
+"model.ax.2.bias",
+"model.ax.4.weight",
+"model.ax.4.bias",
+"model.ax.6.weight",
+"model.ax.6.bias",
+"model.ax.8.weight",
+"model.ax.8.bias",
+```
+
+This may occur when `model.ax` attribute (in the above example) uses `Sequential` to define the
+layers and the skipped items do not have weight tensors, such as a `ReLU` layer. PyTorch simply
+skips the layers without weight tensors, resulting in non-contiguous indices. In this case,
+PyTorchFileRecorder automatically corrects the indices to be contiguous preserving the order of the
+weights resulting in:
+
+```
+"model.ax.0.weight",
+"model.ax.0.bias",
+"model.ax.1.weight",
+"model.ax.1.bias",
+"model.ax.2.weight",
+"model.ax.2.bias",
+"model.ax.3.weight",
+"model.ax.3.bias",
+"model.ax.4.weight",
+"model.ax.4.bias",
+```
+
 ### Loading the model weights to a partial model
 
 `PyTorchFileRecorder` enables selective weight loading into partial models. For instance, in a model
