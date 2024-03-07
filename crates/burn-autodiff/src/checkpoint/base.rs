@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::graph::{NodeID, NodeRef};
+use crate::graph::{NodeId, NodeRef};
 
 use super::{
     retro_forward::RetroForwards,
@@ -8,14 +8,14 @@ use super::{
 };
 
 #[derive(new, Debug)]
-/// Links a [NodeID] to its autodiff graph [NodeRef]
+/// Links a [NodeId] to its autodiff graph [NodeRef]
 pub(crate) struct NodeTree {
-    map: HashMap<NodeID, NodeRef>,
+    map: HashMap<NodeId, NodeRef>,
 }
 
 impl NodeTree {
     /// Gives the parents of the node in the autodiff graph
-    pub(crate) fn parents(&self, node_id: &NodeID) -> Option<Vec<NodeID>> {
+    pub(crate) fn parents(&self, node_id: &NodeId) -> Option<Vec<NodeId>> {
         self.map.get(node_id).map(|node| node.parents.clone())
     }
 }
@@ -31,7 +31,7 @@ pub struct Checkpointer {
 impl Checkpointer {
     /// Gives the output of the given node, by recursively asking parents to compute themselves
     /// or give their pre-computed tensors.
-    pub fn retrieve_node_output<T>(&mut self, node_id: NodeID) -> T
+    pub fn retrieve_node_output<T>(&mut self, node_id: NodeId) -> T
     where
         T: Clone + Send + Sync + 'static,
     {
@@ -51,7 +51,7 @@ impl Checkpointer {
     /// The sort on a compute bound state or a memory bound that is already computed is trivial.
     /// The match on State::Computed also serves as a stopping criterion for the sort,
     /// we don't need to look higher than that during recursivity.
-    fn topological_sort(&self, node_id: NodeID) -> Vec<NodeID> {
+    fn topological_sort(&self, node_id: NodeId) -> Vec<NodeId> {
         match self.backward_states.get_state_ref(&node_id) {
             Some(state) => match state {
                 State::Recompute { n_required: _ } => {

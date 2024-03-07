@@ -4,7 +4,7 @@ use crate::{checkpoint::base::Checkpointer, grads::Gradients, tensor::AutodiffTe
 
 use super::{traversal::BreadthFirstSearch, Graph, NodeRef, StepBoxed};
 
-pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients<B> {
+pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradients<B::DynTensorPrimitive> {
     let grads = Gradients::new::<B, D>(root.node.clone(), root.primitive);
     let checkpointer = root.graph.build_checkpointer();
 
@@ -13,7 +13,7 @@ pub fn backward<B: Backend, const D: usize>(root: AutodiffTensor<B, D>) -> Gradi
     execute_steps(tape, grads, checkpointer)
 }
 
-fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B>>> {
+fn build_tape<P>(root: NodeRef, graph: Graph<P>) -> Vec<Vec<StepBoxed<P>>> {
     let mut tape = (0..root.order)
         .map(|_| Vec::with_capacity(1))
         .collect::<Vec<_>>();
@@ -31,11 +31,11 @@ fn build_tape<B: Backend>(root: NodeRef, graph: Graph<B>) -> Vec<Vec<StepBoxed<B
     tape
 }
 
-fn execute_steps<B: Backend>(
-    tape: Vec<Vec<StepBoxed<B>>>,
-    mut grads: Gradients<B>,
+fn execute_steps<P>(
+    tape: Vec<Vec<StepBoxed<P>>>,
+    mut grads: Gradients<P>,
     mut checkpointer: Checkpointer,
-) -> Gradients<B> {
+) -> Gradients<P> {
     tape.into_iter().rev().for_each(|steps| {
         steps
             .into_iter()

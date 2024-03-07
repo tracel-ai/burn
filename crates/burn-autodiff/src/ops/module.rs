@@ -1,7 +1,7 @@
 use crate::checkpoint::base::Checkpointer;
 use crate::checkpoint::strategy::CheckpointStrategy;
 use crate::grads::Gradients;
-use crate::graph::NodeID;
+use crate::graph::NodeId;
 use crate::ops::{unary, Backward, Ops};
 use crate::tensor::AutodiffTensor;
 use crate::Autodiff;
@@ -22,7 +22,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 _checkpointer: &mut Checkpointer,
             ) {
                 let (weights, indices) = ops.state;
@@ -66,12 +66,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Conv2DNoBias;
 
         impl<B: Backend> Backward<B, 4, 3> for Conv2DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvOptions<2>);
+            type State = (NodeId, NodeId, NodeId, ConvOptions<2>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 3>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
@@ -97,12 +97,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 4, 2> for Conv2DNoBias {
-            type State = (NodeID, NodeID, ConvOptions<2>);
+            type State = (NodeId, NodeId, ConvOptions<2>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight] = ops.parents;
@@ -184,12 +184,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct ConvTranspose2DNoBias;
 
         impl<B: Backend> Backward<B, 4, 3> for ConvTranspose2DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<2>);
+            type State = (NodeId, NodeId, NodeId, ConvTransposeOptions<2>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 3>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
@@ -215,12 +215,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 4, 2> for ConvTranspose2DNoBias {
-            type State = (NodeID, NodeID, ConvTransposeOptions<2>);
+            type State = (NodeId, NodeId, ConvTransposeOptions<2>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight] = ops.parents;
@@ -311,12 +311,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Conv1DNoBias;
 
         impl<B: Backend> Backward<B, 3, 3> for Conv1DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvOptions<1>);
+            type State = (NodeId, NodeId, NodeId, ConvOptions<1>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 3>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
@@ -342,12 +342,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 3, 2> for Conv1DNoBias {
-            type State = (NodeID, NodeID, ConvOptions<1>);
+            type State = (NodeId, NodeId, ConvOptions<1>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight] = ops.parents;
@@ -427,12 +427,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct ConvTranspose1DNoBias;
 
         impl<B: Backend> Backward<B, 3, 3> for ConvTranspose1DWithBias {
-            type State = (NodeID, NodeID, NodeID, ConvTransposeOptions<1>);
+            type State = (NodeId, NodeId, NodeId, ConvTransposeOptions<1>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 3>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight, node_bias] = ops.parents;
@@ -458,12 +458,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 3, 2> for ConvTranspose1DNoBias {
-            type State = (NodeID, NodeID, ConvTransposeOptions<1>);
+            type State = (NodeId, NodeId, ConvTransposeOptions<1>);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 2>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_x, node_weight] = ops.parents;
@@ -566,12 +566,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AvgPool1D {
-            type State = (NodeID, usize, usize, usize, bool);
+            type State = (NodeId, usize, usize, usize, bool);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_parent] = ops.parents;
@@ -632,12 +632,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AvgPool2D {
-            type State = (NodeID, [usize; 2], [usize; 2], [usize; 2], bool);
+            type State = (NodeId, [usize; 2], [usize; 2], [usize; 2], bool);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_parent] = ops.parents;
@@ -894,12 +894,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AdaptiveAvgPool1D;
 
         impl<B: Backend> Backward<B, 3, 1> for AdaptiveAvgPool1D {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_parent] = ops.parents;
@@ -936,12 +936,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct AdaptiveAvgPool2D;
 
         impl<B: Backend> Backward<B, 4, 1> for AdaptiveAvgPool2D {
-            type State = NodeID;
+            type State = NodeId;
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_parent] = ops.parents;
@@ -982,12 +982,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 struct MaxPool1D;
 
 impl<B: Backend> Backward<B, 3, 1> for MaxPool1D {
-    type State = (NodeID, IntTensor<B, 3>, usize, usize, usize, usize);
+    type State = (NodeId, IntTensor<B, 3>, usize, usize, usize, usize);
 
     fn backward(
         self,
         ops: Ops<Self::State, 1>,
-        grads: &mut Gradients,
+        grads: &mut Gradients<B::DynTensorPrimitive>,
         checkpointer: &mut Checkpointer,
     ) {
         let [node_parent] = ops.parents;
@@ -1016,7 +1016,7 @@ struct MaxPool2D;
 
 impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     type State = (
-        NodeID,
+        NodeId,
         IntTensor<B, 4>,
         [usize; 2],
         [usize; 2],
@@ -1027,7 +1027,7 @@ impl<B: Backend> Backward<B, 4, 1> for MaxPool2D {
     fn backward(
         self,
         ops: Ops<Self::State, 1>,
-        grads: &mut Gradients,
+        grads: &mut Gradients<B::DynTensorPrimitive>,
         checkpointer: &mut Checkpointer,
     ) {
         let [node_parent] = ops.parents;

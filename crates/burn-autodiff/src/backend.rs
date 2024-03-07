@@ -1,16 +1,16 @@
-use crate::{grads::Gradients, graph::backward::backward, tensor::AutodiffTensor};
+use core::marker::PhantomData;
+
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     DynData,
 };
+
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
-    graph::backward::backward,
     tensor::AutodiffTensor,
 };
-use burn_tensor::backend::{AutodiffBackend, Backend};
-use core::marker::PhantomData;
+use crate::graph::backward;
 
 /// Enable auto-differentiation on a backend.
 ///
@@ -64,10 +64,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type InnerBackend = B;
-    type Gradients = Gradients<B>;
+    type Gradients = Gradients<B::DynTensorPrimitive>;
 
     fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Self::Gradients {
-        backward(tensor)
+        backward::backward(tensor)
     }
 
     fn grad<const D: usize>(
@@ -83,14 +83,6 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     ) -> Option<B::FloatTensorPrimitive<D>> {
         grads.remove(tensor)
     }
-    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::FloatTensorPrimitive<D> {
-        tensor.primitive
-    }
-
-    fn from_inner<const D: usize>(tensor: B::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
-        AutodiffTensor::new(tensor)
-    }
-
     fn grad_replace<const D: usize>(
         tensor: &AutodiffTensor<B, D>,
         grads: &mut Self::Gradients,
@@ -98,6 +90,10 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     ) {
         grads.remove(tensor);
         grads.register::<B, D>(tensor.node.clone(), grad);
+    }
+
+    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::FloatTensorPrimitive<D> {
+        tensor.primitive
     }
 
     fn int_inner<const D: usize>(
@@ -110,6 +106,10 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         tensor: burn_tensor::ops::BoolTensor<Self, D>,
     ) -> burn_tensor::ops::BoolTensor<Self::InnerBackend, D> {
         tensor
+    }
+
+    fn from_inner<const D: usize>(tensor: B::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
+        AutodiffTensor::new(tensor)
     }
 
     fn int_from_inner<const D: usize>(

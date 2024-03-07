@@ -1,4 +1,3 @@
-use burn_tensor::backend::Backend;
 use spin::Mutex;
 use std::{collections::HashMap, sync::Arc};
 
@@ -7,70 +6,60 @@ use crate::{
     grads::Gradients,
 };
 
-use super::{NodeID, NodeRef};
+use super::{NodeId, NodeRef};
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + Sync + std::fmt::Debug {
-    type Backend: Backend;
+    type DynTensorPrim;
 
     /// Executes the step and consumes it.
-    fn step(self: Box<Self>, grads: &mut Gradients<Self::Backend>, checkpointer: &mut Checkpointer);
+    fn step(
+        self: Box<Self>,
+        grads: &mut Gradients<Self::DynTensorPrim>,
+        checkpointer: &mut Checkpointer,
+    );
 
     /// The node associated to the step.
     fn node(&self) -> NodeRef;
 }
 
-pub type StepBoxed<B> = Box<dyn Step<Backend = B>>;
-pub type NodeSteps<B> = HashMap<NodeID, StepBoxed<B>>;
+pub type StepBoxed<P> = Box<dyn Step<DynTensorPrim = P>>;
+pub type NodeSteps<P> = HashMap<NodeId, StepBoxed<P>>;
 
 /// Graph data structure.
 ///
-/// The graph contains the [node steps](Step), which can be access by [node id](NodeID).
-#[derive(Default, Clone, Debug)]
-pub struct Graph<B: Backend> {
-    steps: Arc<Mutex<NodeSteps<B>>>,
+/// The graph contains the [node steps](Step), which can be access by [node id](NodeId).
+#[derive(Clone, Debug)]
+pub struct Graph<P> {
+    steps: Arc<Mutex<NodeSteps<P>>>,
     checkpointing_actions: Arc<Mutex<CheckpointerBuilder>>,
 }
 
-impl<B: Backend> Graph<B> {
-    /// Create a new graph.
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl<P: Clone> Graph<P> {
+    fn merge_different(self, other: Self) -> Self {
+        let mut map2 = other.clone().steps();
+        let mut actions2 = other.take_checkpointing_actions();
 
-    /// Get all the steps for the graph.
-    ///
-    /// # Notes
-    ///
-    /// This is a owned method, so the current graph will be freed. However, the steps can
-    /// be shared with other graphs, therefore they are going to be cleared.
-    ///
-    /// This is useful, since the graph is supposed to be consumed only once for backprop, and
-    /// keeping all the tensors alive for multiple backward call is a heavy waste of resources.
-    pub fn steps(self) -> NodeSteps<B> {
-        let mut map_drain = HashMap::new();
-        self.execute_mut_steps(|map| {
-            std::mem::swap(&mut *map, &mut map_drain);
-        });
-        map_drain
-    }
-
-    /// # Notes
-    ///
-    /// This is a owned method, so the current checkpointing actions will be freed.
-    pub fn take_checkpointing_actions(self) -> CheckpointerBuilder {
-        let mut actions = CheckpointerBuilder::default();
-        self.execute_mut_checkpointing_actions(|checkpointing_actions| {
-            std::mem::swap(&mut *checkpointing_actions, &mut actions);
-        });
-        actions
-    }
-
-    /// Register a new step into the graph.
-    pub fn register(self, id: &NodeID, ops: StepBoxed<B>) -> Self {
-        self.execute_mut_steps(|map| {
-            map.insert(id.clone(), ops);
+        self.execute_mut_steps(|map1| {
+            if map1.len() > map2.len() {
+                map1.extend(map2);
+            } else {
+                let mut map_drain = HashMap::new();
+                std::mem::swap(map1, &mut map_drain);
+                map2.extend(map_drain);
+                std::mem::swap(map1, &mut map2);
+            }
         })
+            .execute_mut_checkpointing_actions(|actions1| {
+                if actions1.len() > actions2.len() {
+                    actions1.extend(actions2);
+                } else {
+                    let mut checkpointing_drain = CheckpointerBuilder::default();
+                    std::mem::swap(actions1, &mut checkpointing_drain);
+                    actions2.extend(checkpointing_drain);
+                    std::mem::swap(actions1, &mut actions2);
+                }
+            })
     }
 
     /// Merge two graphs.
@@ -81,8 +70,53 @@ impl<B: Backend> Graph<B> {
 
         self.merge_different(other)
     }
+}
 
-    fn execute_mut_steps<F: FnOnce(&mut NodeSteps<B>)>(mut self, func: F) -> Self {
+impl<P> Graph<P> {
+    /// Create a new graph.
+    pub fn new() -> Self {
+        Self {
+            steps: Default::default(),
+            checkpointing_actions: Default::default(),
+        }
+    }
+
+    /// Get all the steps for the graph.
+    ///
+    /// # Notes
+    ///
+    /// This is an owned method, so the current graph will be freed. However, the steps can
+    /// be shared with other graphs, therefore they are going to be cleared.
+    ///
+    /// This is useful, since the graph is supposed to be consumed only once for backprop, and
+    /// keeping all the tensors alive for multiple backward call is a heavy waste of resources.
+    pub fn steps(self) -> NodeSteps<P> {
+        let mut map_drain = HashMap::new();
+        self.execute_mut_steps(|map| {
+            std::mem::swap(&mut *map, &mut map_drain);
+        });
+        map_drain
+    }
+
+    /// # Notes
+    ///
+    /// This is an owned method, so the current checkpointing actions will be freed.
+    pub fn take_checkpointing_actions(self) -> CheckpointerBuilder {
+        let mut actions = CheckpointerBuilder::default();
+        self.execute_mut_checkpointing_actions(|checkpointing_actions| {
+            std::mem::swap(&mut *checkpointing_actions, &mut actions);
+        });
+        actions
+    }
+
+    /// Register a new step into the graph.
+    pub fn register(self, id: &NodeId, ops: StepBoxed<P>) -> Self {
+        self.execute_mut_steps(|map| {
+            map.insert(id.clone(), ops);
+        })
+    }
+
+    fn execute_mut_steps<F: FnOnce(&mut NodeSteps<P>)>(mut self, func: F) -> Self {
         match Arc::get_mut(&mut self.steps) {
             Some(mutex) => {
                 let map = mutex.get_mut();
@@ -115,32 +149,6 @@ impl<B: Backend> Graph<B> {
         };
 
         self
-    }
-
-    fn merge_different(self, other: Self) -> Self {
-        let mut map2 = other.clone().steps();
-        let mut actions2 = other.take_checkpointing_actions();
-
-        self.execute_mut_steps(|map1| {
-            if map1.len() > map2.len() {
-                map1.extend(map2);
-            } else {
-                let mut map_drain = HashMap::new();
-                std::mem::swap(map1, &mut map_drain);
-                map2.extend(map_drain);
-                std::mem::swap(map1, &mut map2);
-            }
-        })
-        .execute_mut_checkpointing_actions(|actions1| {
-            if actions1.len() > actions2.len() {
-                actions1.extend(actions2);
-            } else {
-                let mut checkpointing_drain = CheckpointerBuilder::default();
-                std::mem::swap(actions1, &mut checkpointing_drain);
-                actions2.extend(checkpointing_drain);
-                std::mem::swap(actions1, &mut actions2);
-            }
-        })
     }
 
     pub(crate) fn build_checkpointer(&self) -> Checkpointer {

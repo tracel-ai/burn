@@ -2,68 +2,58 @@ use core::fmt::Debug;
 
 use crate::{backend::Backend, BasicOps, Device, DynData, Tensor};
 
-#[derive(new, Clone, Debug)]
-pub struct DynTensor<B>
-where
-    B: Backend,
+// TODO: Replace this once bound aliases become a thing
+pub trait DynPrimBackend<P>: Backend<DynTensorPrimitive = P> {}
+
+pub trait DynCompatBackend<B: Backend>: Backend<DynTensorPrimitive = B::DynTensorPrimitive> {}
+
+impl<P, B: Backend<DynTensorPrimitive = P>> DynPrimBackend<P> for B {}
+
+impl<B: Backend, CompatB: Backend<DynTensorPrimitive = B::DynTensorPrimitive>> DynCompatBackend<B> for CompatB {}
+
+#[derive(Clone, Debug)]
+pub struct DynTensor<P>
 {
-    pub(crate) primitive: B::DynTensorPrimitive,
+    pub(crate) primitive: P,
 }
 
-impl<B> DynTensor<B>
-where
-    B: Backend,
-{
-    pub fn from_data(data: DynData, device: &Device<B>) -> Self {
+impl<P> DynTensor<P> {
+    pub fn from_data<B: Backend<DynTensorPrimitive = P>>(data: DynData, device: &Device<B>) -> Self {
         Self {
             primitive: B::dyn_from_data(data, device),
         }
     }
 
-    pub fn into_data(self) -> DynData {
+    pub fn into_data<B: Backend<DynTensorPrimitive = P>>(self) -> DynData {
         B::dyn_into_data(self.primitive)
     }
 
-    pub fn to_data(&self) -> DynData {
-        self.clone().into_data()
-    }
-
-    pub fn from_primitive(primitive: B::DynTensorPrimitive) -> Self {
+    pub fn from_primitive(primitive: P) -> Self {
         Self { primitive }
     }
 
-    pub fn into_primitive(self) -> B::DynTensorPrimitive {
+    pub fn into_primitive(self) -> P {
         self.primitive
     }
+}
 
-    pub fn as_backend<BOut>(self) -> DynTensor<BOut>
+
+impl<P, B, const D: usize, K> From<DynTensor<P>> for Tensor<B, D, K>
+where
+    B: DynPrimBackend<P>,
+    K: BasicOps<B>,
+{
+    fn from(value: DynTensor<P>) -> Self {
+        Tensor::from_primitive(K::from_dyn(value.into_primitive()))
+    }
+}
+
+impl<P, B, const D: usize, K> From<Tensor<B, D, K>> for DynTensor<P>
     where
-        BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>,
-    {
-        DynTensor {
-            primitive: self.primitive,
-        }
-    }
-}
-
-impl<BIn, BOut, const D: usize, K> From<DynTensor<BIn>> for Tensor<BOut, D, K>
-where
-    BIn: Backend,
-    BOut: Backend<DynTensorPrimitive = BIn::DynTensorPrimitive>,
-    K: BasicOps<BOut>,
+        B: DynPrimBackend<P>,
+        K: BasicOps<B>,
 {
-    fn from(value: DynTensor<BIn>) -> Self {
-        Tensor::from_primitive(K::from_dyn(value.primitive))
-    }
-}
-
-impl<BIn, BOut, const D: usize, K> From<Tensor<BIn, D, K>> for DynTensor<BOut>
-where
-    BIn: Backend,
-    BOut: Backend<DynTensorPrimitive = BIn::DynTensorPrimitive>,
-    K: BasicOps<BIn>,
-{
-    fn from(value: Tensor<BIn, D, K>) -> Self {
-        Self::from_primitive(K::into_dyn(value.primitive).read())
+    fn from(value: Tensor<B, D, K>) -> Self {
+        Self::from_primitive(K::into_dyn(value.into_primitive()).read())
     }
 }

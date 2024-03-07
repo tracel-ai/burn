@@ -5,14 +5,14 @@ use burn_tensor::backend::Backend;
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Graph, Node, NodeId, NodeRef, Requirement, Step},
 };
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
-    pub graph: Graph<B>,
+    pub graph: Graph<B::DynTensorPrimitive>,
 }
 
 #[derive(new, Debug)]
@@ -22,9 +22,9 @@ struct RootStep<B: Backend> {
 }
 
 impl<B: Backend> Step for RootStep<B> {
-    type Backend = B;
+    type DynTensorPrim = B::DynTensorPrimitive;
 
-    fn step(self: Box<Self>, _grads: &mut Gradients<Self::Backend>, _checkpointer: &mut Checkpointer) {
+    fn step(self: Box<Self>, _grads: &mut Gradients<Self::DynTensorPrim>, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 
@@ -36,7 +36,7 @@ impl<B: Backend> Step for RootStep<B> {
 impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive<D>) -> Self {
-        let id = NodeID::new();
+        let id = NodeId::new();
         let node: NodeRef = Node::new(
             vec![],
             0,
@@ -77,7 +77,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                     self.node.properties.clone(),
                 )
                 .into();
-                let ops = RootStep::new(self.node.clone());
+                let ops = RootStep::<B>::new(self.node.clone());
 
                 self.register_step(ops)
             }
@@ -85,8 +85,8 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     }
 
     /// Create a tensor from parent infos.
-    pub fn from_parents<I: Iterator<Item = Graph<B>>>(
-        output: B::FloatTensorPrimitive<D>,
+    pub fn from_parents<I: Iterator<Item = Graph<B::DynTensorPrimitive>>>(
+        primitive: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
         parent_graphs: I,
         requirement: Requirement,
@@ -109,7 +109,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         let node: NodeRef = Node::new(
             parent_nodes.iter().map(|node| node.id.clone()).collect(),
             order,
-            NodeID::new(),
+            NodeId::new(),
             requirement,
             computing_properties,
         )
@@ -123,7 +123,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
     }
 
     /// Register a step into a graph for that tensor.
-    pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
+    pub fn register_step<O: Step<DynTensorPrim = B::DynTensorPrimitive> + 'static>(mut self, ops: O) -> Self {
         self.graph = self.graph.register(&self.node.id, Box::new(ops));
         self
     }

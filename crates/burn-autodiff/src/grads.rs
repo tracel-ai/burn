@@ -1,4 +1,6 @@
-use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, Tensor};
+use burn_tensor::{
+    container::TensorContainer, ops::FloatTensor, DynPrimBackend, Tensor,
+};
 
 use crate::{
     graph::{NodeRef, Requirement},
@@ -9,13 +11,17 @@ use crate::{
 pub type GradId = u64;
 
 /// Gradients container used during the backward pass.
-pub struct Gradients<B: Backend> {
-    container: TensorContainer<GradId, B>,
+#[derive(Debug)]
+pub struct Gradients<P> {
+    container: TensorContainer<GradId, P>,
 }
 
-impl<B: Backend> Gradients<B> {
-    /// Creates a new gradients container.
-    pub fn new<const D: usize>(root_node: NodeRef, root_tensor: FloatTensor<B, D>) -> Self {
+impl<P> Gradients<P> {
+    /// Creates a new gradient container.
+    pub fn new<B: DynPrimBackend<P>, const D: usize>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B, D>,
+    ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
         };
@@ -26,63 +32,65 @@ impl<B: Backend> Gradients<B> {
         gradients
     }
 
-    /// Consumes the gradients for a given tensor.
-    ///
-    /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
-    /// backward pass, otherwise, it may be consume multiple times.
-    pub fn consume<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
-        &mut self,
-        node: &NodeRef,
-    ) -> FloatTensor<BOut, D> {
-        match node.requirement {
-            Requirement::Grad => self
-                .container
-                .get::<BOut, D>(&node.id.value)
-                .map(|tensor| tensor.into_primitive())
-                .expect("Can't consume the gradients before they are registered at least once."),
-            Requirement::GradInBackward => self
-                .container
-                .remove::<BOut, D>(&node.id.value)
-                .map(|tensor| tensor.into_primitive())
-                .expect("Can't consume the gradients before they are registered at least once."),
-            Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
-        }
-    }
-
     /// Removes a grad tensor from the container.
-    pub fn remove<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+    pub fn remove<B: DynPrimBackend<P>, const D: usize>(
         &mut self,
-        tensor: &AutodiffTensor<BOut, D>,
-    ) -> Option<FloatTensor<BOut, D>> {
+        tensor: &AutodiffTensor<B, D>,
+    ) -> Option<FloatTensor<B, D>> {
         self.container
-            .remove::<BOut, D>(&tensor.node.id.value)
-            .map(|tensor| tensor.into_primitive())
-    }
-
-    /// Gets a grad tensor from the container.
-    pub fn get<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
-        &self,
-        tensor: &AutodiffTensor<BOut, D>,
-    ) -> Option<FloatTensor<BOut, D>> {
-        self.container
-            .get::<BOut, D>(&tensor.node.id.value)
+            .remove::<B, D>(&tensor.node.id.value)
             .map(|tensor| tensor.into_primitive())
     }
 
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
-    pub fn register<BOut: Backend<DynTensorPrimitive = B::DynTensorPrimitive>, const D: usize>(
+    pub fn register<B: DynPrimBackend<P>, const D: usize>(
         &mut self,
         node: NodeRef,
-        value: FloatTensor<BOut, D>,
+        value: FloatTensor<B, D>,
     ) {
-        if let Some(tensor_old) = self.container.remove::<BOut, D>(&node.id.value) {
+        if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
             self.container
                 .register(node.id.value, Tensor::from_primitive(value).add(tensor_old));
         } else {
             self.container
-                .register::<BOut, D>(node.id.value, Tensor::from_primitive(value));
+                .register::<B, D>(node.id.value, Tensor::from_primitive(value));
+        }
+    }
+}
+
+impl<P: Clone> Gradients<P> {
+    /// Gets a grad tensor from the container.
+    pub fn get<B: DynPrimBackend<P>, const D: usize>(
+        &self,
+        tensor: &AutodiffTensor<B, D>,
+    ) -> Option<FloatTensor<B, D>> {
+        self.container
+            .get::<B, D>(&tensor.node.id.value)
+            .map(|tensor| tensor.into_primitive())
+    }
+
+    /// Consumes the gradients for a given tensor.
+    ///
+    /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
+    /// backward pass, otherwise, it may be consumed multiple times.
+    pub fn consume<B: DynPrimBackend<P>, const D: usize>(
+        &mut self,
+        node: &NodeRef,
+    ) -> FloatTensor<B, D> {
+        match node.requirement {
+            Requirement::Grad => self
+                .container
+                .get::<B, D>(&node.id.value)
+                .map(|tensor| tensor.into_primitive())
+                .expect("Can't consume the gradients before they are registered at least once."),
+            Requirement::GradInBackward => self
+                .container
+                .remove::<B, D>(&node.id.value)
+                .map(|tensor| tensor.into_primitive())
+                .expect("Can't consume the gradients before they are registered at least once."),
+            Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         }
     }
 }

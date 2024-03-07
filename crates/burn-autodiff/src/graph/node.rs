@@ -17,9 +17,9 @@ pub enum ComputingProperty {
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
-    pub parents: Vec<NodeID>,
+    pub parents: Vec<NodeId>,
     pub order: usize,
-    pub id: NodeID,
+    pub id: NodeId,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
 }
@@ -37,13 +37,13 @@ impl Node {
 
 /// Unique identifier generated for each node.
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct NodeID {
+pub struct NodeId {
     /// The integer representation of the id
     pub value: u64,
 }
 
-impl NodeID {
-    /// Create a unique [node id](NodeID).
+impl NodeId {
+    /// Create a unique [node id](NodeId).
     pub fn new() -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -54,7 +54,7 @@ impl NodeID {
     }
 }
 
-impl Default for NodeID {
+impl Default for NodeId {
     fn default() -> Self {
         Self::new()
     }

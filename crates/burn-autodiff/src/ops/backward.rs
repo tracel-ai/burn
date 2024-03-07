@@ -6,6 +6,7 @@ use crate::{
     utils::duplicate,
 };
 use burn_tensor::backend::Backend;
+use burn_tensor::DynCompatBackend;
 
 /// Trait for all operations.
 ///
@@ -26,7 +27,7 @@ where
     fn backward(
         self,
         ops: Ops<Self::State, N>,
-        grads: &mut Gradients<B>,
+        grads: &mut Gradients<B::DynTensorPrimitive>,
         checkpointer: &mut Checkpointer,
     );
 
@@ -34,8 +35,8 @@ where
     fn prepare<C: CheckpointStrategy>(
         self,
         nodes: [NodeRef; N],
-        graphs: [Graph<B>; N],
-    ) -> OpsPrep<Self, B, Self::State, C, D, N> {
+        graphs: [Graph<B::DynTensorPrimitive>; N],
+    ) -> OpsPrep<Self, B, B::DynTensorPrimitive, Self::State, C, D, N> {
         let requirement = Requirement::from_nodes(&nodes);
         OpsPrep::new(
             nodes,
@@ -52,7 +53,7 @@ where
 pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLhs, FRhs>(
     parents: [Option<NodeRef>; 2],
     node: NodeRef,
-    grads: &mut Gradients<B>,
+    grads: &mut Gradients<B::DynTensorPrimitive>,
     func_lhs: FLhs,
     func_rhs: FRhs,
 ) where
@@ -78,7 +79,7 @@ pub fn binary<B, const D_OUT: usize, const D_LHS: usize, const D_RHS: usize, FLh
 pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
     parents: [Option<NodeRef>; 1],
     node: NodeRef,
-    grads: &mut Gradients<B>,
+    grads: &mut Gradients<B::DynTensorPrimitive>,
     func: F,
 ) where
     B: Backend,
@@ -98,11 +99,11 @@ pub fn unary<B, const D_OUT: usize, const D_IN: usize, F>(
 pub fn unary_different_backend<BIn, BOut, const D_OUT: usize, const D_IN: usize, F>(
     parents: [Option<NodeRef>; 1],
     node: NodeRef,
-    grads: &mut Gradients<BOut>,
+    grads: &mut Gradients<BOut::DynTensorPrimitive>,
     func: F,
 ) where
     BOut: Backend,
-    BIn: Backend<DynTensorPrimitive = BOut::DynTensorPrimitive>,
+    BIn: DynCompatBackend<BOut>,
     F: FnOnce(BOut::FloatTensorPrimitive<D_OUT>) -> BIn::FloatTensorPrimitive<D_IN>,
 {
     let [parent_node] = parents;

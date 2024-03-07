@@ -11,7 +11,7 @@ impl<B: Backend, const D: usize> Backward<B, D, 1> for MaxMinDim {
     fn backward(
         self,
         ops: Ops<Self::State, 1>,
-        grads: &mut Gradients<B>,
+        grads: &mut Gradients<B::DynTensorPrimitive>,
         _checkpointer: &mut Checkpointer,
     ) {
         unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
