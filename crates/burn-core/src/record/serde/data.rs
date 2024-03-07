@@ -7,6 +7,7 @@ use super::ser::Serializer;
 use crate::record::{PrecisionSettings, Record};
 use crate::tensor::backend::Backend;
 
+use alloc::fmt;
 use num_traits::cast::ToPrimitive;
 use regex::Regex;
 use serde::Deserialize;
@@ -14,7 +15,7 @@ use serde::Deserialize;
 /// The main data structure used for deserialization.
 ///
 /// It can hold tree-like structures of nested maps and vectors.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum NestedValue {
     /// The default value, which actually does not hold any value and it is used to indicate that
     /// the value should be populated with the default value. It contains an optional string with
@@ -309,5 +310,35 @@ fn cleanup_empty_maps(current: &mut NestedValue) {
             vec.retain(|v| !matches!(v, NestedValue::Map(m) if m.is_empty()));
         }
         _ => {}
+    }
+}
+
+impl fmt::Debug for NestedValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NestedValue::Vec(vec) if vec.len() > 3 => {
+                write!(f, "Vec([")?;
+                for (i, v) in vec.iter().take(3).enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", v)?;
+                }
+                write!(f, ", ...] len={})", vec.len())
+            }
+            // Handle other variants as usual
+            NestedValue::Default(origin) => f.debug_tuple("Default").field(origin).finish(),
+            NestedValue::Bool(b) => f.debug_tuple("Bool").field(b).finish(),
+            NestedValue::String(s) => f.debug_tuple("String").field(s).finish(),
+            NestedValue::F32(val) => f.debug_tuple("F32").field(val).finish(),
+            NestedValue::F64(val) => f.debug_tuple("F64").field(val).finish(),
+            NestedValue::I16(val) => f.debug_tuple("I16").field(val).finish(),
+            NestedValue::I32(val) => f.debug_tuple("I32").field(val).finish(),
+            NestedValue::I64(val) => f.debug_tuple("I64").field(val).finish(),
+            NestedValue::U16(val) => f.debug_tuple("U16").field(val).finish(),
+            NestedValue::U64(val) => f.debug_tuple("U64").field(val).finish(),
+            NestedValue::Map(map) => f.debug_map().entries(map.iter()).finish(),
+            NestedValue::Vec(vec) => f.debug_list().entries(vec.iter()).finish(),
+        }
     }
 }
