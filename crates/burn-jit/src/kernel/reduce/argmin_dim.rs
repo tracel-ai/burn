@@ -1,10 +1,13 @@
-use crate::codegen::dialect::gpu::{gpu, Elem, Item, Scope, Variable};
+use crate::{
+    codegen::dialect::gpu::{gpu, Elem, Item, Scope, Variable},
+    JitElement,
+};
 
 use super::ReduceDimAlgorithm;
 
 pub(crate) struct ArgMin;
 
-impl ReduceDimAlgorithm for ArgMin {
+impl<E: JitElement> ReduceDimAlgorithm<E> for ArgMin {
     type Accumulator = (Variable, Variable);
 
     fn initialize_naive(
@@ -12,9 +15,12 @@ impl ReduceDimAlgorithm for ArgMin {
         input_item: Item,
         _output_item: Item,
     ) -> Self::Accumulator {
-        let min = scope.create_local(input_item);
         let index = scope.create_local(Elem::UInt);
-        gpu!(scope, min = cast(32767.0));
+        let min = scope.create_local(input_item);
+        let min_initial =
+            Variable::ConstantScalar(E::maximum_value().to_f64().unwrap(), input_item.elem());
+        gpu!(scope, min = min_initial);
+
         (min, index)
     }
 
@@ -50,8 +56,8 @@ impl ReduceDimAlgorithm for ArgMin {
     ) -> Self::Accumulator {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
-        let min = scope.create_local(input_item);
-        gpu!(scope, min = cast(32767.0));
+
+        let min = Variable::ConstantScalar(E::maximum_value().to_f64().unwrap(), input_item.elem());
         gpu!(scope, value_shared_memory[write_position] = min);
         (value_shared_memory, index_shared_memory)
     }
