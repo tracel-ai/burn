@@ -1,4 +1,7 @@
-use crate::{codegen::dialect::gpu::{gpu, Item, Scope, Variable}, JitElement};
+use crate::{
+    codegen::dialect::gpu::{gpu, Item, Scope, Variable},
+    JitElement,
+};
 
 use super::ReduceDimAlgorithm;
 
