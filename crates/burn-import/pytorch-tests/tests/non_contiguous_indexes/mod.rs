@@ -25,12 +25,7 @@ impl<B: Backend> Net<B> {
 
     /// Forward pass of the model.
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let x = relu(self.fc[0].forward(x));
-        let x = relu(self.fc[1].forward(x));
-        let x = relu(self.fc[2].forward(x));
-        let x = relu(self.fc[3].forward(x));
-
-        relu(self.fc[4].forward(x))
+        self.fc.iter().fold(x, |x_i, conv| relu(conv.forward(x_i)))
     }
 }
 
