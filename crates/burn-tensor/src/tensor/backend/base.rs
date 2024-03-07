@@ -108,11 +108,11 @@ pub trait Backend:
 
     /// Converts [`DynData`] into the backend's [`DynTensorPrimitive`](Backend::DynTensorPrimitive).
     /// Useful for deserialization.
-    fn dyn_from_data(data: DynData, device: &Self::Device) -> Self::DynTensorPrimitive;
+    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive;
 
     /// Converts a [`DynTensorPrimitive`](Backend::DynTensorPrimitive) into [`DynData`]. Useful
     /// for serialization.
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData;
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem>;
 }
 
 /// Trait that allows a backend to support autodiff.

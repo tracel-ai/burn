@@ -18,13 +18,13 @@ pub struct DynTensor<P>
 }
 
 impl<P> DynTensor<P> {
-    pub fn from_data<B: Backend<DynTensorPrimitive = P>>(data: DynData, device: &Device<B>) -> Self {
+    pub fn from_data<B: Backend<DynTensorPrimitive = P>>(data: DynData<B::FullPrecisionElem, B::IntElem>, device: &Device<B>) -> Self {
         Self {
             primitive: B::dyn_from_data(data, device),
         }
     }
 
-    pub fn into_data<B: Backend<DynTensorPrimitive = P>>(self) -> DynData {
+    pub fn into_data<B: Backend<DynTensorPrimitive = P>>(self) -> DynData<B::FullPrecisionElem, B::IntElem> {
         B::dyn_into_data(self.primitive)
     }
 

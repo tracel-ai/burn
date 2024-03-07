@@ -2,14 +2,14 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::{tensor::Shape, Element, ElementConversion, Float, Int};
+use crate::{tensor::Shape, Element, ElementConversion};
 
 use rand::{distributions::Standard, Rng, RngCore};
 
 /// A version of [`DynRankData`] without an explicit element type. Used for serializing [`DynTensor`].
-pub enum DynData {
-    Float(DynRankData<Float>),
-    Int(DynRankData<Int>),
+pub enum DynData<FElem: Element, IElem: Element> {
+    Float(DynRankData<FElem>),
+    Int(DynRankData<IElem>),
     Bool(DynRankData<bool>),
 }
 

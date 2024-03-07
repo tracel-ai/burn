@@ -1,6 +1,7 @@
 use super::element::TchElement;
 use super::TchTensor;
 use burn_tensor::backend::Backend;
+use burn_tensor::DynData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -77,8 +78,8 @@ pub struct LibTorch<E = f32> {
 
 impl<E: TchElement> Backend for LibTorch<E> {
     type Device = LibTorchDevice;
-    type FullPrecisionElem = f32;
     type FullPrecisionBackend = LibTorch<f32>;
+    type FullPrecisionElem = f32;
 
     type FloatTensorPrimitive<const D: usize> = TchTensor<E, D>;
     type FloatElem = E;
@@ -88,9 +89,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
 
-    fn seed(seed: u64) {
-        tch::manual_seed(seed as i64);
-    }
+    type DynTensorPrimitive = tch::Tensor;
 
     fn ad_enabled() -> bool {
         false
@@ -100,11 +99,27 @@ impl<E: TchElement> Backend for LibTorch<E> {
         "tch".to_string()
     }
 
+    fn seed(seed: u64) {
+        tch::manual_seed(seed as i64);
+    }
+
     fn sync(device: &Self::Device) {
         if let LibTorchDevice::Cuda(index) = device {
             tch::Cuda::synchronize(*index as i64);
         } else if let LibTorchDevice::Mps = device {
             panic!("Can't sync MPS device")
         }
+    }
+
+    fn dyn_from_data(data: DynData, device: &Self::Device) -> Self::DynTensorPrimitive {
+        match data {
+            DynData::Float(float_data) => tch::Tensor::from_slice(&float_data.value).to((*device).into()).reshape(float_data.shape.as_slice()),
+            DynData::Int(int_data) => {}
+            DynData::Bool(bool_data) => {}
+        }
+    }
+
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData {
+        todo!()
     }
 }

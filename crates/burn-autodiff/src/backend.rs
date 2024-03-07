@@ -53,11 +53,11 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::sync(device);
     }
 
-    fn dyn_from_data(data: DynData, device: &Self::Device) -> Self::DynTensorPrimitive {
+    fn dyn_from_data(data: DynData<Self::FullPrecisionElem, Self::IntElem>, device: &Self::Device) -> Self::DynTensorPrimitive {
         B::dyn_from_data(data, device)
     }
 
-    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData {
+    fn dyn_into_data(dyn_tensor: Self::DynTensorPrimitive) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
         B::dyn_into_data(dyn_tensor)
     }
 }

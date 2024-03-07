@@ -5,7 +5,7 @@ use core::ops::Range;
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 use crate::element::FloatNdArrayElement;
-use crate::{tensor::NdArrayTensor, NdArray};
+use crate::{tensor::NdArrayTensor, NdArray, DynNdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
@@ -19,13 +19,36 @@ use libm::{cos, erf, sin, tanh};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
+use burn_tensor::ops::FloatTensor;
 
 impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
+    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+        match dyn_tensor {
+            DynNdArray::Float(arc_array) => Self::float_from_full_precision(NdArrayTensor {
+                array: arc_array
+            }),
+            _ => panic!("cannot create float tensor from non-float dyn tensor")
+        }
+    }
+
+    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        DynNdArray::Float(Self::float_to_full_precision(&tensor).array)
+    }
+
     fn float_from_data<const D: usize>(
         data: Data<E, D>,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
+    }
+
+    fn float_into_data<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+
+        Reader::Concrete(Data::new(values, shape))
     }
 
     fn float_random<const D: usize>(
@@ -48,15 +71,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(Data::new(values, shape))
-    }
-
     fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
@@ -66,6 +80,13 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         tensor
+    }
+
+    fn float_into_int<const D: usize>(
+        tensor: <NdArray<E> as Backend>::FloatTensorPrimitive<D>,
+    ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
     }
 
     fn float_empty<const D: usize>(
@@ -84,6 +105,22 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
 
     fn float_add_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::add_scalar(lhs, rhs)
+    }
+
+    fn float_clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_min(tensor, min)
+    }
+
+    fn float_clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp_max(tensor, max)
+    }
+
+    fn float_clamp<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        min: E,
+        max: E,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::clamp(tensor, min, max)
     }
 
     fn float_sub<const D: usize>(
@@ -309,19 +346,8 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor
     }
 
-    fn float_mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        NdArrayMathOps::mean(tensor)
-    }
-
     fn float_sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
         NdArrayMathOps::sum(tensor)
-    }
-
-    fn float_mean_dim<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::mean_dim(tensor, dim)
     }
 
     fn float_sum_dim<const D: usize>(
@@ -329,6 +355,17 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         dim: usize,
     ) -> NdArrayTensor<E, D> {
         NdArrayMathOps::sum_dim(tensor, dim)
+    }
+
+    fn float_mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+        NdArrayMathOps::mean(tensor)
+    }
+
+    fn float_mean_dim<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::mean_dim(tensor, dim)
     }
 
     fn float_to_full_precision<const D: usize>(
@@ -347,20 +384,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayTensor::new(array)
     }
 
-    fn float_argmax<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::argmax(tensor, dim)
-    }
-
-    fn float_argmin<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<i64, D> {
-        NdArrayMathOps::argmin(tensor, dim)
-    }
-
     fn float_exp<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.mapv_into(|a| a.exp_elem()).into_shared();
 
@@ -377,6 +400,13 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
         NdArrayTensor::new(array)
+    }
+
+    fn float_powf<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: NdArrayTensor<E, D>,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
     }
 
     fn float_powf_scalar<const D: usize>(
@@ -455,33 +485,17 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayOps::cat(tensors, dim)
     }
 
-    fn float_clamp_min<const D: usize>(tensor: NdArrayTensor<E, D>, min: E) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::clamp_min(tensor, min)
-    }
-
-    fn float_clamp_max<const D: usize>(tensor: NdArrayTensor<E, D>, max: E) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::clamp_max(tensor, max)
-    }
-
-    fn float_clamp<const D: usize>(
+    fn float_argmax<const D: usize>(
         tensor: NdArrayTensor<E, D>,
-        min: E,
-        max: E,
-    ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::clamp(tensor, min, max)
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::argmax(tensor, dim)
     }
 
-    fn float_into_int<const D: usize>(
-        tensor: <NdArray<E> as Backend>::FloatTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::IntTensorPrimitive<D> {
-        let array = tensor.array.mapv(|a| a.elem()).into_shared();
-        NdArrayTensor { array }
-    }
-
-    fn float_powf<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
+    fn float_argmin<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        dim: usize,
+    ) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::argmin(tensor, dim)
     }
 }
