@@ -290,5 +290,24 @@ where
         insert_nested_value(&mut result, &parts, st);
     }
 
+    cleanup_empty_maps(&mut result);
+
     Ok(result)
+}
+
+/// Removes empty maps from the nested value.
+///
+/// We need to clean up empty maps from the nested value
+/// in some cases when there is non-contiguous indices in keys.
+fn cleanup_empty_maps(current: &mut NestedValue) {
+    match current {
+        NestedValue::Map(map) => {
+            map.values_mut().for_each(cleanup_empty_maps);
+        }
+        NestedValue::Vec(vec) => {
+            vec.iter_mut().for_each(cleanup_empty_maps);
+            vec.retain(|v| !matches!(v, NestedValue::Map(m) if m.is_empty()));
+        }
+        _ => {}
+    }
 }
