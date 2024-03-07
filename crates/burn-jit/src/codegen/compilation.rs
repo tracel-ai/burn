@@ -382,6 +382,7 @@ impl Compilation {
         // Performs bound checks automatically when declaring writes.
         let body = if let Some(var) = self.bound_check {
             let mut check = scope.child();
+            check.depth = 254;
             let inner_scope = &mut check;
 
             let cond = inner_scope.create_local(Elem::Bool);

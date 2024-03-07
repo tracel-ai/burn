@@ -101,6 +101,10 @@ pub enum Instruction {
         rhs: Variable,
         out: Variable,
     },
+    Erf {
+        input: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -287,6 +291,7 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
             Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
             Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
+            Instruction::Erf { input, out } => f.write_fmt(format_args!("{out} = erf({input});\n")),
         }
     }
 }

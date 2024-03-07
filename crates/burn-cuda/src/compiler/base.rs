@@ -267,7 +267,10 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operator::Tanh(_) => todo!(),
             gpu::Operator::Powf(_) => todo!(),
             gpu::Operator::Sqrt(_) => todo!(),
-            gpu::Operator::Erf(_) => todo!(),
+            gpu::Operator::Erf(op) => super::Instruction::Erf {
+                input: self.compile_variable(op.input),
+                out: self.compile_variable(op.out),
+            },
             gpu::Operator::Recip(_) => todo!(),
             gpu::Operator::Clamp(_) => todo!(),
             gpu::Operator::And(_) => todo!(),

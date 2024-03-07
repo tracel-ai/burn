@@ -34,7 +34,12 @@ impl Display for Item {
         match self {
             Item::Vec4(elem) => f.write_fmt(format_args!("{elem}[4]")),
             Item::Vec3(elem) => f.write_fmt(format_args!("{elem}[3]")),
-            Item::Vec2(elem) => f.write_fmt(format_args!("{elem}[2]")),
+            Item::Vec2(elem) => match elem {
+                Elem::F32 => f.write_str("float2"),
+                Elem::I32 => f.write_str("int2"),
+                Elem::U32 => f.write_str("uint2"),
+                Elem::Bool => f.write_str("bool2"),
+            },
             Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
