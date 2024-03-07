@@ -59,10 +59,6 @@ macro_rules! gpu {
             gpu!(binary $lhs, $rhs, $out)
         ));
     };
-    // out = lhs ^ rhs
-    ($scope:expr, $out:ident = $lhs:ident ^ $rhs:expr) => {
-        gpu!($scope, $out = powf($lhs, $rhs))
-    };
     // out = powf(lhs, rhs)
     ($scope:expr, $out:ident = powf($lhs:expr, $rhs:expr)) => {
         $scope.register($crate::codegen::dialect::gpu::Operator::Powf(

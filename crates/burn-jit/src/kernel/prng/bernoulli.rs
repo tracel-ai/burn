@@ -106,17 +106,18 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for BernoulliEagerKernel<R, 
 
 impl BernoulliShader {
     pub(crate) fn expand(self, scope: &mut Scope) {
-        let id = Variable::Id;
         let output = self.output;
         let [seed_0, seed_1, seed_2, seed_3] = self.seeds;
 
+        let workgroup_size_x = Variable::WorkgroupSizeX;
         let workgroup_size_y = Variable::WorkgroupSizeY;
         let workgroup_id_x = Variable::WorkgroupIdX;
         let workgroup_id_y = Variable::WorkgroupIdY;
         let num_workgroups_y = Variable::NumWorkgroupsY;
         let local_index = Variable::LocalInvocationIndex;
 
-        let n_invocations = Variable::WorkgroupSizeX;
+        let n_invocations = scope.create_local(Elem::UInt);
+        gpu!(scope, n_invocations = workgroup_size_x);
         gpu!(scope, n_invocations *= workgroup_size_y);
 
         let workgroup_offset = scope.create_local(Elem::UInt);
@@ -156,48 +157,53 @@ impl BernoulliShader {
         ///////////////////////
         // BERNOULLI specific
         let prob = self.probability;
-        for i in 0..self.n_values_per_thread {
-            taus_step(
-                scope,
-                state_0,
-                13.into(),
-                19.into(),
-                12.into(),
-                4294967294u32.into(),
-            );
-            taus_step(
-                scope,
-                state_1,
-                2.into(),
-                25.into(),
-                4.into(),
-                4294967288u32.into(),
-            );
-            taus_step(
-                scope,
-                state_2,
-                3.into(),
-                11.into(),
-                17.into(),
-                4294967280u32.into(),
-            );
-            lcg_step(scope, state_3);
+        gpu!(
+            scope,
+            range(0u32, self.n_values_per_thread).for_each(|i, scope| {
+                taus_step(
+                    scope,
+                    state_0,
+                    13u32.into(),
+                    19u32.into(),
+                    12u32.into(),
+                    4294967294u32.into(),
+                );
+                taus_step(
+                    scope,
+                    state_1,
+                    2u32.into(),
+                    25u32.into(),
+                    4u32.into(),
+                    4294967288u32.into(),
+                );
+                taus_step(
+                    scope,
+                    state_2,
+                    3u32.into(),
+                    11u32.into(),
+                    17u32.into(),
+                    4294967280u32.into(),
+                );
+                lcg_step(scope, state_3);
 
-            let int_random = scope.create_local(Elem::UInt);
-            let float_random = scope.create_local(Elem::Float);
-            cast_uint_to_float(scope, int_random, float_random);
+                let int_random = scope.create_local(Elem::UInt);
+                gpu!(scope, int_random = state_0 ^ state_1);
+                gpu!(scope, int_random = int_random ^ state_2);
+                gpu!(scope, int_random = int_random ^ state_3);
 
-            let bernoulli = scope.create_local(Elem::Bool);
-            let bernoulli_casted = scope.create_local(output.item());
-            gpu!(scope, bernoulli = float_random < prob);
-            gpu!(scope, bernoulli_casted = cast(bernoulli));
+                let float_random = scope.create_local(Elem::Float);
+                cast_uint_to_float(scope, int_random, float_random);
 
-            let i: Variable = i.into();
-            let write_index = scope.create_local(Elem::UInt);
-            gpu!(scope, write_index = i * n_invocations);
-            gpu!(scope, write_index += write_index_base);
-            gpu!(scope, output[write_index] = bernoulli_casted);
-        }
+                let bernoulli = scope.create_local(Elem::Bool);
+                gpu!(scope, bernoulli = float_random < prob);
+
+                let i: Variable = i.into();
+                let write_index = scope.create_local(Elem::UInt);
+                gpu!(scope, write_index = i * n_invocations);
+                gpu!(scope, write_index += write_index_base);
+                gpu!(scope, output[write_index] = bernoulli);
+            })
+        );
         //
         //////////////////////////
     }
@@ -221,8 +227,8 @@ fn taus_step(
 }
 
 fn lcg_step(scope: &mut Scope, z: Variable) {
-    let a: Variable = 1664525.into();
-    let b: Variable = 1013904223.into();
+    let a: Variable = 1664525u32.into();
+    let b: Variable = 1013904223u32.into();
     gpu!(scope, z *= a);
     gpu!(scope, z += b);
 }
