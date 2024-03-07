@@ -76,6 +76,31 @@ pub enum Instruction {
         position: usize,
         out: Variable,
     },
+    Equal {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Lower {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    Greater {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    LowerEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    GreaterEqual {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -257,6 +282,68 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
                 "{out} = info[({position} * rank_2) + rank + {dim} + 1];\n"
             )),
+            Instruction::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
+            Instruction::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
+            Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
+            Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
+            Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
         }
+    }
+}
+
+fn comparison(
+    lhs: &Variable,
+    rhs: &Variable,
+    out: &Variable,
+    op: &str,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    match out.item() {
+        Item::Vec4(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let lhs2 = lhs.index(2);
+            let lhs3 = lhs.index(3);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+            let rhs3 = rhs.index(3);
+
+            f.write_fmt(format_args!(
+                "
+{out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
+"
+            ))
+        }
+        Item::Vec3(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let lhs2 = lhs.index(2);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+            let rhs2 = rhs.index(2);
+
+            f.write_fmt(format_args!(
+                "
+{out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
+"
+            ))
+        }
+        Item::Vec2(_) => {
+            let lhs0 = lhs.index(0);
+            let lhs1 = lhs.index(1);
+            let rhs0 = rhs.index(0);
+            let rhs1 = rhs.index(1);
+
+            f.write_fmt(format_args!(
+                "
+{out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
+"
+            ))
+        }
+        Item::Scalar(_) => match rhs.item() {
+            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};\n")),
+            _ => panic!("Can only compare a scalar when the output is a scalar"),
+        },
     }
 }

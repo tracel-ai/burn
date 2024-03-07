@@ -12,6 +12,7 @@ use crate::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
         Visibility, WorkgroupSize,
     },
+    gpu::{gpu, Branch, If, IfElse},
     Runtime,
 };
 
@@ -23,6 +24,7 @@ pub struct Compilation {
     input_bindings: Vec<Binding>,
     output_bindings: Vec<Binding>,
     named_bindings: Vec<(String, Binding)>,
+    bound_check: Option<Variable>,
 }
 
 /// The information necessary to compile a [compute shader](ComputeShader).
@@ -343,6 +345,7 @@ impl Compilation {
             input_bindings: Default::default(),
             output_bindings: Default::default(),
             named_bindings: Default::default(),
+            bound_check: None,
         }
     }
 
@@ -374,12 +377,41 @@ impl Compilation {
             named.push((name, binding));
         }
 
+        let mut scope = self.info.scope;
+
+        // Performs bound checks automatically when declaring writes.
+        let body = if let Some(var) = self.bound_check {
+            let mut check = scope.child();
+            let inner_scope = &mut check;
+
+            let cond = inner_scope.create_local(Elem::Bool);
+            let id = Variable::Id;
+            let num_elems = inner_scope.create_local(Elem::UInt);
+            let shape = inner_scope.create_local(Elem::UInt);
+
+            gpu!(inner_scope, num_elems = cast(1u32));
+            gpu!(
+                inner_scope,
+                range(0u32, Variable::Rank).for_each(|r, scope| {
+                    gpu!(scope, shape = shape(var, r));
+                    gpu!(scope, num_elems = num_elems * shape);
+                })
+            );
+
+            gpu!(inner_scope, cond = id < num_elems);
+
+            inner_scope.register(Branch::If(If { cond, scope }));
+            check
+        } else {
+            scope
+        };
+
         ComputeShader {
             inputs,
             outputs,
             named,
             workgroup_size: settings.workgroup_size,
-            body: self.info.scope,
+            body,
         }
     }
 
@@ -453,6 +485,7 @@ impl Compilation {
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalOutputArray(index, elem_adapted),
                     );
+                    self.bound_check = Some(Variable::GlobalOutputArray(index, elem_adapted));
                     index += 1;
                 }
                 OutputInfo::InputArrayWrite { item, input, local } => {
@@ -466,6 +499,7 @@ impl Compilation {
                         Variable::Local(local, item, self.info.scope.depth),
                         Variable::GlobalInputArray(input, bool_item(item)),
                     );
+                    self.bound_check = Some(Variable::GlobalInputArray(input, bool_item(item)));
                 }
                 OutputInfo::Array { item } => {
                     let item = if let Some(vectorization) = settings.vectorization {

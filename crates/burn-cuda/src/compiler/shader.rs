@@ -65,21 +65,21 @@ extern \"C\" __global__ void kernel(
         let mut binding_index = 0;
         for (index, binding) in self.inputs.iter().enumerate() {
             binding_index += 1;
-            f.write_fmt(format_args!("{}* input_{}", binding.item, index))?;
+            f.write_fmt(format_args!("{} input_{}[]", binding.item, index))?;
             if binding_index < num_bindings {
                 f.write_str(",")?;
             }
         }
         for (index, binding) in self.outputs.iter().enumerate() {
             binding_index += 1;
-            f.write_fmt(format_args!("{}* output_{}", binding.item, index))?;
+            f.write_fmt(format_args!("{} output_{}[]", binding.item, index))?;
             if binding_index < num_bindings {
                 f.write_str(",")?;
             }
         }
         for (name, binding) in self.named.iter() {
             binding_index += 1;
-            f.write_fmt(format_args!("{}* {}", binding.item, name))?;
+            f.write_fmt(format_args!("{} {}[]", binding.item, name))?;
 
             if binding_index < num_bindings {
                 f.write_str(",")?;

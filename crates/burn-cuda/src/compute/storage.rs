@@ -80,7 +80,7 @@ impl<'a> CudaResource<'a> {
             CudaResourceKind::Slice { size, offset } => {
                 panic!("NOOOOOOOOOoo view");
                 self.buffer.slice(*offset..*size + *offset)
-            },
+            }
         }
     }
 
