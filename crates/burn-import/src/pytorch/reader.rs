@@ -35,6 +35,7 @@ pub fn from_file<PS, D, B>(
     path: &Path,
     key_remap: Vec<(Regex, String)>,
     top_level_key: Option<&str>,
+    debug: bool,
 ) -> Result<D, Error>
 where
     D: DeserializeOwned,
@@ -48,7 +49,28 @@ where
         .collect();
 
     // Remap the keys (replace the keys in the map with the new keys)
-    let tensors = remap(tensors, key_remap);
+    let (tensors, remapped_keys) = remap(tensors, key_remap);
+
+    // Print the remapped keys if debug is enabled
+    if debug {
+        let mut remapped_keys = remapped_keys;
+        remapped_keys.sort();
+        println!("Debug information of keys and tensor shapes:\n---");
+        for (new_key, old_key) in remapped_keys {
+            if old_key != new_key {
+                println!("Original Key: {old_key}");
+                println!("Remapped Key: {new_key}");
+            } else {
+                println!("Key: {}", new_key);
+            }
+
+            let shape = tensors[&new_key].shape();
+            let dtype = tensors[&new_key].dtype();
+            println!("Shape: {shape:?}");
+            println!("Dtype: {dtype:?}");
+            println!("---");
+        }
+    }
 
     // Convert the vector of Candle tensors to a nested value data structure
     let nested_value = unflatten::<PS, _>(tensors)?;

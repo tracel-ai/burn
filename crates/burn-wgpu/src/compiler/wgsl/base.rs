@@ -213,7 +213,12 @@ impl Display for Variable {
             Variable::GlobalScalar(number, _, elem) => {
                 f.write_fmt(format_args!("scalars_{elem}[{number}]"))
             }
-            Variable::ConstantScalar(number, elem) => f.write_fmt(format_args!("{elem}({number})")),
+            Variable::ConstantScalar(number, elem) => match elem {
+                Elem::F32 => f.write_fmt(format_args!("{number}f")),
+                Elem::I32 => f.write_fmt(format_args!("{number}i")),
+                Elem::U32 => f.write_fmt(format_args!("{number}u")),
+                Elem::Bool => f.write_fmt(format_args!("bool({number})")),
+            },
             Variable::SharedMemory(number, _, _) => {
                 f.write_fmt(format_args!("shared_memory_{number}"))
             }

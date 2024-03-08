@@ -7,6 +7,7 @@ use super::ser::Serializer;
 use crate::record::{PrecisionSettings, Record};
 use crate::tensor::backend::Backend;
 
+use alloc::fmt;
 use num_traits::cast::ToPrimitive;
 use regex::Regex;
 use serde::Deserialize;
@@ -14,7 +15,7 @@ use serde::Deserialize;
 /// The main data structure used for deserialization.
 ///
 /// It can hold tree-like structures of nested maps and vectors.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum NestedValue {
     /// The default value, which actually does not hold any value and it is used to indicate that
     /// the value should be populated with the default value. It contains an optional string with
@@ -182,19 +183,25 @@ impl NestedValue {
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
 ///                See [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace)
 ///                for more information.
-///
 /// # Returns
 ///
-/// A map of tensors with the remapped keys.
+/// A map of tensors with the remapped keys and
+/// a vector of tuples containing the remapped and original.
 pub fn remap<T>(
     mut tensors: HashMap<String, T>,
     key_remap: Vec<(Regex, String)>,
-) -> HashMap<String, T> {
+) -> (HashMap<String, T>, Vec<(String, String)>) {
     if key_remap.is_empty() {
-        return tensors;
+        let remapped_names = tensors
+            .keys()
+            .cloned()
+            .map(|s| (s.clone(), s)) // Name is the same as the remapped name
+            .collect();
+        return (tensors, remapped_names);
     }
 
     let mut remapped = HashMap::new();
+    let mut remapped_names = Vec::new();
 
     for (name, tensor) in tensors.drain() {
         let mut new_name = name.clone();
@@ -205,10 +212,12 @@ pub fn remap<T>(
                     .to_string();
             }
         }
+
+        remapped_names.push((new_name.clone(), name));
         remapped.insert(new_name, tensor);
     }
 
-    remapped
+    (remapped, remapped_names)
 }
 
 /// Helper function to insert a value into a nested map/vector of tensors.
@@ -282,5 +291,54 @@ where
         insert_nested_value(&mut result, &parts, st);
     }
 
+    cleanup_empty_maps(&mut result);
+
     Ok(result)
+}
+
+/// Removes empty maps from the nested value.
+///
+/// We need to clean up empty maps from the nested value
+/// in some cases when there is non-contiguous indices in keys.
+fn cleanup_empty_maps(current: &mut NestedValue) {
+    match current {
+        NestedValue::Map(map) => {
+            map.values_mut().for_each(cleanup_empty_maps);
+        }
+        NestedValue::Vec(vec) => {
+            vec.iter_mut().for_each(cleanup_empty_maps);
+            vec.retain(|v| !matches!(v, NestedValue::Map(m) if m.is_empty()));
+        }
+        _ => {}
+    }
+}
+
+impl fmt::Debug for NestedValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NestedValue::Vec(vec) if vec.len() > 3 => {
+                write!(f, "Vec([")?;
+                for (i, v) in vec.iter().take(3).enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", v)?;
+                }
+                write!(f, ", ...] len={})", vec.len())
+            }
+            // Handle other variants as usual
+            NestedValue::Default(origin) => f.debug_tuple("Default").field(origin).finish(),
+            NestedValue::Bool(b) => f.debug_tuple("Bool").field(b).finish(),
+            NestedValue::String(s) => f.debug_tuple("String").field(s).finish(),
+            NestedValue::F32(val) => f.debug_tuple("F32").field(val).finish(),
+            NestedValue::F64(val) => f.debug_tuple("F64").field(val).finish(),
+            NestedValue::I16(val) => f.debug_tuple("I16").field(val).finish(),
+            NestedValue::I32(val) => f.debug_tuple("I32").field(val).finish(),
+            NestedValue::I64(val) => f.debug_tuple("I64").field(val).finish(),
+            NestedValue::U16(val) => f.debug_tuple("U16").field(val).finish(),
+            NestedValue::U64(val) => f.debug_tuple("U64").field(val).finish(),
+            NestedValue::Map(map) => f.debug_map().entries(map.iter()).finish(),
+            NestedValue::Vec(vec) => f.debug_list().entries(vec.iter()).finish(),
+        }
+    }
 }

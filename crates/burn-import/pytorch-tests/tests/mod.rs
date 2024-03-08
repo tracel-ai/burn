@@ -15,4 +15,5 @@ mod key_remap_chained;
 mod layer_norm;
 mod linear;
 mod missing_module_field;
+mod non_contiguous_indexes;
 mod top_level_key;
