@@ -1,33 +1,27 @@
 use burn_tensor::Shape;
 
 use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     gpu::{gpu, Elem, Scope, Variable},
-    kernel::{
-        prng::{
-            cast_uint_to_float, get_seeds, lcg_step, taus_step_0, taus_step_1, taus_step_2,
-            PrngShader,
-        },
-        prng_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT,
-    },
+    kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
-use super::{Prng, PrngEagerKernel, N_VALUES_PER_THREAD};
+use super::{random, Prng};
 
-pub(crate) struct Uniform {
-    lower_bound: Variable,
-    upper_bound: Variable,
+pub(crate) struct Uniform<E> {
+    lower_bound: E,
+    upper_bound: E,
 }
 
-impl Prng for Uniform {
+impl<E: JitElement> Prng<E> for Uniform<E> {
+    fn args(self) -> Vec<E> {
+        vec![self.lower_bound, self.upper_bound]
+    }
+
     fn inner_loop(
-        &self,
         scope: &mut Scope,
+        args: Vec<Variable>,
         write_index_base: Variable,
         n_invocations: Variable,
         n_values_per_thread: usize,
@@ -37,9 +31,10 @@ impl Prng for Uniform {
         state_3: Variable,
         output: Variable,
     ) {
-        let lower_bound = self.lower_bound;
-        let upper_bound = self.upper_bound;
-        let scale = scope.create_local(lower_bound.item());
+        let item = output.item();
+        let lower_bound = args[0];
+        let upper_bound = args[1];
+        let scale = scope.create_local(item);
         gpu!(scope, scale = upper_bound - lower_bound);
 
         gpu!(
@@ -58,7 +53,7 @@ impl Prng for Uniform {
                 let float_random = scope.create_local(Elem::Float);
                 cast_uint_to_float(scope, int_random, float_random);
 
-                let uniform = scope.create_local(lower_bound.item());
+                let uniform = scope.create_local(item);
                 gpu!(scope, uniform = float_random * scale);
                 gpu!(scope, uniform += lower_bound);
 
@@ -69,6 +64,10 @@ impl Prng for Uniform {
             })
         );
     }
+
+    fn args_length() -> usize {
+        2
+    }
 }
 
 /// Pseudo-random generator with uniform distribution
@@ -78,85 +77,15 @@ pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
     lower_bound: E,
     upper_bound: E,
 ) -> JitTensor<R, E, D> {
-    let client = R::client(device);
-    let kernel: PrngEagerKernel<Uniform, R, E> = PrngEagerKernel::new();
-    let num_elems = shape.num_elements();
-    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
-    let seeds = get_seeds();
-
-    Execution::start(kernel, client)
-        .outputs(&[EagerHandle::<R>::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
-        .with_scalars(&[lower_bound, upper_bound])
-        .with_scalars(&seeds)
-        .execute(WorkgroupLaunch::Custom(prng_workgroup(
-            num_elems,
-            WORKGROUP_DEFAULT,
-            N_VALUES_PER_THREAD,
-        )));
-
-    output
+    random(
+        shape,
+        device,
+        Uniform {
+            lower_bound,
+            upper_bound,
+        },
+    )
 }
-
-impl<R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<Uniform, R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-
-        let output = Variable::GlobalOutputArray(0, item);
-        let lower_bound = Variable::GlobalScalar(0, E::gpu_elem());
-        let upper_bound = Variable::GlobalScalar(1, E::gpu_elem());
-
-        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
-        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
-        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
-        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
-        let seeds = [seed0, seed1, seed2, seed3];
-
-        PrngShader::new(
-            output,
-            N_VALUES_PER_THREAD,
-            seeds,
-            Uniform {
-                lower_bound,
-                upper_bound,
-            },
-        )
-        .expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let prob = InputInfo::Scalar {
-            elem: E::gpu_elem(),
-            size: 2,
-        };
-        let seeds = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 4,
-        };
-        let out = OutputInfo::Array { item };
-
-        let info = CompilationInfo {
-            inputs: vec![prob, seeds],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
-    }
-}
-
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
 pub fn random_like_uniform<R: Runtime, E: JitElement, const D: usize>(

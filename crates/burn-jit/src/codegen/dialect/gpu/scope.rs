@@ -1,3 +1,5 @@
+use crate::JitElement;
+
 use super::{
     gpu, processing::ScopeProcessing, Elem, IndexOffsetGlobalWithLayout, Item, Operation, Operator,
     Procedure, ReadGlobal, ReadGlobalWithLayout, UnaryOperator, Variable, Vectorization,
@@ -65,14 +67,14 @@ impl Scope {
     }
 
     /// Create a variable initialized at some value.
-    pub(crate) fn create_with_value<E: Into<Variable>, I: Into<Item>>(
+    pub(crate) fn create_with_value<E: JitElement, I: Into<Item> + Copy>(
         &mut self,
         value: E,
         item: I,
     ) -> Variable {
         let local = self.create_local(item);
-        let zero: Variable = value.into();
-        gpu!(self, local = zero);
+        let value = Variable::ConstantScalar(value.to_f64().unwrap(), item.into().elem());
+        gpu!(self, local = value);
         local
     }
 

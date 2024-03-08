@@ -1,32 +1,26 @@
 use burn_tensor::Shape;
 
 use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
     gpu::{gpu, Elem, Scope, Variable},
-    kernel::{
-        prng::{
-            cast_uint_to_float, get_seeds, lcg_step, taus_step_0, taus_step_1, taus_step_2,
-            PrngShader,
-        },
-        prng_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT,
-    },
+    kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime,
+    JitElement, Runtime,
 };
 
-use super::{Prng, PrngEagerKernel, N_VALUES_PER_THREAD};
+use super::{random, Prng};
 
-pub(crate) struct Bernoulli {
-    probability: Variable,
+pub(crate) struct Bernoulli<E> {
+    probability: E,
 }
 
-impl Prng for Bernoulli {
+impl<E: JitElement> Prng<E> for Bernoulli<E> {
+    fn args(self) -> Vec<E> {
+        vec![self.probability]
+    }
+
     fn inner_loop(
-        &self,
         scope: &mut Scope,
+        args: Vec<Variable>,
         write_index_base: Variable,
         n_invocations: Variable,
         n_values_per_thread: usize,
@@ -36,7 +30,7 @@ impl Prng for Bernoulli {
         state_3: Variable,
         output: Variable,
     ) {
-        let prob = self.probability;
+        let prob = args[0];
         gpu!(
             scope,
             range(0u32, n_values_per_thread).for_each(|i, scope| {
@@ -63,85 +57,17 @@ impl Prng for Bernoulli {
             })
         );
     }
+
+    fn args_length() -> usize {
+        1
+    }
 }
 
 /// Pseudo-random generator with bernoulli distribution
 pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
-    prob: E,
+    probability: E,
 ) -> JitTensor<R, E, D> {
-    let client = R::client(device);
-    let kernel: PrngEagerKernel<Bernoulli, R, E> = PrngEagerKernel::new();
-    let num_elems = shape.num_elements();
-    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
-    let seeds = get_seeds();
-
-    Execution::start(kernel, client)
-        .outputs(&[EagerHandle::<R>::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
-        .with_scalars(&[prob])
-        .with_scalars(&seeds)
-        .execute(WorkgroupLaunch::Custom(prng_workgroup(
-            num_elems,
-            WORKGROUP_DEFAULT,
-            N_VALUES_PER_THREAD,
-        )));
-
-    output
-}
-
-impl<R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<Bernoulli, R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-
-        let output = Variable::GlobalOutputArray(0, item);
-        let probability = Variable::GlobalScalar(0, E::gpu_elem());
-
-        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
-        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
-        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
-        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
-        let seeds = [seed0, seed1, seed2, seed3];
-
-        PrngShader::new(
-            output,
-            N_VALUES_PER_THREAD,
-            seeds,
-            Bernoulli { probability },
-        )
-        .expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let prob = InputInfo::Scalar {
-            elem: E::gpu_elem(),
-            size: 1,
-        };
-        let seeds = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 4,
-        };
-        let out = OutputInfo::Array { item };
-
-        let info = CompilationInfo {
-            inputs: vec![prob, seeds],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
-    }
+    random(shape, device, Bernoulli { probability })
 }

@@ -1,16 +1,117 @@
 use std::marker::PhantomData;
 
 use crate::{
+    codegen::{
+        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
+        OutputInfo, WorkgroupLaunch,
+    },
+    compute::WorkGroup,
     gpu::{gpu, Elem, Scope, Variable},
-    JitElement, Runtime, SEED,
+    kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    tensor::JitTensor,
+    Compiler, JitElement, Runtime, SEED,
 };
 use burn_common::rand::get_seeded_rng;
+use burn_tensor::Shape;
 use rand::Rng;
 
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
+/// Pseudo-random generator
+pub(crate) fn random<P: Prng<E>, R: Runtime, E: JitElement, const D: usize>(
+    shape: Shape<D>,
+    device: &R::Device,
+    prng: P,
+) -> JitTensor<R, E, D> {
+    let client = R::client(device);
+    let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
+    let num_elems = shape.num_elements();
+    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
+    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
+    let seeds = get_seeds();
+
+    Execution::start(kernel, client)
+        .outputs(&[EagerHandle::<R>::new(
+            &output.handle,
+            &output.strides,
+            &output.shape.dims,
+        )])
+        .with_scalars(&prng.args())
+        .with_scalars(&seeds)
+        .execute(WorkgroupLaunch::Custom(prng_workgroup(
+            num_elems,
+            WORKGROUP_DEFAULT,
+            N_VALUES_PER_THREAD,
+        )));
+
+    output
+}
+
+fn prng_workgroup(
+    num_elems: usize,
+    workgroup_size: usize,
+    n_values_per_thread: usize,
+) -> WorkGroup {
+    let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
+    let num_elem_per_invocation = workgroup_size * workgroup_size;
+    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
+    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
+    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
+
+    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+}
+
+impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<P, R, E> {
+    fn source(&self) -> crate::kernel::SourceTemplate {
+        let mut scope = Scope::root();
+        let item = E::gpu_elem().into();
+
+        let output = Variable::GlobalOutputArray(0, item);
+
+        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
+        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
+        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
+        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
+        let seeds = [seed0, seed1, seed2, seed3];
+
+        let mut args = Vec::<Variable>::new();
+        for i in 0..P::args_length() {
+            args.push(Variable::GlobalScalar(i as u16, item.elem()));
+        }
+
+        PrngShader::<P, E>::new(output, N_VALUES_PER_THREAD, seeds, args).expand(&mut scope);
+
+        scope.write_global_custom(output);
+
+        let args = InputInfo::Scalar {
+            elem: E::gpu_elem(),
+            size: P::args_length(),
+        };
+        let seeds = InputInfo::Scalar {
+            elem: Elem::UInt,
+            size: 4,
+        };
+        let out = OutputInfo::Array { item };
+
+        let info = CompilationInfo {
+            inputs: vec![args, seeds],
+            outputs: vec![out],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!("{:?}", core::any::TypeId::of::<Self>(),)
+    }
+}
+
 #[derive(new)]
-pub(crate) struct PrngEagerKernel<P: Prng, R: Runtime, E: JitElement> {
+pub(crate) struct PrngEagerKernel<P: Prng<E>, R: Runtime, E: JitElement> {
     _prng: PhantomData<P>,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -31,10 +132,14 @@ pub(crate) fn get_seeds() -> [u32; 4] {
     seeds.try_into().unwrap()
 }
 
-pub(crate) trait Prng: Send + Sync + 'static {
+pub(crate) trait Prng<E>: Send + Sync + 'static {
+    fn args(self) -> Vec<E>;
+
+    fn args_length() -> usize;
+
     fn inner_loop(
-        &self,
         scope: &mut Scope,
+        args: Vec<Variable>,
         write_index_base: Variable,
         n_invocations: Variable,
         n_values_per_thread: usize,
@@ -47,18 +152,21 @@ pub(crate) trait Prng: Send + Sync + 'static {
 }
 
 #[derive(new)]
-pub(crate) struct PrngShader<P: Prng> {
+pub(crate) struct PrngShader<P: Prng<E>, E: JitElement> {
     output: Variable,
     n_values_per_thread: usize,
     seeds: [Variable; 4],
-    prng: P,
+    args: Vec<Variable>,
+    _prng: PhantomData<P>,
+    _elem: PhantomData<E>,
 }
 
-impl<P: Prng> PrngShader<P> {
+impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let output = self.output;
         let [seed_0, seed_1, seed_2, seed_3] = self.seeds;
         let n_values_per_thread: Variable = self.n_values_per_thread.into();
+        let args = self.args;
 
         let workgroup_size_x = Variable::WorkgroupSizeX;
         let workgroup_size_y = Variable::WorkgroupSizeY;
@@ -105,8 +213,9 @@ impl<P: Prng> PrngShader<P> {
         gpu!(scope, state_3 += seed_3);
 
         // Creation of n_values_per_thread values, specific to the distribution
-        self.prng.inner_loop(
+        P::inner_loop(
             scope,
+            args.into(),
             write_index_base,
             n_invocations,
             self.n_values_per_thread,
