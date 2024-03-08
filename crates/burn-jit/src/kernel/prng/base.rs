@@ -137,6 +137,7 @@ pub(crate) trait Prng<E>: Send + Sync + 'static {
 
     fn args_length() -> usize;
 
+    #[allow(clippy::too_many_arguments)]
     fn inner_loop(
         scope: &mut Scope,
         args: Vec<Variable>,
