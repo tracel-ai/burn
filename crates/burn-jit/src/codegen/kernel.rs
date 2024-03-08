@@ -182,7 +182,7 @@ where
     E1: JitElement,
     E2: JitElement,
 {
-    #[allow(unused)]
+    #[allow(unused, clippy::type_complexity)]
     pub fn with_scalars<'c, E3>(
         self,
         scalars: &'c [E3],
@@ -196,6 +196,7 @@ where
         }
     }
     /// Execute a dynamic kernel.
+    #[allow(clippy::too_many_arguments)]
     pub fn execute(self, launch: WorkgroupLaunch)
     where
         K: DynamicKernelSource + 'static,

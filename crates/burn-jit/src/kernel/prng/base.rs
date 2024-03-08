@@ -216,7 +216,7 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         // Creation of n_values_per_thread values, specific to the distribution
         P::inner_loop(
             scope,
-            args.into(),
+            args,
             write_index_base,
             n_invocations,
             self.n_values_per_thread,
@@ -287,7 +287,7 @@ pub(crate) fn lcg_step(scope: &mut Scope, z: Variable) {
 }
 
 pub(crate) fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_random: Variable) {
-    let tmp: Variable = 2.3283064365387e-10.into();
+    let tmp: Variable = 2.328_306_4e-10.into();
     gpu!(scope, float_random = cast(int_random));
     gpu!(scope, float_random *= tmp);
 }
