@@ -2,16 +2,26 @@ use std::marker::PhantomData;
 
 use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{Scope, Variable, Visibility},
+    gpu::{gpu, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
     kernel::{DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Compiler, JitElement, Runtime,
 };
 
-pub(crate) trait MaskStrategy {
-    type Value;
+pub(crate) trait MaskStrategy: Send + Sync + 'static {
+    type Value: Send + Sync;
 
-    fn assign();
+    fn mask(
+        scope: &mut Scope,
+        masked_value: Variable,
+        value: Variable,
+        index: Variable,
+    ) -> Variable;
+
+    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable;
+
+    fn value_info(value_item: Item) -> InputInfo;
+    fn value_variable(value_item: Item) -> Variable;
 }
 
 pub(crate) struct MaskFill<E> {
@@ -20,12 +30,32 @@ pub(crate) struct MaskFill<E> {
 impl<E: JitElement> MaskStrategy for MaskFill<E> {
     type Value = E;
 
-    fn assign() {
-        todo!()
+    fn mask(
+        scope: &mut Scope,
+        masked_value: Variable,
+        value: Variable,
+        _index: Variable,
+    ) -> Variable {
+        gpu!(scope, masked_value = value);
+        masked_value
+    }
+
+    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable {}
+
+    fn value_info(value_item: Item) -> InputInfo {
+        InputInfo::Scalar {
+            elem: value_item.elem(),
+            size: 0,
+        }
+    }
+
+    fn value_variable(value_item: Item) -> Variable {
+        Variable::GlobalScalar(0, value_item.elem())
     }
 }
 
 pub(crate) struct MaskWhere<R, E, const D: usize> {
+    reversed: bool,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
@@ -33,29 +63,60 @@ pub(crate) struct MaskWhere<R, E, const D: usize> {
 impl<R: Runtime, E: JitElement, const D: usize> MaskStrategy for MaskWhere<R, E, D> {
     type Value = JitTensor<R, E, D>;
 
-    fn assign() {
-        todo!()
+    fn mask(
+        scope: &mut Scope,
+        masked_value: Variable,
+        value: Variable,
+        index: Variable,
+    ) -> Variable {
+        gpu!(scope, masked_value = value[index]);
+        masked_value
+    }
+
+    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable {
+    // todo!()
+    // }
+
+    fn value_info(value_item: Item) -> InputInfo {
+        InputInfo::Array {
+            item: value_item,
+            visibility: Visibility::Read,
+        }
+    }
+
+    fn value_variable(value_item: Item) -> Variable {
+        Variable::GlobalInputArray(2, value_item)
     }
 }
 
 pub(crate) struct MaskShader<EI: JitElement, EM: JitElement, M: MaskStrategy> {
     input: Variable,
     mask: Variable,
+    value: Variable,
     output: Variable,
+    reversed: bool,
     _mask_strategy: PhantomData<M>,
     _input_elem: PhantomData<EI>,
     _mask_elem: PhantomData<EM>,
 }
 
 #[derive(new)]
-pub(crate) struct MaskReadOnlyEagerKernel<M: MaskStrategy, R: Runtime, E: JitElement> {
-    _mask: PhantomData<M>,
+pub(crate) struct MaskReadOnlyEagerKernel<
+    M: MaskStrategy,
+    R: Runtime,
+    EI: JitElement,
+    EM: JitElement,
+> {
+    reversed: bool,
+    value: M::Value,
+    _mask_strategy: PhantomData<M>,
     _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
+    _input_elem: PhantomData<EI>,
+    _mask_elem: PhantomData<EM>,
 }
 
 impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelSource
-    for MaskReadOnlyEagerKernel<M, R, E>
+    for MaskReadOnlyEagerKernel<M, R, EI, EM>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
@@ -63,14 +124,19 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
         let mask_item = EM::gpu_elem().into();
 
         let input = Variable::GlobalInputArray(0, tensor_item);
-        let mask = Variable::GlobalInputArray(0, mask_item);
+        let mask = Variable::GlobalInputArray(1, mask_item);
+        let value = M::value_variable(tensor_item);
         let output = Variable::GlobalOutputArray(0, tensor_item);
 
-        MaskShader {
+        MaskShader::<EI, EM, M> {
             input,
             mask,
+            value,
             output,
+            reversed: self.reversed,
             _mask_strategy: PhantomData::<M>,
+            _input_elem: PhantomData::<EI>,
+            _mask_elem: PhantomData::<EM>,
         }
         .expand(&mut scope);
 
@@ -86,10 +152,12 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
             visibility: Visibility::Read,
         };
 
+        let value = M::value_info(tensor_item);
+
         let out = OutputInfo::Array { item: tensor_item };
 
         let info = CompilationInfo {
-            inputs: vec![input, mask],
+            inputs: vec![input, mask, value],
             outputs: vec![out],
             scope,
         };
@@ -101,98 +169,53 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
     }
 
     fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+        format!(
+            "{:?} rev={}",
+            core::any::TypeId::of::<Self>(),
+            self.reversed
+        )
     }
 }
 
 impl<EI: JitElement, EM: JitElement, M: MaskStrategy> MaskShader<EI, EM, M> {
     pub(crate) fn expand(self, scope: &mut Scope) {
-        let tensor = self.tensor;
-        let dim: Variable = self.dim.into();
         let id = Variable::Id;
+        let input = self.input;
+        let mask = self.mask;
+        let value = self.value;
         let output = self.output;
 
-        let offset_input = scope.zero(Elem::UInt);
-        let stride_input_dim = scope.create_local(Elem::UInt);
-        let shape_input_dim = scope.create_local(Elem::UInt);
+        let index_input = scope.zero(Elem::UInt);
+        let index_mask = scope.zero(Elem::UInt);
 
-        gpu!(
-            scope,
-            range(0u32, Variable::Rank).for_each(|i, scope| {
-                let stride_input = scope.create_local(Elem::UInt);
-                let stride_output = scope.create_local(Elem::UInt);
-                let shape_output = scope.create_local(Elem::UInt);
+        IndexOffsetGlobalWithLayout {
+            tensors: vec![input, mask],
+            indexes: vec![index_input, index_mask],
+            layout: output,
+            index_ref: id,
+            dim_start: 0u32.into(),
+            dim_end: Variable::Rank,
+        }
+        .expand(scope);
 
-                gpu!(scope, stride_input = stride(tensor, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
+        // Determine if index should be masked
+        let value_in_mask = scope.create_local(mask.item());
+        gpu!(scope, value_in_mask = mask[index_mask]);
+        let masked = scope.create_local(Elem::Bool);
+        let zero = scope.zero(value_in_mask.item());
+        if self.reversed {
+            gpu!(scope, masked = value_in_mask == zero);
+        } else {
+            gpu!(scope, masked = value_in_mask != zero);
+        }
 
-                let offset_local = scope.create_local(Elem::UInt);
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
-
-                let is_dim_reduce = scope.create_local(Elem::Bool);
-                gpu!(scope, is_dim_reduce = i == dim);
-
-                gpu!(scope, if(is_dim_reduce).then(|scope|{
-                    gpu!(scope, shape_input_dim = shape(tensor, i));
-                    gpu!(scope, stride_input_dim = stride_input);
-                    gpu!(scope, offset_input += offset_local);
-                }).else(|scope|{
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                    gpu!(scope, offset_input += offset_local);
-                }));
-            })
-        );
-
-        let accumulator = RD::initialize_naive(scope, tensor.item(), output.item());
-
-        gpu!(
-            scope,
-            range(0u32, shape_input_dim).for_each(|i, scope| {
-                let index = scope.create_local(Elem::UInt);
-                gpu!(scope, index = i * stride_input_dim);
-                gpu!(scope, index += offset_input);
-                let value = scope.create_local(tensor.item());
-                gpu!(scope, value = tensor[index]);
-                RD::inner_loop_naive(scope, accumulator, value, i);
-            })
-        );
-
-        RD::assign_naive(scope, output, accumulator, shape_input_dim);
+        // Assign a value at the index
+        let used_value = scope.create_local(output.item());
+        gpu!(scope, if(masked).then(|scope| {
+            M::mask(scope, used_value, value, index_input );
+        }).else(|scope| {
+            gpu!(scope, used_value = input[index_input]);
+        }));
+        gpu!(scope, output[id] = used_value);
     }
-}
-
-/// Executes the naive kernel for reduce dim
-pub fn reduce_dim_naive<
-    RD: ReduceDimAlgorithm<EI>,
-    R: Runtime,
-    EI: JitElement,
-    EO: JitElement,
-    const D: usize,
->(
-    input: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
-    dim: usize,
-) -> JitTensor<R, EO, D> {
-    let kernel = NaiveReduceDimEagerKernel::new(dim);
-
-    execute_dynamic::<R, NaiveReduceDimEagerKernel<RD, R, EI, EO>, EI>(
-        &[EagerHandle::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )],
-        &[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        input.client,
-    );
-
-    output
 }
