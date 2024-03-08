@@ -1,6 +1,13 @@
 use super::{Component, Elem, Item, Variable};
 use std::fmt::Display;
 
+#[derive(Debug, Default)]
+pub struct BinarySettings {
+    pub native_vec4: bool,
+    pub native_vec3: bool,
+    pub native_vec2: bool,
+}
+
 pub trait Binary {
     fn format(
         f: &mut std::fmt::Formatter<'_>,
@@ -8,27 +15,40 @@ pub trait Binary {
         rhs: &Variable,
         out: &Variable,
     ) -> std::fmt::Result {
-        match out.item() {
-            Item::Vec4(elem) => Self::format_vec4(f, lhs, rhs, out, elem),
-            Item::Vec3(elem) => Self::format_vec3(f, lhs, rhs, out, elem),
-            Item::Vec2(elem) => Self::format_vec2(f, lhs, rhs, out, elem),
-            Item::Scalar(elem) => Self::format_base(f, *lhs, *rhs, *out, elem),
+        let item = out.item();
+        let settings = Self::settings(*item.elem());
+
+        match item {
+            Item::Vec4(elem) => {
+                if settings.native_vec4 && lhs.item() == rhs.item() {
+                    Self::format_native_vec4(f, lhs, rhs, out, elem)
+                } else {
+                    Self::unroll_vec4(f, lhs, rhs, out, elem)
+                }
+            }
+            Item::Vec3(elem) => {
+                if settings.native_vec3 && lhs.item() == rhs.item() {
+                    Self::format_native_vec3(f, lhs, rhs, out, elem)
+                } else {
+                    Self::unroll_vec3(f, lhs, rhs, out, elem)
+                }
+            }
+            Item::Vec2(elem) => {
+                if settings.native_vec2 && lhs.item() == rhs.item() {
+                    Self::format_native_vec2(f, lhs, rhs, out, elem)
+                } else {
+                    Self::unroll_vec2(f, lhs, rhs, out, elem)
+                }
+            }
+            Item::Scalar(elem) => Self::format_scalar(f, *lhs, *rhs, *out, elem),
         }
     }
 
-    fn native_support_vec4(_elem: Elem) -> bool {
-        false
+    fn settings(_elem: Elem) -> BinarySettings {
+        BinarySettings::default()
     }
 
-    fn native_support_vec3(_elem: Elem) -> bool {
-        false
-    }
-
-    fn native_support_vec2(_elem: Elem) -> bool {
-        false
-    }
-
-    fn format_base<Lhs, Rhs, Out>(
+    fn format_scalar<Lhs, Rhs, Out>(
         f: &mut std::fmt::Formatter<'_>,
         lhs: Lhs,
         rhs: Rhs,
@@ -40,20 +60,43 @@ pub trait Binary {
         Rhs: Component,
         Out: Component;
 
-    fn format_vec2(
+    fn format_native_vec4(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
         out: &Variable,
         elem: Elem,
     ) -> std::fmt::Result {
-        if Self::native_support_vec2(elem) {
-            if lhs.item() == rhs.item() {
-                Self::format_base(f, *lhs, *rhs, *out, elem)?;
-                return Ok(());
-            }
-        }
+        Self::format_scalar(f, *lhs, *rhs, *out, elem)
+    }
 
+    fn format_native_vec3(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
+        Self::format_scalar(f, *lhs, *rhs, *out, elem)
+    }
+
+    fn format_native_vec2(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
+        Self::format_scalar(f, *lhs, *rhs, *out, elem)
+    }
+
+    fn unroll_vec2(
+        f: &mut std::fmt::Formatter<'_>,
+        lhs: &Variable,
+        rhs: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
         let lhs0 = lhs.index(0);
         let lhs1 = lhs.index(1);
 
@@ -63,26 +106,19 @@ pub trait Binary {
         let out0 = out.index(0);
         let out1 = out.index(1);
 
-        Self::format_base(f, lhs0, rhs0, out0, elem)?;
-        Self::format_base(f, lhs1, rhs1, out1, elem)?;
+        Self::format_scalar(f, lhs0, rhs0, out0, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, out1, elem)?;
 
         Ok(())
     }
 
-    fn format_vec3(
+    fn unroll_vec3(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
         out: &Variable,
         elem: Elem,
     ) -> std::fmt::Result {
-        if Self::native_support_vec3(elem) {
-            if lhs.item() == rhs.item() {
-                Self::format_base(f, *lhs, *rhs, *out, elem)?;
-                return Ok(());
-            }
-        }
-
         let lhs0 = lhs.index(0);
         let lhs1 = lhs.index(1);
         let lhs2 = lhs.index(2);
@@ -95,27 +131,20 @@ pub trait Binary {
         let out1 = out.index(1);
         let out2 = out.index(2);
 
-        Self::format_base(f, lhs0, rhs0, out0, elem)?;
-        Self::format_base(f, lhs1, rhs1, out1, elem)?;
-        Self::format_base(f, lhs2, rhs2, out2, elem)?;
+        Self::format_scalar(f, lhs0, rhs0, out0, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, out1, elem)?;
+        Self::format_scalar(f, lhs2, rhs2, out2, elem)?;
 
         Ok(())
     }
 
-    fn format_vec4(
+    fn unroll_vec4(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
         out: &Variable,
         elem: Elem,
     ) -> std::fmt::Result {
-        if Self::native_support_vec4(elem) {
-            if lhs.item() == rhs.item() {
-                Self::format_base(f, *lhs, *rhs, *out, elem)?;
-                return Ok(());
-            }
-        }
-
         let lhs0 = lhs.index(0);
         let lhs1 = lhs.index(1);
         let lhs2 = lhs.index(2);
@@ -131,10 +160,10 @@ pub trait Binary {
         let out2 = out.index(3);
         let out3 = out.index(2);
 
-        Self::format_base(f, lhs0, rhs0, out0, elem)?;
-        Self::format_base(f, lhs1, rhs1, out1, elem)?;
-        Self::format_base(f, lhs2, rhs2, out2, elem)?;
-        Self::format_base(f, lhs3, rhs3, out3, elem)?;
+        Self::format_scalar(f, lhs0, rhs0, out0, elem)?;
+        Self::format_scalar(f, lhs1, rhs1, out1, elem)?;
+        Self::format_scalar(f, lhs2, rhs2, out2, elem)?;
+        Self::format_scalar(f, lhs3, rhs3, out3, elem)?;
 
         Ok(())
     }
@@ -145,30 +174,7 @@ macro_rules! operator {
         pub struct $name;
 
         impl Binary for $name {
-            fn format_base<Lhs: Display, Rhs: Display, Out: Display>(
-                f: &mut std::fmt::Formatter<'_>,
-                lhs: Lhs,
-                rhs: Rhs,
-                out: Out,
-                _elem: Elem,
-            ) -> std::fmt::Result {
-                f.write_fmt(format_args!("{out} = {lhs} {} {rhs};\n", $op))
-            }
-        }
-    };
-    ($name:ident, $op:expr, $vec:expr) => {
-        pub struct $name;
-
-        impl Binary for $name {
-            fn native_support_vec4(elem: Elem) -> bool {
-                $vec(elem)
-            }
-
-            fn native_support_vec2(elem: Elem) -> bool {
-                $vec(elem)
-            }
-
-            fn format_base<Lhs: Display, Rhs: Display, Out: Display>(
+            fn format_scalar<Lhs: Display, Rhs: Display, Out: Display>(
                 f: &mut std::fmt::Formatter<'_>,
                 lhs: Lhs,
                 rhs: Rhs,
@@ -181,7 +187,7 @@ macro_rules! operator {
     };
 }
 
-operator!(Add, "+", |elem| elem == Elem::F32);
+operator!(Add, "+");
 operator!(Sub, "-");
 operator!(Div, "/");
 operator!(Mul, "*");
@@ -195,7 +201,7 @@ operator!(GreaterEqual, ">=");
 pub struct IndexAssign;
 
 impl Binary for IndexAssign {
-    fn format_base<Lhs, Rhs, Out>(
+    fn format_scalar<Lhs, Rhs, Out>(
         f: &mut std::fmt::Formatter<'_>,
         lhs: Lhs,
         rhs: Rhs,
@@ -215,7 +221,7 @@ impl Binary for IndexAssign {
         }
     }
 
-    fn format_vec2(
+    fn unroll_vec2(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
@@ -232,7 +238,7 @@ impl Binary for IndexAssign {
         f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
     }
 
-    fn format_vec3(
+    fn unroll_vec3(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
@@ -252,7 +258,7 @@ impl Binary for IndexAssign {
         f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
     }
 
-    fn format_vec4(
+    fn unroll_vec4(
         f: &mut std::fmt::Formatter<'_>,
         lhs: &Variable,
         rhs: &Variable,
@@ -282,10 +288,10 @@ impl Binary for IndexAssign {
         out: &Variable,
     ) -> std::fmt::Result {
         match lhs.item() {
-            Item::Vec4(elem) => Self::format_vec4(f, lhs, rhs, out, elem),
-            Item::Vec3(elem) => Self::format_vec3(f, lhs, rhs, out, elem),
-            Item::Vec2(elem) => Self::format_vec2(f, lhs, rhs, out, elem),
-            Item::Scalar(elem) => Self::format_base(f, *lhs, *rhs, *out, elem),
+            Item::Vec4(elem) => Self::unroll_vec4(f, lhs, rhs, out, elem),
+            Item::Vec3(elem) => Self::unroll_vec3(f, lhs, rhs, out, elem),
+            Item::Vec2(elem) => Self::unroll_vec2(f, lhs, rhs, out, elem),
+            Item::Scalar(elem) => Self::format_scalar(f, *lhs, *rhs, *out, elem),
         }
     }
 }
