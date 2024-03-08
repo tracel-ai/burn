@@ -264,6 +264,7 @@ pub fn execute_dynamic<R, K, E>(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn execute_dynamic_<R, K, E1, E2, E3>(
     inputs: &[EagerHandle<R>],
     outputs: &[EagerHandle<R>],
