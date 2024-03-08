@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 
-use crate::{backend::Backend, BasicOps, Device, DynData, Tensor};
+use crate::{backend::Backend, BasicOps, Device, DynData, Element, Tensor};
 
 // TODO: Replace this once bound aliases become a thing
 pub trait DynPrimBackend<P>: Backend<DynTensorPrimitive = P> {}
@@ -18,9 +18,9 @@ pub struct DynTensor<P>
 }
 
 impl<P> DynTensor<P> {
-    pub fn from_data<B: Backend<DynTensorPrimitive = P>>(data: DynData<B::FullPrecisionElem, B::IntElem>, device: &Device<B>) -> Self {
+    pub fn from_data<FElem: Element, IElem: Element, B: Backend<DynTensorPrimitive = P>>(data: DynData<FElem, IElem>, device: &Device<B>) -> Self {
         Self {
-            primitive: B::dyn_from_data(data, device),
+            primitive: B::dyn_from_data(data.convert(), device),
         }
     }
 

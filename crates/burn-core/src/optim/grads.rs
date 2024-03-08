@@ -1,23 +1,20 @@
-use burn_tensor::{
-    backend::{AutodiffBackend, Backend},
-    container::TensorContainer,
-    Tensor,
-};
+use burn_tensor::{backend::{AutodiffBackend, Backend}, container::TensorContainer, DynPrimBackend, DynTensor, Tensor};
 
 use crate::module::{AutodiffModule, ParamId};
 
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
 /// Data type that contains gradients for parameters.
-#[derive(Default)]
-pub struct GradientsParams {
-    container: TensorContainer<ParamId>,
+pub struct GradientsParams<P> {
+    container: TensorContainer<ParamId, P>,
 }
 
-impl GradientsParams {
-    /// Creates a new [GradientsParams](GradientsParams).
-    pub fn new() -> Self {
-        Self::default()
+impl<P: Clone> GradientsParams<P> {
+    pub fn add<B: DynPrimBackend<P>, const D: usize>(&mut self, id: ParamId, value: Tensor<B, D>) {
+        self.container
+            .entry(id)
+            .and_modify(|grad| *grad = DynTensor::from(Tensor::from(grad.clone()).add(value.clone())))
+            .or_insert(value.into());
     }
 
     /// Get the gradients for the given [parameter id](ParamId).
@@ -27,16 +24,23 @@ impl GradientsParams {
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
     pub fn get<B, const D: usize>(&self, id: &ParamId) -> Option<Tensor<B, D>>
-    where
-        B: Backend,
+        where
+            B: DynPrimBackend<P>,
     {
         self.container.get(id)
+    }
+}
+
+impl<P> GradientsParams<P> {
+    /// Creates a new [GradientsParams](GradientsParams).
+    pub fn new() -> Self {
+        Self {container: TensorContainer::new()}
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
     pub fn remove<B, const D: usize>(&mut self, id: &ParamId) -> Option<Tensor<B, D>>
     where
-        B: Backend,
+        B: DynPrimBackend<P>,
     {
         self.container.remove(id)
     }
@@ -48,7 +52,7 @@ impl GradientsParams {
     /// If a tensor is already registered for the given [parameter id](ParamId), it will be replaced.
     pub fn register<B, const D: usize>(&mut self, id: ParamId, value: Tensor<B, D>)
     where
-        B: Backend,
+        B: DynPrimBackend<P>,
     {
         self.container.register(id, value)
     }
@@ -64,7 +68,7 @@ impl GradientsParams {
     }
 
     /// Change the device of each tensor gradients registered for the given [module](AutodiffModule).
-    pub fn to_device<B: AutodiffBackend, M: AutodiffModule<B>>(
+    pub fn to_device<B: AutodiffBackend<DynTensorPrimitive = P>, M: AutodiffModule<B>>(
         mut self,
         device: &B::Device,
         module: &M,
@@ -75,7 +79,7 @@ impl GradientsParams {
     }
 
     /// Extract each tensor gradients for the given [module](AutodiffModule).
-    pub fn from_grads<B: AutodiffBackend, M: AutodiffModule<B>>(
+    pub fn from_grads<B: AutodiffBackend<DynTensorPrimitive = P>, M: AutodiffModule<B>>(
         grads: B::Gradients,
         module: &M,
     ) -> Self {

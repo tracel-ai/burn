@@ -1,20 +1,19 @@
 use alloc::{
-    string::{String, ToString},
     vec,
     vec::Vec,
 };
+use core::fmt::Debug;
 use core::{fmt, marker::PhantomData};
+use std::hash::Hash;
 
-use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
+use super::tensor::{BoolTensorSerde, DynTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{
-    backend::Backend, container::TensorContainer, Bool, DynRankData, DynTensor, Element, Int,
-    Tensor,
-};
+use burn_tensor::{backend::Backend, container::TensorContainer, Bool, DynRankData, Element, Int, Tensor, DynTensor};
 
 use hashbrown::HashMap;
+use serde::de::DeserializeOwned;
 use serde::{
     de::{Error, SeqAccess, Visitor},
     ser::SerializeTuple,
@@ -90,7 +89,7 @@ where
 /// A macro for generating implementations for tuple records of different sizes.
 /// For example: `impl_record_tuple!([R0, R1][0, 1])`.
 /// Would generate an implementation for a tuple of size 2.
-/// For this macro to work properly, please adhear to the convention:
+/// For this macro to work properly, please adhere to the convention:
 /// `impl_record_tuple!([R0, R1, ..., Rn][0, 1, ..., n])`.
 macro_rules! impl_record_tuple {
     // `$r` represents the generic records.
@@ -124,17 +123,18 @@ impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8, R9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-impl<T, B> Record<B> for HashMap<ParamId, T>
+impl<K, V, B> Record<B> for HashMap<K, V>
 where
-    T: Record<B>,
+    K: Serialize + DeserializeOwned + Eq + Hash + Sync + Send, // TODO: Change this once associated type bounds are stable
+    V: Record<B>,
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = HashMap<String, T::Item<S>>;
+    type Item<S: PrecisionSettings> = HashMap<K, V::Item<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let mut items = HashMap::with_capacity(self.len());
         self.into_iter().for_each(|(id, record)| {
-            items.insert(id.to_string(), record.into_item());
+            items.insert(id, record.into_item());
         });
         items
     }
@@ -142,7 +142,7 @@ where
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         let mut record = HashMap::with_capacity(item.len());
         item.into_iter().for_each(|(id, item)| {
-            record.insert(ParamId::from(id), T::from_item(item, device));
+            record.insert(id, V::from_item(item, device));
         });
         record
     }
@@ -226,18 +226,22 @@ where
     }
 }
 
-impl<Id: Record<B>, B: Backend> Record<B> for TensorContainer<Id, B> {
-    type Item<S: PrecisionSettings> = HashMap<Id, DynTensor<B>>;
+impl<Id, B> Record<B> for TensorContainer<Id, B::DynTensorPrimitive>
+where
+    Id: Serialize + DeserializeOwned + Eq + Hash + Sync + Send + Debug,
+    B: Backend,
+{
+    type Item<S: PrecisionSettings> = HashMap<Id, DynTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        self.into_inner()
+        <HashMap<Id, DynTensor<B::DynTensorPrimitive>> as Record<B>>::into_item(self.into_inner())
     }
 
     fn from_item<S: PrecisionSettings>(
         item: Self::Item<S>,
         device: &<B as Backend>::Device,
     ) -> Self {
-        Self::from_inner(item)
+        Self::from_inner(<HashMap<Id, DynTensor<B::DynTensorPrimitive>> as Record<B>>::from_item(item, device))
     }
 }
 
@@ -259,7 +263,8 @@ macro_rules! primitive {
 }
 
 // General Types
-primitive!(alloc::string::String);
+primitive!(String);
+primitive!(ParamId);
 primitive!(bool);
 
 // Float Types

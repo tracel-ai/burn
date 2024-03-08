@@ -1,9 +1,7 @@
-#[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
 
 use core::{fmt::Debug, hash::Hash};
-#[cfg(feature = "std")]
-use std::collections::HashMap;
+use hashbrown::hash_map::{DefaultHashBuilder, Entry};
 
 use crate::{DynPrimBackend, DynTensor, Tensor};
 
@@ -36,6 +34,10 @@ where
     ) {
         self.tensors
             .insert(id, DynTensor::from(value));
+    }
+
+    pub fn entry(&mut self, id: Id) -> Entry<'_, Id, DynTensor<P>, DefaultHashBuilder> {
+        self.tensors.entry(id)
     }
 
     /// Remove a tensor for the given ID and returns it.

@@ -123,6 +123,7 @@ pub trait AutodiffBackend: Backend {
         FloatElem = Self::FloatElem,
         IntElem = Self::IntElem,
         FullPrecisionElem = Self::FullPrecisionElem,
+        DynTensorPrimitive = Self::DynTensorPrimitive,
     >;
 
     /// Gradients type.

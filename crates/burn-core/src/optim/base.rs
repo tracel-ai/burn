@@ -15,7 +15,7 @@ where
 
     /// Perform the optimizer step using the given learning rate and gradients.
     /// The updated module is returned.
-    fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M;
+    fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams<B::DynTensorPrimitive>) -> M;
 
     /// Get the current state of the optimizer as a [record](Record).
     fn to_record(&self) -> Self::Record;

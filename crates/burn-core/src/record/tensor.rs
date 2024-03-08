@@ -2,14 +2,16 @@ use super::{PrecisionSettings, Record};
 use burn_tensor::{backend::Backend, Bool, DynData, DynRankData, DynTensor, Int, Tensor};
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub enum DynTensorSerde<S: PrecisionSettings> {
     Float(FloatTensorSerde<S>),
     Int(IntTensorSerde<S>),
     Bool(BoolTensorSerde),
 }
 
-impl<S: PrecisionSettings> From<DynData> for DynTensorSerde<S> {
-    fn from(value: DynData) -> Self {
+impl<S: PrecisionSettings> From<DynData<S::FloatElem, S::IntElem>> for DynTensorSerde<S> {
+    fn from(value: DynData<S::FloatElem, S::IntElem>) -> Self {
         match value {
             DynData::Float(data) => Self::Float(FloatTensorSerde::new(data.convert())),
             DynData::Int(data) => Self::Int(IntTensorSerde::new(data.convert())),
@@ -18,7 +20,7 @@ impl<S: PrecisionSettings> From<DynData> for DynTensorSerde<S> {
     }
 }
 
-impl<S: PrecisionSettings> From<DynTensorSerde<S>> for DynData {
+impl<S: PrecisionSettings> From<DynTensorSerde<S>> for DynData<S::FloatElem, S::IntElem> {
     fn from(value: DynTensorSerde<S>) -> Self {
         match value {
             DynTensorSerde::Float(tensor) => Self::Float(tensor.data.convert()),
@@ -159,7 +161,7 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
     }
 }
 
-impl<B: Backend> Record<B> for DynTensor<B> {
+impl<B: Backend> Record<B> for DynTensor<B::DynTensorPrimitive> {
     type Item<S: PrecisionSettings> = DynTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -167,10 +169,10 @@ impl<B: Backend> Record<B> for DynTensor<B> {
         todo!("Recording dynamic tensors isn't yet supported on wasm.");
 
         #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-        self.into_data().into()
+        self.into_data::<B>().convert().into()
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.into(), device)
+        DynTensor::from_data::<_, _, B>(DynData::from(item), device)
     }
 }

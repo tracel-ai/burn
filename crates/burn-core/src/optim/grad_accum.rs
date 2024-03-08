@@ -7,18 +7,18 @@ use burn_tensor::{backend::AutodiffBackend, Tensor};
 use super::GradientsParams;
 
 /// Accumulate gradients into a single [Gradients](AutodiffBackend::Gradients) object.
-pub struct GradientsAccumulator<M> {
-    grads: GradientsParams,
+pub struct GradientsAccumulator<M, P> {
+    grads: GradientsParams<P>,
     phantom: PhantomData<M>,
 }
 
-impl<M> Default for GradientsAccumulator<M> {
+impl<M, P> Default for GradientsAccumulator<M, P> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M> GradientsAccumulator<M> {
+impl<M, P> GradientsAccumulator<M, P> {
     /// Create a new gradients accumulator.
     pub fn new() -> Self {
         Self {
@@ -26,20 +26,21 @@ impl<M> GradientsAccumulator<M> {
             phantom: PhantomData,
         }
     }
-}
 
-impl<M> GradientsAccumulator<M> {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<B: AutodiffBackend>(&mut self, module: &M, grads: GradientsParams)
-    where
+    pub fn accumulate<B: AutodiffBackend<DynTensorPrimitive = P>>(
+        &mut self,
+        module: &M,
+        grads: GradientsParams<P>,
+    ) where
         M: AutodiffModule<B>,
     {
-        let mut visitor = ModuleGradsAccumulator::<M>::new(&mut self.grads, grads);
+        let mut visitor = ModuleGradsAccumulator::<M, P>::new(&mut self.grads, grads);
         module.visit(&mut visitor);
     }
 
     /// Return the accumulated gradients and reset the accumulator state.
-    pub fn grads(&mut self) -> GradientsParams {
+    pub fn grads(&mut self) -> GradientsParams<P> {
         let mut grads = GradientsParams::new();
         core::mem::swap(&mut self.grads, &mut grads);
 
@@ -48,29 +49,19 @@ impl<M> GradientsAccumulator<M> {
 }
 
 #[derive(new)]
-struct ModuleGradsAccumulator<'a, M> {
-    grads: &'a mut GradientsParams,
-    grads_new: GradientsParams,
+struct ModuleGradsAccumulator<'a, M, P> {
+    grads: &'a mut GradientsParams<P>,
+    grads_new: GradientsParams<P>,
     phantom: PhantomData<M>,
 }
 
 impl<'a, B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B>
-    for ModuleGradsAccumulator<'a, M>
+    for ModuleGradsAccumulator<'a, M, B::DynTensorPrimitive>
 {
     fn visit_float<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
-            Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
-                Some(grad) => grad.add(new),
-                None => new,
-            },
-            None => match self.grads.remove::<B::InnerBackend, D>(id) {
-                Some(grad) => grad,
-                None => return,
-            },
-        };
-
-        self.grads
-            .register::<B::InnerBackend, D>(id.clone(), grad_updated);
+        if let Some(new_grad) = self.grads_new.get::<B, D>(id) {
+            self.grads.add(id.clone(), new_grad);
+        }
     }
 }
 

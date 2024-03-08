@@ -43,6 +43,7 @@ pub mod tensor;
 pub mod backend;
 
 extern crate alloc;
+extern crate core;
 
 #[cfg(all(test, not(feature = "test-tch"), not(feature = "test-wgpu"),))]
 pub type TestBackend = burn_ndarray::NdArray<f32>;

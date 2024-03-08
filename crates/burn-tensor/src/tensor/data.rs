@@ -13,6 +13,16 @@ pub enum DynData<FElem: Element, IElem: Element> {
     Bool(DynRankData<bool>),
 }
 
+impl<FElem: Element, IElem: Element> DynData<FElem, IElem> {
+    pub fn convert<FElemOther: Element, IElemOther: Element>(self) -> DynData<FElemOther, IElemOther> {
+        match self {
+            DynData::Float(data) => DynData::Float(data.convert()),
+            DynData::Int(data) => DynData::Int(data.convert()),
+            DynData::Bool(data) => DynData::Bool(data),
+        }
+    }
+}
+
 /// A version of [`Data`] without a rank known at compile-time.
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
 pub struct DynRankData<E> {

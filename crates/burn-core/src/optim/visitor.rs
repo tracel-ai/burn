@@ -6,14 +6,14 @@ use core::marker::PhantomData;
 #[derive(new)]
 pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     grads: B::Gradients,
-    grads_params: &'a mut GradientsParams,
+    grads_params: &'a mut GradientsParams<B::DynTensorPrimitive>,
     phatom: PhantomData<M>,
 }
 
 #[derive(new)]
 pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     device: &'a B::Device,
-    grads: &'a mut GradientsParams,
+    grads: &'a mut GradientsParams<B::DynTensorPrimitive>,
     phatom: PhantomData<M>,
 }
 
