@@ -64,6 +64,18 @@ impl Scope {
         local
     }
 
+    /// Create a variable initialized at some value.
+    pub(crate) fn create_with_value<E: Into<Variable>, I: Into<Item>>(
+        &mut self,
+        value: E,
+        item: I,
+    ) -> Variable {
+        let local = self.create_local(item);
+        let zero: Variable = value.into();
+        gpu!(self, local = zero);
+        local
+    }
+
     /// Create a local variable of the given [item type](Item).
     pub(crate) fn create_local<I: Into<Item>>(&mut self, item: I) -> Variable {
         let item = item.into();

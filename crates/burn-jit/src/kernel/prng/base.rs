@@ -1,9 +1,20 @@
+use std::marker::PhantomData;
+
 use crate::{
     gpu::{gpu, Elem, Scope, Variable},
-    SEED,
+    JitElement, Runtime, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use rand::Rng;
+
+pub(crate) const N_VALUES_PER_THREAD: usize = 128;
+
+#[derive(new)]
+pub(crate) struct PrngEagerKernel<P: Prng, R: Runtime, E: JitElement> {
+    _prng: PhantomData<P>,
+    _runtime: PhantomData<R>,
+    _elem: PhantomData<E>,
+}
 
 pub(crate) fn get_seeds() -> [u32; 4] {
     let mut seed = SEED.lock().unwrap();
@@ -47,6 +58,7 @@ impl<P: Prng> PrngShader<P> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let output = self.output;
         let [seed_0, seed_1, seed_2, seed_3] = self.seeds;
+        let n_values_per_thread: Variable = self.n_values_per_thread.into();
 
         let workgroup_size_x = Variable::WorkgroupSizeX;
         let workgroup_size_y = Variable::WorkgroupSizeY;
@@ -66,6 +78,7 @@ impl<P: Prng> PrngShader<P> {
 
         let write_index_base = scope.create_local(Elem::UInt);
         gpu!(scope, write_index_base = workgroup_offset);
+        gpu!(scope, write_index_base *= n_values_per_thread);
         gpu!(scope, write_index_base += local_index);
 
         // Set state with unique seeds

@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use burn_tensor::Shape;
 
 use crate::{
@@ -13,13 +11,13 @@ use crate::{
             cast_uint_to_float, get_seeds, lcg_step, taus_step_0, taus_step_1, taus_step_2,
             PrngShader,
         },
-        DynamicKernelSource, SourceTemplate,
+        prng_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT,
     },
     tensor::JitTensor,
     Compiler, JitElement, Runtime,
 };
 
-use super::Prng;
+use super::{Prng, PrngEagerKernel, N_VALUES_PER_THREAD};
 
 pub(crate) struct Uniform {
     lower_bound: Variable,
@@ -64,7 +62,6 @@ impl Prng for Uniform {
                 gpu!(scope, uniform = float_random * scale);
                 gpu!(scope, uniform += lower_bound);
 
-                let i: Variable = i.into();
                 let write_index = scope.create_local(Elem::UInt);
                 gpu!(scope, write_index = i * n_invocations);
                 gpu!(scope, write_index += write_index_base);
@@ -96,22 +93,19 @@ pub fn random_uniform<R: Runtime, E: JitElement, const D: usize>(
         )])
         .with_scalars(&[lower_bound, upper_bound])
         .with_scalars(&seeds)
-        .execute(WorkgroupLaunch::Output { pos: 0 });
+        .execute(WorkgroupLaunch::Custom(prng_workgroup(
+            num_elems,
+            WORKGROUP_DEFAULT,
+            N_VALUES_PER_THREAD,
+        )));
 
     output
 }
-#[derive(new)]
-pub(crate) struct PrngEagerKernel<P: Prng, R: Runtime, E: JitElement> {
-    _prng: PhantomData<P>,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
 
-impl<P: Prng, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<P, R, E> {
+impl<R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<Uniform, R, E> {
     fn source(&self) -> crate::kernel::SourceTemplate {
         let mut scope = Scope::root();
         let item = E::gpu_elem().into();
-        const N_VALUES_PER_THREAD: usize = 128;
 
         let output = Variable::GlobalOutputArray(0, item);
         let lower_bound = Variable::GlobalScalar(0, E::gpu_elem());

@@ -1,15 +1,11 @@
-use std::marker::PhantomData;
-
 use crate::compute::{DynamicKernel, Kernel, StaticKernel, WorkGroup};
 use crate::element::JitElement;
-use crate::fusion::tracing::Scalars;
 use crate::kernel::{
     elemwise_workgroup, DynamicKernelSource, StaticKernelSource, WORKGROUP_DEFAULT,
 };
 use crate::Runtime;
 use burn_compute::client::ComputeClient;
 use burn_compute::server::Handle;
-use rand::distributions::Slice;
 
 #[derive(new)]
 pub struct EagerHandle<'a, R: Runtime> {
@@ -92,6 +88,7 @@ impl<'h, K, R: Runtime> Execution<'h, K, R, ()> {
         }
     }
 
+    #[allow(unused)]
     pub fn inputs(self, inputs: &'h [EagerHandle<'h, R>]) -> Execution<'h, K, R, ()> {
         Execution {
             scalars: self.scalars,
@@ -128,6 +125,7 @@ where
         }
     }
     /// Execute a dynamic kernel.
+    #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
         execute_dynamic_::<R, K, f32, f32, f32>(
             self.inputs,
@@ -162,6 +160,7 @@ where
     }
 
     /// Execute a dynamic kernel.
+    #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
         execute_dynamic_::<R, K, E, f32, f32>(
             self.inputs,
@@ -183,6 +182,7 @@ where
     E1: JitElement,
     E2: JitElement,
 {
+    #[allow(unused)]
     pub fn with_scalars<'c, E3>(
         self,
         scalars: &'c [E3],
@@ -223,6 +223,7 @@ where
     E3: JitElement,
 {
     /// Execute a dynamic kernel.
+    #[allow(unused)]
     pub fn execute(self, launch: WorkgroupLaunch) {
         execute_dynamic_::<R, K, E1, E2, E3>(
             self.inputs,
