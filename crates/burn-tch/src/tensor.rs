@@ -40,7 +40,7 @@ impl Storage {
         }
     }
 
-    /// Get the whote buffer reference.
+    /// Get the whole buffer reference.
     pub fn buffer_ref(&self) -> &StorageRef {
         match self {
             Storage::View {
