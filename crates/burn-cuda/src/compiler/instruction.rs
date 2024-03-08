@@ -1,6 +1,5 @@
+use super::{binary::*, unary::*, Component, Item, Variable};
 use std::fmt::Display;
-
-use super::{Item, Variable};
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
@@ -116,23 +115,11 @@ impl Display for Instruction {
                 let item = var.item();
                 f.write_fmt(format_args!("{item} {var};\n"))
             }
-            Instruction::Add { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} + {rhs};\n"))
-            }
-            Instruction::Modulo { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} % {rhs};\n"))
-            }
-
-            Instruction::Mul { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} * {rhs};\n"))
-            }
-
-            Instruction::Div { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} / {rhs};\n"))
-            }
-            Instruction::Sub { lhs, rhs, out } => {
-                f.write_fmt(format_args!("{out} = {lhs} - {rhs};\n"))
-            }
+            Instruction::Add { lhs, rhs, out } => Add::format(f, lhs, rhs, out),
+            Instruction::Mul { lhs, rhs, out } => Mul::format(f, lhs, rhs, out),
+            Instruction::Div { lhs, rhs, out } => Div::format(f, lhs, rhs, out),
+            Instruction::Sub { lhs, rhs, out } => Sub::format(f, lhs, rhs, out),
+            Instruction::Modulo { lhs, rhs, out } => Modulo::format(f, lhs, rhs, out),
             Instruction::Index { lhs, rhs, out } => {
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
@@ -188,51 +175,7 @@ impl Display for Instruction {
                     f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
                 }
             },
-            Instruction::Assign { input, out } => match out.item() {
-                Item::Vec4(elem) => {
-                    let input0 = input.index(0);
-                    let input1 = input.index(1);
-                    let input2 = input.index(2);
-                    let input3 = input.index(3);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec4(
-    {elem}({input0}),
-    {elem}({input1}),
-    {elem}({input2}),
-    {elem}({input3}),
-);
-"
-                    ))
-                }
-                Item::Vec3(elem) => {
-                    let input0 = input.index(0);
-                    let input1 = input.index(1);
-                    let input2 = input.index(2);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec3(
-    {elem}({input0}),
-    {elem}({input1}),
-    {elem}({input2}),
-);
-"
-                    ))
-                }
-                Item::Vec2(elem) => {
-                    let input0 = input.index(0);
-                    let input1 = input.index(1);
-
-                    f.write_fmt(format_args!(
-                        "{out} = vec2(
-    {elem}({input0}),
-    {elem}({input1}),
-);
-"
-                    ))
-                }
-                Item::Scalar(elem) => f.write_fmt(format_args!("{out} = {elem}({input});\n")),
-            },
+            Instruction::Assign { input, out } => Assign::format(f, input, out),
             Instruction::RangeLoop {
                 i,
                 start,
@@ -286,69 +229,12 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
                 "{out} = info[({position} * rank_2) + rank + {dim} + 1];\n"
             )),
-            Instruction::Equal { lhs, rhs, out } => comparison(lhs, rhs, out, "==", f),
-            Instruction::Lower { lhs, rhs, out } => comparison(lhs, rhs, out, "<", f),
-            Instruction::Greater { lhs, rhs, out } => comparison(lhs, rhs, out, ">", f),
-            Instruction::LowerEqual { lhs, rhs, out } => comparison(lhs, rhs, out, "<=", f),
-            Instruction::GreaterEqual { lhs, rhs, out } => comparison(lhs, rhs, out, ">=", f),
-            Instruction::Erf { input, out } => f.write_fmt(format_args!("{out} = erf({input});\n")),
+            Instruction::Equal { lhs, rhs, out } => Equal::format(f, lhs, rhs, out),
+            Instruction::Lower { lhs, rhs, out } => Lower::format(f, lhs, rhs, out),
+            Instruction::Greater { lhs, rhs, out } => Greater::format(f, lhs, rhs, out),
+            Instruction::LowerEqual { lhs, rhs, out } => LowerEqual::format(f, lhs, rhs, out),
+            Instruction::GreaterEqual { lhs, rhs, out } => GreaterEqual::format(f, lhs, rhs, out),
+            Instruction::Erf { input, out } => Erf::format(f, input, out),
         }
-    }
-}
-
-fn comparison(
-    lhs: &Variable,
-    rhs: &Variable,
-    out: &Variable,
-    op: &str,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    match out.item() {
-        Item::Vec4(_) => {
-            let lhs0 = lhs.index(0);
-            let lhs1 = lhs.index(1);
-            let lhs2 = lhs.index(2);
-            let lhs3 = lhs.index(3);
-            let rhs0 = rhs.index(0);
-            let rhs1 = rhs.index(1);
-            let rhs2 = rhs.index(2);
-            let rhs3 = rhs.index(3);
-
-            f.write_fmt(format_args!(
-                "
-{out} = vec4({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2}, {lhs3} {op} {rhs3});
-"
-            ))
-        }
-        Item::Vec3(_) => {
-            let lhs0 = lhs.index(0);
-            let lhs1 = lhs.index(1);
-            let lhs2 = lhs.index(2);
-            let rhs0 = rhs.index(0);
-            let rhs1 = rhs.index(1);
-            let rhs2 = rhs.index(2);
-
-            f.write_fmt(format_args!(
-                "
-{out} = vec3({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1}, {lhs2} {op} {rhs2});
-"
-            ))
-        }
-        Item::Vec2(_) => {
-            let lhs0 = lhs.index(0);
-            let lhs1 = lhs.index(1);
-            let rhs0 = rhs.index(0);
-            let rhs1 = rhs.index(1);
-
-            f.write_fmt(format_args!(
-                "
-{out} = vec2({lhs0} {op} {rhs0}, {lhs1} {op} {rhs1});
-"
-            ))
-        }
-        Item::Scalar(_) => match rhs.item() {
-            Item::Scalar(_) => f.write_fmt(format_args!("{out} = {lhs} {op} {rhs};\n")),
-            _ => panic!("Can only compare a scalar when the output is a scalar"),
-        },
     }
 }

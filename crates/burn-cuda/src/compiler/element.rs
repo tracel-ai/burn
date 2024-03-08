@@ -5,6 +5,7 @@ use burn_jit::gpu;
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
     F32,
+    BF16,
     I32,
     U32,
     Bool,
@@ -22,6 +23,7 @@ impl Display for Elem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Elem::F32 => f.write_str("float"),
+            Elem::BF16 => f.write_str("bf16"),
             Elem::I32 => f.write_str("int"),
             Elem::U32 => f.write_str("uint"),
             Elem::Bool => f.write_str("bool"),
@@ -39,13 +41,66 @@ impl Display for Item {
                 Elem::I32 => f.write_str("int2"),
                 Elem::U32 => f.write_str("uint2"),
                 Elem::Bool => f.write_str("bool2"),
+                Elem::BF16 => f.write_str("bf162"),
             },
             Item::Scalar(elem) => f.write_fmt(format_args!("{elem}")),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+pub trait Component: Display {
+    fn item(&self) -> Item;
+    fn elem(&self) -> Elem {
+        *self.item().elem()
+    }
+}
+
+impl Component for IndexedVariable {
+    fn item(&self) -> Item {
+        self.var.item()
+    }
+}
+impl Component for Variable {
+    fn item(&self) -> Item {
+        match self {
+            Variable::GlobalInputArray(_, e) => *e,
+            Variable::GlobalOutputArray(_, e) => *e,
+            Variable::SharedMemory(_, e, _) => *e,
+            Variable::Local {
+                index: _,
+                item,
+                scope_depth: _,
+            } => *item,
+            Variable::ConstantScalar(_, e) => Item::Scalar(*e),
+            Variable::GlobalScalar(_, e, _) => Item::Scalar(*e),
+            Variable::Id => Item::Scalar(Elem::U32),
+            Variable::LocalInvocationIndex => Item::Scalar(Elem::U32),
+            Variable::LocalInvocationIdX => Item::Scalar(Elem::U32),
+            Variable::LocalInvocationIdY => Item::Scalar(Elem::U32),
+            Variable::LocalInvocationIdZ => Item::Scalar(Elem::U32),
+            Variable::Rank => Item::Scalar(Elem::U32),
+            Variable::LocalScalar {
+                index: _,
+                elem,
+                scope_depth: _,
+            } => Item::Scalar(*elem),
+            Variable::WorkgroupIdX => Item::Scalar(Elem::U32),
+            Variable::WorkgroupIdY => Item::Scalar(Elem::U32),
+            Variable::WorkgroupIdZ => Item::Scalar(Elem::U32),
+            Variable::GlobalInvocationIdX => Item::Scalar(Elem::U32),
+            Variable::GlobalInvocationIdY => Item::Scalar(Elem::U32),
+            Variable::GlobalInvocationIdZ => Item::Scalar(Elem::U32),
+            Variable::WorkgroupSizeX => Item::Scalar(Elem::U32),
+            Variable::WorkgroupSizeY => Item::Scalar(Elem::U32),
+            Variable::WorkgroupSizeZ => Item::Scalar(Elem::U32),
+            Variable::NumWorkgroupsX => Item::Scalar(Elem::U32),
+            Variable::NumWorkgroupsY => Item::Scalar(Elem::U32),
+            Variable::NumWorkgroupsZ => Item::Scalar(Elem::U32),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum Variable {
     GlobalInputArray(u16, Item),
     GlobalOutputArray(u16, Item),
@@ -165,46 +220,6 @@ impl Variable {
         }
     }
 
-    pub fn item(&self) -> Item {
-        match self {
-            Self::GlobalInputArray(_, e) => *e,
-            Self::GlobalOutputArray(_, e) => *e,
-            Self::SharedMemory(_, e, _) => *e,
-            Self::Local {
-                index: _,
-                item,
-                scope_depth: _,
-            } => *item,
-            Self::ConstantScalar(_, e) => Item::Scalar(*e),
-            Self::GlobalScalar(_, e, _) => Item::Scalar(*e),
-            Self::Id => Item::Scalar(Elem::U32),
-            Self::LocalInvocationIndex => Item::Scalar(Elem::U32),
-            Self::LocalInvocationIdX => Item::Scalar(Elem::U32),
-            Self::LocalInvocationIdY => Item::Scalar(Elem::U32),
-            Self::LocalInvocationIdZ => Item::Scalar(Elem::U32),
-            Self::Rank => Item::Scalar(Elem::U32),
-            Self::LocalScalar {
-                index: _,
-                elem,
-                scope_depth: _,
-            } => Item::Scalar(*elem),
-            Self::WorkgroupIdX => Item::Scalar(Elem::U32),
-            Self::WorkgroupIdY => Item::Scalar(Elem::U32),
-            Self::WorkgroupIdZ => Item::Scalar(Elem::U32),
-            Self::GlobalInvocationIdX => Item::Scalar(Elem::U32),
-            Self::GlobalInvocationIdY => Item::Scalar(Elem::U32),
-            Self::GlobalInvocationIdZ => Item::Scalar(Elem::U32),
-            Self::WorkgroupSizeX => Item::Scalar(Elem::U32),
-            Self::WorkgroupSizeY => Item::Scalar(Elem::U32),
-            Self::WorkgroupSizeZ => Item::Scalar(Elem::U32),
-            Self::NumWorkgroupsX => Item::Scalar(Elem::U32),
-            Self::NumWorkgroupsY => Item::Scalar(Elem::U32),
-            Self::NumWorkgroupsZ => Item::Scalar(Elem::U32),
-        }
-    }
-    pub fn elem(&self) -> Elem {
-        *self.item().elem()
-    }
     pub fn index(&self, index: usize) -> IndexedVariable {
         IndexedVariable {
             var: self.clone(),
@@ -221,24 +236,32 @@ pub struct IndexedVariable {
 
 impl Display for IndexedVariable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let should_index = |item: &Item| match item {
-            Item::Vec4(_) => true,
-            Item::Vec3(_) => true,
-            Item::Vec2(_) => true,
-            Item::Scalar(_) => false,
-        };
-
         let var = &self.var;
-        let item = var.item();
-        let index = self.index;
+        let item = self.var.item();
 
-        match self.var {
-            Variable::GlobalScalar(_, _, _) => f.write_fmt(format_args!("{var}")),
-            _ => match should_index(&item) {
-                true => f.write_fmt(format_args!("{var}[{index}]")),
-                false => f.write_fmt(format_args!("{var}")),
+        match item {
+            Item::Vec4(_) => match self.index {
+                0 => f.write_fmt(format_args!("{var}.x"))?,
+                1 => f.write_fmt(format_args!("{var}.y"))?,
+                2 => f.write_fmt(format_args!("{var}.z"))?,
+                3 => f.write_fmt(format_args!("{var}.w"))?,
+                _ => unreachable!(),
             },
+            Item::Vec3(_) => match self.index {
+                0 => f.write_fmt(format_args!("{var}.x"))?,
+                1 => f.write_fmt(format_args!("{var}.y"))?,
+                2 => f.write_fmt(format_args!("{var}.z"))?,
+                _ => unreachable!(),
+            },
+            Item::Vec2(_) => match self.index {
+                0 => f.write_fmt(format_args!("{var}.x"))?,
+                1 => f.write_fmt(format_args!("{var}.y"))?,
+                _ => unreachable!(),
+            },
+            Item::Scalar(_) => f.write_fmt(format_args!("{var}"))?,
         }
+
+        Ok(())
     }
 }
 impl Item {
@@ -256,6 +279,7 @@ impl Elem {
     pub fn size(&self) -> usize {
         match self {
             Self::F32 => core::mem::size_of::<f32>(),
+            Self::BF16 => core::mem::size_of::<i16>(),
             Self::I32 => core::mem::size_of::<i32>(),
             Self::U32 => core::mem::size_of::<u32>(),
             Self::Bool => core::mem::size_of::<bool>(),
