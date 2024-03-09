@@ -44,7 +44,12 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
         args: Self::LoadArgs,
         device: &B::Device,
     ) -> Result<R, RecorderError> {
-        let item = from_file::<PS, R::Item<Self::Settings>, B>(&args.file, args.key_remap)?;
+        let item = from_file::<PS, R::Item<Self::Settings>, B>(
+            &args.file,
+            args.key_remap,
+            args.top_level_key.as_deref(), // Convert Option<String> to Option<&str>
+            args.debug,
+        )?;
         Ok(R::from_item(item, device))
     }
 }
@@ -84,10 +89,17 @@ pub struct LoadArgs {
 
     /// A list of key remappings.
     pub key_remap: Vec<(Regex, String)>,
+
+    /// Top-level key to load state_dict from the file.
+    /// Sometimes the state_dict is nested under a top-level key in a dict.
+    pub top_level_key: Option<String>,
+
+    /// Whether to print debug information.
+    pub debug: bool,
 }
 
 impl LoadArgs {
-    /// Create a new `LoadArgs` instance.
+    /// Creates a new `LoadArgs` instance.
     ///
     /// # Arguments
     ///
@@ -96,10 +108,12 @@ impl LoadArgs {
         Self {
             file,
             key_remap: Vec::new(),
+            top_level_key: None,
+            debug: false,
         }
     }
 
-    /// Set key remapping.
+    /// Sets key remapping.
     ///
     /// # Arguments
     ///
@@ -113,6 +127,23 @@ impl LoadArgs {
         let regex = Regex::new(pattern).expect("Valid regex");
 
         self.key_remap.push((regex, replacement.into()));
+        self
+    }
+
+    /// Sets the top-level key to load state_dict from the file.
+    /// Sometimes the state_dict is nested under a top-level key in a dict.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The top-level key to load state_dict from the file.
+    pub fn with_top_level_key(mut self, key: &str) -> Self {
+        self.top_level_key = Some(key.into());
+        self
+    }
+
+    /// Sets printing debug information on.
+    pub fn with_debug_print(mut self) -> Self {
+        self.debug = true;
         self
     }
 }

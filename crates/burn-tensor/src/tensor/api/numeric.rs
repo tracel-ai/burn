@@ -1,7 +1,8 @@
 use crate::{
-    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Element, ElementConversion, Float,
-    Int, Shape, Tensor, TensorKind,
+    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
+    ElementConversion, Float, Int, Shape, Tensor, TensorKind,
 };
+use num_traits::Zero;
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -9,30 +10,6 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    /// Convert the tensor into a scalar.
-    ///
-    /// # Panics
-    ///
-    /// If the tensor doesn't have one element.
-    pub fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data();
-        data.value[0]
-    }
-
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    /// Convert the tensor into a scalar.
-    ///
-    /// # Panics
-    ///
-    /// If the tensor doesn't have one element.
-    pub async fn into_scalar(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
-        let data = self.into_data().await;
-        data.value[0]
-    }
-
     /// Applies element wise addition operation.
     ///
     /// `y = x2 + x1`
@@ -149,6 +126,11 @@ where
     /// Applies element wise equal comparison and returns a boolean tensor.
     pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
         K::equal_elem::<D>(self.primitive, other.elem())
+    }
+
+    /// Applies element wise non-equality comparison and returns a boolean tensor.
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+        K::not_equal_elem::<D>(self.primitive, other.elem())
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
@@ -357,6 +339,21 @@ where
         (tensor, index)
     }
 
+    /// Finds the maximum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find maximum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the maximum value found
+    /// in the input tensors.
+    pub fn max_pair(self, other: Self) -> Self {
+        let mask = self.clone().lower(other.clone());
+        self.mask_where(mask, other)
+    }
+
     /// Applies the argmin function along the given dimension and returns an integer tensor.
     ///
     /// # Example
@@ -400,6 +397,21 @@ where
         let index = Tensor::new(index);
 
         (tensor, index)
+    }
+
+    /// Finds the minimum pair wise values with another Tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - Other tensor to find minimum elements with
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensors containing the minimum value found
+    /// between each element of the two source tensors.
+    pub fn min_pair(self, other: Self) -> Self {
+        let mask = other.clone().lower(self.clone());
+        self.mask_where(mask, other)
     }
 
     /// Clamp the tensor between the given min and max values.
@@ -567,6 +579,86 @@ where
     /// Applies element wise power operation with a integer scalar
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
         Self::new(K::powi_scalar(self.primitive, other))
+    }
+
+    /// Checks element wise if the tensor is close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors.
+    pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
+        let rtol = rtol.unwrap_or(1e-5);
+        let atol = atol.unwrap_or(1e-8);
+
+        K::lower_equal(
+            K::abs(K::sub(self.primitive, other.primitive.clone())),
+            K::add_scalar(K::mul_scalar(K::abs(other.primitive), rtol), atol),
+        )
+    }
+
+    /// Checks if all elements are close to another tensor.
+    ///
+    /// The tolerance is defined by the following equation:
+    ///
+    /// ```text
+    ///
+    /// abs(a - b) <= (atol + rtol * abs(b))
+    ///
+    /// where `a` is the first tensor, `b` is the second tensor, `rtol` is the relative tolerance,
+    /// and `atol` is the absolute tolerance.
+    ///
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to compare with.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    ///
+    /// # Returns
+    ///
+    /// A boolean scalar.
+    ///
+    /// # Remarks
+    ///
+    /// This method is only available for non-wasm targets or when the `wasm-sync` feature is enabled.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
+        self.is_close(other, rtol, atol).all().into_scalar()
+    }
+
+    /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor.
+    pub fn bool(self) -> Tensor<B, D, Bool> {
+        K::not_equal_elem::<D>(self.primitive, K::Elem::zero())
+    }
+
+    /// Create a random tensor of the given shape on the given device where each element is
+    /// sampled from the given distribution.
+    pub fn random<S: Into<Shape<D>>>(
+        shape: S,
+        distribution: Distribution,
+        device: &B::Device,
+    ) -> Self {
+        Self::new(K::random(shape.into(), distribution, device))
     }
 }
 
@@ -966,8 +1058,34 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem) function,
+    /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem)
+    /// function, which is more high-level and designed for public use.
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+
+    /// Element-wise non-equality between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding elements of the input tensors are equal, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise non-equality between two tensors, users should prefer the [Tensor::not_equal_elem](Tensor::not_equal_elem)
+    /// function, which is more high-level and designed for public use.
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool>;
 
     /// Element-wise greater than comparison between two tensors.
     ///
@@ -1610,7 +1728,7 @@ where
     /// which is more high-level and designed for public use.
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a float tensor
+    /// Element-wise power of a tensor to a float tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1618,7 +1736,7 @@ where
     fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor
+    /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1626,7 +1744,7 @@ where
     fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
         -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar float
+    /// Element-wise power of a tensor to a scalar float
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1636,7 +1754,7 @@ where
         rhs: E,
     ) -> Self::Primitive<D>;
 
-    /// elementwise power of a tensor to a scalar int
+    /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
@@ -1644,6 +1762,32 @@ where
     fn powi_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
+    ) -> Self::Primitive<D>;
+
+    /// Create a random tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the output tensor.
+    /// * `distribution` - The distribution used to sample.
+    /// * `device` - The device to use.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// Users should prefer the [Tensor::random](Tensor::random) function,
+    /// which is more high-level and designed for public use.
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &B::Device,
     ) -> Self::Primitive<D>;
 }
 
@@ -1727,6 +1871,12 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_equal_elem(lhs, rhs))
+    }
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_not_equal_elem(lhs, rhs))
     }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -1927,6 +2077,14 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D> {
         B::int_powf_scalar(lhs, rhs.elem())
     }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::int_random(shape, distribution, device)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -2009,6 +2167,12 @@ impl<B: Backend> Numeric<B> for Float {
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
         Tensor::new(B::float_equal_elem(lhs, rhs))
+    }
+    fn not_equal_elem<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Elem,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_not_equal_elem(lhs, rhs))
     }
     fn greater<const D: usize>(
         lhs: Self::Primitive<D>,
@@ -2209,6 +2373,14 @@ impl<B: Backend> Numeric<B> for Float {
         rhs: E,
     ) -> Self::Primitive<D> {
         B::float_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn random<const D: usize>(
+        shape: Shape<D>,
+        distribution: Distribution,
+        device: &<B as Backend>::Device,
+    ) -> Self::Primitive<D> {
+        B::float_random(shape, distribution, device)
     }
 }
 

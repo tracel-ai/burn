@@ -71,6 +71,18 @@ mod tests {
     }
 
     #[test]
+    fn should_not_corrupt_after_slice() {
+        let zeros = Tensor::<TestBackend, 1>::zeros([2], &Default::default());
+        zeros.clone().slice([1..2]).reshape([1]).exp();
+
+        // May lead to zeroes being equal to [0.0, 1.0]
+        assert_eq!(
+            zeros.to_data(),
+            Tensor::<TestBackend, 1>::zeros([2], &Default::default()).to_data()
+        );
+    }
+
+    #[test]
     #[should_panic]
     fn multiple_neg_ones() {
         let data = Data::from([0.0, 1.0, 2.0]);

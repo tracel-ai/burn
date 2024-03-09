@@ -8,13 +8,10 @@ use core::convert::Into;
 
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
-use burn::{
-    backend::NdArray,
-    tensor::{activation::softmax, backend::Backend, Tensor},
-};
+use burn::{backend::NdArray, prelude::*, tensor::activation::softmax};
 
 use burn_candle::Candle;
-use burn_wgpu::{compute::init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
+use burn_wgpu::{init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;

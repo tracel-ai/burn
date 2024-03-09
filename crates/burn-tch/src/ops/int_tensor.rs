@@ -467,4 +467,11 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
         TchTensor::new(tensor)
     }
+
+    fn int_permute<const D: usize>(
+        tensor: burn_tensor::ops::IntTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::IntTensor<Self, D> {
+        TchOps::permute(tensor, axes)
+    }
 }

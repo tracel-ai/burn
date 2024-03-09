@@ -5,15 +5,13 @@
 
 use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBatch};
 use burn::{
-    config::Config,
-    module::Module,
     nn::{
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
         Embedding, EmbeddingConfig, Linear, LinearConfig,
     },
-    tensor::backend::{AutodiffBackend, Backend},
-    tensor::{activation::softmax, Tensor},
+    prelude::*,
+    tensor::{activation::softmax, backend::AutodiffBackend},
     train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
 };
 

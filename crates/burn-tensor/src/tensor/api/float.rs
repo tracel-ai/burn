@@ -202,16 +202,6 @@ where
         (var, mean)
     }
 
-    /// Create a random tensor of the given shape on the given device where each element is
-    /// sampled from the given distribution.
-    pub fn random<S: Into<Shape<D>>>(
-        shape: S,
-        distribution: Distribution,
-        device: &B::Device,
-    ) -> Self {
-        let tensor = B::float_random(shape.into(), distribution, device);
-        Self::new(tensor)
-    }
     /// Returns a tensor with full precision based on the selected backend.
     pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
         Tensor::new(B::float_to_full_precision(&self.primitive))

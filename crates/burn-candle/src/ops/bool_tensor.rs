@@ -9,6 +9,8 @@ use crate::{
     Candle, CandleTensor,
 };
 
+use super::base::permute;
+
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
         CandleTensor::new(dyn_tensor)
@@ -134,5 +136,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         dim: usize,
     ) -> Vec<BoolTensor<Self, D>> {
         super::base::chunk(tensor, chunks, dim)
+    }
+
+    fn bool_permute<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> BoolTensor<Self, D> {
+        permute(tensor, axes)
     }
 }

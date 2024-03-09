@@ -1,6 +1,7 @@
 // Language
 use alloc::vec::Vec;
 use core::ops::Range;
+use ndarray::IntoDimension;
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
@@ -497,5 +498,13 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         dim: usize,
     ) -> NdArrayTensor<i64, D> {
         NdArrayMathOps::argmin(tensor, dim)
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
+        NdArrayTensor { array }
     }
 }

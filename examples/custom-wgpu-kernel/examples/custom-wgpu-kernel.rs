@@ -1,5 +1,5 @@
 use burn::{
-    backend::wgpu::{compute::WgpuRuntime, AutoGraphicsApi},
+    backend::wgpu::{AutoGraphicsApi, WgpuRuntime},
     tensor::{Distribution, Tensor},
 };
 use custom_wgpu_kernel::{

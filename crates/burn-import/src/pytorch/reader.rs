@@ -30,20 +30,47 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// * `path` - A string slice that holds the path of the file to read.
 /// * `key_remap` - A vector of tuples containing a regular expression and a replacement string.
-pub fn from_file<PS, D, B>(path: &Path, key_remap: Vec<(Regex, String)>) -> Result<D, Error>
+/// * `top_level_key` - An optional top-level key to load state_dict from a dictionary.
+pub fn from_file<PS, D, B>(
+    path: &Path,
+    key_remap: Vec<(Regex, String)>,
+    top_level_key: Option<&str>,
+    debug: bool,
+) -> Result<D, Error>
 where
     D: DeserializeOwned,
     PS: PrecisionSettings,
     B: Backend,
 {
     // Read the pickle file and return a vector of Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all(path)?
+    let tensors: HashMap<String, CandleTensor> = pickle::read_all_with_key(path, top_level_key)?
         .into_iter()
         .map(|(key, tensor)| (key, CandleTensor(tensor)))
         .collect();
 
     // Remap the keys (replace the keys in the map with the new keys)
-    let tensors = remap(tensors, key_remap);
+    let (tensors, remapped_keys) = remap(tensors, key_remap);
+
+    // Print the remapped keys if debug is enabled
+    if debug {
+        let mut remapped_keys = remapped_keys;
+        remapped_keys.sort();
+        println!("Debug information of keys and tensor shapes:\n---");
+        for (new_key, old_key) in remapped_keys {
+            if old_key != new_key {
+                println!("Original Key: {old_key}");
+                println!("Remapped Key: {new_key}");
+            } else {
+                println!("Key: {}", new_key);
+            }
+
+            let shape = tensors[&new_key].shape();
+            let dtype = tensors[&new_key].dtype();
+            println!("Shape: {shape:?}");
+            println!("Dtype: {dtype:?}");
+            println!("---");
+        }
+    }
 
     // Convert the vector of Candle tensors to a nested value data structure
     let nested_value = unflatten::<PS, _>(tensors)?;

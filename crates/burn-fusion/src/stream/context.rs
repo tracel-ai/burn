@@ -5,11 +5,12 @@ use super::{
     BinaryOperationDescription, BoolOperationDescription, ClampOperationDescription,
     Conv1dDescription, Conv2dDescription, ConvTranspose1dDescription, ConvTranspose2dDescription,
     EmbeddingBackwardDescription, EmbeddingDescription, FloatOperationDescription,
-    GatherOperationDescription, IntOperationDescription, MaskFillOperationDescription,
-    MaskWhereOperationDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
-    MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
-    MaxPool2dWithIndicesDescription, ModuleOperationDescription, NumericOperationDescription,
-    OperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
+    GatherOperationDescription, IntOperationDescription, InterpolateBackwardDescription,
+    InterpolateDescription, MaskFillOperationDescription, MaskWhereOperationDescription,
+    MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription, MaxPool1dWithIndicesDescription,
+    MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription, MaxPool2dWithIndicesDescription,
+    ModuleOperationDescription, NumericOperationDescription, OperationDescription,
+    PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
     ReshapeDescription, ScalarOperationDescription, ScatterOperationDescription,
     SelectAssignOperationDescription, SelectOperationDescription, SliceOperationDescription,
     SwapDimsDescription, UnaryOperationDescription,
@@ -312,6 +313,23 @@ impl ModuleOperationDescription {
                         out: desc.out.to_relative(converter),
                     },
                 )
+            }
+            ModuleOperationDescription::Interpolate(desc) => {
+                ModuleOperationDescription::Interpolate(InterpolateDescription {
+                    x: desc.x.to_relative(converter),
+                    output_size: desc.output_size,
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationDescription::InterpolateBackward(desc) => {
+                ModuleOperationDescription::InterpolateBackward(InterpolateBackwardDescription {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    output_size: desc.output_size,
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
             }
         }
     }
@@ -758,6 +776,13 @@ impl BaseOperationDescription {
                     out: desc.out.to_relative(converter),
                     dim1: desc.dim1,
                     dim2: desc.dim2,
+                })
+            }
+            BaseOperationDescription::Permute(desc) => {
+                BaseOperationDescription::Permute(PermuteOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                    axes: desc.axes.clone(),
                 })
             }
             BaseOperationDescription::Slice(desc) => {

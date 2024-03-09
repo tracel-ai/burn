@@ -1,15 +1,18 @@
 use crate::FloatTensor;
 
 use super::{AutodiffBackend, Backend};
-use burn::backend::autodiff::{
-    checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
-    grads::Gradients,
-    ops::{broadcast_shape, Backward, Ops, OpsKind},
-    Autodiff, NodeId,
+use burn::{
+    backend::{
+        autodiff::{
+            checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
+            grads::Gradients,
+            ops::{broadcast_shape, Backward, Ops, OpsKind},
+            Autodiff, NodeID,
+        },
+        wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend, WgpuRuntime},
+    },
+    tensor::Shape,
 };
-use burn::backend::wgpu::compute::WgpuRuntime;
-use burn::backend::wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend};
-use burn::tensor::Shape;
 
 impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
     for Autodiff<JitBackend<WgpuRuntime<G, F, I>>>
@@ -39,7 +42,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeId, NodeId, FloatTensor<B, D>, Shape<D>);
+            type State = (NodeID, NodeID, FloatTensor<B, D>, Shape<D>);
 
             fn backward(
                 self,

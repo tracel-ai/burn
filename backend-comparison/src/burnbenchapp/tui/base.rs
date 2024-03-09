@@ -32,7 +32,12 @@ impl Application for TuiApplication {
     fn init(&mut self) {}
 
     #[allow(unused)]
-    fn run(&mut self, benches: &[BenchmarkValues], backends: &[BackendValues]) {
+    fn run(
+        &mut self,
+        benches: &[BenchmarkValues],
+        backends: &[BackendValues],
+        token: Option<&str>,
+    ) {
         // TODO initialize widgets given passed benches and backends on the command line
         loop {
             self.terminal

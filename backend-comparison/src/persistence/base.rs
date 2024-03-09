@@ -6,6 +6,7 @@ use burn::{
 };
 use burn_common::benchmark::BenchmarkResult;
 use dirs;
+use reqwest::header::{HeaderMap, ACCEPT, AUTHORIZATION, USER_AGENT};
 use serde_json;
 
 #[derive(Default, Clone)]
@@ -44,6 +45,8 @@ pub struct BenchmarkRecord {
 pub fn save<B: Backend>(
     benches: Vec<BenchmarkResult>,
     device: &B::Device,
+    url: Option<&str>,
+    token: Option<&str>,
 ) -> Result<Vec<BenchmarkRecord>, std::io::Error> {
     let cache_dir = dirs::home_dir()
         .expect("Home directory should exist")
@@ -77,6 +80,35 @@ pub fn save<B: Backend>(
         let file = fs::File::create(file_path).expect("Benchmark file should exist or be created");
         serde_json::to_writer_pretty(file, &record)
             .expect("Benchmark file should be updated with benchmark results");
+
+        if url.is_some() {
+            println!("Sharing results...");
+            let client = reqwest::blocking::Client::new();
+            let mut headers = HeaderMap::new();
+            headers.insert(USER_AGENT, "burnbench".parse().unwrap());
+            headers.insert(ACCEPT, "application/json".parse().unwrap());
+            headers.insert(
+                AUTHORIZATION,
+                format!(
+                    "Bearer {}",
+                    token.expect("An auth token should be provided.")
+                )
+                .parse()
+                .unwrap(),
+            );
+            // post the benchmark record
+            let response = client
+                .post(url.expect("A benchmark server URL should be provided."))
+                .headers(headers)
+                .json(&record)
+                .send()
+                .expect("Request should be sent successfully.");
+            if response.status().is_success() {
+                println!("Results shared successfully.");
+            } else {
+                println!("Failed to share results. Status: {}", response.status());
+            }
+        }
     }
 
     Ok(records)

@@ -976,6 +976,60 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
+
+    fn interpolate(
+        x: AutodiffTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> AutodiffTensor<B, 4> {
+        #[derive(Debug)]
+        struct Interpolate;
+        impl<B: Backend> Backward<B, 4, 1> for Interpolate {
+            type State = (NodeID, [usize; 2], InterpolateOptions);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B, 4>(&ops.node);
+
+                let (x_state, output_size, options) = ops.state;
+                let state = checkpointer.retrieve_node_output(x_state);
+
+                if let Some(node) = node_parent {
+                    let grad = B::interpolate_backward(state, grad, output_size, options);
+                    grads.register::<B, 4>(node, grad);
+                }
+            }
+        }
+
+        match Interpolate
+            .prepare::<C>([x.node.clone()], [x.graph.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                let output = B::interpolate(x.primitive.clone(), output_size, options.clone());
+                prep.finish((x_state, output_size, options), output)
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::interpolate(x.primitive, output_size, options))
+            }
+        }
+    }
+
+    fn interpolate_backward(
+        _x: FloatTensor<Autodiff<B, C>, 4>,
+        _grad: FloatTensor<Autodiff<B, C>, 4>,
+        _output_size: [usize; 2],
+        _options: InterpolateOptions,
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
+        panic!("Can't differentiate interpolate backward.");
+    }
 }
 
 #[derive(Debug)]

@@ -700,6 +700,62 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct PermuteDim;
+
+        #[derive(new, Debug)]
+        struct RetroPermuteDims<B: Backend, const D: usize> {
+            input_id: NodeID,
+            axes: [usize; D],
+            _backend: PhantomData<B>,
+        }
+
+        impl<B: Backend, const D: usize> RetroForward for RetroPermuteDims<B, D> {
+            fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
+                let input = states.get_state::<B::FloatTensorPrimitive<D>>(&self.input_id);
+                let out = B::float_permute(input, self.axes);
+                states.save(out_node, out)
+            }
+        }
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for PermuteDim {
+            type State = [usize; D];
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let axes = ops.state;
+
+                let mut inverse: [usize; D] = [0; D];
+                axes.iter()
+                    .enumerate()
+                    .for_each(|(i, &axis)| inverse[axis] = i);
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::float_permute(grad, inverse)
+                });
+            }
+        }
+
+        match PermuteDim
+            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroPermuteDims::<B, D>::new(tensor.node.id.clone(), axes))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(axes, B::float_permute(tensor.primitive, axes)),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_permute(tensor.primitive, axes)),
+        }
+    }
+
     fn float_reshape<const D1: usize, const D2: usize>(
         tensor: FloatTensor<Self, D1>,
         shape: Shape<D2>,

@@ -41,6 +41,7 @@ mod tests {
     // test module
     burn_tensor::testgen_module_forward!();
     burn_tensor::testgen_module_conv1d!();
+    burn_tensor::testgen_module_nearest_interpolate!();
     // burn_tensor::testgen_module_conv2d!();
     // burn_tensor::testgen_module_conv_transpose1d!();
     // burn_tensor::testgen_module_conv_transpose2d!();
@@ -57,11 +58,13 @@ mod tests {
     burn_tensor::testgen_arange!();
     burn_tensor::testgen_arange_step!();
     burn_tensor::testgen_arg!();
+    burn_tensor::testgen_bool!();
     burn_tensor::testgen_cast!();
     burn_tensor::testgen_cat!();
     burn_tensor::testgen_recip!();
     burn_tensor::testgen_clamp!();
     burn_tensor::testgen_cos!();
+    burn_tensor::testgen_close!();
     // burn_tensor::testgen_div!();
     burn_tensor::testgen_erf!();
     burn_tensor::testgen_exp!();
@@ -77,6 +80,8 @@ mod tests {
     burn_tensor::testgen_maxmin!();
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
+    burn_tensor::testgen_permute!();
+    burn_tensor::testgen_argwhere_nonzero!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //

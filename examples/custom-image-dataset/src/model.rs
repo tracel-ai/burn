@@ -1,11 +1,10 @@
 use burn::{
-    module::Module,
     nn::{
         conv::{Conv2d, Conv2dConfig},
         pool::{MaxPool2d, MaxPool2dConfig},
         Dropout, DropoutConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     },
-    tensor::{backend::Backend, Device, Tensor},
+    prelude::*,
 };
 
 /// Basic convolutional neural network with VGG-style blocks.

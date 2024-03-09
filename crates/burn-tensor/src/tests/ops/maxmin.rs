@@ -137,4 +137,26 @@ mod tests {
         assert_eq!(output_expected, output_actual.into_data());
         assert_eq!(index_expected, index_actual.into_data());
     }
+
+    #[test]
+    fn test_maximum_pair() {
+        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
+
+        let c = a.max_pair(b);
+
+        let expect = Data::from([2.0, 2.0, 4.0, 5.0]);
+        c.to_data().assert_approx_eq(&expect, 1);
+    }
+
+    #[test]
+    fn test_minimum_pair() {
+        let a = TestTensor::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
+        let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
+
+        let c = a.min_pair(b);
+
+        let expect = Data::from([1.0, 1.0, 3.0, 4.0]);
+        c.to_data().assert_approx_eq(&expect, 1);
+    }
 }

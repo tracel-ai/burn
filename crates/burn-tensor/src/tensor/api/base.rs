@@ -11,7 +11,10 @@ use alloc::vec;
 
 use burn_common::{reader::Reader, stub::Mutex};
 use core::{fmt::Debug, ops::Range};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer};
+
+#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
@@ -136,6 +139,35 @@ where
     /// The tensor with the dimensions swapped.
     pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K> {
         Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
+    }
+
+    /// Permute the dimensions of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `axes` - The new order of the dimensions. The length of the axes
+    ///            must be equal to the number of dimensions of the tensor.
+    ///            The values must be unique and in the range of the number of dimensions.
+    ///            The values can be negative, in which case they are used as an offset from the end.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
+        // Convert the axes to usize and handle negative values without using vector
+        let mut transformed_axes: [usize; D] = [0; D];
+        for (i, &x) in axes.iter().enumerate() {
+            transformed_axes[i] = if x < 0 {
+                (D as isize + x) as usize
+            } else {
+                x as usize
+            };
+        }
+
+        // Check if the axes are valid after the transformation
+        check!(TensorCheck::permute(transformed_axes));
+
+        Tensor::new(K::permute(self.primitive, transformed_axes))
     }
 
     /// Flatten the tensor along a given range of dimensions.
@@ -306,7 +338,8 @@ where
 
     /// Creates a new tensor with added dimensions of size one inserted at the specified indices.
     /// The indices can be negative, in which case they are counted from the last to the first dimension.
-    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index is the number of duplicates.
+    /// the axes can contain duplicates, in which case the number of dimensions inserted at the index
+    /// is the number of duplicates.
     /// # Example
     ///
     /// ```rust
@@ -511,7 +544,7 @@ where
         Self::new(K::repeat(self.primitive, dim, times))
     }
 
-    /// Applies element wise equal comparison and returns a boolean tensor.
+    /// Applies element-wise equal comparison and returns a boolean tensor.
     ///
     /// # Panics
     ///
@@ -519,6 +552,16 @@ where
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
+    }
+
+    /// Applies element-wise non-equality comparison and returns a boolean tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have the same shape.
+    pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
+        check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
+        K::not_equal(self.primitive, other.primitive)
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
@@ -607,7 +650,6 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
-
     pub fn any(self) -> Tensor<B, 1, Bool> {
         K::any(self.primitive)
     }
@@ -654,9 +696,32 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-
     pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
         K::all_dim(self.primitive, dim)
+    }
+
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
+    pub fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data();
+        data.value[0]
+    }
+
+    /// Convert the tensor into a scalar.
+    ///
+    /// # Panics
+    ///
+    /// If the tensor doesn't have one element.
+    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
+    pub async fn into_scalar(self) -> K::Elem {
+        check!(TensorCheck::into_scalar(&self.shape()));
+        let data = self.into_data().await;
+        data.value[0]
     }
 }
 
@@ -958,7 +1023,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// The type of the tensor elements.
-    type Elem: 'static;
+    type Elem: 'static + Copy;
 
     /// Creates an empty tensor with the given shape.
     ///
@@ -1052,6 +1117,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         dim1: usize,
         dim2: usize,
     ) -> Self::Primitive<D>;
+
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `axes` - The new order of the dimensions.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
 
     ///  Select tensor elements corresponding for the given ranges.
     ///
@@ -1266,6 +1343,30 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         rhs: Self::Primitive<D>,
     ) -> Tensor<B, D, Bool>;
 
+    /// Applies element-wise non-equality comparison between the given tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor of booleans indicating whether the corresponding elements are equal.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For non-equality comparison of tensors, users should prefer the [Tensor::not_equal](Tensor::not_equal)
+    /// function, which is more high-level and designed for public use.
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool>;
+
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
@@ -1443,6 +1544,13 @@ impl<B: Backend> BasicOps<B> for Float {
         Tensor::new(B::float_equal(lhs, rhs))
     }
 
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::float_not_equal(lhs, rhs))
+    }
+
     fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
         Tensor::new(B::float_any(tensor))
     }
@@ -1457,6 +1565,10 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::float_all_dim(tensor, dim))
+    }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::float_permute(tensor, axes)
     }
 }
 
@@ -1550,6 +1662,13 @@ impl<B: Backend> BasicOps<B> for Int {
         Tensor::new(B::int_equal(lhs, rhs))
     }
 
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::int_not_equal(lhs, rhs))
+    }
+
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::int_cat(vectors, dim)
     }
@@ -1568,6 +1687,10 @@ impl<B: Backend> BasicOps<B> for Int {
 
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::int_all_dim(tensor, dim))
+    }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::int_permute(tensor, axes)
     }
 }
 
@@ -1661,6 +1784,13 @@ impl<B: Backend> BasicOps<B> for Bool {
         Tensor::new(B::bool_equal(lhs, rhs))
     }
 
+    fn not_equal<const D: usize>(
+        lhs: Self::Primitive<D>,
+        rhs: Self::Primitive<D>,
+    ) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_not_equal(lhs, rhs))
+    }
+
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
         B::bool_cat(vectors, dim)
     }
@@ -1680,6 +1810,10 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_all_dim(tensor, dim))
     }
+
+    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+        B::bool_permute(tensor, axes)
+    }
 }
 
 /// Trait used for reshape arguments.
@@ -1696,7 +1830,7 @@ impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
         self,
         tensor: &Tensor<B, D, K>,
     ) -> Shape<D2> {
-        check!(TensorCheck::reshape_args_usize(&self, &tensor.shape()));
+        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &self));
 
         self
     }
@@ -1708,7 +1842,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     ) -> Shape<D2> {
         let shape = Shape::from(self);
 
-        check!(TensorCheck::reshape_args_usize(&shape, &tensor.shape()));
+        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &shape));
 
         shape
     }

@@ -114,6 +114,36 @@ pub struct UnfoldOptions {
     pub dilation: [usize; 2],
 }
 
+/// Algorithm used for upsampling.
+#[derive(new, Debug, Clone)]
+pub enum InterpolateMode {
+    /// Nearest-neighbor interpolation.
+    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    Nearest,
+
+    /// Bilinear interpolation.
+    /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
+    Bilinear,
+
+    /// Bicubic interpolation.
+    /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
+    Bicubic,
+}
+
+/// Interpolation options.
+#[derive(new, Debug, Clone)]
+pub struct InterpolateOptions {
+    /// Algorithm used for upsampling.
+    pub mode: InterpolateMode,
+}
+
+/// Gradient computed during the backward pass for each tensor used by [interpolate](ModuleOps::interpolate).
+#[derive(new)]
+pub struct InterpolateBackward<B: Backend> {
+    /// Gradient.
+    pub x_grad: FloatTensor<B, 4>,
+}
+
 /// Module operations trait.
 pub trait ModuleOps<B: Backend> {
     /// Embedding operation.
@@ -439,4 +469,23 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B, 4>,
         indices: IntTensor<B, 4>,
     ) -> MaxPool2dBackward<B>;
+
+    /// Down/up samples the input.
+    ///
+    /// # Shapes
+    ///
+    /// x: `[batch_size, channels, height, width]`,
+    fn interpolate(
+        x: FloatTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<B, 4>;
+
+    /// Backward pass for the [interpolate](ModuleOps::interpolate) operation.
+    fn interpolate_backward(
+        x: FloatTensor<B, 4>,
+        grad: FloatTensor<B, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<B, 4>;
 }

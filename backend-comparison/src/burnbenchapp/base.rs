@@ -16,13 +16,26 @@ use super::{
 };
 
 const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
+const USER_BENCHMARK_SERVER_URL: &str = if cfg!(debug_assertions) {
+    // development
+    "http://localhost:8000/benchmarks"
+} else {
+    // production
+    "https://user-benchmark-server-gvtbw64teq-nn.a.run.app/benchmarks"
+};
 
 /// Base trait to define an application
 pub(crate) trait Application {
     fn init(&mut self) {}
 
     #[allow(unused)]
-    fn run(&mut self, benches: &[BenchmarkValues], backends: &[BackendValues]) {}
+    fn run(
+        &mut self,
+        benches: &[BenchmarkValues],
+        backends: &[BackendValues],
+        token: Option<&str>,
+    ) {
+    }
 
     fn cleanup(&mut self) {}
 }
@@ -97,6 +110,8 @@ pub(crate) enum BenchmarkValues {
     Matmul,
     #[strum(to_string = "unary")]
     Unary,
+    #[strum(to_string = "max_pool2d")]
+    MaxPool2d,
 }
 
 pub fn execute() {
@@ -150,9 +165,9 @@ fn command_list() {
 }
 
 fn command_run(run_args: RunArgs) {
+    let token = get_token_from_cache();
     if run_args.share {
         // Verify if a token is saved
-        let token = get_token_from_cache();
         if token.is_none() {
             eprintln!("You need to be authenticated to be able to share benchmark results.");
             eprintln!("Run the command 'burnbench auth' to authenticate.");
@@ -160,7 +175,7 @@ fn command_run(run_args: RunArgs) {
         }
         // TODO refresh the token when it is expired
         // Check for the validity of the saved token
-        if !verify_token(&token.unwrap()) {
+        if !verify_token(token.as_deref().unwrap()) {
             eprintln!("Your access token is no longer valid.");
             eprintln!("Run the command 'burnbench auth' again to get a new token.");
             return;
@@ -179,13 +194,12 @@ fn command_run(run_args: RunArgs) {
     let mut app = App::new();
     app.init();
     println!("Running benchmarks...");
-    app.run(&run_args.benches, &run_args.backends);
+    app.run(
+        &run_args.benches,
+        &run_args.backends,
+        token.as_deref().filter(|_| run_args.share),
+    );
     app.cleanup();
-    println!("Cleanup completed. Benchmark run(s) finished.");
-    if run_args.share {
-        println!("Sharing results...");
-        // TODO Post the results once backend can verify the GitHub access token
-    }
 }
 
 #[allow(unused)] // for tui as this is WIP
@@ -201,5 +215,35 @@ pub(crate) fn run_cargo(command: &str, params: &[&str]) {
     let status = cargo.wait().expect("");
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
+    }
+}
+
+pub(crate) fn run_backend_comparison_benchmarks(
+    benches: &[BenchmarkValues],
+    backends: &[BackendValues],
+    token: Option<&str>,
+) {
+    // Iterate over each combination of backend and bench
+    for backend in backends.iter() {
+        for bench in benches.iter() {
+            let bench_str = bench.to_string();
+            let backend_str = backend.to_string();
+            let mut args = vec![
+                "-p",
+                "backend-comparison",
+                "--bench",
+                &bench_str,
+                "--features",
+                &backend_str,
+            ];
+            if let Some(t) = token {
+                args.push("--");
+                args.push("--sharing-url");
+                args.push(USER_BENCHMARK_SERVER_URL);
+                args.push("--sharing-token");
+                args.push(t);
+            }
+            run_cargo("bench", &args);
+        }
     }
 }

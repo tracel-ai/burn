@@ -5,7 +5,6 @@ derive function only generates the necessary methods to essentially act as a par
 your type, it makes no assumptions about how the forward pass is declared.
 
 ```rust, ignore
-use burn::nn;
 use burn::module::Module;
 use burn::tensor::backend::Backend;
 

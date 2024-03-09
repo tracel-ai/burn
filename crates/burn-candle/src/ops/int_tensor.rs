@@ -9,6 +9,8 @@ use crate::{
     Candle, CandleTensor,
 };
 
+use super::base::permute;
+
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
         CandleTensor::new(dyn_tensor)
@@ -418,5 +420,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
                     .unwrap(),
             ),
         }
+    }
+
+    fn int_permute<const D: usize>(
+        tensor: IntTensor<Self, D>,
+        axes: [usize; D],
+    ) -> IntTensor<Self, D> {
+        permute(tensor, axes)
     }
 }

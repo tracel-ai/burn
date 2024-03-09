@@ -1,5 +1,6 @@
 pub(crate) mod check;
 
+mod argwhere;
 mod autodiff;
 mod base;
 mod bool;
@@ -11,6 +12,7 @@ mod kind;
 mod narrow;
 mod numeric;
 
+pub use argwhere::argwhere;
 pub use autodiff::*;
 pub use base::*;
 pub use chunk::chunk;

@@ -34,8 +34,10 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        ndarray::{NdArray, NdArrayDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -46,8 +48,10 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        libtorch::{LibTorch, LibTorchDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -63,8 +67,10 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::tch::{LibTorch, LibTorchDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        tch::{LibTorch, LibTorchDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 
@@ -75,8 +81,10 @@ mod tch_cpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
-    use burn::backend::Autodiff;
+    use burn::backend::{
+        wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice},
+        Autodiff,
+    };
 
     use crate::{launch, ElemType};
 

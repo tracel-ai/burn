@@ -9,6 +9,7 @@ pub fn testgen(attr: TokenStream, item: TokenStream) -> TokenStream {
     let macro_ident = format_ident!("testgen_{}", attr.to_string());
 
     let macro_gen = quote! {
+        #[allow(missing_docs)]
         #[macro_export]
         macro_rules! #macro_ident {
             () => {

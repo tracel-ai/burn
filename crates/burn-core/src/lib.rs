@@ -72,6 +72,8 @@ pub mod prelude {
         config::Config,
         module::Module,
         nn,
-        tensor::{backend::Backend, Data, Device, ElementConversion, Tensor},
+        tensor::{
+            backend::Backend, Bool, Data, Device, ElementConversion, Float, Int, Shape, Tensor,
+        },
     };
 }
