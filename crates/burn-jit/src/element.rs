@@ -15,6 +15,10 @@ where
     fn from_bytes(bytes: &[u8]) -> &[Self];
     /// Element representation for `gpu`.
     fn gpu_elem() -> gpu::Elem;
+    /// Highest possible value
+    fn maximum_value() -> Self;
+    /// Lowest possible value
+    fn minimum_value() -> Self;
 }
 
 /// The float element type for the jit backend.
@@ -36,6 +40,12 @@ impl JitElement for u32 {
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::UInt
     }
+    fn maximum_value() -> Self {
+        u32::MAX
+    }
+    fn minimum_value() -> Self {
+        u32::MIN
+    }
 }
 
 impl JitElement for i32 {
@@ -51,6 +61,12 @@ impl JitElement for i32 {
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Int
     }
+    fn maximum_value() -> Self {
+        i32::MAX
+    }
+    fn minimum_value() -> Self {
+        i32::MIN
+    }
 }
 
 impl JitElement for f32 {
@@ -63,9 +79,14 @@ impl JitElement for f32 {
     fn from_bytes(bytes: &[u8]) -> &[Self] {
         bytemuck::cast_slice(bytes)
     }
-
     fn gpu_elem() -> gpu::Elem {
         gpu::Elem::Float
+    }
+    fn maximum_value() -> Self {
+        f32::MAX
+    }
+    fn minimum_value() -> Self {
+        f32::MIN
     }
 }
 

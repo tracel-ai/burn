@@ -1,13 +1,5 @@
-use burn_compute::{client::ComputeClient, server::Handle};
-
 use super::SourceTemplate;
-use crate::{
-    compute::{StaticKernel, WorkGroup},
-    element::JitElement,
-    kernel,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
 use std::marker::PhantomData;
 
 #[cfg(target_family = "wasm")]
@@ -46,65 +38,6 @@ macro_rules! kernel_wgsl {
             }
         }
     };
-}
-
-kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
-
-/// Make a jit tensor contiguous.
-pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    if tensor.is_contiguous() {
-        return tensor;
-    }
-
-    let num_elems = tensor.shape.num_elements();
-    let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-        handle,
-    );
-    let info = build_info(&[&tensor, &output]);
-    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = Box::new(StaticKernel::<
-        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
-
-    tensor
-        .client
-        .execute(kernel, &[&tensor.handle, &output.handle, &info_handle]);
-
-    output
-}
-
-/// Similar to [into contiguous](into_contiguous) but with dynamic rank.
-pub fn into_contiguous_dyn<R: Runtime, E: JitElement>(
-    client: ComputeClient<R::Server, R::Channel>,
-    input: Handle<R::Server>,
-    input_shape: &[usize],
-    input_strides: &[usize],
-    output_shape: &[usize],
-    output_strides: &[usize],
-    num_elems: usize,
-) -> Handle<R::Server> {
-    let handle = client.empty(num_elems * core::mem::size_of::<E>());
-    let info = kernel::build_info_dyn::<E>(
-        &[input_shape, output_shape],
-        &[input_strides, output_strides],
-    );
-
-    let info_handle = client.create(bytemuck::cast_slice(&info));
-
-    let kernel = Box::new(StaticKernel::<
-        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
-
-    client.execute(kernel, &[&input, &handle, &info_handle]);
-
-    handle
 }
 
 /// Generates kernel source code by replacing some information using templating.

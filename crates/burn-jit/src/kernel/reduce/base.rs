@@ -10,7 +10,7 @@ use crate::{
 use super::{reduce_dim_naive, reduce_dim_shared, ArgMax, ArgMin, MeanDim, SumDim};
 
 /// Specifies the reduce dim algorithm in use
-pub trait ReduceDimAlgorithm: Send + Sync + 'static {
+pub trait ReduceDimAlgorithm<E: JitElement>: Send + Sync + 'static {
     /// The reduction accumulator
     type Accumulator: Copy;
 
