@@ -257,4 +257,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
 
         CandleTensor::new(tensor)
     }
+
+    fn interpolate_backward(
+        x: FloatTensor<Self, 4>,
+        grad: FloatTensor<Self, 4>,
+        output_size: [usize; 2],
+        options: InterpolateOptions,
+    ) -> FloatTensor<Self, 4> {
+        panic!("interpolate_backward is not supported by Candle")
+    }
 }

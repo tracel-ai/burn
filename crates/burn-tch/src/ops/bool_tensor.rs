@@ -132,6 +132,13 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::chunk(tensor, chunks, dim)
     }
 
+    fn bool_permute<const D: usize>(
+        tensor: burn_tensor::ops::BoolTensor<Self, D>,
+        axes: [usize; D],
+    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        TchOps::permute(tensor, axes)
+    }
+
     fn bool_argwhere<const D: usize>(
         tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> TchTensor<i64, 2> {

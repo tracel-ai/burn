@@ -524,6 +524,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-jit"
+version = "0.13.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-common",
+ "burn-compute",
+ "burn-fusion",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-tensor-testgen",
+ "bytemuck",
+ "derive-new",
+ "hashbrown 0.14.3",
+ "log",
+ "num-traits",
+ "rand",
+ "serde",
+ "serial_test",
+ "spin",
+ "text_placeholder",
+]
+
+[[package]]
 name = "burn-ndarray"
 version = "0.13.0"
 dependencies = [
@@ -610,24 +633,17 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.13.0"
 dependencies = [
- "burn-autodiff",
  "burn-common",
  "burn-compute",
  "burn-fusion",
- "burn-ndarray",
+ "burn-jit",
  "burn-tensor",
  "bytemuck",
  "derive-new",
  "futures-intrusive",
  "hashbrown 0.14.3",
  "log",
- "num-traits",
  "pollster",
- "rand",
- "serde",
- "serial_test",
- "spin",
- "text_placeholder",
  "wgpu",
 ]
 
@@ -2633,9 +2649,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.20"
+version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
+checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "lru"

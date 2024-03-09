@@ -154,6 +154,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.into_scalar()`                | `tensor.item()` (for single-element tensors) |
 | `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`          |
 | `tensor.not_equal(other)`             | `x != y`                                     |
+| `tensor.permute(axes)`                | `tensor.permute(axes)`                       |
 | `tensor.repeat(2, 4)`                 | `tensor.repeat([1, 1, 4])`                   |
 | `tensor.reshape(shape)`               | `tensor.view(shape)`                         |
 | `tensor.shape()`                      | `tensor.shape`                               |

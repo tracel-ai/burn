@@ -122,6 +122,8 @@ pub enum ModuleOperationDescription {
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
     /// Operation corresponding to [interpolate](burn_tensor::ops::ModuleOps::interpolate).
     Interpolate(InterpolateDescription),
+    /// Operation corresponding to [interpolate backward](burn_tensor::ops::ModuleOps::interpolate_backward).
+    InterpolateBackward(InterpolateBackwardDescription),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -145,6 +147,14 @@ pub enum BaseOperationDescription {
     /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
     /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [permute](burn_tensor::ops::FloatTensorOps::float_permute).
+    /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
+    /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
+    Permute(PermuteOperationDescription),
+
     /// Operation corresponding to:
     ///
     /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
@@ -409,17 +419,28 @@ pub enum BoolOperationDescription {
     Not(UnaryOperationDescription),
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 /// Swap dim operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsDescription {
     /// Input tensor description.
     pub input: TensorDescription,
-    /// output tensor description.
+    /// Output tensor description.
     pub out: TensorDescription,
     /// The first dim to swap.
     pub dim1: usize,
     /// The second dim to swap.
     pub dim2: usize,
+}
+
+/// Permute operation description.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct PermuteOperationDescription {
+    /// Input tensor description.
+    pub input: TensorDescription,
+    /// Output tensor description.
+    pub out: TensorDescription,
+    /// The new order of the dimensions.
+    pub axes: Vec<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -963,6 +984,16 @@ impl From<InterpolateOptions> for InterpolateOptionsDescription {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct InterpolateBackwardDescription {
+    pub x: TensorDescription,
+    pub grad: TensorDescription,
+    pub output_size: [usize; 2],
+    pub options: InterpolateOptionsDescription,
+    pub out: TensorDescription,
+}
+
 impl OperationDescription {
     /// Cleanup the remaining tensor handles that have not been used.
     pub(crate) fn nodes(&self) -> Vec<&TensorDescription> {
@@ -988,6 +1019,10 @@ impl BaseOperationDescription {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::SwapDims(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+
+            BaseOperationDescription::Permute(desc) => {
                 vec![&desc.input, &desc.out]
             }
             BaseOperationDescription::Slice(desc) => {
@@ -1256,9 +1291,13 @@ impl ModuleOperationDescription {
             ModuleOperationDescription::Interpolate(desc) => {
                 vec![&desc.x, &desc.out]
             }
+            ModuleOperationDescription::InterpolateBackward(desc) => {
+                vec![&desc.x, &desc.out, &desc.grad]
+            }
         }
     }
 }
+
 impl core::hash::Hash for RandomOperationDescription {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
@@ -1271,6 +1310,7 @@ impl core::hash::Hash for RandomOperationDescription {
         }
     }
 }
+
 impl<E> core::hash::Hash for ScalarOperationDescription<E> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);

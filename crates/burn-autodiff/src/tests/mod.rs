@@ -33,8 +33,10 @@ mod maxpool1d;
 mod maxpool2d;
 mod mul;
 mod multithread;
+mod nearest_interpolate;
 mod neg;
 mod nonzero;
+mod permute;
 mod pow;
 mod recip;
 mod relu;
@@ -76,6 +78,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_adaptive_avg_pool1d!();
         burn_autodiff::testgen_ad_adaptive_avg_pool2d!();
         burn_autodiff::testgen_module_backward!();
+        burn_autodiff::testgen_ad_nearest_interpolate!();
 
         // Tensor
         burn_autodiff::testgen_ad_complex!();
@@ -109,6 +112,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_sigmoid!();
         burn_autodiff::testgen_ad_transpose!();
+        burn_autodiff::testgen_ad_permute!();
         burn_autodiff::testgen_ad_nonzero!();
     };
 }

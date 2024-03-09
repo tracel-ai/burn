@@ -41,7 +41,7 @@ hashbrown = "0.14.2"
 indicatif = "0.17.8"
 js-sys = "0.3.68"
 libm = "0.2.8"
-log = { default-features = false, version = "0.4.20" }
+log = { default-features = false, version = "0.4.21" }
 pretty_assertions = "1.4"
 proc-macro2 = "1.0.69"
 protobuf = "3.3"

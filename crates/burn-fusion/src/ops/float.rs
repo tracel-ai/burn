@@ -8,7 +8,7 @@ use crate::{
         BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
         ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
         MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-        Operation, OperationDescription, RandomOperationDescription,
+        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
         ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
         ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
         SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
@@ -1802,6 +1802,46 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream_1, stream_2],
             OperationDescription::NumericFloat(NumericOperationDescription::Powf(desc.clone())),
             PowOps::<D>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        #[derive(new)]
+        struct PermuteDimsOps<const D: usize> {
+            desc: PermuteOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
+                let axes: [usize; D] = self.desc.axes.try_into().unwrap();
+                let output = B::float_permute(input, axes);
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        // Change the shape of the tensor to match the new axes
+        let shape = axes.into_iter().map(|x| tensor.shape[x]).collect();
+
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = PermuteOperationDescription {
+            input: tensor.into_description(),
+            axes: axes.to_vec(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
+            PermuteDimsOps::<D>::new(desc),
         );
 
         out
