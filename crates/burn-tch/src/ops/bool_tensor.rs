@@ -1,26 +1,32 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchTensor};
+use crate::{DynTchTensor, element::TchElement, LibTorch, LibTorchDevice, TchTensor};
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Data, Reader, Shape};
 use std::ops::Range;
+use burn_tensor::ops::BoolTensor;
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
-    fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
-        device: &LibTorchDevice,
+    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+        TchTensor::new(dyn_tensor.tensor)
+    }
+
+    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        DynTchTensor::new(tensor.tensor)
+    }
+
+    fn bool_empty<const D: usize>(
+        shape: Shape<D>,
+        device: &<LibTorch<E> as Backend>::Device,
     ) -> TchTensor<bool, D> {
-        TchTensor::from_data(data, (*device).into())
+        let tensor = tch::Tensor::empty(
+            shape.dims.map(|a| a as i64),
+            (tch::Kind::Bool, (*device).into()),
+        );
+
+        TchTensor::new(tensor)
     }
 
     fn bool_shape<const D: usize>(tensor: &TchTensor<bool, D>) -> Shape<D> {
         tensor.shape()
-    }
-
-    fn bool_repeat<const D: usize>(
-        tensor: TchTensor<bool, D>,
-        dim: usize,
-        times: usize,
-    ) -> TchTensor<bool, D> {
-        TchOps::repeat(tensor, dim, times)
     }
 
     fn bool_into_data<const D: usize>(tensor: TchTensor<bool, D>) -> Reader<Data<bool, D>> {
@@ -29,6 +35,27 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
 
         Reader::Concrete(Data::new(values.unwrap(), shape))
+    }
+
+    fn bool_from_data<const D: usize>(
+        data: Data<bool, D>,
+        device: &LibTorchDevice,
+    ) -> TchTensor<bool, D> {
+        TchTensor::from_data(data, (*device).into())
+    }
+
+    fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
+        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
+        TchTensor::new(tensor)
+    }
+
+    fn bool_into_float<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<E, D> {
+        let tensor = tensor.tensor.to_kind(E::KIND);
+        TchTensor::new(tensor)
+    }
+
+    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> LibTorchDevice {
+        tensor.tensor.device().into()
     }
 
     fn bool_to_device<const D: usize>(
@@ -45,22 +72,6 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::reshape(tensor, shape)
     }
 
-    fn bool_device<const D: usize>(tensor: &TchTensor<bool, D>) -> LibTorchDevice {
-        tensor.tensor.device().into()
-    }
-
-    fn bool_empty<const D: usize>(
-        shape: Shape<D>,
-        device: &<LibTorch<E> as Backend>::Device,
-    ) -> TchTensor<bool, D> {
-        let tensor = tch::Tensor::empty(
-            shape.dims.map(|a| a as i64),
-            (tch::Kind::Bool, (*device).into()),
-        );
-
-        TchTensor::new(tensor)
-    }
-
     fn bool_slice<const D1: usize, const D2: usize>(
         tensor: TchTensor<bool, D1>,
         ranges: [Range<usize>; D2],
@@ -74,6 +85,14 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         value: TchTensor<bool, D1>,
     ) -> TchTensor<bool, D1> {
         TchOps::slice_assign(tensor, ranges, value)
+    }
+
+    fn bool_repeat<const D: usize>(
+        tensor: TchTensor<bool, D>,
+        dim: usize,
+        times: usize,
+    ) -> TchTensor<bool, D> {
+        TchOps::repeat(tensor, dim, times)
     }
 
     fn bool_cat<const D: usize>(
@@ -95,16 +114,6 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
             |mut tensor| tensor.eq_(0).to_kind(tch::Kind::Bool),
             |tensor| tensor.eq(0),
         )
-    }
-
-    fn bool_into_int<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<i64, D> {
-        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
-        TchTensor::new(tensor)
-    }
-
-    fn bool_into_float<const D: usize>(tensor: TchTensor<bool, D>) -> TchTensor<E, D> {
-        let tensor = tensor.tensor.to_kind(E::KIND);
-        TchTensor::new(tensor)
     }
 
     fn bool_swap_dims<const D: usize>(

@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, IntTensorOps};
 use burn_tensor::{ElementConversion, Reader};
 use core::ops::Range;
-use ndarray::ArcArray;
 
 // Current crate
 use crate::element::FloatNdArrayElement;

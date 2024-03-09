@@ -2,6 +2,7 @@ use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Data, Device, Reader, Shape,
 };
+use burn_tensor::backend::Backend;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -9,6 +10,14 @@ use crate::{
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
+    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+        CandleTensor::new(dyn_tensor)
+    }
+
+    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        tensor.tensor
+    }
+
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::base::empty(shape, device)
     }

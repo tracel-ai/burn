@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use burn_tensor::backend::Backend;
-use candle_core::DeviceLocation;
+use burn_tensor::{DynData, DynRankData, Element};
+use candle_core::{DType, DeviceLocation, WithDType};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -66,6 +67,27 @@ impl Default for CandleDevice {
     }
 }
 
+fn candle_tensor_from_dyn_rank_data<E: Element + WithDType>(
+    dyn_rank_data: DynRankData<E>,
+    device: &CandleDevice,
+) -> candle_core::Tensor {
+    candle_core::Tensor::from_slice(&dyn_rank_data.value, dyn_rank_data.shape, &(*device).into())
+        .unwrap()
+}
+
+fn dyn_rank_data_from_candle_tensor<E: Element + WithDType>(tensor: candle_core::Tensor) -> DynRankData<E> {
+    let shape = tensor.shape().clone().into_dims();
+
+    DynRankData::new(
+        tensor
+            .reshape(&[tensor.elem_count()])
+            .unwrap()
+            .try_into()
+            .unwrap(),
+        shape,
+    )
+}
+
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
@@ -73,19 +95,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type FullPrecisionElem = f32;
 
     type FloatTensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
-    type DynRankFloatTensorPrimitive = candle_core::Tensor;
     type FloatElem = F;
 
     type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
-    type DynRankIntTensorPrimitive = candle_core::Tensor;
     type IntElem = I;
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
-    type DynRankBoolTensorPrimitive = candle_core::Tensor;
-
-    fn ad_enabled() -> bool {
-        false
-    }
+    type DynTensorPrimitive = candle_core::Tensor;
 
     fn name() -> String {
         "candle".to_string()
@@ -94,5 +110,38 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn seed(seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
+    }
+
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
+        match data {
+            DynData::Float(float_data) => {
+                candle_tensor_from_dyn_rank_data(float_data.convert::<Self::FloatElem>(), device)
+            }
+            DynData::Int(int_data) => candle_tensor_from_dyn_rank_data(int_data, device),
+            DynData::Bool(bool_data) => candle_tensor_from_dyn_rank_data(
+                DynRankData::new(
+                    bool_data.value.into_iter().map(|boolean| boolean as u8).collect(),
+                    bool_data.shape,
+                ),
+                device,
+            ),
+        }
+    }
+
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+        match dyn_tensor.dtype() {
+            DType::U8 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::U32 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::I64 => DynData::Int(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::BF16 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::F16 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::F32 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+            DType::F64 => DynData::Float(dyn_rank_data_from_candle_tensor(dyn_tensor)),
+        }
     }
 }

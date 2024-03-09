@@ -1,4 +1,4 @@
-use burn_tensor::{backend::{AutodiffBackend, Backend}, container::TensorContainer, DynPrimBackend, DynTensor, Tensor};
+use burn_tensor::{backend::AutodiffBackend, container::TensorContainer, DynPrimBackend, DynTensor, Tensor};
 
 use crate::module::{AutodiffModule, ParamId};
 

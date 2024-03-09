@@ -2,7 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::ops::{BoolTensor, IntTensor, IntTensorOps};
+use burn_tensor::ops::{IntTensor, IntTensorOps};
 use burn_tensor::{Distribution, Reader};
 
 use burn_tensor::ElementConversion;

@@ -2,6 +2,7 @@ use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Bool, Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
+use burn_tensor::backend::Backend;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -9,6 +10,14 @@ use crate::{
 };
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
+    fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
+        CandleTensor::new(dyn_tensor)
+    }
+
+    fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        tensor.tensor
+    }
+
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::base::empty(shape, device)
     }

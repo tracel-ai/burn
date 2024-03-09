@@ -211,6 +211,29 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
     }
 }
 
+#[derive(Debug)]
+pub struct DynTchTensor {
+    pub tensor: tch::Tensor,
+}
+
+impl DynTchTensor {
+    pub fn new(tensor: tch::Tensor) -> Self {
+        Self { tensor }
+    }
+}
+
+// This is safe since we don't use autodiff from LibTorch.
+unsafe impl Send for DynTchTensor {}
+unsafe impl Sync for DynTchTensor {}
+
+impl Clone for DynTchTensor {
+    fn clone(&self) -> Self {
+        Self {
+            tensor: self.tensor.shallow_clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod utils {
     use super::*;
