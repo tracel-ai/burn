@@ -49,7 +49,7 @@ protobuf-codegen = "3.3"
 quote = "1.0.33"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.23.0" }
-rayon = "1.8.0"
+rayon = "1.9.0"
 regex = "1.10.2"
 reqwest = "0.11.24"
 rmp-serde = "1.1.2"
