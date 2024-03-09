@@ -131,4 +131,21 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     ) -> Vec<TchTensor<bool, D>> {
         TchOps::chunk(tensor, chunks, dim)
     }
+
+    fn bool_argwhere<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> TchTensor<i64, 2> {
+        TchTensor::new(tensor.tensor.argwhere())
+    }
+
+    fn bool_nonzero<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::BoolTensorPrimitive<D>,
+    ) -> Vec<TchTensor<i64, 1>> {
+        tensor
+            .tensor
+            .nonzero_numpy()
+            .into_iter()
+            .map(TchTensor::new)
+            .collect()
+    }
 }

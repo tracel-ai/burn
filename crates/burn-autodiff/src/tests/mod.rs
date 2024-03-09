@@ -34,6 +34,7 @@ mod maxpool2d;
 mod mul;
 mod multithread;
 mod neg;
+mod nonzero;
 mod pow;
 mod recip;
 mod relu;
@@ -108,5 +109,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_sigmoid!();
         burn_autodiff::testgen_ad_transpose!();
+        burn_autodiff::testgen_ad_nonzero!();
     };
 }

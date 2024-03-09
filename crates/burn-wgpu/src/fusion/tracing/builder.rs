@@ -186,6 +186,32 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    gpu::Operator::Max(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+
+                    gpu::Operator::Min(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::And(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Or(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    gpu::Operator::Not(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     gpu::Operator::Index(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -327,6 +353,9 @@ impl TraceBuilder {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
                 Operation::Branch(_) => {
+                    // Nothing to do, should never impact read-write access to bindings.
+                }
+                Operation::Synchronization(_) => {
                     // Nothing to do, should never impact read-write access to bindings.
                 }
             }

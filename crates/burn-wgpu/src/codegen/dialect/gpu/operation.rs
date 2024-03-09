@@ -1,4 +1,4 @@
-use super::{Branch, Procedure, Variable};
+use super::{Branch, Procedure, Synchronization, Variable};
 use serde::{Deserialize, Serialize};
 
 /// All operations that can be used in a GPU compute shader.
@@ -16,6 +16,7 @@ pub enum Operation {
     Procedure(Procedure),
     Metadata(Metadata),
     Branch(Branch),
+    Synchronization(Synchronization),
 }
 
 /// All operators that can be used in a GPU compute shader.
@@ -47,6 +48,11 @@ pub enum Operator {
     Modulo(BinaryOperator),
     Index(BinaryOperator),
     IndexAssign(BinaryOperator),
+    And(BinaryOperator),
+    Or(BinaryOperator),
+    Not(UnaryOperator),
+    Max(BinaryOperator),
+    Min(BinaryOperator),
 }
 
 /// All metadata that can be access in a shader.
@@ -112,6 +118,12 @@ impl From<Operator> for Operation {
 impl From<Branch> for Operation {
     fn from(value: Branch) -> Self {
         Self::Branch(value)
+    }
+}
+
+impl From<Synchronization> for Operation {
+    fn from(value: Synchronization) -> Self {
+        Self::Synchronization(value)
     }
 }
 

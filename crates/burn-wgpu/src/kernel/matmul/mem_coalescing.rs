@@ -30,7 +30,7 @@ struct MatmulComputeShader {
 impl MatmulComputeShader {
     fn expand(self, scope: &mut Scope) {
         // Define out global variables.
-        let local_idx = Variable::InvocationIndex;
+        let local_idx = Variable::LocalInvocationIndex;
         let batch = Variable::GlobalInvocationIdZ;
         let rank = Variable::Rank;
         let block_size: Variable = self.block_size.into();

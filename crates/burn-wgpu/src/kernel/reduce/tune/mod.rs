@@ -1,8 +1,5 @@
 mod base;
 mod key;
-mod mean_dim;
-mod sum_dim;
 
+pub(crate) use base::*;
 pub use key::*;
-pub use mean_dim::*;
-pub use sum_dim::*;
