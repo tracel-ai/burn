@@ -26,17 +26,13 @@ pub struct FusionTensor<C: FusionClient> {
 
 impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "{{ id: {:?}, shape: {:?}, should_drop: {:?}, backend: {:?}, device: {:?} }}",
-                self.id,
-                self.shape,
-                self.is_orphan,
-                <C::FusionBackend as Backend>::name(),
-                self.client.device().clone().into(),
-            )
-            .as_str(),
-        )
+        f.debug_struct("FusionTensor")
+            .field("id", &self.id)
+            .field("shape", &self.shape)
+            .field("should_drop", &self.is_orphan)
+            .field("backend", &<C::FusionBackend as Backend>::name())
+            .field("device", self.client.device().clone().into())
+            .finish()
     }
 }
 

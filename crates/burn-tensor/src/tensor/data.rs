@@ -14,11 +14,21 @@ pub enum DynData<FElem: Element, IElem: Element> {
 }
 
 impl<FElem: Element, IElem: Element> DynData<FElem, IElem> {
-    pub fn convert<FElemOther: Element, IElemOther: Element>(self) -> DynData<FElemOther, IElemOther> {
+    pub fn convert<FElemOther: Element, IElemOther: Element>(
+        self,
+    ) -> DynData<FElemOther, IElemOther> {
         match self {
             DynData::Float(data) => DynData::Float(data.convert()),
             DynData::Int(data) => DynData::Int(data.convert()),
             DynData::Bool(data) => DynData::Bool(data),
+        }
+    }
+
+    pub fn shape(&self) -> &[usize] {
+        match self {
+            DynData::Float(dyn_rank_data) => &dyn_rank_data.shape,
+            DynData::Int(dyn_rank_data) => &dyn_rank_data.shape,
+            DynData::Bool(dyn_rank_data) => &dyn_rank_data.shape,
         }
     }
 }

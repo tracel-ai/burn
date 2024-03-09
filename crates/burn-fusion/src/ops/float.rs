@@ -1,28 +1,33 @@
-use crate::{
-    binary_float_cmp_ops, binary_float_ops,
-    client::FusionClient,
-    get_client,
-    ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
-    stream::{
-        BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
-        ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
-        MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
-        Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-        ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
-        ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-        SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
-        UnaryOperationDescription,
-    },
-    unary_float_ops, Fusion, FusionBackend, TensorDescription,
-};
+use crate::{binary_float_cmp_ops, binary_float_ops, client::FusionClient, get_client, ops::binary::binary_ops_shape, scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops, stream::{
+    BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
+    ClampOperationDescription, FloatOperationDescription, GatherOperationDescription,
+    MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+    Operation, OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+    ReduceDimWithIndicesDescription, ReshapeDescription, ScalarOperationDescription,
+    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+    SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
+    UnaryOperationDescription,
+}, unary_float_ops, Fusion, FusionBackend, TensorDescription, DynFusionTensor};
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
+use burn_tensor::backend::Backend;
+use crate::backend::DataType;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
+    fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
+        dyn_tensor.tensor
+    }
+
+    fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        DynFusionTensor {
+            data_type: DataType::Float,
+            tensor,
+        }
+    }
+
     fn float_from_data<const D: usize>(
         data: Data<FloatElem<Self>, D>,
         device: &Device<Self>,
@@ -36,6 +41,12 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             shape.dims.into(),
             StreamId::current(),
         )
+    }
+
+    fn float_into_data<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+    ) -> Reader<Data<FloatElem<Self>, D>> {
+        tensor.into_data()
     }
 
     fn float_random<const D: usize>(
@@ -170,12 +181,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
         tensor.shape()
-    }
-
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-    ) -> Reader<Data<FloatElem<Self>, D>> {
-        tensor.into_data()
     }
 
     fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
@@ -514,6 +519,24 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        unary_float_ops!(Recip, B::float_recip);
+
+        let stream = tensor.stream;
+        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::Float(FloatOperationDescription::Recip(desc.clone())),
+            Recip::<D>::new(desc),
+        );
+
+        out
+    }
+
     fn float_swap_dims<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim1: usize,
@@ -551,6 +574,46 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             SwapDimsOps::<D>::new(desc),
         );
         out.stream = stream;
+
+        out
+    }
+
+    fn float_permute<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        axes: [usize; D],
+    ) -> FloatTensor<Self, D> {
+        #[derive(new)]
+        struct PermuteDimsOps<const D: usize> {
+            desc: PermuteOperationDescription,
+        }
+
+        impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
+            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
+                let input = handles.get_float_tensor::<D>(&self.desc.input);
+                let axes: [usize; D] = self.desc.axes.try_into().unwrap();
+                let output = B::float_permute(input, axes);
+                handles.register_float_tensor(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+
+        // Change the shape of the tensor to match the new axes
+        let shape = axes.into_iter().map(|x| tensor.shape[x]).collect();
+
+        let out = tensor.client.tensor_uninitialized(shape);
+
+        let desc = PermuteOperationDescription {
+            input: tensor.into_description(),
+            axes: axes.to_vec(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
+            PermuteDimsOps::<D>::new(desc),
+        );
 
         out
     }
@@ -1351,6 +1414,32 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_powf<const D: usize>(
+        lhs: FloatTensor<Self, D>,
+        rhs: FloatTensor<Self, D>,
+    ) -> FloatTensor<Self, D> {
+        binary_float_ops!(PowOps, B::float_powf);
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(NumericOperationDescription::Powf(desc.clone())),
+            PowOps::<D>::new(desc),
+        );
+
+        out
+    }
+
     fn float_powf_scalar<const D: usize>(
         lhs: FloatTensor<Self, D>,
         rhs: f32,
@@ -1464,24 +1553,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::Float(FloatOperationDescription::Tanh(desc.clone())),
             TanhOps::<D>::new(desc),
-        );
-
-        out
-    }
-
-    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
-        unary_float_ops!(Recip, B::float_recip);
-
-        let stream = tensor.stream;
-        let out = tensor.client.tensor_uninitialized(tensor.shape.clone());
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Recip(desc.clone())),
-            Recip::<D>::new(desc),
         );
 
         out
@@ -1779,71 +1850,5 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         );
 
         (out, out_indices)
-    }
-
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
-        binary_float_ops!(PowOps, B::float_powf);
-        let stream_1 = lhs.stream;
-        let stream_2 = rhs.stream;
-
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape));
-
-        let desc = BinaryOperationDescription {
-            lhs: lhs.into_description(),
-            rhs: rhs.into_description(),
-            out: out.to_description_out(),
-        };
-        out.client.register(
-            vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Powf(desc.clone())),
-            PowOps::<D>::new(desc),
-        );
-
-        out
-    }
-
-    fn float_permute<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        axes: [usize; D],
-    ) -> FloatTensor<Self, D> {
-        #[derive(new)]
-        struct PermuteDimsOps<const D: usize> {
-            desc: PermuteOperationDescription,
-        }
-
-        impl<const D: usize, B: FusionBackend> Operation<B> for PermuteDimsOps<D> {
-            fn execute(self: Box<Self>, handles: &mut crate::HandleContainer<B>) {
-                let input = handles.get_float_tensor::<D>(&self.desc.input);
-                let axes: [usize; D] = self.desc.axes.try_into().unwrap();
-                let output = B::float_permute(input, axes);
-                handles.register_float_tensor(&self.desc.out.id, output);
-            }
-        }
-
-        let stream = tensor.stream;
-
-        // Change the shape of the tensor to match the new axes
-        let shape = axes.into_iter().map(|x| tensor.shape[x]).collect();
-
-        let out = tensor.client.tensor_uninitialized(shape);
-
-        let desc = PermuteOperationDescription {
-            input: tensor.into_description(),
-            axes: axes.to_vec(),
-            out: out.to_description_out(),
-        };
-
-        out.client.register(
-            vec![stream],
-            OperationDescription::BaseInt(BaseOperationDescription::Permute(desc.clone())),
-            PermuteDimsOps::<D>::new(desc),
-        );
-
-        out
     }
 }

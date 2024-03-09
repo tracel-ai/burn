@@ -7,15 +7,33 @@ use crate::{
         CatOperationDescription, Operation, OperationDescription, PermuteOperationDescription,
         ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription, StreamId,
         SwapDimsDescription, UnaryOperationDescription,
-    },
-    Fusion, FusionBackend,
+    }, Fusion, FusionBackend,
 };
+use burn_tensor::backend::Backend;
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps},
     Device, Shape,
 };
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
+    fn bool_from_dyn<const D: usize>(
+        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
+    ) -> BoolTensor<Self, D> {
+        let tensor = B::bool_from_dyn(dyn_tensor);
+
+        get_client(B::bool_device(&tensor)).register_tensor(
+            B::bool_tensor_handle(tensor),
+            B::bool_shape(&tensor).dims.into(),
+            StreamId::current()
+        )
+    }
+
+    fn bool_into_dyn<const D: usize>(
+        tensor: BoolTensor<Self, D>,
+    ) -> <Self as Backend>::DynTensorPrimitive {
+
+    }
+
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         let client = get_client::<B>(&device.clone().into());
         let tensor = B::bool_empty(shape.clone(), device);

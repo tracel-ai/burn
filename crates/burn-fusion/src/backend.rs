@@ -1,10 +1,12 @@
+use crate::stream::StreamId;
 use crate::{
     client::FusionClient,
     stream::{Context, OperationDescription},
     FusionClientLocator, FusionTensor,
 };
-use burn_tensor::{backend::Backend, Device, Shape};
+use burn_tensor::{backend::Backend, Device, DynData, Shape};
 use serde::{de::DeserializeOwned, Serialize};
+use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
@@ -36,6 +38,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
 
+    type DynTensorPrimitive = B::DynTensorPrimitive;
+
     fn name() -> String {
         format!("fusion<{}>", B::name())
     }
@@ -48,6 +52,19 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
         client.drain();
         B::sync(device)
+    }
+
+    fn dyn_from_data(
+        data: DynData<Self::FullPrecisionElem, Self::IntElem>,
+        device: &Self::Device,
+    ) -> Self::DynTensorPrimitive {
+        B::dyn_from_data(data, device)
+    }
+
+    fn dyn_into_data(
+        dyn_tensor: Self::DynTensorPrimitive,
+    ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
+        B::dyn_into_data(dyn_tensor)
     }
 }
 

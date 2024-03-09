@@ -985,12 +985,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         #[derive(Debug)]
         struct Interpolate;
         impl<B: Backend> Backward<B, 4, 1> for Interpolate {
-            type State = (NodeID, [usize; 2], InterpolateOptions);
+            type State = (NodeId, [usize; 2], InterpolateOptions);
 
             fn backward(
                 self,
                 ops: Ops<Self::State, 1>,
-                grads: &mut Gradients,
+                grads: &mut Gradients<B::DynTensorPrimitive>,
                 checkpointer: &mut Checkpointer,
             ) {
                 let [node_parent] = ops.parents;
