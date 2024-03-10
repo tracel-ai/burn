@@ -465,4 +465,10 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     ) -> burn_tensor::ops::IntTensor<Self, D> {
         TchOps::permute(tensor, axes)
     }
+
+    fn int_sign<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::IntTensorPrimitive<D>,
+    ) -> <LibTorch<E> as Backend>::IntTensorPrimitive<D> {
+        TchOps::sign(tensor)
+    }
 }

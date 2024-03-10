@@ -474,4 +474,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
         TchOps::permute(tensor, axes)
     }
+
+    fn float_sign<const D: usize>(
+        tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
+    ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
+        TchOps::sign(tensor)
+    }
 }

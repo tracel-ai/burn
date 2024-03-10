@@ -352,4 +352,8 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     ) -> IntTensor<Self, D> {
         B::int_permute(tensor, axes)
     }
+
+    fn int_sign<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+        B::int_sign(tensor)
+    }
 }
