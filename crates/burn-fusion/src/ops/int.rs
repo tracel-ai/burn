@@ -7,25 +7,32 @@ use crate::{binary_int_cmp_ops, binary_int_ops, client::FusionClient, get_client
     ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
     SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
     UnaryOperationDescription,
-}, unary_int_ops, Fusion, FusionBackend, TensorDescription, DynFusionTensor};
+}, unary_int_ops, Fusion, FusionBackend, TensorDescription};
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use core::ops::Range;
 use burn_tensor::backend::Backend;
-use crate::backend::DataType;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> IntTensor<Self, D> {
-        dyn_tensor.tensor
+        let base_tensor = B::int_from_dyn::<D>(dyn_tensor);
+        let client = get_client::<B>(&B::int_device(&base_tensor).into());
+        let shape = B::int_shape(&base_tensor);
+
+        client.register_tensor(
+            B::int_tensor_handle(base_tensor),
+            shape.dims.into(),
+            StreamId::current()
+        )
     }
 
     fn int_into_dyn<const D: usize>(tensor: IntTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        DynFusionTensor {
-            data_type: DataType::Int,
-            tensor,
-        }
+        let client = get_client::<B>(&Self::int_device::<D>(&tensor).into());
+        let base_tensor = client.server().lock().handles.get_int_tensor(&tensor.into_description());
+
+        B::int_into_dyn::<D>(base_tensor)
     }
 
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {

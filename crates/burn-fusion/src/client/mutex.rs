@@ -41,6 +41,10 @@ where
         }
     }
 
+    fn server(&self) -> &Arc<Mutex<FusionServer<Self::FusionBackend>>> {
+        &self.server
+    }
+
     fn register<O: Operation<Self::FusionBackend> + 'static>(
         &self,
         streams: Vec<StreamId>,
@@ -56,6 +60,9 @@ where
         let id = StreamId::current();
         self.server.lock().drain_stream(id);
     }
+    fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice {
+        &self.device
+    }
 
     fn tensor_uninitialized(&self, shape: Vec<usize>) -> FusionTensor<Self> {
         let id = self.server.lock().create_empty_handle();
@@ -63,9 +70,6 @@ where
         FusionTensor::new(id, shape, self.clone(), StreamId::current())
     }
 
-    fn device(&self) -> &<Self::FusionBackend as FusionBackend>::FusionDevice {
-        &self.device
-    }
     fn register_tensor(
         &self,
         handle: Handle<Self::FusionBackend>,

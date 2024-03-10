@@ -31,7 +31,7 @@ impl<C: FusionClient> core::fmt::Debug for FusionTensor<C> {
             .field("shape", &self.shape)
             .field("should_drop", &self.is_orphan)
             .field("backend", &<C::FusionBackend as Backend>::name())
-            .field("device", self.client.device().clone().into())
+            .field("device", &self.client.device().clone().into())
             .finish()
     }
 }

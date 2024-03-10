@@ -7,25 +7,32 @@ use crate::{binary_float_cmp_ops, binary_float_ops, client::FusionClient, get_cl
     ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
     SliceAssignOperationDescription, SliceOperationDescription, StreamId, SwapDimsDescription,
     UnaryOperationDescription,
-}, unary_float_ops, Fusion, FusionBackend, TensorDescription, DynFusionTensor};
+}, unary_float_ops, Fusion, FusionBackend, TensorDescription};
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
     Data, Device, Distribution, ElementConversion, Reader, Shape,
 };
 use std::ops::Range;
 use burn_tensor::backend::Backend;
-use crate::backend::DataType;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> FloatTensor<Self, D> {
-        dyn_tensor.tensor
+        let base_tensor = B::float_from_dyn::<D>(dyn_tensor);
+        let client = get_client::<B>(&B::float_device(&base_tensor).into());
+        let shape = B::float_shape(&base_tensor);
+
+        client.register_tensor(
+            B::float_tensor_handle(base_tensor),
+            shape.dims.into(),
+            StreamId::current()
+        )
     }
 
     fn float_into_dyn<const D: usize>(tensor: FloatTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
-        DynFusionTensor {
-            data_type: DataType::Float,
-            tensor,
-        }
+        let client = get_client::<B>(&Self::float_device::<D>(&tensor).into());
+        let base_tensor = client.server().lock().handles.get_float_tensor(&tensor.into_description());
+
+        B::float_into_dyn::<D>(base_tensor)
     }
 
     fn float_from_data<const D: usize>(

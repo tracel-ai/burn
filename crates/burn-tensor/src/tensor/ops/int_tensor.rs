@@ -16,10 +16,10 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// To implementors and users, this function should panic when the dynamic tensor provided
     /// doesn't have integer elements as needed.
-    fn int_from_dyn<const D: usize>(dyn_tensor: B::DynTensorPrimitive) -> IntTensor<B, D>;
+    fn int_from_dyn<const D: usize>(dyn_tensor: <B as Backend>::DynTensorPrimitive) -> IntTensor<B, D>;
 
     /// Converts from the backend's int tensor primitive, to a dynamic tensor primitive.
-    fn int_into_dyn<const D: usize>(tensor: IntTensor<B, D>) -> B::DynTensorPrimitive;
+    fn int_into_dyn<const D: usize>(tensor: IntTensor<B, D>) -> <B as Backend>::DynTensorPrimitive;
 
     /// Creates a new int tensor.
     ///

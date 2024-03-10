@@ -1,4 +1,3 @@
-use crate::stream::StreamId;
 use crate::{
     client::FusionClient,
     stream::{Context, OperationDescription},
@@ -6,7 +5,7 @@ use crate::{
 };
 use burn_tensor::{backend::Backend, Device, DynData, Shape};
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
@@ -58,13 +57,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         data: DynData<Self::FullPrecisionElem, Self::IntElem>,
         device: &Self::Device,
     ) -> Self::DynTensorPrimitive {
-        B::dyn_from_data(data, device)
+        B::dyn_from_data(data.convert(), device)
     }
 
     fn dyn_into_data(
         dyn_tensor: Self::DynTensorPrimitive,
     ) -> DynData<Self::FullPrecisionElem, Self::IntElem> {
-        B::dyn_into_data(dyn_tensor)
+        B::dyn_into_data(dyn_tensor).convert()
     }
 }
 

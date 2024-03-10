@@ -16,22 +16,23 @@ use burn_tensor::{
 };
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
-    fn bool_from_dyn<const D: usize>(
-        dyn_tensor: <Self as Backend>::DynTensorPrimitive,
-    ) -> BoolTensor<Self, D> {
-        let tensor = B::bool_from_dyn(dyn_tensor);
+    fn bool_from_dyn<const D: usize>(dyn_tensor: <Self as Backend>::DynTensorPrimitive) -> BoolTensor<Self, D> {
+        let base_tensor = B::bool_from_dyn::<D>(dyn_tensor);
+        let client = get_client::<B>(&B::bool_device(&base_tensor).into());
+        let shape = B::bool_shape(&base_tensor);
 
-        get_client(B::bool_device(&tensor)).register_tensor(
-            B::bool_tensor_handle(tensor),
-            B::bool_shape(&tensor).dims.into(),
+        client.register_tensor(
+            B::bool_tensor_handle(base_tensor),
+            shape.dims.into(),
             StreamId::current()
         )
     }
 
-    fn bool_into_dyn<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-    ) -> <Self as Backend>::DynTensorPrimitive {
+    fn bool_into_dyn<const D: usize>(tensor: BoolTensor<Self, D>) -> <Self as Backend>::DynTensorPrimitive {
+        let client = get_client::<B>(&Self::bool_device::<D>(&tensor).into());
+        let base_tensor = client.server().lock().handles.get_bool_tensor(&tensor.into_description());
 
+        B::bool_into_dyn::<D>(base_tensor)
     }
 
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
