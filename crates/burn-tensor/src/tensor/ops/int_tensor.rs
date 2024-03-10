@@ -985,6 +985,16 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor with the dimensions permuted.
     fn int_permute<const D: usize>(tensor: IntTensor<B, D>, axes: [usize; D]) -> IntTensor<B, D>;
 
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn int_flip<const D: usize>(tensor: IntTensor<B, D>, axes: &[usize]) -> IntTensor<B, D>;
+
     /// Returns a new tensor with the given dimension narrowed to the given range.
     ///
     /// # Arguments

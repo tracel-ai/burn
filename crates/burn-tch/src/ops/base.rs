@@ -446,6 +446,12 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor)
     }
 
+    pub fn flip<const D: usize>(tensor: TchTensor<E, D>, axes: &[usize]) -> TchTensor<E, D> {
+        let dims = axes.iter().map(|x| *x as i64).collect::<Vec<_>>();
+        let tensor = tensor.tensor.flip(dims);
+        TchTensor::new(tensor)
+    }
+
     pub fn narrow<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,

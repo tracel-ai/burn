@@ -19,6 +19,7 @@ mod div;
 mod erf;
 mod exp;
 mod flatten;
+mod flip;
 mod full;
 mod gather_scatter;
 mod init;
