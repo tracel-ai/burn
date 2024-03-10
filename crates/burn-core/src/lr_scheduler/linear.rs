@@ -43,7 +43,7 @@ impl LinearLrSchedulerConfig {
 
 /// A linear learning rate scheduler.
 ///
-/// See [LinearLrSchedulerConfig](LinearLrSchedulerConfig) for more information.
+/// See [LinearLrSchedulerConfig] for more information.
 #[derive(Clone, Copy, Debug)]
 pub struct LinearLrScheduler {
     // The previous iteration's learning rate.
