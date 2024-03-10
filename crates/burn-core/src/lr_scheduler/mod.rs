@@ -1,7 +1,10 @@
 /// Constant learning rate scheduler
 pub mod constant;
 
-/// Noam Learning rate schedule
+/// Linear learning rate scheduler
+pub mod linear;
+
+/// Noam learning rate scheduler
 pub mod noam;
 
 mod base;
