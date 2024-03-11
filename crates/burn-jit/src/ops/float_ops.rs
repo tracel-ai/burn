@@ -450,13 +450,6 @@ impl<R: Runtime> FloatTensorOps<Self> for JitBackend<R> {
         )
     }
 
-    fn float_cat<const D: usize>(
-        tensors: Vec<FloatTensor<Self, D>>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
-        kernel::cat(tensors, dim)
-    }
-
     fn float_argmax<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,

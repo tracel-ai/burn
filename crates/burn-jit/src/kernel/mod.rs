@@ -1,7 +1,6 @@
 mod base;
 mod binary;
 mod cast;
-mod cat;
 mod clamp;
 mod comparison;
 mod contiguous;
@@ -31,7 +30,6 @@ pub mod prng;
 /// Reduction algorithms
 pub mod reduce;
 
-pub(crate) use cat::*;
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;

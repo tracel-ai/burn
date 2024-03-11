@@ -1056,7 +1056,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the concatenated tensors along `dim`.
-    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D>;
+    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
+        todo!()
+    }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
