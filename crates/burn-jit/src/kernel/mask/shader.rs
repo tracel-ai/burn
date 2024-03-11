@@ -18,8 +18,6 @@ pub(crate) trait MaskStrategy: Send + Sync + 'static {
         index: Variable,
     ) -> Variable;
 
-    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable;
-
     fn value_info(value_item: Item) -> InputInfo;
     fn value_variable(value_item: Item) -> Variable;
 }
@@ -40,12 +38,10 @@ impl<E: JitElement> MaskStrategy for MaskFill<E> {
         masked_value
     }
 
-    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable {}
-
     fn value_info(value_item: Item) -> InputInfo {
         InputInfo::Scalar {
             elem: value_item.elem(),
-            size: 0,
+            size: 1,
         }
     }
 
@@ -72,10 +68,6 @@ impl<R: Runtime, E: JitElement, const D: usize> MaskStrategy for MaskWhere<R, E,
         gpu!(scope, masked_value = value[index]);
         masked_value
     }
-
-    // fn is_masked(&self, scope: &mut Scope, value_in_mask: Variable) -> Variable {
-    // todo!()
-    // }
 
     fn value_info(value_item: Item) -> InputInfo {
         InputInfo::Array {
@@ -108,7 +100,6 @@ pub(crate) struct MaskReadOnlyEagerKernel<
     EM: JitElement,
 > {
     reversed: bool,
-    value: M::Value,
     _mask_strategy: PhantomData<M>,
     _runtime: PhantomData<R>,
     _input_elem: PhantomData<EI>,

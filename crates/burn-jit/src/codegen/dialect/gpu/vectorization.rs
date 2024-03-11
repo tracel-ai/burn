@@ -55,6 +55,7 @@ impl Operator {
             Operator::Erf(op) => Operator::Erf(op.vectorize(vectorization)),
             Operator::Recip(op) => Operator::Recip(op.vectorize(vectorization)),
             Operator::Equal(op) => Operator::Equal(op.vectorize(vectorization)),
+            Operator::NotEqual(op) => Operator::NotEqual(op.vectorize(vectorization)),
             Operator::Lower(op) => Operator::Lower(op.vectorize(vectorization)),
             Operator::Clamp(op) => Operator::Clamp(op.vectorize(vectorization)),
             Operator::Greater(op) => Operator::Greater(op.vectorize(vectorization)),
