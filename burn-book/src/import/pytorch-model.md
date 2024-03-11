@@ -350,9 +350,9 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 ### Models containing enum modules
 
 Burn supports models containing enum modules with new-type variants (tuple with one item). Importing
-weights for such models is supported by using the `PyTorchFileRecorder` automatically. However, it
-should be noted that since the source weights file does not contain the enum variant information,
-the enum variant is picked based on the enum variant type. Let's consider the following example:
+weights for such models is automatically supported by the PyTorchFileRecorder. However, it should be
+noted that since the source weights file does not contain the enum variant information, the enum
+variant is picked based on the enum variant type. Let's consider the following example:
 
 ```rust
 #[derive(Module, Debug)]
@@ -396,7 +396,7 @@ Dtype: F32
 
 The weights will be imported into the `DwsConv` variant of the `Conv` enum module.
 
-If the variant types are identica, then the first variant is picked. Generally, it won't be a
+If the variant types are identical, then the first variant is picked. Generally, it won't be a
 problem since the variant types are usually different.
 
 ## Current known issues
