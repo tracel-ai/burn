@@ -524,4 +524,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     ) -> FloatTensor<Self, D> {
         permute(tensor, axes)
     }
+
+    // TODO add sign operator once Candle supports it:
+    // https://github.com/huggingface/candle/issues/1827
 }

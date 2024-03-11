@@ -190,6 +190,26 @@ pub enum Instruction {
     Loop {
         instructions: Vec<Instruction>,
     },
+    BitwiseAnd {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    BitwiseXor {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    ShiftLeft {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
+    ShiftRight {
+        lhs: Variable,
+        rhs: Variable,
+        out: Variable,
+    },
 }
 
 impl Display for Instruction {
@@ -428,6 +448,18 @@ for (var {i}: u32 = {start}; {i} < {end}; {i}++) {{
                     f.write_fmt(format_args!("{i}"))?;
                 }
                 f.write_str("}\n")
+            }
+            Instruction::BitwiseAnd { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} & {rhs};\n"))
+            }
+            Instruction::BitwiseXor { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} ^ {rhs};\n"))
+            }
+            Instruction::ShiftLeft { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} << {rhs};\n"))
+            }
+            Instruction::ShiftRight { lhs, rhs, out } => {
+                f.write_fmt(format_args!("{out} = {lhs} >> {rhs};\n"))
             }
         }
     }

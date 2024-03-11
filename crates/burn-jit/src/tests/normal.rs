@@ -25,7 +25,7 @@ mod tests {
     #[serial]
     fn empirical_mean_close_to_expectation() {
         TestBackend::seed(0);
-        let shape = [128, 128];
+        let shape = [100, 100];
         let device = Default::default();
         let mean = 10.;
         let tensor =
@@ -44,6 +44,7 @@ mod tests {
         let s = 1.;
         let tensor =
             Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Normal(mu, s), &device);
+
         let stats = calculate_bin_stats(
             tensor.into_data().value,
             6,

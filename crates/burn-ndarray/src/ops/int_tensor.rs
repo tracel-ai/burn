@@ -434,4 +434,8 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         let array = tensor.array.permuted_axes(axes.into_dimension());
         NdArrayTensor { array }
     }
+
+    fn int_sign<const D: usize>(tensor: NdArrayTensor<i64, D>) -> NdArrayTensor<i64, D> {
+        NdArrayMathOps::sign_op(tensor)
+    }
 }

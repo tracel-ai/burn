@@ -1303,4 +1303,23 @@ pub trait FloatTensorOps<B: Backend> {
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
         B::float_equal_elem(sum, (num_elems as f32).elem())
     }
+
+    /// Returns the signs of the float `tensor`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the signs from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
+    fn float_sign<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        let zeros = B::float_zeros(B::float_shape(&tensor), &B::float_device(&tensor));
+        let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
+        let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
+
+        let mut result = B::float_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
+        result = B::float_mask_fill(result, greater_than_zero, 1.0f32.elem());
+        result
+    }
 }
