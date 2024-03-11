@@ -49,7 +49,7 @@ pub struct LinearLrScheduler {
     // The previous iteration's learning rate.
     previous_lr: LearningRate,
     // The amount that the learning rate changes by on each iteration.
-    step_size: LearningRate,
+    step_size: f64,
     // The number of iterations left before reaching the final learning rate.
     remaining_iters: usize,
 }
