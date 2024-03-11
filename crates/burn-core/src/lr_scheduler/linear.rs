@@ -35,7 +35,7 @@ impl LinearLrSchedulerConfig {
 
         LinearLrScheduler {
             previous_lr: self.initial_lr,
-            step_size: (self.final_lr - self.initial_lr) / self.num_iters as LearningRate,
+            step_size: (self.final_lr - self.initial_lr) / self.num_iters as f64,
             remaining_iters: self.num_iters,
         }
     }
@@ -55,7 +55,7 @@ pub struct LinearLrScheduler {
 }
 
 impl<B: Backend> LrScheduler<B> for LinearLrScheduler {
-    type Record = (LearningRate, LearningRate, usize);
+    type Record = (LearningRate, f64, usize);
 
     fn step(&mut self) -> LearningRate {
         if self.remaining_iters > 0 {
