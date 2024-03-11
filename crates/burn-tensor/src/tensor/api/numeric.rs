@@ -668,12 +668,12 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    /// Create diagonal matrix.
+    /// Creates a new 2D tensor with  ones on the diagonal and zeros elsewhere.
     ///
     /// # Arguments
     ///
     /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize, device: &B::Device) -> Self {
+    pub fn eye(size: usize, device: &B::Device) -> Self {
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);

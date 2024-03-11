@@ -172,7 +172,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
 | --------------------------------------------------------------- | ---------------------------------------------- |
-| `Tensor::diagonal(size, device)`                                | N/A                                            |
+| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
 | `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
 | `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
 | `Tensor::zeros(shape)`                                          | `torch.zeros(shape)`                           |
