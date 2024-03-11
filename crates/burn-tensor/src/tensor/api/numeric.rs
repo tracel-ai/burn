@@ -668,7 +668,7 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    /// Creates a new 2D tensor with  ones on the diagonal and zeros elsewhere.
+    /// Creates a new 2D tensor with ones on the diagonal and zeros elsewhere.
     ///
     /// # Arguments
     ///
