@@ -8,6 +8,7 @@ mod conv2d;
 mod conv_transpose1d;
 mod conv_transpose2d;
 mod embedding;
+mod enum_module;
 mod group_norm;
 mod integer;
 mod key_remap;
