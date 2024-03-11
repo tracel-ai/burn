@@ -5,6 +5,7 @@ use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
 use ndarray::Array2;
 use ndarray::Zip;
+use num_traits::Signed;
 
 use burn_tensor::Shape;
 use ndarray::Axis;
@@ -479,6 +480,26 @@ where
         var_name: impl FnMut(E) -> E,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::new(lhs.array.mapv(var_name).into_shared())
+    }
+
+    pub(crate) fn sign_op<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D>
+    where
+        E: Signed,
+    {
+        NdArrayTensor::new(
+            tensor
+                .array
+                .mapv(|x| {
+                    if x > E::zero() {
+                        E::one()
+                    } else if x < E::zero() {
+                        -E::one()
+                    } else {
+                        E::zero()
+                    }
+                })
+                .into_shared(),
+        )
     }
 }
 

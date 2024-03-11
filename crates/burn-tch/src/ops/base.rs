@@ -472,4 +472,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             |lhs, rhs| lhs.f_pow(rhs).unwrap(),
         )
     }
+
+    pub fn sign<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, D> {
+        tensor.unary_ops(|mut tensor| tensor.sign_(), |tensor| tensor.sign())
+    }
 }
