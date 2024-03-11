@@ -39,7 +39,7 @@ gix-tempfile = { version = "11.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.14.2"
 indicatif = "0.17.8"
-js-sys = "0.3.68"
+js-sys = "0.3.69"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.21" }
 pretty_assertions = "1.4"
