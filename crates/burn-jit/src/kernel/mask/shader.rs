@@ -4,13 +4,10 @@ use crate::{
     codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
     gpu::{gpu, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable, Visibility},
     kernel::{DynamicKernelSource, SourceTemplate},
-    tensor::JitTensor,
     Compiler, JitElement, Runtime,
 };
 
 pub(crate) trait MaskStrategy: Send + Sync + 'static {
-    type Value: Send + Sync;
-
     fn mask(
         scope: &mut Scope,
         masked_value: Variable,
@@ -22,12 +19,9 @@ pub(crate) trait MaskStrategy: Send + Sync + 'static {
     fn value_variable(value_item: Item) -> Variable;
 }
 
-pub(crate) struct MaskFill<E> {
-    _elem: PhantomData<E>,
-}
-impl<E: JitElement> MaskStrategy for MaskFill<E> {
-    type Value = E;
+pub(crate) struct MaskFill;
 
+impl MaskStrategy for MaskFill {
     fn mask(
         scope: &mut Scope,
         masked_value: Variable,
@@ -50,15 +44,9 @@ impl<E: JitElement> MaskStrategy for MaskFill<E> {
     }
 }
 
-pub(crate) struct MaskWhere<R, E, const D: usize> {
-    reversed: bool,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
+pub(crate) struct MaskWhere;
 
-impl<R: Runtime, E: JitElement, const D: usize> MaskStrategy for MaskWhere<R, E, D> {
-    type Value = JitTensor<R, E, D>;
-
+impl MaskStrategy for MaskWhere {
     fn mask(
         scope: &mut Scope,
         masked_value: Variable,
@@ -150,6 +138,77 @@ impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelS
         let info = CompilationInfo {
             inputs: vec![input, mask, value],
             outputs: vec![out],
+            scope,
+        };
+
+        let settings = CompilationSettings::default();
+        let shader = Compilation::new(info).compile(settings);
+        let shader = <R::Compiler as Compiler>::compile(shader);
+        SourceTemplate::new(shader.to_string())
+    }
+
+    fn id(&self) -> String {
+        format!(
+            "{:?} rev={}",
+            core::any::TypeId::of::<Self>(),
+            self.reversed
+        )
+    }
+}
+
+#[derive(new)]
+pub(crate) struct MaskInplaceEagerKernel<
+    M: MaskStrategy,
+    R: Runtime,
+    EI: JitElement,
+    EM: JitElement,
+> {
+    reversed: bool,
+    _mask_strategy: PhantomData<M>,
+    _runtime: PhantomData<R>,
+    _input_elem: PhantomData<EI>,
+    _mask_elem: PhantomData<EM>,
+}
+
+impl<M: MaskStrategy, R: Runtime, EI: JitElement, EM: JitElement> DynamicKernelSource
+    for MaskInplaceEagerKernel<M, R, EI, EM>
+{
+    fn source(&self) -> crate::kernel::SourceTemplate {
+        let mut scope = Scope::root();
+        let tensor_item = EI::gpu_elem().into();
+        let mask_item = EM::gpu_elem().into();
+
+        let input = Variable::GlobalInputArray(0, tensor_item);
+        let mask = Variable::GlobalInputArray(1, mask_item);
+        let value = M::value_variable(tensor_item);
+
+        MaskShader::<EI, EM, M> {
+            input,
+            mask,
+            value,
+            output: input,
+            reversed: self.reversed,
+            _mask_strategy: PhantomData::<M>,
+            _input_elem: PhantomData::<EI>,
+            _mask_elem: PhantomData::<EM>,
+        }
+        .expand(&mut scope);
+
+        let input = InputInfo::Array {
+            item: tensor_item,
+            visibility: Visibility::ReadWrite,
+        };
+
+        let mask = InputInfo::Array {
+            item: mask_item,
+            visibility: Visibility::Read,
+        };
+
+        let value = M::value_info(tensor_item);
+
+        let info = CompilationInfo {
+            inputs: vec![input, mask, value],
+            outputs: vec![],
             scope,
         };
 
