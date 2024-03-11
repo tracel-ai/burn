@@ -381,15 +381,17 @@ fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElem
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<Handle<R::Server>> {
     // It is crucial that scalars follow this order: float, int, uint
-    let scalar_priorities: Vec<usize> = [E1::gpu_elem(), E2::gpu_elem(), E3::gpu_elem()]
-        .iter()
-        .map(|ty: &Elem| match ty {
-            Elem::Float => 0,
-            Elem::Int => 1,
-            Elem::UInt => 2,
-            Elem::Bool => panic!("Bool scalars are not supported"),
-        })
-        .collect();
+    let element_priority = |elem: Elem| match elem {
+        Elem::Float => 0,
+        Elem::Int => 1,
+        Elem::UInt => 2,
+        Elem::Bool => panic!("Bool scalars are not supported"),
+    };
+    let scalar_priorities: [usize; 3] = [
+        element_priority(E1::gpu_elem()),
+        element_priority(E2::gpu_elem()),
+        element_priority(E3::gpu_elem()),
+    ];
 
     let mut handles_scalars = Vec::new();
     for i in 0..3 {
