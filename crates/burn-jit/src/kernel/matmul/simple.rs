@@ -213,11 +213,11 @@ pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    matmul_mem_coalescing::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_simple::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_mem_coalescing<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,

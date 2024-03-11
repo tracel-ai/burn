@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 kernel_wgsl!(
     MatmulTiling2Dvec4Raw,
-    "../../../template/matmul/blocktiling_2d/vec4.wgsl"
+    "../../template/matmul/blocktiling_2d/vec4.wgsl"
 );
 
 #[derive(new, Debug)]
@@ -37,9 +37,7 @@ impl<E: JitElement> DynamicKernelSource for MatmulTiling2Dvec4<E> {
     }
 }
 
-/// Matrix multiplication using tiling 2d algorithm with
-/// vec4 primitive on both lhs and rhs
-pub fn matmul_tiling_2d_vec4<R: Runtime, E: JitElement, const D: usize>(
+pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,

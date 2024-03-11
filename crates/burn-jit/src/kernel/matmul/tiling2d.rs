@@ -15,7 +15,7 @@ use super::base::{make_info_handle, make_workgroup, B_K, B_M, B_N, WORKGROUP_SIZ
 
 kernel_wgsl!(
     MatmulTiling2DUnpaddedRaw,
-    "../../../template/matmul/blocktiling_2d/unpadded.wgsl"
+    "../../template/matmul/blocktiling_2d/unpadded.wgsl"
 );
 
 #[derive(new, Debug)]
@@ -45,7 +45,7 @@ impl<E: JitElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
 
 /// Matrix multiplication using tiling 2d algorithm with
 /// vec4 primitive on both lhs and rhs, with no padding needed
-pub fn matmul_tiling_2d_unpadded<R: Runtime, E: JitElement + Element, const D: usize>(
+pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
