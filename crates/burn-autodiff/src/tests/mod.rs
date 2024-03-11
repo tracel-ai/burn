@@ -43,6 +43,7 @@ mod relu;
 mod reshape;
 mod select;
 mod sigmoid;
+mod sign;
 mod sin;
 mod slice;
 mod softmax;
@@ -114,5 +115,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_transpose!();
         burn_autodiff::testgen_ad_permute!();
         burn_autodiff::testgen_ad_nonzero!();
+        burn_autodiff::testgen_ad_sign!();
     };
 }

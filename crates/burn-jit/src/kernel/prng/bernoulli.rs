@@ -1,53 +1,73 @@
-use crate::{
-    compute::StaticKernel,
-    element::JitElement,
-    kernel::{
-        prng::base::{make_args_buffer, make_info_buffer},
-        prng_workgroup, KernelSettings, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
-    },
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
 use burn_tensor::Shape;
 
-use super::base::Prng;
+use crate::{
+    gpu::{gpu, Elem, Scope, Variable},
+    kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
+    tensor::JitTensor,
+    JitElement, Runtime,
+};
 
-struct BernoulliPrng;
+use super::{random, Prng};
 
-impl StaticKernelSource for BernoulliPrng {
-    fn source() -> SourceTemplate {
-        Prng::source()
-            .register("num_args", "1")
-            .register(
-                "prng_loop",
-                include_str!("../../template/prng/bernoulli_inner_loop.wgsl"),
-            )
-            .add_template("fn cast_elem(e: bool) -> {{ elem }} {return {{elem}}(e);}")
+pub(crate) struct Bernoulli<E> {
+    probability: E,
+}
+
+impl<E: JitElement> Prng<E> for Bernoulli<E> {
+    fn args(self) -> Vec<E> {
+        vec![self.probability]
+    }
+
+    fn inner_loop(
+        scope: &mut Scope,
+        args: Vec<Variable>,
+        write_index_base: Variable,
+        n_invocations: Variable,
+        n_values_per_thread: usize,
+        state_0: Variable,
+        state_1: Variable,
+        state_2: Variable,
+        state_3: Variable,
+        output: Variable,
+    ) {
+        let prob = args[0];
+        gpu!(
+            scope,
+            range(0u32, n_values_per_thread).for_each(|i, scope| {
+                taus_step_0(scope, state_0);
+                taus_step_1(scope, state_1);
+                taus_step_2(scope, state_2);
+                lcg_step(scope, state_3);
+
+                let int_random = scope.create_local(Elem::UInt);
+                gpu!(scope, int_random = state_0 ^ state_1);
+                gpu!(scope, int_random = int_random ^ state_2);
+                gpu!(scope, int_random = int_random ^ state_3);
+
+                let float_random = scope.create_local(Elem::Float);
+                cast_uint_to_float(scope, int_random, float_random);
+
+                let bernoulli = scope.create_local(Elem::Bool);
+                gpu!(scope, bernoulli = float_random < prob);
+
+                let write_index = scope.create_local(Elem::UInt);
+                gpu!(scope, write_index = i * n_invocations);
+                gpu!(scope, write_index += write_index_base);
+                gpu!(scope, output[write_index] = bernoulli);
+            })
+        );
+    }
+
+    fn args_length() -> usize {
+        1
     }
 }
 
-/// Pseudo-random generator for bernoulli
+/// Pseudo-random generator with bernoulli distribution
 pub fn random_bernoulli<R: Runtime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
-    prob: E,
+    probability: E,
 ) -> JitTensor<R, E, D> {
-    const N_VALUES_PER_THREAD: usize = 128;
-
-    let client = R::client(device);
-    let output = empty_device(client.clone(), device.clone(), shape.clone());
-    let info_handle = make_info_buffer::<R>(client.clone(), N_VALUES_PER_THREAD);
-    let args_handle = make_args_buffer::<R, E>(client.clone(), &[prob]);
-    let workgroup = prng_workgroup(shape.num_elements(), WORKGROUP_DEFAULT, N_VALUES_PER_THREAD);
-    let kernel = StaticKernel::<
-        KernelSettings<BernoulliPrng, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(workgroup);
-
-    client.execute(
-        Box::new(kernel),
-        &[&output.handle, &info_handle, &args_handle],
-    );
-
-    output
+    random(shape, device, Bernoulli { probability })
 }
