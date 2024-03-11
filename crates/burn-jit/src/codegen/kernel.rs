@@ -1,5 +1,6 @@
 use crate::compute::{DynamicKernel, Kernel, StaticKernel, WorkGroup};
 use crate::element::JitElement;
+use crate::gpu::Elem;
 use crate::kernel::{
     elemwise_workgroup, DynamicKernelSource, StaticKernelSource, WORKGROUP_DEFAULT,
 };
@@ -357,16 +358,8 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
     let info = client.create(bytemuck::cast_slice(&info));
 
     // Finally we finish with the named bindings.
-    let mut handles_scalars = Vec::new();
-    if let Some(values) = &scalars_1 {
-        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
-    }
-    if let Some(values) = &scalars_2 {
-        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
-    }
-    if let Some(values) = &scalars_3 {
-        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
-    }
+    let handles_scalars =
+        create_scalar_handles::<R, E1, E2, E3>(scalars_1, scalars_2, scalars_3, client);
 
     let workgroup = match launch {
         WorkgroupLaunch::Custom(workgroup) => workgroup,
@@ -379,6 +372,47 @@ fn execute_settings<'a, R: Runtime, E1: JitElement, E2: JitElement, E3: JitEleme
         handles_scalars,
         workgroup,
     }
+}
+
+fn create_scalar_handles<R: Runtime, E1: JitElement, E2: JitElement, E3: JitElement>(
+    scalars_0: Option<&[E1]>,
+    scalars_1: Option<&[E2]>,
+    scalars_2: Option<&[E3]>,
+    client: &ComputeClient<R::Server, R::Channel>,
+) -> Vec<Handle<R::Server>> {
+    // It is crucial that scalars follow this order: float, int, uint
+    let scalar_priorities: Vec<usize> = [E1::gpu_elem(), E2::gpu_elem(), E3::gpu_elem()]
+        .iter()
+        .map(|ty: &Elem| match ty {
+            Elem::Float => 0,
+            Elem::Int => 1,
+            Elem::UInt => 2,
+            Elem::Bool => panic!("Bool scalars are not supported"),
+        })
+        .collect();
+
+    let mut handles_scalars = Vec::new();
+    for i in 0..3 {
+        for (j, scalar_priority) in scalar_priorities.iter().enumerate() {
+            if scalar_priority == &i {
+                if j == 0 {
+                    if let Some(values) = &scalars_0 {
+                        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
+                    }
+                } else if j == 1 {
+                    if let Some(values) = &scalars_1 {
+                        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
+                    }
+                } else if j == 2 {
+                    if let Some(values) = &scalars_2 {
+                        handles_scalars.push(client.create(bytemuck::cast_slice(values)));
+                    }
+                }
+            }
+        }
+    }
+
+    handles_scalars
 }
 
 pub(crate) fn calculate_num_elems_dyn_rank(shape: &[usize]) -> usize {

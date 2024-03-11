@@ -36,8 +36,8 @@ pub(crate) fn random<P: Prng<E>, R: Runtime, E: JitElement, const D: usize>(
             &output.strides,
             &output.shape.dims,
         )])
-        .with_scalars(&prng.args())
         .with_scalars(&seeds)
+        .with_scalars(&prng.args())
         .execute(WorkgroupLaunch::Custom(prng_workgroup(
             num_elems,
             WORKGROUP_DEFAULT,
