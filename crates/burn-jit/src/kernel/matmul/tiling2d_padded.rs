@@ -41,6 +41,11 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
+    workgroup_size_x: usize,
+    workgroup_size_y: usize,
+    block_size_m: usize,
+    block_size_k: usize,
+    block_size_n: usize,
 ) -> JitTensor<R, E, D> {
     let kernel = MatmulTiling2Dvec4::<E>::new();
     matmul_tiling_2d_launch::<R, _, D, _>(lhs, rhs, out, kernel)

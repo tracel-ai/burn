@@ -130,10 +130,11 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 });
 
 // Probably the fastest when fixed sizes.
-matmul_tune_ops!(
-    Tiling2DMatmulPadded,
-    crate::kernel::matmul::matmul_tiling_2d_padded
-);
+matmul_tune_ops!(Tiling2DMatmulPadded, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, 16, 16, 64, 32, 64)
+});
 
 // Probably the fastest in the general case
-matmul_tune_ops!(Tiling2DMatmul, crate::kernel::matmul::matmul_tiling_2d);
+matmul_tune_ops!(Tiling2DMatmul, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, 16, 16, 64, 32, 64)
+});
