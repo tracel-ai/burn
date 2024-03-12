@@ -175,7 +175,7 @@ pub trait Benchmark {
 }
 
 /// Result of a benchmark run, with metadata
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct BenchmarkResult {
     /// Individual raw results of the run
     pub raw: BenchmarkDurations,
