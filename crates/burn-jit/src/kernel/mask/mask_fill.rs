@@ -1,15 +1,12 @@
 use crate::{
-    compute::StaticKernel,
+    codegen::{EagerHandle, Execution, WorkgroupLaunch},
     element::JitElement,
-    kernel::{build_info, elemwise_workgroup, KernelSettings, WORKGROUP_DEFAULT},
-    kernel_wgsl,
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
 };
 
-kernel_wgsl!(MaskFill, "../../template/mask/fill.wgsl");
-kernel_wgsl!(MaskFillInplace, "../../template/mask/fill_inplace.wgsl");
+use super::{MaskFill, MaskInplaceEagerKernel, MaskReadOnlyEagerKernel};
 
 #[derive(Clone, Copy, Debug)]
 /// Define how to run the mask fill kernel.
@@ -37,58 +34,52 @@ pub fn mask_fill<R: Runtime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_fill_readonly<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: E,
-) -> JitTensor<R, E, D> {
-    let num_elems = input.shape.num_elements();
+fn mask_fill_readonly<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+    input: JitTensor<R, EI, D>,
+    mask: JitTensor<R, EM, D>,
+    value: EI,
+) -> JitTensor<R, EI, D> {
+    let client = input.client.clone();
+    let kernel = MaskReadOnlyEagerKernel::<MaskFill, R, EI, EM>::new(false);
+
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
         input.shape.clone(),
     );
 
-    let value_handle = output.client.create(E::as_bytes(&[value]));
-    let kernel = StaticKernel::<
-        KernelSettings<MaskFill, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
-    let info = build_info(&[&input, &mask, &output]);
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
-
-    input.client.execute(
-        Box::new(kernel),
-        &[
-            &input.handle,
-            &value_handle,
-            &mask.handle,
+    Execution::start(kernel, client)
+        .inputs(&[
+            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+        ])
+        .outputs(&[EagerHandle::new(
             &output.handle,
-            &info_handle,
-        ],
-    );
+            &output.strides,
+            &output.shape.dims,
+        )])
+        .with_scalars(&[value])
+        .execute(WorkgroupLaunch::Output { pos: 0 });
 
     output
 }
 
-fn mask_fill_inplace<R: Runtime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: E,
-) -> JitTensor<R, E, D> {
-    let num_elems = input.shape.num_elements();
-    let value_handle = input.client.create(E::as_bytes(&[value]));
-    let kernel = StaticKernel::<
-        KernelSettings<MaskFillInplace, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT));
-    let mask = JitTensor::new(mask.client, mask.device, mask.shape, mask.handle);
-    let info = build_info(&[&input, &mask]);
-    let info_handle = input.client.create(bytemuck::cast_slice(&info));
+fn mask_fill_inplace<R: Runtime, EI: JitElement, EM: JitElement, const D: usize>(
+    input: JitTensor<R, EI, D>,
+    mask: JitTensor<R, EM, D>,
+    value: EI,
+) -> JitTensor<R, EI, D> {
+    let kernel = MaskInplaceEagerKernel::<MaskFill, R, EI, EM>::new(false);
 
-    input.client.execute(
-        Box::new(kernel),
-        &[&input.handle, &value_handle, &mask.handle, &info_handle],
-    );
+    let client = input.client.clone();
+
+    Execution::start(kernel, client)
+        .inputs(&[
+            EagerHandle::<R>::new(&input.handle, &input.strides, &input.shape.dims),
+            EagerHandle::new(&mask.handle, &mask.strides, &mask.shape.dims),
+        ])
+        .with_scalars(&[value])
+        .execute(WorkgroupLaunch::Input { pos: 0 });
 
     input
 }
