@@ -1030,6 +1030,21 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<4> {
         panic!("Can't differentiate interpolate backward.");
     }
+
+    fn fft(
+        _x: AutodiffTensor<B, 3>,
+    ) -> AutodiffTensor<B, 3> {
+        // This should be doable.
+        //  FFT is just a linear operation so can just FFT the grads?
+        todo!();
+    }
+
+    fn fft_backward(
+        _x: FloatTensor<Autodiff<B, C>, 3>,
+        _grad: FloatTensor<Autodiff<B, C>, 3>,
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<3> {
+        panic!("Can't differentiate FFT backward.");
+    }
 }
 
 #[derive(Debug)]

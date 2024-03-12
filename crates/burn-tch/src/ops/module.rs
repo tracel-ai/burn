@@ -344,4 +344,17 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
 
         TchTensor::new(tensor)
     }
+
+    fn fft(
+        _x: TchTensor<E, 3>,
+    ) -> TchTensor<E, 3> {
+        todo!();
+    }
+
+    fn fft_backward(
+        _x: TchTensor<E, 3>,
+        _grad: TchTensor<E, 3>,
+    ) -> TchTensor<E, 3> {
+        todo!();
+    }
 }

@@ -488,4 +488,18 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B, 4>;
+
+    /// One dimensional Fast Fourier Transform (FFT).
+    ///
+    /// # Shapes
+    ///
+    /// x: `[batch_size, length, complex]`, where `complex` is 1 or 2.
+    ///
+    /// # Returns
+    ///
+    /// X: `[batch_size, length, complex]`, where complex is exactly 2.
+    fn fft(x: FloatTensor<B, 3>) -> FloatTensor<B, 3>;
+
+    /// Backward pass for the [fft](ModuleOps::fft) operation.
+    fn fft_backward(x: FloatTensor<B, 3>, grad: FloatTensor<B, 3>) -> FloatTensor<B, 3>;
 }
