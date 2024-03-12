@@ -6,7 +6,7 @@ use crate::{
         Execution, InputInfo, OutputInfo, WorkgroupLaunch,
     },
     element::JitElement,
-    gpu::{gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable},
+    gpu::{gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Item, Scope, Variable},
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Runtime,
@@ -46,6 +46,7 @@ impl MatmulTiling2dPaddedShader {
 
         // Config variables
         let block_size_m: Variable = self.config.block_size_m.into();
+        let block_size_k: Variable = self.config.block_size_k.into();
         let block_size_n: Variable = self.config.block_size_n.into();
         let tile_size_m: Variable = self.config.tile_size_m.into();
         let tile_size_n: Variable = self.config.tile_size_n.into();
@@ -61,12 +62,12 @@ impl MatmulTiling2dPaddedShader {
         let rank = Variable::Rank;
         let penultimate_dim = scope.create_local(Elem::UInt);
         gpu!(scope, penultimate_dim = rank - 1u32);
-        let m = scope.create_local(Elem::UInt);
-        let k = scope.create_local(Elem::UInt);
-        let n = scope.create_local(Elem::UInt);
-        gpu!(scope, m = shape(lhs, penultimate_dim));
-        gpu!(scope, k = shape(rhs, penultimate_dim));
-        gpu!(scope, n = shape(rhs, rank));
+        let M = scope.create_local(Elem::UInt);
+        let K = scope.create_local(Elem::UInt);
+        let N = scope.create_local(Elem::UInt);
+        gpu!(scope, M = shape(lhs, penultimate_dim));
+        gpu!(scope, K = shape(rhs, penultimate_dim));
+        gpu!(scope, N = shape(rhs, rank));
 
         // Strides
         let lhs_stride_row = scope.create_local(Elem::UInt);
@@ -115,7 +116,7 @@ impl MatmulTiling2dPaddedShader {
         // Batch offset for the output.
         let offset_output = scope.create_local(Elem::UInt);
         let batch_dims = scope.create_local(Elem::UInt);
-        gpu!(scope, offset_output = m * n);
+        gpu!(scope, offset_output = M * N);
         gpu!(scope, offset_output = offset_output * batch);
 
         // Batch offset for the lhs & rhs matrices.
@@ -133,8 +134,20 @@ impl MatmulTiling2dPaddedShader {
         // Phase 2: Loop over k for loading and computing
 
         let results = scope.create_local_array(lhs.item().elem(), results_size);
-        let tmp = scope.create_local(lhs.item());
-        gpu!(scope, tmp = results[offset_lhs]);
+        let register_m = scope.create_local(Item::Vec4(lhs.item().elem()));
+        let register_n = scope.create_local(Item::Vec4(lhs.item().elem()));
+
+        let n_loops = scope.create_local(Elem::UInt);
+        gpu!(scope, n_loops = K / block_size_k); // assumes padding, otherwise ceil
+        gpu!(
+            scope,
+            range(0, n_loops).for_each(|i, scope| {
+                let k = scope.create_local(Elem::UInt);
+                gpu!(scope, k = i * block_size_k);
+
+                // HERE
+            })
+        )
 
         // Phase 3: Write to output
     }
