@@ -1,13 +1,5 @@
-use burn_compute::{client::ComputeClient, server::Handle};
-
 use super::SourceTemplate;
-use crate::{
-    compute::{StaticKernel, WorkGroup},
-    element::JitElement,
-    kernel,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{compute::WorkGroup, element::JitElement, tensor::JitTensor, Runtime};
 use std::marker::PhantomData;
 
 #[cfg(target_family = "wasm")]
@@ -46,65 +38,6 @@ macro_rules! kernel_wgsl {
             }
         }
     };
-}
-
-kernel_wgsl!(ContiguousRaw, "../template/contiguous.wgsl");
-
-/// Make a jit tensor contiguous.
-pub fn into_contiguous<R: Runtime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    if tensor.is_contiguous() {
-        return tensor;
-    }
-
-    let num_elems = tensor.shape.num_elements();
-    let handle = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-        handle,
-    );
-    let info = build_info(&[&tensor, &output]);
-    let info_handle = tensor.client.create(bytemuck::cast_slice(&info));
-
-    let kernel = Box::new(StaticKernel::<
-        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
-
-    tensor
-        .client
-        .execute(kernel, &[&tensor.handle, &output.handle, &info_handle]);
-
-    output
-}
-
-/// Similar to [into contiguous](into_contiguous) but with dynamic rank.
-pub fn into_contiguous_dyn<R: Runtime, E: JitElement>(
-    client: ComputeClient<R::Server, R::Channel>,
-    input: Handle<R::Server>,
-    input_shape: &[usize],
-    input_strides: &[usize],
-    output_shape: &[usize],
-    output_strides: &[usize],
-    num_elems: usize,
-) -> Handle<R::Server> {
-    let handle = client.empty(num_elems * core::mem::size_of::<E>());
-    let info = kernel::build_info_dyn::<E>(
-        &[input_shape, output_shape],
-        &[input_strides, output_strides],
-    );
-
-    let info_handle = client.create(bytemuck::cast_slice(&info));
-
-    let kernel = Box::new(StaticKernel::<
-        KernelSettings<ContiguousRaw, E, i32, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT, 1>,
-    >::new(elemwise_workgroup(num_elems, WORKGROUP_DEFAULT)));
-
-    client.execute(kernel, &[&input, &handle, &info_handle]);
-
-    handle
 }
 
 /// Generates kernel source code by replacing some information using templating.
@@ -244,20 +177,6 @@ pub(crate) fn elemwise_workgroup(num_elems: usize, workgroup_size: usize) -> Wor
     let workgroups = f32::ceil(num_elems as f32 / num_elem_per_invocation as f32);
     let workgroup_x = f32::ceil(f32::sqrt(workgroups));
     let workgroup_y = f32::ceil(num_elems as f32 / (workgroup_x * num_elem_per_invocation as f32));
-
-    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
-}
-
-pub(crate) fn prng_workgroup(
-    num_elems: usize,
-    workgroup_size: usize,
-    n_values_per_thread: usize,
-) -> WorkGroup {
-    let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
-    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
 
     WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
 }

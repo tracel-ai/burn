@@ -14,16 +14,17 @@ use crate::{
 
 use super::ReduceDimAlgorithm;
 
-pub(crate) struct NaiveReduceDimComputeShader<RD: ReduceDimAlgorithm> {
+pub(crate) struct NaiveReduceDimComputeShader<E: JitElement, RD: ReduceDimAlgorithm<E>> {
     tensor: Variable,
     dim: usize,
     output: Variable,
     _reduce_dim: PhantomData<RD>,
+    _elem: PhantomData<E>,
 }
 
 #[derive(new)]
 pub(crate) struct NaiveReduceDimEagerKernel<
-    RD: ReduceDimAlgorithm,
+    RD: ReduceDimAlgorithm<EI>,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,
@@ -35,7 +36,7 @@ pub(crate) struct NaiveReduceDimEagerKernel<
     _elem_out: PhantomData<EO>,
 }
 
-impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
+impl<RD: ReduceDimAlgorithm<EI>, R: Runtime, EI: JitElement, EO: JitElement> DynamicKernelSource
     for NaiveReduceDimEagerKernel<RD, R, EI, EO>
 {
     fn source(&self) -> crate::kernel::SourceTemplate {
@@ -51,6 +52,7 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
             dim: self.dim,
             output,
             _reduce_dim: PhantomData::<RD>,
+            _elem: PhantomData::<EI>,
         }
         .expand(&mut scope);
 
@@ -80,7 +82,7 @@ impl<RD: ReduceDimAlgorithm, R: Runtime, EI: JitElement, EO: JitElement> Dynamic
     }
 }
 
-impl<RD: ReduceDimAlgorithm> NaiveReduceDimComputeShader<RD> {
+impl<E: JitElement, RD: ReduceDimAlgorithm<E>> NaiveReduceDimComputeShader<E, RD> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let tensor = self.tensor;
         let dim: Variable = self.dim.into();
@@ -140,7 +142,7 @@ impl<RD: ReduceDimAlgorithm> NaiveReduceDimComputeShader<RD> {
 
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<
-    RD: ReduceDimAlgorithm,
+    RD: ReduceDimAlgorithm<EI>,
     R: Runtime,
     EI: JitElement,
     EO: JitElement,

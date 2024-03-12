@@ -88,11 +88,12 @@ macro_rules! testgen_all {
         burn_tensor::testgen_permute!();
         burn_tensor::testgen_bool!();
         burn_tensor::testgen_argwhere_nonzero!();
+        burn_tensor::testgen_sign!();
 
         // test stats
         burn_tensor::testgen_var!();
         burn_tensor::testgen_cov!();
-        burn_tensor::testgen_diagonal!();
+        burn_tensor::testgen_eye!();
         burn_tensor::testgen_display!();
 
         // test clone invariance

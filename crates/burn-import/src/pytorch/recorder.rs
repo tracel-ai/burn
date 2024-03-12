@@ -48,6 +48,7 @@ impl<PS: PrecisionSettings, B: Backend> Recorder<B> for PyTorchFileRecorder<PS> 
             &args.file,
             args.key_remap,
             args.top_level_key.as_deref(), // Convert Option<String> to Option<&str>
+            args.debug,
         )?;
         Ok(R::from_item(item, device))
     }
@@ -92,10 +93,13 @@ pub struct LoadArgs {
     /// Top-level key to load state_dict from the file.
     /// Sometimes the state_dict is nested under a top-level key in a dict.
     pub top_level_key: Option<String>,
+
+    /// Whether to print debug information.
+    pub debug: bool,
 }
 
 impl LoadArgs {
-    /// Create a new `LoadArgs` instance.
+    /// Creates a new `LoadArgs` instance.
     ///
     /// # Arguments
     ///
@@ -105,10 +109,11 @@ impl LoadArgs {
             file,
             key_remap: Vec::new(),
             top_level_key: None,
+            debug: false,
         }
     }
 
-    /// Set key remapping.
+    /// Sets key remapping.
     ///
     /// # Arguments
     ///
@@ -125,7 +130,7 @@ impl LoadArgs {
         self
     }
 
-    /// Set top-level key to load state_dict from the file.
+    /// Sets the top-level key to load state_dict from the file.
     /// Sometimes the state_dict is nested under a top-level key in a dict.
     ///
     /// # Arguments
@@ -133,6 +138,12 @@ impl LoadArgs {
     /// * `key` - The top-level key to load state_dict from the file.
     pub fn with_top_level_key(mut self, key: &str) -> Self {
         self.top_level_key = Some(key.into());
+        self
+    }
+
+    /// Sets printing debug information on.
+    pub fn with_debug_print(mut self) -> Self {
+        self.debug = true;
         self
     }
 }

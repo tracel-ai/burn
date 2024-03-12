@@ -230,8 +230,8 @@ Which produces the following weights structure (viewed in
 You can use the `PyTorchFileRecorder` to change the attribute names and the order of the attributes
 by specifying a regular expression (See
 [regex::Regex::replace](https://docs.rs/regex/latest/regex/struct.Regex.html#method.replace) and
-[try it online](https://rregex.dev/?version=1.10&method=replace)) to
-match the attribute name and a replacement string in `LoadArgs`:
+[try it online](https://rregex.dev/?version=1.10&method=replace)) to match the attribute name and a
+replacement string in `LoadArgs`:
 
 ```rust
 let device = Default::default();
@@ -246,6 +246,82 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 let model = Net::<Backend>::new_with(record);
 ```
 
+### Printing the source model keys and tensor information
+
+If you are unsure about the keys in the source model, you can print them using the following code:
+
+```rust
+let device = Default::default();
+let load_args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
+    // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
+    .with_key_remap("conv\\.(.*)", "$1")
+    .with_debug_print(); // Print the keys and remapped keys
+
+let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+    .load(load_args, &device)
+    .expect("Should decode state successfully");
+
+let model = Net::<Backend>::new_with(record);
+```
+
+Here is an example of the output:
+
+```text
+Debug information of keys and tensor shapes:
+---
+Original Key: conv.conv1.bias
+Remapped Key: conv1.bias
+Shape: [2]
+Dtype: F32
+---
+Original Key: conv.conv1.weight
+Remapped Key: conv1.weight
+Shape: [2, 2, 2, 2]
+Dtype: F32
+---
+Original Key: conv.conv2.weight
+Remapped Key: conv2.weight
+Shape: [2, 2, 2, 2]
+Dtype: F32
+---
+```
+
+### Non-contiguous indices in the source model
+
+Sometimes the indices of the source model are non-contiguous. For example, the source model has:
+
+```
+"model.ax.0.weight",
+"model.ax.0.bias",
+"model.ax.2.weight",
+"model.ax.2.bias",
+"model.ax.4.weight",
+"model.ax.4.bias",
+"model.ax.6.weight",
+"model.ax.6.bias",
+"model.ax.8.weight",
+"model.ax.8.bias",
+```
+
+This may occur when `model.ax` attribute (in the above example) uses `Sequential` to define the
+layers and the skipped items do not have weight tensors, such as a `ReLU` layer. PyTorch simply
+skips the layers without weight tensors, resulting in non-contiguous indices. In this case,
+PyTorchFileRecorder automatically corrects the indices to be contiguous preserving the order of the
+weights resulting in:
+
+```
+"model.ax.0.weight",
+"model.ax.0.bias",
+"model.ax.1.weight",
+"model.ax.1.bias",
+"model.ax.2.weight",
+"model.ax.2.bias",
+"model.ax.3.weight",
+"model.ax.3.bias",
+"model.ax.4.weight",
+"model.ax.4.bias",
+```
+
 ### Loading the model weights to a partial model
 
 `PyTorchFileRecorder` enables selective weight loading into partial models. For instance, in a model
@@ -254,11 +330,12 @@ defining the encoder in Burn, allowing the loading of its weights while excludin
 
 ### Specifying the top-level key for state_dict
 
-Sometimes the [`state_dict`](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict)
+Sometimes the
+[`state_dict`](https://pytorch.org/tutorials/beginner/saving_loading_models.html#what-is-a-state-dict)
 is nested under a top-level key along with other metadata as in a
 [general checkpoint](https://pytorch.org/tutorials/beginner/saving_loading_models.html#saving-loading-a-general-checkpoint-for-inference-and-or-resuming-training).
-For example, the `state_dict` of the whisper model is nested under `model_state_dict` key.
-In this case, you can specify the top-level key in `LoadArgs`:
+For example, the `state_dict` of the whisper model is nested under `model_state_dict` key. In this
+case, you can specify the top-level key in `LoadArgs`:
 
 ```rust
 let device = Default::default();
@@ -269,6 +346,58 @@ let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(load_args, &device)
     .expect("Should decode state successfully")
 ```
+
+### Models containing enum modules
+
+Burn supports models containing enum modules with new-type variants (tuple with one item). Importing
+weights for such models is automatically supported by the PyTorchFileRecorder. However, it should be
+noted that since the source weights file does not contain the enum variant information, the enum
+variant is picked based on the enum variant type. Let's consider the following example:
+
+```rust
+#[derive(Module, Debug)]
+pub enum Conv<B: Backend> {
+    DwsConv(DwsConv<B>),
+    Conv(Conv2d<B>),
+}
+
+#[derive(Module, Debug)]
+pub struct DwsConv<B: Backend> {
+    dconv: Conv2d<B>,
+    pconv: Conv2d<B>,
+}
+
+#[derive(Module, Debug)]
+pub struct Net<B: Backend> {
+    conv: Conv<B>,
+}
+```
+
+If the source weights file contains weights for `DwsConv`, such as the following keys:
+
+```text
+---
+Key: conv.dconv.bias
+Shape: [2]
+Dtype: F32
+---
+Key: conv.dconv.weight
+Shape: [2, 1, 3, 3]
+Dtype: F32
+---
+Key: conv.pconv.bias
+Shape: [2]
+Dtype: F32
+---
+Key: conv.pconv.weight
+Shape: [2, 2, 1, 1]
+Dtype: F32
+```
+
+The weights will be imported into the `DwsConv` variant of the `Conv` enum module.
+
+If the variant types are identical, then the first variant is picked. Generally, it won't be a
+problem since the variant types are usually different.
 
 ## Current known issues
 

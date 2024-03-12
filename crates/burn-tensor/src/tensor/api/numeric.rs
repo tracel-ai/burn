@@ -82,6 +82,11 @@ where
         Self::new(K::neg(self.primitive))
     }
 
+    /// Returns the signs of the elements of the input tensor.
+    pub fn sign(self) -> Self {
+        Self::new(K::sign(self.primitive))
+    }
+
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
         Self::new(K::zeros(shape.into(), device))
@@ -668,12 +673,12 @@ where
     K: Numeric<B>,
     K::Elem: Element,
 {
-    /// Create diagonal matrix.
+    /// Creates a new 2D tensor with ones on the diagonal and zeros elsewhere.
     ///
     /// # Arguments
     ///
     /// * `size` - The size of the square matrix.
-    pub fn diagonal(size: usize, device: &B::Device) -> Self {
+    pub fn eye(size: usize, device: &B::Device) -> Self {
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
@@ -889,6 +894,26 @@ where
     /// For negating a tensor, users should prefer the [Tensor::neg](Tensor::neg) function,
     /// which is more high-level and designed for public use.
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+
+    /// Returns the signs of the elements of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The signs of the elements of the tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the signs of the elements of a tensor, users should prefer the [Tensor::sign](Tensor::sign) function,
+    /// which is more high-level and designed for public use.
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
 
     /// Creates a tensor filled with zeros.
     ///
@@ -2085,6 +2110,10 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> Self::Primitive<D> {
         B::int_random(shape, distribution, device)
     }
+
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::int_sign(tensor)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -2381,6 +2410,10 @@ impl<B: Backend> Numeric<B> for Float {
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
         B::float_random(shape, distribution, device)
+    }
+
+    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+        B::float_sign(tensor)
     }
 }
 

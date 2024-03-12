@@ -1,8 +1,10 @@
+use core::ptr;
 use std::collections::HashMap;
 
 use super::data::NestedValue;
 use super::{adapter::BurnModuleAdapter, error::Error};
 
+use serde::de::{EnumAccess, VariantAccess};
 use serde::{
     de::{self, DeserializeSeed, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     forward_to_deserialize_any,
@@ -313,16 +315,65 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         unimplemented!("deserialize_tuple_struct is not implemented")
     }
 
+    /// Deserializes an enum by attempting to match its variants against the provided data.
+    ///
+    /// This function attempts to deserialize an enum by iterating over its possible variants
+    /// and trying to deserialize the data into each until one succeeds. We need to do this
+    /// because we don't have a way to know which variant to deserialize from the data.
+    ///
+    /// This is similar to Serde's
+    /// [untagged enum deserialization](https://serde.rs/enum-representations.html#untagged),
+    /// but it's on the deserializer side. Using `#[serde(untagged)]` on the enum will force
+    /// using `deserialize_any`, which is not what we want because we want to use methods, such
+    /// as `visit_struct`. Also we do not wish to use auto generate code for Deserialize just
+    /// for enums because it will affect other serialization and deserialization, such
+    /// as JSON and Bincode.
+    ///
+    /// # Safety
+    /// The function uses an unsafe block to clone the `visitor`. This is necessary because
+    /// the `Visitor` trait does not have a `Clone` implementation, and we need to clone it
+    /// as we are going to use it multiple times. The Visitor is a code generated unit struct
+    /// with no states or mutations, so it is safe to clone it in this case. We mainly care
+    /// about the `visit_enum` method, which is the only method that will be called on the
+    /// cloned visitor.
     fn deserialize_enum<V>(
         self,
         _name: &'static str,
-        _variants: &'static [&'static str],
-        _visitor: V,
+        variants: &'static [&'static str],
+        visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_enum is not implemented")
+        fn clone_unsafely<T>(thing: &T) -> T {
+            unsafe {
+                // Allocate memory for the clone.
+                let clone = ptr::null_mut();
+                // Correcting pointer usage based on feedback
+                let clone = ptr::addr_of_mut!(*clone);
+                // Copy the memory
+                ptr::copy_nonoverlapping(thing as *const T, clone, 1);
+                // Transmute the cloned data pointer into an owned instance of T.
+                ptr::read(clone)
+            }
+        }
+
+        // Try each variant in order
+        for &variant in variants {
+            // clone visitor to avoid moving it
+            let cloned_visitor = clone_unsafely(&visitor);
+            let result = cloned_visitor.visit_enum(ProbeEnumAccess::<A>::new(
+                self.value.clone().unwrap(),
+                variant.to_owned(),
+                self.default_for_missing_fields,
+            ));
+
+            if result.is_ok() {
+                return result;
+            }
+        }
+
+        Err(de::Error::custom("No variant match"))
     }
 
     fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
@@ -428,6 +479,82 @@ where
             ),
             None => seed.deserialize(DefaultDeserializer::new(None)),
         }
+    }
+}
+
+struct ProbeEnumAccess<A: BurnModuleAdapter> {
+    value: NestedValue,
+    current_variant: String,
+    default_for_missing_fields: bool,
+    phantom: std::marker::PhantomData<A>,
+}
+
+impl<A: BurnModuleAdapter> ProbeEnumAccess<A> {
+    fn new(value: NestedValue, current_variant: String, default_for_missing_fields: bool) -> Self {
+        ProbeEnumAccess {
+            value,
+            current_variant,
+            default_for_missing_fields,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'de, A> EnumAccess<'de> for ProbeEnumAccess<A>
+where
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self.current_variant.clone().into_deserializer())
+            .map(|v| (v, self))
+    }
+}
+
+impl<'de, A> VariantAccess<'de> for ProbeEnumAccess<A>
+where
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let value = seed.deserialize(
+            NestedValueWrapper::<A>::new(self.value, self.default_for_missing_fields)
+                .into_deserializer(),
+        )?;
+        Ok(value)
+    }
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        unimplemented!("unit variant is not implemented because it is not used in the burn module")
+    }
+
+    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        unimplemented!("tuple variant is not implemented because it is not used in the burn module")
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        unimplemented!(
+            "struct variant is not implemented because it is not used in the burn module"
+        )
     }
 }
 
@@ -601,11 +728,14 @@ impl<'de> serde::Deserializer<'de> for DefaultDeserializer {
     where
         V: Visitor<'de>,
     {
-        panic!(
-            "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
-            self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
-             name,
-        );
+        // Return an error if the originator field name is not set
+        Err(Error::Other(
+            format!(
+                "Missing source values for the '{}' field of type '{}'. Please verify the source data and ensure the field name is correct",
+                self.originator_field_name.unwrap_or("UNKNOWN".to_string()),
+                 name,
+            )
+        ))
     }
 
     fn deserialize_tuple_struct<V>(

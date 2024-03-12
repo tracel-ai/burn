@@ -28,14 +28,15 @@ struct MaxPool2dWithIndicesEagerKernel<R: Runtime, E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-struct MaxPool2dComputeShader {
+struct MaxPool2dComputeShader<E: JitElement> {
     x: Variable,
     output: Variable,
     kernel_size: [usize; 2],
     indices: Option<Variable>,
+    _elem: PhantomData<E>,
 }
 
-impl MaxPool2dComputeShader {
+impl<E: JitElement> MaxPool2dComputeShader<E> {
     fn expand(self, scope: &mut Scope) {
         let x = self.x;
         let output = self.output;
@@ -121,9 +122,12 @@ impl MaxPool2dComputeShader {
         let index_input_4 = scope.create_local(Elem::UInt);
 
         let is_max = scope.create_local(Elem::Bool);
-        let max_val = scope.create_local(x.item());
         let max_index = self.indices.map(|_| scope.create_local(Elem::UInt));
-        gpu!(scope, max_val = cast(-32767.0));
+
+        let max_val = scope.create_local(x.item());
+        let max_initial =
+            Variable::ConstantScalar(E::minimum_value().to_f64().unwrap(), x.item().elem());
+        gpu!(scope, max_val = max_initial);
 
         (0..kernel_size_0).for_each(|kh| {
             gpu!(scope, ih = oh * pool_stride_0);
@@ -206,6 +210,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dEagerKernel<R, 
             output,
             kernel_size: self.kernel_size,
             indices: None,
+            _elem: PhantomData::<E>,
         }
         .expand(&mut scope);
 
@@ -256,6 +261,7 @@ impl<R: Runtime, E: JitElement> DynamicKernelSource for MaxPool2dWithIndicesEage
             output,
             kernel_size: self.kernel_size,
             indices: Some(indices),
+            _elem: PhantomData::<E>,
         }
         .expand(&mut scope);
 

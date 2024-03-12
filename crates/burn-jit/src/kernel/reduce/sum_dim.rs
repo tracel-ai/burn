@@ -1,10 +1,13 @@
-use crate::codegen::dialect::gpu::{gpu, Item, Scope, Variable};
+use crate::{
+    codegen::dialect::gpu::{gpu, Item, Scope, Variable},
+    JitElement,
+};
 
 use super::ReduceDimAlgorithm;
 
 pub(crate) struct SumDim;
 
-impl ReduceDimAlgorithm for SumDim {
+impl<E: JitElement> ReduceDimAlgorithm<E> for SumDim {
     type Accumulator = Variable;
 
     fn initialize_naive(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {

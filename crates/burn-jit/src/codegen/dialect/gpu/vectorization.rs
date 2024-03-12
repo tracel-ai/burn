@@ -55,6 +55,7 @@ impl Operator {
             Operator::Erf(op) => Operator::Erf(op.vectorize(vectorization)),
             Operator::Recip(op) => Operator::Recip(op.vectorize(vectorization)),
             Operator::Equal(op) => Operator::Equal(op.vectorize(vectorization)),
+            Operator::NotEqual(op) => Operator::NotEqual(op.vectorize(vectorization)),
             Operator::Lower(op) => Operator::Lower(op.vectorize(vectorization)),
             Operator::Clamp(op) => Operator::Clamp(op.vectorize(vectorization)),
             Operator::Greater(op) => Operator::Greater(op.vectorize(vectorization)),
@@ -74,6 +75,10 @@ impl Operator {
             Operator::And(op) => Operator::And(op.vectorize(vectorization)),
             Operator::Or(op) => Operator::Or(op.vectorize(vectorization)),
             Operator::Not(op) => Operator::Not(op.vectorize(vectorization)),
+            Operator::BitwiseAnd(op) => Operator::BitwiseAnd(op.vectorize(vectorization)),
+            Operator::BitwiseXor(op) => Operator::BitwiseXor(op.vectorize(vectorization)),
+            Operator::ShiftLeft(op) => Operator::ShiftLeft(op.vectorize(vectorization)),
+            Operator::ShiftRight(op) => Operator::ShiftRight(op.vectorize(vectorization)),
         }
     }
 }

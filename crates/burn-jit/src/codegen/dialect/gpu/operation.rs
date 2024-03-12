@@ -39,6 +39,7 @@ pub enum Operator {
     Erf(UnaryOperator),
     Recip(UnaryOperator),
     Equal(BinaryOperator),
+    NotEqual(BinaryOperator),
     Lower(BinaryOperator),
     Clamp(ClampOperator),
     Greater(BinaryOperator),
@@ -53,6 +54,10 @@ pub enum Operator {
     Not(UnaryOperator),
     Max(BinaryOperator),
     Min(BinaryOperator),
+    BitwiseAnd(BinaryOperator),
+    BitwiseXor(BinaryOperator),
+    ShiftLeft(BinaryOperator),
+    ShiftRight(BinaryOperator),
 }
 
 /// All metadata that can be access in a shader.

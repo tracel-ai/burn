@@ -2,9 +2,10 @@ use burn_tensor::Element;
 use libm::{exp, fabs, log, log1p, pow, sqrt};
 use libm::{expf, fabsf, log1pf, logf, powf, sqrtf};
 use ndarray::LinalgScalar;
+use num_traits::Signed;
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar
+pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar + Signed
 where
     Self: Sized,
 {

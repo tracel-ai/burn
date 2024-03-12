@@ -2350,6 +2350,35 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::UnTracked(prep) => prep.finish(B::float_powf(lhs.primitive, rhs.primitive)),
         }
     }
+
+    fn float_sign<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct Sign;
+
+        retro_unary!(RetroSign, B::float_sign);
+
+        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sign {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad|
+                        // Always return 0 because the derivative of the sign function
+                        // does not contribute to gradient updates in a meaningful way.
+                        B::float_mul_scalar(grad, 0.elem()));
+            }
+        }
+
+        Sign.prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .memory_bound()
+            .retro_forward(RetroSign::<B, D>::new(tensor.node.id.clone()))
+            .parents([&tensor])
+            .stateless(B::float_sign(tensor.primitive))
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -41,7 +41,8 @@ mod tests {
     fn key_remap() {
         let device = Default::default();
         let load_args = LoadArgs::new("tests/key_remap/key_remap.pt".into())
-            .with_key_remap("conv\\.(.*)", "$1"); // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
+            .with_key_remap("conv\\.(.*)", "$1") // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
+            .with_debug_print();
 
         let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
             .load(load_args, &device)

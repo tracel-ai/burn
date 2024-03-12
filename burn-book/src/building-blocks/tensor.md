@@ -172,6 +172,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
 | --------------------------------------------------------------- | ---------------------------------------------- |
+| `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
 | `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
 | `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
 | `Tensor::zeros(shape)`                                          | `torch.zeros(shape)`                           |
@@ -220,6 +221,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.scatter(dim, indices, values)`                          | `tensor.scatter_add(dim, indices, values)`     |
 | `tensor.select(dim, indices)`                                   | `tensor.index_select(dim, indices)`            |
 | `tensor.select_assign(dim, indices, values)`                    | N/A                                            |
+| `tensor.sign()`                                                 | `tensor.sign()`                                |
 | `tensor.sub(other)` or `tensor - other`                         | `tensor - other`                               |
 | `tensor.sub_scalar(scalar)` or `tensor - scalar`                | `tensor - scalar`                              |
 | `tensor.sum()`                                                  | `tensor.sum()`                                 |
