@@ -1,5 +1,7 @@
 mod base;
 mod simple;
+mod tiling2d;
+mod tiling2d_padded;
 mod tune;
 
 /// Contains utilitary for matmul operation
@@ -17,7 +19,5 @@ pub mod padding;
 #[cfg(not(feature = "export_tests"))]
 mod padding;
 
-pub mod tiling2d;
-pub mod tiling2d_padded;
 pub use tiling2d::*;
 pub use tiling2d_padded::*;

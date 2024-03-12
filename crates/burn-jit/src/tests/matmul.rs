@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::matmul::{matmul, MatmulStrategy};
+    use burn_jit::kernel::matmul::{matmul, MatmulStrategy, Tiling2dConfig};
     use burn_tensor::{Shape, Tensor};
 
     mod simple {
@@ -174,7 +174,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap,
                 swap,
                 shape_lhs,
@@ -189,7 +189,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -204,7 +204,7 @@ mod tests {
             let shape_lhs = [4, 4, 4, 4];
             let shape_rhs = [4, 4, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2dPadded,
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -215,7 +215,11 @@ mod tests {
         fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
             let shape_lhs = [batch_1, batch_2, m, k];
             let shape_rhs = [batch_1, batch_2, k, n];
-            same_as_reference(MatmulStrategy::Tiling2dPadded, shape_lhs, shape_rhs);
+            same_as_reference(
+                MatmulStrategy::Tiling2dPadded(Tiling2dConfig::default()),
+                shape_lhs,
+                shape_rhs,
+            );
         }
     }
 
@@ -308,7 +312,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
                 swap,
                 swap,
                 shape_lhs,
@@ -323,7 +327,7 @@ mod tests {
             let shape_lhs = [3, 2, 4, 4];
             let shape_rhs = [3, 2, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d((Tiling2dConfig::default())),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -338,7 +342,7 @@ mod tests {
             let shape_lhs = [4, 4, 4, 4];
             let shape_rhs = [4, 4, 4, 4];
             same_as_reference_swapped_dims(
-                MatmulStrategy::Tiling2d,
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
                 swap_lhs,
                 swap_rhs,
                 shape_lhs,
@@ -349,7 +353,11 @@ mod tests {
         fn test_with_params(m: usize, k: usize, n: usize, batch_1: usize, batch_2: usize) {
             let shape_lhs = [batch_1, batch_2, m, k];
             let shape_rhs = [batch_1, batch_2, k, n];
-            same_as_reference(MatmulStrategy::Tiling2d, shape_lhs, shape_rhs);
+            same_as_reference(
+                MatmulStrategy::Tiling2d(Tiling2dConfig::default()),
+                shape_lhs,
+                shape_rhs,
+            );
         }
     }
 

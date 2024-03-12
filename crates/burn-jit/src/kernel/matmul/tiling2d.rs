@@ -2,68 +2,36 @@ use burn_tensor::Element;
 
 use crate::{
     codegen::{
-        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        EagerHandle, Execution, InputInfo, OutputInfo, WorkgroupLaunch,
+        dialect::gpu, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
+        Execution, InputInfo, OutputInfo, WorkgroupLaunch,
     },
-    compute::{DynamicKernel, WorkGroup},
     element::JitElement,
     gpu::{gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable},
-    kernel::{
-        into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource, WORKGROUP_DEFAULT,
-    },
+    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate},
     tensor::JitTensor,
     Runtime,
 };
 use std::marker::PhantomData;
 
-use super::{
-    base::{make_info_handle, B_K, B_M, B_N, WORKGROUP_SIZE},
-    launch_options,
-};
-
-use burn_tensor::Shape;
+use super::{launch_options, Tiling2dConfig};
 
 #[derive(new, Debug)]
-struct MatmulTiling2DUnpadded<E: JitElement> {
+struct MatmulTiling2d<E: JitElement> {
     _elem: PhantomData<E>,
 }
 
-// impl<E: JitElement> DynamicKernelSource for MatmulTiling2DUnpadded<E> {
-//     fn source(&self) -> SourceTemplate {
-//         MatmulTiling2DUnpaddedRaw::source()
-//             .register("b_m", B_M.to_string())
-//             .register("b_n", B_N.to_string())
-//             .register("b_k", B_K.to_string())
-//             .register("bm_x_bk_4", (B_M * B_K / 4).to_string())
-//             .register("bk_x_bn_4", (B_K * B_N / 4).to_string())
-//             .register("workgroup_size_x", WORKGROUP_SIZE.to_string())
-//             .register("workgroup_size_y", WORKGROUP_SIZE.to_string())
-//             .register("workgroup_size_z", "1".to_string())
-//             .register("elem", E::type_name())
-//             .register("int", "i32")
-//     }
-
-//     fn id(&self) -> String {
-//         std::format!("{:?}", self)
-//     }
-// }
-
 #[derive(new, Debug)]
-struct MatmulTiling2DEagerKernel<R: Runtime> {
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-    block_size_m: usize,
-    block_size_k: usize,
-    block_size_n: usize,
+struct MatmulTiling2dEagerKernel<R: Runtime> {
+    config: Tiling2dConfig,
     _runtime: PhantomData<R>,
 }
 
-struct MatmulTiling2DShader {
+struct MatmulTiling2dShader {
     variables: BinaryOperator,
     block_size: usize,
 }
 
-impl MatmulTiling2DShader {
+impl MatmulTiling2dShader {
     fn expand(self, scope: &mut Scope) {
         // Define out global variables.
         let local_idx = Variable::LocalInvocationIndex;
@@ -185,7 +153,7 @@ impl MatmulTiling2DShader {
     }
 }
 
-impl<R: Runtime> DynamicKernelSource for MatmulTiling2DEagerKernel<R> {
+impl<R: Runtime> DynamicKernelSource for MatmulTiling2dEagerKernel<R> {
     fn source(&self) -> SourceTemplate {
         let mut scope = gpu::Scope::root();
         let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
@@ -194,9 +162,9 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2DEagerKernel<R> {
 
         scope.write_global_custom(out);
 
-        MatmulTiling2DShader {
+        MatmulTiling2dShader {
             variables: gpu::BinaryOperator { lhs, rhs, out },
-            block_size: self.workgroup_size_x,
+            block_size: self.config.grid_x, // TODO
         }
         .expand(&mut scope);
 
@@ -219,8 +187,8 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2DEagerKernel<R> {
         };
 
         let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
-            self.workgroup_size_x as u32,
-            self.workgroup_size_y as u32,
+            self.config.grid_x as u32,
+            self.config.grid_y as u32,
             1,
         ));
         let shader = Compilation::new(info).compile(settings);
@@ -230,13 +198,9 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2DEagerKernel<R> {
 
     fn id(&self) -> String {
         format!(
-            "{:?}x={}y={}b_m={}b_k={}b_n={}",
+            "{:?}config={:?}",
             core::any::TypeId::of::<Self>(),
-            self.workgroup_size_x,
-            self.workgroup_size_y,
-            self.block_size_m,
-            self.block_size_k,
-            self.block_size_n,
+            self.config,
         )
     }
 }
@@ -247,19 +211,9 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-    block_size_m: usize,
-    block_size_k: usize,
-    block_size_n: usize,
+    config: Tiling2dConfig,
 ) -> JitTensor<R, E, D> {
-    let kernel = MatmulTiling2DEagerKernel::<R>::new(
-        workgroup_size_x,
-        workgroup_size_y,
-        block_size_m,
-        block_size_k,
-        block_size_n,
-    );
+    let kernel = MatmulTiling2dEagerKernel::<R>::new(config.clone());
     let client = lhs.client.clone();
 
     let lhs = match lhs.batch_swapped_with_row_col() {
@@ -281,8 +235,8 @@ pub fn matmul_tiling_2d<R: Runtime, E: JitElement + Element, const D: usize>(
             &lhs.shape,
             &rhs.shape,
             &out.shape,
-            workgroup_size_x,
-            workgroup_size_y,
+            config.grid_x,
+            config.grid_y,
         )));
 
     out

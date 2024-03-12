@@ -6,14 +6,14 @@ use crate::{
         dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
         EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
     },
-    compute::WorkGroup,
     element::JitElement,
     kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
     tensor::JitTensor,
     Runtime,
 };
-use burn_tensor::Shape;
 use std::marker::PhantomData;
+
+use super::launch_options;
 
 #[derive(new, Debug)]
 struct MatmulEagerKernel<R: Runtime> {
@@ -242,9 +242,8 @@ pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
         &[
             EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
             EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            EagerHandle::new(&out.handle, &out.strides, &out.shape.dims),
         ],
-        &[],
+        &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
         None,
         kernel,
         WorkgroupLaunch::Custom(workgroup),
@@ -252,25 +251,4 @@ pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
     );
 
     out
-}
-
-fn launch_options<const D: usize>(
-    lhs_shape: &Shape<D>,
-    rhs_shape: &Shape<D>,
-    output_shape: &Shape<D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-) -> WorkGroup {
-    let num_rows = lhs_shape.dims[D - 2];
-    let num_cols = rhs_shape.dims[D - 1];
-
-    // set number of workgroups
-    let blocks_needed_in_x = f32::ceil(num_rows as f32 / workgroup_size_x as f32) as u32;
-    let blocks_needed_in_y = f32::ceil(num_cols as f32 / workgroup_size_y as f32) as u32;
-    let mut num_iter = 1;
-    for i in 0..D - 2 {
-        num_iter *= output_shape.dims[i];
-    }
-
-    WorkGroup::new(blocks_needed_in_x, blocks_needed_in_y, num_iter as u32)
 }

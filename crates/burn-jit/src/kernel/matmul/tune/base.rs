@@ -4,7 +4,10 @@ use burn_tensor::{Element, ElementConversion};
 use crate::{
     compute::JitAutotuneKey,
     element::JitElement,
-    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
+    kernel::{
+        matmul::{utils::init_matmul_output, Tiling2dConfig},
+        prng::random_like_uniform,
+    },
     ops::numeric::empty_device,
     tensor::JitTensor,
     Runtime,
@@ -56,8 +59,8 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
                 rhs.clone(),
                 out.clone(),
             )),
-            Box::new(Tiling2DMatmul::new(lhs.clone(), rhs.clone(), out.clone())),
-            Box::new(Tiling2DMatmulPadded::new(
+            Box::new(Tiling2dMatmul::new(lhs.clone(), rhs.clone(), out.clone())),
+            Box::new(Tiling2dMatmulPadded::new(
                 lhs.clone(),
                 rhs.clone(),
                 out.clone(),
@@ -69,8 +72,8 @@ impl<R: Runtime, E: JitElement + Element, const D: usize> AutotuneOperationSet<J
         match fastest_index {
             0 => Box::new(SimpleMatmul::new(self.lhs, self.rhs, self.out)),
             1 => Box::new(SimpleMatmul16x16::new(self.lhs, self.rhs, self.out)),
-            2 => Box::new(Tiling2DMatmul::new(self.lhs, self.rhs, self.out)),
-            3 => Box::new(Tiling2DMatmulPadded::new(self.lhs, self.rhs, self.out)),
+            2 => Box::new(Tiling2dMatmul::new(self.lhs, self.rhs, self.out)),
+            3 => Box::new(Tiling2dMatmulPadded::new(self.lhs, self.rhs, self.out)),
             _ => panic!("Fastest index is out of bound"),
         }
     }
@@ -130,11 +133,11 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 });
 
 // Probably the fastest when fixed sizes.
-matmul_tune_ops!(Tiling2DMatmulPadded, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, 16, 16, 64, 32, 64)
+matmul_tune_ops!(Tiling2dMatmulPadded, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d_padded(lhs, rhs, out, Tiling2dConfig::default())
 });
 
 // Probably the fastest in the general case
-matmul_tune_ops!(Tiling2DMatmul, |lhs, rhs, out| {
-    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, 16, 16, 64, 32, 64)
+matmul_tune_ops!(Tiling2dMatmul, |lhs, rhs, out| {
+    crate::kernel::matmul::matmul_tiling_2d(lhs, rhs, out, Tiling2dConfig::default())
 });

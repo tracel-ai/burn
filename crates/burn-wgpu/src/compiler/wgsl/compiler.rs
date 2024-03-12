@@ -64,6 +64,10 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for WgslCompiler<F, I> {
     fn elem_size(elem: gpu::Elem) -> usize {
         Self::compile_elem(elem).size()
     }
+
+    fn max_shared_memory_size() -> usize {
+        8192
+    }
 }
 
 impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
