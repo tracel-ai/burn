@@ -53,7 +53,8 @@ pub enum Item {
 }
 
 impl Item {
-    pub(crate) fn elem(&self) -> Elem {
+    /// Fetch the elem of the item.
+    pub fn elem(&self) -> Elem {
         match self {
             Self::Vec4(elem) => *elem,
             Self::Vec3(elem) => *elem,

@@ -2,49 +2,31 @@ use super::{binary::*, unary::*, Component, Item, Variable};
 use std::fmt::Display;
 
 #[derive(Debug, Clone)]
+pub struct BinaryInstruction {
+    pub lhs: Variable,
+    pub rhs: Variable,
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnaryInstruction {
+    pub input: Variable,
+    pub out: Variable,
+}
+
+#[derive(Debug, Clone)]
 pub enum Instruction {
     DeclareVariable {
         var: Variable,
     },
-    Modulo {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Add {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Div {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Mul {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Sub {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Index {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    IndexAssign {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Assign {
-        input: Variable,
-        out: Variable,
-    },
+    Modulo(BinaryInstruction),
+    Add(BinaryInstruction),
+    Div(BinaryInstruction),
+    Mul(BinaryInstruction),
+    Sub(BinaryInstruction),
+    Index(BinaryInstruction),
+    IndexAssign(BinaryInstruction),
+    Assign(UnaryInstruction),
     RangeLoop {
         i: Variable,
         start: Variable,
@@ -75,35 +57,38 @@ pub enum Instruction {
         position: usize,
         out: Variable,
     },
-    Equal {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Lower {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Greater {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    LowerEqual {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    GreaterEqual {
-        lhs: Variable,
-        rhs: Variable,
-        out: Variable,
-    },
-    Erf {
+    Equal(BinaryInstruction),
+    NotEqual(BinaryInstruction),
+    Lower(BinaryInstruction),
+    Greater(BinaryInstruction),
+    LowerEqual(BinaryInstruction),
+    GreaterEqual(BinaryInstruction),
+    Erf(UnaryInstruction),
+    BitwiseAnd(BinaryInstruction),
+    BitwiseXor(BinaryInstruction),
+    ShiftLeft(BinaryInstruction),
+    ShiftRight(BinaryInstruction),
+    Abs(UnaryInstruction),
+    Exp(UnaryInstruction),
+    Log(UnaryInstruction),
+    Log1p(UnaryInstruction),
+    Cos(UnaryInstruction),
+    Sin(UnaryInstruction),
+    Tanh(UnaryInstruction),
+    Powf(BinaryInstruction),
+    Sqrt(UnaryInstruction),
+    Min(BinaryInstruction),
+    Max(BinaryInstruction),
+    Not(UnaryInstruction),
+    Or(BinaryInstruction),
+    And(BinaryInstruction),
+    Clamp {
         input: Variable,
+        min_value: Variable,
+        max_value: Variable,
         out: Variable,
     },
+    SyncThreads,
 }
 
 impl Display for Instruction {
@@ -115,67 +100,80 @@ impl Display for Instruction {
                 let item = var.item();
                 f.write_fmt(format_args!("{item} {var};\n"))
             }
-            Instruction::Add { lhs, rhs, out } => Add::format(f, lhs, rhs, out),
-            Instruction::Mul { lhs, rhs, out } => Mul::format(f, lhs, rhs, out),
-            Instruction::Div { lhs, rhs, out } => Div::format(f, lhs, rhs, out),
-            Instruction::Sub { lhs, rhs, out } => Sub::format(f, lhs, rhs, out),
-            Instruction::Modulo { lhs, rhs, out } => Modulo::format(f, lhs, rhs, out),
-            Instruction::Index { lhs, rhs, out } => {
+            Instruction::Add(it) => Add::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Mul(it) => Mul::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Div(it) => Div::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Sub(it) => Sub::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Modulo(inst) => Modulo::format(f, &inst.lhs, &inst.rhs, &inst.out),
+            Instruction::BitwiseAnd(it) => BitwiseAnd::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::BitwiseXor(it) => BitwiseXor::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::ShiftLeft(it) => ShiftLeft::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::ShiftRight(it) => ShiftRight::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Index(it) => {
+                let lhs = it.lhs;
+                let rhs = it.rhs;
+                let out = it.out;
                 let item = out.item();
                 f.write_fmt(format_args!("{out} = {item}({lhs}[{rhs}]);\n"))
             }
-            Instruction::IndexAssign { lhs, rhs, out } => match lhs.item() {
-                Item::Vec4(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-                    let lhs3 = lhs.index(3);
+            Instruction::IndexAssign(it) => {
+                let lhs = it.lhs;
+                let rhs = it.rhs;
+                let out = it.out;
 
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-                    let rhs3 = rhs.index(3);
+                match lhs.item() {
+                    Item::Vec4(elem) => {
+                        let lhs0 = lhs.index(0);
+                        let lhs1 = lhs.index(1);
+                        let lhs2 = lhs.index(2);
+                        let lhs3 = lhs.index(3);
 
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+                        let rhs0 = rhs.index(0);
+                        let rhs1 = rhs.index(1);
+                        let rhs2 = rhs.index(2);
+                        let rhs3 = rhs.index(3);
+
+                        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs3}] = {elem}({rhs3});\n"))
+                    }
+                    Item::Vec3(elem) => {
+                        let lhs0 = lhs.index(0);
+                        let lhs1 = lhs.index(1);
+                        let lhs2 = lhs.index(2);
+
+                        let rhs0 = rhs.index(0);
+                        let rhs1 = rhs.index(1);
+                        let rhs2 = rhs.index(2);
+
+                        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
+                    }
+                    Item::Vec2(elem) => {
+                        let lhs0 = lhs.index(0);
+                        let lhs1 = lhs.index(1);
+
+                        let rhs0 = rhs.index(0);
+                        let rhs1 = rhs.index(1);
+
+                        f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
+                        f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
+                    }
+                    Item::Scalar(_elem) => {
+                        let elem_out = out.elem();
+                        let casting_type = match rhs.item() {
+                            Item::Vec4(_) => Item::Vec4(elem_out),
+                            Item::Vec3(_) => Item::Vec3(elem_out),
+                            Item::Vec2(_) => Item::Vec2(elem_out),
+                            Item::Scalar(_) => Item::Scalar(elem_out),
+                        };
+                        f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
+                    }
                 }
-                Item::Vec3(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-                    let lhs2 = lhs.index(2);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-                    let rhs2 = rhs.index(2);
-
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs2}] = {elem}({rhs2});\n"))
-                }
-                Item::Vec2(elem) => {
-                    let lhs0 = lhs.index(0);
-                    let lhs1 = lhs.index(1);
-
-                    let rhs0 = rhs.index(0);
-                    let rhs1 = rhs.index(1);
-
-                    f.write_fmt(format_args!("{out}[{lhs0}] = {elem}({rhs0});\n"))?;
-                    f.write_fmt(format_args!("{out}[{lhs1}] = {elem}({rhs1});\n"))
-                }
-                Item::Scalar(_elem) => {
-                    let elem_out = out.elem();
-                    let casting_type = match rhs.item() {
-                        Item::Vec4(_) => Item::Vec4(elem_out),
-                        Item::Vec3(_) => Item::Vec3(elem_out),
-                        Item::Vec2(_) => Item::Vec2(elem_out),
-                        Item::Scalar(_) => Item::Scalar(elem_out),
-                    };
-                    f.write_fmt(format_args!("{out}[{lhs}] = {casting_type}({rhs});\n"))
-                }
-            },
-            Instruction::Assign { input, out } => Assign::format(f, input, out),
+            }
+            Instruction::Assign(it) => Assign::format(f, &it.input, &it.out),
             Instruction::RangeLoop {
                 i,
                 start,
@@ -229,12 +227,39 @@ for (uint {i} = {start}; {i} < {end}; {i}++) {{
             Instruction::Shape { dim, position, out } => f.write_fmt(format_args!(
                 "{out} = info[({position} * rank_2) + rank + {dim} + 1];\n"
             )),
-            Instruction::Equal { lhs, rhs, out } => Equal::format(f, lhs, rhs, out),
-            Instruction::Lower { lhs, rhs, out } => Lower::format(f, lhs, rhs, out),
-            Instruction::Greater { lhs, rhs, out } => Greater::format(f, lhs, rhs, out),
-            Instruction::LowerEqual { lhs, rhs, out } => LowerEqual::format(f, lhs, rhs, out),
-            Instruction::GreaterEqual { lhs, rhs, out } => GreaterEqual::format(f, lhs, rhs, out),
-            Instruction::Erf { input, out } => Erf::format(f, input, out),
+            Instruction::Equal(it) => Equal::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::NotEqual(it) => NotEqual::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Lower(it) => Lower::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Greater(it) => Greater::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::LowerEqual(it) => LowerEqual::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::GreaterEqual(it) => GreaterEqual::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Erf(it) => Erf::format(f, &it.input, &it.out),
+            Instruction::Abs(it) => Abs::format(f, &it.input, &it.out),
+            Instruction::Exp(it) => Exp::format(f, &it.input, &it.out),
+            Instruction::Log(it) => Log::format(f, &it.input, &it.out),
+            Instruction::Log1p(it) => Log1p::format(f, &it.input, &it.out),
+            Instruction::Cos(it) => Cos::format(f, &it.input, &it.out),
+            Instruction::Sin(it) => Sin::format(f, &it.input, &it.out),
+            Instruction::Tanh(it) => Tanh::format(f, &it.input, &it.out),
+            Instruction::Powf(it) => Powf::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Sqrt(it) => Sqrt::format(f, &it.input, &it.out),
+            Instruction::Max(it) => Max::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Min(it) => Min::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Not(it) => Not::format(f, &it.input, &it.out),
+            Instruction::Or(it) => Or::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::And(it) => And::format(f, &it.lhs, &it.rhs, &it.out),
+            Instruction::Clamp {
+                input,
+                min_value,
+                max_value,
+                out,
+            } => f.write_fmt(format_args!(
+                "
+{out} = min({input}, {max_value});
+{out} = max({out}, {min_value});
+                "
+            )),
+            Instruction::SyncThreads => f.write_str("__syncthreads();\n"),
         }
     }
 }

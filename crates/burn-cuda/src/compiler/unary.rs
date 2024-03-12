@@ -1,4 +1,4 @@
-use super::{Component, Elem, Item, Variable};
+use super::{Component, Elem, InstructionSettings, Item, Variable};
 use std::fmt::Display;
 
 pub trait Unary {
@@ -7,12 +7,37 @@ pub trait Unary {
         input: &Variable,
         out: &Variable,
     ) -> std::fmt::Result {
-        match out.item() {
-            Item::Vec4(elem) => Self::format_vec4(f, input, out, elem),
-            Item::Vec3(elem) => Self::format_vec3(f, input, out, elem),
-            Item::Vec2(elem) => Self::format_vec2(f, input, out, elem),
+        let item = out.item();
+        let settings = Self::settings(*item.elem());
+
+        match item {
+            Item::Vec4(elem) => {
+                if settings.native_vec4 {
+                    Self::format_native_vec4(f, input, out, elem)
+                } else {
+                    Self::unroll_vec4(f, input, out, elem)
+                }
+            }
+            Item::Vec3(elem) => {
+                if settings.native_vec3 {
+                    Self::format_native_vec3(f, input, out, elem)
+                } else {
+                    Self::unroll_vec3(f, input, out, elem)
+                }
+            }
+            Item::Vec2(elem) => {
+                if settings.native_vec2 {
+                    Self::format_native_vec2(f, input, out, elem)
+                } else {
+                    Self::unroll_vec2(f, input, out, elem)
+                }
+            }
             Item::Scalar(elem) => Self::format_scalar(f, *input, *out, elem),
         }
+    }
+
+    fn settings(_elem: Elem) -> InstructionSettings {
+        InstructionSettings::default()
     }
 
     fn format_scalar<Input, Out>(
@@ -25,7 +50,34 @@ pub trait Unary {
         Input: Component,
         Out: Component;
 
-    fn format_vec2(
+    fn format_native_vec4(
+        f: &mut std::fmt::Formatter<'_>,
+        input: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
+        Self::format_scalar(f, *input, *out, elem)
+    }
+
+    fn format_native_vec3(
+        f: &mut std::fmt::Formatter<'_>,
+        input: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
+        Self::format_scalar(f, *input, *out, elem)
+    }
+
+    fn format_native_vec2(
+        f: &mut std::fmt::Formatter<'_>,
+        input: &Variable,
+        out: &Variable,
+        elem: Elem,
+    ) -> std::fmt::Result {
+        Self::format_scalar(f, *input, *out, elem)
+    }
+
+    fn unroll_vec2(
         f: &mut std::fmt::Formatter<'_>,
         input: &Variable,
         out: &Variable,
@@ -43,7 +95,7 @@ pub trait Unary {
         Ok(())
     }
 
-    fn format_vec3(
+    fn unroll_vec3(
         f: &mut std::fmt::Formatter<'_>,
         input: &Variable,
         out: &Variable,
@@ -64,7 +116,7 @@ pub trait Unary {
         Ok(())
     }
 
-    fn format_vec4(
+    fn unroll_vec4(
         f: &mut std::fmt::Formatter<'_>,
         input: &Variable,
         out: &Variable,
@@ -106,9 +158,32 @@ macro_rules! function {
     };
 }
 
-function!(Erf, "erff");
+function!(Abs, "abs");
 function!(Log, "log");
+function!(Log1p, "log1p");
+function!(Cos, "cos");
+function!(Sin, "sin");
+function!(Tanh, "tanh");
+function!(Sqrt, "sqrt");
 function!(Exp, "exp");
+function!(Erf, "erff");
+
+pub struct Not;
+
+impl Unary for Not {
+    fn format_scalar<Input, Out>(
+        f: &mut std::fmt::Formatter<'_>,
+        input: Input,
+        out: Out,
+        _elem: Elem,
+    ) -> std::fmt::Result
+    where
+        Input: Component,
+        Out: Component,
+    {
+        f.write_fmt(format_args!("{out} = !{input};\n"))
+    }
+}
 
 pub struct Assign;
 

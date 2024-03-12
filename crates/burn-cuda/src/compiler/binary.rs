@@ -1,12 +1,5 @@
-use super::{Component, Elem, Item, Variable};
+use super::{Component, Elem, InstructionSettings, Item, Variable};
 use std::fmt::Display;
-
-#[derive(Debug, Default)]
-pub struct BinarySettings {
-    pub native_vec4: bool,
-    pub native_vec3: bool,
-    pub native_vec2: bool,
-}
 
 pub trait Binary {
     fn format(
@@ -44,8 +37,8 @@ pub trait Binary {
         }
     }
 
-    fn settings(_elem: Elem) -> BinarySettings {
-        BinarySettings::default()
+    fn settings(_elem: Elem) -> InstructionSettings {
+        InstructionSettings::default()
     }
 
     fn format_scalar<Lhs, Rhs, Out>(
@@ -171,6 +164,13 @@ pub trait Binary {
 
 macro_rules! operator {
     ($name:ident, $op:expr) => {
+        operator!($name, $op, |_elem| InstructionSettings {
+            native_vec4: true,
+            native_vec3: true,
+            native_vec2: true,
+        });
+    };
+    ($name:ident, $op:expr, $vectorization:expr) => {
         pub struct $name;
 
         impl Binary for $name {
@@ -183,6 +183,39 @@ macro_rules! operator {
             ) -> std::fmt::Result {
                 f.write_fmt(format_args!("{out} = {lhs} {} {rhs};\n", $op))
             }
+
+            fn settings(elem: Elem) -> InstructionSettings {
+                $vectorization(elem)
+            }
+        }
+    };
+}
+
+macro_rules! function {
+    ($name:ident, $op:expr) => {
+        function!($name, $op, |_elem| InstructionSettings {
+            native_vec4: true,
+            native_vec3: true,
+            native_vec2: true,
+        });
+    };
+    ($name:ident, $op:expr, $vectorization:expr) => {
+        pub struct $name;
+
+        impl Binary for $name {
+            fn format_scalar<Lhs: Display, Rhs: Display, Out: Display>(
+                f: &mut std::fmt::Formatter<'_>,
+                lhs: Lhs,
+                rhs: Rhs,
+                out: Out,
+                _elem: Elem,
+            ) -> std::fmt::Result {
+                f.write_fmt(format_args!("{out} = {}({lhs}, {rhs});\n", $op))
+            }
+
+            fn settings(elem: Elem) -> InstructionSettings {
+                $vectorization(elem)
+            }
         }
     };
 }
@@ -193,10 +226,21 @@ operator!(Div, "/");
 operator!(Mul, "*");
 operator!(Modulo, "%");
 operator!(Equal, "==");
+operator!(NotEqual, "!=");
 operator!(Lower, "<");
 operator!(LowerEqual, "<=");
 operator!(Greater, ">");
 operator!(GreaterEqual, ">=");
+operator!(ShiftLeft, "<<");
+operator!(ShiftRight, ">>");
+operator!(BitwiseAnd, "&");
+operator!(BitwiseXor, "^");
+operator!(Or, "||");
+operator!(And, "&&");
+
+function!(Powf, "powf");
+function!(Max, "max");
+function!(Min, "min");
 
 pub struct IndexAssign;
 

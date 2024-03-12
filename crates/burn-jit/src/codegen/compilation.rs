@@ -12,7 +12,7 @@ use crate::{
         Binding, ComputeShader, Elem, Item, Location, ReadingStrategy, Variable, Vectorization,
         Visibility, WorkgroupSize,
     },
-    gpu::{gpu, Branch, If, IfElse},
+    gpu::{gpu, Branch, If},
     Runtime,
 };
 

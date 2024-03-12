@@ -64,7 +64,6 @@ impl<'a> CudaResource<'a> {
         let ptr = match self.kind {
             CudaResourceKind::Full { size: _ } => ptr,
             CudaResourceKind::Slice { size: _, offset } => {
-                panic!("NOOOOOOOOOoo");
                 ptr.wrapping_add(offset * std::mem::size_of::<u8>())
             }
         };
@@ -73,14 +72,8 @@ impl<'a> CudaResource<'a> {
     /// Return the binding view of the buffer.
     pub fn view(&'a self) -> cudarc::driver::CudaView<'a, u8> {
         match &self.kind {
-            CudaResourceKind::Full { size } => {
-                println!("Here");
-                self.buffer.slice(0..*size)
-            }
-            CudaResourceKind::Slice { size, offset } => {
-                panic!("NOOOOOOOOOoo view");
-                self.buffer.slice(*offset..*size + *offset)
-            }
+            CudaResourceKind::Full { size } => self.buffer.slice(0..*size),
+            CudaResourceKind::Slice { size, offset } => self.buffer.slice(*offset..*size + *offset),
         }
     }
 

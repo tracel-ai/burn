@@ -1,8 +1,7 @@
-use std::marker::PhantomData;
-
-use burn_jit::gpu;
-
+use super::Instruction;
 use crate::element::{FloatElement, IntElement};
+use burn_jit::gpu;
+use std::marker::PhantomData;
 
 #[derive(new, Clone, Debug, Default)]
 pub struct CudaCompiler<F: FloatElement, I: IntElement> {
@@ -10,6 +9,7 @@ pub struct CudaCompiler<F: FloatElement, I: IntElement> {
     stride: bool,
     num_inputs: usize,
     num_outputs: usize,
+    shared_memories: Vec<super::SharedMemory>,
     _f: PhantomData<F>,
     _i: PhantomData<I>,
 }
@@ -22,7 +22,7 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
     type FullPrecisionCompiler = CudaCompiler<f32, i32>;
 
     fn compile(shader: burn_jit::gpu::ComputeShader) -> Self::Representation {
-        let mut compiler = Self::default();
+        let compiler = Self::default();
         compiler.compile_shader(shader)
     }
 
@@ -32,7 +32,7 @@ impl<F: FloatElement, I: IntElement> burn_jit::Compiler for CudaCompiler<F, I> {
 }
 
 impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
-    fn compile_shader(&mut self, mut value: gpu::ComputeShader) -> super::ComputeShader {
+    fn compile_shader(mut self, mut value: gpu::ComputeShader) -> super::ComputeShader {
         self.num_inputs = value.inputs.len();
         self.num_outputs = value.outputs.len();
 
@@ -43,6 +43,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             id: true,
             stride: true,
             shape: true,
+            shared_memories: self.shared_memories,
         };
 
         super::ComputeShader {
@@ -61,18 +62,17 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 .into_iter()
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
-            shared_memories: Vec::new(),
             workgroup_size: value.workgroup_size,
             body,
         }
     }
 
-    fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<super::Instruction> {
+    fn compile_scope(&mut self, value: &mut gpu::Scope) -> Vec<Instruction> {
         let mut instructions = Vec::new();
         let processing = value.process();
 
         for var in processing.variables {
-            instructions.push(super::Instruction::DeclareVariable {
+            instructions.push(Instruction::DeclareVariable {
                 var: self.compile_variable(var),
             });
         }
@@ -86,7 +86,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
     }
     fn compile_operation(
         &mut self,
-        instructions: &mut Vec<super::Instruction>,
+        instructions: &mut Vec<Instruction>,
         operation: gpu::Operation,
         scope: &mut gpu::Scope,
     ) {
@@ -95,11 +95,15 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
             gpu::Operation::Procedure(proc) => self.compile_procedure(instructions, proc, scope),
             gpu::Operation::Metadata(op) => instructions.push(self.compile_metadata(op)),
             gpu::Operation::Branch(val) => self.compile_branch(instructions, val),
-            gpu::Operation::Synchronization(val) => todo!(),
+            gpu::Operation::Synchronization(val) => match val {
+                gpu::Synchronization::WorkgroupBarrier => {
+                    instructions.push(Instruction::SyncThreads)
+                }
+            },
         }
     }
 
-    fn compile_metadata(&mut self, metadata: gpu::Metadata) -> super::Instruction {
+    fn compile_metadata(&mut self, metadata: gpu::Metadata) -> Instruction {
         match metadata {
             gpu::Metadata::Stride { dim, var, out } => {
                 self.stride = true;
@@ -108,7 +112,7 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                     gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a stride, got: {:?}", var),
                 };
-                super::Instruction::Stride {
+                Instruction::Stride {
                     dim: self.compile_variable(dim),
                     position,
                     out: self.compile_variable(out),
@@ -121,45 +125,43 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                     gpu::Variable::GlobalOutputArray(idx, _) => self.num_inputs + idx as usize,
                     _ => panic!("Only Input and Output have a shape, got {:?}", var),
                 };
-                super::Instruction::Shape {
+                Instruction::Shape {
                     dim: self.compile_variable(dim),
                     position,
                     out: self.compile_variable(out),
                 }
             }
-            gpu::Metadata::ArrayLength { var, out } => todo!(),
+            gpu::Metadata::ArrayLength { var: _, out: _ } => todo!("Remove that operation."),
         }
     }
 
-    fn compile_branch(&mut self, instructions: &mut Vec<super::Instruction>, branch: gpu::Branch) {
+    fn compile_branch(&mut self, instructions: &mut Vec<Instruction>, branch: gpu::Branch) {
         match branch {
-            gpu::Branch::If(mut op) => instructions.push(super::Instruction::If {
+            gpu::Branch::If(mut op) => instructions.push(Instruction::If {
                 cond: self.compile_variable(op.cond),
                 instructions: self.compile_scope(&mut op.scope),
             }),
-            gpu::Branch::IfElse(mut op) => instructions.push(super::Instruction::IfElse {
+            gpu::Branch::IfElse(mut op) => instructions.push(Instruction::IfElse {
                 cond: self.compile_variable(op.cond),
                 instructions_if: self.compile_scope(&mut op.scope_if),
                 instructions_else: self.compile_scope(&mut op.scope_else),
             }),
-            gpu::Branch::Return => instructions.push(super::Instruction::Return),
-            gpu::Branch::Break => instructions.push(super::Instruction::Break),
-            gpu::Branch::RangeLoop(mut range_loop) => {
-                instructions.push(super::Instruction::RangeLoop {
-                    i: self.compile_variable(range_loop.i),
-                    start: self.compile_variable(range_loop.start),
-                    end: self.compile_variable(range_loop.end),
-                    instructions: self.compile_scope(&mut range_loop.scope),
-                })
-            }
-            gpu::Branch::Loop(mut op) => instructions.push(super::Instruction::Loop {
+            gpu::Branch::Return => instructions.push(Instruction::Return),
+            gpu::Branch::Break => instructions.push(Instruction::Break),
+            gpu::Branch::RangeLoop(mut range_loop) => instructions.push(Instruction::RangeLoop {
+                i: self.compile_variable(range_loop.i),
+                start: self.compile_variable(range_loop.start),
+                end: self.compile_variable(range_loop.end),
+                instructions: self.compile_scope(&mut range_loop.scope),
+            }),
+            gpu::Branch::Loop(mut op) => instructions.push(Instruction::Loop {
                 instructions: self.compile_scope(&mut op.scope),
             }),
         };
     }
     fn compile_procedure(
         &mut self,
-        instructions: &mut Vec<super::Instruction>,
+        instructions: &mut Vec<Instruction>,
         proc: gpu::Procedure,
         scope: &mut gpu::Scope,
     ) {
@@ -191,95 +193,73 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
         }
     }
 
-    fn compile_instruction(&mut self, value: gpu::Operator) -> super::Instruction {
+    fn compile_instruction(&mut self, value: gpu::Operator) -> Instruction {
         match value {
-            gpu::Operator::Add(op) => super::Instruction::Add {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Mul(op) => super::Instruction::Mul {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Div(op) => super::Instruction::Div {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Sub(op) => super::Instruction::Sub {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Assign(op) => super::Instruction::Assign {
+            gpu::Operator::Add(op) => Instruction::Add(self.compile_binary(op)),
+            gpu::Operator::Mul(op) => Instruction::Mul(self.compile_binary(op)),
+            gpu::Operator::Div(op) => Instruction::Div(self.compile_binary(op)),
+            gpu::Operator::Sub(op) => Instruction::Sub(self.compile_binary(op)),
+            gpu::Operator::Assign(op) => Instruction::Assign(self.compile_unary(op)),
+            gpu::Operator::Index(op) => Instruction::Index(self.compile_binary(op)),
+            gpu::Operator::IndexAssign(op) => Instruction::IndexAssign(self.compile_binary(op)),
+            gpu::Operator::Modulo(op) => Instruction::Modulo(self.compile_binary(op)),
+            gpu::Operator::Equal(op) => Instruction::Equal(self.compile_binary(op)),
+            gpu::Operator::Lower(op) => Instruction::Lower(self.compile_binary(op)),
+            gpu::Operator::Greater(op) => Instruction::Greater(self.compile_binary(op)),
+            gpu::Operator::LowerEqual(op) => Instruction::LowerEqual(self.compile_binary(op)),
+            gpu::Operator::GreaterEqual(op) => Instruction::GreaterEqual(self.compile_binary(op)),
+            gpu::Operator::Abs(op) => Instruction::Abs(self.compile_unary(op)),
+            gpu::Operator::Exp(op) => Instruction::Exp(self.compile_unary(op)),
+            gpu::Operator::Log(op) => Instruction::Log(self.compile_unary(op)),
+            gpu::Operator::Log1p(op) => Instruction::Log1p(self.compile_unary(op)),
+            gpu::Operator::Cos(op) => Instruction::Cos(self.compile_unary(op)),
+            gpu::Operator::Sin(op) => Instruction::Sin(self.compile_unary(op)),
+            gpu::Operator::Tanh(op) => Instruction::Tanh(self.compile_unary(op)),
+            gpu::Operator::Powf(op) => Instruction::Powf(self.compile_binary(op)),
+            gpu::Operator::Sqrt(op) => Instruction::Sqrt(self.compile_unary(op)),
+            gpu::Operator::Erf(op) => Instruction::Erf(self.compile_unary(op)),
+            gpu::Operator::And(op) => Instruction::And(self.compile_binary(op)),
+            gpu::Operator::Or(op) => Instruction::Or(self.compile_binary(op)),
+            gpu::Operator::Not(op) => Instruction::Not(self.compile_unary(op)),
+            gpu::Operator::Max(op) => Instruction::Max(self.compile_binary(op)),
+            gpu::Operator::Min(op) => Instruction::Min(self.compile_binary(op)),
+            gpu::Operator::NotEqual(op) => Instruction::NotEqual(self.compile_binary(op)),
+            gpu::Operator::BitwiseAnd(op) => Instruction::BitwiseAnd(self.compile_binary(op)),
+            gpu::Operator::BitwiseXor(op) => Instruction::BitwiseXor(self.compile_binary(op)),
+            gpu::Operator::ShiftLeft(op) => Instruction::ShiftLeft(self.compile_binary(op)),
+            gpu::Operator::ShiftRight(op) => Instruction::ShiftRight(self.compile_binary(op)),
+            gpu::Operator::Clamp(op) => Instruction::Clamp {
                 input: self.compile_variable(op.input),
+                min_value: self.compile_variable(op.min_value),
+                max_value: self.compile_variable(op.max_value),
                 out: self.compile_variable(op.out),
             },
-            gpu::Operator::Index(op) => super::Instruction::Index {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
+            gpu::Operator::Recip(op) => Instruction::Div(super::BinaryInstruction {
+                lhs: super::Variable::ConstantScalar(
+                    1.0,
+                    Self::compile_elem(op.input.item().elem()),
+                ),
+                rhs: self.compile_variable(op.input),
                 out: self.compile_variable(op.out),
-            },
-            gpu::Operator::IndexAssign(op) => super::Instruction::IndexAssign {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Modulo(op) => super::Instruction::Modulo {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Equal(op) => super::Instruction::Equal {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Lower(op) => super::Instruction::Lower {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Greater(op) => super::Instruction::Greater {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::LowerEqual(op) => super::Instruction::LowerEqual {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::GreaterEqual(op) => super::Instruction::GreaterEqual {
-                lhs: self.compile_variable(op.lhs),
-                rhs: self.compile_variable(op.rhs),
-                out: self.compile_variable(op.out),
-            },
-
-            gpu::Operator::Abs(_) => todo!(),
-            gpu::Operator::Exp(_) => todo!(),
-            gpu::Operator::Log(_) => todo!(),
-            gpu::Operator::Log1p(_) => todo!(),
-            gpu::Operator::Cos(_) => todo!(),
-            gpu::Operator::Sin(_) => todo!(),
-            gpu::Operator::Tanh(_) => todo!(),
-            gpu::Operator::Powf(_) => todo!(),
-            gpu::Operator::Sqrt(_) => todo!(),
-            gpu::Operator::Erf(op) => super::Instruction::Erf {
-                input: self.compile_variable(op.input),
-                out: self.compile_variable(op.out),
-            },
-            gpu::Operator::Recip(_) => todo!(),
-            gpu::Operator::Clamp(_) => todo!(),
-            gpu::Operator::And(_) => todo!(),
-            gpu::Operator::Or(_) => todo!(),
-            gpu::Operator::Not(_) => todo!(),
-            gpu::Operator::Max(_) => todo!(),
-            gpu::Operator::Min(_) => todo!(),
+            }),
         }
     }
+
+    fn compile_binary(&mut self, value: gpu::BinaryOperator) -> super::BinaryInstruction {
+        super::BinaryInstruction {
+            lhs: self.compile_variable(value.lhs),
+            rhs: self.compile_variable(value.rhs),
+            out: self.compile_variable(value.out),
+        }
+    }
+
+    fn compile_unary(&mut self, value: gpu::UnaryOperator) -> super::UnaryInstruction {
+        super::UnaryInstruction {
+            input: self.compile_variable(value.input),
+            out: self.compile_variable(value.out),
+        }
+    }
+
     fn compile_variable(&mut self, value: gpu::Variable) -> super::Variable {
         match value {
             gpu::Variable::GlobalInputArray(index, item) => {
@@ -305,7 +285,12 @@ impl<F: FloatElement, I: IntElement> CudaCompiler<F, I> {
                 super::Variable::ConstantScalar(index, Self::compile_elem(elem))
             }
             gpu::Variable::SharedMemory(index, item, size) => {
-                todo!()
+                let item = Self::compile_item(item);
+                if !self.shared_memories.iter().any(|s| s.index == index) {
+                    self.shared_memories
+                        .push(super::SharedMemory::new(index, item, size));
+                }
+                super::Variable::SharedMemory(index, item, size)
             }
             gpu::Variable::Id => super::Variable::Id,
             gpu::Variable::Rank => super::Variable::Rank,

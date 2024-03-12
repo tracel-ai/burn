@@ -24,20 +24,14 @@ pub struct Binding {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SharedMemory {
-    location: Location,
     pub index: u16,
-    item: Item,
-    size: u32,
+    pub item: Item,
+    pub size: u32,
 }
 
 impl SharedMemory {
     pub fn new(index: u16, item: Item, size: u32) -> Self {
-        Self {
-            location: Location::Workgroup,
-            index,
-            item,
-            size,
-        }
+        Self { index, item, size }
     }
 }
 
@@ -46,7 +40,6 @@ pub struct ComputeShader {
     pub inputs: Vec<Binding>,
     pub outputs: Vec<Binding>,
     pub named: Vec<(String, Binding)>,
-    pub shared_memories: Vec<SharedMemory>,
     pub workgroup_size: WorkgroupSize,
     pub body: Body,
 }
@@ -88,12 +81,6 @@ extern \"C\" __global__ void kernel(
 
         f.write_str("\n) {\n")?;
 
-        for shared in self.shared_memories.iter() {
-            f.write_fmt(format_args!(
-                "{}* shared_{}[{}];",
-                shared.item, shared.index, shared.size
-            ))?;
-        }
         f.write_fmt(format_args!("{}", self.body))?;
         f.write_str("\n}")?;
 

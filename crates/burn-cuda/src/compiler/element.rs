@@ -1,6 +1,5 @@
-use std::fmt::Display;
-
 use burn_jit::gpu;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum Elem {
@@ -160,23 +159,23 @@ impl Display for Variable {
                 f.write_fmt(format_args!("shared_memory_{number}"))
             }
             Variable::Id => f.write_str("id"),
-            Variable::LocalInvocationIndex => f.write_str("local_idx"),
+            Variable::LocalInvocationIndex => f.write_str("id"), // TODO: Fix
             Variable::LocalInvocationIdX => f.write_str("local_invocation_id.x"),
             Variable::LocalInvocationIdY => f.write_str("local_invocation_id.y"),
             Variable::LocalInvocationIdZ => f.write_str("local_invocation_id.z"),
             Variable::Rank => f.write_str("rank"),
-            Variable::WorkgroupIdX => f.write_str("workgroup_id.x"),
-            Variable::WorkgroupIdY => f.write_str("workgroup_id.y"),
-            Variable::WorkgroupIdZ => f.write_str("workgroup_id.z"),
-            Variable::GlobalInvocationIdX => f.write_str("global_id.x"),
-            Variable::GlobalInvocationIdY => f.write_str("global_id.y"),
-            Variable::GlobalInvocationIdZ => f.write_str("global_id.z"),
-            Variable::WorkgroupSizeX => f.write_str("WORKGROUP_SIZE_X"),
-            Variable::WorkgroupSizeY => f.write_str("WORKGROUP_SIZE_Y"),
-            Variable::WorkgroupSizeZ => f.write_str("WORKGROUP_SIZE_Z"),
-            Variable::NumWorkgroupsX => f.write_str("num_workgroups.x"),
-            Variable::NumWorkgroupsY => f.write_str("num_workgroups.y"),
-            Variable::NumWorkgroupsZ => f.write_str("num_workgroups.z"),
+            Variable::WorkgroupIdX => f.write_str("blockIdx.x"),
+            Variable::WorkgroupIdY => f.write_str("blockIdx.y"),
+            Variable::WorkgroupIdZ => f.write_str("blockIdx.z"),
+            Variable::GlobalInvocationIdX => f.write_str("globalIdx_x"),
+            Variable::GlobalInvocationIdY => f.write_str("globalIdx_y"),
+            Variable::GlobalInvocationIdZ => f.write_str("globalIdx_z"),
+            Variable::WorkgroupSizeX => f.write_str("blockDim.x"),
+            Variable::WorkgroupSizeY => f.write_str("blockDim.y"),
+            Variable::WorkgroupSizeZ => f.write_str("blockDim.z"),
+            Variable::NumWorkgroupsX => f.write_str("gridDim.x"),
+            Variable::NumWorkgroupsY => f.write_str("gridDim.y"),
+            Variable::NumWorkgroupsZ => f.write_str("gridDim.z"),
         }
     }
 }
