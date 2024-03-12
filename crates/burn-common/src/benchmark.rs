@@ -13,7 +13,7 @@ use std::time::Instant;
 use web_time::Instant;
 
 /// Results of a benchmark run.
-#[derive(new, Debug, Default, Clone, Serialize)]
+#[derive(new, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct BenchmarkDurations {
     /// All durations of the run, in the order they were benchmarked
     pub durations: Vec<Duration>,
