@@ -2379,6 +2379,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .parents([&tensor])
             .stateless(B::float_sign(tensor.primitive))
     }
+
+    // TODO: Implement float_prod and float_sum
+    // https://github.com/tracel-ai/burn/issues/1458
 }
 
 #[derive(Debug, Clone)]
