@@ -129,6 +129,12 @@ impl Variable {
                 item.vectorize(vectorize),
                 item.vectorized_size(vectorize, *size),
             ),
+            Variable::LocalArray(index, item, name, size) => Variable::LocalArray(
+                *index,
+                item.vectorize(vectorize),
+                *name,
+                item.vectorized_size(vectorize, *size),
+            ),
             Variable::ConstantScalar(_, _) => *self,
             Variable::GlobalScalar(_, _) => *self,
             Variable::Id => *self,

@@ -1,3 +1,4 @@
+use super::LocalArray;
 use super::{shader::ComputeShader, Item, SharedMemory};
 use crate::compiler::wgsl;
 use crate::{FloatElement, IntElement};
@@ -19,6 +20,7 @@ pub struct WgslCompiler<F: FloatElement, I: IntElement> {
     shape: bool,
     num_workgroups: bool,
     shared_memories: Vec<SharedMemory>,
+    local_arrays: Vec<LocalArray>,
     _float: PhantomData<F>,
     _int: PhantomData<I>,
 }
@@ -44,6 +46,7 @@ impl<F: FloatElement, I: IntElement> Default for WgslCompiler<F, I> {
             shape: false,
             num_workgroups: false,
             shared_memories: Vec::default(),
+            local_arrays: Vec::default(),
             _float: PhantomData,
             _int: PhantomData,
         }
@@ -102,6 +105,7 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                 .map(|(name, binding)| (name, Self::compile_binding(binding)))
                 .collect(),
             shared_memories: self.shared_memories.clone(),
+            local_arrays: self.local_arrays.clone(),
             workgroup_size: value.workgroup_size,
             global_invocation_id: self.global_invocation_id || self.id,
             local_invocation_index: self.local_invocation_index,
@@ -162,6 +166,14 @@ impl<F: FloatElement, I: IntElement> WgslCompiler<F, I> {
                         .push(SharedMemory::new(index, item, size));
                 }
                 wgsl::Variable::SharedMemory(index, item, size)
+            }
+            gpu::Variable::LocalArray(index, item, scope_depth, size) => {
+                let item = Self::compile_item(item);
+                if !self.local_arrays.iter().any(|s| s.index == index) {
+                    self.local_arrays
+                        .push(LocalArray::new(index, item, scope_depth, size));
+                }
+                wgsl::Variable::LocalArray(index, item, scope_depth, size)
             }
             gpu::Variable::Id => {
                 self.id = true;

@@ -32,78 +32,94 @@ struct MatmulTiling2dPaddedEagerKernel<R: Runtime> {
 
 struct MatmulTiling2dPaddedShader {
     variables: BinaryOperator,
-    block_size: usize,
+    config: Tiling2dConfig,
 }
 
 impl MatmulTiling2dPaddedShader {
     fn expand(self, scope: &mut Scope) {
-        // Define out global variables.
-        let local_idx = Variable::LocalInvocationIndex;
-        let batch = Variable::GlobalInvocationIdZ;
-        let rank = Variable::Rank;
-        let block_size: Variable = self.block_size.into();
+        // Phase 1: Gather information: input, shader and offsets
 
-        // Extract tensor variables.
+        // Inputs
         let lhs = self.variables.lhs;
         let rhs = self.variables.rhs;
         let out = self.variables.out;
 
-        // Define where we have to work on the current matrix.
-        let tmp_index = scope.create_local(Elem::UInt);
-        let batch_dims = scope.create_local(Elem::UInt);
+        // Config variables
+        let block_size_m: Variable = self.config.block_size_m.into();
+        let block_size_n: Variable = self.config.block_size_n.into();
+        let tile_size_m: Variable = self.config.tile_size_m.into();
+        let tile_size_n: Variable = self.config.tile_size_n.into();
+        let n_threads_per_row: Variable =
+            (((self.config.block_size_n - 1) / self.config.tile_size_n) + 1).into();
+        let results_size = (self.config.tile_size_m * self.config.tile_size_n) as u32;
+
+        // Shader info
+        let local_idx = Variable::LocalInvocationIndex;
+        let batch = Variable::GlobalInvocationIdZ;
+
+        // Shapes
+        let rank = Variable::Rank;
+        let penultimate_dim = scope.create_local(Elem::UInt);
+        gpu!(scope, penultimate_dim = rank - 1u32);
+        let m = scope.create_local(Elem::UInt);
+        let k = scope.create_local(Elem::UInt);
+        let n = scope.create_local(Elem::UInt);
+        gpu!(scope, m = shape(lhs, penultimate_dim));
+        gpu!(scope, k = shape(rhs, penultimate_dim));
+        gpu!(scope, n = shape(rhs, rank));
+
+        // Strides
+        let lhs_stride_row = scope.create_local(Elem::UInt);
+        let lhs_stride_col = scope.create_local(Elem::UInt);
+        let rhs_stride_row = scope.create_local(Elem::UInt);
+        let rhs_stride_col = scope.create_local(Elem::UInt);
+        let out_stride_row = scope.create_local(Elem::UInt);
+        let out_stride_col = scope.create_local(Elem::UInt);
+        gpu!(scope, lhs_stride_row = stride(lhs, penultimate_dim));
+        gpu!(scope, lhs_stride_col = stride(lhs, rank));
+        gpu!(scope, rhs_stride_row = stride(rhs, penultimate_dim));
+        gpu!(scope, rhs_stride_col = stride(rhs, rank));
+        gpu!(scope, out_stride_row = stride(out, penultimate_dim));
+        gpu!(scope, out_stride_col = stride(out, rank));
+
+        // Workgroup offset
+        let skip_row = scope.create_local(Elem::UInt);
+        let workgroup_id_x = Variable::WorkgroupIdX;
+        gpu!(scope, skip_row = workgroup_id_x);
+        gpu!(scope, skip_row *= block_size_m);
+        let skip_col = scope.create_local(Elem::UInt);
+        let workgroup_id_y = Variable::WorkgroupIdY;
+        gpu!(scope, skip_col = workgroup_id_y);
+        gpu!(scope, skip_col *= block_size_n);
+
+        // Invocation offset
+        let thread_row = scope.create_local(Elem::UInt);
+        gpu!(scope, thread_row = local_idx / n_threads_per_row);
+        gpu!(scope, thread_row *= tile_size_m);
+        let thread_col = scope.create_local(Elem::UInt);
+        gpu!(scope, thread_col = local_idx % n_threads_per_row);
+        gpu!(scope, thread_col *= tile_size_n);
+
+        // Row and col
         let row = scope.create_local(Elem::UInt);
         let col = scope.create_local(Elem::UInt);
+        gpu!(scope, row = skip_row + thread_row);
+        gpu!(scope, col = skip_col + thread_col);
 
-        // Row position.
-        gpu!(scope, tmp_index = local_idx / block_size);
-        gpu!(scope, row = block_size * Variable::WorkgroupIdX);
-        gpu!(scope, row = row + tmp_index);
-
-        // Col position.
-        gpu!(scope, tmp_index = local_idx % block_size);
-        gpu!(scope, col = block_size * Variable::WorkgroupIdY);
-        gpu!(scope, col = col + tmp_index);
-
-        // Batch position.
-        gpu!(scope, batch_dims = rank - 2u32);
-
-        // Define the matrix size.
-        let n_rows = scope.create_local(Elem::UInt);
-        let n_cols = scope.create_local(Elem::UInt);
-        let k = scope.create_local(Elem::UInt);
-
-        // Number of rows.
-        gpu!(scope, n_rows = shape(out, batch_dims));
-
-        // Number of cols.
-        gpu!(scope, tmp_index = batch_dims + 1u32);
-        gpu!(scope, n_cols = shape(out, tmp_index));
-
-        // The dimension that is going to be squashed.
-        gpu!(scope, k = shape(lhs, tmp_index));
-
-        // Check if there is some work to be done.
-        let should_stop = scope.create_local(Elem::Bool);
-        gpu!(scope, should_stop = row >= n_rows);
-        gpu!(scope, if (should_stop).then(|scope| {
-            scope.register(Branch::Return);
-        }));
-
-        gpu!(scope, should_stop = col >= n_cols);
-        gpu!(scope, if (should_stop).then(|scope| {
-            scope.register(Branch::Return);
-        }));
-
-        // Calculate the batch offset.
-        let offset_lhs = scope.zero(Elem::UInt);
-        let offset_rhs = scope.zero(Elem::UInt);
-        let offset_output = scope.create_local(Elem::UInt);
+        // Calculate offset.
+        let offset_lhs = scope.create_local(Elem::UInt);
+        let offset_rhs = scope.create_local(Elem::UInt);
+        gpu!(scope, offset_lhs = skip_row * lhs_stride_row);
+        gpu!(scope, offset_rhs = skip_col * rhs_stride_col);
 
         // Batch offset for the output.
-        gpu!(scope, offset_output = n_rows * n_cols);
+        let offset_output = scope.create_local(Elem::UInt);
+        let batch_dims = scope.create_local(Elem::UInt);
+        gpu!(scope, offset_output = m * n);
         gpu!(scope, offset_output = offset_output * batch);
 
         // Batch offset for the lhs & rhs matrices.
+        gpu!(scope, batch_dims = rank - 2u32);
         IndexOffsetGlobalWithLayout {
             tensors: vec![lhs, rhs],
             indexes: vec![offset_lhs, offset_rhs],
@@ -114,46 +130,13 @@ impl MatmulTiling2dPaddedShader {
         }
         .expand(scope);
 
-        // Calculate the dot product (row X col).
-        let sum = scope.create_local(out.item());
+        // Phase 2: Loop over k for loading and computing
 
-        // Initialize the sum to zero.
-        let zero: Variable = 0f32.into();
-        gpu!(scope, sum = zero);
+        let results = scope.create_local_array(lhs.item().elem(), results_size);
+        let tmp = scope.create_local(lhs.item());
+        gpu!(scope, tmp = results[offset_lhs]);
 
-        // Loop over the k dimension.
-        gpu!(
-            scope,
-            range(0u32, k).for_each(|i, scope| {
-                let lhs_index = scope.create_local(Elem::UInt);
-                let rhs_index = scope.create_local(Elem::UInt);
-
-                let lhs_value = scope.create_local(lhs.item());
-                let rhs_value = scope.create_local(rhs.item());
-                let out_value = scope.create_local(out.item());
-
-                gpu!(scope, lhs_index = row * k);
-                gpu!(scope, lhs_index = lhs_index + i);
-                gpu!(scope, lhs_index = lhs_index + offset_lhs);
-
-                gpu!(scope, rhs_index = i * n_cols);
-                gpu!(scope, rhs_index = rhs_index + col);
-                gpu!(scope, rhs_index = rhs_index + offset_rhs);
-
-                gpu!(scope, lhs_value = lhs[lhs_index]);
-                gpu!(scope, rhs_value = rhs[rhs_index]);
-
-                gpu!(scope, out_value = lhs_value * rhs_value);
-                gpu!(scope, sum += out_value);
-            })
-        );
-
-        let out_index = scope.create_local(Elem::UInt);
-
-        gpu!(scope, out_index = row * n_cols);
-        gpu!(scope, out_index += col);
-        gpu!(scope, out_index += offset_output);
-        gpu!(scope, out[out_index] = sum);
+        // Phase 3: Write to output
     }
 }
 
@@ -168,7 +151,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
 
         MatmulTiling2dPaddedShader {
             variables: gpu::BinaryOperator { lhs, rhs, out },
-            block_size: self.config.grid_x, // TODO
+            config: self.config.clone(),
         }
         .expand(&mut scope);
 
