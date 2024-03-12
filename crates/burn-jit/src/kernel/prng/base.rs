@@ -292,7 +292,6 @@ pub(crate) fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_
     gpu!(scope, float_random *= tmp);
 }
 
-#[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
 pub mod tests_utils {
     use burn_tensor::Element;
@@ -303,6 +302,7 @@ pub mod tests_utils {
         pub n_runs: usize, // Number of sequences of same bin
     }
 
+    #[allow(unused)]
     pub fn calculate_bin_stats<E: Element>(
         numbers: Vec<E>,
         number_of_bins: usize,
