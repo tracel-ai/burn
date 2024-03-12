@@ -6,11 +6,11 @@ mod tests {
 
     #[test]
     fn test_fft_1d() {
-        assert_output(
-            TestTensor::from([[[1., 0.], [0., 0.]], [[-1., 0.], [-1., 0.]]]),
-            TestTensor::from([[[1., 0.], [0., 0.]], [[-1., 0.], [-1., 0.]]]),
-            // TestTensor::from([[[1., 0.], [1., 0.]], [[-1., 0.], [0., 0.]]]),
-        )
+        let x = TestTensor::from([[[1., 3.], [2.3, -1.]], [[-1., 0.], [-1., 0.]]]);
+        println!("x {:?}", x.clone().into_data());
+        println!("x_hat {:?}", fft(x.clone()).into_data());
+        let x_hat = TestTensor::from([[[1., 0.], [1., 0.]], [[-1., 0.], [0., 0.]]]);
+        assert_output(fft(x), x_hat);
     }
 
     fn assert_output(x: TestTensor<3>, y: TestTensor<3>) {
