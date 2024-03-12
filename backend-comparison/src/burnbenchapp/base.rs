@@ -264,11 +264,11 @@ pub(crate) fn run_backend_comparison_benchmarks(
     // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
     // and print them in a single table.
     let mut benchmark_results = BenchMarkCollection::default();
-    if let Some(file) = fs::File::open(result_path.clone()).ok() {
+    if let Ok(file) = fs::File::open(result_path.clone()) {
         let file_reader = BufReader::new(file);
         for file in file_reader.lines() {
             let file_path = file.unwrap();
-            if let Some(br_file) = fs::File::open(file_path.clone()).ok() {
+            if let Ok(br_file) = fs::File::open(file_path.clone()) {
                 let benchmarkrecord =
                     serde_json::from_reader::<_, BenchmarkRecord>(br_file).unwrap();
                 benchmark_results.records.push(benchmarkrecord)

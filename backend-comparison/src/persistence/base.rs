@@ -9,7 +9,6 @@ use serde_json;
 use std::time::Duration;
 use std::{env, fmt::Display};
 use std::{fs, io::Write};
-
 #[derive(Default, Clone)]
 pub struct BenchmarkRecord {
     backend: String,
@@ -93,7 +92,7 @@ pub fn save<B: Backend>(
             .open(curdir_filepath)
             .unwrap();
         curdir_file
-            .write(format!("{}\n", file_path.to_string_lossy()).as_bytes())
+            .write_all(format!("{}\n", file_path.to_string_lossy()).as_bytes())
             .unwrap();
         if url.is_some() {
             println!("Sharing results...");
@@ -237,23 +236,19 @@ pub(crate) struct BenchMarkCollection {
 
 impl Display for BenchMarkCollection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let header = format!(
+        writeln!(
+            f,
             "||{0:<15}||{1:<35}||{2:<15}||\n||{3:=<15}||{4:=<35}||{5:=<15}||",
             "Benchmark", "Backend", "Runtime", "", "", ""
-        );
-
-        let rows = self
-            .records
-            .iter()
-            .map(|x| {
-                let backend = format!("{}-{}", x.backend, x.device);
-                format!(
-                    "||{0:<15}||{1:<35}||{2:<15.3?}||\n",
-                    x.results.name, backend, x.results.computed.mean
-                )
-            })
-            .collect::<String>();
-        write!(f, "{}\n{}", header, rows)?;
+        )?;
+        for record in self.records.iter() {
+            let backend = [record.backend.clone(), record.device.clone()].join("-");
+            writeln!(
+                f,
+                "||{0:<15}||{1:<35}||{2:<15.3?}||",
+                record.results.name, backend, record.results.computed.mean
+            )?;
+        }
 
         Ok(())
     }
@@ -275,7 +270,7 @@ mod tests {
         assert!(record.results.computed.mean.as_micros() == 8629);
         assert!(record.results.computed.median.as_micros() == 8592);
         assert!(record.results.computed.min.as_micros() == 8506);
-        assert!(record.results.options == None);
+        assert!(record.results.options.is_none());
         assert!(record.results.shapes == vec![vec![32, 512, 1024]]);
         assert!(record.results.timestamp == 1710208069697);
         assert!(record.results.computed.variance.as_micros() == 0);
