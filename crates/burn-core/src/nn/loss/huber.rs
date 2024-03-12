@@ -38,11 +38,11 @@ impl HuberLossConfig {
 
 /// Calculate the Huber loss between the inputs and the target.
 ///
-/// The loss for each element of the residuals `res = targets - predictions` is given by
+/// The loss for each element of the residuals `r = targets - predictions` is given by
 ///
 /// ```text
-/// L(r) = 0.5 * x^2                    if |r| <= d
-/// L(r) = 0.5 * d^2 + d * (|err| - d)  if |r| >  d
+/// L(r) = 0.5 * x^2                  if |r| <= d
+/// L(r) = 0.5 * d^2 + d * (|r| - d)  if |r| >  d
 /// ```
 ///
 /// where `d` is the configured `delta`. In particular, this is equal to the
@@ -105,16 +105,15 @@ impl<B: Backend> HuberLoss<B> {
     /// - output: [...dims]
     pub fn forward_residuals<const D: usize>(&self, residuals: Tensor<B, D>) -> Tensor<B, D> {
         let is_large = residuals.clone().abs().greater_elem(self.delta);
-        // We are interested in `sign(res)` where `abs(res) > self.delta`. Note that the
-        // `sign()` function, in general, suffers from being undefined at 0 and is not even
-        // implemented in all backends!
-        // Instead the following tensor implements `delta * sign(res)` for values outside
+        // We are interested in `sign(r)` when `abs(r) > self.delta`. Note that the
+        // `sign()` function, in general, suffers from a jump at 0.
+        // Instead the following tensor implements `delta * sign(r)` for values outside
         // the bound:
         let softsign = residuals.clone().clamp(-self.delta, self.delta);
 
-        // 0.5 * d^2 + d * (|res| - d) =
-        // d * |res| - 0.5 * d^2
-        // Moreover |res| = sign(res) * res
+        // 0.5 * d^2 + d * (|r| - d) =
+        // d * |r| - 0.5 * d^2
+        // Moreover |r| = sign(r) * r
         let outside = softsign.mul(residuals.clone()).sub_scalar(self.lin_bias);
 
         let inside = residuals.powf_scalar(2.).mul_scalar(0.5);
