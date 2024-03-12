@@ -1,6 +1,5 @@
 use crate::codegen::dialect::gpu;
 use burn_tensor::Element;
-use num_traits::Float;
 
 /// The base element trait for the jit backend.
 pub trait JitElement:
@@ -23,7 +22,7 @@ where
 }
 
 /// The float element type for the jit backend.
-pub trait FloatElement: JitElement + Element + Float {}
+pub trait FloatElement: JitElement + Element {}
 
 /// The int element type for the jit backend.
 pub trait IntElement: JitElement + Element {}
