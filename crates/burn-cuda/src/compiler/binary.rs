@@ -165,8 +165,8 @@ pub trait Binary {
 macro_rules! operator {
     ($name:ident, $op:expr) => {
         operator!($name, $op, |_elem| InstructionSettings {
-            native_vec4: true,
-            native_vec3: true,
+            native_vec4: false,
+            native_vec3: false,
             native_vec2: true,
         });
     };
@@ -194,8 +194,8 @@ macro_rules! operator {
 macro_rules! function {
     ($name:ident, $op:expr) => {
         function!($name, $op, |_elem| InstructionSettings {
-            native_vec4: true,
-            native_vec3: true,
+            native_vec4: false,
+            native_vec3: false,
             native_vec2: true,
         });
     };

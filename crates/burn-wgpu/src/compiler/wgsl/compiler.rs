@@ -587,6 +587,14 @@ fn register_extensions(instructions: &[wgsl::Instruction]) -> Vec<wgsl::Extensio
             wgsl::Instruction::Tanh { input, out: _ } => {
                 register_extension(wgsl::Extension::SafeTanh(input.item()))
             }
+            wgsl::Instruction::If {
+                cond: _,
+                instructions,
+            } => {
+                for extension in register_extensions(instructions) {
+                    register_extension(extension);
+                }
+            }
             _ => {}
         }
     }

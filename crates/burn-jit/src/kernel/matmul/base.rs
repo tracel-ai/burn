@@ -6,7 +6,6 @@ use super::{
 };
 
 /// The strategy to be used when launching a matmul kernel.
-#[derive(Default)]
 pub enum MatmulStrategy {
     /// A simple kernel will be used with memory coalescing optimization.
     Simple {
@@ -21,11 +20,16 @@ pub enum MatmulStrategy {
     Tiling2dPadded,
     #[cfg(feature = "autotune")]
     /// Using autotune to chose the best kernel based on runtime information.
-    #[default]
     Autotune,
 }
 
 #[cfg(feature = "autotune")]
+impl Default for MatmulStrategy {
+    fn default() -> Self {
+        MatmulStrategy::Autotune
+    }
+}
+
 #[cfg(not(feature = "autotune"))]
 impl Default for MatmulStrategy {
     fn default() -> Self {

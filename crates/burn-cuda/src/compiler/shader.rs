@@ -50,6 +50,13 @@ impl Display for ComputeShader {
             "
 typedef unsigned int uint; 
 
+extern \"C\" struct bool4 {{
+    bool x;
+    bool y;
+    bool z;
+    bool w;
+}};
+
 extern \"C\" __global__ void kernel(
 ",
         ))?;

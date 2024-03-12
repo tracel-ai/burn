@@ -52,9 +52,9 @@ impl<MM: MemoryManagement<CudaStorage>> ComputeServer for CudaServer<MM> {
         if !self.module_names.contains_key(&kernel_id) {
             let name = format!("m{}", self.module_names.len());
             let source = kernel.source().complete();
-            println!("{source}");
+            // println!("{source}");
+            // println!("compiled {name}");
             let kernel = compile_ptx(source).unwrap();
-            println!("compiled {name}");
 
             self.device.load_ptx(kernel, &name, &["kernel"]).unwrap();
             self.module_names.insert(kernel_id.clone(), name);
@@ -147,7 +147,7 @@ impl<MM: MemoryManagement<CudaStorage>> CudaServer<MM> {
         unsafe {
             let func = self.device.get_func(module_name, "kernel").unwrap();
             let bindings = task.bindings;
-            println!("Execute task {module_name} - {bindings:?}");
+            //println!("Execute task {module_name} - {bindings:?}");
 
             match bindings.len() {
                 1 => func.launch(cfg, (bindings[0],)),

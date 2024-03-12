@@ -417,6 +417,7 @@ dependencies = [
  "burn-autodiff",
  "burn-candle",
  "burn-common",
+ "burn-cuda",
  "burn-dataset",
  "burn-derive",
  "burn-ndarray",
@@ -452,6 +453,7 @@ dependencies = [
  "bytemuck",
  "cudarc",
  "derive-new",
+ "half",
  "log",
 ]
 
@@ -551,6 +553,7 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "derive-new",
+ "half",
  "hashbrown 0.14.3",
  "log",
  "num-traits",

@@ -31,5 +31,12 @@ impl CudaElement for f32 {
     }
 }
 
+impl CudaElement for half::bf16 {
+    fn cuda_elem() -> compiler::Elem {
+        compiler::Elem::BF16
+    }
+}
+
 impl FloatElement for f32 {}
+impl FloatElement for half::bf16 {}
 impl IntElement for i32 {}

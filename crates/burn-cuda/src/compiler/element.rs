@@ -33,8 +33,20 @@ impl Display for Elem {
 impl Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Item::Vec4(elem) => f.write_fmt(format_args!("{elem}[4]")),
-            Item::Vec3(elem) => f.write_fmt(format_args!("{elem}[3]")),
+            Item::Vec4(elem) => match elem {
+                Elem::F32 => f.write_str("float4"),
+                Elem::I32 => f.write_str("int4"),
+                Elem::U32 => f.write_str("uint4"),
+                Elem::Bool => f.write_str("bool4"),
+                Elem::BF16 => f.write_str("bf164"),
+            },
+            Item::Vec3(elem) => match elem {
+                Elem::F32 => f.write_str("float3"),
+                Elem::I32 => f.write_str("int3"),
+                Elem::U32 => f.write_str("uint3"),
+                Elem::Bool => f.write_str("bool3"),
+                Elem::BF16 => f.write_str("bf163"),
+            },
             Item::Vec2(elem) => match elem {
                 Elem::F32 => f.write_str("float2"),
                 Elem::I32 => f.write_str("int2"),
