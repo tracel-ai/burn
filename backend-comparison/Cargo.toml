@@ -40,7 +40,6 @@ reqwest = {workspace = true, features = ["blocking", "json"]}
 serde_json = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
-termimad = "0.29.1"
 
 [dev-dependencies]
 rstest = { workspace = true }

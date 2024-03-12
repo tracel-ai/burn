@@ -83,7 +83,7 @@ pub fn save<B: Backend>(
         serde_json::to_writer_pretty(file, &record)
             .expect("Benchmark file should be updated with benchmark results");
 
-        // Write the benchmark result in a temp file to be picked by benchrun
+        // Append the benchmark result filepath in a temp file to be later picked by benchrun
         let curdir_filepath = env::current_dir()
             .expect("Cannot resolve current directory")
             .join("benchmark_results.txt");
@@ -154,11 +154,11 @@ impl Serialize for BenchmarkRecord {
             ("backend", &self.backend),
             ("device", &self.device),
             ("gitHash", &self.results.git_hash),
-            ("name", &self.results.name),
             ("max", &self.results.computed.max.as_micros()),
             ("mean", &self.results.computed.mean.as_micros()),
             ("median", &self.results.computed.median.as_micros()),
             ("min", &self.results.computed.min.as_micros()),
+            ("name", &self.results.name),
             ("numSamples", &self.results.raw.durations.len()),
             ("options", &self.results.options),
             ("rawDurations", &self.results.raw.durations),

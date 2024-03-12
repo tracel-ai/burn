@@ -14,6 +14,7 @@ use std::{
     process::{Command, ExitStatus, Stdio},
     thread, time,
 };
+
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 const FIVE_SECONDS: time::Duration = time::Duration::new(5, 0);
@@ -182,6 +183,11 @@ fn command_run(run_args: RunArgs) {
             return;
         }
     }
+    let total_combinations = run_args.backends.len() * run_args.benches.len();
+    println!(
+        "Executing the following benchmark and backend combinations (Total: {}):",
+        total_combinations
+    );
     let mut app = App::new();
     app.init();
     println!("Running benchmarks...");
@@ -211,13 +217,16 @@ pub(crate) fn run_backend_comparison_benchmarks(
     backends: &[BackendValues],
     token: Option<&str>,
 ) {
+    // Prefix and postfix for titles
     let filler = ["="; 10].join("");
 
-    // Delete the file containing file paths to benchmark results, if exists
+    // Delete the file containing file paths to benchmark results, if existing
     let result_path = current_dir()
         .expect("Cannot resolve current directory")
         .join("backend-comparison/benchmark_results.txt");
     fs::remove_file(result_path.clone()).ok();
+
+    // Iterate through every combination of benchmark and backend
     for bench in benches.iter() {
         for backend in backends.iter() {
             let bench_str = bench.to_string();
@@ -252,7 +261,8 @@ pub(crate) fn run_backend_comparison_benchmarks(
         }
     }
 
-    // Iterate over each combination of backend and bench
+    // Iterate though each benchmark result file present in backend-comparison/benchmark_results.txt
+    // and print them in a single table.
     let mut benchmark_results = BenchMarkCollection::default();
     if let Some(file) = fs::File::open(result_path.clone()).ok() {
         let file_reader = BufReader::new(file);
