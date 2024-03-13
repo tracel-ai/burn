@@ -223,7 +223,6 @@ impl MatmulTiling2dPaddedShader {
             results,
             offset_output,
             out,
-            batch,
         );
     }
 
@@ -294,10 +293,9 @@ impl MatmulTiling2dPaddedShader {
                     let lhs_vec4 = scope.create_local(shared_memory.item());
                     gpu!(scope, lhs_vec4 = vec4(lhs_0, lhs_1, lhs_2, lhs_3));
                     gpu!(scope, shared_memory[lhs_sm_position] = lhs_vec4);
+                }).else(|scope|{
+                    scope.register(Branch::Break); // TODO test if faster, else remove
                 }));
-                // }).else(|scope|{
-                // scope.register(Branch::Break); // TODO test if faster, else remove
-                // }));
             })
         );
     }
@@ -388,7 +386,6 @@ impl MatmulTiling2dPaddedShader {
         results: Variable,
         offset_output: Variable,
         out: Variable,
-        tmp: Variable,
     ) {
         let elem = results.item().elem();
 
@@ -446,7 +443,7 @@ impl<R: Runtime> DynamicKernelSource for MatmulTiling2dPaddedEagerKernel<R> {
         MatmulTiling2dPaddedShader {
             variables: gpu::BinaryOperator { lhs, rhs, out },
             config: self.config.clone(),
-            unroll: false,
+            unroll: true,
         }
         .expand(&mut scope);
 
@@ -516,8 +513,6 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
         }
         _ => round_rhs.into_tensor(),
     };
-    println!("{:?}", lhs.shape);
-    println!("{:?}", rhs.shape);
 
     let rounded_output_shape = shape_out(&lhs, &rhs);
 
@@ -529,7 +524,6 @@ pub fn matmul_tiling_2d_padded<R: Runtime, E: JitElement + Element, const D: usi
         rounded_output_shape.clone(),
         buffer,
     );
-    println!("{:?}", rounded_output.shape);
 
     Execution::start(kernel, client)
         .inputs(&[
